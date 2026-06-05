@@ -106,6 +106,8 @@ Company B: INV-0001, INV-0002   ← independent
 - Per-employee payslip PDF + full monthly payroll PDF & Excel
 - Auto-email payslips on run (uses T3)
 
+> **Note (audit correction):** "total received" is the sum of all the employee's payslips (not separately date-bounded), and the payroll journal debits salary expense at **net** (after deductions), not gross-with-separate-deduction-credits. Both are deliberate simplifications — balances and totals are correct.
+
 **Key files:** `app/models/payroll.py`, `app/services/payroll.py`, `app/routes/payroll.py`, `app/templates/payroll/*.html`
 
 ---
@@ -165,6 +167,7 @@ Journal posts balanced: Dr AR 2432.25 = Cr Revenue 2115 + Cr VAT Payable 317.25 
 - CASH/BANK → marked PAID immediately; CREDIT → POSTED awaiting payment
 - AP Aging shows credit balance, auto-overdue marking via cron
 - Cannot overpay (validated)
+- VAT on a bill (when `tax_rate > 0`) debits **2120 (VAT Payable)** for the input VAT — keeps the journal balanced and feeds the VAT report's "paid" column *(fixed post-audit; see Cycle 3)*
 
 **Key files:** `app/models/vendor_bill.py`, `app/services/vendor_bills.py`, `app/routes/vendor_bills.py`, `app/templates/vendor_bills/*.html`
 
@@ -172,7 +175,7 @@ Journal posts balanced: Dr AR 2432.25 = Cr Revenue 2115 + Cr VAT Payable 317.25 
 
 ## T8 — Reports Overhaul (10 reports)
 
-**All 10 reports have PDF + Excel export:**
+**All 11 reports have PDF + Excel export** *(Cash Flow export added post-audit — see Cycle 3):*
 
 | # | Report | Notes |
 |---|---|---|
@@ -225,7 +228,7 @@ Journal posts balanced: Dr AR 2432.25 = Cr Revenue 2115 + Cr VAT Payable 317.25 
 | | |
 |---|---|
 | **Brand rename** | LedgerOS → مرصود (Marsoud) across UI, emails, PDFs, README |
-| **Flask-Migrate** | Initialized; single initial migration `51e8090300d1_initial_schema.py` covering all 24 tables |
+| **Flask-Migrate** | Initial migration `51e8090300d1_initial_schema.py` creates **29 tables**; schema later evolved across **7 migration files** total (incl. a legacy-DB sync and the cycle-2 additions) |
 | **Setup script** | `setup.py` — re-runnable bootstrap (env / migrations / seed) |
 | **`.flaskenv`** | Sets `FLASK_APP=flask_app.py` so all `flask` commands work without env var |
 | **Cron tick endpoint** | `POST /cron/tick` — runs overdue marking, invoice reminders, recurring journals in one call |
@@ -235,9 +238,9 @@ Journal posts balanced: Dr AR 2432.25 = Cr Revenue 2115 + Cr VAT Payable 317.25 
 
 ## Stats
 
-- **67 → 82 routes** added during this cycle
-- **24 database tables** in initial migration
-- **9 tickets at 100% spec match**
-- **20 working export endpoints** (10 reports × PDF + Excel)
+- **29 database tables** in the initial migration
+- **9 tickets** implemented (see Cycle 3 for post-audit corrections)
+- **22 working export endpoints** (11 reports × PDF + Excel — Cash Flow added in Cycle 3)
 - **6 new modules** + **5 new email templates**
-- **91 files** in shipping commit (62 modified, 29 new)
+
+> Earlier drafts of this file claimed "24 tables", "single migration", and "20 export endpoints (10 reports)". Those were inaccurate and have been corrected above.

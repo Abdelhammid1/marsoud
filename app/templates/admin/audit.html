@@ -1,0 +1,78 @@
+{% extends "admin/base.html" %}
+{% block page_title %}سجل النشاط (Audit Log){% endblock %}
+{% block content %}
+
+<div class="card p-4 mb-4">
+<form method="GET" class="grid grid-cols-6 gap-3 items-end">
+  <div>
+    <label class="block text-xs text-ink-200 mb-1">الشركة</label>
+    <select name="company_id" class="select">
+      <option value="">— الكل —</option>
+      {% for c in companies_list %}
+      <option value="{{ c.id }}" {% if selected_company==c.id %}selected{% endif %}>{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs text-ink-200 mb-1">معرّف مستخدم</label>
+    <input type="number" name="user_id" value="{{ selected_user or '' }}" class="input" placeholder="ID">
+  </div>
+  <div>
+    <label class="block text-xs text-ink-200 mb-1">الإجراء</label>
+    <select name="action" class="select">
+      <option value="">— الكل —</option>
+      {% for a in actions %}
+      <option value="{{ a }}" {% if selected_action==a %}selected{% endif %}>{{ a }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs text-ink-200 mb-1">من تاريخ</label>
+    <input type="date" name="date_from" value="{{ date_from }}" class="input">
+  </div>
+  <div>
+    <label class="block text-xs text-ink-200 mb-1">إلى تاريخ</label>
+    <input type="date" name="date_to" value="{{ date_to }}" class="input">
+  </div>
+  <button type="submit" class="btn btn-primary">تطبيق</button>
+</form>
+</div>
+
+<div class="card p-0 overflow-hidden">
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>الوقت</th>
+      <th>المصدر</th>
+      <th>الإجراء</th>
+      <th>الفاعل</th>
+      <th>الشركة الهدف</th>
+      <th>المستخدم الهدف</th>
+      <th>IP</th>
+      <th>تفاصيل</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td class="font-mono text-xs">{{ r.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+      <td>
+        {% if r.source == 'platform' %}<span class="badge badge-bad">PLATFORM</span>
+        {% else %}<span class="badge badge-neutral">JOURNAL</span>{% endif %}
+      </td>
+      <td><span class="badge badge-neutral">{{ r.action }}</span></td>
+      <td class="text-ink-200">{{ r.actor_email or '—' }}</td>
+      <td class="text-ink-200">{{ r.target_company or '—' }}</td>
+      <td class="text-ink-200">{{ r.target_user_email or '—' }}</td>
+      <td class="font-mono text-xs">{{ r.ip or '—' }}</td>
+      <td class="text-xs">{{ (r.details or '')[:120] }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="text-center text-ink-200 py-6">لا توجد نشاطات مطابقة.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<div class="text-xs text-ink-200 mt-3">عرض آخر {{ rows|length }} حدث (الحد الأقصى 500).</div>
+{% endblock %}

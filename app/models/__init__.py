@@ -24,8 +24,10 @@ from app.models.refund import Refund, RefundType, CreditNote
 from app.models.invitation import Invitation
 from app.models.agent_chat import AgentMessage
 from app.models.numbering import NumberSequence
+from app.models.platform_audit import PlatformAuditLog, SuperadminImpersonation, PlatformError
 
 __all__ = [
+    "PlatformAuditLog", "SuperadminImpersonation", "PlatformError",
     "User", "user_companies", "Company",
     "Account", "AccountType", "NormalSide",
     "JournalEntry", "JournalLine",

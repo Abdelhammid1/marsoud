@@ -179,6 +179,23 @@ tailwind.config = {
         <span class="text-base">👤</span>
         <span>أعضاء الشركة</span>
       </a>
+      {% if active_company %}
+      {% set is_settings_active = request.endpoint == 'companies.edit' %}
+      <a href="{{ url_for('companies.edit', company_id=active_company.id) }}"
+         class="nav-link flex items-center gap-3 px-5 py-2.5 text-sm hover:bg-white/5 transition-colors {% if is_settings_active %}active{% endif %}">
+        <span class="text-base">⚙️</span>
+        <span>إعدادات الشركة</span>
+      </a>
+      {% endif %}
+      {% endif %}
+      {% if current_user.is_authenticated and current_user.is_superadmin %}
+      <div class="mt-4 px-5 text-[10px] uppercase tracking-wider text-navy-200">المنصة</div>
+      {% set is_admin_active = request.endpoint and request.endpoint.startswith('superadmin.') %}
+      <a href="{{ url_for('superadmin.dashboard') }}"
+         class="nav-link flex items-center gap-3 px-5 py-2.5 text-sm hover:bg-white/5 transition-colors {% if is_admin_active %}active{% endif %}">
+        <span class="text-base">🛡️</span>
+        <span>لوحة المالك</span>
+      </a>
       {% endif %}
     </nav>
 
@@ -198,6 +215,17 @@ tailwind.config = {
 
   <!-- Main -->
   <main class="flex-1 mr-64 min-h-screen">
+    {% if impersonating %}
+    <div class="bg-rose-600 text-white px-6 py-2 flex items-center justify-between text-sm">
+      <div>
+        <strong>👁️ وضع المعاينة (View-As)</strong> — أنت تشاهد بيانات
+        <strong>{{ active_company.name }}</strong> كمالك منصة. التعديل والحفظ معطّلان.
+      </div>
+      <form method="POST" action="{{ url_for('superadmin.view_as_stop') }}">
+        <button type="submit" class="bg-white/20 hover:bg-white/30 rounded-md px-3 py-1 text-xs font-semibold">إنهاء المعاينة</button>
+      </form>
+    </div>
+    {% endif %}
     <header class="bg-white/80 backdrop-blur border-b border-slate-200 sticky top-0 z-30">
       <div class="px-8 py-4 flex items-center justify-between">
         <h1 class="text-xl font-bold text-navy-900">{% block page_title %}{% endblock %}</h1>

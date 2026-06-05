@@ -1,0 +1,81 @@
+{% extends "admin/base.html" %}
+{% block page_title %}النظرة العامة{% endblock %}
+{% block content %}
+
+<div class="grid grid-cols-4 gap-4 mb-6">
+  <div class="stat p-5">
+    <div class="text-xs text-ink-200 mb-1">إجمالي الشركات</div>
+    <div class="text-3xl font-bold text-white">{{ total_companies }}</div>
+    <div class="text-xs text-ink-200 mt-2">
+      <span class="text-emerald-300">{{ active_companies }} نشطة</span>
+      · <span class="text-amber-300">{{ trial_companies }} تجريبية</span>
+      · <span class="text-rose-300">{{ suspended_companies }} موقوفة</span>
+    </div>
+  </div>
+  <div class="stat-muted p-5">
+    <div class="text-xs text-ink-200 mb-1">إجمالي المستخدمين</div>
+    <div class="text-3xl font-bold text-white">{{ total_users }}</div>
+    <div class="text-xs text-ink-200 mt-2">
+      <span class="text-amber-300">{{ active_24h }}</span> آخر 24س ·
+      <span class="text-sky-300">{{ active_7d }}</span> آخر 7 أيام
+    </div>
+  </div>
+  <div class="stat-muted p-5">
+    <div class="text-xs text-ink-200 mb-1">إجمالي القيود</div>
+    <div class="text-3xl font-bold text-white">{{ total_journals }}</div>
+    <div class="text-xs text-ink-200 mt-2">عبر كل الشركات</div>
+  </div>
+  <div class="stat-muted p-5">
+    <div class="text-xs text-ink-200 mb-1">إجمالي الفواتير</div>
+    <div class="text-3xl font-bold text-white">{{ total_invoices }}</div>
+    <div class="text-xs text-ink-200 mt-2">عبر كل الشركات</div>
+  </div>
+</div>
+
+<div class="grid grid-cols-2 gap-4">
+  <div class="card p-5">
+    <h3 class="font-bold text-white mb-3 flex items-center gap-2">
+      <span>🟢</span> آخر تسجيلات الدخول
+    </h3>
+    {% if last_logins %}
+    <table class="data-table">
+      <thead><tr><th>المستخدم</th><th>البريد</th><th>آخر دخول</th></tr></thead>
+      <tbody>
+      {% for u in last_logins %}
+        <tr>
+          <td>{{ u.full_name }}</td>
+          <td class="text-ink-200">{{ u.email }}</td>
+          <td class="font-mono text-xs">{{ u.last_login_at.strftime('%Y-%m-%d %H:%M') if u.last_login_at else '—' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="text-sm text-ink-200">لا توجد تسجيلات دخول حتى الآن.</div>
+    {% endif %}
+  </div>
+
+  <div class="card p-5">
+    <h3 class="font-bold text-white mb-3 flex items-center gap-2">
+      <span>📜</span> آخر النشاطات
+    </h3>
+    {% if recent_audit %}
+    <table class="data-table">
+      <thead><tr><th>الإجراء</th><th>الفاعل</th><th>الوقت</th></tr></thead>
+      <tbody>
+      {% for r in recent_audit %}
+        <tr>
+          <td><span class="badge badge-neutral">{{ r.action }}</span></td>
+          <td class="text-ink-200">{{ r.actor.email if r.actor else '—' }}</td>
+          <td class="font-mono text-xs">{{ r.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="text-sm text-ink-200">لا توجد نشاطات مسجّلة بعد.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

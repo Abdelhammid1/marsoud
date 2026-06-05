@@ -1,0 +1,76 @@
+{% extends "admin/base.html" %}
+{% block page_title %}إدارة الشركات{% endblock %}
+{% block content %}
+
+<div class="card p-4 mb-4 flex items-end gap-3">
+  <form method="GET" class="flex items-end gap-3 flex-grow">
+    <div class="flex-grow">
+      <label class="block text-xs text-ink-200 mb-1">بحث باسم الشركة</label>
+      <input type="text" name="q" value="{{ q }}" class="input" placeholder="اكتب اسم الشركة...">
+    </div>
+    <button type="submit" class="btn btn-primary">بحث</button>
+  </form>
+</div>
+
+<div class="card p-0 overflow-hidden">
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>الشركة</th>
+      <th>تاريخ الإنشاء</th>
+      <th>المستخدمون</th>
+      <th>القيود</th>
+      <th>الفواتير</th>
+      <th>آخر نشاط</th>
+      <th>الحالة</th>
+      <th>الإجراءات</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td>
+        <a href="{{ url_for('superadmin.company_detail', company_id=r.company.id) }}"
+           class="text-white font-semibold hover:underline">{{ r.company.name }}</a>
+        <div class="text-xs text-ink-200">{{ r.company.base_currency }} · ضريبة {{ r.company.vat_rate }}%</div>
+      </td>
+      <td class="font-mono text-xs">{{ r.company.created_at.strftime('%Y-%m-%d') if r.company.created_at else '—' }}</td>
+      <td>{{ r.users }}</td>
+      <td>{{ r.journals }}</td>
+      <td>{{ r.invoices }}</td>
+      <td class="font-mono text-xs">{{ r.last_activity.strftime('%Y-%m-%d %H:%M') if r.last_activity else '—' }}</td>
+      <td>
+        {% set s = r.company.status or 'ACTIVE' %}
+        {% if s == 'ACTIVE' %}<span class="badge badge-ok">نشطة</span>
+        {% elif s == 'TRIAL' %}<span class="badge" style="background:rgba(245,158,11,0.18);color:#FCD34D;">تجريبية</span>
+        {% else %}<span class="badge badge-bad">موقوفة</span>{% endif %}
+        <span class="badge badge-neutral mr-1">{{ r.company.plan or 'FREE' }}</span>
+      </td>
+      <td>
+        <div class="flex items-center gap-2">
+          <a href="{{ url_for('superadmin.company_detail', company_id=r.company.id) }}" class="btn btn-secondary">عرض</a>
+          <a href="{{ url_for('superadmin.company_edit', company_id=r.company.id) }}" class="btn btn-secondary">تعديل</a>
+          <form method="POST" action="{{ url_for('superadmin.view_as', company_id=r.company.id) }}">
+            <button type="submit" class="btn btn-secondary" title="ادخل كمعاينة">👁️ معاينة</button>
+          </form>
+          <form method="POST" action="{{ url_for('superadmin.company_toggle', company_id=r.company.id) }}">
+            {% set is_susp = (r.company.status or 'ACTIVE') == 'SUSPENDED' %}
+            <button type="submit" class="btn {% if not is_susp %}btn-danger{% else %}btn-secondary{% endif %}">
+              {{ 'تفعيل' if is_susp else 'إيقاف' }}
+            </button>
+          </form>
+          <form method="POST" action="{{ url_for('superadmin.company_delete', company_id=r.company.id) }}"
+                onsubmit="return confirm('تأكيد حذف الشركة {{ r.company.name|e }}؟')">
+            <button type="submit" class="btn btn-danger">حذف</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" class="text-center text-ink-200 py-6">لا توجد شركات.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% endblock %}

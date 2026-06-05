@@ -173,6 +173,14 @@ def post_vendor_bill(bill, created_by=None):
         bill.status = VendorBillStatus.POSTED
 
     db.session.commit()
+    try:
+        from app.services.superadmin import log_platform_action
+        log_platform_action("vendor_bill_posted",
+                            target_company_id=bill.company_id,
+                            actor_id=created_by,
+                            details=f"#{bill.number} total={bill.total}")
+    except Exception:
+        pass
     return bill
 
 

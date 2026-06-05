@@ -1,0 +1,83 @@
+{% extends "admin/base.html" %}
+{% block page_title %}{{ company.name }}{% endblock %}
+{% block content %}
+
+<div class="grid grid-cols-3 gap-4 mb-6">
+  <div class="stat-muted p-5">
+    <div class="text-xs text-ink-200">العملة</div>
+    <div class="text-2xl font-bold text-white">{{ company.base_currency }}</div>
+  </div>
+  <div class="stat-muted p-5">
+    <div class="text-xs text-ink-200">نسبة الضريبة</div>
+    <div class="text-2xl font-bold text-white">{{ company.vat_rate }}%</div>
+  </div>
+  <div class="stat-muted p-5">
+    <div class="text-xs text-ink-200">الحالة</div>
+    {% set s = company.status or 'ACTIVE' %}
+    <div class="text-2xl font-bold {% if s=='ACTIVE' %}text-emerald-300{% elif s=='TRIAL' %}text-amber-300{% else %}text-rose-300{% endif %}">
+      {{ {'ACTIVE':'نشطة','TRIAL':'تجريبية','SUSPENDED':'موقوفة'}[s] }}
+    </div>
+    <div class="text-xs text-ink-200 mt-1">الباقة: <span class="font-semibold text-white">{{ company.plan or 'FREE' }}</span></div>
+  </div>
+</div>
+
+<div class="flex gap-2 mb-4">
+  <a href="{{ url_for('superadmin.company_edit', company_id=company.id) }}" class="btn btn-primary">تعديل الإعدادات</a>
+  <a href="{{ url_for('superadmin.errors_for_company', company_id=company.id) }}" class="btn btn-secondary">🛑 الأخطاء الأخيرة</a>
+  <form method="POST" action="{{ url_for('superadmin.view_as', company_id=company.id) }}">
+    <button type="submit" class="btn btn-secondary">👁️ ادخل كمعاينة</button>
+  </form>
+  <form method="POST" action="{{ url_for('superadmin.company_toggle', company_id=company.id) }}">
+    <button type="submit" class="btn {% if company.is_active %}btn-danger{% else %}btn-secondary{% endif %}">
+      {{ 'إيقاف الشركة' if company.is_active else 'إعادة تفعيل' }}
+    </button>
+  </form>
+</div>
+
+<div class="grid grid-cols-2 gap-4">
+  <div class="card p-5">
+    <h3 class="font-bold text-white mb-3">👥 المستخدمون ({{ company_users|length }})</h3>
+    <table class="data-table">
+      <thead><tr><th>الاسم</th><th>البريد</th><th>الدور</th><th></th></tr></thead>
+      <tbody>
+      {% for user, role in company_users %}
+        <tr>
+          <td>{{ user.full_name }}</td>
+          <td class="text-ink-200">{{ user.email }}</td>
+          <td><span class="badge badge-neutral">{{ role or '—' }}</span></td>
+          <td>
+            <form method="POST" action="{{ url_for('superadmin.user_unlink', user_id=user.id, company_id=company.id) }}"
+                  onsubmit="return confirm('فك ربط {{ user.email }} من {{ company.name|e }}؟')">
+              <button type="submit" class="btn btn-danger">فك الربط</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4" class="text-center text-ink-200 py-3">لا يوجد مستخدمون.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card p-5">
+    <h3 class="font-bold text-white mb-3">📜 آخر النشاطات على هذه الشركة</h3>
+    {% if recent_activity %}
+    <table class="data-table">
+      <thead><tr><th>الإجراء</th><th>الفاعل</th><th>الوقت</th></tr></thead>
+      <tbody>
+      {% for r in recent_activity %}
+        <tr>
+          <td><span class="badge badge-neutral">{{ r.action }}</span></td>
+          <td class="text-ink-200">{{ r.actor.email if r.actor else '—' }}</td>
+          <td class="font-mono text-xs">{{ r.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="text-sm text-ink-200">لا توجد نشاطات بعد.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

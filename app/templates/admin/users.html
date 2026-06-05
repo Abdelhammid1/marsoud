@@ -1,0 +1,70 @@
+{% extends "admin/base.html" %}
+{% block page_title %}إدارة المستخدمين{% endblock %}
+{% block content %}
+
+<div class="card p-4 mb-4 flex items-end gap-3">
+  <form method="GET" class="flex items-end gap-3 flex-grow">
+    <div class="flex-grow">
+      <label class="block text-xs text-ink-200 mb-1">بحث (بريد / اسم)</label>
+      <input type="text" name="q" value="{{ q }}" class="input" placeholder="اكتب البريد أو الاسم...">
+    </div>
+    <button type="submit" class="btn btn-primary">بحث</button>
+  </form>
+</div>
+
+<div class="card p-0 overflow-hidden">
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>الاسم</th>
+      <th>البريد</th>
+      <th>الشركات</th>
+      <th>آخر دخول</th>
+      <th>الحالة</th>
+      <th>الإجراءات</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for u in rows %}
+    <tr>
+      <td>
+        {{ u.full_name }}
+        {% if u.is_superadmin %}<span class="badge badge-bad mr-2">ADMIN</span>{% endif %}
+      </td>
+      <td class="text-ink-200">{{ u.email }}</td>
+      <td>
+        {% for c in u.companies %}<span class="badge badge-neutral">{{ c.name }}</span> {% endfor %}
+        {% if not u.companies %}<span class="text-ink-200 text-xs">—</span>{% endif %}
+      </td>
+      <td class="font-mono text-xs">{{ u.last_login_at.strftime('%Y-%m-%d %H:%M') if u.last_login_at else '—' }}</td>
+      <td>
+        {% if u.is_active %}<span class="badge badge-ok">نشط</span>
+        {% else %}<span class="badge badge-bad">موقوف</span>{% endif %}
+      </td>
+      <td>
+        <div class="flex items-center gap-2 flex-wrap">
+          <form method="POST" action="{{ url_for('superadmin.user_toggle', user_id=u.id) }}">
+            <button type="submit" class="btn {% if u.is_active %}btn-danger{% else %}btn-secondary{% endif %}">
+              {{ 'إيقاف' if u.is_active else 'تفعيل' }}
+            </button>
+          </form>
+          <form method="POST" action="{{ url_for('superadmin.user_reset_password', user_id=u.id) }}"
+                class="flex items-center gap-1"
+                onsubmit="return confirm('إعادة تعيين كلمة المرور لـ {{ u.email }}؟')">
+            <input type="text" name="new_password" placeholder="كلمة مرور جديدة" class="input" style="width:140px;padding:4px 8px;font-size:11px">
+            <button type="submit" class="btn btn-secondary">إعادة تعيين</button>
+          </form>
+          <form method="POST" action="{{ url_for('superadmin.user_resend_invite', user_id=u.id) }}">
+            <button type="submit" class="btn btn-secondary">إعادة الدعوة</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" class="text-center text-ink-200 py-6">لا يوجد مستخدمون.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% endblock %}

@@ -1,8 +1,10 @@
+from datetime import datetime
 from flask import Blueprint, render_template, redirect, url_for, flash, request, session
 from flask_login import login_user, logout_user, login_required, current_user
 from app import db
 from app.models import User, Company
 from app.services.seed_coa import seed_default_coa
+from app.services.superadmin import log_platform_action, end_impersonation
 
 bp = Blueprint("auth", __name__)
 
@@ -16,9 +18,23 @@ def login():
         password = request.form.get("password", "")
         user = User.query.filter_by(email=email).first()
         if user and user.check_password(password):
+            if not user.is_active:
+                flash("الحساب موقوف. تواصل مع مالك المنصة.", "error")
+                return render_template("auth/login.html")
+            active_companies = [c for c in user.companies
+                                if (c.status or "ACTIVE") != "SUSPENDED"]
+            if user.companies and not active_companies and not user.is_superadmin:
+                flash("كل شركاتك موقوفة. تواصل مع مالك المنصة.", "error")
+                return render_template("auth/login.html")
             login_user(user, remember=True)
-            if user.companies:
-                session["active_company_id"] = user.companies[0].id
+            user.last_login_at = datetime.utcnow()
+            db.session.commit()
+            log_platform_action("user_login", actor_id=user.id,
+                                target_user_id=user.id)
+            if active_companies:
+                session["active_company_id"] = active_companies[0].id
+            if user.is_superadmin:
+                return redirect(url_for("superadmin.dashboard"))
             return redirect(url_for("dashboard.index"))
         flash("بيانات الدخول غير صحيحة", "error")
     return render_template("auth/login.html")
@@ -60,6 +76,7 @@ def register():
 @bp.route("/logout")
 @login_required
 def logout():
+    end_impersonation()
     logout_user()
     session.pop("active_company_id", None)
     return redirect(url_for("auth.login"))

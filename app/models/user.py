@@ -19,6 +19,9 @@ class User(UserMixin, db.Model):
     full_name = db.Column(db.String(150), nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     locale = db.Column(db.String(5), default="ar")
+    is_superadmin = db.Column(db.Boolean, default=False, nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    last_login_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     companies = db.relationship(

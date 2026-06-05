@@ -23,6 +23,8 @@ class Company(db.Model):
     timezone = db.Column(db.String(50), default="Asia/Riyadh")
     parent_id = db.Column(db.Integer, db.ForeignKey("companies.id"))  # sub-company hierarchy
     is_active = db.Column(db.Boolean, default=True)
+    status = db.Column(db.String(20), default="ACTIVE", nullable=False)
+    plan = db.Column(db.String(30), default="FREE", nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

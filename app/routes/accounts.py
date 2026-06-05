@@ -274,6 +274,14 @@ def edit(account_id):
                 d.normal_side = NORMAL_SIDE_FOR_TYPE[acc_type]
 
         db.session.commit()
+        try:
+            from app.services.superadmin import log_platform_action
+            log_platform_action("account_edited",
+                                target_company_id=acc.company_id,
+                                actor_id=current_user.id,
+                                details=f"#{acc.code} — {acc.name}")
+        except Exception:
+            pass
         flash(f"تم تعديل الحساب {acc.code}", "success")
         return redirect(url_for("accounts.index"))
 

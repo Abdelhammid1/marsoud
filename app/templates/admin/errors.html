@@ -1,0 +1,47 @@
+{% extends "admin/base.html" %}
+{% block page_title %}
+سجل الأخطاء{% if scope_company %} — {{ scope_company.name }}{% endif %}
+{% endblock %}
+{% block content %}
+
+<div class="card p-4 mb-4 text-sm text-ink-200">
+  أحدث 200 خطأ {% if scope_company %}لهذه الشركة{% else %}عبر المنصة{% endif %}.
+  {% if not scope_company %}
+  <a href="{{ url_for('superadmin.companies') }}" class="text-rose-300 mr-2">← عرض حسب الشركة</a>
+  {% else %}
+  <a href="{{ url_for('superadmin.errors_global') }}" class="text-rose-300 mr-2">← كل المنصة</a>
+  {% endif %}
+</div>
+
+<div class="card p-0 overflow-hidden">
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>الوقت</th>
+      <th>المسار</th>
+      <th>الطريقة</th>
+      <th>الكود</th>
+      <th>المستخدم</th>
+      <th>الشركة</th>
+      <th>الرسالة</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td class="font-mono text-xs">{{ r.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+      <td class="font-mono text-xs">{{ r.route }}</td>
+      <td><span class="badge badge-neutral">{{ r.method }}</span></td>
+      <td><span class="badge badge-bad">{{ r.status_code }}</span></td>
+      <td class="text-ink-200">{{ r.user.email if r.user else '—' }}</td>
+      <td class="text-ink-200">{{ r.company.name if r.company else '—' }}</td>
+      <td class="text-xs"><code>{{ (r.message or '')[:200] }}</code></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="text-center text-ink-200 py-6">لا توجد أخطاء مسجّلة 🎉</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% endblock %}

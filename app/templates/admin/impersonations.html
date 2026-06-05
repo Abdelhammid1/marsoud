@@ -1,0 +1,42 @@
+{% extends "admin/base.html" %}
+{% block page_title %}سجل المعاينات (View-As){% endblock %}
+{% block content %}
+
+<div class="card p-0 overflow-hidden">
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>المالك</th>
+      <th>الشركة</th>
+      <th>بداية</th>
+      <th>نهاية</th>
+      <th>المدة</th>
+      <th>IP</th>
+      <th>السبب</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td class="text-ink-200">{{ r.superadmin.email if r.superadmin else '—' }}</td>
+      <td>{{ r.company.name if r.company else '—' }}</td>
+      <td class="font-mono text-xs">{{ r.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td class="font-mono text-xs">
+        {% if r.ended_at %}{{ r.ended_at.strftime('%Y-%m-%d %H:%M') }}
+        {% else %}<span class="badge badge-bad">نشطة</span>{% endif %}
+      </td>
+      <td class="text-xs">
+        {% if r.ended_at %}{{ ((r.ended_at - r.started_at).total_seconds() / 60)|round(1) }} د
+        {% else %}—{% endif %}
+      </td>
+      <td class="font-mono text-xs">{{ r.ip_address or '—' }}</td>
+      <td class="text-xs">{{ r.reason or '—' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" class="text-center text-ink-200 py-6">لا توجد معاينات مسجّلة بعد.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% endblock %}

@@ -155,6 +155,14 @@ def new():
                 invoice.status = InvoiceStatus.SENT
                 post_invoice_to_ledger(invoice, created_by=current_user.id)
             db.session.commit()
+            try:
+                from app.services.superadmin import log_platform_action
+                log_platform_action("invoice_created",
+                                    target_company_id=invoice.company_id,
+                                    actor_id=current_user.id,
+                                    details=f"#{invoice.number}")
+            except Exception:
+                pass
             if should_send and email_customer:
                 send_invoice_notification(invoice)
             flash(f"تم إنشاء الفاتورة {invoice.number}", "success")
@@ -276,6 +284,14 @@ def pay(invoice_id):
             payment_method_id=int(pmid) if pmid else None,
             created_by=current_user.id, notify=notify,
         )
+        try:
+            from app.services.superadmin import log_platform_action
+            log_platform_action("invoice_paid",
+                                target_company_id=invoice.company_id,
+                                actor_id=current_user.id,
+                                details=f"#{invoice.number} amount={amount:.2f}")
+        except Exception:
+            pass
         flash(f"تم تسجيل دفعة {amount:.2f}", "success")
     except LedgerError as e:
         flash(str(e), "error")
@@ -297,6 +313,14 @@ def refund(invoice_id):
         notify = request.form.get("email_customer") == "1"
         issue_refund(invoice, rtype, amount=amount, reason=reason,
                      created_by=current_user.id, notify=notify)
+        try:
+            from app.services.superadmin import log_platform_action
+            log_platform_action("invoice_refunded",
+                                target_company_id=invoice.company_id,
+                                actor_id=current_user.id,
+                                details=f"#{invoice.number} reason={reason[:60]}")
+        except Exception:
+            pass
         flash("تم تسجيل الاسترداد", "success")
     except (LedgerError, KeyError) as e:
         flash(str(e), "error")

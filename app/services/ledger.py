@@ -79,6 +79,13 @@ def post_journal(
         db.session.add(jl)
 
     db.session.commit()
+    try:
+        from app.services.superadmin import log_platform_action
+        log_platform_action("journal_created", target_company_id=company_id,
+                            actor_id=created_by,
+                            details=f"#{entry.number} — {description[:60]}")
+    except Exception:
+        pass
     return entry
 
 
@@ -128,6 +135,13 @@ def reverse_journal(entry_id, created_by=None):
         db.session.add(jl)
 
     db.session.commit()
+    try:
+        from app.services.superadmin import log_platform_action
+        log_platform_action("journal_reversed", target_company_id=entry.company_id,
+                            actor_id=created_by,
+                            details=f"#{entry.number} reverses #{original.number}")
+    except Exception:
+        pass
     return entry
 
 

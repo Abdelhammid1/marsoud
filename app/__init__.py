@@ -42,6 +42,7 @@ def create_app(config_class=Config):
     from app.routes.vendor_bills import bp as vbills_bp
     from app.routes.users import bp as users_bp
     from app.routes.invitations import bp as invitations_bp
+    from app.routes.superadmin import bp as superadmin_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -61,22 +62,43 @@ def create_app(config_class=Config):
     app.register_blueprint(vbills_bp, url_prefix="/vendor-bills")
     app.register_blueprint(users_bp, url_prefix="/users")
     app.register_blueprint(invitations_bp, url_prefix="/invitations")
+    app.register_blueprint(superadmin_bp, url_prefix="/admin")
 
     @app.before_request
     def load_active_company():
         from flask_login import current_user
+        from flask import abort
+        from app.services.superadmin import IMPERSONATION_SESSION_KEY
         g.active_company = None
         g.user_companies = []
+        g.impersonating = False
         if current_user.is_authenticated:
-            g.user_companies = current_user.companies
-            cid = session.get("active_company_id")
-            if cid:
-                comp = db.session.get(Company, cid)
-                if comp and comp in current_user.companies:
+            non_suspended = [c for c in current_user.companies
+                             if (c.status or "ACTIVE") != "SUSPENDED"]
+            g.user_companies = non_suspended
+            # Super-admin view-as: hijack active company to the impersonated one
+            view_as_id = session.get(IMPERSONATION_SESSION_KEY)
+            if view_as_id and getattr(current_user, "is_superadmin", False):
+                comp = db.session.get(Company, view_as_id)
+                if comp:
                     g.active_company = comp
-            if not g.active_company and current_user.companies:
-                g.active_company = current_user.companies[0]
-                session["active_company_id"] = g.active_company.id
+                    g.impersonating = True
+                    # Read-only enforcement: block any non-GET on tenant routes
+                    if (request.method != "GET"
+                            and request.endpoint
+                            and not request.endpoint.startswith("superadmin.")
+                            and request.endpoint not in (
+                                "auth.logout", "superadmin.view_as_stop")):
+                        abort(403, "وضع المعاينة للقراءة فقط")
+            if not g.active_company:
+                cid = session.get("active_company_id")
+                if cid:
+                    comp = db.session.get(Company, cid)
+                    if comp and comp in non_suspended:
+                        g.active_company = comp
+                if not g.active_company and non_suspended:
+                    g.active_company = non_suspended[0]
+                    session["active_company_id"] = g.active_company.id
 
     @app.context_processor
     def inject_globals():
@@ -94,7 +116,32 @@ def create_app(config_class=Config):
             "now": datetime.utcnow(),
             "has_permission": has_permission,
             "current_role": current_role,
+            "impersonating": g.get("impersonating", False),
         }
+
+    @app.errorhandler(500)
+    def _capture_500(e):
+        import traceback as _tb
+        from flask_login import current_user
+        try:
+            from app.models import PlatformError
+            company_id = g.active_company.id if g.get("active_company") else None
+            user_id = current_user.id if current_user.is_authenticated else None
+            row = PlatformError(
+                company_id=company_id,
+                user_id=user_id,
+                route=request.path,
+                method=request.method,
+                status_code=500,
+                message=str(e)[:500],
+                traceback=_tb.format_exc()[:5000],
+                ip_address=request.remote_addr,
+            )
+            db.session.add(row)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+        return ("Internal Server Error", 500)
 
     @app.template_filter("money")
     def money_filter(value, currency=None):
