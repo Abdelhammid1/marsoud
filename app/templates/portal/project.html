@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block page_title %}{{ project.name }}{% endblock %}
+{% block content %}
+<div class="mb-5">
+  <a href="{{ url_for('portal.index') }}" class="text-sm text-brand-600 hover:underline">← العودة لمشاريعي</a>
+</div>
+
+<div class="grid grid-cols-3 gap-4">
+  <div class="card p-6 col-span-2">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-2xl font-bold text-navy-900">{{ project.name }}</h2>
+        <div class="text-sm text-slate-500 mt-1">{{ project.type }}</div>
+      </div>
+      <span class="badge {{ project.status.badge_class }} text-base px-3 py-1.5">{{ project.status.label_ar }}</span>
+    </div>
+
+    <div class="bg-slate-50 rounded-lg p-4 mb-5">
+      <div class="flex items-center justify-between mb-2 text-sm">
+        <span>التقدم الإجمالي</span>
+        <span class="font-mono font-bold">{{ "%.0f"|format(project.progress_pct) }}%</span>
+      </div>
+      <div class="bg-white rounded-full h-3 overflow-hidden">
+        <div class="bg-gradient-to-l from-brand-400 to-brand-700 h-full" style="width: {{ project.progress_pct }}%"></div>
+      </div>
+    </div>
+
+    {% if current_milestone %}
+    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-5">
+      <div class="text-xs text-emerald-700 font-semibold mb-1">🎯 المرحلة الحالية</div>
+      <div class="font-bold text-emerald-800">{{ current_milestone.name }}</div>
+      {% if current_milestone.target_date %}<div class="text-xs text-emerald-700 mt-1">هدف: {{ current_milestone.target_date.isoformat() }}</div>{% endif %}
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm mb-4">
+      <div><span class="text-slate-500">تاريخ البداية:</span> <span class="font-mono">{{ project.start_date.isoformat() }}</span></div>
+      <div><span class="text-slate-500">تاريخ التسليم المتوقع:</span> <span class="font-mono">{{ project.end_date.isoformat() }}</span></div>
+    </div>
+
+    <hr class="my-4">
+    <h3 class="font-bold text-navy-900 mb-3">📎 الملفات المخصصة لك</h3>
+    {% if documents %}
+    <div class="space-y-2">
+    {% for d in documents %}
+      <a href="{{ d.file_path }}" target="_blank" class="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-slate-100">
+        <div>
+          <div class="font-semibold text-navy-900 text-sm">{{ d.name }}</div>
+          <div class="text-xs text-slate-500">{{ d.created_at.strftime('%Y-%m-%d') }}</div>
+        </div>
+        <span class="text-brand-600 text-sm">تحميل ←</span>
+      </a>
+    {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-sm text-slate-400">لا توجد ملفات مخصصة لك على هذا المشروع بعد.</div>
+    {% endif %}
+  </div>
+
+  <div class="space-y-4">
+    {% if can_submit_feedback %}
+    <div class="card p-5 border-emerald-200 bg-emerald-50/30">
+      <h3 class="font-bold text-emerald-800 mb-3">📝 اعتماد التسليم</h3>
+      <p class="text-xs text-slate-600 mb-3">المشروع جاهز — أرسل تقييمك وملاحظاتك ليُعتمد رسمياً.</p>
+      <form method="POST" action="{{ url_for('portal.submit_feedback', project_id=project.id) }}" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-2">التقييم (1-5)</label>
+          <select name="rating" required class="select text-sm">
+            <option value="5">⭐⭐⭐⭐⭐ ممتاز</option>
+            <option value="4">⭐⭐⭐⭐ جيد جداً</option>
+            <option value="3">⭐⭐⭐ متوسط</option>
+            <option value="2">⭐⭐ يحتاج تحسين</option>
+            <option value="1">⭐ غير راضٍ</option>
+          </select>
+        </div>
+        <textarea name="comment" rows="3" placeholder="ملاحظاتك (اختياري)" class="textarea text-sm"></textarea>
+        <button type="submit" class="btn-primary w-full text-sm">إرسال</button>
+        <p class="text-xs text-slate-500 text-center">تقييم 4 أو 5 يعتمد التسليم تلقائياً.</p>
+      </form>
+    </div>
+    {% endif %}
+
+    {% if feedback_rows %}
+    <div class="card p-5">
+      <h3 class="font-bold text-navy-900 mb-3">📜 ملاحظاتك السابقة</h3>
+      <div class="space-y-2 text-sm">
+      {% for fb in feedback_rows %}
+        <div class="border-b border-slate-100 pb-2">
+          <div class="flex items-center justify-between">
+            <span>{{ '★' * fb.rating }}{{ '☆' * (5 - fb.rating) }}</span>
+            {% if fb.approved %}<span class="badge badge-paid text-xs">معتمد</span>{% endif %}
+          </div>
+          {% if fb.comment %}<div class="text-xs text-slate-500 mt-1">{{ fb.comment }}</div>{% endif %}
+          <div class="text-xs text-slate-400 font-mono mt-1">{{ fb.submitted_at.strftime('%Y-%m-%d %H:%M') }}</div>
+        </div>
+      {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

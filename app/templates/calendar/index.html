@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block page_title %}التقويم — الاجتماعات والمواعيد{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h2 class="font-bold text-navy-900">التقويم</h2>
+    <p class="text-xs text-slate-500">الاجتماعات القادمة + مواعيد المهام + التسليمات — {{ total }} حدث خلال {{ window }} يوم.</p>
+  </div>
+  <form method="GET" class="flex items-center gap-2">
+    <label class="text-xs text-slate-700">نافذة</label>
+    <select name="days" onchange="this.form.submit()" class="select text-sm">
+      {% for n in [7, 14, 30, 60, 90, 180] %}
+      <option value="{{ n }}" {% if window == n %}selected{% endif %}>{{ n }} يوم</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="card p-6">
+  {% if by_day %}
+  <div class="space-y-6">
+  {% for day, events in by_day|dictsort %}
+    <div>
+      <div class="flex items-center gap-3 mb-2">
+        <div class="bg-navy-900 text-white rounded-lg px-3 py-2 text-center min-w-[64px]">
+          <div class="text-xs">{{ day.strftime('%a') }}</div>
+          <div class="text-2xl font-bold">{{ day.day }}</div>
+          <div class="text-xs">{{ day.strftime('%b') }}</div>
+        </div>
+        <div class="flex-1 border-b border-slate-200"></div>
+        <div class="text-xs text-slate-500">{{ events|length }} حدث</div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+      {% for ev in events %}
+        {% set kind_class = {'meeting': 'border-emerald-200 bg-emerald-50', 'task_deadline': 'border-amber-200 bg-amber-50', 'project_end': 'border-brand-200 bg-brand-50'} %}
+        {% set kind_icon = {'meeting': '📅', 'task_deadline': '⏰', 'project_end': '🚀'} %}
+        <a href="{{ ev.link }}" class="block rounded-lg border {{ kind_class.get(ev.kind, '') }} p-3 hover:shadow-soft transition">
+          <div class="flex items-start justify-between">
+            <div class="text-2xl">{{ kind_icon.get(ev.kind, '•') }}</div>
+            <div class="text-xs font-mono text-slate-500">{{ ev.when.strftime('%H:%M') }}</div>
+          </div>
+          <div class="font-semibold text-navy-900 text-sm mt-1">{{ ev.title }}</div>
+          {% if ev.subtitle %}<div class="text-xs text-slate-600 mt-1">{{ ev.subtitle }}</div>{% endif %}
+        </a>
+      {% endfor %}
+      </div>
+    </div>
+  {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center text-slate-400 py-8">لا توجد أحداث في هذه النافذة.</div>
+  {% endif %}
+</div>
+
+<div class="mt-4 flex items-center gap-4 text-xs text-slate-600">
+  <span class="flex items-center gap-1">📅 اجتماع</span>
+  <span class="flex items-center gap-1">⏰ Deadline مهمة</span>
+  <span class="flex items-center gap-1">🚀 تسليم مشروع</span>
+</div>
+{% endblock %}

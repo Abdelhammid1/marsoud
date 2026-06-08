@@ -251,6 +251,40 @@ def status(lead_id):
     return redirect(url_for("leads.detail", lead_id=lead.id))
 
 
+# ─── Gap-A: lead quotation / contract PDF upload ────────────────────────
+@bp.route("/<int:lead_id>/upload/<kind>", methods=["POST"])
+@login_required
+@require_permission("leads.manage")
+def upload(lead_id, kind):
+    """FR-04 — upload quotation or contract PDF directly on a lead."""
+    from app.services.opsflow_extras import save_document, DocumentError
+    from app.models import DocumentSourceType, DocumentVisibility
+    if kind not in ("quotation", "contract"):
+        flash("نوع الملف غير معروف", "error")
+        return redirect(url_for("leads.detail", lead_id=lead_id))
+    lead = _lead_or_403(lead_id)
+    file_storage = request.files.get("file")
+    try:
+        doc = save_document(
+            company_id=lead.company_id,
+            source_type=DocumentSourceType.LEAD,
+            source_id=lead.id,
+            file_storage=file_storage,
+            visibility=DocumentVisibility.INTERNAL,
+            uploaded_by_id=current_user.id,
+            name=f"{kind}: {file_storage.filename}" if file_storage else None,
+        )
+        if kind == "quotation":
+            lead.quotation_path = doc.file_path
+        else:
+            lead.contract_path = doc.file_path
+        db.session.commit()
+        flash(f"تم رفع {'عرض السعر' if kind == 'quotation' else 'العقد'}", "success")
+    except DocumentError as e:
+        flash(str(e), "error")
+    return redirect(url_for("leads.detail", lead_id=lead.id))
+
+
 @bp.route("/<int:lead_id>/convert", methods=["GET", "POST"])
 @login_required
 @require_permission("leads.convert")

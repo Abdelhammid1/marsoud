@@ -1,7 +1,7 @@
 # Marsoud — Playwright Ticket Verification Report
 
-Run: 2026-06-08 12:18:40
-Result: **79/79 checks passed**
+Run: 2026-06-08 13:33:48
+Result: **87/87 checks passed**
 Screenshots: `tests/screenshots/`
 
 | Ticket | Check | Status | Screenshot |
@@ -49,6 +49,9 @@ Screenshots: `tests/screenshots/`
 | CRM-03 | Projects index renders | ✅ PASS | crm03_projects_index.png |
 | CRM-04 | New-project form renders | ✅ PASS | crm04_project_new.png |
 | CRM-05 | Tasks Kanban renders 5 columns | ✅ PASS | crm05_tasks_kanban.png |
+| GAP-NOTIF | Notifications page renders | ✅ PASS | gap_notif.png |
+| GAP-AUDIT | Audit log page renders for admin | ✅ PASS | gap_audit.png |
+| GAP-CAL | Calendar page renders (FR-39) | ✅ PASS | gap_calendar.png |
 | ADMIN-01a | Normal user blocked from /admin (403) | ✅ PASS | admin01_403.png |
 | ADMIN-01b | Super-admin reaches /admin dashboard | ✅ PASS | admin02_dashboard.png |
 | ADMIN-02 | Dashboard metrics rendered | ✅ PASS | admin02_metrics.png |
@@ -84,4 +87,9 @@ Screenshots: `tests/screenshots/`
 | HR-06-weekend | Leave range entirely on rest days creates 0 exceptions | ✅ PASS | hr06_weekend.txt |
 | HR-07-deep | auto_absence_late_for converts exceptions into money correctly | ✅ PASS | hr07_math.txt |
 | CRM-07-deep | Convert-to-project auto-creates Customer + Project | ✅ PASS | crm07_convert.txt |
+| GAP-FEEDBACK-close | Close project without approved feedback rejected; with approval succeeds | ✅ PASS | gap_fb_close.txt |
+| GAP-AUDIT-write | Lead edit fires AuditEntry row | ✅ PASS | gap_audit_write.txt |
+| GAP-AUTODELIVER | Project DELIVERED → auto-moves to CLIENT_FEEDBACK | ✅ PASS | gap_auto.txt |
+| GAP-NOTIF-write | Task assignment creates a Notification row | ✅ PASS | gap_notif_write.txt |
+| GAP-PORTAL | Client role sees portal index; blocked from /leads | ✅ PASS | gap_portal.png |
 | GAP-01-deep | Suspended-company user blocked at login | ✅ PASS | gap01_blocked.png |

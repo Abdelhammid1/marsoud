@@ -44,6 +44,22 @@ def change_lead_status(lead, new_status, *, changed_by_id, note=None,
         changed_by_id=changed_by_id, note=(note or "").strip() or None,
     ))
     db.session.commit()
+
+    # Notify the assigned rep if someone else moved it
+    try:
+        from app.services.opsflow_extras import notify
+        from app.models import NotificationKind
+        if changed_by_id != lead.assigned_to_id and lead.assigned_to_id:
+            notify(
+                lead.assigned_to_id, company_id=lead.company_id,
+                kind=NotificationKind.LEAD_STATUS_CHANGED,
+                title=f"تغيرت حالة عميل محتمل: {lead.client_name}",
+                body=f"{old.label_ar if old else '—'} → {new_status.label_ar}",
+                link_url=f"/leads/{lead.id}",
+            )
+    except Exception:
+        import logging
+        logging.getLogger("ledgeros.crm").exception("lead notify failed")
     return lead
 
 
@@ -121,6 +137,12 @@ def change_project_status(project, new_status, *, changed_by_id, note=None):
         allowed = ", ".join(s.label_ar for s in PROJECT_TRANSITIONS.get(project.status, []))
         raise CRMError(f"الانتقال غير مسموح. المسموح حالياً: {allowed or '— لا يوجد —'}")
 
+    # AC-09: cannot move to CLOSED without an approved feedback row
+    if new_status == ProjectStatus.CLOSED:
+        from app.services.opsflow_extras import project_has_approved_feedback
+        if not project_has_approved_feedback(project):
+            raise CRMError("لا يمكن إغلاق المشروع قبل الحصول على ملاحظات معتمدة من العميل")
+
     old = project.status
     project.status = new_status
     db.session.add(ProjectStatusEvent(
@@ -128,13 +150,23 @@ def change_project_status(project, new_status, *, changed_by_id, note=None):
         changed_by_id=changed_by_id, note=(note or "").strip() or None,
     ))
     db.session.commit()
+
+    # AC-08 / FR-14: on Delivered, auto-request feedback (move to CLIENT_FEEDBACK
+    # + notify any linked client portal user).
+    if new_status == ProjectStatus.DELIVERED:
+        try:
+            from app.services.opsflow_extras import auto_request_feedback_on_delivery
+            auto_request_feedback_on_delivery(project)
+        except Exception:
+            import logging
+            logging.getLogger("ledgeros.crm").exception("auto-request feedback failed")
     return project
 
 
 # ─── Tasks ───────────────────────────────────────────────────────────────
 def set_task_status(task, new_status, *, by_user_id=None):
     """Move a task to a new status, update completed_at, and recompute
-    parent project progress."""
+    parent project progress. Also fires a TASK_STATUS_CHANGED notification."""
     if not isinstance(new_status, TaskStatus):
         try:
             new_status = TaskStatus[new_status]
@@ -146,11 +178,31 @@ def set_task_status(task, new_status, *, by_user_id=None):
     if new_status == TaskStatus.DONE:
         task.completed_at = datetime.utcnow()
     elif old == TaskStatus.DONE and new_status != TaskStatus.DONE:
-        # Reverting from done — clear timestamp so progress recomputes correctly.
         task.completed_at = None
 
     project = task.project
     if project:
         project.recompute_progress()
     db.session.commit()
+
+    # Notify assignee (if someone else moved it) + project manager
+    try:
+        from app.services.opsflow_extras import notify_users
+        from app.models import NotificationKind
+        recipients = set()
+        if by_user_id != task.assigned_to_id:
+            recipients.add(task.assigned_to_id)
+        if project and project.manager_id and by_user_id != project.manager_id:
+            recipients.add(project.manager_id)
+        if recipients:
+            notify_users(
+                recipients, company_id=task.company_id,
+                kind=NotificationKind.TASK_STATUS_CHANGED,
+                title=f"تغيرت حالة مهمة: {task.title}",
+                body=f"{old.label_ar} → {new_status.label_ar}",
+                link_url=f"/tasks/{task.id}",
+            )
+    except Exception:
+        import logging
+        logging.getLogger("ledgeros.crm").exception("task notify failed")
     return task

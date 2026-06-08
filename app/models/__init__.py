@@ -32,6 +32,12 @@ from app.models.crm import (
     PROJECT_TRANSITIONS,
     Task, TaskStatus, TaskPriority, KANBAN_ORDER,
 )
+from app.models.opsflow_extras import (
+    Document, DocumentSourceType, DocumentVisibility,
+    Notification, NotificationKind,
+    ClientFeedback,
+    AuditEntry,
+)
 from app.models.refund import Refund, RefundType, CreditNote
 from app.models.invitation import Invitation
 from app.models.agent_chat import AgentMessage
@@ -55,6 +61,9 @@ __all__ = [
     "Project", "ProjectStatus", "ProjectMember", "Milestone", "ProjectStatusEvent",
     "PROJECT_TRANSITIONS",
     "Task", "TaskStatus", "TaskPriority", "KANBAN_ORDER",
+    "Document", "DocumentSourceType", "DocumentVisibility",
+    "Notification", "NotificationKind",
+    "ClientFeedback", "AuditEntry",
     "Refund", "RefundType", "CreditNote",
     "Invitation",
     "AgentMessage",

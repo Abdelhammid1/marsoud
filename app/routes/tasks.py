@@ -170,6 +170,21 @@ def new():
             db.session.commit()
             project.recompute_progress()
             db.session.commit()
+            # FR-22: notification on new task assignment
+            try:
+                from app.services.opsflow_extras import notify
+                from app.models import NotificationKind
+                if t.assigned_to_id and t.assigned_to_id != current_user.id:
+                    notify(
+                        t.assigned_to_id, company_id=cid,
+                        kind=NotificationKind.TASK_ASSIGNED,
+                        title=f"📌 مهمة جديدة: {t.title}",
+                        body=(t.description or "")[:200],
+                        link_url=f"/tasks/{t.id}",
+                    )
+            except Exception:
+                from flask import current_app
+                current_app.logger.exception("task assign notify failed")
             flash(f"تم إنشاء المهمة: {t.title}", "success")
             return redirect(url_for("tasks.detail", task_id=t.id))
         except (CRMError, ValueError, TypeError, KeyError) as e:
@@ -187,8 +202,10 @@ def new():
 @require_permission("tasks.view")
 def detail(task_id):
     t = _task_or_403(task_id)
+    from app.services.opsflow_extras import documents_for
+    docs = documents_for("TASK", t.id)
     return render_template("tasks/detail.html",
-                           task=t, statuses=TaskStatus)
+                           task=t, statuses=TaskStatus, docs=docs)
 
 
 @bp.route("/<int:task_id>/edit", methods=["GET", "POST"])

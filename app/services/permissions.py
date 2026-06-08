@@ -41,19 +41,19 @@ P = {
     "hr.manage":            {"owner", "admin", "hr_manager"},  # departments + employee HR fields
 
     # ─── CRM (Leads) ───────────────────────────────────────────────────
-    "leads.view":      {"owner", "admin", "sales_manager", "sales_rep"},  # rep limited to own (route-level)
+    "leads.view":      {"owner", "admin", "ceo", "sales_manager", "sales_rep"},
     "leads.manage":    {"owner", "admin", "sales_manager", "sales_rep"},
-    "leads.convert":   {"owner", "admin", "sales_manager", "sales_rep"},  # convert won lead → project
+    "leads.convert":   {"owner", "admin", "sales_manager", "sales_rep"},
 
     # ─── Projects ──────────────────────────────────────────────────────
-    "projects.view":   {"owner", "admin", "sales_manager", "sales_rep",
+    "projects.view":   {"owner", "admin", "ceo", "sales_manager", "sales_rep",
                         "project_manager", "team_member"},
     "projects.create": {"owner", "admin", "project_manager"},
-    "projects.manage": {"owner", "admin", "project_manager"},  # PM limited to own
+    "projects.manage": {"owner", "admin", "project_manager"},
 
     # ─── Tasks ─────────────────────────────────────────────────────────
-    "tasks.view":      {"owner", "admin", "project_manager", "team_member"},
-    "tasks.manage":    {"owner", "admin", "project_manager", "team_member"},  # team limited to own
+    "tasks.view":      {"owner", "admin", "ceo", "project_manager", "team_member"},
+    "tasks.manage":    {"owner", "admin", "project_manager", "team_member"},
 
     "vendor_bills.create":  {"owner", "admin", "accountant"},
 
@@ -66,25 +66,27 @@ P = {
 
     "agent.use":            {"owner", "admin", "accountant"},   # agent can post journals → not viewer
 
-    "reports.view":         {"owner", "admin", "accountant", "viewer"},
-    "reports.export":       {"owner", "admin", "accountant", "viewer"},
+    "reports.view":         {"owner", "admin", "accountant", "ceo", "viewer"},
+    "reports.export":       {"owner", "admin", "accountant", "ceo", "viewer"},
 }
 
 ALL_ROLES = [
-    "owner", "admin", "accountant", "hr_manager",
+    "owner", "admin", "ceo", "accountant", "hr_manager",
     "sales_manager", "sales_rep",
     "project_manager", "team_member",
-    "viewer",
+    "viewer", "client",
 ]
+# All invitable for staff/clients except "owner" (per-company singleton).
 INVITABLE_ROLES = [
-    "admin", "accountant", "hr_manager",
+    "admin", "ceo", "accountant", "hr_manager",
     "sales_manager", "sales_rep",
     "project_manager", "team_member",
-    "viewer",
+    "viewer", "client",
 ]
 ROLE_LABELS_AR = {
     "owner":           "مالك",
     "admin":           "مدير",
+    "ceo":             "رئيس تنفيذي",
     "accountant":      "محاسب",
     "hr_manager":      "مدير الموارد البشرية",
     "sales_manager":   "مدير مبيعات",
@@ -92,6 +94,7 @@ ROLE_LABELS_AR = {
     "project_manager": "مدير مشروع",
     "team_member":     "عضو فريق",
     "viewer":          "مشاهد",
+    "client":          "عميل (بوابة)",
 }
 
 

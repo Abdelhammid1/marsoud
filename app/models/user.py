@@ -22,6 +22,9 @@ class User(UserMixin, db.Model):
     is_superadmin = db.Column(db.Boolean, default=False, nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     last_login_at = db.Column(db.DateTime, nullable=True)
+    # When this user is a client portal account, links them to a Customer row
+    # in some company. Their role per-company will be "client".
+    linked_customer_id = db.Column(db.Integer, db.ForeignKey("customers.id"), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     companies = db.relationship(

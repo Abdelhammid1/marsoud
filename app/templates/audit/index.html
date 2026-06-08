@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block page_title %}سجل التدقيق (Audit Trail){% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h2 class="font-bold text-navy-900">سجل التدقيق</h2>
+  <p class="text-xs text-slate-500">كل تعديل على lead / project / task مع من غيّره ومتى.</p>
+</div>
+
+<form method="GET" class="flex flex-wrap items-end gap-3 mb-4 card p-4">
+  <div>
+    <label class="block text-xs font-semibold text-slate-700 mb-1">الكيان</label>
+    <select name="entity" class="select text-sm">
+      <option value="">الكل</option>
+      {% for v in ['Lead','Project','Task'] %}<option value="{{ v }}" {% if entity_filter == v %}selected{% endif %}>{{ v }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold text-slate-700 mb-1">الإجراء</label>
+    <select name="action" class="select text-sm">
+      <option value="">الكل</option>
+      {% for a in ['CREATE','UPDATE','DELETE'] %}<option value="{{ a }}" {% if action_filter == a %}selected{% endif %}>{{ a }}</option>{% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn-primary text-sm">تطبيق</button>
+</form>
+
+<div class="card p-6">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>الوقت</th>
+        <th>الكيان</th>
+        <th>المعرّف</th>
+        <th>الإجراء</th>
+        <th>المستخدم</th>
+        <th>التغييرات</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for e in entries %}
+      <tr>
+        <td class="text-xs font-mono whitespace-nowrap">{{ e.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+        <td><span class="badge badge-sent">{{ e.entity_type }}</span></td>
+        <td class="font-mono text-xs">#{{ e.entity_id }}</td>
+        <td>
+          {% if e.action == 'CREATE' %}<span class="badge badge-paid">CREATE</span>
+          {% elif e.action == 'UPDATE' %}<span class="badge badge-partial">UPDATE</span>
+          {% else %}<span class="badge badge-overdue">{{ e.action }}</span>{% endif %}
+        </td>
+        <td class="text-sm">{{ e.changed_by.full_name if e.changed_by else 'system' }}</td>
+        <td class="text-xs text-slate-500">
+          {% if e.parsed_changes %}
+            {% for k, v in e.parsed_changes.items() %}
+            <div><span class="font-semibold">{{ k }}:</span> <span class="text-rose-600 line-through">{{ v[0] or '∅' }}</span> → <span class="text-emerald-700">{{ v[1] or '∅' }}</span></div>
+            {% endfor %}
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="text-center text-slate-400 py-6">لا توجد سجلات تطابق الفلتر.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

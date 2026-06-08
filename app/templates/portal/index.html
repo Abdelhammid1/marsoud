@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block page_title %}بوابة العميل — {{ customer.name }}{% endblock %}
+{% block content %}
+<div class="mb-5">
+  <h2 class="text-2xl font-bold text-navy-900">مرحباً {{ customer.name }} 👋</h2>
+  <p class="text-sm text-slate-500 mt-1">تجد بالأسفل جميع مشاريعك مع حالتها ونسبة إنجازها.</p>
+</div>
+
+<div class="grid grid-cols-2 gap-4">
+  {% for p in projects %}
+  <a href="{{ url_for('portal.project_detail', project_id=p.id) }}" class="card p-5 hover:border-brand-500 transition block">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-bold text-navy-900">{{ p.name }}</h3>
+      <span class="badge {{ p.status.badge_class }}">{{ p.status.label_ar }}</span>
+    </div>
+    <div class="text-sm text-slate-500 mb-3">{{ p.type }}</div>
+    <div class="mb-2">
+      <div class="flex items-center justify-between text-xs mb-1">
+        <span>التقدم</span>
+        <span class="font-mono font-bold">{{ "%.0f"|format(p.progress_pct) }}%</span>
+      </div>
+      <div class="bg-slate-100 rounded-full h-2 overflow-hidden">
+        <div class="bg-gradient-to-l from-brand-400 to-brand-700 h-full" style="width: {{ p.progress_pct }}%"></div>
+      </div>
+    </div>
+    <div class="text-xs text-slate-500 font-mono">{{ p.start_date.isoformat() }} → {{ p.end_date.isoformat() }}</div>
+  </a>
+  {% else %}
+  <div class="col-span-2 card p-8 text-center text-slate-400">لا توجد مشاريع بعد.</div>
+  {% endfor %}
+</div>
+{% endblock %}

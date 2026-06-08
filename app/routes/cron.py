@@ -47,6 +47,15 @@ def tick():
         logging.getLogger("ledgeros.cron").exception("contract alerts failed: %s", e)
         summary["contract_alerts"] = {"error": str(e)[:200]}
 
+    # Cycle 7 gap-close — task deadline 24h reminders
+    try:
+        from app.services.opsflow_extras import remind_task_deadlines_24h
+        summary["task_deadlines"] = remind_task_deadlines_24h()
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception("task deadlines failed: %s", e)
+        summary["task_deadlines"] = {"error": str(e)[:200]}
+
     # HR-05: monthly leave accrual (only credits when the day is the 1st;
     # cron is meant to run daily but this work should fire once per month).
     from datetime import date as _date

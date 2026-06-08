@@ -67,6 +67,64 @@
 
     <hr class="my-5">
     <div class="flex items-center justify-between mb-3">
+      <h3 class="font-bold text-navy-900">📎 الملفات والمرفقات</h3>
+    </div>
+    <div class="space-y-2 mb-3">
+    {% for d in docs %}
+      <div class="flex items-center justify-between bg-slate-50 rounded-lg p-3">
+        <div>
+          <a href="{{ d.file_path }}" target="_blank" class="font-semibold text-sm text-navy-900 hover:text-brand-600">📄 {{ d.name }}</a>
+          <div class="text-xs text-slate-500 mt-1">
+            {{ d.created_at.strftime('%Y-%m-%d') }}
+            · <span class="badge {% if d.visibility == 'CLIENT' %}badge-paid{% else %}badge-neutral badge-draft{% endif %} text-[10px]">{% if d.visibility == 'CLIENT' %}مرئي للعميل{% else %}داخلي{% endif %}</span>
+          </div>
+        </div>
+        {% if can_edit %}
+        <form method="POST" action="{{ url_for('documents.delete', doc_id=d.id) }}" onsubmit="return confirm('حذف الملف؟')">
+          <button type="submit" class="text-xs text-rose-600 hover:underline">حذف</button>
+        </form>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="text-sm text-slate-400">لا توجد ملفات بعد.</div>
+    {% endfor %}
+    </div>
+    {% if can_edit %}
+    <form method="POST" action="{{ url_for('documents.upload', source_type='PROJECT', source_id=project.id) }}" enctype="multipart/form-data" class="flex flex-wrap items-end gap-2">
+      <input type="file" name="file" required accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.doc,.docx,.xls,.xlsx,.zip" class="text-sm">
+      <select name="visibility" class="select text-sm" style="width:11rem">
+        <option value="INTERNAL">داخلي (الفريق فقط)</option>
+        <option value="CLIENT">مرئي للعميل</option>
+      </select>
+      <button type="submit" class="btn-secondary text-sm">+ رفع</button>
+    </form>
+    {% endif %}
+
+    {% if project.feedback %}
+    <hr class="my-5">
+    <h3 class="font-bold text-navy-900 mb-3">⭐ ملاحظات العميل</h3>
+    <div class="space-y-2">
+    {% for fb in project.feedback %}
+      <div class="bg-slate-50 rounded-lg p-3 flex items-start justify-between">
+        <div>
+          <div class="text-sm">{{ '★' * fb.rating }}{{ '☆' * (5 - fb.rating) }}
+            {% if fb.approved %}<span class="badge badge-paid text-xs ms-2">معتمد</span>{% endif %}
+          </div>
+          {% if fb.comment %}<div class="text-xs text-slate-600 mt-1">{{ fb.comment }}</div>{% endif %}
+          <div class="text-xs text-slate-400 font-mono mt-1">{{ fb.submitted_at.strftime('%Y-%m-%d %H:%M') }}</div>
+        </div>
+        {% if can_edit and not fb.approved %}
+        <form method="POST" action="{{ url_for('audit_log.feedback_approve', project_id=project.id, fb_id=fb.id) }}">
+          <button type="submit" class="btn-secondary text-xs">✓ اعتماد</button>
+        </form>
+        {% endif %}
+      </div>
+    {% endfor %}
+    </div>
+    {% endif %}
+
+    <hr class="my-5">
+    <div class="flex items-center justify-between mb-3">
       <h3 class="font-bold text-navy-900">📜 سجل الحالات</h3>
     </div>
     <div class="space-y-2">

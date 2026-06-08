@@ -3,6 +3,28 @@
 {% block content %}
 <div class="grid grid-cols-3 gap-4">
   <div class="card p-6 col-span-2">
+    {% if customer_projects %}
+    <h2 class="text-xl font-bold text-navy-900 mb-4">مشاريع العميل ({{ customer_projects|length }})</h2>
+    <table class="data-table mb-6">
+      <thead><tr><th>الاسم</th><th>النوع</th><th>الحالة</th><th>التقدم</th><th>المدة</th></tr></thead>
+      <tbody>
+      {% for p in customer_projects %}
+        <tr>
+          <td><a href="{{ url_for('projects.detail', project_id=p.id) }}" class="font-semibold hover:text-brand-600">{{ p.name }}</a></td>
+          <td class="text-sm text-slate-500">{{ p.type }}</td>
+          <td><span class="badge {{ p.status.badge_class }}">{{ p.status.label_ar }}</span></td>
+          <td class="w-32">
+            <div class="bg-slate-100 rounded-full h-2 overflow-hidden">
+              <div class="bg-brand-500 h-full" style="width: {{ p.progress_pct }}%"></div>
+            </div>
+            <div class="text-xs font-mono text-slate-500 mt-1">{{ "%.0f"|format(p.progress_pct) }}%</div>
+          </td>
+          <td class="text-xs font-mono whitespace-nowrap">{{ p.start_date.isoformat() }} → {{ p.end_date.isoformat() }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
     <h2 class="text-xl font-bold text-navy-900 mb-4">فواتير العميل</h2>
     <table class="data-table">
       <thead><tr><th>الرقم</th><th>التاريخ</th><th>الاستحقاق</th><th class="text-left">المبلغ</th><th class="text-left">المتبقي</th><th>الحالة</th></tr></thead>

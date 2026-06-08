@@ -47,6 +47,10 @@ def create_app(config_class=Config):
     from app.routes.leads import bp as leads_bp
     from app.routes.projects import bp as projects_bp
     from app.routes.tasks import bp as tasks_bp
+    from app.routes.opsflow_extras import (
+        documents_bp, notifications_bp, audit_bp, portal_bp,
+    )
+    from app.routes.calendar import bp as calendar_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -71,6 +75,11 @@ def create_app(config_class=Config):
     app.register_blueprint(leads_bp, url_prefix="/leads")
     app.register_blueprint(projects_bp, url_prefix="/projects")
     app.register_blueprint(tasks_bp, url_prefix="/tasks")
+    app.register_blueprint(documents_bp, url_prefix="/docs")
+    app.register_blueprint(notifications_bp, url_prefix="/notifications")
+    app.register_blueprint(audit_bp, url_prefix="/audit")
+    app.register_blueprint(portal_bp, url_prefix="/portal")
+    app.register_blueprint(calendar_bp, url_prefix="/calendar")
 
     @app.before_request
     def load_active_company():
@@ -113,11 +122,11 @@ def create_app(config_class=Config):
         "journals.", "invoices.", "vendor_bills.", "accounts.",
         "reports.", "agent.",
     )
-    # Roles that must NOT see financial routes — HR / sales / PM / team.
-    # owner / admin / accountant / viewer pass through to the route's own gate.
+    # Roles that must NOT see financial routes — HR / sales / PM / team / client.
+    # owner / admin / accountant / ceo / viewer pass through to the route's own gate.
     NON_FINANCIAL_ROLES = frozenset({
         "hr_manager", "sales_manager", "sales_rep",
-        "project_manager", "team_member",
+        "project_manager", "team_member", "client",
     })
 
     @app.before_request
@@ -133,6 +142,30 @@ def create_app(config_class=Config):
         role = get_user_role(current_user.id, g.active_company.id)
         if role in NON_FINANCIAL_ROLES:
             abort(403)
+
+    # Client-portal users can only reach /portal/, /notifications/, /auth/, /static/
+    CLIENT_ALLOWED_ENDPOINTS = (
+        "portal.", "notifications.", "auth.", "static",
+        "invitations.",   # accept-invitation pages
+    )
+
+    @app.before_request
+    def confine_client_to_portal():
+        from flask_login import current_user
+        from flask import abort, redirect, url_for
+        from app.services.permissions import get_user_role
+        if not current_user.is_authenticated or not g.get("active_company"):
+            return
+        endpoint = (request.endpoint or "")
+        if endpoint.startswith(CLIENT_ALLOWED_ENDPOINTS):
+            return
+        role = get_user_role(current_user.id, g.active_company.id)
+        if role != "client":
+            return
+        # On the dashboard? Redirect to /portal/ instead of 403'ing.
+        if endpoint == "dashboard.index":
+            return redirect(url_for("portal.index"))
+        abort(403)
 
     @app.context_processor
     def inject_globals():
@@ -176,6 +209,26 @@ def create_app(config_class=Config):
         except Exception:
             db.session.rollback()
         return ("Internal Server Error", 500)
+
+    # ─── Cycle 7 gap-close: audit listeners (Lead/Project/Task edits) ───
+    with app.app_context():
+        try:
+            from app.services.opsflow_extras import init_audit_listeners
+            init_audit_listeners()
+        except Exception as e:
+            app.logger.exception("audit listeners init failed: %s", e)
+
+    # ─── Cycle 7 gap-close: context for the bell-icon unread counter ────
+    @app.context_processor
+    def inject_notif_count():
+        from flask_login import current_user
+        try:
+            if current_user.is_authenticated:
+                from app.services.opsflow_extras import unread_count_for
+                return {"notif_unread_count": unread_count_for(current_user.id)}
+        except Exception:
+            pass
+        return {"notif_unread_count": 0}
 
     @app.template_filter("money")
     def money_filter(value, currency=None):

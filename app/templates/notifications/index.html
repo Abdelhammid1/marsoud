@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block page_title %}الإشعارات{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h2 class="font-bold text-navy-900">إشعاراتي</h2>
+  <form method="POST" action="{{ url_for('notifications.read_all') }}">
+    <button type="submit" class="btn-secondary text-sm">✓ تأشير الكل كمقروء</button>
+  </form>
+</div>
+<div class="card p-4">
+  <ul class="divide-y divide-slate-100">
+    {% for n in notifications %}
+    <li class="py-3 flex items-start gap-3 {% if not n.is_read %}bg-brand-50/30 -mx-4 px-4{% endif %}">
+      <div class="flex-1">
+        <div class="text-sm font-semibold text-navy-900">{{ n.title }}{% if not n.is_read %} <span class="text-rose-500 text-xs">●</span>{% endif %}</div>
+        {% if n.body %}<div class="text-xs text-slate-500 mt-1">{{ n.body }}</div>{% endif %}
+        <div class="text-xs text-slate-400 font-mono mt-1">{{ n.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+      </div>
+      {% if n.link_url %}
+      <form method="POST" action="{{ url_for('notifications.read', n_id=n.id) }}">
+        <button type="submit" class="text-xs text-brand-600 hover:underline">فتح ←</button>
+      </form>
+      {% endif %}
+    </li>
+    {% else %}
+    <li class="text-center text-slate-400 py-8">لا توجد إشعارات بعد.</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}

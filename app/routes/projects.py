@@ -211,10 +211,13 @@ def detail(project_id):
     for t in tasks:
         by_status.setdefault(t.status, []).append(t)
     can_edit = _user_can_edit_project(p)
+    from app.services.opsflow_extras import documents_for
+    docs = documents_for("PROJECT", p.id)
     return render_template("projects/detail.html",
                            project=p, next_statuses=next_statuses,
                            candidates=candidates, by_status=by_status,
-                           statuses=ProjectStatus, can_edit=can_edit)
+                           statuses=ProjectStatus, can_edit=can_edit,
+                           docs=docs)
 
 
 @bp.route("/<int:project_id>/status", methods=["POST"])

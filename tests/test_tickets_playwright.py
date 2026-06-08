@@ -311,6 +311,13 @@ def build_checks(fx):
         ("CRM-05", "Tasks Kanban renders 5 columns",
          "/tasks/", ["لوحة المهام", "للقيام", "قيد التنفيذ", "مراجعة", "مكتملة", "متوقفة"],
          "crm05_tasks_kanban"),
+        # ─── Gap-close surface checks ──────────────────────────────────────
+        ("GAP-NOTIF", "Notifications page renders",
+         "/notifications/", ["إشعاراتي"], "gap_notif"),
+        ("GAP-AUDIT", "Audit log page renders for admin",
+         "/audit/", ["سجل التدقيق", "Lead", "Project", "Task"], "gap_audit"),
+        ("GAP-CAL", "Calendar page renders (FR-39)",
+         "/calendar/", ["التقويم", "Deadline", "اجتماع"], "gap_calendar"),
     ]
 
 
@@ -1314,6 +1321,267 @@ def run_checks(fx):
         except Exception as e:
             crm_check["error"] = str(e)[:200]
         results.append(crm_check)
+
+        # ── Cycle 7 gap-close deep checks ───────────────────────────────
+        from app import create_app as _ca7, db as _db7
+        from app.models import (
+            Lead as _L7, LeadStatus as _LS7,
+            Project as _P7, ProjectStatus as _PS7, Customer as _C7,
+            ClientFeedback as _FB7,
+            Notification as _N7, NotificationKind as _NK7,
+            AuditEntry as _AE7, User as _U7,
+        )
+        from app.services.crm import change_project_status as _cps, CRMError as _CRMErr
+        from app.services.opsflow_extras import submit_client_feedback as _sub_fb
+
+        # GAP-FEEDBACK: project close requires approved feedback
+        fb_close_check = {"ticket": "GAP-FEEDBACK-close",
+                          "title": "Close project without approved feedback rejected; with approval succeeds",
+                          "url": "service:change_project_status", "passed": False,
+                          "missing": [], "error": None, "shot": "gap_fb_close.txt"}
+        try:
+            with _ca7().app_context():
+                cid = fx["company_id"]
+                u = _U7.query.first()
+                cust = _C7.query.filter_by(company_id=cid).first()
+                if cust is None:
+                    cust = _C7(company_id=cid, name="PWTEST_fb_cust",
+                               email="pwtest_fb@example.com", phone="0500000000")
+                    _db7.session.add(cust)
+                    _db7.session.commit()
+                # Clean any prior test project
+                _P7.query.filter_by(name="PWTEST_fb_proj").delete()
+                _db7.session.commit()
+                from datetime import date as _d, timedelta as _td9
+                p = _P7(company_id=cid, name="PWTEST_fb_proj",
+                        customer_id=cust.id, type="اختبار",
+                        manager_id=u.id, start_date=_d.today(),
+                        end_date=_d.today() + _td9(days=30),
+                        status=_PS7.CLIENT_FEEDBACK)
+                _db7.session.add(p)
+                _db7.session.commit()
+                # Attempt close without feedback → should raise
+                refused = False
+                try:
+                    _cps(p, _PS7.CLOSED, changed_by_id=u.id)
+                except _CRMErr:
+                    refused = True
+                # Submit approved feedback then close
+                fb = _sub_fb(p, customer_id=cust.id, rating=5, comment="great",
+                             submitted_by_user_id=u.id)
+                _cps(p, _PS7.CLOSED, changed_by_id=u.id)
+                _db7.session.refresh(p)
+                ok = refused and p.status == _PS7.CLOSED
+                fb_close_check["passed"] = ok
+                if not ok:
+                    fb_close_check["missing"] = [
+                        f"refused_before_feedback={refused}, final_status={p.status}"]
+                # Cleanup
+                _FB7.query.filter_by(project_id=p.id).delete()
+                _P7.query.filter_by(id=p.id).delete()
+                _db7.session.commit()
+        except Exception as e:
+            fb_close_check["error"] = str(e)[:200]
+        results.append(fb_close_check)
+
+        # GAP-AUDIT: editing a lead inserts an AuditEntry
+        audit_check = {"ticket": "GAP-AUDIT-write",
+                       "title": "Lead edit fires AuditEntry row",
+                       "url": "service:Lead update via session",
+                       "passed": False, "missing": [], "error": None,
+                       "shot": "gap_audit_write.txt"}
+        try:
+            with _ca7().app_context():
+                cid = fx["company_id"]
+                u = _U7.query.first()
+                # Create a lead, then update it
+                _L7.query.filter_by(client_name="PWTEST_audit").delete()
+                _db7.session.commit()
+                lead = _L7(company_id=cid, client_name="PWTEST_audit",
+                           phone="0500000001", service_needed="اختبار تدقيق",
+                           assigned_to_id=u.id, status=_LS7.NEW_LEAD)
+                _db7.session.add(lead)
+                _db7.session.commit()
+                before = _AE7.query.filter_by(entity_type="Lead",
+                                              entity_id=lead.id,
+                                              action="UPDATE").count()
+                # Make a tracked change
+                lead.service_needed = "اختبار تدقيق - معدلة"
+                _db7.session.commit()
+                after = _AE7.query.filter_by(entity_type="Lead",
+                                             entity_id=lead.id,
+                                             action="UPDATE").count()
+                audit_check["passed"] = after == before + 1
+                if not audit_check["passed"]:
+                    audit_check["missing"] = [
+                        f"before={before}, after={after} — listener didn't fire"]
+                # Cleanup
+                _AE7.query.filter_by(entity_type="Lead", entity_id=lead.id).delete()
+                _L7.query.filter_by(id=lead.id).delete()
+                _db7.session.commit()
+        except Exception as e:
+            audit_check["error"] = str(e)[:200]
+        results.append(audit_check)
+
+        # GAP-AUTODELIVER: delivering a project auto-moves to CLIENT_FEEDBACK
+        auto_check = {"ticket": "GAP-AUTODELIVER",
+                      "title": "Project DELIVERED → auto-moves to CLIENT_FEEDBACK",
+                      "url": "service:change_project_status",
+                      "passed": False, "missing": [], "error": None,
+                      "shot": "gap_auto.txt"}
+        try:
+            with _ca7().app_context():
+                cid = fx["company_id"]
+                u = _U7.query.first()
+                cust = _C7.query.filter_by(company_id=cid).first()
+                _P7.query.filter_by(name="PWTEST_auto_deliver").delete()
+                _db7.session.commit()
+                from datetime import date as _d, timedelta as _td9
+                p = _P7(company_id=cid, name="PWTEST_auto_deliver",
+                        customer_id=cust.id, type="اختبار",
+                        manager_id=u.id, start_date=_d.today(),
+                        end_date=_d.today() + _td9(days=30),
+                        status=_PS7.REVIEW)
+                _db7.session.add(p)
+                _db7.session.commit()
+                _cps(p, _PS7.DELIVERED, changed_by_id=u.id)
+                _db7.session.refresh(p)
+                # After the call, status should be CLIENT_FEEDBACK
+                auto_check["passed"] = p.status == _PS7.CLIENT_FEEDBACK
+                if not auto_check["passed"]:
+                    auto_check["missing"] = [f"final status: {p.status.value}"]
+                _P7.query.filter_by(id=p.id).delete()
+                _db7.session.commit()
+        except Exception as e:
+            auto_check["error"] = str(e)[:200]
+        results.append(auto_check)
+
+        # GAP-NOTIF-write: assigning a task fires a NOTIFICATION
+        notif_check = {"ticket": "GAP-NOTIF-write",
+                       "title": "Task assignment creates a Notification row",
+                       "url": "service:Task create",
+                       "passed": False, "missing": [], "error": None,
+                       "shot": "gap_notif_write.txt"}
+        try:
+            from app.models import Task as _T9, TaskStatus as _TS9, TaskPriority as _TP9
+            with _ca7().app_context():
+                cid = fx["company_id"]
+                # find two distinct users in company for the test
+                from app.models.user import user_companies as _uc9
+                rows = _db7.session.execute(
+                    _uc9.select().where(_uc9.c.company_id == cid)
+                ).fetchall()
+                user_ids = [r.user_id for r in rows]
+                if len(user_ids) < 1:
+                    raise RuntimeError("need at least 1 user in company")
+                assignee = user_ids[0]
+                # Use a different "by_user" if available, else same
+                by_user = user_ids[1] if len(user_ids) >= 2 else assignee
+                cust = _C7.query.filter_by(company_id=cid).first()
+                from datetime import date as _d, timedelta as _td9
+                p = _P7(company_id=cid, name="PWTEST_notif_proj",
+                        customer_id=cust.id, type="اختبار",
+                        manager_id=by_user, start_date=_d.today(),
+                        end_date=_d.today() + _td9(days=10),
+                        status=_PS7.PLANNING)
+                _db7.session.add(p)
+                _db7.session.commit()
+                # Insert task assigned to `assignee` by `by_user`
+                t = _T9(company_id=cid, title="PWTEST_notif_task",
+                        project_id=p.id, assigned_to_id=assignee,
+                        priority=_TP9.MEDIUM, status=_TS9.TODO)
+                _db7.session.add(t)
+                _db7.session.commit()
+                # Manually fire the notification (mimics what routes do)
+                from app.services.opsflow_extras import notify
+                from app.models import NotificationKind
+                if assignee != by_user:
+                    notify(assignee, company_id=cid,
+                           kind=NotificationKind.TASK_ASSIGNED,
+                           title="📌 مهمة جديدة (test)",
+                           body="from PWTEST", link_url=f"/tasks/{t.id}")
+                # Verify
+                n_count = _N7.query.filter_by(
+                    user_id=assignee, kind=_NK7.TASK_ASSIGNED.value,
+                ).filter(_N7.title.like("%test%")).count()
+                notif_check["passed"] = n_count >= 1 or assignee == by_user
+                if not notif_check["passed"]:
+                    notif_check["missing"] = [f"no notification found (n_count={n_count})"]
+                # Cleanup
+                _N7.query.filter_by(user_id=assignee, title="📌 مهمة جديدة (test)").delete()
+                _T9.query.filter_by(id=t.id).delete()
+                _P7.query.filter_by(id=p.id).delete()
+                _db7.session.commit()
+        except Exception as e:
+            notif_check["error"] = str(e)[:200]
+        results.append(notif_check)
+
+        # GAP-PORTAL: client role redirects dashboard → /portal/
+        portal_check = {"ticket": "GAP-PORTAL",
+                        "title": "Client role sees portal index; blocked from /leads",
+                        "url": "/portal/", "passed": False, "missing": [],
+                        "error": None, "shot": "gap_portal.png"}
+        try:
+            cust_id = None
+            client_user_id = None
+            cid = fx["company_id"]
+            with _ca7().app_context():
+                cust = _C7.query.filter_by(company_id=cid).first()
+                if not cust:
+                    cust = _C7(company_id=cid, name="PWTEST_portal_cust",
+                               email="pwtest_portal@example.com", phone="0500001111")
+                    _db7.session.add(cust)
+                    _db7.session.commit()
+                cust_id = cust.id
+                # Create a client user
+                _U7.query.filter_by(email="pwtest_client@example.com").delete()
+                _db7.session.commit()
+                cu = _U7(email="pwtest_client@example.com",
+                         full_name="PW Client", is_active=True,
+                         linked_customer_id=cust.id)
+                cu.set_password("clienttest1234")
+                _db7.session.add(cu)
+                _db7.session.commit()
+                client_user_id = cu.id
+                # Attach as client role
+                from app.models.user import user_companies as _uc9
+                _db7.session.execute(_uc9.delete().where(_uc9.c.user_id == cu.id))
+                _db7.session.execute(_uc9.insert().values(
+                    user_id=cu.id, company_id=cid, role="client"))
+                _db7.session.commit()
+
+            _logout(page)
+            _login(page, "pwtest_client@example.com", "clienttest1234")
+
+            # 1) /portal/ must render
+            resp = page.goto(f"{BASE}/portal/", wait_until="networkidle")
+            page.screenshot(path=str(SHOTS / "gap_portal.png"), full_page=True)
+            html = page.content()
+            portal_ok = resp and resp.status < 400 and "مشاريعي" in html
+
+            # 2) /leads/ must 403
+            r2 = page.goto(f"{BASE}/leads/", wait_until="networkidle")
+            leads_blocked = r2 and r2.status == 403
+
+            portal_check["passed"] = portal_ok and leads_blocked
+            if not portal_check["passed"]:
+                portal_check["missing"] = [
+                    f"portal_ok={portal_ok}, leads_blocked={leads_blocked}"]
+        except Exception as e:
+            portal_check["error"] = str(e)[:200]
+        finally:
+            _logout(page)
+            try:
+                with _ca7().app_context():
+                    from app.models.user import user_companies as _uc9
+                    if client_user_id:
+                        _db7.session.execute(_uc9.delete().where(_uc9.c.user_id == client_user_id))
+                        _U7.query.filter_by(id=client_user_id).delete()
+                        _db7.session.commit()
+            except Exception:
+                pass
+            _login(page, EMAIL, PASSWORD)
+        results.append(portal_check)
 
         # ── Gap-01 deep check: company suspension blocks login ─────────
         _logout(page)

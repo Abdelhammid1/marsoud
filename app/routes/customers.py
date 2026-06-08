@@ -46,7 +46,13 @@ def view(customer_id):
     c = db.session.get(Customer, customer_id)
     if not c or c.company_id != g.active_company.id:
         return redirect(url_for("customers.index"))
-    return render_template("customers/view.html", customer=c)
+    # FR-16 — list every project for this customer
+    from app.models import Project
+    customer_projects = Project.query.filter_by(
+        customer_id=c.id,
+    ).order_by(Project.created_at.desc()).all()
+    return render_template("customers/view.html", customer=c,
+                           customer_projects=customer_projects)
 
 
 @bp.route("/aging")
