@@ -22,6 +22,11 @@ class TerminationReason(enum.Enum):
     OTHER = "OTHER"
 
 
+class Gender(enum.Enum):
+    MALE = "MALE"
+    FEMALE = "FEMALE"
+
+
 class Employee(db.Model):
     __tablename__ = "employees"
     id = db.Column(db.Integer, primary_key=True)
@@ -43,10 +48,25 @@ class Employee(db.Model):
     termination_reason = db.Column(db.Enum(TerminationReason))
     termination_notes = db.Column(db.Text)
 
+    # HR-01
+    department_id = db.Column(db.Integer, db.ForeignKey("departments.id"), nullable=True, index=True)
+    # HR-02 — personal + contract fields (all nullable, additive)
+    national_id = db.Column(db.String(50))
+    nationality = db.Column(db.String(60))
+    date_of_birth = db.Column(db.Date)
+    gender = db.Column(db.Enum(Gender))
+    manager_id = db.Column(db.Integer, db.ForeignKey("employees.id"), nullable=True)
+    contract_end_date = db.Column(db.Date, index=True)
+    contract_alert_last_sent = db.Column(db.Date)  # last day we emailed a contract-expiry alert
+    notes = db.Column(db.Text)
+
     is_active = db.Column(db.Boolean, default=True)  # legacy mirror — kept in sync with status
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     company = db.relationship("Company", backref=db.backref("employees", lazy="dynamic"))
+    department = db.relationship("Department", foreign_keys=[department_id],
+                                 backref=db.backref("members", lazy="dynamic"))
+    manager = db.relationship("Employee", remote_side=[id], foreign_keys=[manager_id])
 
     @property
     def total_received(self):

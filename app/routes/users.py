@@ -10,7 +10,7 @@ from app import db
 from app.models import User, Company, Invitation
 from app.models.user import user_companies
 from app.services.permissions import (
-    require_permission, get_user_role, ALL_ROLES, ROLE_LABELS_AR,
+    require_permission, get_user_role, ALL_ROLES, INVITABLE_ROLES, ROLE_LABELS_AR,
     generate_invite_token,
 )
 from app.services.email import send_invitation_email
@@ -38,7 +38,7 @@ def index():
     return render_template(
         "users/index.html",
         members=members, invitations=invitations,
-        roles=ALL_ROLES, role_labels=ROLE_LABELS_AR,
+        roles=INVITABLE_ROLES, role_labels=ROLE_LABELS_AR,
     )
 
 

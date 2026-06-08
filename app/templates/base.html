@@ -149,21 +149,33 @@ tailwind.config = {
     {% endif %}
 
     <nav class="flex-1 py-3 overflow-y-auto">
-      {% set links = [
-        ('dashboard.index', 'لوحة التحكم', '📊'),
-        ('accounts.index', 'شجرة الحسابات', '🌳'),
-        ('journals.index', 'القيود اليومية', '📒'),
-        ('invoices.index', 'الفواتير', '🧾'),
-        ('products.index', 'المنتجات والخدمات', '📦'),
-        ('payment_methods.index', 'طرق الدفع', '💳'),
-        ('customers.index', 'العملاء', '👥'),
-        ('vendors.index', 'الموردون', '🏢'),
-        ('vendor_bills.index', 'فواتير الموردين', '📥'),
-        ('assets.index', 'الأصول الثابتة', '🏗️'),
-        ('payroll.index', 'الرواتب', '💼'),
-        ('reports.index', 'التقارير المالية', '📑'),
-        ('agent.index', 'المحاسب الذكي', '🤖'),
-      ] %}
+      {% set is_hr = current_role in ('owner', 'admin', 'hr_manager') %}
+      {% if current_role == 'hr_manager' %}
+        {# HR-only sidebar: payroll directory + HR home — everything else is hidden. #}
+        {% set links = [
+          ('dashboard.index', 'لوحة التحكم', '📊'),
+          ('hr.index', 'الموارد البشرية', '👥'),
+          ('hr.departments', 'الأقسام', '🏛️'),
+          ('payroll.index', 'الرواتب (عرض)', '💼'),
+        ] %}
+      {% else %}
+        {% set links = [
+          ('dashboard.index', 'لوحة التحكم', '📊'),
+          ('accounts.index', 'شجرة الحسابات', '🌳'),
+          ('journals.index', 'القيود اليومية', '📒'),
+          ('invoices.index', 'الفواتير', '🧾'),
+          ('products.index', 'المنتجات والخدمات', '📦'),
+          ('payment_methods.index', 'طرق الدفع', '💳'),
+          ('customers.index', 'العملاء', '👥'),
+          ('vendors.index', 'الموردون', '🏢'),
+          ('vendor_bills.index', 'فواتير الموردين', '📥'),
+          ('assets.index', 'الأصول الثابتة', '🏗️'),
+          ('payroll.index', 'الرواتب', '💼'),
+          ('hr.index', 'الموارد البشرية', '👥'),
+          ('reports.index', 'التقارير المالية', '📑'),
+          ('agent.index', 'المحاسب الذكي', '🤖'),
+        ] %}
+      {% endif %}
       {% for endpoint, label, icon in links %}
       {% set is_active = request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
       <a href="{{ url_for(endpoint) }}"

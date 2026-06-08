@@ -318,5 +318,52 @@ def update_employee(employee, form):
             except ValueError:
                 pass
 
+    # ─── HR-01 / HR-02 fields ──────────────────────────────────────────
+    from app.models import Gender
+    def _parse_date(s):
+        if not s:
+            return None
+        try:
+            return datetime.strptime(s, "%Y-%m-%d").date()
+        except (ValueError, TypeError):
+            return None
+
+    dept_raw = form.get("department_id")
+    if dept_raw is not None:
+        employee.department_id = int(dept_raw) if dept_raw else None
+
+    mgr_raw = form.get("manager_id")
+    if mgr_raw is not None:
+        new_mgr_id = int(mgr_raw) if mgr_raw else None
+        # Prevent self-referential manager
+        if new_mgr_id == employee.id:
+            new_mgr_id = None
+        employee.manager_id = new_mgr_id
+
+    if "national_id" in form:
+        employee.national_id = (form.get("national_id") or "").strip() or None
+    if "nationality" in form:
+        employee.nationality = (form.get("nationality") or "").strip() or None
+    if "date_of_birth" in form:
+        employee.date_of_birth = _parse_date(form.get("date_of_birth"))
+    if "contract_end_date" in form:
+        new_end = _parse_date(form.get("contract_end_date"))
+        if new_end != employee.contract_end_date:
+            # Reset alert dedup so the next cron tick re-evaluates
+            employee.contract_alert_last_sent = None
+        employee.contract_end_date = new_end
+    if "notes" in form:
+        employee.notes = (form.get("notes") or "").strip() or None
+
+    gender_str = form.get("gender")
+    if gender_str is not None:
+        if gender_str:
+            try:
+                employee.gender = Gender[gender_str]
+            except KeyError:
+                pass
+        else:
+            employee.gender = None
+
     db.session.commit()
     return employee

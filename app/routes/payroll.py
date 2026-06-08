@@ -3,8 +3,8 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_required, current_user
 from app import db
 from app.models import (
-    Employee, EmployeeStatus, ContractType, TerminationReason,
-    PayrollRun, PayrollLine, EmployeeAccrual,
+    Employee, EmployeeStatus, ContractType, TerminationReason, Gender,
+    PayrollRun, PayrollLine, EmployeeAccrual, Department,
 )
 from app.services.payroll import (
     run_payroll, terminate_employee, settle_accrual, update_employee,
@@ -47,6 +47,30 @@ def index():
     )
 
 
+def _parse_date(s):
+    if not s:
+        return None
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return None
+
+
+def _hr_form_context(employee=None):
+    """Build dropdown options for the HR fields on the employee form."""
+    cid = g.active_company.id
+    departments = Department.query.filter_by(
+        company_id=cid, is_active=True
+    ).order_by(Department.name).all()
+    managers_q = Employee.query.filter_by(
+        company_id=cid, status=EmployeeStatus.ACTIVE
+    ).order_by(Employee.name)
+    return {
+        "departments": departments,
+        "possible_managers": managers_q.all(),
+    }
+
+
 @bp.route("/employees/new", methods=["GET", "POST"])
 @login_required
 @require_permission("payroll.employees")
@@ -55,6 +79,9 @@ def new_employee():
         try:
             ct_str = request.form.get("contract_type", "FULL_TIME")
             start_str = request.form.get("start_date") or date.today().isoformat()
+            gender_str = request.form.get("gender") or None
+            dept_raw = request.form.get("department_id") or None
+            mgr_raw = request.form.get("manager_id") or None
             emp = Employee(
                 company_id=g.active_company.id,
                 employee_number=next_number(g.active_company.id, "EMPLOYEE"),
@@ -68,6 +95,14 @@ def new_employee():
                 basic_salary=float(request.form.get("basic_salary", 0)),
                 allowances=float(request.form.get("allowances", 0)),
                 deductions=float(request.form.get("deductions", 0)),
+                department_id=int(dept_raw) if dept_raw else None,
+                manager_id=int(mgr_raw) if mgr_raw else None,
+                national_id=(request.form.get("national_id") or "").strip() or None,
+                nationality=(request.form.get("nationality") or "").strip() or None,
+                date_of_birth=_parse_date(request.form.get("date_of_birth")),
+                gender=Gender[gender_str] if gender_str else None,
+                contract_end_date=_parse_date(request.form.get("contract_end_date")),
+                notes=(request.form.get("notes") or "").strip() or None,
             )
             if not emp.name:
                 raise ValueError("اسم الموظف مطلوب")
@@ -77,7 +112,8 @@ def new_employee():
             return redirect(url_for("payroll.employee_profile", employee_id=emp.id))
         except (ValueError, KeyError) as e:
             flash(str(e), "error")
-    return render_template("payroll/employee_form.html", contract_types=ContractType)
+    return render_template("payroll/employee_form.html",
+                           contract_types=ContractType, **_hr_form_context())
 
 
 @bp.route("/employees/<int:employee_id>")
@@ -125,12 +161,13 @@ def edit_employee(employee_id):
         "payroll/employee_form.html",
         contract_types=ContractType, statuses=EmployeeStatus,
         employee=emp, has_history=has_history,
+        **_hr_form_context(emp),
     )
 
 
 @bp.route("/accruals/<int:accrual_id>/settle", methods=["POST"])
 @login_required
-@require_permission("payroll.employees")
+@require_permission("payroll.accruals")
 def settle_accrual_route(accrual_id):
     a = db.session.get(EmployeeAccrual, accrual_id)
     if not a or a.company_id != g.active_company.id:

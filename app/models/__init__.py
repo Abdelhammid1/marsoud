@@ -18,8 +18,9 @@ from app.models.vendor_bill import (
 )
 from app.models.payroll import (
     Employee, PayrollRun, PayrollLine, EmployeeAccrual,
-    ContractType, EmployeeStatus, TerminationReason,
+    ContractType, EmployeeStatus, TerminationReason, Gender,
 )
+from app.models.department import Department
 from app.models.refund import Refund, RefundType, CreditNote
 from app.models.invitation import Invitation
 from app.models.agent_chat import AgentMessage
@@ -34,7 +35,8 @@ __all__ = [
     "Invoice", "InvoiceItem", "InvoiceStatus", "Payment", "InvoiceReminderSent",
     "Customer", "Vendor",
     "FixedAsset",
-    "Employee", "PayrollRun", "PayrollLine", "EmployeeAccrual",
+    "Employee", "PayrollRun", "PayrollLine", "EmployeeAccrual", "Gender",
+    "Department",
     "Refund", "RefundType", "CreditNote",
     "Invitation",
     "AgentMessage",

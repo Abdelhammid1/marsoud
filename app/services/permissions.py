@@ -5,13 +5,15 @@ Roles (stored in user_companies.role):
   - admin       — full control except billing/user management
   - accountant  — can post entries (invoices, journals, payroll, vendor bills)
                   but cannot edit company settings or manage users
+  - hr_manager  — sees people (employees/departments + read-only payroll), never numbers
+                  (no journals/invoices/vendor_bills/accounts/reports)
   - viewer      — read-only
 
 Use @require_permission("invoices.create") on routes that mutate data.
 Read-only routes only need @login_required.
 """
 from functools import wraps
-from flask import g, flash, redirect, url_for
+from flask import g, flash, redirect, url_for, abort
 from flask_login import current_user
 
 # Role → permission set
@@ -32,7 +34,11 @@ P = {
     "journals.recurring":   {"owner", "admin", "accountant"},
 
     "payroll.run":          {"owner", "admin", "accountant"},
-    "payroll.employees":    {"owner", "admin", "accountant"},
+    "payroll.employees":    {"owner", "admin", "accountant", "hr_manager"},  # employee lifecycle (create/edit/terminate) — HR owns this
+    "payroll.accruals":     {"owner", "admin", "accountant"},  # settling accruals = posts a journal → financial-only
+    "payroll.view":         {"owner", "admin", "accountant", "hr_manager", "viewer"},
+
+    "hr.manage":            {"owner", "admin", "hr_manager"},  # departments + employee HR fields
 
     "vendor_bills.create":  {"owner", "admin", "accountant"},
 
@@ -49,11 +55,13 @@ P = {
     "reports.export":       {"owner", "admin", "accountant", "viewer"},
 }
 
-ALL_ROLES = ["owner", "admin", "accountant", "viewer"]
+ALL_ROLES = ["owner", "admin", "accountant", "hr_manager", "viewer"]
+INVITABLE_ROLES = ["admin", "accountant", "hr_manager", "viewer"]  # not "owner" — that's per-company singleton
 ROLE_LABELS_AR = {
     "owner": "مالك",
     "admin": "مدير",
     "accountant": "محاسب",
+    "hr_manager": "مدير الموارد البشرية",
     "viewer": "مشاهد",
 }
 
@@ -99,6 +107,49 @@ def require_permission(action):
             if not has_permission(action):
                 flash("ليس لديك صلاحية لهذا الإجراء", "error")
                 return redirect(url_for("dashboard.index"))
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def hr_required(fn):
+    """Decorator for HR routes — allows OWNER / ADMIN / HR_MANAGER, 403 for others.
+
+    Per HR-04 spec: "HR_MANAGER يحصل على 403 عند محاولة الوصول للفواتير …".
+    The reverse (everyone except the HR-allowed roles → 403 on HR routes) is
+    the same rule.
+    """
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return redirect(url_for("auth.login"))
+        if not g.get("active_company"):
+            flash("اختر شركة أولاً", "warning")
+            return redirect(url_for("dashboard.index"))
+        role = get_user_role(current_user.id, g.active_company.id)
+        if role not in ("owner", "admin", "hr_manager"):
+            abort(403)
+        return fn(*args, **kwargs)
+    return wrapper
+
+
+def forbid_roles(*roles):
+    """Decorator: returns 403 (not redirect) for users whose role matches any in `roles`.
+
+    Used on financial routes to satisfy the spec acceptance #18 — HR_MANAGER
+    must get a real 403 when poking at /journals, /invoices, /reports, etc.
+    Other roles fall through to the existing require_permission gate (which
+    handles viewer redirects, etc.).
+    """
+    blocked = set(roles)
+
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            if current_user.is_authenticated and g.get("active_company"):
+                role = get_user_role(current_user.id, g.active_company.id)
+                if role in blocked:
+                    abort(403)
             return fn(*args, **kwargs)
         return wrapper
     return decorator

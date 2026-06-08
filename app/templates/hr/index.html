@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block page_title %}الموارد البشرية{% endblock %}
+{% block content %}
+<div class="grid grid-cols-3 gap-4 mb-6">
+  <div class="card p-5">
+    <div class="text-xs text-slate-500 mb-1">إجمالي الموظفين النشطين</div>
+    <div class="text-2xl font-bold text-navy-900">{{ employees|length }}</div>
+  </div>
+  <div class="card p-5">
+    <div class="text-xs text-slate-500 mb-1">الأقسام</div>
+    <div class="text-2xl font-bold text-navy-900">{{ departments|length }}</div>
+    <a href="{{ url_for('hr.departments') }}" class="text-xs text-brand-600 hover:underline mt-2 inline-block">إدارة الأقسام ←</a>
+  </div>
+  <div class="card p-5">
+    <div class="text-xs text-slate-500 mb-1">إضافة موظف</div>
+    <a href="{{ url_for('payroll.new_employee') }}" class="btn-primary inline-block mt-2 text-sm">+ موظف جديد</a>
+  </div>
+</div>
+
+<div class="card p-6">
+  <h2 class="font-bold text-navy-900 mb-3">دليل الموظفين</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>الرقم</th>
+        <th>الاسم</th>
+        <th>الوظيفة</th>
+        <th>القسم</th>
+        <th>المدير المباشر</th>
+        <th>تاريخ انتهاء العقد</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for e in employees %}
+      <tr>
+        <td class="font-mono text-xs text-slate-500">
+          <a href="{{ url_for('payroll.employee_profile', employee_id=e.id) }}" class="text-brand-600 hover:underline">{{ e.employee_number or '—' }}</a>
+        </td>
+        <td><a href="{{ url_for('payroll.employee_profile', employee_id=e.id) }}" class="font-semibold hover:text-brand-600">{{ e.name }}</a></td>
+        <td class="text-sm text-slate-500">{{ e.job_title or '—' }}</td>
+        <td>{% if e.department %}<span class="badge badge-sent">{{ e.department.name }}</span>{% else %}<span class="text-slate-400">—</span>{% endif %}</td>
+        <td class="text-sm">{{ e.manager.name if e.manager else '—' }}</td>
+        <td class="text-sm font-mono">
+          {% if e.contract_end_date %}
+            {% set days_left = (e.contract_end_date - now.date()).days %}
+            {% if days_left <= 30 %}<span class="text-rose-600 font-bold">{{ e.contract_end_date.isoformat() }} ({{ days_left }} يوم)</span>
+            {% elif days_left <= 60 %}<span class="text-amber-600">{{ e.contract_end_date.isoformat() }} ({{ days_left }} يوم)</span>
+            {% else %}<span class="text-slate-500">{{ e.contract_end_date.isoformat() }}</span>
+            {% endif %}
+          {% else %}<span class="text-slate-400">—</span>{% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="text-center text-slate-400 py-6">لا يوجد موظفون نشطون</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

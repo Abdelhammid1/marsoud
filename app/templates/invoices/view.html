@@ -3,19 +3,31 @@
 {% block content %}
 <div class="grid grid-cols-3 gap-4">
   <div class="card p-6 col-span-2">
-    <div class="flex items-start justify-between mb-6">
-      <div>
-        <div class="text-xs text-slate-500">فاتورة</div>
-        <h2 class="text-2xl font-bold text-navy-900">{{ invoice.number }}</h2>
-      </div>
-      <div class="flex items-center gap-2">
-        {% set status_class = {'DRAFT':'badge-draft','SENT':'badge-sent','PAID':'badge-paid','PARTIALLY_PAID':'badge-partial','OVERDUE':'badge-overdue','CANCELLED':'badge-cancelled','REFUNDED':'badge-refunded','PARTIALLY_REFUNDED':'badge-refunded'} %}
-        <span class="badge {{ status_class.get(invoice.status.value, 'badge-draft') }} text-base px-3 py-1.5">{{ invoice.status.value }}</span>
-        <a href="{{ url_for('invoices.preview_pdf', invoice_id=invoice.id) }}" target="_blank" class="btn-secondary text-sm">👁 معاينة PDF</a>
-        {% if invoice.status.value == 'DRAFT' %}
-        <a href="{{ url_for('invoices.edit', invoice_id=invoice.id) }}" class="btn-secondary text-sm">✏️ تعديل</a>
+    {# MARSOUD-23 — company branding header (logo + name + VAT) #}
+    <div class="bg-gradient-to-l from-navy-900 to-navy-700 text-white -m-6 mb-6 px-6 py-5 rounded-t-2xl flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        {% if invoice.company.logo_path %}
+        <img src="{{ invoice.company.logo_path }}" alt="شعار {{ invoice.company.name }}" class="h-12 w-auto max-w-[120px] bg-white rounded p-1 object-contain">
+        {% else %}
+        <div class="w-12 h-12 rounded-lg bg-brand-500 text-white font-bold flex items-center justify-center text-xl">{{ invoice.company.name[0] }}</div>
         {% endif %}
+        <div>
+          <div class="font-bold text-lg">{{ invoice.company.name }}</div>
+          {% if invoice.company.tax_number %}<div class="text-xs text-navy-200" dir="ltr">VAT # {{ invoice.company.tax_number }}</div>{% endif %}
+        </div>
       </div>
+      <div class="text-left">
+        <div class="text-xs text-navy-200">فاتورة</div>
+        <div class="font-mono text-2xl font-bold">{{ invoice.number }}</div>
+      </div>
+    </div>
+    <div class="flex items-center justify-end gap-2 mb-6">
+      {% set status_class = {'DRAFT':'badge-draft','SENT':'badge-sent','PAID':'badge-paid','PARTIALLY_PAID':'badge-partial','OVERDUE':'badge-overdue','CANCELLED':'badge-cancelled','REFUNDED':'badge-refunded','PARTIALLY_REFUNDED':'badge-refunded'} %}
+      <span class="badge {{ status_class.get(invoice.status.value, 'badge-draft') }} text-base px-3 py-1.5">{{ invoice.status.value }}</span>
+      <a href="{{ url_for('invoices.preview_pdf', invoice_id=invoice.id) }}" target="_blank" class="btn-secondary text-sm">👁 معاينة PDF</a>
+      {% if invoice.status.value == 'DRAFT' %}
+      <a href="{{ url_for('invoices.edit', invoice_id=invoice.id) }}" class="btn-secondary text-sm">✏️ تعديل</a>
+      {% endif %}
     </div>
 
     <div class="grid grid-cols-2 gap-4 mb-6">

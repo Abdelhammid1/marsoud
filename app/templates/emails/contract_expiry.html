@@ -1,0 +1,33 @@
+{% extends "emails/_base.html" %}
+{% block title %}تنبيه: عقود على وشك الانتهاء{% endblock %}
+{% block content %}
+<h2 style="color:#0A2540;margin:0 0 12px;font-size:20px">تنبيه: عقود موظفين على وشك الانتهاء</h2>
+<p style="color:#475569;margin:0 0 20px;font-size:14px">شركة <b>{{ company.name }}</b> — حتى {{ today.isoformat() }}</p>
+
+<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
+  <thead>
+    <tr style="background:#F1F5F9">
+      <th align="right" style="padding:10px;color:#475569">الموظف</th>
+      <th align="right" style="padding:10px;color:#475569">القسم</th>
+      <th align="right" style="padding:10px;color:#475569">تاريخ الانتهاء</th>
+      <th align="right" style="padding:10px;color:#475569">المتبقي</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for emp, days_left, severity in items %}
+    <tr style="border-bottom:1px solid #F1F5F9">
+      <td style="padding:10px"><b>{{ emp.name }}</b><br><span style="color:#94A3B8;font-size:11px">{{ emp.job_title or '' }}</span></td>
+      <td style="padding:10px;color:#475569">{{ emp.department.name if emp.department else '—' }}</td>
+      <td style="padding:10px;font-family:monospace">{{ emp.contract_end_date.isoformat() }}</td>
+      <td style="padding:10px;font-weight:bold;color:{% if severity == 'red' %}#B91C1C{% else %}#B45309{% endif %}">
+        {{ days_left }} يوم
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<p style="color:#94A3B8;font-size:12px;margin-top:24px">
+  اللون الأحمر = أقل من 30 يوم • اللون الكهرماني = 30–60 يوم
+</p>
+{% endblock %}

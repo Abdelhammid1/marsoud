@@ -46,7 +46,7 @@
       </div>
     </div>
     {% endif %}
-    <div class="grid grid-cols-2 gap-4">
+    <div class="grid grid-cols-3 gap-4">
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">تاريخ بدء العمل</label>
         <input type="date" name="start_date" id="start_date"
@@ -62,7 +62,65 @@
           <option value="TEMPORARY" {% if employee and employee.contract_type.value=='TEMPORARY' %}selected{% endif %}>مؤقت</option>
         </select>
       </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">تاريخ انتهاء العقد</label>
+        <input type="date" name="contract_end_date"
+               value="{{ employee.contract_end_date.isoformat() if employee and employee.contract_end_date else '' }}" class="input">
+      </div>
     </div>
+
+    <hr class="border-slate-100">
+    <p class="text-sm font-semibold text-slate-600">البيانات الشخصية والتنظيمية</p>
+    <div class="grid grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">القسم</label>
+        <select name="department_id" class="select">
+          <option value="">— بدون قسم —</option>
+          {% for d in departments %}
+          <option value="{{ d.id }}" {% if employee and employee.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">المدير المباشر</label>
+        <select name="manager_id" class="select">
+          <option value="">— لا يوجد —</option>
+          {% for m in possible_managers %}
+          {% if not employee or m.id != employee.id %}
+          <option value="{{ m.id }}" {% if employee and employee.manager_id == m.id %}selected{% endif %}>{{ m.name }}</option>
+          {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">الجنس</label>
+        <select name="gender" class="select">
+          <option value="">— غير محدد —</option>
+          <option value="MALE" {% if employee and employee.gender and employee.gender.value == 'MALE' %}selected{% endif %}>ذكر</option>
+          <option value="FEMALE" {% if employee and employee.gender and employee.gender.value == 'FEMALE' %}selected{% endif %}>أنثى</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">رقم الهوية / الإقامة</label>
+        <input type="text" name="national_id" dir="ltr" value="{{ employee.national_id if employee else '' }}" class="input font-mono">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">الجنسية</label>
+        <input type="text" name="nationality" value="{{ employee.nationality if employee else '' }}" class="input">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">تاريخ الميلاد</label>
+        <input type="date" name="date_of_birth"
+               value="{{ employee.date_of_birth.isoformat() if employee and employee.date_of_birth else '' }}" class="input">
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">ملاحظات</label>
+      <textarea name="notes" rows="2" class="textarea">{{ employee.notes if employee else '' }}</textarea>
+    </div>
+
     <hr class="border-slate-100">
     <p class="text-sm font-semibold text-slate-600">الراتب الأساسي والثوابت</p>
     <div class="grid grid-cols-3 gap-4">

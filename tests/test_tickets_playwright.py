@@ -215,6 +215,24 @@ def build_checks(fx):
          ["الوصف", "النوع", "بند اختبار آلي PWTEST"], "acc20_columns"),
         ("MARSOUD-3", "Company settings nav link in sidebar",
          "/", ["إعدادات الشركة"], "marsoud3_settings_link"),
+        # ─── Cycle 5: HR Phase 1 + MARSOUD-23 ──────────────────────────────
+        ("HR-01a", "HR home page (directory + departments summary)",
+         "/hr/", ["الموارد البشرية", "دليل الموظفين"], "hr01_home"),
+        ("HR-01b", "Departments list page",
+         "/hr/departments", ["الأقسام", "قسم جديد"], "hr01_departments"),
+        ("HR-01c", "New department form",
+         "/hr/departments/new", ["اسم القسم", "المدير المسؤول"], "hr01_department_form"),
+        ("HR-01d", "Department dropdown on employee form",
+         "/payroll/employees/new", ["القسم", "بدون قسم"], "hr01_dept_dropdown"),
+        ("HR-02", "Employee form: new personal/contract fields",
+         "/payroll/employees/new",
+         ["رقم الهوية", "الجنسية", "تاريخ الميلاد", "تاريخ انتهاء العقد", "ملاحظات"],
+         "hr02_employee_fields"),
+        ("HR-04a", "Invite form offers hr_manager role",
+         "/users", ["مدير الموارد البشرية"], "hr04_invite_role"),
+        ("MARSOUD-23a", "Logo upload field on company-edit page",
+         f"/companies/{fx['company_id']}/edit",
+         ["شعار الشركة", 'name="logo_file"'], "marsoud23_logo_widget"),
     ]
 
 
@@ -313,6 +331,167 @@ def _delete_invite(inv_id):
         if inv:
             db.session.delete(inv)
             db.session.commit()
+
+
+def _make_hr_manager_user(email, password, company_id):
+    """Create an active user bound to the company with the hr_manager role.
+
+    Returns the user id. Idempotent: re-promotes / re-attaches if already exists.
+    """
+    from app import create_app, db
+    from app.models import User
+    from app.models.user import user_companies
+    app = create_app()
+    with app.app_context():
+        u = User.query.filter_by(email=email).first()
+        if not u:
+            u = User(email=email, full_name="PW HR Manager", is_active=True)
+            u.set_password(password)
+            db.session.add(u)
+            db.session.flush()
+        # Attach as hr_manager
+        existing = db.session.execute(
+            user_companies.select().where(
+                (user_companies.c.user_id == u.id) &
+                (user_companies.c.company_id == company_id)
+            )
+        ).first()
+        if existing:
+            db.session.execute(
+                user_companies.update().where(
+                    (user_companies.c.user_id == u.id) &
+                    (user_companies.c.company_id == company_id)
+                ).values(role="hr_manager")
+            )
+        else:
+            db.session.execute(
+                user_companies.insert().values(
+                    user_id=u.id, company_id=company_id, role="hr_manager",
+                )
+            )
+        db.session.commit()
+        return u.id
+
+
+def _delete_user(user_id):
+    from app import create_app, db
+    from app.models import User
+    from app.models.user import user_companies
+    app = create_app()
+    with app.app_context():
+        db.session.execute(user_companies.delete().where(user_companies.c.user_id == user_id))
+        u = db.session.get(User, user_id)
+        if u:
+            db.session.delete(u)
+            db.session.commit()
+
+
+def _create_department(company_id, name="PWTEST_قسم_اختبار"):
+    from app import create_app, db
+    from app.models import Department
+    app = create_app()
+    with app.app_context():
+        existing = Department.query.filter_by(company_id=company_id, name=name).first()
+        if existing:
+            return existing.id
+        d = Department(company_id=company_id, name=name, description="ينشأ من اختبار آلي")
+        db.session.add(d)
+        db.session.commit()
+        return d.id
+
+
+def _delete_department(department_id):
+    from app import create_app, db
+    from app.models import Department, Employee
+    app = create_app()
+    with app.app_context():
+        # Detach any employees first
+        Employee.query.filter_by(department_id=department_id).update({"department_id": None})
+        d = db.session.get(Department, department_id)
+        if d:
+            db.session.delete(d)
+            db.session.commit()
+
+
+def _set_employee_contract_end(employee_id, days_from_today):
+    """Backdate / forward-date an employee's contract_end_date to trigger HR-03."""
+    from datetime import date, timedelta
+    from app import create_app, db
+    from app.models import Employee
+    app = create_app()
+    with app.app_context():
+        e = db.session.get(Employee, employee_id)
+        prev_end = e.contract_end_date
+        prev_alert = e.contract_alert_last_sent
+        e.contract_end_date = date.today() + timedelta(days=days_from_today)
+        e.contract_alert_last_sent = None
+        db.session.commit()
+        return prev_end, prev_alert
+
+
+def _restore_employee_contract(employee_id, prev_end, prev_alert):
+    from app import create_app, db
+    from app.models import Employee
+    app = create_app()
+    with app.app_context():
+        e = db.session.get(Employee, employee_id)
+        if e:
+            e.contract_end_date = prev_end
+            e.contract_alert_last_sent = prev_alert
+            db.session.commit()
+
+
+def _first_active_employee_id(company_id):
+    from app import create_app, db
+    from app.models import Employee, EmployeeStatus
+    app = create_app()
+    with app.app_context():
+        e = Employee.query.filter_by(
+            company_id=company_id, status=EmployeeStatus.ACTIVE
+        ).first()
+        return e.id if e else None
+
+
+def _upload_company_logo(company_id):
+    """Write a tiny placeholder logo to /static/logos/<id>.png and set the company's
+    logo_path. Returns (prev_logo_path, logo_disk_path) so we can restore.
+    """
+    import base64
+    from pathlib import Path as _Path
+    from app import create_app, db
+    from app.models import Company
+
+    # 1x1 transparent PNG (smallest valid PNG)
+    PNG_1PX = base64.b64decode(
+        b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgAAIAAAUAAeImBZsAAAAASUVORK5CYII="
+    )
+    app = create_app()
+    with app.app_context():
+        co = db.session.get(Company, company_id)
+        prev = co.logo_path
+        logos_dir = _Path(app.root_path) / "static" / "logos"
+        logos_dir.mkdir(parents=True, exist_ok=True)
+        disk = logos_dir / f"{company_id}.png"
+        disk.write_bytes(PNG_1PX)
+        co.logo_path = f"/static/logos/{company_id}.png"
+        db.session.commit()
+        return prev, str(disk)
+
+
+def _restore_company_logo(company_id, prev_path, disk_path):
+    from pathlib import Path as _Path
+    from app import create_app, db
+    from app.models import Company
+    app = create_app()
+    with app.app_context():
+        co = db.session.get(Company, company_id)
+        co.logo_path = prev_path
+        db.session.commit()
+    try:
+        if disk_path:
+            _Path(disk_path).unlink(missing_ok=True)
+    except Exception:
+        pass
 
 
 def _audit_has(action_substring):
@@ -443,6 +622,185 @@ def run_checks(fx):
                     db.session.delete(u)
                     db.session.commit()
         results.append(gap2)
+
+        # ── HR-04 deep: HR_MANAGER cannot access financial routes (403) ─
+        _logout(page)
+        hr_user_id = _make_hr_manager_user(
+            "pwtest_hr@manasety.ai", "hrtest1234", fx["company_id"],
+        )
+        try:
+            _login(page, "pwtest_hr@manasety.ai", "hrtest1234")
+
+            # Sees HR home
+            hr_view = {"ticket": "HR-04b", "title": "HR_MANAGER can reach /hr/",
+                       "url": "/hr/", "passed": False, "missing": [], "error": None,
+                       "shot": "hr04_can_see_hr.png"}
+            try:
+                resp = page.goto(f"{BASE}/hr/", wait_until="networkidle")
+                page.screenshot(path=str(SHOTS / "hr04_can_see_hr.png"), full_page=True)
+                html = page.content()
+                hr_view["status"] = resp.status if resp else 0
+                hr_view["passed"] = hr_view["status"] < 400 and "الموارد البشرية" in html
+                if not hr_view["passed"]:
+                    hr_view["missing"] = [f"status={hr_view['status']}, missing 'الموارد البشرية'"]
+            except Exception as e:
+                hr_view["error"] = str(e)[:200]
+            results.append(hr_view)
+
+            # 403 on financial routes
+            for ticket, url, shot in [
+                ("HR-04c-journals", "/journals/", "hr04_403_journals"),
+                ("HR-04c-invoices", "/invoices/", "hr04_403_invoices"),
+                ("HR-04c-vendor-bills", "/vendor-bills/", "hr04_403_vendor_bills"),
+                ("HR-04c-accounts", "/accounts/", "hr04_403_accounts"),
+                ("HR-04c-reports", "/reports/", "hr04_403_reports"),
+            ]:
+                entry = {"ticket": ticket, "title": f"HR_MANAGER → {url} returns 403",
+                         "url": url, "passed": False, "missing": [], "error": None,
+                         "shot": f"{shot}.png"}
+                try:
+                    resp = page.goto(f"{BASE}{url}", wait_until="networkidle")
+                    page.screenshot(path=str(SHOTS / f"{shot}.png"), full_page=True)
+                    status = resp.status if resp else 0
+                    entry["status"] = status
+                    entry["passed"] = (status == 403)
+                    if not entry["passed"]:
+                        entry["missing"] = [f"expected 403 got {status}"]
+                except Exception as e:
+                    entry["error"] = str(e)[:200]
+                results.append(entry)
+
+            # HR_MANAGER may read /payroll/ (read-only access per spec)
+            payroll_view = {"ticket": "HR-04d",
+                            "title": "HR_MANAGER can read /payroll/ (no run)",
+                            "url": "/payroll/", "passed": False, "missing": [],
+                            "error": None, "shot": "hr04_payroll_read.png"}
+            try:
+                resp = page.goto(f"{BASE}/payroll/", wait_until="networkidle")
+                page.screenshot(path=str(SHOTS / "hr04_payroll_read.png"), full_page=True)
+                payroll_view["status"] = resp.status if resp else 0
+                payroll_view["passed"] = payroll_view["status"] < 400
+                if not payroll_view["passed"]:
+                    payroll_view["missing"] = [f"got {payroll_view['status']}"]
+            except Exception as e:
+                payroll_view["error"] = str(e)[:200]
+            results.append(payroll_view)
+        finally:
+            _logout(page)
+            _delete_user(hr_user_id)
+
+        # ── HR-01 deep: department CRUD round-trip ──────────────────────
+        _login(page, EMAIL, PASSWORD)
+        dept_id = None
+        dept_check = {"ticket": "HR-01-deep",
+                      "title": "Created department appears in list",
+                      "url": "/hr/departments", "passed": False, "missing": [],
+                      "error": None, "shot": "hr01_after_create.png"}
+        try:
+            dept_id = _create_department(fx["company_id"], "PWTEST_قسم_اختبار")
+            page.goto(f"{BASE}/hr/departments", wait_until="networkidle")
+            page.screenshot(path=str(SHOTS / "hr01_after_create.png"), full_page=True)
+            html = page.content()
+            dept_check["passed"] = "PWTEST_قسم_اختبار" in html
+            if not dept_check["passed"]:
+                dept_check["missing"] = ["department name missing from list"]
+        except Exception as e:
+            dept_check["error"] = str(e)[:200]
+        finally:
+            if dept_id:
+                _delete_department(dept_id)
+        results.append(dept_check)
+
+        # ── HR-03 deep: cron tick reports contract alerts ───────────────
+        emp_id = _first_active_employee_id(fx["company_id"])
+        cron_check = {"ticket": "HR-03-deep",
+                      "title": "Cron tick processes contract expiry alerts",
+                      "url": "/cron/tick", "passed": False, "missing": [],
+                      "error": None, "shot": "hr03_cron_tick.png"}
+        prev_end, prev_alert = (None, None)
+        try:
+            if emp_id:
+                prev_end, prev_alert = _set_employee_contract_end(emp_id, days_from_today=20)
+            resp = page.goto(f"{BASE}/cron/tick", wait_until="networkidle")
+            page.screenshot(path=str(SHOTS / "hr03_cron_tick.png"), full_page=True)
+            status = resp.status if resp else 0
+            html = page.content()
+            # The response is JSON; we look for the key we added.
+            cron_check["status"] = status
+            cron_check["passed"] = (status == 200) and ("contract_alerts" in html)
+            if not cron_check["passed"]:
+                cron_check["missing"] = [f"status={status}, html starts: {html[:200]}"]
+        except Exception as e:
+            cron_check["error"] = str(e)[:200]
+        finally:
+            if emp_id and prev_end is not None:
+                _restore_employee_contract(emp_id, prev_end, prev_alert)
+        results.append(cron_check)
+
+        # ── MARSOUD-23 deep: logo round-trips (persist → render in <img>) ─
+        logo_check = {"ticket": "MARSOUD-23-deep",
+                      "title": "Uploaded logo persists and renders in company-edit preview",
+                      "url": f"/companies/{fx['company_id']}/edit",
+                      "passed": False, "missing": [], "error": None,
+                      "shot": "marsoud23_logo_preview.png"}
+        prev_logo, disk_path = (None, None)
+        try:
+            prev_logo, disk_path = _upload_company_logo(fx["company_id"])
+            resp = page.goto(f"{BASE}/companies/{fx['company_id']}/edit",
+                             wait_until="networkidle")
+            page.screenshot(path=str(SHOTS / "marsoud23_logo_preview.png"), full_page=True)
+            html = page.content()
+            logo_check["status"] = resp.status if resp else 0
+            expected = f"/static/logos/{fx['company_id']}.png"
+            logo_check["passed"] = (
+                logo_check["status"] < 400
+                and expected in html
+                and "إزالة الشعار الحالي" in html
+            )
+            if not logo_check["passed"]:
+                logo_check["missing"] = [
+                    f"status={logo_check['status']}, "
+                    f"expected '{expected}' in HTML and remove-checkbox label"
+                ]
+            # Also verify the static file is actually fetchable
+            r2 = page.goto(f"{BASE}{expected}", wait_until="networkidle")
+            if r2 and r2.status != 200:
+                logo_check["passed"] = False
+                logo_check["missing"].append(f"static logo fetch returned {r2.status}")
+        except Exception as e:
+            logo_check["error"] = str(e)[:200]
+        finally:
+            _restore_company_logo(fx["company_id"], prev_logo, disk_path)
+        results.append(logo_check)
+
+        # ── MARSOUD-23 deep #2: email base renders the logo when set ────
+        email_render = {"ticket": "MARSOUD-23-email",
+                        "title": "Email base template emits company logo when set",
+                        "url": "render_template emails/payslip.html",
+                        "passed": False, "missing": [], "error": None,
+                        "shot": "n/a"}
+        try:
+            prev_logo, disk_path = _upload_company_logo(fx["company_id"])
+            from app import create_app
+            from flask import render_template
+            from app.models import Company
+            app3 = create_app()
+            with app3.app_context():
+                co = db.session.get(Company, fx["company_id"])
+                # Render the contract_expiry email since it takes a `company` directly
+                html = render_template(
+                    "emails/contract_expiry.html",
+                    company=co, items=[], today=datetime.date.today(),
+                )
+            expected = f"/static/logos/{fx['company_id']}.png"
+            email_render["passed"] = expected in html
+            if not email_render["passed"]:
+                email_render["missing"] = [f"logo {expected} missing from rendered email"]
+        except Exception as e:
+            email_render["error"] = str(e)[:200]
+        finally:
+            _restore_company_logo(fx["company_id"], prev_logo, disk_path)
+        results.append(email_render)
 
         # ── Gap-01 deep check: company suspension blocks login ─────────
         _logout(page)

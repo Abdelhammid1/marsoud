@@ -26,7 +26,7 @@
     </form>
 
     <table class="data-table">
-      <thead><tr><th>الرقم</th><th>الاسم</th><th>الوظيفة</th><th>العقد</th><th class="text-left">الراتب الصافي</th><th>آخر كشف</th><th>الحالة</th></tr></thead>
+      <thead><tr><th>الرقم</th><th>الاسم</th><th>الوظيفة</th><th>القسم</th><th>العقد</th><th class="text-left">الراتب الصافي</th><th>آخر كشف</th><th>الحالة</th></tr></thead>
       <tbody>
         {% for e in employees %}
         {% set last = e.last_payslip %}
@@ -34,6 +34,7 @@
           <td class="font-mono text-xs text-slate-500"><a href="{{ url_for('payroll.employee_profile', employee_id=e.id) }}" class="text-brand-600 hover:underline">{{ e.employee_number or '—' }}</a></td>
           <td><a href="{{ url_for('payroll.employee_profile', employee_id=e.id) }}" class="font-semibold hover:text-brand-600">{{ e.name }}</a></td>
           <td class="text-sm text-slate-500">{{ e.job_title or '—' }}</td>
+          <td class="text-xs">{% if e.department %}<span class="badge badge-sent">{{ e.department.name }}</span>{% else %}<span class="text-slate-400">—</span>{% endif %}</td>
           <td class="text-xs">{{ e.contract_type.value if e.contract_type else '—' }}</td>
           <td class="text-left font-mono">{% if last %}{{ "%.2f"|format(last.net) }}{% else %}—{% endif %}</td>
           <td class="text-xs text-slate-500">{% if last %}{{ last.run.period_month }}/{{ last.run.period_year }}{% else %}—{% endif %}</td>
@@ -44,7 +45,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="7" class="text-center text-slate-400 py-8">لا يوجد موظفون مطابقون</td></tr>
+        <tr><td colspan="8" class="text-center text-slate-400 py-8">لا يوجد موظفون مطابقون</td></tr>
         {% endfor %}
       </tbody>
     </table>

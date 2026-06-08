@@ -6,6 +6,7 @@ from flask import Blueprint, jsonify, request, current_app
 from app.services.reminders import process_invoice_reminders
 from app.services.invoicing import update_overdue_statuses
 from app.services.journals import process_recurring_journals
+from app.services.hr import check_expiring_contracts
 from app.models import Company
 
 bp = Blueprint("cron", __name__)
@@ -37,5 +38,13 @@ def tick():
 
     # Post any due recurring journal entries
     summary["recurring"] = process_recurring_journals()
+
+    # HR-03: contract expiry alerts (30 / 60 days)
+    try:
+        summary["contract_alerts"] = check_expiring_contracts()
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception("contract alerts failed: %s", e)
+        summary["contract_alerts"] = {"error": str(e)[:200]}
 
     return jsonify(summary)

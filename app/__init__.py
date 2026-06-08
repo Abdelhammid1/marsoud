@@ -1,4 +1,4 @@
-from flask import Flask, session, g
+from flask import Flask, session, g, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_migrate import Migrate
@@ -43,6 +43,7 @@ def create_app(config_class=Config):
     from app.routes.users import bp as users_bp
     from app.routes.invitations import bp as invitations_bp
     from app.routes.superadmin import bp as superadmin_bp
+    from app.routes.hr import bp as hr_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -63,6 +64,7 @@ def create_app(config_class=Config):
     app.register_blueprint(users_bp, url_prefix="/users")
     app.register_blueprint(invitations_bp, url_prefix="/invitations")
     app.register_blueprint(superadmin_bp, url_prefix="/admin")
+    app.register_blueprint(hr_bp, url_prefix="/hr")
 
     @app.before_request
     def load_active_company():
@@ -99,6 +101,26 @@ def create_app(config_class=Config):
                 if not g.active_company and non_suspended:
                     g.active_company = non_suspended[0]
                     session["active_company_id"] = g.active_company.id
+
+    # ─── HR-04 ── HR_MANAGER must get 403 on financial routes ───────────
+    FINANCIAL_BLUEPRINTS = (
+        "journals.", "invoices.", "vendor_bills.", "accounts.",
+        "reports.", "agent.",
+    )
+
+    @app.before_request
+    def block_hr_manager_from_financial():
+        from flask_login import current_user
+        from flask import abort
+        from app.services.permissions import get_user_role
+        if not current_user.is_authenticated or not g.get("active_company"):
+            return
+        endpoint = (request.endpoint or "")
+        if not any(endpoint.startswith(p) for p in FINANCIAL_BLUEPRINTS):
+            return
+        role = get_user_role(current_user.id, g.active_company.id)
+        if role == "hr_manager":
+            abort(403)
 
     @app.context_processor
     def inject_globals():

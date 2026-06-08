@@ -1,7 +1,7 @@
 # Marsoud — Playwright Ticket Verification Report
 
-Run: 2026-06-05 18:54:44
-Result: **40/40 checks passed**
+Run: 2026-06-08 10:52:33
+Result: **58/58 checks passed**
 Screenshots: `tests/screenshots/`
 
 | Ticket | Check | Status | Screenshot |
@@ -29,6 +29,13 @@ Screenshots: `tests/screenshots/`
 | ACC-19 | Vendor-bills date-range filter (من/إلى تاريخ) | ✅ PASS | acc19_date_filter.png |
 | ACC-20 | Vendor-bills line-item columns (الوصف/النوع/الحساب) | ✅ PASS | acc20_columns.png |
 | MARSOUD-3 | Company settings nav link in sidebar | ✅ PASS | marsoud3_settings_link.png |
+| HR-01a | HR home page (directory + departments summary) | ✅ PASS | hr01_home.png |
+| HR-01b | Departments list page | ✅ PASS | hr01_departments.png |
+| HR-01c | New department form | ✅ PASS | hr01_department_form.png |
+| HR-01d | Department dropdown on employee form | ✅ PASS | hr01_dept_dropdown.png |
+| HR-02 | Employee form: new personal/contract fields | ✅ PASS | hr02_employee_fields.png |
+| HR-04a | Invite form offers hr_manager role | ✅ PASS | hr04_invite_role.png |
+| MARSOUD-23a | Logo upload field on company-edit page | ✅ PASS | marsoud23_logo_widget.png |
 | ADMIN-01a | Normal user blocked from /admin (403) | ✅ PASS | admin01_403.png |
 | ADMIN-01b | Super-admin reaches /admin dashboard | ✅ PASS | admin02_dashboard.png |
 | ADMIN-02 | Dashboard metrics rendered | ✅ PASS | admin02_metrics.png |
@@ -45,4 +52,15 @@ Screenshots: `tests/screenshots/`
 | GAP-08 | Errors page reachable from admin | ✅ PASS | gap08_errors_page.png |
 | GAP-08b | Per-company errors page | ✅ PASS | gap08_errors_company.png |
 | GAP-02-deep | Resend-invite POST audits + flashes | ✅ PASS | gap02_resend.png |
+| HR-04b | HR_MANAGER can reach /hr/ | ✅ PASS | hr04_can_see_hr.png |
+| HR-04c-journals | HR_MANAGER → /journals/ returns 403 | ✅ PASS | hr04_403_journals.png |
+| HR-04c-invoices | HR_MANAGER → /invoices/ returns 403 | ✅ PASS | hr04_403_invoices.png |
+| HR-04c-vendor-bills | HR_MANAGER → /vendor-bills/ returns 403 | ✅ PASS | hr04_403_vendor_bills.png |
+| HR-04c-accounts | HR_MANAGER → /accounts/ returns 403 | ✅ PASS | hr04_403_accounts.png |
+| HR-04c-reports | HR_MANAGER → /reports/ returns 403 | ✅ PASS | hr04_403_reports.png |
+| HR-04d | HR_MANAGER can read /payroll/ (no run) | ✅ PASS | hr04_payroll_read.png |
+| HR-01-deep | Created department appears in list | ✅ PASS | hr01_after_create.png |
+| HR-03-deep | Cron tick processes contract expiry alerts | ✅ PASS | hr03_cron_tick.png |
+| MARSOUD-23-deep | Uploaded logo persists and renders in company-edit preview | ✅ PASS | marsoud23_logo_preview.png |
+| MARSOUD-23-email | Email base template emits company logo when set | ✅ PASS | n/a |
 | GAP-01-deep | Suspended-company user blocked at login | ✅ PASS | gap01_blocked.png |

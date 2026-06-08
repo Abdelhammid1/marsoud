@@ -16,6 +16,7 @@ class Company(db.Model):
     name = db.Column(db.String(150), nullable=False)
     base_currency = db.Column(db.String(3), default="SAR", nullable=False)
     logo_url = db.Column(db.Text)
+    logo_path = db.Column(db.String(300))   # uploaded logo on disk, served from /static/logos/
     address = db.Column(db.Text)
     tax_number = db.Column(db.String(50))
     vat_rate = db.Column(db.Numeric(5, 2), default=15.00)

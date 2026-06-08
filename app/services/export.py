@@ -154,14 +154,45 @@ def export_income_statement_excel(company, start, end):
     return buf
 
 
+def _company_logo_disk_path(company):
+    """Resolve company.logo_path (a `/static/...` URL) to an absolute disk path
+    suitable for reportlab. Returns None if the file doesn't exist locally
+    (e.g. logo_url is an external URL not on disk).
+    """
+    if not getattr(company, "logo_path", None):
+        return None
+    rel = company.logo_path.lstrip("/")
+    # Static lives at app/static/ — same as the export module's parent's static.
+    candidate = os.path.join(os.path.dirname(os.path.dirname(__file__)), rel)
+    return candidate if os.path.exists(candidate) else None
+
+
 def _pdf_header(p, company, title, period):
     p.setFillColor(NAVY)
     p.rect(0, 27.7 * cm, 21 * cm, 2 * cm, fill=1, stroke=0)
+
+    # MARSOUD-23 — draw company logo on the left when present
+    logo_x = 1.5 * cm
+    logo_disk = _company_logo_disk_path(company)
+    if logo_disk:
+        try:
+            from reportlab.lib.utils import ImageReader
+            img = ImageReader(logo_disk)
+            # Logo box: 2cm tall, max 3cm wide, anchored on the navy band
+            p.drawImage(img, 1.2 * cm, 27.9 * cm, width=3 * cm, height=1.6 * cm,
+                        preserveAspectRatio=True, mask="auto")
+            logo_x = 4.7 * cm
+        except Exception:
+            pass
+
     p.setFillColor(colors.white)
     p.setFont(_FONT_BOLD, 18)
-    p.drawString(1.5 * cm, 28.5 * cm, ar(company.name))
+    p.drawString(logo_x, 28.5 * cm, ar(company.name))
     p.setFont(_FONT_REGULAR, 10)
-    p.drawString(1.5 * cm, 28 * cm, ar("Marsoud — Financial Report"))
+    sub = "Marsoud — Financial Report"
+    if getattr(company, "tax_number", None):
+        sub += f"  ·  VAT # {company.tax_number}"
+    p.drawString(logo_x, 28 * cm, ar(sub))
 
     p.setFillColor(NAVY)
     p.setFont(_FONT_BOLD, 16)
