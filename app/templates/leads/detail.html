@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block page_title %}{{ lead.client_name }}{% endblock %}
+{% block content %}
+<div class="grid grid-cols-3 gap-4">
+  <div class="card p-6 col-span-2">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-2xl font-bold text-navy-900">{{ lead.client_name }}</h2>
+        <div class="text-sm text-slate-500 mt-1">{{ lead.service_needed }}</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="badge {{ lead.status.badge_class }} text-base px-3 py-1.5">{{ lead.status.label_ar }}</span>
+        {% if not lead.is_converted %}
+        <a href="{{ url_for('leads.edit', lead_id=lead.id) }}" class="btn-secondary text-sm">✎ تعديل</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+      <div><span class="text-slate-500">الهاتف:</span> <span dir="ltr" class="font-mono">{{ lead.phone }}</span></div>
+      <div><span class="text-slate-500">البريد:</span> <span dir="ltr">{{ lead.email or '—' }}</span></div>
+      <div><span class="text-slate-500">المسؤول:</span> {{ lead.assigned_to.full_name if lead.assigned_to else '—' }}</div>
+      <div><span class="text-slate-500">المصدر:</span> {{ lead.source or '—' }}</div>
+      <div><span class="text-slate-500">اجتماع قادم:</span> <span class="font-mono">{{ lead.next_meeting.strftime('%Y-%m-%d %H:%M') if lead.next_meeting else '—' }}</span></div>
+      <div><span class="text-slate-500">أُنشئ:</span> <span class="font-mono">{{ lead.created_at.strftime('%Y-%m-%d') }}</span></div>
+    </div>
+
+    {% if lead.meeting_notes %}
+    <div class="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm">
+      <div class="text-xs text-slate-500 mb-1">ملاحظات الاجتماع</div>
+      <div class="whitespace-pre-wrap">{{ lead.meeting_notes }}</div>
+    </div>
+    {% endif %}
+
+    {% if lead.is_converted %}
+    <div class="mt-4 bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+      <div class="font-bold text-emerald-800">✓ تم التحويل لمشروع</div>
+      <div class="text-sm text-slate-600 mt-1">في {{ lead.converted_at.strftime('%Y-%m-%d') }}.
+        {% if lead.converted_customer_id %}
+        وأُنشئ عميل (Customer #{{ lead.converted_customer_id }}) لربط الفواتير لاحقاً.
+        {% endif %}
+      </div>
+    </div>
+    {% elif lead.status.value == 'WON' %}
+    <div class="mt-4 bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex items-center justify-between">
+      <div>
+        <div class="font-bold text-emerald-800">جاهز للتحويل لمشروع</div>
+        <div class="text-sm text-emerald-700">سننشئ عميل جديد في Marsoud + مشروع مرتبط به.</div>
+      </div>
+      <a href="{{ url_for('leads.convert', lead_id=lead.id) }}" class="btn-primary text-sm">→ تحويل لمشروع</a>
+    </div>
+    {% endif %}
+
+    <hr class="my-5">
+    <h3 class="font-bold text-navy-900 mb-3">📜 سجل الحالات</h3>
+    <div class="space-y-2">
+    {% for ev in lead.history %}
+      <div class="flex items-start gap-3 py-2 border-b border-slate-100">
+        <div class="flex-1">
+          <div class="text-sm">
+            {% if ev.from_status %}<span class="badge {{ ev.from_status.badge_class }}">{{ ev.from_status.label_ar }}</span> ←{% endif %}
+            <span class="badge {{ ev.to_status.badge_class }}">{{ ev.to_status.label_ar }}</span>
+          </div>
+          {% if ev.note %}<div class="text-xs text-slate-500 mt-1">{{ ev.note }}</div>{% endif %}
+        </div>
+        <div class="text-xs text-slate-400 font-mono whitespace-nowrap">{{ ev.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+      </div>
+    {% else %}
+      <div class="text-sm text-slate-400">لا يوجد سجل بعد.</div>
+    {% endfor %}
+    </div>
+  </div>
+
+  {% if not lead.is_converted %}
+  <div class="card p-5">
+    <h3 class="font-bold text-navy-900 mb-3">تغيير الحالة</h3>
+    <form method="POST" action="{{ url_for('leads.status', lead_id=lead.id) }}" class="space-y-3">
+      <select name="new_status" required class="select text-sm" onchange="document.getElementById('lost').style.display = this.value === 'LOST' ? '' : 'none'">
+        <option value="">— اختر —</option>
+        {% for s in statuses %}{% if s != lead.status %}<option value="{{ s.name }}">{{ s.label_ar }}</option>{% endif %}{% endfor %}
+      </select>
+      <input type="text" name="note" placeholder="ملاحظة (اختياري)" class="input text-sm">
+      <div id="lost" style="display:none">
+        <input type="text" name="lost_reason" placeholder="سبب الخسارة" class="input text-sm">
+      </div>
+      <button type="submit" class="btn-primary w-full text-sm">حفظ التغيير</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

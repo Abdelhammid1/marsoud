@@ -44,6 +44,9 @@ def create_app(config_class=Config):
     from app.routes.invitations import bp as invitations_bp
     from app.routes.superadmin import bp as superadmin_bp
     from app.routes.hr import bp as hr_bp
+    from app.routes.leads import bp as leads_bp
+    from app.routes.projects import bp as projects_bp
+    from app.routes.tasks import bp as tasks_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -65,6 +68,9 @@ def create_app(config_class=Config):
     app.register_blueprint(invitations_bp, url_prefix="/invitations")
     app.register_blueprint(superadmin_bp, url_prefix="/admin")
     app.register_blueprint(hr_bp, url_prefix="/hr")
+    app.register_blueprint(leads_bp, url_prefix="/leads")
+    app.register_blueprint(projects_bp, url_prefix="/projects")
+    app.register_blueprint(tasks_bp, url_prefix="/tasks")
 
     @app.before_request
     def load_active_company():
@@ -102,14 +108,20 @@ def create_app(config_class=Config):
                     g.active_company = non_suspended[0]
                     session["active_company_id"] = g.active_company.id
 
-    # ─── HR-04 ── HR_MANAGER must get 403 on financial routes ───────────
+    # ─── HR-04 + Cycle 7 ── non-financial roles get 403 on financial routes
     FINANCIAL_BLUEPRINTS = (
         "journals.", "invoices.", "vendor_bills.", "accounts.",
         "reports.", "agent.",
     )
+    # Roles that must NOT see financial routes — HR / sales / PM / team.
+    # owner / admin / accountant / viewer pass through to the route's own gate.
+    NON_FINANCIAL_ROLES = frozenset({
+        "hr_manager", "sales_manager", "sales_rep",
+        "project_manager", "team_member",
+    })
 
     @app.before_request
-    def block_hr_manager_from_financial():
+    def block_non_financial_roles_from_financial():
         from flask_login import current_user
         from flask import abort
         from app.services.permissions import get_user_role
@@ -119,7 +131,7 @@ def create_app(config_class=Config):
         if not any(endpoint.startswith(p) for p in FINANCIAL_BLUEPRINTS):
             return
         role = get_user_role(current_user.id, g.active_company.id)
-        if role == "hr_manager":
+        if role in NON_FINANCIAL_ROLES:
             abort(403)
 
     @app.context_processor

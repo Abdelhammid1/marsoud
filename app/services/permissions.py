@@ -40,6 +40,21 @@ P = {
 
     "hr.manage":            {"owner", "admin", "hr_manager"},  # departments + employee HR fields
 
+    # ─── CRM (Leads) ───────────────────────────────────────────────────
+    "leads.view":      {"owner", "admin", "sales_manager", "sales_rep"},  # rep limited to own (route-level)
+    "leads.manage":    {"owner", "admin", "sales_manager", "sales_rep"},
+    "leads.convert":   {"owner", "admin", "sales_manager", "sales_rep"},  # convert won lead → project
+
+    # ─── Projects ──────────────────────────────────────────────────────
+    "projects.view":   {"owner", "admin", "sales_manager", "sales_rep",
+                        "project_manager", "team_member"},
+    "projects.create": {"owner", "admin", "project_manager"},
+    "projects.manage": {"owner", "admin", "project_manager"},  # PM limited to own
+
+    # ─── Tasks ─────────────────────────────────────────────────────────
+    "tasks.view":      {"owner", "admin", "project_manager", "team_member"},
+    "tasks.manage":    {"owner", "admin", "project_manager", "team_member"},  # team limited to own
+
     "vendor_bills.create":  {"owner", "admin", "accountant"},
 
     "accounts.manage":      {"owner", "admin", "accountant"},
@@ -55,14 +70,28 @@ P = {
     "reports.export":       {"owner", "admin", "accountant", "viewer"},
 }
 
-ALL_ROLES = ["owner", "admin", "accountant", "hr_manager", "viewer"]
-INVITABLE_ROLES = ["admin", "accountant", "hr_manager", "viewer"]  # not "owner" — that's per-company singleton
+ALL_ROLES = [
+    "owner", "admin", "accountant", "hr_manager",
+    "sales_manager", "sales_rep",
+    "project_manager", "team_member",
+    "viewer",
+]
+INVITABLE_ROLES = [
+    "admin", "accountant", "hr_manager",
+    "sales_manager", "sales_rep",
+    "project_manager", "team_member",
+    "viewer",
+]
 ROLE_LABELS_AR = {
-    "owner": "مالك",
-    "admin": "مدير",
-    "accountant": "محاسب",
-    "hr_manager": "مدير الموارد البشرية",
-    "viewer": "مشاهد",
+    "owner":           "مالك",
+    "admin":           "مدير",
+    "accountant":      "محاسب",
+    "hr_manager":      "مدير الموارد البشرية",
+    "sales_manager":   "مدير مبيعات",
+    "sales_rep":       "مندوب مبيعات",
+    "project_manager": "مدير مشروع",
+    "team_member":     "عضو فريق",
+    "viewer":          "مشاهد",
 }
 
 

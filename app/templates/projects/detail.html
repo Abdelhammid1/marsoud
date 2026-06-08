@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block page_title %}{{ project.name }}{% endblock %}
+{% block content %}
+<div class="grid grid-cols-3 gap-4">
+  <div class="card p-6 col-span-2">
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <h2 class="text-2xl font-bold text-navy-900">{{ project.name }}</h2>
+        <div class="text-sm text-slate-500 mt-1">{{ project.type }} · العميل: {{ project.customer.name if project.customer else '—' }}</div>
+      </div>
+      <div class="text-left">
+        <span class="badge {{ project.status.badge_class }} text-base px-3 py-1.5">{{ project.status.label_ar }}</span>
+      </div>
+    </div>
+
+    <div class="bg-slate-50 rounded-lg p-4 mb-5">
+      <div class="flex items-center justify-between mb-2 text-sm">
+        <span>التقدم الإجمالي</span>
+        <span class="font-mono font-bold">{{ "%.0f"|format(project.progress_pct) }}%</span>
+      </div>
+      <div class="bg-white rounded-full h-3 overflow-hidden">
+        <div class="bg-gradient-to-l from-brand-400 to-brand-700 h-full" style="width: {{ project.progress_pct }}%"></div>
+      </div>
+      <div class="text-xs text-slate-500 mt-2">يُحسب تلقائياً من المهام المكتملة.</div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+      <div><span class="text-slate-500">مدير المشروع:</span> {{ project.manager.full_name if project.manager else '—' }}</div>
+      <div><span class="text-slate-500">تاريخ البداية:</span> <span class="font-mono">{{ project.start_date.isoformat() }}</span></div>
+      <div><span class="text-slate-500">تاريخ النهاية:</span> <span class="font-mono">{{ project.end_date.isoformat() }}</span></div>
+      {% if project.lead %}<div><span class="text-slate-500">جاء من:</span> <a href="{{ url_for('leads.detail', lead_id=project.lead.id) }}" class="text-brand-600 hover:underline">عميل محتمل #{{ project.lead.id }}</a></div>{% endif %}
+    </div>
+
+    {% if project.notes %}
+    <div class="mt-4 bg-slate-50 rounded-lg p-3 text-sm whitespace-pre-wrap">{{ project.notes }}</div>
+    {% endif %}
+
+    <hr class="my-5">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-bold text-navy-900">🎯 المراحل (Milestones)</h3>
+    </div>
+    <div class="space-y-2 mb-4">
+    {% for m in project.milestones %}
+      <div class="flex items-center justify-between py-2 px-3 bg-slate-50 rounded-lg">
+        <div>
+          {% if m.is_done %}<span class="text-emerald-600">✓</span>{% else %}<span class="text-slate-400">○</span>{% endif %}
+          <span class="font-semibold {% if m.is_done %}line-through text-slate-400{% endif %}">{{ m.name }}</span>
+          {% if m.target_date %}<span class="text-xs text-slate-500 mr-2">— {{ m.target_date.isoformat() }}</span>{% endif %}
+        </div>
+        {% if can_edit %}
+        <form method="POST" action="{{ url_for('projects.milestone_toggle', project_id=project.id, m_id=m.id) }}">
+          <button type="submit" class="text-xs text-brand-600 hover:underline">{{ 'إلغاء الإكمال' if m.is_done else 'تأشير كمكتملة' }}</button>
+        </form>
+        {% endif %}
+      </div>
+    {% else %}
+      <div class="text-sm text-slate-400">لا توجد مراحل بعد.</div>
+    {% endfor %}
+    </div>
+    {% if can_edit %}
+    <form method="POST" action="{{ url_for('projects.milestone_new', project_id=project.id) }}" class="flex gap-2">
+      <input type="text" name="name" placeholder="اسم المرحلة" required class="input text-sm">
+      <input type="date" name="target_date" class="input text-sm" style="width:11rem">
+      <button type="submit" class="btn-secondary text-sm">+ مرحلة</button>
+    </form>
+    {% endif %}
+
+    <hr class="my-5">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-bold text-navy-900">📜 سجل الحالات</h3>
+    </div>
+    <div class="space-y-2">
+    {% for ev in project.status_events %}
+      <div class="flex items-start gap-3 py-2 border-b border-slate-100">
+        <div class="flex-1 text-sm">
+          {% if ev.from_status %}<span class="badge {{ ev.from_status.badge_class }}">{{ ev.from_status.label_ar }}</span> ←{% endif %}
+          <span class="badge {{ ev.to_status.badge_class }}">{{ ev.to_status.label_ar }}</span>
+          {% if ev.note %}<span class="text-xs text-slate-500"> — {{ ev.note }}</span>{% endif %}
+        </div>
+        <div class="text-xs text-slate-400 font-mono">{{ ev.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+      </div>
+    {% endfor %}
+    </div>
+  </div>
+
+  <div class="space-y-4">
+    {% if can_edit and next_statuses %}
+    <div class="card p-5">
+      <h3 class="font-bold text-navy-900 mb-3">انتقال للحالة التالية</h3>
+      <form method="POST" action="{{ url_for('projects.status', project_id=project.id) }}" class="space-y-3">
+        <select name="new_status" required class="select text-sm">
+          <option value="">— اختر —</option>
+          {% for s in next_statuses %}<option value="{{ s.name }}">{{ s.label_ar }}</option>{% endfor %}
+        </select>
+        <input type="text" name="note" placeholder="ملاحظة" class="input text-sm">
+        <button type="submit" class="btn-primary w-full text-sm">حفظ التغيير</button>
+      </form>
+    </div>
+    {% endif %}
+
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold text-navy-900">👥 فريق المشروع</h3>
+        {% if can_edit %}<a href="{{ url_for('tasks.new', project_id=project.id) }}" class="text-xs text-brand-600 hover:underline">+ مهمة</a>{% endif %}
+      </div>
+      <div class="space-y-1 text-sm">
+        <div class="flex items-center justify-between py-1">
+          <span class="font-semibold">{{ project.manager.full_name }}</span>
+          <span class="text-xs text-slate-500">مدير المشروع</span>
+        </div>
+        {% for m in project.members %}
+        <div class="flex items-center justify-between py-1">
+          <span>{{ m.user.full_name }}</span>
+          {% if can_edit %}
+          <form method="POST" action="{{ url_for('projects.member_remove', project_id=project.id, member_id=m.id) }}">
+            <button type="submit" class="text-xs text-rose-600 hover:underline">إخراج</button>
+          </form>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% if can_edit and candidates %}
+      <hr class="my-3">
+      <form method="POST" action="{{ url_for('projects.member_add', project_id=project.id) }}" class="flex gap-2">
+        <select name="user_id" required class="select text-sm">
+          {% for u in candidates %}<option value="{{ u.id }}">{{ u.full_name }}</option>{% endfor %}
+        </select>
+        <button type="submit" class="btn-secondary text-sm">+</button>
+      </form>
+      {% endif %}
+    </div>
+
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold text-navy-900">✅ المهام (ملخص)</h3>
+        <a href="{{ url_for('tasks.index', project_id=project.id) }}" class="text-xs text-brand-600 hover:underline">عرض كل المهام →</a>
+      </div>
+      <div class="space-y-2 text-sm">
+        {% for s, ts in by_status.items() %}
+        <div class="flex items-center justify-between">
+          <span class="badge {{ s.badge_class }}">{{ s.label_ar }}</span>
+          <span class="font-mono text-xs">{{ ts|length }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

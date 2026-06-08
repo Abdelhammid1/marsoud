@@ -295,6 +295,22 @@ def build_checks(fx):
          f"/companies/{fx['company_id']}/edit",
          ["أيام العطلة الأسبوعية", 'name="weekend_day"'],
          "gap_weekend_picker"),
+        # ─── Cycle 7: CRM / Projects / Tasks ───────────────────────────────
+        ("CRM-01", "Leads index renders pipeline + status counts",
+         "/leads/", ["العملاء المحتملون", "Pipeline"],
+         "crm01_leads_index"),
+        ("CRM-02", "New-lead form renders",
+         "/leads/new", ["اسم العميل", "الخدمة المطلوبة", "المسؤول"],
+         "crm02_lead_new"),
+        ("CRM-03", "Projects index renders",
+         "/projects/", ["المشاريع", "تخطيط"],
+         "crm03_projects_index"),
+        ("CRM-04", "New-project form renders",
+         "/projects/new", ["اسم المشروع", "مدير المشروع"],
+         "crm04_project_new"),
+        ("CRM-05", "Tasks Kanban renders 5 columns",
+         "/tasks/", ["لوحة المهام", "للقيام", "قيد التنفيذ", "مراجعة", "مكتملة", "متوقفة"],
+         "crm05_tasks_kanban"),
     ]
 
 
@@ -1218,6 +1234,86 @@ def run_checks(fx):
         except Exception as e:
             math_check["error"] = str(e)[:200]
         results.append(math_check)
+
+        # ── Cycle 7 deep: lead → won → convert auto-creates Customer + Project
+        crm_check = {"ticket": "CRM-07-deep",
+                     "title": "Convert-to-project auto-creates Customer + Project",
+                     "url": "service:convert_lead_to_project",
+                     "passed": False, "missing": [], "error": None,
+                     "shot": "crm07_convert.txt"}
+        try:
+            from datetime import date as _date2, timedelta as _td2
+            from app import create_app as _ca2, db as _db2
+            from app.models import (
+                Lead as _Lead, LeadStatus as _LS,
+                Project as _Project, Customer as _Customer, User as _User,
+            )
+            from app.services.crm import convert_lead_to_project as _conv
+            app_c = _ca2()
+            with app_c.app_context():
+                cid = fx["company_id"]
+                # Find any user as the assignee/PM
+                u = _User.query.first()
+                if u is None:
+                    raise RuntimeError("no user in fixtures")
+
+                # Plant a Won lead
+                _Lead.query.filter_by(client_name="PWTEST_lead_conv").delete()
+                _db2.session.commit()
+                lead = _Lead(
+                    company_id=cid,
+                    client_name="PWTEST_lead_conv",
+                    phone="0500000000",
+                    email="pwtest_conv@example.com",
+                    service_needed="اختبار تحويل",
+                    assigned_to_id=u.id,
+                    status=_LS.WON,
+                )
+                _db2.session.add(lead)
+                _db2.session.commit()
+
+                # Clean any prior customer with this email
+                _Customer.query.filter_by(
+                    company_id=cid, email="pwtest_conv@example.com",
+                ).delete()
+                _db2.session.commit()
+
+                project = _conv(
+                    lead,
+                    project_name="مشروع اختبار آلي",
+                    project_type="اختبار",
+                    manager_id=u.id,
+                    start_date=_date2.today(),
+                    end_date=_date2.today() + _td2(days=30),
+                    created_by_id=u.id,
+                )
+                # Verify auto-created Customer + Project link + converted_at
+                cust = _Customer.query.filter_by(
+                    company_id=cid, email="pwtest_conv@example.com",
+                ).first()
+                fresh_lead = _db2.session.get(_Lead, lead.id)
+                ok = (
+                    cust is not None and project.customer_id == cust.id
+                    and fresh_lead.converted_at is not None
+                    and fresh_lead.converted_customer_id == cust.id
+                    and project.status.value == "PLANNING"
+                )
+                crm_check["passed"] = ok
+                if not ok:
+                    crm_check["missing"] = [
+                        f"customer={cust.id if cust else None}, "
+                        f"project.customer_id={project.customer_id}, "
+                        f"converted_at={fresh_lead.converted_at}, "
+                        f"converted_customer_id={fresh_lead.converted_customer_id}"
+                    ]
+                # Cleanup
+                _Project.query.filter_by(id=project.id).delete()
+                _Customer.query.filter_by(id=cust.id).delete()
+                _Lead.query.filter_by(id=lead.id).delete()
+                _db2.session.commit()
+        except Exception as e:
+            crm_check["error"] = str(e)[:200]
+        results.append(crm_check)
 
         # ── Gap-01 deep check: company suspension blocks login ─────────
         _logout(page)

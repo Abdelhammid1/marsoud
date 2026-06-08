@@ -26,6 +26,12 @@ from app.models.leave import (
     AttendanceException, AttendanceExceptionType,
     LeaveRequest, LeaveRequestStatus,
 )
+from app.models.crm import (
+    Lead, LeadStatus, LeadStatusEvent,
+    Project, ProjectStatus, ProjectMember, Milestone, ProjectStatusEvent,
+    PROJECT_TRANSITIONS,
+    Task, TaskStatus, TaskPriority, KANBAN_ORDER,
+)
 from app.models.refund import Refund, RefundType, CreditNote
 from app.models.invitation import Invitation
 from app.models.agent_chat import AgentMessage
@@ -45,6 +51,10 @@ __all__ = [
     "LeaveType", "LeaveBalance",
     "AttendanceException", "AttendanceExceptionType",
     "LeaveRequest", "LeaveRequestStatus",
+    "Lead", "LeadStatus", "LeadStatusEvent",
+    "Project", "ProjectStatus", "ProjectMember", "Milestone", "ProjectStatusEvent",
+    "PROJECT_TRANSITIONS",
+    "Task", "TaskStatus", "TaskPriority", "KANBAN_ORDER",
     "Refund", "RefundType", "CreditNote",
     "Invitation",
     "AgentMessage",

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block page_title %}{{ task.title }}{% endblock %}
+{% block content %}
+<div class="grid grid-cols-3 gap-4">
+  <div class="card p-6 col-span-2">
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <h2 class="text-2xl font-bold text-navy-900">{{ task.title }}</h2>
+        <div class="text-sm text-slate-500 mt-1">في مشروع: <a href="{{ url_for('projects.detail', project_id=task.project_id) }}" class="text-brand-600 hover:underline">{{ task.project.name }}</a></div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="badge {{ task.priority.badge_class }}">{{ task.priority.label_ar }}</span>
+        <span class="badge {{ task.status.badge_class }} text-base px-3 py-1.5">{{ task.status.label_ar }}</span>
+        {% if has_permission('tasks.manage') %}
+        <a href="{{ url_for('tasks.edit', task_id=task.id) }}" class="btn-secondary text-sm">✎ تعديل</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm mb-4">
+      <div><span class="text-slate-500">المُعيَّن إليه:</span> {{ task.assigned_to.full_name if task.assigned_to else '—' }}</div>
+      <div><span class="text-slate-500">المرحلة:</span> {{ task.milestone.name if task.milestone else '—' }}</div>
+      <div><span class="text-slate-500">Deadline:</span>
+        {% if task.deadline %}
+          <span class="font-mono {% if task.is_overdue %}text-rose-600 font-bold{% endif %}">{{ task.deadline.isoformat() }}{% if task.is_overdue %} ⚠ متأخرة{% endif %}</span>
+        {% else %}—{% endif %}
+      </div>
+      <div><span class="text-slate-500">أُنشئت:</span> <span class="font-mono">{{ task.created_at.strftime('%Y-%m-%d') }}</span></div>
+      {% if task.completed_at %}<div><span class="text-slate-500">أُكملت:</span> <span class="font-mono">{{ task.completed_at.strftime('%Y-%m-%d %H:%M') }}</span></div>{% endif %}
+    </div>
+
+    {% if task.description %}
+    <div class="bg-slate-50 rounded-lg p-3 text-sm whitespace-pre-wrap mb-3">{{ task.description }}</div>
+    {% endif %}
+    {% if task.notes %}
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm whitespace-pre-wrap">
+      <div class="text-xs text-amber-700 font-semibold mb-1">ملاحظات</div>
+      {{ task.notes }}
+    </div>
+    {% endif %}
+  </div>
+
+  {% if has_permission('tasks.manage') %}
+  <div class="card p-5">
+    <h3 class="font-bold text-navy-900 mb-3">تغيير الحالة</h3>
+    <form method="POST" action="{{ url_for('tasks.status', task_id=task.id) }}" class="space-y-3">
+      <select name="new_status" required class="select text-sm">
+        {% for s in statuses %}{% if s != task.status %}<option value="{{ s.name }}">{{ s.label_ar }}</option>{% endif %}{% endfor %}
+      </select>
+      <button type="submit" class="btn-primary w-full text-sm">حفظ</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

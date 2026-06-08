@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block page_title %}المهام (Kanban){% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h2 class="font-bold text-navy-900">لوحة المهام</h2>
+    <p class="text-xs text-slate-500">سحب وإفلات بصري؟ غير مفعّل بعد — استخدم أزرار الحالة على كل مهمة.</p>
+  </div>
+  {% if has_permission('tasks.manage') %}
+  <a href="{{ url_for('tasks.new') }}" class="btn-primary text-sm">+ مهمة جديدة</a>
+  {% endif %}
+</div>
+
+<form method="GET" class="flex flex-wrap items-end gap-3 mb-4 card p-4">
+  <div>
+    <label class="block text-xs font-semibold text-slate-700 mb-1">المشروع</label>
+    <select name="project_id" class="select text-sm">
+      <option value="">الكل</option>
+      {% for p in projects %}<option value="{{ p.id }}" {% if project_filter == p.id|string %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold text-slate-700 mb-1">الأولوية</label>
+    <select name="priority" class="select text-sm">
+      <option value="">الكل</option>
+      {% for p in priorities %}<option value="{{ p.name }}" {% if priority_filter == p.name %}selected{% endif %}>{{ p.label_ar }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold text-slate-700 mb-1">المُعيَّن إليه</label>
+    <select name="assignee" class="select text-sm">
+      <option value="">الكل</option>
+      {% for u in users %}{% if u %}<option value="{{ u.id }}" {% if assignee_filter == u.id|string %}selected{% endif %}>{{ u.full_name }}</option>{% endif %}{% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn-primary text-sm">تطبيق</button>
+</form>
+
+<div class="grid grid-cols-5 gap-3">
+  {% for s in kanban %}
+  <div class="bg-slate-50 rounded-lg p-3">
+    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200">
+      <span class="badge {{ s.badge_class }} text-xs">{{ s.label_ar }}</span>
+      <span class="text-xs font-mono text-slate-500">{{ columns.get(s, [])|length }}</span>
+    </div>
+    <div class="space-y-2">
+      {% for t in columns.get(s, []) %}
+      <div class="bg-white rounded-md border border-slate-200 p-3 hover:shadow-soft transition">
+        <a href="{{ url_for('tasks.detail', task_id=t.id) }}" class="text-sm font-semibold text-navy-900 hover:text-brand-600 block">{{ t.title }}</a>
+        <div class="text-xs text-slate-500 mt-1">{{ t.project.name }}</div>
+        <div class="mt-2 flex items-center justify-between text-xs">
+          <span class="badge {{ t.priority.badge_class }} text-[10px]">{{ t.priority.label_ar }}</span>
+          {% if t.deadline %}
+          <span class="font-mono {% if t.is_overdue %}text-rose-600 font-bold{% else %}text-slate-500{% endif %}">{{ t.deadline.isoformat() }}</span>
+          {% endif %}
+        </div>
+        <div class="mt-1 text-xs text-slate-400">{{ t.assigned_to.full_name if t.assigned_to else '—' }}</div>
+        {% if has_permission('tasks.manage') %}
+        <form method="POST" action="{{ url_for('tasks.status', task_id=t.id) }}" class="mt-2 flex gap-1">
+          <input type="hidden" name="return_to" value="kanban">
+          <select name="new_status" class="select text-xs py-1">
+            {% for st in kanban %}{% if st != t.status %}<option value="{{ st.name }}">→ {{ st.label_ar }}</option>{% endif %}{% endfor %}
+          </select>
+          <button type="submit" class="text-xs text-brand-600 hover:underline">حفظ</button>
+        </form>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="text-xs text-slate-400 text-center py-4">لا مهام</div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -151,7 +151,6 @@ tailwind.config = {
     <nav class="flex-1 py-3 overflow-y-auto">
       {% set is_hr = current_role in ('owner', 'admin', 'hr_manager') %}
       {% if current_role == 'hr_manager' %}
-        {# HR-only sidebar: full HR module + payroll read-only — everything financial is hidden. #}
         {% set links = [
           ('dashboard.index', 'لوحة التحكم', '📊'),
           ('hr.index', 'الموارد البشرية', '👥'),
@@ -160,6 +159,26 @@ tailwind.config = {
           ('hr.leave_types', 'أنواع الإجازات', '📂'),
           ('hr.attendance', 'سجل الحضور', '📅'),
           ('payroll.index', 'الرواتب (عرض)', '💼'),
+        ] %}
+      {% elif current_role in ('sales_manager', 'sales_rep') %}
+        {% set links = [
+          ('dashboard.index', 'لوحة التحكم', '📊'),
+          ('leads.index', 'العملاء المحتملون', '🎯'),
+          ('projects.index', 'المشاريع', '📂'),
+          ('customers.index', 'العملاء', '👥'),
+        ] %}
+      {% elif current_role == 'project_manager' %}
+        {% set links = [
+          ('dashboard.index', 'لوحة التحكم', '📊'),
+          ('projects.index', 'المشاريع', '📂'),
+          ('tasks.index', 'المهام', '✅'),
+          ('customers.index', 'العملاء', '👥'),
+        ] %}
+      {% elif current_role == 'team_member' %}
+        {% set links = [
+          ('dashboard.index', 'لوحة التحكم', '📊'),
+          ('tasks.index', 'مهامي', '✅'),
+          ('projects.index', 'المشاريع', '📂'),
         ] %}
       {% else %}
         {% set links = [
@@ -170,6 +189,9 @@ tailwind.config = {
           ('products.index', 'المنتجات والخدمات', '📦'),
           ('payment_methods.index', 'طرق الدفع', '💳'),
           ('customers.index', 'العملاء', '👥'),
+          ('leads.index', 'العملاء المحتملون', '🎯'),
+          ('projects.index', 'المشاريع', '📂'),
+          ('tasks.index', 'المهام', '✅'),
           ('vendors.index', 'الموردون', '🏢'),
           ('vendor_bills.index', 'فواتير الموردين', '📥'),
           ('assets.index', 'الأصول الثابتة', '🏗️'),
