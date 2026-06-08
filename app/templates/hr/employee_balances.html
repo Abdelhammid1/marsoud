@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block page_title %}رصيد إجازات: {{ employee.name }}{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h2 class="font-bold text-navy-900">رصيد إجازات {{ employee.name }}</h2>
+    <p class="text-sm text-slate-500">سنة {{ year }} — يتراكم تلقائياً في أول كل شهر</p>
+  </div>
+  <div class="flex items-center gap-2">
+    <form method="GET" class="flex items-center gap-2">
+      <select name="year" onchange="this.form.submit()" class="select text-sm">
+        {% for y in range(year - 2, year + 2) %}
+        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    <a href="{{ url_for('payroll.employee_profile', employee_id=employee.id) }}" class="btn-secondary text-sm">← ملف الموظف</a>
+  </div>
+</div>
+
+<div class="card p-6">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>نوع الإجازة</th>
+        <th class="text-left">الرصيد</th>
+        <th class="text-left">المستخدم</th>
+        <th class="text-left">المتبقي</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for b in balances %}
+      <tr>
+        <td class="font-semibold">{{ b.leave_type.name }}
+          {% if not b.leave_type.is_paid %}<span class="badge badge-partial text-xs">بدون راتب</span>{% endif %}
+        </td>
+        <td class="text-left font-mono">{{ "%.2f"|format(b.balance_days) }}</td>
+        <td class="text-left font-mono text-amber-600">{{ "%.2f"|format(b.used_days) }}</td>
+        <td class="text-left font-mono font-bold text-emerald-700">{{ "%.2f"|format(b.remaining_days) }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="text-center text-slate-400 py-6">لم تنشأ بعد. ستظهر تلقائياً مع أول دورة تراكم.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card p-6 mt-6">
+  <h3 class="font-bold text-navy-900 mb-3">سجل طلبات الإجازة (آخر 50)</h3>
+  <table class="data-table">
+    <thead>
+      <tr><th>النوع</th><th>من</th><th>إلى</th><th class="text-left">الأيام</th><th>الحالة</th><th>السبب</th></tr>
+    </thead>
+    <tbody>
+    {% for r in requests %}
+      <tr>
+        <td>{{ r.leave_type.name }}</td>
+        <td class="font-mono text-xs">{{ r.start_date.isoformat() }}</td>
+        <td class="font-mono text-xs">{{ r.end_date.isoformat() }}</td>
+        <td class="text-left font-mono">{{ "%.2f"|format(r.days_count) }}</td>
+        <td>
+          {% set s = r.status.value %}
+          {% if s == 'APPROVED' %}<span class="badge badge-paid">معتمد</span>
+          {% elif s == 'REJECTED' %}<span class="badge badge-overdue">مرفوض</span>
+          {% elif s == 'CANCELLED' %}<span class="badge badge-cancelled">ملغي</span>
+          {% else %}<span class="badge badge-partial">قيد المراجعة</span>{% endif %}
+        </td>
+        <td class="text-sm text-slate-500">{{ r.reason or '—' }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="text-center text-slate-400 py-4">لا توجد طلبات بعد</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

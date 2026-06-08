@@ -8,7 +8,7 @@ from app.models import (
 )
 from app.services.payroll import (
     run_payroll, terminate_employee, settle_accrual, update_employee,
-    billable_days_in_period,
+    billable_days_in_period, auto_absence_late_for,
 )
 from app.services.ledger import LedgerError
 from app.services.numbering import next_number
@@ -108,6 +108,13 @@ def new_employee():
                 raise ValueError("اسم الموظف مطلوب")
             db.session.add(emp)
             db.session.commit()
+            # HR-05 — give the new employee an empty balance row for every active leave type
+            try:
+                from app.services.leave import ensure_employee_balances
+                ensure_employee_balances(emp)
+            except Exception:
+                from flask import current_app
+                current_app.logger.exception("ensure_employee_balances failed")
             flash(f"تم إضافة الموظف {emp.employee_number}", "success")
             return redirect(url_for("payroll.employee_profile", employee_id=emp.id))
         except (ValueError, KeyError) as e:
@@ -253,6 +260,7 @@ def run():
         employees=employees, today=today,
         year=year, month=month,
         billable_days=billable_days_in_period,
+        auto_attendance=auto_absence_late_for,
     )
 
 

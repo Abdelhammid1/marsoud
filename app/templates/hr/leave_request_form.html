@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block page_title %}طلب إجازة جديد{% endblock %}
+{% block content %}
+<div class="card p-6 max-w-2xl">
+  <form method="POST" class="space-y-4">
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">الموظف</label>
+      <select name="employee_id" required class="select">
+        <option value="">— اختر موظف —</option>
+        {% for e in employees %}
+        <option value="{{ e.id }}">{{ e.name }} {% if e.job_title %}— {{ e.job_title }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">نوع الإجازة</label>
+      <select name="leave_type_id" required class="select">
+        <option value="">— اختر نوع —</option>
+        {% for lt in leave_types %}
+        <option value="{{ lt.id }}">{{ lt.name }} {% if not lt.is_paid %}(بدون راتب){% endif %}</option>
+        {% endfor %}
+      </select>
+      <p class="text-xs text-slate-500 mt-1">لإدارة الأنواع: <a href="{{ url_for('hr.leave_types') }}" class="text-brand-600 hover:underline">إذهب لأنواع الإجازات</a></p>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">من تاريخ</label>
+        <input type="date" name="start_date" required value="{{ today }}" class="input">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">إلى تاريخ</label>
+        <input type="date" name="end_date" required value="{{ today }}" class="input">
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">السبب (اختياري)</label>
+      <textarea name="reason" rows="2" class="textarea"></textarea>
+    </div>
+    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600">
+      <p>الطلب يدخل بحالة "قيد المراجعة". عند الاعتماد ستُخصم الأيام من الرصيد وتُنشأ استثناءات حضور تلقائياً لكل يوم في الفترة.</p>
+      <p class="mt-1">الإجازة بدون راتب لا تتطلب رصيداً.</p>
+    </div>
+    <div class="flex justify-end gap-2">
+      <a href="{{ url_for('hr.leave_requests') }}" class="btn-secondary">إلغاء</a>
+      <button type="submit" class="btn-primary">تقديم الطلب</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

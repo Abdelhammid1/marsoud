@@ -151,11 +151,14 @@ tailwind.config = {
     <nav class="flex-1 py-3 overflow-y-auto">
       {% set is_hr = current_role in ('owner', 'admin', 'hr_manager') %}
       {% if current_role == 'hr_manager' %}
-        {# HR-only sidebar: payroll directory + HR home — everything else is hidden. #}
+        {# HR-only sidebar: full HR module + payroll read-only — everything financial is hidden. #}
         {% set links = [
           ('dashboard.index', 'لوحة التحكم', '📊'),
           ('hr.index', 'الموارد البشرية', '👥'),
           ('hr.departments', 'الأقسام', '🏛️'),
+          ('hr.leave_requests', 'طلبات الإجازة', '📝'),
+          ('hr.leave_types', 'أنواع الإجازات', '📂'),
+          ('hr.attendance', 'سجل الحضور', '📅'),
           ('payroll.index', 'الرواتب (عرض)', '💼'),
         ] %}
       {% else %}

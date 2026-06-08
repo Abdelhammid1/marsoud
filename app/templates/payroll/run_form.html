@@ -41,6 +41,7 @@
       <tbody>
         {% for e in employees %}
         {% set default_days = billable_days(e, year, month) if billable_days else 30 %}
+        {% set auto_abs, auto_late_amt, has_ex = (auto_attendance(e, year, month) if auto_attendance else (0.0, 0.0, False)) %}
         <tr>
           <td>
             <div class="font-semibold">{{ e.name }}</div>
@@ -48,12 +49,23 @@
             {% if e.start_date and e.start_date.year == year and e.start_date.month == month %}
             <div class="text-xs text-amber-700 mt-1">⚠ تم تعيينه يوم {{ e.start_date.isoformat() }} — الأيام المستحقة افتراضياً: {{ default_days }}</div>
             {% endif %}
+            {% if has_ex %}
+            <div class="text-xs text-emerald-700 mt-1">✓ محسوب تلقائياً من سجل الحضور</div>
+            {% endif %}
           </td>
           <td><input type="number" name="working_days_{{ e.id }}" value="{{ default_days }}" min="0" max="31" class="input text-sm font-mono"></td>
           <td><input type="number" name="overtime_{{ e.id }}" step="0.01" value="0" class="input text-sm font-mono"></td>
           <td><input type="number" name="bonus_{{ e.id }}" step="0.01" value="0" class="input text-sm font-mono"></td>
-          <td><input type="number" name="absence_{{ e.id }}" step="0.01" value="0" class="input text-sm font-mono"></td>
-          <td><input type="number" name="late_{{ e.id }}" step="0.01" value="0" class="input text-sm font-mono"></td>
+          <td>
+            <input type="number" name="absence_{{ e.id }}" step="0.01" value="{{ "%.2f"|format(auto_abs) }}"
+                   class="input text-sm font-mono {% if has_ex %}bg-emerald-50{% endif %}"
+                   {% if has_ex %}title="افتراضي محسوب من سجل الحضور — يمكنك تعديله للاستبدال اليدوي"{% endif %}>
+          </td>
+          <td>
+            <input type="number" name="late_{{ e.id }}" step="0.01" value="{{ "%.2f"|format(auto_late_amt) }}"
+                   class="input text-sm font-mono {% if has_ex %}bg-emerald-50{% endif %}"
+                   {% if has_ex %}title="افتراضي محسوب من سجل الحضور — يمكنك تعديله للاستبدال اليدوي"{% endif %}>
+          </td>
           <td><input type="number" name="advance_{{ e.id }}" step="0.01" value="0" class="input text-sm font-mono"></td>
           <td><input type="number" name="amount_paid_{{ e.id }}" step="0.01" placeholder="افتراضي = الصافي" class="input text-sm font-mono"></td>
         </tr>

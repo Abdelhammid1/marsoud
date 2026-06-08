@@ -125,6 +125,11 @@ class PayrollLine(db.Model):
     net = db.Column(db.Numeric(15, 2), default=0)
     amount_paid = db.Column(db.Numeric(15, 2), default=0)  # what was actually paid; (net - amount_paid) → accrual
 
+    # HR-07 — true when absence/late were auto-filled from AttendanceExceptions
+    # rather than manually entered. Flipped back to False the moment a user
+    # overrides the value in the payroll form.
+    attendance_auto_calculated = db.Column(db.Boolean, default=False, nullable=False)
+
     employee = db.relationship("Employee", backref="payroll_lines")
 
 

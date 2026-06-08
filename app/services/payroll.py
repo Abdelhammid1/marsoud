@@ -62,6 +62,28 @@ def billable_days_in_period(employee, year, month, override=None):
     return natural_billable
 
 
+def auto_absence_late_for(employee, year, month):
+    """HR-07 — convert AttendanceException rows into monetary absence + late
+    amounts for a payroll line.
+
+    Returns `(absence_amount, late_amount, has_exceptions)` where amounts are
+    in the company currency, computed as `days × (basic / 30)`. Falls back to
+    (0, 0, False) when no exceptions exist (backward-compat with pre-HR-07
+    payroll runs).
+    """
+    try:
+        from app.services.leave import attendance_deductions
+    except Exception:
+        return 0.0, 0.0, False
+    info = attendance_deductions(employee.id, year, month)
+    if not info.get("has_exceptions"):
+        return 0.0, 0.0, False
+    daily_rate = float(employee.basic_salary or 0) / 30.0
+    absence_amt = round(info["absence_days"] * daily_rate, 2)
+    late_amt = round(info["late_days"] * daily_rate, 2)
+    return absence_amt, late_amt, True
+
+
 def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send_emails=True):
     """Execute a payroll run.
 
@@ -69,6 +91,10 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
         {emp_id: {working_days, overtime, bonus, absence, late, advance, amount_paid}}
         Missing employees use defaults (auto billable_days, no variable amounts,
         amount_paid = net).
+
+    HR-07: when AttendanceException rows exist for an employee in this period,
+    absence + late default to the auto-computed amounts. If the form posts a
+    different value we honour it and mark the line `attendance_auto_calculated=False`.
     """
     existing = PayrollRun.query.filter_by(
         company_id=company_id, period_year=year, period_month=month
@@ -117,8 +143,24 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
         )
         overtime = float(inputs.get("overtime", 0) or 0)
         bonus = float(inputs.get("bonus", 0) or 0)
-        absence = float(inputs.get("absence", 0) or 0)
-        late = float(inputs.get("late", 0) or 0)
+
+        # HR-07 — auto-fill absence/late from attendance exceptions
+        auto_absence, auto_late, has_exceptions = auto_absence_late_for(emp, year, month)
+        if "absence" in inputs and inputs["absence"] not in (None, ""):
+            absence = float(inputs["absence"])
+        else:
+            absence = auto_absence
+        if "late" in inputs and inputs["late"] not in (None, ""):
+            late = float(inputs["late"])
+        else:
+            late = auto_late
+        # Auto-calculated iff exceptions exist AND submitted values match auto.
+        attendance_auto = (
+            has_exceptions
+            and abs(absence - auto_absence) < 0.01
+            and abs(late - auto_late) < 0.01
+        )
+
         advance = float(inputs.get("advance", 0) or 0)
 
         basic_full = float(emp.basic_salary or 0)
@@ -152,6 +194,7 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
             advance_deduction=advance,
             net=net,
             amount_paid=amount_paid,
+            attendance_auto_calculated=attendance_auto,
         )
         db.session.add(line)
         db.session.flush()

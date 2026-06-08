@@ -1,7 +1,7 @@
 # Marsoud — Playwright Ticket Verification Report
 
-Run: 2026-06-08 10:52:33
-Result: **58/58 checks passed**
+Run: 2026-06-08 11:13:55
+Result: **70/70 checks passed**
 Screenshots: `tests/screenshots/`
 
 | Ticket | Check | Status | Screenshot |
@@ -36,6 +36,13 @@ Screenshots: `tests/screenshots/`
 | HR-02 | Employee form: new personal/contract fields | ✅ PASS | hr02_employee_fields.png |
 | HR-04a | Invite form offers hr_manager role | ✅ PASS | hr04_invite_role.png |
 | MARSOUD-23a | Logo upload field on company-edit page | ✅ PASS | marsoud23_logo_widget.png |
+| HR-05a | Leave types list (auto-seeded defaults) | ✅ PASS | hr05_leave_types.png |
+| HR-05b | New leave-type form | ✅ PASS | hr05_leave_type_new.png |
+| HR-05c | Per-employee balances page | ✅ PASS | hr05_balances.png |
+| HR-05b-attendance | Attendance exceptions monthly view | ✅ PASS | hr05b_attendance.png |
+| HR-05b-new | Attendance exception new form | ✅ PASS | hr05b_attendance_new.png |
+| HR-06a | Leave requests list | ✅ PASS | hr06_leave_requests.png |
+| HR-06b | New leave request form | ✅ PASS | hr06_leave_request_new.png |
 | ADMIN-01a | Normal user blocked from /admin (403) | ✅ PASS | admin01_403.png |
 | ADMIN-01b | Super-admin reaches /admin dashboard | ✅ PASS | admin02_dashboard.png |
 | ADMIN-02 | Dashboard metrics rendered | ✅ PASS | admin02_metrics.png |
@@ -63,4 +70,9 @@ Screenshots: `tests/screenshots/`
 | HR-03-deep | Cron tick processes contract expiry alerts | ✅ PASS | hr03_cron_tick.png |
 | MARSOUD-23-deep | Uploaded logo persists and renders in company-edit preview | ✅ PASS | marsoud23_logo_preview.png |
 | MARSOUD-23-email | Email base template emits company logo when set | ✅ PASS | n/a |
+| HR-05-deep | Defaults seeded + monthly accrual respects max_balance | ✅ PASS | hr05_accrual.txt |
+| HR-05b-deep | AttendanceException duplicate same-day refused | ✅ PASS | hr05b_dupe.txt |
+| HR-06-deep | Leave request approval creates exceptions; cancel restores | ✅ PASS | hr06_workflow.txt |
+| HR-06-weekend | Leave range entirely on rest days creates 0 exceptions | ✅ PASS | hr06_weekend.txt |
+| HR-07-deep | auto_absence_late_for converts exceptions into money correctly | ✅ PASS | hr07_math.txt |
 | GAP-01-deep | Suspended-company user blocked at login | ✅ PASS | gap01_blocked.png |

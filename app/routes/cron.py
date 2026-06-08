@@ -47,4 +47,18 @@ def tick():
         logging.getLogger("ledgeros.cron").exception("contract alerts failed: %s", e)
         summary["contract_alerts"] = {"error": str(e)[:200]}
 
+    # HR-05: monthly leave accrual (only credits when the day is the 1st;
+    # cron is meant to run daily but this work should fire once per month).
+    from datetime import date as _date
+    if request.args.get("force_accrual") == "1" or _date.today().day == 1:
+        try:
+            from app.services.leave import monthly_leave_accrual
+            summary["leave_accrual"] = monthly_leave_accrual()
+        except Exception as e:
+            import logging
+            logging.getLogger("ledgeros.cron").exception("leave accrual failed: %s", e)
+            summary["leave_accrual"] = {"error": str(e)[:200]}
+    else:
+        summary["leave_accrual"] = {"skipped": "not the 1st of month"}
+
     return jsonify(summary)

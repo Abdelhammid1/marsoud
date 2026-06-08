@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block page_title %}الموارد البشرية{% endblock %}
 {% block content %}
-<div class="grid grid-cols-3 gap-4 mb-6">
+<div class="grid grid-cols-4 gap-4 mb-6">
   <div class="card p-5">
     <div class="text-xs text-slate-500 mb-1">إجمالي الموظفين النشطين</div>
     <div class="text-2xl font-bold text-navy-900">{{ employees|length }}</div>
@@ -12,8 +12,18 @@
     <a href="{{ url_for('hr.departments') }}" class="text-xs text-brand-600 hover:underline mt-2 inline-block">إدارة الأقسام ←</a>
   </div>
   <div class="card p-5">
-    <div class="text-xs text-slate-500 mb-1">إضافة موظف</div>
-    <a href="{{ url_for('payroll.new_employee') }}" class="btn-primary inline-block mt-2 text-sm">+ موظف جديد</a>
+    <div class="text-xs text-slate-500 mb-1">الإجازات</div>
+    <div class="flex flex-col gap-1 mt-2">
+      <a href="{{ url_for('hr.leave_requests') }}" class="text-xs text-brand-600 hover:underline">طلبات الإجازة ←</a>
+      <a href="{{ url_for('hr.leave_types') }}" class="text-xs text-brand-600 hover:underline">أنواع الإجازات ←</a>
+    </div>
+  </div>
+  <div class="card p-5">
+    <div class="text-xs text-slate-500 mb-1">الحضور</div>
+    <a href="{{ url_for('hr.attendance') }}" class="text-xs text-brand-600 hover:underline mt-2 inline-block">سجل الاستثناءات ←</a>
+    <div class="mt-1">
+      <a href="{{ url_for('payroll.new_employee') }}" class="btn-primary inline-block mt-2 text-xs">+ موظف</a>
+    </div>
   </div>
 </div>
 

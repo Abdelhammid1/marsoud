@@ -21,6 +21,11 @@ from app.models.payroll import (
     ContractType, EmployeeStatus, TerminationReason, Gender,
 )
 from app.models.department import Department
+from app.models.leave import (
+    LeaveType, LeaveBalance,
+    AttendanceException, AttendanceExceptionType,
+    LeaveRequest, LeaveRequestStatus,
+)
 from app.models.refund import Refund, RefundType, CreditNote
 from app.models.invitation import Invitation
 from app.models.agent_chat import AgentMessage
@@ -37,6 +42,9 @@ __all__ = [
     "FixedAsset",
     "Employee", "PayrollRun", "PayrollLine", "EmployeeAccrual", "Gender",
     "Department",
+    "LeaveType", "LeaveBalance",
+    "AttendanceException", "AttendanceExceptionType",
+    "LeaveRequest", "LeaveRequestStatus",
     "Refund", "RefundType", "CreditNote",
     "Invitation",
     "AgentMessage",

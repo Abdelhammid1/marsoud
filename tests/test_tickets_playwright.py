@@ -49,14 +49,37 @@ def setup_fixtures():
     from app.services.vendor_bills import post_vendor_bill
     from datetime import date, timedelta
 
+    from app.models.payroll import Employee, EmployeeStatus, ContractType
+
     app = create_app()
     created = {"app": None, "template_id": None, "bill_id": None,
-               "journal_entry_id": None, "company_id": None}
+               "journal_entry_id": None, "company_id": None,
+               "employee_id": None, "_employee_created": False}
     with app.app_context():
         company = Company.query.order_by(Company.id).first()
         user = User.query.filter_by(email=EMAIL).first()
         created["company_id"] = company.id
         cid = company.id
+
+        # HR fixture — first active employee, or create one
+        emp = Employee.query.filter_by(
+            company_id=cid, status=EmployeeStatus.ACTIVE,
+        ).first()
+        if not emp:
+            emp = Employee(
+                company_id=cid, name="PWTEST_موظف_تجريبي",
+                employee_number="PW-001",
+                job_title="مهندس", email="pwtest_emp@example.com",
+                start_date=date.today(),
+                contract_type=ContractType.FULL_TIME,
+                status=EmployeeStatus.ACTIVE,
+                basic_salary=3000, allowances=500, deductions=0,
+                is_active=True,
+            )
+            db.session.add(emp)
+            db.session.commit()
+            created["_employee_created"] = True
+        created["employee_id"] = emp.id
 
         expense = get_account_by_code(cid, "5200") or get_account_by_code(cid, "5210")
         cash = get_account_by_code(cid, "1110")
@@ -113,6 +136,8 @@ def teardown_fixtures(created):
     from app.models.journal_extras import JournalTemplate
     from app.models.vendor_bill import VendorBill
     from app.models.journal import JournalEntry, JournalLine
+    from app.models.payroll import Employee
+    from app.models import LeaveBalance, LeaveRequest, AttendanceException
 
     app = create_app()
     with app.app_context():
@@ -128,6 +153,15 @@ def teardown_fixtures(created):
         tpl = db.session.get(JournalTemplate, created["template_id"]) if created.get("template_id") else None
         if tpl:
             db.session.delete(tpl)
+        # Only delete the test employee if WE created it (don't trash demo data)
+        if created.get("_employee_created") and created.get("employee_id"):
+            emp_id = created["employee_id"]
+            LeaveRequest.query.filter_by(employee_id=emp_id).delete()
+            AttendanceException.query.filter_by(employee_id=emp_id).delete()
+            LeaveBalance.query.filter_by(employee_id=emp_id).delete()
+            emp = db.session.get(Employee, emp_id)
+            if emp:
+                db.session.delete(emp)
         db.session.commit()
 
 
@@ -233,6 +267,29 @@ def build_checks(fx):
         ("MARSOUD-23a", "Logo upload field on company-edit page",
          f"/companies/{fx['company_id']}/edit",
          ["شعار الشركة", 'name="logo_file"'], "marsoud23_logo_widget"),
+        # ─── Cycle 6: HR Phase 2 (MARSOUD-25) ──────────────────────────────
+        ("HR-05a", "Leave types list (auto-seeded defaults)",
+         "/hr/leave-types", ["أنواع الإجازات", "سنوية", "بدون راتب"],
+         "hr05_leave_types"),
+        ("HR-05b", "New leave-type form",
+         "/hr/leave-types/new", ["التراكم الشهري", "الحد الأقصى", "إجازة مدفوعة"],
+         "hr05_leave_type_new"),
+        ("HR-05c", "Per-employee balances page",
+         f"/hr/employees/{fx['employee_id']}/leave-balances",
+         ["رصيد", "المتبقي", "سجل طلبات الإجازة"],
+         "hr05_balances"),
+        ("HR-05b-attendance", "Attendance exceptions monthly view",
+         "/hr/attendance", ["سجل الاستثناءات", "غياب", "تأخير"],
+         "hr05b_attendance"),
+        ("HR-05b-new", "Attendance exception new form",
+         "/hr/attendance/new", ["تسجيل استثناء", "ساعات التأخير"],
+         "hr05b_attendance_new"),
+        ("HR-06a", "Leave requests list",
+         "/hr/leave-requests", ["طلبات الإجازة", "قيد المراجعة"],
+         "hr06_leave_requests"),
+        ("HR-06b", "New leave request form",
+         "/hr/leave-requests/new", ["نوع الإجازة", "من تاريخ", "إلى تاريخ"],
+         "hr06_leave_request_new"),
     ]
 
 
@@ -801,6 +858,265 @@ def run_checks(fx):
         finally:
             _restore_company_logo(fx["company_id"], prev_logo, disk_path)
         results.append(email_render)
+
+        # ── Cycle 6 deep checks: HR Phase 2 ─────────────────────────────
+        from datetime import date as _date, timedelta as _td
+        from app import create_app as _ca, db as _db
+        from app.models import (
+            LeaveType as _LT, LeaveBalance as _LB,
+            AttendanceException as _AE, AttendanceExceptionType as _AET,
+            LeaveRequest as _LR, LeaveRequestStatus as _LRS,
+            Employee as _Emp,
+        )
+        from app.services.leave import (
+            seed_default_leave_types as _seed,
+            monthly_leave_accrual as _accrual,
+            submit_leave_request as _submit,
+            approve_leave_request as _approve,
+            cancel_leave_request as _cancel,
+            attendance_deductions as _att,
+        )
+
+        # HR-05 deep: defaults seeded; balance grows + caps at max_balance
+        seed_check = {"ticket": "HR-05-deep",
+                      "title": "Defaults seeded + monthly accrual respects max_balance",
+                      "url": "service:monthly_leave_accrual", "passed": False,
+                      "missing": [], "error": None, "shot": "hr05_accrual.txt"}
+        try:
+            app_ctx = _ca()
+            with app_ctx.app_context():
+                cid = fx["company_id"]
+                emp_id = fx["employee_id"]
+                _seed(cid)
+                annual_type = _LT.query.filter_by(company_id=cid, name="سنوية").first()
+                # Pin the balance just below the cap so 1.75 would push it past
+                # max_balance — verifies the cap clamp.
+                _accrual()  # ensure row exists
+                bal = _LB.query.filter_by(
+                    employee_id=emp_id, leave_type_id=annual_type.id,
+                    year=_date.today().year,
+                ).first()
+                if bal is None:
+                    raise RuntimeError("balance row not created by accrual")
+                bal.balance_days = float(annual_type.max_balance) - 0.5
+                _db.session.commit()
+                summary = _accrual()
+                bal2 = _LB.query.filter_by(id=bal.id).first()
+                got = float(bal2.balance_days)
+                want = float(annual_type.max_balance)
+                seed_check["passed"] = abs(got - want) < 0.01 and summary["capped"] >= 1
+                if not seed_check["passed"]:
+                    seed_check["missing"] = [
+                        f"got {got} want {want} summary={summary}"]
+        except Exception as e:
+            seed_check["error"] = str(e)[:200]
+        results.append(seed_check)
+
+        # HR-05b deep: unique constraint on (employee, date)
+        unique_check = {"ticket": "HR-05b-deep",
+                        "title": "AttendanceException duplicate same-day refused",
+                        "url": "service:create_exception",
+                        "passed": False, "missing": [], "error": None,
+                        "shot": "hr05b_dupe.txt"}
+        try:
+            with _ca().app_context():
+                cid = fx["company_id"]
+                emp_id = fx["employee_id"]
+                today_ = _date.today()
+                # Clean any leftover from prior runs
+                _AE.query.filter_by(employee_id=emp_id, date=today_).delete()
+                _db.session.commit()
+                ex1 = _AE(company_id=cid, employee_id=emp_id, date=today_,
+                          type=_AET.ABSENT, created_by=None)
+                _db.session.add(ex1)
+                _db.session.commit()
+                # Attempt duplicate
+                from app.services.leave import create_exception as _ce, LeaveError as _LE
+                refused = False
+                try:
+                    _ce(company_id=cid, employee_id=emp_id, date_=today_,
+                        type_=_AET.ABSENT, created_by=None)
+                except _LE:
+                    refused = True
+                # Cleanup
+                _AE.query.filter_by(employee_id=emp_id, date=today_).delete()
+                _db.session.commit()
+                unique_check["passed"] = refused
+                if not refused:
+                    unique_check["missing"] = ["expected LeaveError for duplicate"]
+        except Exception as e:
+            unique_check["error"] = str(e)[:200]
+        results.append(unique_check)
+
+        # HR-06 deep: submit → approve → exceptions created + balance deducted;
+        # then cancel → exceptions deleted + balance restored.
+        wf_check = {"ticket": "HR-06-deep",
+                    "title": "Leave request approval creates exceptions; cancel restores",
+                    "url": "service:approve+cancel_leave_request",
+                    "passed": False, "missing": [], "error": None,
+                    "shot": "hr06_workflow.txt"}
+        try:
+            with _ca().app_context():
+                cid = fx["company_id"]
+                emp_id = fx["employee_id"]
+                _seed(cid)
+                annual = _LT.query.filter_by(company_id=cid, name="سنوية").first()
+                # Top up balance + clear prior state
+                _AE.query.filter_by(employee_id=emp_id).delete()
+                _LR.query.filter_by(employee_id=emp_id).delete()
+                yr = _date.today().year
+                bal = _LB.query.filter_by(
+                    employee_id=emp_id, leave_type_id=annual.id, year=yr,
+                ).first()
+                if bal is None:
+                    bal = _LB(employee_id=emp_id, leave_type_id=annual.id,
+                              year=yr, balance_days=10, used_days=0)
+                    _db.session.add(bal)
+                else:
+                    bal.balance_days = 10
+                    bal.used_days = 0
+                _db.session.commit()
+
+                # Pick a Sunday → Thursday range (always 5 working days,
+                # zero rest days under DEFAULT_REST_WEEKDAYS = {Fri, Sat}).
+                # Find next Sunday from today.
+                t = _date.today()
+                # Python weekday: Mon=0..Sun=6. We want Sunday → +(6-current) mod 7.
+                offset = (6 - t.weekday()) % 7
+                if offset == 0:
+                    offset = 7  # ensure future to avoid clashes with prior runs
+                start = t + _td(days=offset)
+                end = start + _td(days=4)  # Sun..Thu inclusive = 5 working days
+                expected_days = 5
+
+                req = _submit(company_id=cid, employee_id=emp_id,
+                              leave_type_id=annual.id,
+                              start_date=start, end_date=end,
+                              reason="اختبار آلي",
+                              created_by=None)
+                _approve(req, reviewer_id=None, review_note="OK")
+                # Should have `expected_days` exceptions, used_days = expected_days
+                ex_count = _AE.query.filter_by(leave_request_id=req.id).count()
+                _db.session.refresh(bal)
+                after_used = float(bal.used_days)
+                # Cancel
+                _cancel(req, reviewer_id=None, review_note="rollback")
+                ex_after_cancel = _AE.query.filter_by(leave_request_id=req.id).count()
+                _db.session.refresh(bal)
+                restored_used = float(bal.used_days)
+
+                ok = (ex_count == expected_days
+                      and after_used == float(expected_days)
+                      and ex_after_cancel == 0
+                      and restored_used == 0.0)
+                wf_check["passed"] = ok
+                if not ok:
+                    wf_check["missing"] = [
+                        f"approved_ex={ex_count} (want {expected_days}) "
+                        f"used_after_approve={after_used} "
+                        f"ex_after_cancel={ex_after_cancel} used_after_cancel={restored_used}"
+                    ]
+                # Cleanup leftover request row
+                _LR.query.filter_by(id=req.id).delete()
+                _db.session.commit()
+        except Exception as e:
+            wf_check["error"] = str(e)[:200]
+        results.append(wf_check)
+
+        # HR-06 deep #2: a Fri→Sat-only request creates ZERO exceptions
+        weekend_check = {"ticket": "HR-06-weekend",
+                         "title": "Leave range entirely on rest days creates 0 exceptions",
+                         "url": "service:approve_leave_request (rest days only)",
+                         "passed": False, "missing": [], "error": None,
+                         "shot": "hr06_weekend.txt"}
+        try:
+            with _ca().app_context():
+                cid = fx["company_id"]
+                emp_id = fx["employee_id"]
+                annual = _LT.query.filter_by(company_id=cid, name="سنوية").first()
+                _AE.query.filter_by(employee_id=emp_id).delete()
+                _LR.query.filter_by(employee_id=emp_id).delete()
+                yr = _date.today().year
+                bal = _LB.query.filter_by(
+                    employee_id=emp_id, leave_type_id=annual.id, year=yr,
+                ).first()
+                bal.balance_days = 5
+                bal.used_days = 0
+                _db.session.commit()
+
+                # Find next Friday
+                t = _date.today()
+                offset = (4 - t.weekday()) % 7
+                if offset == 0:
+                    offset = 7
+                fri = t + _td(days=offset)
+                sat = fri + _td(days=1)
+                # days_count should be 0 — submit will create the request but
+                # nothing gets deducted, and approval creates zero exceptions.
+                # We allow days_count=0 (it's a no-op leave).
+                req = _submit(company_id=cid, employee_id=emp_id,
+                              leave_type_id=annual.id,
+                              start_date=fri, end_date=sat,
+                              reason="weekend-only", created_by=None)
+                _approve(req, reviewer_id=None, review_note="OK")
+                ex_count = _AE.query.filter_by(leave_request_id=req.id).count()
+                _db.session.refresh(bal)
+                used = float(bal.used_days)
+
+                weekend_check["passed"] = ex_count == 0 and used == 0.0
+                if not weekend_check["passed"]:
+                    weekend_check["missing"] = [
+                        f"weekend ex_count={ex_count} (want 0), used={used} (want 0)"]
+                # Cleanup
+                _AE.query.filter_by(leave_request_id=req.id).delete()
+                _LR.query.filter_by(id=req.id).delete()
+                _db.session.commit()
+        except Exception as e:
+            weekend_check["error"] = str(e)[:200]
+        results.append(weekend_check)
+
+        # HR-07 deep: attendance_deductions feeds run_payroll, no double-deduct.
+        # We don't actually post a payroll run (would mutate journals); we
+        # verify the helper math.
+        math_check = {"ticket": "HR-07-deep",
+                      "title": "auto_absence_late_for converts exceptions into money correctly",
+                      "url": "service:auto_absence_late_for",
+                      "passed": False, "missing": [], "error": None,
+                      "shot": "hr07_math.txt"}
+        try:
+            with _ca().app_context():
+                from app.services.payroll import auto_absence_late_for as _auto
+                cid = fx["company_id"]
+                emp_id = fx["employee_id"]
+                emp = _db.session.get(_Emp, emp_id)
+                yr, mo = _date.today().year, _date.today().month
+                # Clear and seed 2 ABSENT + 1 LATE 4h for this period
+                _AE.query.filter_by(employee_id=emp_id).delete()
+                _db.session.add(_AE(company_id=cid, employee_id=emp_id,
+                                    date=_date(yr, mo, 5), type=_AET.ABSENT))
+                _db.session.add(_AE(company_id=cid, employee_id=emp_id,
+                                    date=_date(yr, mo, 6), type=_AET.ABSENT))
+                _db.session.add(_AE(company_id=cid, employee_id=emp_id,
+                                    date=_date(yr, mo, 7), type=_AET.LATE,
+                                    duration_hours=4))
+                _db.session.commit()
+                abs_amt, late_amt, has_ex = _auto(emp, yr, mo)
+                daily = float(emp.basic_salary or 0) / 30.0
+                want_abs = round(2.0 * daily, 2)        # 2 full days
+                want_late = round(0.5 * daily, 2)       # 4h / 8h × 1 day
+                ok = (has_ex and abs(abs_amt - want_abs) < 0.01
+                      and abs(late_amt - want_late) < 0.01)
+                math_check["passed"] = ok
+                if not ok:
+                    math_check["missing"] = [
+                        f"abs={abs_amt}(want {want_abs}) late={late_amt}(want {want_late}) "
+                        f"has_ex={has_ex} basic={float(emp.basic_salary)}"]
+                # Cleanup
+                _AE.query.filter_by(employee_id=emp_id).delete()
+                _db.session.commit()
+        except Exception as e:
+            math_check["error"] = str(e)[:200]
+        results.append(math_check)
 
         # ── Gap-01 deep check: company suspension blocks login ─────────
         _logout(page)

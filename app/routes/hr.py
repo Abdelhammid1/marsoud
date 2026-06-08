@@ -1,21 +1,46 @@
-"""HR blueprint — departments + HR-focused employee directory.
+"""HR blueprint — departments, HR directory, leave (types/balances/requests),
+attendance exceptions.
 
 All routes are gated by @hr_required (OWNER / ADMIN / HR_MANAGER) per HR-04.
-The existing payroll employee CRUD continues to live in routes/payroll.py;
-this blueprint adds the people-centric views (departments, HR directory).
+Employee lifecycle CRUD (HR-02 fields) still lives in routes/payroll.py since
+the form already existed there; this blueprint owns the people-side surface.
 """
-from datetime import datetime
+from calendar import monthrange
+from datetime import date, datetime
+from decimal import Decimal
 from flask import Blueprint, render_template, redirect, url_for, flash, request, g
-from flask_login import login_required
+from flask_login import login_required, current_user
 from app import db
-from app.models import Department, Employee, EmployeeStatus
+from app.models import (
+    Department, Employee, EmployeeStatus,
+    LeaveType, LeaveBalance,
+    AttendanceException, AttendanceExceptionType,
+    LeaveRequest, LeaveRequestStatus,
+)
 from app.services.hr import (
     create_department, update_department, delete_or_archive_department, HRError,
+)
+from app.services.leave import (
+    seed_default_leave_types, create_leave_type, update_leave_type,
+    ensure_employee_balances,
+    create_exception, delete_exception, exceptions_in_period,
+    submit_leave_request, approve_leave_request,
+    reject_leave_request, cancel_leave_request,
+    LeaveError,
 )
 from app.services.permissions import hr_required
 
 
 bp = Blueprint("hr", __name__)
+
+
+def _parse_date(s):
+    if not s:
+        return None
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
 
 
 @bp.route("/")
@@ -116,3 +141,276 @@ def department_delete(department_id):
     else:
         flash("تم حذف القسم", "success")
     return redirect(url_for("hr.departments"))
+
+
+# ─── HR-05: Leave types ──────────────────────────────────────────────────
+@bp.route("/leave-types")
+@login_required
+@hr_required
+def leave_types():
+    cid = g.active_company.id
+    # Lazy auto-seed for companies that pre-date HR-05 (or have never set any up).
+    if LeaveType.query.filter_by(company_id=cid).count() == 0:
+        seed_default_leave_types(cid)
+    rows = LeaveType.query.filter_by(company_id=cid).order_by(
+        LeaveType.is_active.desc(), LeaveType.name,
+    ).all()
+    return render_template("hr/leave_types.html", leave_types=rows)
+
+
+@bp.route("/leave-types/new", methods=["GET", "POST"])
+@login_required
+@hr_required
+def leave_type_new():
+    if request.method == "POST":
+        try:
+            create_leave_type(
+                g.active_company.id,
+                name=request.form.get("name", ""),
+                accrual_per_month=request.form.get("accrual_per_month", 0),
+                max_balance=request.form.get("max_balance", 0),
+                is_paid=request.form.get("is_paid") == "1",
+            )
+            flash("تم إنشاء نوع الإجازة", "success")
+            return redirect(url_for("hr.leave_types"))
+        except (LeaveError, ValueError) as e:
+            flash(str(e), "error")
+    return render_template("hr/leave_type_form.html", leave_type=None)
+
+
+@bp.route("/leave-types/<int:lt_id>/edit", methods=["GET", "POST"])
+@login_required
+@hr_required
+def leave_type_edit(lt_id):
+    lt = db.session.get(LeaveType, lt_id)
+    if not lt or lt.company_id != g.active_company.id:
+        flash("غير موجود", "error")
+        return redirect(url_for("hr.leave_types"))
+    if request.method == "POST":
+        try:
+            update_leave_type(
+                lt,
+                name=request.form.get("name"),
+                accrual_per_month=request.form.get("accrual_per_month"),
+                max_balance=request.form.get("max_balance"),
+                is_paid=(request.form.get("is_paid") == "1"),
+                is_active=("is_active" in request.form),
+            )
+            flash("تم الحفظ", "success")
+            return redirect(url_for("hr.leave_types"))
+        except (LeaveError, ValueError) as e:
+            flash(str(e), "error")
+    return render_template("hr/leave_type_form.html", leave_type=lt)
+
+
+# ─── HR-05: per-employee balances ────────────────────────────────────────
+@bp.route("/employees/<int:employee_id>/leave-balances")
+@login_required
+@hr_required
+def employee_balances(employee_id):
+    emp = db.session.get(Employee, employee_id)
+    if not emp or emp.company_id != g.active_company.id:
+        flash("الموظف غير موجود", "error")
+        return redirect(url_for("hr.index"))
+    year = int(request.args.get("year", date.today().year))
+    ensure_employee_balances(emp, year=year)
+    balances = LeaveBalance.query.filter_by(
+        employee_id=emp.id, year=year
+    ).all()
+    requests_ = LeaveRequest.query.filter_by(
+        employee_id=emp.id
+    ).order_by(LeaveRequest.created_at.desc()).limit(50).all()
+    return render_template("hr/employee_balances.html",
+                           employee=emp, balances=balances,
+                           year=year, requests=requests_)
+
+
+# ─── HR-05b: attendance exceptions ───────────────────────────────────────
+@bp.route("/attendance")
+@login_required
+@hr_required
+def attendance():
+    """Monthly calendar view for the whole company (or one filtered employee)."""
+    cid = g.active_company.id
+    today = date.today()
+    year = int(request.args.get("year", today.year))
+    month = int(request.args.get("month", today.month))
+    emp_id_raw = request.args.get("employee_id") or None
+    emp_id = int(emp_id_raw) if emp_id_raw else None
+
+    exceptions = exceptions_in_period(cid, year, month, employee_id=emp_id)
+    employees = Employee.query.filter_by(
+        company_id=cid, status=EmployeeStatus.ACTIVE,
+    ).order_by(Employee.name).all()
+
+    # Group by (employee_id, day) for the grid renderer.
+    grid = {}
+    for ex in exceptions:
+        grid.setdefault(ex.employee_id, {})[ex.date.day] = ex
+    days_in_month = monthrange(year, month)[1]
+    return render_template("hr/attendance.html",
+                           employees=employees, grid=grid,
+                           year=year, month=month,
+                           days_in_month=days_in_month,
+                           filter_employee_id=emp_id)
+
+
+@bp.route("/attendance/new", methods=["GET", "POST"])
+@login_required
+@hr_required
+def attendance_new():
+    cid = g.active_company.id
+    employees = Employee.query.filter_by(
+        company_id=cid, status=EmployeeStatus.ACTIVE,
+    ).order_by(Employee.name).all()
+    if request.method == "POST":
+        try:
+            emp_id = int(request.form.get("employee_id"))
+            emp = db.session.get(Employee, emp_id)
+            if not emp or emp.company_id != cid:
+                raise LeaveError("الموظف غير موجود")
+            d = _parse_date(request.form.get("date"))
+            if not d:
+                raise LeaveError("التاريخ مطلوب")
+            type_str = request.form.get("type")
+            duration_raw = request.form.get("duration_hours") or None
+            create_exception(
+                company_id=cid, employee_id=emp_id, date_=d,
+                type_=type_str,
+                duration_hours=float(duration_raw) if duration_raw else None,
+                note=request.form.get("note"),
+                created_by=current_user.id,
+            )
+            flash("تم تسجيل الاستثناء", "success")
+            return redirect(url_for("hr.attendance", year=d.year, month=d.month))
+        except (LeaveError, ValueError, TypeError) as e:
+            flash(str(e), "error")
+    return render_template("hr/attendance_form.html",
+                           employees=employees, today=date.today().isoformat())
+
+
+@bp.route("/attendance/<int:ex_id>/delete", methods=["POST"])
+@login_required
+@hr_required
+def attendance_delete(ex_id):
+    ex = db.session.get(AttendanceException, ex_id)
+    if not ex or ex.company_id != g.active_company.id:
+        flash("الاستثناء غير موجود", "error")
+        return redirect(url_for("hr.attendance"))
+    try:
+        delete_exception(ex)
+        flash("تم حذف الاستثناء", "success")
+    except LeaveError as e:
+        flash(str(e), "error")
+    return redirect(url_for("hr.attendance",
+                            year=ex.date.year, month=ex.date.month))
+
+
+# ─── HR-06: Leave requests ───────────────────────────────────────────────
+@bp.route("/leave-requests")
+@login_required
+@hr_required
+def leave_requests():
+    cid = g.active_company.id
+    status_filter = request.args.get("status", "ALL")
+    q = LeaveRequest.query.filter_by(company_id=cid)
+    if status_filter and status_filter != "ALL":
+        try:
+            q = q.filter_by(status=LeaveRequestStatus[status_filter])
+        except KeyError:
+            pass
+    rows = q.order_by(LeaveRequest.created_at.desc()).limit(200).all()
+    return render_template("hr/leave_requests.html",
+                           requests=rows, status_filter=status_filter,
+                           statuses=LeaveRequestStatus)
+
+
+@bp.route("/leave-requests/new", methods=["GET", "POST"])
+@login_required
+@hr_required
+def leave_request_new():
+    cid = g.active_company.id
+    employees = Employee.query.filter_by(
+        company_id=cid, status=EmployeeStatus.ACTIVE,
+    ).order_by(Employee.name).all()
+    types = LeaveType.query.filter_by(
+        company_id=cid, is_active=True,
+    ).order_by(LeaveType.name).all()
+    if request.method == "POST":
+        try:
+            emp_id = int(request.form.get("employee_id"))
+            lt_id = int(request.form.get("leave_type_id"))
+            start = _parse_date(request.form.get("start_date"))
+            end = _parse_date(request.form.get("end_date"))
+            if not start or not end:
+                raise LeaveError("تواريخ البداية والنهاية مطلوبة")
+            submit_leave_request(
+                company_id=cid, employee_id=emp_id, leave_type_id=lt_id,
+                start_date=start, end_date=end,
+                reason=request.form.get("reason"),
+                created_by=current_user.id,
+            )
+            flash("تم تقديم الطلب — يحتاج اعتماد", "success")
+            return redirect(url_for("hr.leave_requests"))
+        except (LeaveError, ValueError, TypeError) as e:
+            flash(str(e), "error")
+    return render_template("hr/leave_request_form.html",
+                           employees=employees, leave_types=types,
+                           today=date.today().isoformat())
+
+
+@bp.route("/leave-requests/<int:req_id>/approve", methods=["POST"])
+@login_required
+@hr_required
+def leave_request_approve(req_id):
+    req = db.session.get(LeaveRequest, req_id)
+    if not req or req.company_id != g.active_company.id:
+        flash("الطلب غير موجود", "error")
+        return redirect(url_for("hr.leave_requests"))
+    try:
+        _req, n = approve_leave_request(
+            req, reviewer_id=current_user.id,
+            review_note=request.form.get("review_note"),
+        )
+        flash(f"تم اعتماد الطلب — أُنشئ {n} استثناء حضور", "success")
+    except LeaveError as e:
+        flash(str(e), "error")
+    return redirect(url_for("hr.leave_requests"))
+
+
+@bp.route("/leave-requests/<int:req_id>/reject", methods=["POST"])
+@login_required
+@hr_required
+def leave_request_reject(req_id):
+    req = db.session.get(LeaveRequest, req_id)
+    if not req or req.company_id != g.active_company.id:
+        flash("الطلب غير موجود", "error")
+        return redirect(url_for("hr.leave_requests"))
+    try:
+        reject_leave_request(
+            req, reviewer_id=current_user.id,
+            review_note=request.form.get("review_note"),
+        )
+        flash("تم رفض الطلب", "success")
+    except LeaveError as e:
+        flash(str(e), "error")
+    return redirect(url_for("hr.leave_requests"))
+
+
+@bp.route("/leave-requests/<int:req_id>/cancel", methods=["POST"])
+@login_required
+@hr_required
+def leave_request_cancel(req_id):
+    req = db.session.get(LeaveRequest, req_id)
+    if not req or req.company_id != g.active_company.id:
+        flash("الطلب غير موجود", "error")
+        return redirect(url_for("hr.leave_requests"))
+    try:
+        cancel_leave_request(
+            req, reviewer_id=current_user.id,
+            review_note=request.form.get("review_note"),
+        )
+        flash("تم إلغاء الطلب — أُعيد الرصيد وحُذفت الاستثناءات المرتبطة", "success")
+    except LeaveError as e:
+        flash(str(e), "error")
+    return redirect(url_for("hr.leave_requests"))

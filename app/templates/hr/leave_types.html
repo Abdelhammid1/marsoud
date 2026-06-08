@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block page_title %}أنواع الإجازات{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h2 class="font-bold text-navy-900">أنواع الإجازات</h2>
+  <a href="{{ url_for('hr.leave_type_new') }}" class="btn-primary text-sm">+ نوع جديد</a>
+</div>
+
+<div class="card p-6">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>الاسم</th>
+        <th class="text-left">يتراكم/شهر</th>
+        <th class="text-left">الحد الأقصى</th>
+        <th>مدفوع؟</th>
+        <th>الحالة</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for lt in leave_types %}
+      <tr>
+        <td class="font-semibold">{{ lt.name }}</td>
+        <td class="text-left font-mono">{{ "%.2f"|format(lt.accrual_per_month) }}</td>
+        <td class="text-left font-mono">{{ "%.2f"|format(lt.max_balance) }}</td>
+        <td>
+          {% if lt.is_paid %}<span class="badge badge-paid">مدفوع</span>
+          {% else %}<span class="badge badge-partial">بدون راتب</span>{% endif %}
+        </td>
+        <td>
+          {% if lt.is_active %}<span class="badge badge-sent">نشط</span>
+          {% else %}<span class="badge badge-cancelled">متوقف</span>{% endif %}
+        </td>
+        <td class="text-left">
+          <a href="{{ url_for('hr.leave_type_edit', lt_id=lt.id) }}" class="text-brand-600 hover:underline text-sm">تعديل</a>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="text-center text-slate-400 py-6">لا توجد أنواع إجازات بعد.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

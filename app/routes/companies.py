@@ -91,6 +91,12 @@ def new():
         ))
         db.session.commit()
         seed_default_coa(company.id)
+        # HR-05 — every new company starts with the 4 default leave types
+        try:
+            from app.services.leave import seed_default_leave_types
+            seed_default_leave_types(company.id)
+        except Exception:
+            current_app.logger.exception("seed_default_leave_types failed")
         session["active_company_id"] = company.id
         flash("تم إنشاء الشركة وشجرة الحسابات الافتراضية", "success")
         return redirect(url_for("dashboard.index"))

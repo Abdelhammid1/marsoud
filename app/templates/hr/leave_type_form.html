@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block page_title %}{% if leave_type %}تعديل نوع إجازة{% else %}نوع إجازة جديد{% endif %}{% endblock %}
+{% block content %}
+<div class="card p-6 max-w-2xl">
+  <form method="POST" class="space-y-4">
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">اسم النوع</label>
+      <input type="text" name="name" required value="{{ leave_type.name if leave_type else '' }}" class="input" placeholder="مثل: سنوية / مرضية / طارئة">
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">التراكم الشهري (يوم)</label>
+        <input type="number" name="accrual_per_month" step="0.001"
+               value="{{ leave_type.accrual_per_month if leave_type else 0 }}" class="input font-mono">
+        <p class="text-xs text-slate-500 mt-1">سعودية = 1.75 (21/12) • مصر = 2.08 (25/12) • بدون راتب = 0</p>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">الحد الأقصى للرصيد (يوم)</label>
+        <input type="number" name="max_balance" step="0.01"
+               value="{{ leave_type.max_balance if leave_type else 0 }}" class="input font-mono">
+      </div>
+    </div>
+    <div class="flex items-center gap-6">
+      <label class="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="is_paid" value="1" {% if not leave_type or leave_type.is_paid %}checked{% endif %} class="w-4 h-4">
+        <span>إجازة مدفوعة (لا خصم من الراتب)</span>
+      </label>
+      {% if leave_type %}
+      <label class="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="is_active" value="1" {% if leave_type.is_active %}checked{% endif %} class="w-4 h-4">
+        <span>نشط</span>
+      </label>
+      {% endif %}
+    </div>
+    <div class="flex justify-end gap-2 pt-2">
+      <a href="{{ url_for('hr.leave_types') }}" class="btn-secondary">إلغاء</a>
+      <button type="submit" class="btn-primary">{% if leave_type %}حفظ التعديلات{% else %}إنشاء{% endif %}</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
