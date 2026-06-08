@@ -1,16 +1,40 @@
 {% extends "emails/_base.html" %}
-{% block title %}دفعة جزئية — فاتورة {{ invoice.number }}{% endblock %}
+{% block title %}دفعة جزئية على الفاتورة {{ invoice.number }}{% endblock %}
 {% block content %}
-<h2 style="color:#0A2540;margin:0 0 16px">شكراً {{ invoice.customer.name }}</h2>
-<p style="line-height:1.7;color:#475569">
-  تم تسجيل دفعة جزئية على فاتورتك. ده ملخص الوضع:
+<div style="text-align:center;margin-bottom:20px">
+  <div style="display:inline-block;width:64px;height:64px;background:linear-gradient(135deg,#F59E0B 0%,#B45309 100%);border-radius:50%;line-height:64px;color:#fff;font-size:30px">$</div>
+</div>
+
+<h2 style="color:#0A2540;margin:0 0 8px;text-align:center;font-size:22px">تم تسجيل دفعة جزئية</h2>
+<p style="line-height:1.7;color:#475569;text-align:center;margin:0 0 24px;font-size:14px">
+  وصلتنا دفعة من <strong>{{ invoice.customer.name }}</strong>. شكراً، يبقى مبلغ متبقي على الفاتورة.
 </p>
 
-<table style="width:100%;border-collapse:collapse;margin:24px 0;background:#F8FAFC;border-radius:12px;overflow:hidden">
-  <tr><td style="padding:12px 16px;color:#64748B">الفاتورة</td><td style="padding:12px 16px;text-align:left;font-family:monospace;font-weight:bold">{{ invoice.number }}</td></tr>
-  <tr><td style="padding:12px 16px;color:#64748B">المبلغ المدفوع الآن</td><td style="padding:12px 16px;text-align:left;color:#047857;font-weight:bold;font-family:monospace">{{ "%.2f"|format(payment.amount) }} {{ invoice.currency }}</td></tr>
-  <tr><td style="padding:12px 16px;color:#64748B">إجمالي المدفوع</td><td style="padding:12px 16px;text-align:left;font-family:monospace">{{ "%.2f"|format(invoice.paid_amount) }} {{ invoice.currency }}</td></tr>
-  <tr><td style="padding:12px 16px;color:#64748B">المتبقي</td><td style="padding:12px 16px;text-align:left;color:#B45309;font-weight:bold;font-family:monospace">{{ "%.2f"|format(invoice.balance) }} {{ invoice.currency }}</td></tr>
-  <tr><td style="padding:12px 16px;color:#64748B">تاريخ الاستحقاق المتبقي</td><td style="padding:12px 16px;text-align:left">{{ invoice.due_date.isoformat() }}</td></tr>
+<table style="width:100%;border-collapse:collapse;margin:0 0 16px">
+  <tr>
+    <td style="padding:0 0 12px 8px;width:50%">
+      <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:11px;color:#15803D;letter-spacing:1px">المسدد الآن</div>
+        <div style="font-size:22px;font-weight:bold;font-family:monospace;color:#047857;margin-top:4px">{{ "%.2f"|format(payment.amount) }}</div>
+      </div>
+    </td>
+    <td style="padding:0 8px 12px 0;width:50%">
+      <div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:12px;padding:14px;text-align:center">
+        <div style="font-size:11px;color:#92400E;letter-spacing:1px">المتبقي</div>
+        <div style="font-size:22px;font-weight:bold;font-family:monospace;color:#B45309;margin-top:4px">{{ "%.2f"|format(invoice.balance) }}</div>
+      </div>
+    </td>
+  </tr>
 </table>
+
+<table style="width:100%;border-collapse:collapse;font-size:13px">
+  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">رقم الفاتورة</td><td style="padding:8px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace;font-weight:bold">{{ invoice.number }}</td></tr>
+  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">تاريخ الدفعة</td><td style="padding:8px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace">{{ payment.payment_date.isoformat() }}</td></tr>
+  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">إجمالي المدفوع للآن</td><td style="padding:8px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace">{{ "%.2f"|format(invoice.paid_amount) }} {{ invoice.currency }}</td></tr>
+  <tr><td style="padding:8px 12px;color:#94A3B8">إجمالي الفاتورة</td><td style="padding:8px 12px;text-align:left;font-family:monospace">{{ "%.2f"|format(invoice.total) }} {{ invoice.currency }}</td></tr>
+</table>
+
+<p style="color:#475569;font-size:13px;margin-top:24px;text-align:center">
+  للتواصل، الرد على هذا الإيميل يصل لـ <strong>{{ invoice.company.name }}</strong>.
+</p>
 {% endblock %}

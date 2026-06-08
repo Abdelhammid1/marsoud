@@ -51,6 +51,23 @@
     </div>
 
     {% if company %}
+    <div class="border border-slate-200 rounded-lg p-4 bg-slate-50">
+      <h3 class="font-bold text-navy-900 mb-3">أيام العطلة الأسبوعية</h3>
+      <p class="text-xs text-slate-500 mb-3">تُستثنى من حساب أيام الإجازة وحضور الموظفين. الافتراضي: الجمعة + السبت.</p>
+      <input type="hidden" name="weekend_config_present" value="1">
+      {% set rw = company.rest_weekdays %}
+      <div class="grid grid-cols-7 gap-2 text-center text-xs">
+        {% for label, idx in [('السبت',5),('الأحد',6),('الإثنين',0),('الثلاثاء',1),('الأربعاء',2),('الخميس',3),('الجمعة',4)] %}
+        <label class="cursor-pointer">
+          <input type="checkbox" name="weekend_day" value="{{ idx }}" {% if idx in rw %}checked{% endif %} class="peer sr-only">
+          <span class="block py-2 px-1 rounded-md border border-slate-200 bg-white peer-checked:bg-navy-900 peer-checked:text-white peer-checked:border-navy-900 transition">
+            {{ label }}
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
     {% set r = company.reminders %}
     <div class="border border-slate-200 rounded-lg p-4 bg-slate-50">
       <h3 class="font-bold text-navy-900 mb-3">تذكيرات الفواتير</h3>

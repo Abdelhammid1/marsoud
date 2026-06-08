@@ -1,17 +1,36 @@
 {% extends "emails/_base.html" %}
 {% block title %}فاتورة جديدة #{{ invoice.number }}{% endblock %}
 {% block content %}
-<h2 style="color:#0A2540;margin:0 0 16px">مرحباً {{ invoice.customer.name }}</h2>
-<p style="line-height:1.7;color:#475569">
-  نرسل لك فاتورة جديدة من <strong>{{ invoice.company.name }}</strong>. تجد التفاصيل كاملة بالمرفق PDF.
+<h2 style="color:#0A2540;margin:0 0 8px;font-size:22px">مرحباً {{ invoice.customer.name }} 👋</h2>
+<p style="line-height:1.7;color:#475569;margin:0 0 20px;font-size:14px">
+  وصلتك فاتورة جديدة من <strong>{{ invoice.company.name }}</strong>.
+  تفاصيلها بالأسفل، ونسخة PDF كاملة مرفقة مع هذا الإيميل.
 </p>
 
-<table style="width:100%;border-collapse:collapse;margin:24px 0;background:#F8FAFC;border-radius:12px;overflow:hidden">
-  <tr><td style="padding:12px 16px;color:#64748B">رقم الفاتورة</td><td style="padding:12px 16px;text-align:left;font-family:monospace;font-weight:bold">{{ invoice.number }}</td></tr>
-  <tr><td style="padding:12px 16px;color:#64748B">تاريخ الإصدار</td><td style="padding:12px 16px;text-align:left">{{ invoice.issue_date.isoformat() }}</td></tr>
-  <tr><td style="padding:12px 16px;color:#64748B">تاريخ الاستحقاق</td><td style="padding:12px 16px;text-align:left;color:#B91C1C;font-weight:bold">{{ invoice.due_date.isoformat() }}</td></tr>
-  <tr><td style="padding:12px 16px;color:#64748B">الإجمالي</td><td style="padding:12px 16px;text-align:left;font-size:18px;font-weight:bold;color:#2563EB;font-family:monospace">{{ "%.2f"|format(invoice.total) }} {{ invoice.currency }}</td></tr>
+<div style="background:linear-gradient(135deg,#0A2540 0%,#1B3A5C 100%);color:#fff;border-radius:14px;padding:24px;margin:20px 0">
+  <div style="font-size:11px;color:#94A3B8;letter-spacing:1px">رقم الفاتورة</div>
+  <div style="font-size:24px;font-weight:bold;font-family:monospace;margin-top:4px">{{ invoice.number }}</div>
+  <div style="font-size:11px;color:#94A3B8;margin-top:16px">الإجمالي المستحق</div>
+  <div style="font-size:32px;font-weight:bold;font-family:monospace;color:#60A5FA">{{ "%.2f"|format(invoice.total) }} <span style="font-size:18px;color:#94A3B8">{{ invoice.currency }}</span></div>
+</div>
+
+<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:13px">
+  <tr>
+    <td style="padding:10px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9;width:40%">تاريخ الإصدار</td>
+    <td style="padding:10px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace">{{ invoice.issue_date.isoformat() }}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">تاريخ الاستحقاق</td>
+    <td style="padding:10px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace;color:#B91C1C;font-weight:bold">{{ invoice.due_date.isoformat() }}</td>
+  </tr>
+  <tr>
+    <td style="padding:10px 12px;color:#94A3B8">عدد البنود</td>
+    <td style="padding:10px 12px;text-align:left;font-family:monospace">{{ invoice.items|length }}</td>
+  </tr>
 </table>
 
-<p style="color:#475569;font-size:14px">شكراً لتعاملك معنا.</p>
+<p style="color:#475569;font-size:13px;margin-top:24px;border-top:1px solid #F1F5F9;padding-top:16px">
+  شكراً لتعاملك مع <strong>{{ invoice.company.name }}</strong>.
+  للاستفسار يمكنك الرد على هذا الإيميل مباشرة.
+</p>
 {% endblock %}

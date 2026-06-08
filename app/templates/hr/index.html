@@ -27,6 +27,32 @@
   </div>
 </div>
 
+{% if expiring %}
+<div class="card p-6 mb-6 border-rose-100 bg-rose-50/40">
+  <div class="flex items-center justify-between mb-3">
+    <h3 class="font-bold text-rose-800">⚠ عقود على وشك الانتهاء ({{ expiring|length }})</h3>
+    <span class="text-xs text-slate-500">خلال 60 يوماً</span>
+  </div>
+  <div class="grid grid-cols-2 gap-3">
+    {% for emp, days_left, severity in expiring %}
+    <a href="{{ url_for('payroll.employee_profile', employee_id=emp.id) }}"
+       class="flex items-center justify-between bg-white rounded-lg border {% if severity == 'red' %}border-rose-200{% else %}border-amber-200{% endif %} px-4 py-3 hover:shadow-soft transition">
+      <div>
+        <div class="font-semibold text-navy-900">{{ emp.name }}</div>
+        <div class="text-xs text-slate-500">{{ emp.job_title or '—' }}{% if emp.department %} · {{ emp.department.name }}{% endif %}</div>
+      </div>
+      <div class="text-left">
+        <div class="font-mono text-sm {% if severity == 'red' %}text-rose-700{% else %}text-amber-700{% endif %}">{{ emp.contract_end_date.isoformat() }}</div>
+        <div class="text-xs font-bold {% if severity == 'red' %}text-rose-700{% else %}text-amber-700{% endif %}">
+          {% if days_left == 0 %}اليوم{% else %}{{ days_left }} يوم{% endif %}
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
 <div class="card p-6">
   <h2 class="font-bold text-navy-900 mb-3">دليل الموظفين</h2>
   <table class="data-table">

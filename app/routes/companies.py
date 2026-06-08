@@ -135,6 +135,19 @@ def edit(company_id):
         company.vat_rate = float(request.form.get("vat_rate", company.vat_rate))
         company.address = request.form.get("address", company.address)
 
+        # Weekend config — checkbox group from the form
+        if request.form.get("weekend_config_present") == "1":
+            picked = request.form.getlist("weekend_day")
+            cleaned = []
+            for s in picked:
+                try:
+                    n = int(s)
+                    if 0 <= n <= 6:
+                        cleaned.append(str(n))
+                except (TypeError, ValueError):
+                    continue
+            company.weekend_days = ",".join(sorted(set(cleaned), key=int)) or None
+
         # Reminder config (T13) — parse comma-separated day lists.
         def _parse_days(s):
             out = []

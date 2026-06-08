@@ -262,13 +262,20 @@ def attendance_deductions(employee_id, year, month):
 
 # ─── HR-06: leave-request workflow ──────────────────────────────────────
 # Default rest days = Friday (Python weekday 4) + Saturday (weekday 5) —
-# the standard Gulf/Egypt weekend. Per-company configurability lives in
-# Phase 3 of the HR module; until then this default applies.
+# the standard Gulf/Egypt weekend. Each Company can override via
+# Company.weekend_days (CSV of weekday ints); when unset, this default applies.
 DEFAULT_REST_WEEKDAYS = {4, 5}
 
 
+def _company_rest_weekdays(company):
+    """Resolve the rest-day set for a company. None or no override → default."""
+    if company is None:
+        return DEFAULT_REST_WEEKDAYS
+    return company.rest_weekdays
+
+
 def _is_rest_day(d, rest_weekdays=None):
-    rest_weekdays = rest_weekdays or DEFAULT_REST_WEEKDAYS
+    rest_weekdays = rest_weekdays if rest_weekdays is not None else DEFAULT_REST_WEEKDAYS
     return d.weekday() in rest_weekdays
 
 
@@ -318,7 +325,8 @@ def submit_leave_request(*, company_id, employee_id, leave_type_id,
     if exception_clash:
         raise LeaveError("توجد استثناءات حضور مسبقة في هذه الفترة — راجعها أولاً")
 
-    days_count = _daterange_days(start_date, end_date)
+    rest = _company_rest_weekdays(emp.company)
+    days_count = _daterange_days(start_date, end_date, rest_weekdays=rest)
 
     # Balance check — paid types only. Unpaid leave is exempt.
     if lt.is_paid:
@@ -371,14 +379,15 @@ def approve_leave_request(req, *, reviewer_id, review_note=None):
         bal.used_days = Decimal(str(round(new_used, 2)))
 
     # Create one AttendanceException per working day in the inclusive range.
-    # Rest days (Friday / Saturday by default) are skipped — they don't
+    # Rest days (per company config — default Fri/Sat) are skipped — they don't
     # consume balance and don't count toward absence in payroll.
     ex_type = (AttendanceExceptionType.APPROVED_LEAVE
                if lt.is_paid else AttendanceExceptionType.UNPAID_LEAVE)
+    rest = _company_rest_weekdays(req.company)
     d = req.start_date
     created = 0
     while d <= req.end_date:
-        if _is_rest_day(d):
+        if _is_rest_day(d, rest_weekdays=rest):
             d += timedelta(days=1)
             continue
         # Be tolerant: if for any reason an exception already exists on this

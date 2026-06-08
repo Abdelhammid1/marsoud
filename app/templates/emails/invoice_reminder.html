@@ -1,26 +1,37 @@
 {% extends "emails/_base.html" %}
-{% block title %}تذكير: فاتورة {{ invoice.number }}{% endblock %}
+{% block title %}تذكير: فاتورة #{{ invoice.number }}{% endblock %}
 {% block content %}
-{% set color = '#B91C1C' if days_label == 'overdue' else ('#B45309' if days_label == 'before_3' else '#2563EB') %}
-{% set bg = '#FEF2F2' if days_label == 'overdue' else ('#FFFBEB' if days_label == 'before_3' else '#EFF6FF') %}
+{% set is_overdue = days_label.startswith('overdue') %}
+{% set accent_bg = '#FEE2E2' if is_overdue else '#FEF3C7' %}
+{% set accent_border = '#FCA5A5' if is_overdue else '#FDE68A' %}
+{% set accent_text = '#B91C1C' if is_overdue else '#92400E' %}
 
-<h2 style="color:#0A2540;margin:0 0 16px">مرحباً {{ invoice.customer.name }}</h2>
-
-<div style="background:{{ bg }};border-right:4px solid {{ color }};padding:16px 20px;border-radius:8px;margin-bottom:24px">
-  {% if days_label == 'overdue' %}
-    <p style="margin:0;color:{{ color }};font-weight:bold">⚠ فاتورتك تجاوزت تاريخ الاستحقاق</p>
-  {% elif days_label == 'before_3' %}
-    <p style="margin:0;color:{{ color }};font-weight:bold">⏰ فاتورتك تستحق خلال 3 أيام</p>
-  {% else %}
-    <p style="margin:0;color:{{ color }};font-weight:bold">📅 فاتورتك تستحق خلال 7 أيام</p>
-  {% endif %}
+<div style="background:{{ accent_bg }};border:1px solid {{ accent_border }};border-radius:14px;padding:18px;margin-bottom:20px;text-align:center">
+  <div style="font-size:14px;color:{{ accent_text }};font-weight:bold">
+    {% if days_label.startswith('before_') %}{% set n = days_label.split('_',1)[1] %}⏰ تذكير: فاتورتك تستحق خلال {{ n }} أيام
+    {% elif days_label.startswith('overdue_') %}{% set n = days_label.split('_',1)[1] %}⚠ فاتورتك متأخرة منذ {{ n }} يوم
+    {% else %}⚠ فاتورتك تجاوزت تاريخ الاستحقاق
+    {% endif %}
+  </div>
 </div>
 
-<table style="width:100%;border-collapse:collapse;margin:24px 0;background:#F8FAFC;border-radius:12px;overflow:hidden">
-  <tr><td style="padding:12px 16px;color:#64748B">رقم الفاتورة</td><td style="padding:12px 16px;text-align:left;font-family:monospace;font-weight:bold">{{ invoice.number }}</td></tr>
-  <tr><td style="padding:12px 16px;color:#64748B">تاريخ الاستحقاق</td><td style="padding:12px 16px;text-align:left;color:{{ color }};font-weight:bold">{{ invoice.due_date.isoformat() }}</td></tr>
-  <tr><td style="padding:12px 16px;color:#64748B">المبلغ المتبقي</td><td style="padding:12px 16px;text-align:left;font-size:18px;font-weight:bold;font-family:monospace">{{ "%.2f"|format(invoice.balance) }} {{ invoice.currency }}</td></tr>
+<h2 style="color:#0A2540;margin:0 0 8px;font-size:20px">مرحباً {{ invoice.customer.name }}</h2>
+<p style="line-height:1.7;color:#475569;margin:0 0 20px;font-size:14px">
+  هذا تذكير ودي بخصوص فاتورتك مع <strong>{{ invoice.company.name }}</strong>.
+</p>
+
+<div style="background:linear-gradient(135deg,#0A2540 0%,#1B3A5C 100%);color:#fff;border-radius:14px;padding:20px;margin:0 0 16px;text-align:center">
+  <div style="font-size:11px;color:#94A3B8;letter-spacing:1px">المبلغ المتبقي</div>
+  <div style="font-size:32px;font-weight:bold;font-family:monospace;margin-top:4px">{{ "%.2f"|format(invoice.balance) }} <span style="font-size:16px;color:#94A3B8">{{ invoice.currency }}</span></div>
+</div>
+
+<table style="width:100%;border-collapse:collapse;font-size:13px">
+  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">رقم الفاتورة</td><td style="padding:8px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace;font-weight:bold">{{ invoice.number }}</td></tr>
+  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">تاريخ الإصدار</td><td style="padding:8px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace">{{ invoice.issue_date.isoformat() }}</td></tr>
+  <tr><td style="padding:8px 12px;color:#94A3B8">تاريخ الاستحقاق</td><td style="padding:8px 12px;text-align:left;font-family:monospace;color:{{ accent_text }};font-weight:bold">{{ invoice.due_date.isoformat() }}</td></tr>
 </table>
 
-<p style="color:#475569;font-size:14px">إذا قمت بالسداد بالفعل، تجاهل هذا التذكير. شكراً.</p>
+<p style="color:#475569;font-size:13px;margin-top:24px;border-top:1px solid #F1F5F9;padding-top:16px">
+  إذا تم السداد مؤخراً، تجاوز هذه الرسالة. للاستفسار، الرد على هذا الإيميل مباشرة.
+</p>
 {% endblock %}

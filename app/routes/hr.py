@@ -47,7 +47,8 @@ def _parse_date(s):
 @login_required
 @hr_required
 def index():
-    """HR home — directory + department summary."""
+    """HR home — directory + department summary + expiring-contracts widget."""
+    from datetime import timedelta as _td
     cid = g.active_company.id
     employees = Employee.query.filter_by(
         company_id=cid, status=EmployeeStatus.ACTIVE
@@ -55,8 +56,20 @@ def index():
     departments = Department.query.filter_by(
         company_id=cid, is_active=True
     ).order_by(Department.name).all()
+
+    # HR-03 dashboard widget — active employees with contracts ending in ≤60 days
+    today = date.today()
+    horizon = today + _td(days=60)
+    expiring = []
+    for e in employees:
+        if e.contract_end_date and today <= e.contract_end_date <= horizon:
+            days_left = (e.contract_end_date - today).days
+            severity = "red" if days_left <= 30 else "amber"
+            expiring.append((e, days_left, severity))
+    expiring.sort(key=lambda r: r[1])
     return render_template("hr/index.html",
-                           employees=employees, departments=departments)
+                           employees=employees, departments=departments,
+                           expiring=expiring)
 
 
 # ─── Departments ─────────────────────────────────────────────────────────

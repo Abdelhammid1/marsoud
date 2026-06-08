@@ -1,16 +1,42 @@
 {% extends "emails/_base.html" %}
 {% block title %}كشف راتب {{ run.period_month }}/{{ run.period_year }}{% endblock %}
 {% block content %}
-<h2 style="color:#0A2540;margin:0 0 16px">السلام عليكم {{ employee.name }}</h2>
-<p style="line-height:1.7;color:#475569">
-  تجد كشف راتبك لشهر <strong>{{ run.period_month }}/{{ run.period_year }}</strong> مرفقاً بصيغة PDF.
+<h2 style="color:#0A2540;margin:0 0 8px;font-size:22px">السلام عليكم {{ employee.name }} 👋</h2>
+<p style="line-height:1.7;color:#475569;margin:0 0 20px;font-size:14px">
+  تفاصيل راتبك لشهر <strong>{{ run.period_month }}/{{ run.period_year }}</strong>.
+  نسخة PDF كاملة مرفقة.
 </p>
 
-<table style="width:100%;border-collapse:collapse;margin:24px 0;background:#F8FAFC;border-radius:12px;overflow:hidden">
-  <tr><td style="padding:12px 16px;color:#64748B">الراتب الأساسي</td><td style="padding:12px 16px;text-align:left;font-family:monospace">{{ "%.2f"|format(line.basic) }}</td></tr>
-  <tr><td style="padding:12px 16px;color:#64748B">البدلات</td><td style="padding:12px 16px;text-align:left;font-family:monospace">{{ "%.2f"|format(line.allowances) }}</td></tr>
-  {% if line.overtime %}<tr><td style="padding:12px 16px;color:#64748B">الأوفرتايم</td><td style="padding:12px 16px;text-align:left;font-family:monospace">{{ "%.2f"|format(line.overtime) }}</td></tr>{% endif %}
-  <tr><td style="padding:12px 16px;color:#B91C1C">الخصومات</td><td style="padding:12px 16px;text-align:left;font-family:monospace;color:#B91C1C">−{{ "%.2f"|format(line.deductions) }}</td></tr>
-  <tr style="background:#0A2540;color:#fff"><td style="padding:14px 16px;font-weight:bold">صافي الراتب</td><td style="padding:14px 16px;text-align:left;font-family:monospace;font-size:18px;font-weight:bold">{{ "%.2f"|format(line.net) }}</td></tr>
+<div style="background:linear-gradient(135deg,#0A2540 0%,#1B3A5C 100%);color:#fff;border-radius:14px;padding:24px;margin:20px 0;text-align:center">
+  <div style="font-size:11px;color:#94A3B8;letter-spacing:1px">صافي الراتب</div>
+  <div style="font-size:38px;font-weight:bold;font-family:monospace;margin-top:4px">{{ "%.2f"|format(line.net) }}</div>
+  <div style="font-size:12px;color:#94A3B8;margin-top:4px">{{ employee.company.base_currency }}</div>
+</div>
+
+<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:13px">
+  <thead>
+    <tr style="background:#F8FAFC">
+      <th align="right" style="padding:10px 12px;color:#64748B;font-weight:600">البند</th>
+      <th align="left" style="padding:10px 12px;color:#64748B;font-weight:600">المبلغ</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td style="padding:8px 12px;color:#0F172A;border-bottom:1px solid #F1F5F9">الراتب الأساسي</td><td style="padding:8px 12px;text-align:left;font-family:monospace;border-bottom:1px solid #F1F5F9">{{ "%.2f"|format(line.basic) }}</td></tr>
+    {% if line.allowances %}<tr><td style="padding:8px 12px;color:#0F172A;border-bottom:1px solid #F1F5F9">البدلات</td><td style="padding:8px 12px;text-align:left;font-family:monospace;border-bottom:1px solid #F1F5F9">{{ "%.2f"|format(line.allowances) }}</td></tr>{% endif %}
+    {% if line.overtime %}<tr><td style="padding:8px 12px;color:#10B981;border-bottom:1px solid #F1F5F9">أوفرتايم</td><td style="padding:8px 12px;text-align:left;font-family:monospace;border-bottom:1px solid #F1F5F9;color:#10B981">+{{ "%.2f"|format(line.overtime) }}</td></tr>{% endif %}
+    {% if line.bonus %}<tr><td style="padding:8px 12px;color:#10B981;border-bottom:1px solid #F1F5F9">بونص</td><td style="padding:8px 12px;text-align:left;font-family:monospace;border-bottom:1px solid #F1F5F9;color:#10B981">+{{ "%.2f"|format(line.bonus) }}</td></tr>{% endif %}
+    {% if line.deductions or line.absence_deduction or line.late_deduction or line.advance_deduction %}
+    {% set total_deduct = (line.deductions or 0) + (line.absence_deduction or 0) + (line.late_deduction or 0) + (line.advance_deduction or 0) %}
+    <tr><td style="padding:8px 12px;color:#B91C1C;border-bottom:1px solid #F1F5F9">إجمالي الخصومات</td><td style="padding:8px 12px;text-align:left;font-family:monospace;color:#B91C1C;border-bottom:1px solid #F1F5F9">−{{ "%.2f"|format(total_deduct) }}</td></tr>
+    {% endif %}
+  </tbody>
 </table>
+
+{% if line.attendance_auto_calculated %}
+<p style="color:#10B981;font-size:12px;margin-top:12px">✓ تم حساب الحضور تلقائياً من سجل الاستثناءات.</p>
+{% endif %}
+
+<p style="color:#475569;font-size:13px;margin-top:24px;border-top:1px solid #F1F5F9;padding-top:16px">
+  لأي ملاحظات على هذا الكشف، تواصل مع إدارة الموارد البشرية في <strong>{{ employee.company.name }}</strong>.
+</p>
 {% endblock %}

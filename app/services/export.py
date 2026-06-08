@@ -288,27 +288,76 @@ def export_income_statement_pdf(company, start, end):
     return buf
 
 
+_STATUS_COLOR = {
+    "DRAFT":              (colors.HexColor("#475569"), "DRAFT"),
+    "SENT":               (colors.HexColor("#2563EB"), "SENT"),
+    "PAID":               (colors.HexColor("#10B981"), "PAID"),
+    "PARTIALLY_PAID":     (colors.HexColor("#F59E0B"), "PARTIALLY PAID"),
+    "OVERDUE":            (colors.HexColor("#EF4444"), "OVERDUE"),
+    "CANCELLED":          (colors.HexColor("#64748B"), "CANCELLED"),
+    "REFUNDED":           (colors.HexColor("#EC4899"), "REFUNDED"),
+    "PARTIALLY_REFUNDED": (colors.HexColor("#EC4899"), "PART. REFUNDED"),
+}
+
+
 def export_invoice_pdf(invoice):
-    """Generate a customer-facing invoice PDF."""
+    """Generate a customer-facing invoice PDF — branded layout with header
+    logo (MARSOUD-23), status banner, customer & dates card, items table
+    with alternating shading, and a totals card showing subtotal / VAT /
+    total / paid / balance.
+    """
     buf = io.BytesIO()
     p = canvas.Canvas(buf, pagesize=A4)
-    _pdf_header(p, invoice.company, f"Invoice {invoice.number}", f"Date: {invoice.issue_date}  ·  Due: {invoice.due_date}")
+    _pdf_header(p, invoice.company,
+                f"Invoice {invoice.number}",
+                f"Issue: {invoice.issue_date}  ·  Due: {invoice.due_date}")
+
+    # ─── Status pill in top-left of header band ─────────────────────────
+    status_value = invoice.status.value if hasattr(invoice.status, "value") else str(invoice.status)
+    badge_color, badge_label = _STATUS_COLOR.get(status_value, (NAVY, status_value))
+    p.setFillColor(badge_color)
+    p.rect(15.5 * cm, 28.4 * cm, 4.5 * cm, 0.9 * cm, fill=1, stroke=0)
+    p.setFillColor(colors.white)
+    p.setFont(_FONT_BOLD, 11)
+    p.drawCentredString(15.5 * cm + 2.25 * cm, 28.7 * cm, badge_label)
 
     y = 24.5 * cm
-    p.setFillColor(colors.HexColor("#475569"))
-    p.setFont(_FONT_BOLD, 11)
-    p.drawString(1.5 * cm, y, "BILL TO:")
-    y -= 0.5 * cm
-    p.setFillColor(colors.black)
-    p.setFont(_FONT_REGULAR, 11)
-    p.drawString(1.5 * cm, y, ar(invoice.customer.name))
-    if invoice.customer.email:
-        y -= 0.5 * cm
-        p.setFont(_FONT_REGULAR, 9)
-        p.drawString(1.5 * cm, y, invoice.customer.email)
 
-    y -= 1.2 * cm
-    # Items header
+    # ─── Customer + dates two-column cards ──────────────────────────────
+    card_h = 2.2 * cm
+    # Left: BILL TO
+    p.setFillColor(colors.HexColor("#F8FAFC"))
+    p.roundRect(1 * cm, y - card_h, 9 * cm, card_h, 6, fill=1, stroke=0)
+    p.setFillColor(colors.HexColor("#94A3B8"))
+    p.setFont(_FONT_BOLD, 9)
+    p.drawString(1.4 * cm, y - 0.55 * cm, "BILL TO")
+    p.setFillColor(colors.HexColor("#0A2540"))
+    p.setFont(_FONT_BOLD, 12)
+    p.drawString(1.4 * cm, y - 1.1 * cm, ar(invoice.customer.name))
+    p.setFont(_FONT_REGULAR, 9)
+    p.setFillColor(colors.HexColor("#475569"))
+    line_y = y - 1.55 * cm
+    if invoice.customer.email:
+        p.drawString(1.4 * cm, line_y, invoice.customer.email)
+        line_y -= 0.4 * cm
+    if getattr(invoice.customer, "phone", None):
+        p.drawString(1.4 * cm, line_y, invoice.customer.phone)
+
+    # Right: DATES + CURRENCY
+    p.setFillColor(colors.HexColor("#F8FAFC"))
+    p.roundRect(11 * cm, y - card_h, 9 * cm, card_h, 6, fill=1, stroke=0)
+    p.setFillColor(colors.HexColor("#94A3B8"))
+    p.setFont(_FONT_BOLD, 9)
+    p.drawString(11.4 * cm, y - 0.55 * cm, "INVOICE DETAILS")
+    p.setFillColor(colors.HexColor("#0F172A"))
+    p.setFont(_FONT_REGULAR, 9)
+    p.drawString(11.4 * cm, y - 1.1 * cm, f"Issued: {invoice.issue_date.isoformat()}")
+    p.drawString(11.4 * cm, y - 1.5 * cm, f"Due:    {invoice.due_date.isoformat()}")
+    p.drawString(11.4 * cm, y - 1.9 * cm, f"Currency: {invoice.currency}")
+
+    y -= card_h + 0.8 * cm
+
+    # ─── Items table header ─────────────────────────────────────────────
     p.setFillColor(NAVY)
     p.rect(1 * cm, y - 0.4 * cm, 19 * cm, 0.7 * cm, fill=1, stroke=0)
     p.setFillColor(colors.white)
@@ -317,31 +366,69 @@ def export_invoice_pdf(invoice):
     p.drawString(12 * cm, y - 0.15 * cm, "QTY")
     p.drawString(14 * cm, y - 0.15 * cm, "PRICE")
     p.drawRightString(19.5 * cm, y - 0.15 * cm, "TOTAL")
-    y -= 1 * cm
+    y -= 0.9 * cm
 
-    p.setFillColor(colors.black)
+    # ─── Items rows with alternating row shading ───────────────────────
     p.setFont(_FONT_REGULAR, 10)
+    row_idx = 0
     for item in invoice.items:
+        if y < 6 * cm:
+            p.showPage()
+            _pdf_header(p, invoice.company,
+                        f"Invoice {invoice.number} (cont.)",
+                        f"Issue: {invoice.issue_date}  ·  Due: {invoice.due_date}")
+            y = 24.5 * cm
+        if row_idx % 2 == 1:
+            p.setFillColor(colors.HexColor("#F8FAFC"))
+            p.rect(1 * cm, y - 0.25 * cm, 19 * cm, 0.6 * cm, fill=1, stroke=0)
+        p.setFillColor(colors.black)
         p.drawString(1.3 * cm, y, ar(item.description[:60]))
         p.drawString(12 * cm, y, f"{float(item.quantity):.2f}")
         p.drawString(14 * cm, y, f"{float(item.unit_price):,.2f}")
-        p.drawRightString(19.5 * cm, y, f"{item.total:,.2f}")
-        y -= 0.5 * cm
+        p.drawRightString(19.5 * cm, y, f"{float(item.line_total):,.2f}")
+        y -= 0.55 * cm
+        row_idx += 1
 
+    # ─── Totals card (right-aligned, fixed-width) ──────────────────────
+    totals_x = 11 * cm
+    totals_w = 9 * cm
     y -= 0.5 * cm
-    p.setFont(_FONT_REGULAR, 10)
-    p.drawRightString(17 * cm, y, "Subtotal:")
-    p.drawRightString(19.5 * cm, y, f"{float(invoice.subtotal):,.2f}")
-    y -= 0.5 * cm
-    p.drawRightString(17 * cm, y, f"VAT ({float(invoice.tax_rate):.0f}%):")
-    p.drawRightString(19.5 * cm, y, f"{float(invoice.tax_amount):,.2f}")
-    y -= 0.7 * cm
-    p.setFillColor(NAVY)
-    p.rect(13 * cm, y - 0.4 * cm, 7 * cm, 0.8 * cm, fill=1, stroke=0)
-    p.setFillColor(colors.white)
-    p.setFont(_FONT_BOLD, 12)
-    p.drawString(13.3 * cm, y - 0.15 * cm, "TOTAL:")
-    p.drawRightString(19.5 * cm, y - 0.15 * cm, f"{float(invoice.total):,.2f} {invoice.currency}")
+    rows = [
+        ("Subtotal",                  f"{float(invoice.subtotal):,.2f}",          False),
+    ]
+    if getattr(invoice, "invoice_discount_amount", 0) and float(invoice.invoice_discount_amount) > 0:
+        rows.append(("Discount", f"-{float(invoice.invoice_discount_amount):,.2f}", False))
+    rows.append((f"VAT ({float(invoice.tax_rate):.0f}%)", f"{float(invoice.tax_amount):,.2f}", False))
+    rows.append(("Total",     f"{float(invoice.total):,.2f} {invoice.currency}",  True))
+    if invoice.paid_amount and float(invoice.paid_amount) > 0:
+        rows.append(("Paid",    f"{float(invoice.paid_amount):,.2f}",              False))
+        rows.append(("Balance Due", f"{float(invoice.balance):,.2f} {invoice.currency}", True))
+
+    card_h = 0.7 * cm * len(rows) + 0.3 * cm
+    p.setFillColor(colors.HexColor("#F8FAFC"))
+    p.roundRect(totals_x, y - card_h, totals_w, card_h, 6, fill=1, stroke=0)
+
+    inner_y = y - 0.5 * cm
+    for label, value, emphasize in rows:
+        if emphasize:
+            p.setFillColor(NAVY)
+            p.rect(totals_x + 0.1 * cm, inner_y - 0.18 * cm, totals_w - 0.2 * cm, 0.55 * cm, fill=1, stroke=0)
+            p.setFillColor(colors.white)
+            p.setFont(_FONT_BOLD, 11)
+        else:
+            p.setFillColor(colors.HexColor("#475569"))
+            p.setFont(_FONT_REGULAR, 10)
+        p.drawString(totals_x + 0.4 * cm, inner_y, label)
+        p.drawRightString(totals_x + totals_w - 0.4 * cm, inner_y, value)
+        inner_y -= 0.65 * cm
+
+    # ─── Footer ─────────────────────────────────────────────────────────
+    p.setFillColor(colors.HexColor("#94A3B8"))
+    p.setFont(_FONT_REGULAR, 8)
+    footer = f"Thank you for your business — {invoice.company.name}"
+    if invoice.company.tax_number:
+        footer += f"  ·  VAT # {invoice.company.tax_number}"
+    p.drawCentredString(10.5 * cm, 1.2 * cm, ar(footer))
 
     p.showPage()
     p.save()
@@ -350,46 +437,115 @@ def export_invoice_pdf(invoice):
 
 
 def export_payslip_pdf(employee, line, run):
-    """One-page payslip for an employee."""
+    """One-page payslip — branded header (MARSOUD-23), employee identity card,
+    earnings + deductions sections with subtotals, and a Net Pay banner.
+    """
     buf = io.BytesIO()
     p = canvas.Canvas(buf, pagesize=A4)
-    _pdf_header(p, employee.company, f"Payslip — {run.period_month}/{run.period_year}",
-                f"{employee.name}  ·  {employee.job_title or ''}")
+    _pdf_header(
+        p, employee.company,
+        f"Payslip — {run.period_month}/{run.period_year}",
+        f"Payroll Run {run.number or run.id}",
+    )
 
-    y = 24 * cm
-    p.setFillColor(colors.HexColor("#475569"))
-    p.setFont(_FONT_BOLD, 10)
-    p.drawString(1.5 * cm, y, ar(f"Employee #:  {employee.employee_number or '—'}"))
-    y -= 0.5 * cm
-    p.drawString(1.5 * cm, y, ar(f"Working days: {line.working_days}/30"))
-    y -= 1.5 * cm
+    y = 24.5 * cm
 
-    rows = [
-        ("Basic (prorated)", float(line.basic), False),
-        ("Allowances", float(line.allowances), False),
-        ("Overtime", float(line.overtime), False),
-        ("Bonus", float(line.bonus), False),
-        ("Fixed deductions", -float(line.deductions), True),
-        ("Absence", -float(line.absence_deduction), True),
-        ("Late", -float(line.late_deduction), True),
-        ("Advance", -float(line.advance_deduction), True),
-    ]
+    # ─── Employee identity card ────────────────────────────────────────
+    card_h = 2.4 * cm
+    p.setFillColor(colors.HexColor("#F8FAFC"))
+    p.roundRect(1 * cm, y - card_h, 19 * cm, card_h, 6, fill=1, stroke=0)
+    p.setFillColor(colors.HexColor("#94A3B8"))
+    p.setFont(_FONT_BOLD, 9)
+    p.drawString(1.4 * cm, y - 0.55 * cm, "EMPLOYEE")
+    p.setFillColor(colors.HexColor("#0A2540"))
+    p.setFont(_FONT_BOLD, 14)
+    p.drawString(1.4 * cm, y - 1.15 * cm, ar(employee.name))
     p.setFont(_FONT_REGULAR, 10)
-    for label, value, neg in rows:
-        if abs(value) < 0.01:
-            continue
-        p.setFillColor(colors.HexColor("#B91C1C") if neg else colors.black)
-        p.drawString(1.5 * cm, y, ar(label))
-        p.drawRightString(19.5 * cm, y, f"{value:+,.2f}")
-        y -= 0.55 * cm
+    p.setFillColor(colors.HexColor("#475569"))
+    p.drawString(1.4 * cm, y - 1.65 * cm, ar(employee.job_title or "—"))
+    if employee.department:
+        p.drawString(1.4 * cm, y - 2.05 * cm, ar(employee.department.name))
 
-    y -= 0.5 * cm
+    # Right side of the card — metadata column
+    meta_x = 12 * cm
+    p.setFont(_FONT_REGULAR, 9)
+    p.drawString(meta_x, y - 0.7 * cm, f"Employee #: {employee.employee_number or '—'}")
+    p.drawString(meta_x, y - 1.1 * cm, f"Period:     {run.period_month:02d}/{run.period_year}")
+    p.drawString(meta_x, y - 1.5 * cm, f"Working days: {line.working_days}/30")
+    if line.attendance_auto_calculated:
+        p.setFillColor(colors.HexColor("#10B981"))
+        p.setFont(_FONT_BOLD, 8)
+        p.drawString(meta_x, y - 1.9 * cm, "Attendance auto-computed")
+
+    y -= card_h + 0.6 * cm
+
+    # ─── Earnings + deductions side-by-side ────────────────────────────
+    earnings = [
+        ("Basic (prorated)",  float(line.basic)),
+        ("Allowances",        float(line.allowances)),
+        ("Overtime",          float(line.overtime)),
+        ("Bonus",             float(line.bonus)),
+    ]
+    deductions = [
+        ("Fixed deductions",  float(line.deductions)),
+        ("Absence",           float(line.absence_deduction)),
+        ("Late",              float(line.late_deduction)),
+        ("Advance",           float(line.advance_deduction)),
+    ]
+
+    def _section(x, w, title, rows, accent):
+        nonlocal_y = y
+        # Header strip
+        p.setFillColor(accent)
+        p.rect(x, nonlocal_y - 0.5 * cm, w, 0.7 * cm, fill=1, stroke=0)
+        p.setFillColor(colors.white)
+        p.setFont(_FONT_BOLD, 10)
+        p.drawString(x + 0.3 * cm, nonlocal_y - 0.3 * cm, title)
+        ly = nonlocal_y - 1.1 * cm
+        # Card body
+        body_h = 0.55 * cm * len(rows) + 0.9 * cm
+        p.setFillColor(colors.HexColor("#F8FAFC"))
+        p.rect(x, ly - body_h + 0.7 * cm, w, body_h, fill=1, stroke=0)
+        p.setFillColor(colors.HexColor("#0F172A"))
+        p.setFont(_FONT_REGULAR, 10)
+        subtotal = 0.0
+        for label, value in rows:
+            if abs(value) < 0.005:
+                continue
+            p.drawString(x + 0.3 * cm, ly, ar(label))
+            p.drawRightString(x + w - 0.3 * cm, ly, f"{value:,.2f}")
+            subtotal += value
+            ly -= 0.55 * cm
+        # Subtotal
+        p.setFillColor(accent)
+        p.setFont(_FONT_BOLD, 10)
+        p.drawString(x + 0.3 * cm, ly, "Subtotal")
+        p.drawRightString(x + w - 0.3 * cm, ly, f"{subtotal:,.2f}")
+        return subtotal, ly - 0.6 * cm
+
+    gross, y_left = _section(1 * cm, 9 * cm, "EARNINGS", earnings,
+                             colors.HexColor("#10B981"))
+    deduct_total, y_right = _section(11 * cm, 9 * cm, "DEDUCTIONS", deductions,
+                                     colors.HexColor("#EF4444"))
+    y = min(y_left, y_right) - 0.4 * cm
+
+    # ─── Net Pay banner ─────────────────────────────────────────────────
     p.setFillColor(NAVY)
-    p.rect(1 * cm, y - 0.5 * cm, 19 * cm, 1 * cm, fill=1, stroke=0)
+    p.roundRect(1 * cm, y - 1.4 * cm, 19 * cm, 1.6 * cm, 8, fill=1, stroke=0)
     p.setFillColor(colors.white)
     p.setFont(_FONT_BOLD, 13)
-    p.drawString(1.5 * cm, y - 0.15 * cm, "NET PAY")
-    p.drawRightString(19.5 * cm, y - 0.15 * cm, f"{float(line.net):,.2f}")
+    p.drawString(1.5 * cm, y - 0.65 * cm, "NET PAY")
+    p.setFont(_FONT_BOLD, 22)
+    p.drawRightString(19.5 * cm, y - 0.7 * cm,
+                      f"{float(line.net):,.2f} {employee.company.base_currency}")
+
+    # Footer
+    p.setFillColor(colors.HexColor("#94A3B8"))
+    p.setFont(_FONT_REGULAR, 8)
+    foot = f"Generated by Marsoud  ·  {employee.company.name}"
+    if employee.company.tax_number:
+        foot += f"  ·  VAT # {employee.company.tax_number}"
+    p.drawCentredString(10.5 * cm, 1.2 * cm, ar(foot))
 
     p.showPage()
     p.save()

@@ -21,6 +21,7 @@ class Company(db.Model):
     tax_number = db.Column(db.String(50))
     vat_rate = db.Column(db.Numeric(5, 2), default=15.00)
     reminder_config = db.Column(db.Text)  # JSON: {enabled, days_before:[int], overdue_days:[int]}
+    weekend_days = db.Column(db.String(20))  # CSV of Python weekday ints, "4,5" = Fri,Sat
     timezone = db.Column(db.String(50), default="Asia/Riyadh")
     parent_id = db.Column(db.Integer, db.ForeignKey("companies.id"))  # sub-company hierarchy
     is_active = db.Column(db.Boolean, default=True)
@@ -44,6 +45,26 @@ class Company(db.Model):
 
     def set_reminders(self, cfg):
         self.reminder_config = json.dumps(cfg)
+
+    @property
+    def rest_weekdays(self):
+        """Set of Python weekday integers (Mon=0..Sun=6) that count as
+        weekly rest. Defaults to {4, 5} (Fri/Sat) when unset — Gulf default.
+        """
+        if not self.weekend_days:
+            return {4, 5}
+        out = set()
+        for piece in self.weekend_days.split(","):
+            piece = piece.strip()
+            if not piece:
+                continue
+            try:
+                n = int(piece)
+                if 0 <= n <= 6:
+                    out.add(n)
+            except ValueError:
+                continue
+        return out or {4, 5}
 
     parent = db.relationship("Company", remote_side=[id], backref="children")
 

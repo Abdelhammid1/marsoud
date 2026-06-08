@@ -290,6 +290,11 @@ def build_checks(fx):
         ("HR-06b", "New leave request form",
          "/hr/leave-requests/new", ["نوع الإجازة", "من تاريخ", "إلى تاريخ"],
          "hr06_leave_request_new"),
+        # ─── Gap-fix surface checks ───────────────────────────────────────
+        ("GAP-WK-ui", "Weekend-days picker rendered on company edit",
+         f"/companies/{fx['company_id']}/edit",
+         ["أيام العطلة الأسبوعية", 'name="weekend_day"'],
+         "gap_weekend_picker"),
     ]
 
 
@@ -1022,6 +1027,102 @@ def run_checks(fx):
         except Exception as e:
             wf_check["error"] = str(e)[:200]
         results.append(wf_check)
+
+        # GAP-WIDGET: HR-03 expiring-contracts widget renders on /hr/
+        widget_check = {"ticket": "GAP-WIDGET",
+                        "title": "HR-03 expiring-contracts widget renders on /hr/",
+                        "url": "/hr/", "passed": False, "missing": [],
+                        "error": None, "shot": "gap_widget.png"}
+        prev_end_w, prev_alert_w = (None, None)
+        try:
+            with _ca().app_context():
+                emp = _db.session.get(_Emp, fx["employee_id"])
+                prev_end_w = emp.contract_end_date
+                prev_alert_w = emp.contract_alert_last_sent
+                emp.contract_end_date = _date.today() + _td(days=15)
+                emp.contract_alert_last_sent = None
+                _db.session.commit()
+            resp = page.goto(f"{BASE}/hr/", wait_until="networkidle")
+            page.screenshot(path=str(SHOTS / "gap_widget.png"), full_page=True)
+            html = page.content()
+            widget_check["status"] = resp.status if resp else 0
+            widget_check["passed"] = (
+                widget_check["status"] < 400
+                and "عقود على وشك الانتهاء" in html
+            )
+            if not widget_check["passed"]:
+                widget_check["missing"] = ["expected expiring-contracts widget text"]
+        except Exception as e:
+            widget_check["error"] = str(e)[:200]
+        finally:
+            try:
+                with _ca().app_context():
+                    emp = _db.session.get(_Emp, fx["employee_id"])
+                    if emp:
+                        emp.contract_end_date = prev_end_w
+                        emp.contract_alert_last_sent = prev_alert_w
+                        _db.session.commit()
+            except Exception:
+                pass
+        results.append(widget_check)
+
+        # GAP-WK deep: per-company weekend override changes which days
+        # count as rest days.
+        wk_check = {"ticket": "GAP-WK-deep",
+                    "title": "Company.weekend_days overrides the rest-day skip",
+                    "url": "service:approve with custom weekend",
+                    "passed": False, "missing": [], "error": None,
+                    "shot": "gap_weekend.txt"}
+        try:
+            with _ca().app_context():
+                cid = fx["company_id"]
+                emp_id = fx["employee_id"]
+                _AE.query.filter_by(employee_id=emp_id).delete()
+                _LR.query.filter_by(employee_id=emp_id).delete()
+                from app.models import Company as _Co
+                co = _db.session.get(_Co, cid)
+                prev_weekend = co.weekend_days
+                co.weekend_days = "5,6"  # Sat (5) + Sun (6) — flip the weekend
+                _db.session.commit()
+
+                annual = _LT.query.filter_by(company_id=cid, name="سنوية").first()
+                yr = _date.today().year
+                bal = _LB.query.filter_by(
+                    employee_id=emp_id, leave_type_id=annual.id, year=yr,
+                ).first()
+                bal.balance_days = 10
+                bal.used_days = 0
+                _db.session.commit()
+
+                # Find the next Saturday — under the new config it's a rest day.
+                t = _date.today()
+                offset = (5 - t.weekday()) % 7
+                if offset == 0:
+                    offset = 7
+                sat = t + _td(days=offset)
+                fri = sat - _td(days=1)
+                # fri = Friday, now a working day. sat = Saturday = rest.
+                # Submit fri→sat: should yield 1 working day (Fri only).
+                req = _submit(company_id=cid, employee_id=emp_id,
+                              leave_type_id=annual.id,
+                              start_date=fri, end_date=sat,
+                              reason="weekend-override", created_by=None)
+                _approve(req, reviewer_id=None, review_note="OK")
+                ex_count = _AE.query.filter_by(leave_request_id=req.id).count()
+                _db.session.refresh(bal)
+                used = float(bal.used_days)
+                wk_check["passed"] = ex_count == 1 and used == 1.0
+                if not wk_check["passed"]:
+                    wk_check["missing"] = [
+                        f"ex={ex_count} (want 1), used={used} (want 1.0)"]
+                # Cleanup
+                _AE.query.filter_by(leave_request_id=req.id).delete()
+                _LR.query.filter_by(id=req.id).delete()
+                co.weekend_days = prev_weekend
+                _db.session.commit()
+        except Exception as e:
+            wk_check["error"] = str(e)[:200]
+        results.append(wk_check)
 
         # HR-06 deep #2: a Fri→Sat-only request creates ZERO exceptions
         weekend_check = {"ticket": "HR-06-weekend",

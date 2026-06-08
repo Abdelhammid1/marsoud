@@ -1,7 +1,7 @@
 # Marsoud — Playwright Ticket Verification Report
 
-Run: 2026-06-08 11:13:55
-Result: **70/70 checks passed**
+Run: 2026-06-08 11:32:53
+Result: **73/73 checks passed**
 Screenshots: `tests/screenshots/`
 
 | Ticket | Check | Status | Screenshot |
@@ -43,6 +43,7 @@ Screenshots: `tests/screenshots/`
 | HR-05b-new | Attendance exception new form | ✅ PASS | hr05b_attendance_new.png |
 | HR-06a | Leave requests list | ✅ PASS | hr06_leave_requests.png |
 | HR-06b | New leave request form | ✅ PASS | hr06_leave_request_new.png |
+| GAP-WK-ui | Weekend-days picker rendered on company edit | ✅ PASS | gap_weekend_picker.png |
 | ADMIN-01a | Normal user blocked from /admin (403) | ✅ PASS | admin01_403.png |
 | ADMIN-01b | Super-admin reaches /admin dashboard | ✅ PASS | admin02_dashboard.png |
 | ADMIN-02 | Dashboard metrics rendered | ✅ PASS | admin02_metrics.png |
@@ -73,6 +74,8 @@ Screenshots: `tests/screenshots/`
 | HR-05-deep | Defaults seeded + monthly accrual respects max_balance | ✅ PASS | hr05_accrual.txt |
 | HR-05b-deep | AttendanceException duplicate same-day refused | ✅ PASS | hr05b_dupe.txt |
 | HR-06-deep | Leave request approval creates exceptions; cancel restores | ✅ PASS | hr06_workflow.txt |
+| GAP-WIDGET | HR-03 expiring-contracts widget renders on /hr/ | ✅ PASS | gap_widget.png |
+| GAP-WK-deep | Company.weekend_days overrides the rest-day skip | ✅ PASS | gap_weekend.txt |
 | HR-06-weekend | Leave range entirely on rest days creates 0 exceptions | ✅ PASS | hr06_weekend.txt |
 | HR-07-deep | auto_absence_late_for converts exceptions into money correctly | ✅ PASS | hr07_math.txt |
 | GAP-01-deep | Suspended-company user blocked at login | ✅ PASS | gap01_blocked.png |

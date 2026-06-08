@@ -2,17 +2,28 @@
 {% block title %}تم سداد الفاتورة {{ invoice.number }}{% endblock %}
 {% block content %}
 <div style="text-align:center;margin-bottom:24px">
-  <div style="display:inline-block;width:64px;height:64px;background:#10B981;border-radius:50%;line-height:64px;color:#fff;font-size:32px">✓</div>
+  <div style="display:inline-block;width:72px;height:72px;background:linear-gradient(135deg,#10B981 0%,#047857 100%);border-radius:50%;line-height:72px;color:#fff;font-size:36px;box-shadow:0 8px 24px -8px rgba(16,185,129,0.5)">✓</div>
 </div>
 
-<h2 style="color:#0A2540;margin:0 0 16px;text-align:center">شكراً {{ invoice.customer.name }} 🙏</h2>
-<p style="line-height:1.7;color:#475569;text-align:center">
-  تم سداد فاتورتك بالكامل. نقدّر ثقتك في تعاملك معنا.
+<h2 style="color:#0A2540;margin:0 0 8px;text-align:center;font-size:24px">تم استلام دفعتك بنجاح</h2>
+<p style="line-height:1.7;color:#475569;text-align:center;margin:0 0 24px;font-size:14px">
+  شكراً <strong>{{ invoice.customer.name }}</strong> — نقدّر ثقتك ودقتك في التعامل.
 </p>
 
-<table style="width:100%;border-collapse:collapse;margin:24px 0;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:12px;overflow:hidden">
-  <tr><td style="padding:12px 16px;color:#15803D">الفاتورة</td><td style="padding:12px 16px;text-align:left;font-family:monospace;font-weight:bold;color:#15803D">{{ invoice.number }}</td></tr>
-  <tr><td style="padding:12px 16px;color:#15803D">المبلغ المسدد</td><td style="padding:12px 16px;text-align:left;font-size:18px;font-weight:bold;color:#047857;font-family:monospace">{{ "%.2f"|format(invoice.total) }} {{ invoice.currency }}</td></tr>
-  <tr><td style="padding:12px 16px;color:#15803D">تاريخ السداد</td><td style="padding:12px 16px;text-align:left;color:#15803D">{{ payment.payment_date.isoformat() }}</td></tr>
+<div style="background:linear-gradient(135deg,#10B981 0%,#047857 100%);color:#fff;border-radius:14px;padding:20px;margin:0 0 16px;text-align:center">
+  <div style="font-size:11px;color:rgba(255,255,255,0.7);letter-spacing:1px">المبلغ المسدد</div>
+  <div style="font-size:34px;font-weight:bold;font-family:monospace;margin-top:4px">{{ "%.2f"|format(invoice.total) }} <span style="font-size:18px;opacity:0.7">{{ invoice.currency }}</span></div>
+</div>
+
+<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:13px">
+  <tr><td style="padding:10px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9;width:40%">رقم الفاتورة</td><td style="padding:10px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace;font-weight:bold">{{ invoice.number }}</td></tr>
+  <tr><td style="padding:10px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">تاريخ السداد</td><td style="padding:10px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace">{{ payment.payment_date.isoformat() }}</td></tr>
+  {% if payment.payment_method or payment.method %}
+  <tr><td style="padding:10px 12px;color:#94A3B8">طريقة الدفع</td><td style="padding:10px 12px;text-align:left">{% if payment.payment_method %}{{ payment.payment_method.name_ar or payment.payment_method.name }}{% else %}{{ payment.method }}{% endif %}</td></tr>
+  {% endif %}
 </table>
+
+<p style="color:#475569;font-size:13px;margin-top:24px;border-top:1px solid #F1F5F9;padding-top:16px;text-align:center">
+  لأي استفسار، الرد على هذا الإيميل مباشرة يصل لـ <strong>{{ invoice.company.name }}</strong>.
+</p>
 {% endblock %}
