@@ -1,7 +1,7 @@
 # Marsoud — Playwright Ticket Verification Report
 
-Run: 2026-06-10 18:59:41
-Result: **94/94 checks passed**
+Run: 2026-06-10 19:20:52
+Result: **98/98 checks passed**
 Screenshots: `tests/screenshots/`
 
 | Ticket | Check | Status | Screenshot |
@@ -32,6 +32,8 @@ Screenshots: `tests/screenshots/`
 | MARSOUD-27-form | Task form labels project as optional (standalone) | ✅ PASS | marsoud27_task_form.png |
 | MARSOUD-29-list | Vendors list shows Edit + Delete actions | ✅ PASS | marsoud29_vendors_list.png |
 | SIDEBAR-sections | Sidebar uses categorized section headers | ✅ PASS | sidebar_sections.png |
+| SIDEBAR-collapsible | Sections are collapsible (chevron + toggleSection wired) | ✅ PASS | sidebar_collapsible.png |
+| MARSOUD-33-mobile-html | Mobile assets present in markup (hamburger + drawer + backdrop) | ✅ PASS | marsoud33_mobile_markup.png |
 | MARSOUD-3 | Company settings nav link in sidebar | ✅ PASS | marsoud3_settings_link.png |
 | HR-01a | HR home page (directory + departments summary) | ✅ PASS | hr01_home.png |
 | HR-01b | Departments list page | ✅ PASS | hr01_departments.png |
@@ -98,5 +100,7 @@ Screenshots: `tests/screenshots/`
 | GAP-PORTAL | Client role sees portal index; blocked from /leads | ✅ PASS | gap_portal.png |
 | MARSOUD-27-deep | Standalone task (project_id=NULL) creates + renders correctly | ✅ PASS | marsoud27_standalone.png |
 | MARSOUD-28-deep | total_received counts cash actually paid; reverse-entry restores 'رصيد مستحق' | ✅ PASS | marsoud28_payroll_reverse.txt |
+| SIDEBAR-collapsible-deep | Section collapses on click, state persists across reloads | ✅ PASS | sidebar_collapse.png |
+| MARSOUD-33-mobile-deep | On 375px-wide viewport, sidebar slides in via hamburger click | ✅ PASS | marsoud33_mobile.png |
 | MARSOUD-28-heal | Data-heal clears settled_at on accruals whose settlement was reversed pre-fix | ✅ PASS | marsoud28_heal.txt |
 | GAP-01-deep | Suspended-company user blocked at login | ✅ PASS | gap01_blocked.png |

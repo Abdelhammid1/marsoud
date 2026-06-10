@@ -121,8 +121,15 @@ tailwind.config = {
 
 {% if current_user.is_authenticated %}
 <div class="flex min-h-screen">
-  <!-- Sidebar -->
-  <aside class="w-64 bg-navy-900 text-navy-100 flex flex-col fixed h-screen right-0 top-0 shadow-2xl">
+  <!-- Mobile backdrop (visible only when sidebar is open on mobile) -->
+  <div id="sidebar-backdrop"
+       class="fixed inset-0 bg-black/40 z-30 hidden md:hidden"
+       onclick="closeSidebar()"></div>
+
+  <!-- Sidebar — slides in from the right on mobile, fixed on desktop -->
+  <aside id="sidebar"
+         class="w-64 bg-navy-900 text-navy-100 flex flex-col fixed h-screen right-0 top-0 shadow-2xl z-40
+                transform translate-x-full md:translate-x-0 transition-transform duration-300">
     <div class="px-6 py-5 border-b border-white/10">
       <div class="flex items-center gap-2">
         <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center font-bold text-white">م</div>
@@ -242,42 +249,67 @@ tailwind.config = {
       </a>
       {% endfor %}
       {% else %}
-      {# Sectioned layout for owner/admin/accountant/viewer. Each section
-         renders only if at least one link inside is endpoint-resolvable. #}
+      {# Sectioned layout for owner/admin/accountant/viewer.
+         Each section is a collapsible group — click the header to toggle.
+         State persists in localStorage. #}
       {% for section_title, section_links in sections %}
-        <div class="mt-4 px-5 text-[10px] uppercase tracking-wider text-navy-200">— {{ section_title }}</div>
-        {% for endpoint, label, icon in section_links %}
-        {% set is_active = request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
-        <a href="{{ url_for(endpoint) }}"
-           class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-white/5 transition-colors {% if is_active %}active{% endif %}">
-          <span class="text-base">{{ icon }}</span>
-          <span>{{ label }}</span>
-        </a>
+        {# Auto-expand a section if it contains the active endpoint #}
+        {% set ns = namespace(active_inside=false) %}
+        {% for endpoint, _, _ in section_links %}
+          {% if request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
+            {% set ns.active_inside = true %}
+          {% endif %}
         {% endfor %}
+        <div class="sidebar-section mt-3" data-section="{{ section_title }}" data-has-active="{{ '1' if ns.active_inside else '0' }}">
+          <button type="button" onclick="toggleSection(this)"
+                  class="w-full flex items-center justify-between px-5 py-1.5 text-[10px] uppercase tracking-wider text-navy-200 hover:text-white transition">
+            <span>— {{ section_title }}</span>
+            <span class="chevron text-xs">▾</span>
+          </button>
+          <div class="sidebar-section-body">
+            {% for endpoint, label, icon in section_links %}
+            {% set is_active = request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
+            <a href="{{ url_for(endpoint) }}"
+               class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-white/5 transition-colors {% if is_active %}active{% endif %}">
+              <span class="text-base">{{ icon }}</span>
+              <span>{{ label }}</span>
+            </a>
+            {% endfor %}
+          </div>
+        </div>
       {% endfor %}
       {% endif %}
       {% if current_role in ('owner', 'admin') %}
-      <div class="mt-4 px-5 text-[10px] uppercase tracking-wider text-navy-200">— الإعدادات</div>
       {% set is_users_active = request.endpoint and request.endpoint.startswith('users.') %}
-      <a href="{{ url_for('users.index') }}"
-         class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-white/5 transition-colors {% if is_users_active %}active{% endif %}">
-        <span class="text-base">👤</span>
-        <span>أعضاء الشركة</span>
-      </a>
-      {% if active_company %}
       {% set is_settings_active = request.endpoint == 'companies.edit' %}
-      <a href="{{ url_for('companies.edit', company_id=active_company.id) }}"
-         class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-white/5 transition-colors {% if is_settings_active %}active{% endif %}">
-        <span class="text-base">⚙️</span>
-        <span>إعدادات الشركة</span>
-      </a>
-      {% endif %}
+      {% set settings_active = is_users_active or is_settings_active %}
+      <div class="sidebar-section mt-3" data-section="الإعدادات" data-has-active="{{ '1' if settings_active else '0' }}">
+        <button type="button" onclick="toggleSection(this)"
+                class="w-full flex items-center justify-between px-5 py-1.5 text-[10px] uppercase tracking-wider text-navy-200 hover:text-white transition">
+          <span>— الإعدادات</span>
+          <span class="chevron text-xs">▾</span>
+        </button>
+        <div class="sidebar-section-body">
+          <a href="{{ url_for('users.index') }}"
+             class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-white/5 transition-colors {% if is_users_active %}active{% endif %}">
+            <span class="text-base">👤</span>
+            <span>أعضاء الشركة</span>
+          </a>
+          {% if active_company %}
+          <a href="{{ url_for('companies.edit', company_id=active_company.id) }}"
+             class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-white/5 transition-colors {% if is_settings_active %}active{% endif %}">
+            <span class="text-base">⚙️</span>
+            <span>إعدادات الشركة</span>
+          </a>
+          {% endif %}
+        </div>
+      </div>
       {% endif %}
       {% if current_user.is_authenticated and current_user.is_superadmin %}
-      <div class="mt-4 px-5 text-[10px] uppercase tracking-wider text-navy-200">المنصة</div>
+      <div class="mt-3 px-5 text-[10px] uppercase tracking-wider text-navy-200">— المنصة</div>
       {% set is_admin_active = request.endpoint and request.endpoint.startswith('superadmin.') %}
       <a href="{{ url_for('superadmin.dashboard') }}"
-         class="nav-link flex items-center gap-3 px-5 py-2.5 text-sm hover:bg-white/5 transition-colors {% if is_admin_active %}active{% endif %}">
+         class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-white/5 transition-colors {% if is_admin_active %}active{% endif %}">
         <span class="text-base">🛡️</span>
         <span>لوحة المالك</span>
       </a>
@@ -299,7 +331,7 @@ tailwind.config = {
   </aside>
 
   <!-- Main -->
-  <main class="flex-1 mr-64 min-h-screen">
+  <main class="flex-1 mr-0 md:mr-64 min-h-screen w-full">
     {% if impersonating %}
     <div class="bg-rose-600 text-white px-6 py-2 flex items-center justify-between text-sm">
       <div>
@@ -312,9 +344,15 @@ tailwind.config = {
     </div>
     {% endif %}
     <header class="bg-white/80 backdrop-blur border-b border-slate-200 sticky top-0 z-30">
-      <div class="px-8 py-4 flex items-center justify-between">
-        <h1 class="text-xl font-bold text-navy-900">{% block page_title %}{% endblock %}</h1>
-        <div class="flex items-center gap-3">
+      <div class="px-4 md:px-8 py-4 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-3 min-w-0">
+          {# MARSOUD-33 — hamburger button (mobile only) #}
+          <button onclick="openSidebar()" class="md:hidden inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:border-brand-500 transition" aria-label="القائمة">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          <h1 class="text-lg md:text-xl font-bold text-navy-900 truncate">{% block page_title %}{% endblock %}</h1>
+        </div>
+        <div class="flex items-center gap-2 md:gap-3 shrink-0">
           <a href="{{ url_for('notifications.index') }}" class="relative inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:border-brand-500 transition" title="الإشعارات">
             🔔
             {% if notif_unread_count and notif_unread_count > 0 %}
@@ -324,14 +362,14 @@ tailwind.config = {
           {% if current_role not in ('client', 'team_member') %}
           <button onclick="toggleAgent()" class="btn-accent text-sm">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
-            المحاسب الذكي
+            <span class="hidden sm:inline">المحاسب الذكي</span>
           </button>
           {% endif %}
         </div>
       </div>
     </header>
 
-    <div class="px-8 py-6">
+    <div class="px-4 md:px-8 py-6">
       <!-- Flash messages -->
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -349,7 +387,7 @@ tailwind.config = {
   </main>
 
   <!-- Agent slide-over -->
-  <div id="agent-panel" class="fixed inset-y-0 left-0 w-96 bg-white shadow-2xl border-l border-slate-200 transform -translate-x-full transition-transform duration-300 z-50 flex flex-col">
+  <div id="agent-panel" class="fixed inset-y-0 left-0 w-full sm:w-96 max-w-full bg-white shadow-2xl border-l border-slate-200 transform -translate-x-full transition-transform duration-300 z-50 flex flex-col">
     <div class="px-5 py-4 border-b border-slate-200 bg-navy-900 text-white">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
@@ -418,6 +456,67 @@ async function sendAgent(e) {
   messages.scrollTop = messages.scrollHeight;
 }
 function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// ─── Mobile sidebar drawer (MARSOUD-33) ────────────────────────────────
+function openSidebar() {
+  const sb = document.getElementById('sidebar');
+  const bd = document.getElementById('sidebar-backdrop');
+  if (!sb || !bd) return;
+  sb.classList.remove('translate-x-full');
+  bd.classList.remove('hidden');
+}
+function closeSidebar() {
+  const sb = document.getElementById('sidebar');
+  const bd = document.getElementById('sidebar-backdrop');
+  if (!sb || !bd) return;
+  // Only close on mobile widths — desktop sidebar stays put
+  if (window.matchMedia('(max-width: 767px)').matches) {
+    sb.classList.add('translate-x-full');
+    bd.classList.add('hidden');
+  }
+}
+// Close drawer when any nav link is clicked on mobile
+document.addEventListener('click', (e) => {
+  const link = e.target.closest('#sidebar a.nav-link');
+  if (link) closeSidebar();
+});
+
+// ─── Collapsible sidebar sections (state persists per section) ─────────
+function _sectionKey(title) { return 'marsoud-sidebar-' + title; }
+function toggleSection(btn) {
+  const sec = btn.parentElement;
+  const body = sec.querySelector('.sidebar-section-body');
+  const chev = btn.querySelector('.chevron');
+  const collapsed = body.classList.toggle('hidden');
+  if (chev) chev.textContent = collapsed ? '▸' : '▾';
+  const title = sec.getAttribute('data-section');
+  if (title) localStorage.setItem(_sectionKey(title), collapsed ? '1' : '0');
+}
+// Restore section state on page load — but if the section contains the
+// active route, force it open regardless of saved state.
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.sidebar-section').forEach(sec => {
+    const title = sec.getAttribute('data-section');
+    const hasActive = sec.getAttribute('data-has-active') === '1';
+    const body = sec.querySelector('.sidebar-section-body');
+    const chev = sec.querySelector('.chevron');
+    if (!body) return;
+    let collapsed = false;
+    if (hasActive) {
+      collapsed = false;
+    } else {
+      const saved = localStorage.getItem(_sectionKey(title));
+      collapsed = saved === '1';
+    }
+    if (collapsed) {
+      body.classList.add('hidden');
+      if (chev) chev.textContent = '▸';
+    } else {
+      body.classList.remove('hidden');
+      if (chev) chev.textContent = '▾';
+    }
+  });
+});
 </script>
 {% else %}
   {% block guest_content %}{% endblock %}
