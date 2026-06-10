@@ -179,6 +179,53 @@ def view(bill_id):
     return render_template("vendor_bills/view.html", bill=bill, payment_methods=payment_methods)
 
 
+# MARSOUD vendor-bill edit — supports full edit on DRAFT, cosmetic-only on posted
+@bp.route("/<int:bill_id>/edit", methods=["GET", "POST"])
+@login_required
+@require_permission("vendor_bills.create")
+def edit(bill_id):
+    bill = db.session.get(VendorBill, bill_id)
+    if not bill or bill.company_id != g.active_company.id:
+        return redirect(url_for("vendor_bills.index"))
+
+    full_edit = bill.status == VendorBillStatus.DRAFT
+    vendors = Vendor.query.filter_by(
+        company_id=g.active_company.id, is_active=True,
+    ).order_by(Vendor.name).all()
+
+    if request.method == "POST":
+        try:
+            if full_edit:
+                # DRAFT — every field is fair game
+                _populate_from_form(bill, request.form)
+                db.session.commit()
+            else:
+                # Posted (or further) — only cosmetic fields. Item amounts/
+                # accounts stay frozen so the journal entry remains valid.
+                new_vendor_id = request.form.get("vendor_id") or None
+                bill.vendor_id = int(new_vendor_id) if new_vendor_id else None
+                bill.supplier_invoice_number = (
+                    request.form.get("supplier_invoice_number") or ""
+                ).strip()
+                bill.notes = (request.form.get("notes") or "").strip()
+                # Per-item description edits (keyed by item id)
+                for item in bill.items:
+                    new_desc = request.form.get(f"item_desc_{item.id}")
+                    if new_desc is not None:
+                        item.description = new_desc.strip()
+                db.session.commit()
+            flash("تم حفظ التعديلات", "success")
+            return redirect(url_for("vendor_bills.view", bill_id=bill.id))
+        except (LedgerError, ValueError) as e:
+            db.session.rollback()
+            flash(str(e), "error")
+
+    return render_template(
+        "vendor_bills/edit.html",
+        bill=bill, vendors=vendors, full_edit=full_edit,
+    )
+
+
 @bp.route("/<int:bill_id>/post", methods=["POST"])
 @login_required
 @require_permission("vendor_bills.create")

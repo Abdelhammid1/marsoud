@@ -1,7 +1,7 @@
 # Marsoud — Playwright Ticket Verification Report
 
-Run: 2026-06-08 13:33:48
-Result: **87/87 checks passed**
+Run: 2026-06-10 08:18:24
+Result: **88/88 checks passed**
 Screenshots: `tests/screenshots/`
 
 | Ticket | Check | Status | Screenshot |
@@ -28,6 +28,7 @@ Screenshots: `tests/screenshots/`
 | ACC-18b | Edit-account form (parent / type / code / nature) | ✅ PASS | acc18_edit_form.png |
 | ACC-19 | Vendor-bills date-range filter (من/إلى تاريخ) | ✅ PASS | acc19_date_filter.png |
 | ACC-20 | Vendor-bills line-item columns (الوصف/النوع/الحساب) | ✅ PASS | acc20_columns.png |
+| ACC-21-edit | Vendor-bill edit page renders for the posted fixture bill | ✅ PASS | acc21_vendor_bill_edit.png |
 | MARSOUD-3 | Company settings nav link in sidebar | ✅ PASS | marsoud3_settings_link.png |
 | HR-01a | HR home page (directory + departments summary) | ✅ PASS | hr01_home.png |
 | HR-01b | Departments list page | ✅ PASS | hr01_departments.png |

@@ -12,6 +12,9 @@
       <div class="flex items-center gap-2">
         {% set sc = {'DRAFT':'badge-draft','POSTED':'badge-sent','PARTIALLY_PAID':'badge-partial','PAID':'badge-paid','OVERDUE':'badge-overdue','CANCELLED':'badge-cancelled'} %}
         <span class="badge {{ sc.get(bill.status.value, 'badge-draft') }} text-base px-3 py-1.5">{{ bill.status.value }}</span>
+        {% if bill.status.value != 'CANCELLED' and has_permission('vendor_bills.create') %}
+        <a href="{{ url_for('vendor_bills.edit', bill_id=bill.id) }}" class="btn-secondary text-sm">✎ تعديل</a>
+        {% endif %}
         {% if bill.journal_entry_id %}
         <a href="{{ url_for('journals.view', entry_id=bill.journal_entry_id) }}" class="btn-secondary text-sm">📒 القيد</a>
         {% endif %}

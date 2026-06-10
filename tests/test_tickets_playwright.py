@@ -247,6 +247,10 @@ def build_checks(fx):
         ("ACC-20", "Vendor-bills line-item columns (الوصف/النوع/الحساب)",
          "/vendor-bills",
          ["الوصف", "النوع", "بند اختبار آلي PWTEST"], "acc20_columns"),
+        ("ACC-21-edit", "Vendor-bill edit page renders for the posted fixture bill",
+         f"/vendor-bills/{fx['bill_id']}/edit",
+         ["تعديل فاتورة مورد", "المورد", "رقم فاتورة المورد", "حفظ التعديلات"],
+         "acc21_vendor_bill_edit"),
         ("MARSOUD-3", "Company settings nav link in sidebar",
          "/", ["إعدادات الشركة"], "marsoud3_settings_link"),
         # ─── Cycle 5: HR Phase 1 + MARSOUD-23 ──────────────────────────────

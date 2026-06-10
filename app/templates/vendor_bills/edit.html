@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block page_title %}تعديل فاتورة مورد {{ bill.number }}{% endblock %}
+{% block content %}
+<div class="max-w-4xl">
+  {% if not full_edit %}
+  <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-sm">
+    <div class="font-bold text-amber-900 mb-1">⚠ هذه الفاتورة مسجَّلة بالفعل في القيود</div>
+    <p class="text-amber-800">يمكنك تعديل <strong>الوصف، اسم المورد، رقم فاتورة المورد، والملاحظات</strong> فقط. المبالغ والحسابات مقفلة لحماية القيد المحاسبي والميزانية. لو محتاج تعدل المبالغ، الحل الصحيح هو عمل قيد عكسي + إعادة إصدار.</p>
+  </div>
+  {% endif %}
+
+  <form method="POST" class="space-y-4">
+    <div class="card p-6">
+      <div class="grid grid-cols-3 gap-4">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">المورد</label>
+          <select name="vendor_id" class="select">
+            <option value="">— بدون (للنقدي والبنك) —</option>
+            {% for v in vendors %}
+            <option value="{{ v.id }}" {% if bill.vendor_id == v.id %}selected{% endif %}>{{ v.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">رقم فاتورة المورد</label>
+          <input type="text" name="supplier_invoice_number"
+                 value="{{ bill.supplier_invoice_number or '' }}" class="input">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">طريقة الدفع</label>
+          {% if full_edit %}
+          <select name="payment_method" class="select">
+            <option value="CASH" {% if bill.payment_method.value == 'CASH' %}selected{% endif %}>نقدي</option>
+            <option value="BANK" {% if bill.payment_method.value == 'BANK' %}selected{% endif %}>بنك</option>
+            <option value="CREDIT" {% if bill.payment_method.value == 'CREDIT' %}selected{% endif %}>آجل</option>
+          </select>
+          {% else %}
+          <input type="text" disabled value="{{ bill.payment_method.value }}" class="input bg-slate-100 cursor-not-allowed">
+          {% endif %}
+        </div>
+      </div>
+
+      {% if full_edit %}
+      <div class="grid grid-cols-3 gap-4 mt-4">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">تاريخ الفاتورة</label>
+          <input type="date" name="issue_date" required
+                 value="{{ bill.issue_date.isoformat() }}" class="input">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">تاريخ الاستحقاق</label>
+          <input type="date" name="due_date" required
+                 value="{{ bill.due_date.isoformat() }}" class="input">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">الضريبة %</label>
+          <input type="number" name="tax_rate" step="0.01"
+                 value="{{ bill.tax_rate }}" class="input font-mono">
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="mt-4">
+        <label class="block text-sm font-semibold text-slate-700 mb-2">ملاحظات</label>
+        <textarea name="notes" rows="2" class="textarea">{{ bill.notes or '' }}</textarea>
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <h3 class="font-bold text-navy-900 mb-3">البنود</h3>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>الوصف</th>
+            <th>النوع</th>
+            <th>الحساب</th>
+            <th>الكمية</th>
+            <th>السعر</th>
+            <th class="text-left">الإجمالي</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for item in bill.items %}
+          <tr>
+            <td>
+              {% if full_edit %}
+              <input type="text" name="item_description[]" value="{{ item.description }}" class="input text-sm">
+              {% else %}
+              <input type="text" name="item_desc_{{ item.id }}" value="{{ item.description }}" class="input text-sm">
+              {% endif %}
+            </td>
+            <td>
+              {% if item.line_type.value == 'EXPENSE' %}<span class="badge bg-blue-50 text-blue-700">مصروف</span>
+              {% elif item.line_type.value == 'FIXED_ASSET' %}<span class="badge bg-purple-50 text-purple-700">أصل ثابت</span>
+              {% else %}<span class="badge bg-emerald-50 text-emerald-700">مخزون</span>{% endif %}
+              {% if full_edit %}<input type="hidden" name="item_line_type[]" value="{{ item.line_type.value }}">{% endif %}
+            </td>
+            <td class="text-sm">
+              <span class="font-mono text-xs text-slate-500">{{ item.account.code }}</span> · {{ item.account.name_ar or item.account.name }}
+              {% if full_edit %}<input type="hidden" name="item_account_id[]" value="{{ item.account_id }}">{% endif %}
+            </td>
+            <td class="font-mono">
+              {% if full_edit %}
+              <input type="number" name="item_quantity[]" step="0.01" value="{{ item.quantity }}" class="input text-sm font-mono">
+              {% else %}
+              <span class="text-slate-500">{{ "%.2f"|format(item.quantity) }}</span>
+              {% endif %}
+            </td>
+            <td class="font-mono">
+              {% if full_edit %}
+              <input type="number" name="item_unit_price[]" step="0.01" value="{{ item.unit_price }}" class="input text-sm font-mono">
+              {% else %}
+              <span class="text-slate-500">{{ "%.2f"|format(item.unit_price) }}</span>
+              {% endif %}
+            </td>
+            <td class="text-left font-mono">{{ "%.2f"|format(item.line_total) }}</td>
+          </tr>
+        {% endfor %}
+          <tr><td colspan="5" class="text-left font-semibold py-2">المجموع قبل الضريبة</td><td class="text-left font-mono">{{ "%.2f"|format(bill.subtotal) }}</td></tr>
+          <tr><td colspan="5" class="text-left py-2">الضريبة</td><td class="text-left font-mono">{{ "%.2f"|format(bill.tax_amount) }}</td></tr>
+          <tr class="border-t-2 border-navy-900"><td colspan="5" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold text-lg">{{ "%.2f"|format(bill.total) }} {{ bill.currency }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="flex justify-end gap-2">
+      <a href="{{ url_for('vendor_bills.view', bill_id=bill.id) }}" class="btn-secondary">إلغاء</a>
+      <button type="submit" class="btn-primary">حفظ التعديلات</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
