@@ -42,7 +42,7 @@ class Invoice(db.Model):
     notes = db.Column(db.Text)              # customer-facing
     internal_notes = db.Column(db.Text)     # private to the company
     send_reminders = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     company = db.relationship("Company", backref=db.backref("invoices", lazy="dynamic"))
     customer = db.relationship("Customer", backref=db.backref("invoices", lazy="dynamic"))
@@ -127,7 +127,7 @@ class InvoiceReminderSent(db.Model):
     invoice_id = db.Column(db.Integer, db.ForeignKey("invoices.id"), nullable=False, index=True)
     threshold_kind = db.Column(db.String(10), nullable=False)
     threshold_days = db.Column(db.Integer, nullable=False)
-    sent_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    sent_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
 
     invoice = db.relationship("Invoice", backref=db.backref("reminders_sent", cascade="all, delete-orphan"))
 
@@ -147,6 +147,6 @@ class Payment(db.Model):
     method = db.Column(db.String(30), default="cash")  # historical fallback
     notes = db.Column(db.Text)
     journal_entry_id = db.Column(db.Integer, db.ForeignKey("journal_entries.id"))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     payment_method = db.relationship("PaymentMethod")

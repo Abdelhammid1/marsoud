@@ -25,7 +25,7 @@ class User(UserMixin, db.Model):
     # When this user is a client portal account, links them to a Customer row
     # in some company. Their role per-company will be "client".
     linked_customer_id = db.Column(db.Integer, db.ForeignKey("customers.id"), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     companies = db.relationship(
         "Company",

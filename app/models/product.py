@@ -15,6 +15,6 @@ class Product(db.Model):
     default_tax_rate = db.Column(db.Numeric(5, 2))
     sku = db.Column(db.String(50))
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     company = db.relationship("Company", backref=db.backref("products", lazy="dynamic"))

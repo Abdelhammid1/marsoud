@@ -10,7 +10,7 @@ class Department(db.Model):
     description = db.Column(db.Text)
     manager_employee_id = db.Column(db.Integer, db.ForeignKey("employees.id"), nullable=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     company = db.relationship("Company", backref=db.backref("departments", lazy="dynamic"))
     manager = db.relationship("Employee", foreign_keys=[manager_employee_id], post_update=True)

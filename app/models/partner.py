@@ -12,7 +12,7 @@ class Customer(db.Model):
     address = db.Column(db.Text)
     tax_number = db.Column(db.String(50))
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     company = db.relationship("Company", backref=db.backref("customers", lazy="dynamic"))
 
@@ -32,6 +32,6 @@ class Vendor(db.Model):
     bank_account = db.Column(db.String(100))
     tax_number = db.Column(db.String(50))
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     company = db.relationship("Company", backref=db.backref("vendors", lazy="dynamic"))

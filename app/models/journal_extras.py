@@ -19,7 +19,7 @@ class JournalAudit(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     action = db.Column(db.Enum(JournalAction), nullable=False)
     reason = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, index=True)
 
     user = db.relationship("User")
     entry = db.relationship("JournalEntry", backref="audit_logs")
@@ -32,7 +32,7 @@ class JournalTemplate(db.Model):
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text)
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     company = db.relationship("Company", backref="journal_templates")
     lines = db.relationship("JournalTemplateLine", backref="template", cascade="all, delete-orphan")
@@ -69,7 +69,7 @@ class RecurringJournal(db.Model):
     end_date = db.Column(db.Date)
     is_active = db.Column(db.Boolean, default=True)
     is_deleted = db.Column(db.Boolean, default=False)  # soft-delete; row preserved for log history
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     template = db.relationship("JournalTemplate")
     company = db.relationship("Company")
@@ -95,7 +95,7 @@ class RecurringJournalLog(db.Model):
     error_message = db.Column(db.Text)
     reason = db.Column(db.Text)
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, index=True)
 
     schedule = db.relationship("RecurringJournal", backref=db.backref("logs", cascade="all, delete-orphan"))
     user = db.relationship("User")

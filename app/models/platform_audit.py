@@ -18,7 +18,7 @@ class PlatformAuditLog(db.Model):
     target_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), index=True)
     ip_address = db.Column(db.String(45))
     details = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False, index=True)
 
     actor = db.relationship("User", foreign_keys=[actor_id])
     target_user = db.relationship("User", foreign_keys=[target_user_id])
@@ -41,7 +41,7 @@ class PlatformError(db.Model):
     message = db.Column(db.Text)
     traceback = db.Column(db.Text)
     ip_address = db.Column(db.String(45))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False, index=True)
 
     company = db.relationship("Company")
     user = db.relationship("User")
@@ -52,7 +52,7 @@ class SuperadminImpersonation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     superadmin_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
-    started_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    started_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
     ended_at = db.Column(db.DateTime)
     ip_address = db.Column(db.String(45))
     reason = db.Column(db.Text)

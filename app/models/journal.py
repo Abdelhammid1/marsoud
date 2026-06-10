@@ -18,7 +18,7 @@ class JournalEntry(db.Model):
     source_type = db.Column(db.String(30))
     source_id = db.Column(db.Integer)
     cashflow_category = db.Column(db.String(15))  # OPERATING / INVESTING / FINANCING / NONCASH (manual override)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     # Pause/reactivate — paused entries are excluded from reports
     is_active = db.Column(db.Boolean, default=True, index=True)

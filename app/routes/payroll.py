@@ -238,8 +238,14 @@ def run():
                 "absence": float(request.form.get(f"absence_{emp.id}", 0) or 0),
                 "late": float(request.form.get(f"late_{emp.id}", 0) or 0),
                 "advance": float(request.form.get(f"advance_{emp.id}", 0) or 0),
-                "amount_paid": request.form.get(f"amount_paid_{emp.id}") or None,
+                "amount_paid": request.form.get(f"amount_paid_{emp.id}", "").strip(),
             }
+        # Validate amount_paid not empty
+        for emp in employees:
+            if line_inputs[emp.id]["amount_paid"] == "":
+                flash(f"يجب إدخال المبلغ المدفوع للموظف {emp.name}", "error")
+                return redirect(request.url)
+            line_inputs[emp.id]["amount_paid"] = line_inputs[emp.id]["amount_paid"] or None
         try:
             pr = run_payroll(
                 g.active_company.id, year, month,

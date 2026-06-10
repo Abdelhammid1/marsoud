@@ -46,7 +46,7 @@ class VendorBill(db.Model):
 
     notes = db.Column(db.Text)
     journal_entry_id = db.Column(db.Integer, db.ForeignKey("journal_entries.id"))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     company = db.relationship("Company", backref=db.backref("vendor_bills", lazy="dynamic"))
     vendor = db.relationship("Vendor", backref=db.backref("bills", lazy="dynamic"))
@@ -98,6 +98,6 @@ class VendorBillPayment(db.Model):
     method = db.Column(db.String(30), default="cash")
     notes = db.Column(db.Text)
     journal_entry_id = db.Column(db.Integer, db.ForeignKey("journal_entries.id"))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     payment_method = db.relationship("PaymentMethod")

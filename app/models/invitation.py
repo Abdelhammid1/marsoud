@@ -3,7 +3,7 @@ from app import db
 
 
 def _default_expiry():
-    return datetime.utcnow() + timedelta(days=7)
+    return datetime.now() + timedelta(days=7)
 
 
 class Invitation(db.Model):
@@ -22,7 +22,7 @@ class Invitation(db.Model):
     expires_at = db.Column(db.DateTime, default=_default_expiry, nullable=False)
     accepted_at = db.Column(db.DateTime)
     revoked_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     company = db.relationship("Company")
     invited_by = db.relationship("User")
@@ -32,5 +32,5 @@ class Invitation(db.Model):
         return (
             self.accepted_at is None
             and self.revoked_at is None
-            and self.expires_at > datetime.utcnow()
+            and self.expires_at > datetime.now()
         )

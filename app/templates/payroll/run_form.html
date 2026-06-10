@@ -67,7 +67,7 @@
                    {% if has_ex %}title="افتراضي محسوب من سجل الحضور — يمكنك تعديله للاستبدال اليدوي"{% endif %}>
           </td>
           <td><input type="number" name="advance_{{ e.id }}" step="0.01" value="0" class="input text-sm font-mono"></td>
-          <td><input type="number" name="amount_paid_{{ e.id }}" step="0.01" placeholder="افتراضي = الصافي" class="input text-sm font-mono"></td>
+          <td><input type="number" name="amount_paid_{{ e.id }}" step="0.01" value="{{ e.net|default(0) }}" required class="input text-sm font-mono"></td>
         </tr>
         {% else %}
         <tr><td colspan="8" class="text-center text-slate-400 py-6">لا يوجد موظفون نشطون</td></tr>

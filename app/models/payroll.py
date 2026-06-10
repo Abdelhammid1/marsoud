@@ -61,7 +61,7 @@ class Employee(db.Model):
     notes = db.Column(db.Text)
 
     is_active = db.Column(db.Boolean, default=True)  # legacy mirror — kept in sync with status
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     company = db.relationship("Company", backref=db.backref("employees", lazy="dynamic"))
     department = db.relationship("Department", foreign_keys=[department_id],
@@ -106,7 +106,7 @@ class PayrollRun(db.Model):
     total_gross = db.Column(db.Numeric(15, 2), default=0)
     total_net = db.Column(db.Numeric(15, 2), default=0)
     journal_entry_id = db.Column(db.Integer, db.ForeignKey("journal_entries.id"))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     lines = db.relationship("PayrollLine", backref="run", cascade="all, delete-orphan")
     company = db.relationship("Company")
@@ -165,7 +165,7 @@ class EmployeeAccrual(db.Model):
     amount = db.Column(db.Numeric(15, 2), nullable=False)
     settled_at = db.Column(db.DateTime)
     settlement_journal_entry_id = db.Column(db.Integer, db.ForeignKey("journal_entries.id"))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     employee = db.relationship("Employee", backref=db.backref("accruals", lazy="dynamic"))
     company = db.relationship("Company")
