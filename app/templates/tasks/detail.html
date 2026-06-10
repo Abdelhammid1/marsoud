@@ -6,7 +6,11 @@
     <div class="flex items-start justify-between mb-4">
       <div>
         <h2 class="text-2xl font-bold text-navy-900">{{ task.title }}</h2>
-        <div class="text-sm text-slate-500 mt-1">في مشروع: <a href="{{ url_for('projects.detail', project_id=task.project_id) }}" class="text-brand-600 hover:underline">{{ task.project.name }}</a></div>
+        <div class="text-sm text-slate-500 mt-1">
+          {% if task.project %}في مشروع: <a href="{{ url_for('projects.detail', project_id=task.project_id) }}" class="text-brand-600 hover:underline">{{ task.project.name }}</a>
+          {% else %}<span class="text-amber-700">📌 مهمة مستقلة (بدون مشروع)</span>
+          {% endif %}
+        </div>
       </div>
       <div class="flex items-center gap-2">
         <span class="badge {{ task.priority.badge_class }}">{{ task.priority.label_ar }}</span>

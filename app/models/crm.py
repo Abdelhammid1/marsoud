@@ -326,9 +326,10 @@ class Task(db.Model):
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
 
+    # MARSOUD-27: nullable so tasks can exist without a project
     project_id = db.Column(db.Integer,
                            db.ForeignKey("projects.id", ondelete="CASCADE"),
-                           nullable=False, index=True)
+                           nullable=True, index=True)
     milestone_id = db.Column(db.Integer,
                              db.ForeignKey("milestones.id", ondelete="SET NULL"))
     assigned_to_id = db.Column(db.Integer, db.ForeignKey("users.id"),

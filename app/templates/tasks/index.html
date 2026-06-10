@@ -47,7 +47,7 @@
       {% for t in columns.get(s, []) %}
       <div class="bg-white rounded-md border border-slate-200 p-3 hover:shadow-soft transition">
         <a href="{{ url_for('tasks.detail', task_id=t.id) }}" class="text-sm font-semibold text-navy-900 hover:text-brand-600 block">{{ t.title }}</a>
-        <div class="text-xs text-slate-500 mt-1">{{ t.project.name }}</div>
+        <div class="text-xs text-slate-500 mt-1">{% if t.project %}{{ t.project.name }}{% else %}<em class="text-slate-400">مهمة مستقلة</em>{% endif %}</div>
         <div class="mt-2 flex items-center justify-between text-xs">
           <span class="badge {{ t.priority.badge_class }} text-[10px]">{{ t.priority.label_ar }}</span>
           {% if t.deadline %}

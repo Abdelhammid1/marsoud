@@ -7,7 +7,16 @@
     <a href="{{ url_for('vendors.new') }}" class="btn-primary">+ مورد جديد</a>
   </div>
   <table class="data-table">
-    <thead><tr><th>الاسم</th><th>البريد</th><th>الهاتف</th><th>الحساب البنكي</th></tr></thead>
+    <thead>
+      <tr>
+        <th>الاسم</th>
+        <th>البريد</th>
+        <th>الهاتف</th>
+        <th>الحساب البنكي</th>
+        <th>الحالة</th>
+        <th></th>
+      </tr>
+    </thead>
     <tbody>
     {% for v in vendors %}
       <tr>
@@ -15,9 +24,22 @@
         <td class="text-sm text-slate-500">{{ v.email or '—' }}</td>
         <td class="text-sm text-slate-500" dir="ltr">{{ v.phone or '—' }}</td>
         <td class="text-sm text-slate-500 font-mono" dir="ltr">{{ v.bank_account or '—' }}</td>
+        <td>
+          {% if v.is_active %}<span class="badge badge-paid">نشط</span>
+          {% else %}<span class="badge badge-cancelled">مؤرشف</span>{% endif %}
+        </td>
+        <td class="text-left whitespace-nowrap">
+          {% if has_permission('partners.manage') %}
+          <a href="{{ url_for('vendors.edit', vendor_id=v.id) }}" class="text-brand-600 hover:underline text-xs">تعديل</a>
+          <form method="POST" action="{{ url_for('vendors.delete', vendor_id=v.id) }}" class="inline mr-2"
+                onsubmit="return confirm('حذف المورد {{ v.name|e }}؟ لو عليه فواتير، هيتأرشف بدل ما يتحذف نهائياً.');">
+            <button type="submit" class="text-rose-600 hover:underline text-xs">حذف</button>
+          </form>
+          {% endif %}
+        </td>
       </tr>
     {% else %}
-      <tr><td colspan="4" class="text-center text-slate-400 py-8">لا يوجد موردون</td></tr>
+      <tr><td colspan="6" class="text-center text-slate-400 py-8">لا يوجد موردون</td></tr>
     {% endfor %}
     </tbody>
   </table>

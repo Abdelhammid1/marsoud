@@ -251,6 +251,19 @@ def build_checks(fx):
          f"/vendor-bills/{fx['bill_id']}/edit",
          ["تعديل فاتورة مورد", "المورد", "رقم فاتورة المورد", "حفظ التعديلات"],
          "acc21_vendor_bill_edit"),
+        ("MARSOUD-27-form", "Task form labels project as optional (standalone)",
+         "/tasks/new",
+         ["المشروع (اختياري)", "بدون مشروع", "مهمة مستقلة"],
+         "marsoud27_task_form"),
+        ("MARSOUD-29-list", "Vendors list shows Edit + Delete actions",
+         "/vendors/",
+         ["تعديل", "حذف"],
+         "marsoud29_vendors_list"),
+        ("SIDEBAR-sections", "Sidebar uses categorized section headers",
+         "/",
+         ["— المحاسبة", "— CRM", "— العمليات", "— الموارد البشرية",
+          "— التقارير والمراجعة", "— الإعدادات"],
+         "sidebar_sections"),
         ("MARSOUD-3", "Company settings nav link in sidebar",
          "/", ["إعدادات الشركة"], "marsoud3_settings_link"),
         # ─── Cycle 5: HR Phase 1 + MARSOUD-23 ──────────────────────────────
@@ -1586,6 +1599,51 @@ def run_checks(fx):
                 pass
             _login(page, EMAIL, PASSWORD)
         results.append(portal_check)
+
+        # ── MARSOUD-27 deep: a task with project_id=None can be created + viewed
+        m27_check = {"ticket": "MARSOUD-27-deep",
+                     "title": "Standalone task (project_id=NULL) creates + renders correctly",
+                     "url": "service:Task insert + /tasks/<id>",
+                     "passed": False, "missing": [], "error": None,
+                     "shot": "marsoud27_standalone.png"}
+        try:
+            from app import create_app as _ca27, db as _db27
+            from app.models import (
+                Task as _T27, TaskStatus as _TS27, TaskPriority as _TP27,
+                User as _U27,
+            )
+            with _ca27().app_context():
+                cid = fx["company_id"]
+                uid = _U27.query.first().id
+                _T27.query.filter_by(title="PWTEST_M27_standalone").delete()
+                _db27.session.commit()
+                t = _T27(
+                    company_id=cid, title="PWTEST_M27_standalone",
+                    project_id=None,           # no project at all
+                    assigned_to_id=uid,
+                    priority=_TP27.MEDIUM, status=_TS27.TODO,
+                )
+                _db27.session.add(t)
+                _db27.session.commit()
+                tid = t.id
+
+            # Verify the detail page renders
+            resp = page.goto(f"{BASE}/tasks/{tid}", wait_until="networkidle")
+            page.screenshot(path=str(SHOTS / "marsoud27_standalone.png"), full_page=True)
+            html = page.content()
+            status = resp.status if resp else 0
+            ok = status < 400 and "مهمة مستقلة" in html
+            m27_check["status"] = status
+            m27_check["passed"] = ok
+            if not ok:
+                m27_check["missing"] = [f"status={status}, no 'مهمة مستقلة' in HTML"]
+            # Cleanup
+            with _ca27().app_context():
+                _T27.query.filter_by(id=tid).delete()
+                _db27.session.commit()
+        except Exception as e:
+            m27_check["error"] = str(e)[:200]
+        results.append(m27_check)
 
         # ── MARSOUD-28 deep: total_received + reverse-entry on accrual ──
         m28_check = {"ticket": "MARSOUD-28-deep",

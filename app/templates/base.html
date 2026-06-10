@@ -195,28 +195,44 @@ tailwind.config = {
           ('portal.index', 'مشاريعي', '📁'),
         ] %}
       {% else %}
-        {% set links = [
-          ('dashboard.index', 'لوحة التحكم', '📊'),
-          ('accounts.index', 'شجرة الحسابات', '🌳'),
-          ('journals.index', 'القيود اليومية', '📒'),
-          ('invoices.index', 'الفواتير', '🧾'),
-          ('products.index', 'المنتجات والخدمات', '📦'),
-          ('payment_methods.index', 'طرق الدفع', '💳'),
-          ('customers.index', 'العملاء', '👥'),
-          ('leads.index', 'العملاء المحتملون', '🎯'),
-          ('projects.index', 'المشاريع', '📂'),
-          ('tasks.index', 'المهام', '✅'),
-          ('vendors.index', 'الموردون', '🏢'),
-          ('vendor_bills.index', 'فواتير الموردين', '📥'),
-          ('assets.index', 'الأصول الثابتة', '🏗️'),
-          ('payroll.index', 'الرواتب', '💼'),
-          ('hr.index', 'الموارد البشرية', '👥'),
-          ('calendar.index', 'التقويم', '📅'),
-          ('reports.index', 'التقارير المالية', '📑'),
-          ('audit_log.index', 'سجل التدقيق', '🔍'),
-          ('agent.index', 'المحاسب الذكي', '🤖'),
+        {# Categorized sidebar for owner/admin/accountant/viewer. #}
+        {% set sections = [
+          ('رئيسي', [('dashboard.index', 'لوحة التحكم', '📊')]),
+          ('المحاسبة', [
+            ('accounts.index', 'شجرة الحسابات', '🌳'),
+            ('journals.index', 'القيود اليومية', '📒'),
+            ('invoices.index', 'الفواتير', '🧾'),
+            ('vendor_bills.index', 'فواتير الموردين', '📥'),
+            ('payment_methods.index', 'طرق الدفع', '💳'),
+            ('products.index', 'المنتجات والخدمات', '📦'),
+          ]),
+          ('CRM', [
+            ('customers.index', 'العملاء', '👥'),
+            ('leads.index', 'العملاء المحتملون', '🎯'),
+            ('vendors.index', 'الموردون', '🏢'),
+          ]),
+          ('العمليات', [
+            ('projects.index', 'المشاريع', '📂'),
+            ('tasks.index', 'المهام', '✅'),
+            ('calendar.index', 'التقويم', '📅'),
+            ('assets.index', 'الأصول الثابتة', '🏗️'),
+          ]),
+          ('الموارد البشرية', [
+            ('hr.index', 'HR', '👥'),
+            ('payroll.index', 'الرواتب', '💼'),
+          ]),
+          ('التقارير والمراجعة', [
+            ('reports.index', 'التقارير المالية', '📑'),
+            ('audit_log.index', 'سجل التدقيق', '🔍'),
+          ]),
+          ('الذكاء الاصطناعي', [
+            ('agent.index', 'المحاسب الذكي', '🤖'),
+          ]),
         ] %}
       {% endif %}
+
+      {# Flat list for the non-owner roles. #}
+      {% if sections is not defined %}
       {% for endpoint, label, icon in links %}
       {% set is_active = request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
       <a href="{{ url_for(endpoint) }}"
@@ -225,17 +241,33 @@ tailwind.config = {
         <span>{{ label }}</span>
       </a>
       {% endfor %}
+      {% else %}
+      {# Sectioned layout for owner/admin/accountant/viewer. Each section
+         renders only if at least one link inside is endpoint-resolvable. #}
+      {% for section_title, section_links in sections %}
+        <div class="mt-4 px-5 text-[10px] uppercase tracking-wider text-navy-200">— {{ section_title }}</div>
+        {% for endpoint, label, icon in section_links %}
+        {% set is_active = request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
+        <a href="{{ url_for(endpoint) }}"
+           class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-white/5 transition-colors {% if is_active %}active{% endif %}">
+          <span class="text-base">{{ icon }}</span>
+          <span>{{ label }}</span>
+        </a>
+        {% endfor %}
+      {% endfor %}
+      {% endif %}
       {% if current_role in ('owner', 'admin') %}
+      <div class="mt-4 px-5 text-[10px] uppercase tracking-wider text-navy-200">— الإعدادات</div>
       {% set is_users_active = request.endpoint and request.endpoint.startswith('users.') %}
       <a href="{{ url_for('users.index') }}"
-         class="nav-link flex items-center gap-3 px-5 py-2.5 text-sm hover:bg-white/5 transition-colors {% if is_users_active %}active{% endif %}">
+         class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-white/5 transition-colors {% if is_users_active %}active{% endif %}">
         <span class="text-base">👤</span>
         <span>أعضاء الشركة</span>
       </a>
       {% if active_company %}
       {% set is_settings_active = request.endpoint == 'companies.edit' %}
       <a href="{{ url_for('companies.edit', company_id=active_company.id) }}"
-         class="nav-link flex items-center gap-3 px-5 py-2.5 text-sm hover:bg-white/5 transition-colors {% if is_settings_active %}active{% endif %}">
+         class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-white/5 transition-colors {% if is_settings_active %}active{% endif %}">
         <span class="text-base">⚙️</span>
         <span>إعدادات الشركة</span>
       </a>

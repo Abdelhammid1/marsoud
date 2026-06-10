@@ -1,7 +1,7 @@
 # Marsoud — Playwright Ticket Verification Report
 
-Run: 2026-06-10 08:35:22
-Result: **89/89 checks passed**
+Run: 2026-06-10 08:47:27
+Result: **93/93 checks passed**
 Screenshots: `tests/screenshots/`
 
 | Ticket | Check | Status | Screenshot |
@@ -29,6 +29,9 @@ Screenshots: `tests/screenshots/`
 | ACC-19 | Vendor-bills date-range filter (من/إلى تاريخ) | ✅ PASS | acc19_date_filter.png |
 | ACC-20 | Vendor-bills line-item columns (الوصف/النوع/الحساب) | ✅ PASS | acc20_columns.png |
 | ACC-21-edit | Vendor-bill edit page renders for the posted fixture bill | ✅ PASS | acc21_vendor_bill_edit.png |
+| MARSOUD-27-form | Task form labels project as optional (standalone) | ✅ PASS | marsoud27_task_form.png |
+| MARSOUD-29-list | Vendors list shows Edit + Delete actions | ✅ PASS | marsoud29_vendors_list.png |
+| SIDEBAR-sections | Sidebar uses categorized section headers | ✅ PASS | sidebar_sections.png |
 | MARSOUD-3 | Company settings nav link in sidebar | ✅ PASS | marsoud3_settings_link.png |
 | HR-01a | HR home page (directory + departments summary) | ✅ PASS | hr01_home.png |
 | HR-01b | Departments list page | ✅ PASS | hr01_departments.png |
@@ -93,5 +96,6 @@ Screenshots: `tests/screenshots/`
 | GAP-AUTODELIVER | Project DELIVERED → auto-moves to CLIENT_FEEDBACK | ✅ PASS | gap_auto.txt |
 | GAP-NOTIF-write | Task assignment creates a Notification row | ✅ PASS | gap_notif_write.txt |
 | GAP-PORTAL | Client role sees portal index; blocked from /leads | ✅ PASS | gap_portal.png |
+| MARSOUD-27-deep | Standalone task (project_id=NULL) creates + renders correctly | ✅ PASS | marsoud27_standalone.png |
 | MARSOUD-28-deep | total_received counts cash actually paid; reverse-entry restores 'رصيد مستحق' | ✅ PASS | marsoud28_payroll_reverse.txt |
 | GAP-01-deep | Suspended-company user blocked at login | ✅ PASS | gap01_blocked.png |

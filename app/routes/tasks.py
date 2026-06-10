@@ -72,8 +72,9 @@ def _task_or_403(task_id):
     role = _role()
     if role in FULL_VISIBILITY:
         if role == "project_manager" and t.assigned_to_id != current_user.id:
-            # PM is restricted to their own projects
-            if t.project.manager_id != current_user.id:
+            # PM restricted to tasks they manage — only if there's a project.
+            # Standalone tasks (no project) fall back to assignee-only access.
+            if not t.project or t.project.manager_id != current_user.id:
                 abort(403)
         return t
     if role == "team_member" and t.assigned_to_id == current_user.id:
@@ -140,14 +141,20 @@ def new():
     users = _company_users()
     if request.method == "POST":
         try:
-            pid = int(request.form.get("project_id"))
-            project = db.session.get(Project, pid)
-            if not project or project.company_id != cid:
-                raise CRMError("المشروع غير موجود")
+            # MARSOUD-27 — project is now optional (standalone task)
+            pid_raw = request.form.get("project_id") or None
+            pid = int(pid_raw) if pid_raw else None
+            project = None
+            if pid:
+                project = db.session.get(Project, pid)
+                if not project or project.company_id != cid:
+                    raise CRMError("المشروع غير موجود")
             assignee_id = int(request.form.get("assigned_to_id"))
             milestone_raw = request.form.get("milestone_id") or None
             milestone_id = int(milestone_raw) if milestone_raw else None
             if milestone_id:
+                if not project:
+                    raise CRMError("لا يمكن ربط مرحلة بدون مشروع")
                 m = db.session.get(Milestone, milestone_id)
                 if not m or m.project_id != pid:
                     raise CRMError("المرحلة لا تنتمي لهذا المشروع")
@@ -168,8 +175,9 @@ def new():
                 raise CRMError("عنوان المهمة مطلوب")
             db.session.add(t)
             db.session.commit()
-            project.recompute_progress()
-            db.session.commit()
+            if project:
+                project.recompute_progress()
+                db.session.commit()
             # FR-22: notification on new task assignment
             try:
                 from app.services.opsflow_extras import notify
