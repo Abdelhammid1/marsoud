@@ -1784,6 +1784,117 @@ def run_checks(fx):
             m28_check["error"] = str(e)[:200]
         results.append(m28_check)
 
+        # ── MARSOUD-28-heal: data-heal of dirty pre-fix reverses ─────────
+        heal_check = {"ticket": "MARSOUD-28-heal",
+                      "title": "Data-heal clears settled_at on accruals whose settlement was reversed pre-fix",
+                      "url": "data-heal SQL",
+                      "passed": False, "missing": [], "error": None,
+                      "shot": "marsoud28_heal.txt"}
+        try:
+            from datetime import date as _dH, timedelta as _tdH
+            from app import create_app as _caH, db as _dbH
+            from app.models import (
+                Employee as _EH, EmployeeStatus as _ESH, ContractType as _CTH,
+                EmployeeAccrual as _EAH, PayrollRun as _PRH, PayrollLine as _PLH,
+                JournalEntry as _JEH, JournalLine as _JLH, User as _UH,
+                Company as _CompH,
+            )
+            from app.services.payroll import (
+                run_payroll as _runH, settle_accrual as _settleH,
+            )
+            from sqlalchemy import text as _sa_text
+
+            with _caH().app_context():
+                cid = _CompH.query.first().id
+                user_id = _UH.query.first().id
+                _EH.query.filter_by(name="HEAL_AUDIT").delete()
+                _dbH.session.commit()
+                emp = _EH(
+                    company_id=cid, name="HEAL_AUDIT", employee_number="HEAL",
+                    start_date=_dH.today() - _tdH(days=200),
+                    contract_type=_CTH.FULL_TIME, status=_ESH.ACTIVE,
+                    basic_salary=25000, allowances=0, deductions=0, is_active=True,
+                )
+                _dbH.session.add(emp)
+                _dbH.session.commit()
+
+                Y = _dH.today().year + 40
+                M = 1
+                while _PRH.query.filter_by(
+                    company_id=cid, period_year=Y, period_month=M,
+                ).first() is not None:
+                    M += 1
+                    if M > 12:
+                        Y += 1
+                        M = 1
+
+                pr = _runH(cid, Y, M, line_inputs={
+                    emp.id: {"working_days": 30, "amount_paid": 0},
+                }, created_by=user_id, send_emails=False)
+                accrual = _EAH.query.filter_by(employee_id=emp.id).first()
+                _settleH(accrual, "1110", created_by=user_id)
+                _dbH.session.refresh(accrual)
+                settle_je_id = accrual.settlement_journal_entry_id
+
+                # Plant the dirty state: a reversal entry exists but
+                # settled_at is still set (simulates a pre-fix reverse).
+                _dbH.session.execute(_sa_text(
+                    "INSERT INTO journal_entries "
+                    "(company_id, number, date, description, currency, "
+                    " exchange_rate, is_reversal, reversal_of, created_by) "
+                    "VALUES (:cid, :num, :d, :desc, 'SAR', 1.0, 1, :ro, :by)"
+                ), {
+                    "cid": cid, "num": "HEAL-REV-TEST",
+                    "d": _dH.today(), "desc": "PWTEST pre-fix-style reverse",
+                    "ro": settle_je_id, "by": user_id,
+                })
+                _dbH.session.commit()
+                _dbH.session.refresh(accrual)
+                dirty_before = (accrual.settled_at is not None and
+                                accrual.settlement_journal_entry_id is not None)
+
+                # Run the heal query (same SQL as the migration)
+                _dbH.session.execute(_sa_text(
+                    "UPDATE employee_accruals "
+                    "SET settled_at = NULL, settlement_journal_entry_id = NULL "
+                    "WHERE settled_at IS NOT NULL "
+                    "  AND settlement_journal_entry_id IS NOT NULL "
+                    "  AND EXISTS (SELECT 1 FROM journal_entries je "
+                    "              WHERE je.reversal_of = "
+                    "                    employee_accruals.settlement_journal_entry_id)"
+                ))
+                _dbH.session.commit()
+                _dbH.session.refresh(accrual)
+                _dbH.session.refresh(emp)
+                clean_after = (accrual.settled_at is None and
+                               accrual.settlement_journal_entry_id is None
+                               and abs(float(emp.total_received)) < 0.01)
+
+                heal_check["passed"] = dirty_before and clean_after
+                if not heal_check["passed"]:
+                    heal_check["missing"] = [
+                        f"dirty_before={dirty_before}, clean_after={clean_after}, "
+                        f"received={float(emp.total_received)}"
+                    ]
+                # Cleanup
+                _EAH.query.filter_by(employee_id=emp.id).delete()
+                _JLH.query.filter(_JLH.entry_id.in_(
+                    _dbH.session.query(_JEH.id).filter(
+                        _JEH.reference == f"PAYROLL-{Y}-{M:02d}",
+                    )
+                )).delete(synchronize_session=False)
+                _JEH.query.filter(
+                    (_JEH.reference == f"PAYROLL-{Y}-{M:02d}") |
+                    (_JEH.number == "HEAL-REV-TEST")
+                ).delete()
+                _PLH.query.filter_by(employee_id=emp.id).delete()
+                _PRH.query.filter_by(id=pr.id).delete()
+                _dbH.session.delete(emp)
+                _dbH.session.commit()
+        except Exception as e:
+            heal_check["error"] = str(e)[:200]
+        results.append(heal_check)
+
         # ── Gap-01 deep check: company suspension blocks login ─────────
         _logout(page)
         prior_status, prior_is_active = _suspend_company(fx["company_id"])

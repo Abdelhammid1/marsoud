@@ -1,7 +1,7 @@
 # Marsoud — Playwright Ticket Verification Report
 
-Run: 2026-06-10 08:47:27
-Result: **93/93 checks passed**
+Run: 2026-06-10 18:59:41
+Result: **94/94 checks passed**
 Screenshots: `tests/screenshots/`
 
 | Ticket | Check | Status | Screenshot |
@@ -98,4 +98,5 @@ Screenshots: `tests/screenshots/`
 | GAP-PORTAL | Client role sees portal index; blocked from /leads | ✅ PASS | gap_portal.png |
 | MARSOUD-27-deep | Standalone task (project_id=NULL) creates + renders correctly | ✅ PASS | marsoud27_standalone.png |
 | MARSOUD-28-deep | total_received counts cash actually paid; reverse-entry restores 'رصيد مستحق' | ✅ PASS | marsoud28_payroll_reverse.txt |
+| MARSOUD-28-heal | Data-heal clears settled_at on accruals whose settlement was reversed pre-fix | ✅ PASS | marsoud28_heal.txt |
 | GAP-01-deep | Suspended-company user blocked at login | ✅ PASS | gap01_blocked.png |
