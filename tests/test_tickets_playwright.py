@@ -1587,6 +1587,145 @@ def run_checks(fx):
             _login(page, EMAIL, PASSWORD)
         results.append(portal_check)
 
+        # ── MARSOUD-28 deep: total_received + reverse-entry on accrual ──
+        m28_check = {"ticket": "MARSOUD-28-deep",
+                     "title": "total_received counts cash actually paid; reverse-entry restores 'رصيد مستحق'",
+                     "url": "service:settle_accrual + reverse_journal",
+                     "passed": False, "missing": [], "error": None,
+                     "shot": "marsoud28_payroll_reverse.txt"}
+        try:
+            from datetime import date as _d28, timedelta as _td28
+            from app import create_app as _ca28, db as _db28
+            from app.models import (
+                Employee as _E28, EmployeeStatus as _ES28,
+                ContractType as _CT28, EmployeeAccrual as _EA28,
+                PayrollRun as _PR28, PayrollLine as _PL28,
+                JournalEntry as _JE28, JournalLine as _JL28, User as _U28,
+            )
+            from app.services.payroll import (
+                run_payroll as _run28, settle_accrual as _settle28,
+            )
+            from app.services.ledger import reverse_journal as _rev28
+            with _ca28().app_context():
+                cid = fx["company_id"]
+                user_id = _U28.query.first().id
+                # Clean any prior PWTEST employee + their state
+                old = _E28.query.filter_by(
+                    company_id=cid, name="PWTEST_M28_employee",
+                ).all()
+                for e in old:
+                    _EA28.query.filter_by(employee_id=e.id).delete()
+                    _PL28.query.filter_by(employee_id=e.id).delete()
+                    _db28.session.delete(e)
+                _db28.session.commit()
+
+                emp = _E28(
+                    company_id=cid, name="PWTEST_M28_employee",
+                    employee_number="PW-M28",
+                    start_date=_d28.today() - _td28(days=90),
+                    contract_type=_CT28.FULL_TIME,
+                    status=_ES28.ACTIVE,
+                    basic_salary=25000, allowances=0, deductions=0,
+                    is_active=True,
+                )
+                _db28.session.add(emp)
+                _db28.session.commit()
+
+                # Pick a clean (year, month) far from existing runs to dodge the
+                # company-period unique constraint.
+                today = _d28.today()
+                # year + 1 (avoid prior runs in tests fixture company)
+                year = today.year + 5
+                month = 1
+                while _PR28.query.filter_by(
+                    company_id=cid, period_year=year, period_month=month,
+                ).first() is not None:
+                    month += 1
+
+                pr = _run28(
+                    cid, year, month,
+                    line_inputs={
+                        emp.id: {
+                            "working_days": 30, "absence": 0, "late": 0,
+                            "overtime": 0, "bonus": 0, "advance": 0,
+                            "amount_paid": 0,    # deferred — produces a 25k accrual
+                        }
+                    },
+                    created_by=user_id, send_emails=False,
+                )
+                _db28.session.refresh(emp)
+
+                # 1) BUG #1: total_received should be 0 right after the run
+                #    (amount_paid=0 → nothing was actually paid out yet).
+                cash_received_after_run = float(emp.total_received)
+                accrual = _EA28.query.filter_by(employee_id=emp.id, settled_at=None).first()
+                outstanding_after_run = float(accrual.amount) if accrual else 0.0
+
+                # 2) Settle the accrual — pay 25k cash → outstanding drops to 0
+                _settle28(accrual, payment_method_account_code="1110",
+                          created_by=user_id)
+                _db28.session.refresh(emp)
+                _db28.session.refresh(accrual)
+                cash_received_after_settle = float(emp.total_received)
+                outstanding_after_settle = float(_EA28.query.filter_by(
+                    employee_id=emp.id, settled_at=None,
+                ).count())
+                settle_je_id = accrual.settlement_journal_entry_id
+
+                # 3) BUG #2: reverse the settlement — outstanding should go
+                #    back UP, cash_received back DOWN, settled_at cleared.
+                _rev28(settle_je_id, created_by=user_id)
+                _db28.session.refresh(emp)
+                _db28.session.refresh(accrual)
+                cash_received_after_reverse = float(emp.total_received)
+                outstanding_after_reverse = float(sum(
+                    float(a.amount) for a in _EA28.query.filter_by(
+                        employee_id=emp.id, settled_at=None,
+                    )
+                ))
+
+                ok = (
+                    abs(cash_received_after_run) < 0.01
+                    and abs(outstanding_after_run - 25000.0) < 0.01
+                    and abs(cash_received_after_settle - 25000.0) < 0.01
+                    and outstanding_after_settle == 0
+                    and abs(cash_received_after_reverse) < 0.01
+                    and abs(outstanding_after_reverse - 25000.0) < 0.01
+                    and accrual.settled_at is None
+                )
+                m28_check["passed"] = ok
+                if not ok:
+                    m28_check["missing"] = [
+                        f"after_run: received={cash_received_after_run} outstanding={outstanding_after_run}",
+                        f"after_settle: received={cash_received_after_settle} open_count={outstanding_after_settle}",
+                        f"after_reverse: received={cash_received_after_reverse} outstanding={outstanding_after_reverse}",
+                        f"accrual.settled_at after reverse: {accrual.settled_at}",
+                    ]
+                # Cleanup test data
+                _EA28.query.filter_by(employee_id=emp.id).delete()
+                _JL28.query.filter(
+                    _JL28.entry_id.in_(
+                        _db28.session.query(_JE28.id).filter(
+                            _JE28.company_id == cid,
+                            _JE28.source_type.in_(["payroll", "accrual_settle"]),
+                        )
+                    )
+                ).delete(synchronize_session=False)
+                _JE28.query.filter(
+                    _JE28.company_id == cid,
+                    _JE28.source_type.in_(["payroll", "accrual_settle"]),
+                    _JE28.reference == f"PAYROLL-{year}-{month:02d}",
+                ).delete()
+                _PL28.query.filter_by(employee_id=emp.id).delete()
+                _PR28.query.filter_by(
+                    company_id=cid, period_year=year, period_month=month,
+                ).delete()
+                _db28.session.delete(emp)
+                _db28.session.commit()
+        except Exception as e:
+            m28_check["error"] = str(e)[:200]
+        results.append(m28_check)
+
         # ── Gap-01 deep check: company suspension blocks login ─────────
         _logout(page)
         prior_status, prior_is_active = _suspend_company(fx["company_id"])

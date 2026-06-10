@@ -90,7 +90,14 @@ def post_journal(
 
 
 def reverse_journal(entry_id, created_by=None):
-    """Create a reversing entry that nullifies the original."""
+    """Create a reversing entry that nullifies the original.
+
+    Also undoes domain-level side-effects when the original journal was
+    posted by a higher-level service (e.g. accrual settlement). Without
+    this, reversing the journal made the ledger balance again but the
+    source row (EmployeeAccrual.settled_at, etc.) stayed dirty and the
+    UI never reflected the reversal — see MARSOUD-28.
+    """
     original = db.session.get(JournalEntry, entry_id)
     if not original:
         raise LedgerError("القيد غير موجود")
@@ -134,6 +141,11 @@ def reverse_journal(entry_id, created_by=None):
         )
         db.session.add(jl)
 
+    # ─── Domain side-effects: undo the action the original posted ──────
+    # If we ever post more journal types via services (vendor-bill payment,
+    # invoice payment, etc.), add their reversal here too.
+    _undo_source_side_effects(original)
+
     db.session.commit()
     try:
         from app.services.superadmin import log_platform_action
@@ -143,6 +155,27 @@ def reverse_journal(entry_id, created_by=None):
     except Exception:
         pass
     return entry
+
+
+def _undo_source_side_effects(original):
+    """Inspect original.source_type / source_id and roll back the matching
+    domain row. Currently only `accrual_settle` is handled — that's the
+    one MARSOUD-28 reported. Add more cases as needed.
+    """
+    src_type = original.source_type
+    src_id = original.source_id
+    if not src_type or not src_id:
+        return
+
+    if src_type == "accrual_settle":
+        # The original journal came from settle_accrual(). Find the row
+        # and mark it un-settled so the employee's outstanding balance
+        # picks the amount back up.
+        from app.models.payroll import EmployeeAccrual
+        accrual = db.session.get(EmployeeAccrual, src_id)
+        if accrual and accrual.settled_at is not None:
+            accrual.settled_at = None
+            accrual.settlement_journal_entry_id = None
 
 
 def get_account_by_code(company_id, code):

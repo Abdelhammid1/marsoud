@@ -70,8 +70,24 @@ class Employee(db.Model):
 
     @property
     def total_received(self):
-        """Sum of all net payments across past payroll runs."""
-        return sum(float(l.net or 0) for l in self.payroll_lines)
+        """Cash actually paid to the employee — NOT the salary calculated.
+
+        Two sources of real cash flow to the employee:
+          1. amount_paid on each PayrollLine — paid immediately at payroll run.
+          2. amount of any EmployeeAccrual rows that have been settled
+             (settled_at IS NOT NULL) — paid later via settle_accrual.
+
+        Previously this summed line.net (the *calculated* net salary), which
+        overstated received cash whenever amount_paid < net (a deferred
+        settlement). Reversing the settlement (قيد عكسي) also had to be
+        reflected — see reverse_journal which now resets accrual.settled_at.
+        """
+        paid_at_run = sum(float(l.amount_paid or 0) for l in self.payroll_lines)
+        paid_later = sum(
+            float(a.amount or 0)
+            for a in self.accruals if a.settled_at is not None
+        )
+        return paid_at_run + paid_later
 
     @property
     def last_payslip(self):
