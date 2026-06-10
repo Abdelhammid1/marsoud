@@ -5,15 +5,15 @@
 
 <!-- Hero -->
 <div class="card p-6 mb-6 bg-gradient-to-br from-navy-900 to-navy-700 text-white border-0">
-  <div class="flex items-center justify-between">
+  <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
     <div>
       <div class="text-sm text-navy-200 mb-1">{{ active_company.name }}</div>
-      <h2 class="text-2xl font-bold mb-1">نظرة 360° على وضعك المالي</h2>
+      <h2 class="text-xl md:text-2xl font-bold mb-1">نظرة 360° على وضعك المالي</h2>
       <p class="text-navy-200 text-sm">جميع البيانات محدّثة لحظياً مع كل قيد محاسبي</p>
     </div>
-    <div class="text-right">
+    <div class="md:text-left">
       <div class="text-xs text-navy-200">صافي الربح</div>
-      <div class="text-3xl font-bold {% if metrics.net_profit >= 0 %}text-emerald-300{% else %}text-red-300{% endif %}">
+      <div class="text-2xl md:text-3xl font-bold {% if metrics.net_profit >= 0 %}text-emerald-300{% else %}text-red-300{% endif %}">
         {{ "%.2f"|format(metrics.net_profit) }}
         <span class="text-sm font-normal text-navy-200">{{ active_company.base_currency }}</span>
       </div>
@@ -22,7 +22,7 @@
 </div>
 
 <!-- KPI cards -->
-<div class="grid grid-cols-4 gap-4 mb-6">
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
   {% set kpis = [
     ('إجمالي الإيرادات', metrics.total_revenue, '#2563EB', '📈'),
     ('إجمالي المصروفات', metrics.total_expenses, '#EF4444', '📉'),
@@ -42,8 +42,8 @@
 </div>
 
 <!-- Charts + actions row -->
-<div class="grid grid-cols-3 gap-4 mb-6">
-  <div class="card p-6 col-span-2">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+  <div class="card p-6 md:col-span-2">
     <div class="flex items-center justify-between mb-4">
       <h3 class="font-bold text-navy-900">الإيرادات vs المصروفات</h3>
       <span class="text-xs text-slate-400">الشهر الحالي</span>

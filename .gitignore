@@ -8,3 +8,6 @@ venv/
 *.log
 # migration files SHOULD be committed — only ignore alembic's local cache
 *.pyc.bak
+# Playwright test artifacts — regenerated on every test run, bloat the repo
+tests/screenshots/
+tests/REPORT.md
