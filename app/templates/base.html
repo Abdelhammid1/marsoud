@@ -53,6 +53,20 @@ tailwind.config = {
     font-weight: 700;
     border-right: 3px solid #059669;
   }
+
+  .section-body { overflow: hidden; transition: max-height 0.3s ease, opacity 0.2s ease; max-height: 500px; opacity: 1; }
+  .section-collapsed { max-height: 0 !important; opacity: 0; }
+  .section-chevron { display: inline-block; }
+  .section-collapsed-chevron { transform: rotate(-90deg); }
+  .sidebar-section { border-bottom: 1px solid rgba(148,163,184,0.08); padding-bottom: 2px; }
+  .sidebar-section:last-of-type { border-bottom: none; }
+  .section-body .nav-link.active {
+    background: rgba(16,185,129,0.12);
+    border-right: 3px solid #10b981;
+    color: #059669;
+    font-weight: 600;
+  }
+
   /* RTL scrollbar */
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: #F1F5F9; }
@@ -202,8 +216,8 @@ tailwind.config = {
       {% else %}
         {# Categorized sidebar for owner/admin/accountant/viewer. #}
         {% set sections = [
-          ('رئيسي', [('dashboard.index', 'لوحة التحكم', '📊')]),
-          ('المحاسبة', [
+          ('رئيسي', '🏠', [('dashboard.index', 'لوحة التحكم', '📊')]),
+          ('المحاسبة', '🧮', [
             ('accounts.index', 'شجرة الحسابات', '🌳'),
             ('journals.index', 'القيود اليومية', '📒'),
             ('invoices.index', 'الفواتير', '🧾'),
@@ -211,26 +225,37 @@ tailwind.config = {
             ('payment_methods.index', 'طرق الدفع', '💳'),
             ('products.index', 'المنتجات والخدمات', '📦'),
           ]),
-          ('CRM', [
+          ('CRM', '🤝', [
             ('customers.index', 'العملاء', '👥'),
             ('leads.index', 'العملاء المحتملون', '🎯'),
             ('vendors.index', 'الموردون', '🏢'),
           ]),
-          ('العمليات', [
+          ('العمليات', '⚙️', [
             ('projects.index', 'المشاريع', '📂'),
             ('tasks.index', 'المهام', '✅'),
             ('calendar.index', 'التقويم', '📅'),
             ('assets.index', 'الأصول الثابتة', '🏗️'),
           ]),
-          ('الموارد البشرية', [
+          ('المخزون', '📦', [
+            ('inventory.index', 'المخزون', '📦'),
+            ('inventory.transfers', 'التحويلات', '🔄'),
+            ('inventory.inventory_balance', 'تقرير الأرصدة', '📋'),
+          ]),
+          ('نقطة البيع', '🛒', [
+            ('pos.index', 'نقطة البيع', '🛒'),
+            ('pos.shifts', 'ورديات الكاشير', '🕐'),
+            ('reports.cashier_sales', 'مبيعات الكاشير', '💰'),
+            ('reports.profitability', 'الربحية', '📈'),
+          ]),
+          ('الموارد البشرية', '👥', [
             ('hr.index', 'HR', '👥'),
             ('payroll.index', 'الرواتب', '💼'),
           ]),
-          ('التقارير والمراجعة', [
+          ('التقارير والمراجعة', '📑', [
             ('reports.index', 'التقارير المالية', '📑'),
             ('audit_log.index', 'سجل التدقيق', '🔍'),
           ]),
-          ('الذكاء الاصطناعي', [
+          ('الذكاء الاصطناعي', '🤖', [
             ('agent.index', 'المحاسب الذكي', '🤖'),
           ]),
         ] %}
@@ -249,34 +274,70 @@ tailwind.config = {
       {% else %}
       {# Sectioned layout for owner/admin/accountant/viewer. Each section
          renders only if at least one link inside is endpoint-resolvable. #}
-      {% for section_title, section_links in sections %}
-        <div class="mt-4 px-5 text-[10px] uppercase tracking-wider text-navy-200">— {{ section_title }}</div>
+      {% for section_title, section_icon, section_links in sections %}
+        {% set ns = namespace(active=false) %}
         {% for endpoint, label, icon in section_links %}
-        {% set is_active = request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
-        <a href="{{ url_for(endpoint) }}"
-           class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-white/5 transition-colors {% if is_active %}active{% endif %}">
-          <span class="text-base">{{ icon }}</span>
-          <span>{{ label }}</span>
-        </a>
+          {% if request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
+            {% set ns.active = true %}
+          {% endif %}
         {% endfor %}
+        <div class="sidebar-section" data-section="{{ section_title }}">
+          <button type="button"
+                  class="section-toggle w-full flex items-center justify-between px-5 py-2.5 text-[13px] font-bold text-navy-900 hover:bg-emerald-50/60 transition-all"
+                  onclick="toggleSection(this)">
+            <span class="flex items-center gap-2.5">
+              <span class="text-base">{{ section_icon }}</span>
+              <span>{{ section_title }}</span>
+            </span>
+            <span class="section-chevron text-[10px] text-slate-400 transition-transform duration-200">▼</span>
+          </button>
+          <div class="section-body {% if not ns.active %}section-collapsed{% endif %}">
+          {% for endpoint, label, icon in section_links %}
+          {% set is_active = request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
+          <a href="{{ url_for(endpoint) }}"
+             class="nav-link flex items-center gap-3 pr-9 pl-5 py-2 text-sm text-slate-600 hover:bg-emerald-50/40 transition-colors {% if is_active %}active{% endif %}">
+            <span class="text-base">{{ icon }}</span>
+            <span>{{ label }}</span>
+          </a>
+          {% endfor %}
+          </div>
+        </div>
       {% endfor %}
       {% endif %}
       {% if current_role in ('owner', 'admin') %}
-      <div class="mt-4 px-5 text-[10px] uppercase tracking-wider text-navy-200">— الإعدادات</div>
-      {% set is_users_active = request.endpoint and request.endpoint.startswith('users.') %}
-      <a href="{{ url_for('users.index') }}"
-         class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-white/5 transition-colors {% if is_users_active %}active{% endif %}">
-        <span class="text-base">👤</span>
-        <span>أعضاء الشركة</span>
-      </a>
-      {% if active_company %}
-      {% set is_settings_active = request.endpoint == 'companies.edit' %}
-      <a href="{{ url_for('companies.edit', company_id=active_company.id) }}"
-         class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-white/5 transition-colors {% if is_settings_active %}active{% endif %}">
-        <span class="text-base">⚙️</span>
-        <span>إعدادات الشركة</span>
-      </a>
-      {% endif %}
+      {% set settings_active = request.endpoint and (request.endpoint.startswith('users.') or request.endpoint.startswith('settings_roles') or request.endpoint == 'companies.edit') %}
+      <div class="sidebar-section" data-section="الإعدادات">
+        <button type="button"
+                class="section-toggle w-full flex items-center justify-between px-5 py-2.5 text-[13px] font-bold text-navy-900 hover:bg-emerald-50/60 transition-all"
+                onclick="toggleSection(this)">
+          <span class="flex items-center gap-2.5">
+            <span class="text-base">🛠️</span>
+            <span>الإعدادات</span>
+          </span>
+          <span class="section-chevron text-[10px] text-slate-400 transition-transform duration-200">▼</span>
+        </button>
+        <div class="section-body {% if not settings_active %}section-collapsed{% endif %}">
+          {% set is_users_active = request.endpoint and request.endpoint.startswith('users.') %}
+          <a href="{{ url_for('users.index') }}"
+             class="nav-link flex items-center gap-3 pr-9 pl-5 py-2 text-sm text-slate-600 hover:bg-emerald-50/40 transition-colors {% if is_users_active %}active{% endif %}">
+            <span class="text-base">👤</span>
+            <span>أعضاء الشركة</span>
+          </a>
+          <a href="{{ url_for('settings_roles.index') }}"
+             class="nav-link flex items-center gap-3 pr-9 pl-5 py-2 text-sm text-slate-600 hover:bg-emerald-50/40 transition-colors {% if request.endpoint and request.endpoint.startswith('settings_roles') %}active{% endif %}">
+            <span class="text-base">🔐</span>
+            <span>الأدوار والصلاحيات</span>
+          </a>
+          {% if active_company %}
+          {% set is_settings_active = request.endpoint == 'companies.edit' %}
+          <a href="{{ url_for('companies.edit', company_id=active_company.id) }}"
+             class="nav-link flex items-center gap-3 pr-9 pl-5 py-2 text-sm text-slate-600 hover:bg-emerald-50/40 transition-colors {% if is_settings_active %}active{% endif %}">
+            <span class="text-base">⚙️</span>
+            <span>إعدادات الشركة</span>
+          </a>
+          {% endif %}
+        </div>
+      </div>
       {% endif %}
       {% if current_user.is_authenticated and current_user.is_superadmin %}
       <div class="mt-4 px-5 text-[10px] uppercase tracking-wider text-navy-200">المنصة</div>
@@ -429,5 +490,35 @@ function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&l
 {% endif %}
 
 {% block scripts %}{% endblock %}
+
+<script>
+function toggleSection(btn) {
+  const section = btn.closest('.sidebar-section');
+  const body = section.querySelector('.section-body');
+  const chevron = btn.querySelector('.section-chevron');
+  const name = section.getAttribute('data-section');
+  const collapsed = body.classList.toggle('section-collapsed');
+  chevron.classList.toggle('section-collapsed-chevron', collapsed);
+  const state = JSON.parse(localStorage.getItem('marsoud_sidebar') || '{}');
+  state[name] = collapsed ? 'collapsed' : 'open';
+  localStorage.setItem('marsoud_sidebar', JSON.stringify(state));
+}
+document.addEventListener('DOMContentLoaded', function() {
+  const state = JSON.parse(localStorage.getItem('marsoud_sidebar') || '{}');
+  document.querySelectorAll('.sidebar-section').forEach(function(section) {
+    const name = section.getAttribute('data-section');
+    const body = section.querySelector('.section-body');
+    const chevron = section.querySelector('.section-chevron');
+    if (state[name] === 'collapsed' && !body.querySelector('.nav-link.active')) {
+      body.classList.add('section-collapsed');
+      chevron.classList.add('section-collapsed-chevron');
+    } else if (state[name] === 'open') {
+      body.classList.remove('section-collapsed');
+      chevron.classList.remove('section-collapsed-chevron');
+    }
+  });
+});
+</script>
+
 </body>
 </html>
