@@ -1,5 +1,16 @@
 {% extends "base.html" %}
 {% block page_title %}قبول الدعوة{% endblock %}
+
+{# MARSOUD-34 — invitees aren't logged in yet, so base.html renders
+   guest_content not content. We render the same body for both so the
+   page works for both flows: a never-logged-in invitee, and an already-
+   logged-in user accepting an additional invitation. #}
+{% block guest_content %}
+<div class="min-h-screen flex items-center justify-center px-4 py-8">
+  {{ self.content() }}
+</div>
+{% endblock %}
+
 {% block content %}
 <div class="max-w-lg mx-auto card p-8">
   <div class="text-center mb-6">
