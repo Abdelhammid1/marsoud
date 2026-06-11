@@ -15,7 +15,7 @@ from flask_login import login_required, current_user
 
 from app import db
 from app.models import (
-    User, UserStatus, Employee, EmployeeHistory, EmployeeChangeType,
+    User, Employee, EmployeeHistory, EmployeeChangeType,
     PayrollLine, PayrollRun, EmployeeAccrual,
     LeaveType, LeaveBalance, LeaveRequest, LeaveRequestStatus,
 )
@@ -42,12 +42,12 @@ def index():
     user_ids = [r.user_id for r in rows]
     pending = User.query.filter(
         User.id.in_(user_ids),
-        User.status == UserStatus.PENDING.value,
+        User.is_active == False,
     ).all()
     # Also expose the count of ACTIVE employee-portal accounts for context.
     active_emp_count = User.query.filter(
         User.id.in_(user_ids),
-        User.status == UserStatus.ACTIVE.value,
+        User.is_active == True,
         User.employee_id.isnot(None),
     ).count()
     return render_template(

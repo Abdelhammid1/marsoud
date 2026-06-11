@@ -40,7 +40,6 @@ tailwind.config = {
     background: linear-gradient(180deg, #FFFFFF 0%, #F0F7FF 100%);
     min-height: 100vh;
     color: #0F172A;
-    overflow-x: hidden;  /* MARSOUD-33 — guard against any rogue mobile overflow */
   }
   .gradient-heading {
     background: linear-gradient(135deg, #065F46 0%, #059669 100%);
@@ -48,65 +47,11 @@ tailwind.config = {
     background-clip: text;
     color: transparent;
   }
-  .nav-link {
-    color: #475569;          /* text-slate-600 */
-  }
-  .nav-link:hover {
-    background: #ECFDF5;     /* hover:bg-emerald-50 */
-    color: #047857;
-  }
   .nav-link.active {
-    background: #ECFDF5;     /* bg-emerald-50 */
+    background: #ECFDF5;
     color: #059669;
     font-weight: 700;
     border-right: 3px solid #059669;
-  }
-  .sidebar-section-header {
-    color: #94A3B8;          /* text-slate-400 */
-  }
-  .sidebar-section-header:hover {
-    color: #475569;          /* text-slate-600 */
-  }
-  /* Smooth height animation on collapsible section bodies (MARSOUD-33 follow-up) */
-  .sidebar-section-body {
-    overflow: hidden;
-    max-height: 1000px;
-    transition: max-height 300ms ease;
-  }
-  .sidebar-section-body.collapsed {
-    max-height: 0;
-  }
-  /* Full-sidebar collapse — desktop only (mobile uses the drawer instead) */
-  @media (min-width: 768px) {
-    body.sidebar-collapsed #sidebar { transform: translateX(100%); }
-    body.sidebar-collapsed main { margin-right: 0 !important; transition: margin-right 300ms ease; }
-  }
-  /* The little edge toggle button (desktop only) */
-  #sidebar-edge-toggle {
-    position: fixed;
-    top: 50%;
-    right: 16rem;            /* sits flush against the sidebar's left edge */
-    transform: translateY(-50%);
-    width: 22px;
-    height: 56px;
-    background: #fff;
-    border: 1px solid #E2E8F0;
-    border-right: 0;
-    border-radius: 8px 0 0 8px;
-    cursor: pointer;
-    z-index: 45;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    color: #475569;
-    transition: right 300ms ease;
-    box-shadow: -4px 0 10px -4px rgba(15, 23, 42, 0.08);
-  }
-  @media (min-width: 768px) {
-    #sidebar-edge-toggle { display: flex; }
-  }
-  body.sidebar-collapsed #sidebar-edge-toggle {
-    right: 0;
   }
   /* RTL scrollbar */
   ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -181,15 +126,8 @@ tailwind.config = {
 
 {% if current_user.is_authenticated %}
 <div class="flex min-h-screen">
-  <!-- Mobile backdrop (visible only when sidebar is open on mobile) -->
-  <div id="sidebar-backdrop"
-       class="fixed inset-0 bg-black/40 z-30 hidden md:hidden"
-       onclick="closeSidebar()"></div>
-
-  <!-- Sidebar — slides in from the right on mobile, fixed on desktop. Light theme. -->
-  <aside id="sidebar"
-         class="w-64 bg-slate-50 text-slate-600 flex flex-col fixed h-screen right-0 top-0 shadow-xl z-40 border-l border-slate-200
-                transform translate-x-full md:translate-x-0 transition-transform duration-300">
+  <!-- Sidebar -->
+  <aside class="w-64 bg-slate-50 text-slate-600 flex flex-col fixed h-screen right-0 top-0 border-l border-slate-200">
     <div class="px-6 py-5 border-b border-slate-200">
       <div class="flex items-center gap-2">
         <img src="{{ url_for('static', filename='img/logo.png') }}" alt="مرصود" class="w-10 h-10 object-contain">
@@ -202,7 +140,7 @@ tailwind.config = {
     </div>
 
     {% if active_company %}
-    <div class="px-4 py-3 border-b border-slate-200 bg-white">
+    <div class="px-4 py-3 border-b border-slate-200">
       <div class="text-xs text-slate-400 mb-1">الشركة النشطة</div>
       <div class="relative">
         <select onchange="if(this.value) window.location.href='/switch-company/'+this.value"
@@ -261,10 +199,6 @@ tailwind.config = {
         {% set links = [
           ('portal.index', 'مشاريعي', '📁'),
         ] %}
-      {% elif current_role == 'employee' %}
-        {% set links = [
-          ('portal_emp.index', 'بوابتي الشخصية', '🏠'),
-        ] %}
       {% else %}
         {# Categorized sidebar for owner/admin/accountant/viewer. #}
         {% set sections = [
@@ -285,25 +219,15 @@ tailwind.config = {
           ('العمليات', [
             ('projects.index', 'المشاريع', '📂'),
             ('tasks.index', 'المهام', '✅'),
-            ('pos.index', 'نقطة البيع', '🏷️'),
-            ('pos.shifts', 'الورديات', '⏰'),
-            ('inventory.index', 'المخزون', '📦'),
-            ('inventory.inventory_balance', 'رصيد المخزون', '📊'),
-            ('inventory.movements', 'سجل حركات المخزون', '📋'),
-            ('inventory.transfers', 'تحويلات المخازن', '🔁'),
-            ('inventory.barcodes_picker', 'طباعة باركود', '🖨️'),
             ('calendar.index', 'التقويم', '📅'),
             ('assets.index', 'الأصول الثابتة', '🏗️'),
           ]),
           ('الموارد البشرية', [
             ('hr.index', 'HR', '👥'),
             ('payroll.index', 'الرواتب', '💼'),
-            ('hr_ss.index', 'تفعيل حسابات الموظفين', '🔑'),
           ]),
           ('التقارير والمراجعة', [
             ('reports.index', 'التقارير المالية', '📑'),
-            ('reports.profitability', 'ربحية المنتجات', '💹'),
-            ('reports.cashier_sales', 'مبيعات الكاشير', '🧑‍💼'),
             ('audit_log.index', 'سجل التدقيق', '🔍'),
           ]),
           ('الذكاء الاصطناعي', [
@@ -317,109 +241,70 @@ tailwind.config = {
       {% for endpoint, label, icon in links %}
       {% set is_active = request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
       <a href="{{ url_for(endpoint) }}"
-         class="nav-link flex items-center gap-3 px-5 py-2.5 text-sm transition-colors {% if is_active %}active{% endif %}">
+         class="nav-link flex items-center gap-3 px-5 py-2.5 text-sm hover:bg-emerald-50 transition-colors {% if is_active %}active{% endif %}">
         <span class="text-base">{{ icon }}</span>
         <span>{{ label }}</span>
       </a>
       {% endfor %}
       {% else %}
-      {# Sectioned layout for owner/admin/accountant/viewer.
-         Each section is a collapsible group — click the header to toggle.
-         State persists in localStorage under key marsoud_sidebar_group_<name>. #}
+      {# Sectioned layout for owner/admin/accountant/viewer. Each section
+         renders only if at least one link inside is endpoint-resolvable. #}
       {% for section_title, section_links in sections %}
-        {% set ns = namespace(active_inside=false) %}
-        {% for endpoint, _, _ in section_links %}
-          {% if request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
-            {% set ns.active_inside = true %}
-          {% endif %}
+        <div class="mt-4 px-5 text-[10px] uppercase tracking-wider text-navy-200">— {{ section_title }}</div>
+        {% for endpoint, label, icon in section_links %}
+        {% set is_active = request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
+        <a href="{{ url_for(endpoint) }}"
+           class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-white/5 transition-colors {% if is_active %}active{% endif %}">
+          <span class="text-base">{{ icon }}</span>
+          <span>{{ label }}</span>
+        </a>
         {% endfor %}
-        <div class="sidebar-section mt-3" data-section="{{ section_title }}" data-has-active="{{ '1' if ns.active_inside else '0' }}">
-          <button type="button" onclick="toggleSection(this)"
-                  class="sidebar-section-header w-full flex items-center justify-between px-5 py-1.5 text-[10px] uppercase tracking-wider transition">
-            <span>— {{ section_title }}</span>
-            <span class="chevron text-xs">▼</span>
-          </button>
-          <div class="sidebar-section-body">
-            {% for endpoint, label, icon in section_links %}
-            {% set is_active = request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
-            <a href="{{ url_for(endpoint) }}"
-               class="nav-link flex items-center gap-3 px-5 py-2 text-sm transition-colors {% if is_active %}active{% endif %}">
-              <span class="text-base">{{ icon }}</span>
-              <span>{{ label }}</span>
-            </a>
-            {% endfor %}
-          </div>
-        </div>
       {% endfor %}
       {% endif %}
       {% if current_role in ('owner', 'admin') %}
+      <div class="mt-4 px-5 text-[10px] uppercase tracking-wider text-navy-200">— الإعدادات</div>
       {% set is_users_active = request.endpoint and request.endpoint.startswith('users.') %}
+      <a href="{{ url_for('users.index') }}"
+         class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-white/5 transition-colors {% if is_users_active %}active{% endif %}">
+        <span class="text-base">👤</span>
+        <span>أعضاء الشركة</span>
+      </a>
+      {% if active_company %}
       {% set is_settings_active = request.endpoint == 'companies.edit' %}
-      {% set settings_active = is_users_active or is_settings_active %}
-      <div class="sidebar-section mt-3" data-section="الإعدادات" data-has-active="{{ '1' if settings_active else '0' }}">
-        <button type="button" onclick="toggleSection(this)"
-                class="sidebar-section-header w-full flex items-center justify-between px-5 py-1.5 text-[10px] uppercase tracking-wider transition">
-          <span>— الإعدادات</span>
-          <span class="chevron text-xs">▼</span>
-        </button>
-        <div class="sidebar-section-body">
-          <a href="{{ url_for('users.index') }}"
-             class="nav-link flex items-center gap-3 px-5 py-2 text-sm transition-colors {% if is_users_active %}active{% endif %}">
-            <span class="text-base">👤</span>
-            <span>أعضاء الشركة</span>
-          </a>
-          {% set is_roles_active = request.endpoint and request.endpoint.startswith('settings_roles.') %}
-          <a href="{{ url_for('settings_roles.index') }}"
-             class="nav-link flex items-center gap-3 px-5 py-2 text-sm transition-colors {% if is_roles_active %}active{% endif %}">
-            <span class="text-base">🔐</span>
-            <span>الأدوار والصلاحيات</span>
-          </a>
-          {% if active_company %}
-          <a href="{{ url_for('companies.edit', company_id=active_company.id) }}"
-             class="nav-link flex items-center gap-3 px-5 py-2 text-sm transition-colors {% if is_settings_active %}active{% endif %}">
-            <span class="text-base">⚙️</span>
-            <span>إعدادات الشركة</span>
-          </a>
-          {% endif %}
-        </div>
-      </div>
+      <a href="{{ url_for('companies.edit', company_id=active_company.id) }}"
+         class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-white/5 transition-colors {% if is_settings_active %}active{% endif %}">
+        <span class="text-base">⚙️</span>
+        <span>إعدادات الشركة</span>
+      </a>
+      {% endif %}
       {% endif %}
       {% if current_user.is_authenticated and current_user.is_superadmin %}
-      <div class="sidebar-section-header mt-3 px-5 text-[10px] uppercase tracking-wider">— المنصة</div>
+      <div class="mt-4 px-5 text-[10px] uppercase tracking-wider text-navy-200">المنصة</div>
       {% set is_admin_active = request.endpoint and request.endpoint.startswith('superadmin.') %}
       <a href="{{ url_for('superadmin.dashboard') }}"
-         class="nav-link flex items-center gap-3 px-5 py-2 text-sm transition-colors {% if is_admin_active %}active{% endif %}">
+         class="nav-link flex items-center gap-3 px-5 py-2.5 text-sm hover:bg-white/5 transition-colors {% if is_admin_active %}active{% endif %}">
         <span class="text-base">🛡️</span>
         <span>لوحة المالك</span>
       </a>
       {% endif %}
     </nav>
 
-    <div class="px-4 py-3 border-t border-slate-200 bg-white">
+    <div class="px-4 py-3 border-t border-slate-200">
       <a href="{{ url_for('companies.new') }}" class="block text-center text-xs text-slate-500 hover:text-emerald-600 py-1.5">+ شركة جديدة</a>
-      <div class="mt-3 flex items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+      <div class="mt-3 flex items-center justify-between gap-2 bg-white/5 rounded-lg px-3 py-2">
         <div class="text-xs">
-          <div class="text-slate-800 font-semibold leading-tight">{{ current_user.full_name }}</div>
+          <div class="text-white font-semibold leading-tight">{{ current_user.full_name }}</div>
           <div class="text-slate-400">{{ current_user.email }}</div>
         </div>
-        <a href="{{ url_for('auth.logout') }}" class="text-slate-500 hover:text-emerald-600" title="خروج">
+        <a href="{{ url_for('auth.logout') }}" class="text-slate-400 hover:text-emerald-600" title="خروج">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
         </a>
       </div>
     </div>
   </aside>
 
-  <!-- Sidebar full-collapse toggle (desktop edge button) -->
-  <button id="sidebar-edge-toggle"
-          type="button"
-          onclick="toggleSidebarCollapsed()"
-          aria-label="إخفاء/إظهار القائمة"
-          title="إخفاء/إظهار القائمة">
-    <span id="sidebar-edge-icon">‹</span>
-  </button>
-
   <!-- Main -->
-  <main class="flex-1 mr-0 md:mr-64 min-h-screen w-full">
+  <main class="flex-1 mr-64 min-h-screen">
     {% if impersonating %}
     <div class="bg-rose-600 text-white px-6 py-2 flex items-center justify-between text-sm">
       <div>
@@ -432,42 +317,26 @@ tailwind.config = {
     </div>
     {% endif %}
     <header class="bg-white/80 backdrop-blur border-b border-slate-200 sticky top-0 z-30">
-      <div class="px-4 md:px-8 py-4 flex items-center justify-between gap-2">
-        <div class="flex items-center gap-3 min-w-0">
-          {# MARSOUD-33 — hamburger button (mobile only) #}
-          <button onclick="openSidebar()" class="md:hidden inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:border-brand-500 transition" aria-label="القائمة">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
-          </button>
-          <h1 class="text-lg md:text-xl font-bold text-navy-900 truncate">{% block page_title %}{% endblock %}</h1>
-        </div>
-        <div class="flex items-center gap-2 md:gap-3 shrink-0">
-          <div class="relative" id="notif-bell-wrap">
-            <button onclick="toggleNotifBell(event)" class="relative inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:border-brand-500 transition" title="الإشعارات" aria-label="الإشعارات">
-              🔔
-              <span id="notif-badge" class="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center {% if not (notif_unread_count and notif_unread_count > 0) %}hidden{% endif %}">{{ notif_unread_count or 0 }}</span>
-            </button>
-            <div id="notif-dropdown" class="hidden absolute end-0 mt-2 w-80 bg-white border border-slate-200 rounded-lg shadow-soft z-40 overflow-hidden">
-              <div class="flex items-center justify-between px-3 py-2 border-b border-slate-100 bg-slate-50">
-                <span class="text-sm font-bold text-navy-900">الإشعارات</span>
-                <button onclick="markAllNotifRead(event)" class="text-xs text-emerald-700 hover:underline">تعليم الكل كمقروء</button>
-              </div>
-              <div id="notif-list" class="max-h-80 overflow-auto divide-y divide-slate-100">
-                <div class="p-4 text-xs text-slate-400 text-center">جاري التحميل…</div>
-              </div>
-              <a href="{{ url_for('notifications.index') }}" class="block text-center text-xs text-emerald-700 hover:bg-slate-50 py-2 border-t border-slate-100">عرض كل الإشعارات</a>
-            </div>
-          </div>
+      <div class="px-8 py-4 flex items-center justify-between">
+        <h1 class="text-xl font-bold text-navy-900">{% block page_title %}{% endblock %}</h1>
+        <div class="flex items-center gap-3">
+          <a href="{{ url_for('notifications.index') }}" class="relative inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:border-brand-500 transition" title="الإشعارات">
+            🔔
+            {% if notif_unread_count and notif_unread_count > 0 %}
+            <span class="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{{ notif_unread_count }}</span>
+            {% endif %}
+          </a>
           {% if current_role not in ('client', 'team_member') %}
           <button onclick="toggleAgent()" class="btn-accent text-sm">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
-            <span class="hidden sm:inline">المحاسب الذكي</span>
+            المحاسب الذكي
           </button>
           {% endif %}
         </div>
       </div>
     </header>
 
-    <div class="px-4 md:px-8 py-6">
+    <div class="px-8 py-6">
       <!-- Flash messages -->
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -485,7 +354,7 @@ tailwind.config = {
   </main>
 
   <!-- Agent slide-over -->
-  <div id="agent-panel" class="fixed inset-y-0 left-0 w-full sm:w-96 max-w-full bg-white shadow-2xl border-l border-slate-200 transform -translate-x-full transition-transform duration-300 z-50 flex flex-col">
+  <div id="agent-panel" class="fixed inset-y-0 left-0 w-96 bg-white shadow-2xl border-l border-slate-200 transform -translate-x-full transition-transform duration-300 z-50 flex flex-col">
     <div class="px-5 py-4 border-b border-slate-200 bg-navy-900 text-white">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-2">
@@ -554,147 +423,6 @@ async function sendAgent(e) {
   messages.scrollTop = messages.scrollHeight;
 }
 function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-// ─── Mobile sidebar drawer (MARSOUD-33) ────────────────────────────────
-function openSidebar() {
-  const sb = document.getElementById('sidebar');
-  const bd = document.getElementById('sidebar-backdrop');
-  if (!sb || !bd) return;
-  sb.classList.remove('translate-x-full');
-  bd.classList.remove('hidden');
-}
-function closeSidebar() {
-  const sb = document.getElementById('sidebar');
-  const bd = document.getElementById('sidebar-backdrop');
-  if (!sb || !bd) return;
-  // Only close on mobile widths — desktop sidebar stays put
-  if (window.matchMedia('(max-width: 767px)').matches) {
-    sb.classList.add('translate-x-full');
-    bd.classList.add('hidden');
-  }
-}
-// Close drawer when any nav link is clicked on mobile
-document.addEventListener('click', (e) => {
-  const link = e.target.closest('#sidebar a.nav-link');
-  if (link) closeSidebar();
-});
-
-// ─── Collapsible sidebar sections (state per section via localStorage) ──
-function _sectionKey(title) { return 'marsoud_sidebar_group_' + title; }
-function _setSectionVisible(sec, visible) {
-  const body = sec.querySelector('.sidebar-section-body');
-  const chev = sec.querySelector('.chevron');
-  if (!body) return;
-  if (visible) {
-    body.classList.remove('collapsed');
-    if (chev) chev.textContent = '▼';
-  } else {
-    body.classList.add('collapsed');
-    if (chev) chev.textContent = '▶';
-  }
-}
-function toggleSection(btn) {
-  const sec = btn.parentElement;
-  const body = sec.querySelector('.sidebar-section-body');
-  const wasCollapsed = body.classList.contains('collapsed');
-  _setSectionVisible(sec, wasCollapsed);   // toggle
-  const title = sec.getAttribute('data-section');
-  if (title) localStorage.setItem(_sectionKey(title), wasCollapsed ? '0' : '1');
-}
-// Restore section state on load — force open if a section contains the active route.
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('.sidebar-section').forEach(sec => {
-    const title = sec.getAttribute('data-section');
-    const hasActive = sec.getAttribute('data-has-active') === '1';
-    let visible = true;
-    if (!hasActive) {
-      const saved = localStorage.getItem(_sectionKey(title));
-      // Default behaviour: groups open by default unless explicitly collapsed
-      visible = saved !== '1';
-    }
-    _setSectionVisible(sec, visible);
-  });
-
-  // Restore full-sidebar-collapsed state (desktop only)
-  if (localStorage.getItem('marsoud_sidebar_collapsed') === '1') {
-    document.body.classList.add('sidebar-collapsed');
-    const icon = document.getElementById('sidebar-edge-icon');
-    if (icon) icon.textContent = '›';
-  }
-});
-
-// ─── Full-sidebar collapse (desktop edge button) ───────────────────────
-function toggleSidebarCollapsed() {
-  const collapsed = document.body.classList.toggle('sidebar-collapsed');
-  localStorage.setItem('marsoud_sidebar_collapsed', collapsed ? '1' : '0');
-  const icon = document.getElementById('sidebar-edge-icon');
-  if (icon) icon.textContent = collapsed ? '›' : '‹';
-}
-
-// ─── MARSOUD-TASKS-02 notification bell dropdown ──────────────────────
-async function loadNotifDropdown() {
-  const list = document.getElementById('notif-list');
-  if (!list) return;
-  try {
-    const r = await fetch("{{ url_for('notifications.dropdown') }}",
-                          { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-    const data = await r.json();
-    const badge = document.getElementById('notif-badge');
-    if (badge) {
-      badge.textContent = data.unread;
-      badge.classList.toggle('hidden', !data.unread);
-    }
-    if (!data.items.length) {
-      list.innerHTML = '<div class="p-4 text-xs text-slate-400 text-center">لا توجد إشعارات.</div>';
-      return;
-    }
-    list.innerHTML = data.items.map(n => `
-      <a href="/notifications/${n.id}/read" onclick="event.preventDefault(); openNotif(${n.id}, ${JSON.stringify(n.link_url || '')})"
-         class="block p-3 hover:bg-slate-50 ${n.is_read ? '' : 'bg-emerald-50/40 border-r-2 border-emerald-500'}">
-        <div class="font-semibold text-xs text-navy-900 truncate">${escapeHtml(n.title)}</div>
-        ${n.body ? `<div class="text-[11px] text-slate-600 mt-1 line-clamp-2">${escapeHtml(n.body)}</div>` : ''}
-        <div class="text-[10px] text-slate-400 font-mono mt-1">${n.created_at}</div>
-      </a>
-    `).join('');
-  } catch (e) {
-    list.innerHTML = '<div class="p-4 text-xs text-rose-500 text-center">تعذّر تحميل الإشعارات.</div>';
-  }
-}
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-function toggleNotifBell(ev) {
-  ev.stopPropagation();
-  const dd = document.getElementById('notif-dropdown');
-  if (!dd) return;
-  const wasHidden = dd.classList.contains('hidden');
-  dd.classList.toggle('hidden');
-  if (wasHidden) loadNotifDropdown();
-}
-async function openNotif(id, link) {
-  try {
-    await fetch(`/notifications/${id}/read`, {
-      method: 'POST',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    });
-  } catch (e) { /* ignore */ }
-  window.location.href = link || "{{ url_for('notifications.index') }}";
-}
-async function markAllNotifRead(ev) {
-  ev.stopPropagation();
-  try {
-    await fetch("{{ url_for('notifications.read_all') }}", {
-      method: 'POST',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    });
-    loadNotifDropdown();
-  } catch (e) { /* ignore */ }
-}
-document.addEventListener('click', (e) => {
-  const wrap = document.getElementById('notif-bell-wrap');
-  const dd = document.getElementById('notif-dropdown');
-  if (wrap && dd && !wrap.contains(e.target)) dd.classList.add('hidden');
-});
 </script>
 {% else %}
   {% block guest_content %}{% endblock %}

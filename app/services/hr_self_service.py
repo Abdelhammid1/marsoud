@@ -19,7 +19,7 @@ from flask import current_app, url_for
 
 from app import db
 from app.models import (
-    User, UserStatus, Employee, EmployeeHistory, EmployeeChangeType,
+    User, Employee, EmployeeHistory, EmployeeChangeType,
     Invitation, Role,
 )
 from app.models.user import user_companies
@@ -55,7 +55,6 @@ def ensure_user_for_employee(employee, *, actor_id=None):
     user = User(
         email=email,
         full_name=employee.name or email.split("@", 1)[0],
-        status=UserStatus.PENDING.value,
         is_active=False,
         employee_id=employee.id,
     )
@@ -105,13 +104,13 @@ def activate_user(user, *, company_id, actor_id=None):
     email or flash the URL to the OWNER in dev. Idempotent — re-activating
     just rotates the token.
     """
-    if user.status == UserStatus.DISABLED.value:
+    if user.is_active == False:
         # Re-enable: explicit step, but allowed.
-        user.status = UserStatus.ACTIVE.value
-    elif user.status == UserStatus.ACTIVE.value:
+        user.is_active = True
+    elif user.is_active == True:
         pass  # nothing to do, but still rotate token below
     else:
-        user.status = UserStatus.ACTIVE.value
+        user.is_active = True
 
     user.is_active = True
 
@@ -138,7 +137,7 @@ def activate_user(user, *, company_id, actor_id=None):
 
 
 def disable_user(user):
-    user.status = UserStatus.DISABLED.value
+    user.is_active = False
     user.is_active = False
     db.session.commit()
 

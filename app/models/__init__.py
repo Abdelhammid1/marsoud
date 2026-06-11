@@ -1,4 +1,4 @@
-from app.models.user import User, user_companies, UserStatus
+from app.models.user import User, user_companies
 from app.models.company import Company
 from app.models.account import Account, AccountType, NormalSide
 from app.models.journal import JournalEntry, JournalLine
