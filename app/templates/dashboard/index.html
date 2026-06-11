@@ -3,14 +3,22 @@
 {% block page_title %}لوحة التحكم{% endblock %}
 {% block content %}
 
-<!-- Hero -->
+<!-- Hero — MARSOUD-32: hide the financial number from users without
+     reports.view (e.g. sales reps + clones of sales rep). -->
 <div class="card p-6 mb-6 bg-gradient-to-br from-emerald-800 to-emerald-600 text-white border-0">
   <div class="flex items-center justify-between">
     <div>
       <div class="text-sm text-navy-200 mb-1">{{ active_company.name }}</div>
-      <h2 class="text-2xl font-bold mb-1">نظرة 360° على وضعك المالي</h2>
-      <p class="text-navy-200 text-sm">جميع البيانات محدّثة لحظياً مع كل قيد محاسبي</p>
+      <h2 class="text-2xl font-bold mb-1">
+        {% if has_permission('reports.view') %}نظرة 360° على وضعك المالي
+        {% else %}مرحباً بك في {{ active_company.name }}{% endif %}
+      </h2>
+      <p class="text-navy-200 text-sm">
+        {% if has_permission('reports.view') %}جميع البيانات محدّثة لحظياً مع كل قيد محاسبي
+        {% else %}اختر من القائمة الجانبية للبدء.{% endif %}
+      </p>
     </div>
+    {% if has_permission('reports.view') %}
     <div class="text-right">
       <div class="text-xs text-navy-200">صافي الربح</div>
       <div class="text-3xl font-bold {% if metrics.net_profit >= 0 %}text-emerald-300{% else %}text-red-300{% endif %}">
@@ -18,10 +26,12 @@
         <span class="text-sm font-normal text-navy-200">{{ active_company.base_currency }}</span>
       </div>
     </div>
+    {% endif %}
   </div>
 </div>
 
-<!-- KPI cards -->
+<!-- KPI cards — financial overview, gated by reports.view -->
+{% if has_permission('reports.view') %}
 <div class="grid grid-cols-4 gap-4 mb-6">
   {% set kpis = [
     ('إجمالي الإيرادات', metrics.total_revenue, '#2563EB', '📈'),
@@ -40,8 +50,10 @@
   </div>
   {% endfor %}
 </div>
+{% endif %}
 
-<!-- Charts + actions row -->
+<!-- Charts + actions row — financial chart also gated by reports.view -->
+{% if has_permission('reports.view') %}
 <div class="grid grid-cols-3 gap-4 mb-6">
   <div class="card p-6 col-span-2">
     <div class="flex items-center justify-between mb-4">
@@ -89,32 +101,45 @@
     </div>
   </div>
 </div>
+{% endif %}
 
-<!-- Quick actions -->
+<!-- Quick actions — also gated, since each link requires its own permission anyway -->
+{% if has_permission('invoices.create') or has_permission('journals.create') or has_permission('partners.manage') or has_permission('reports.view') %}
 <div class="card p-6">
   <h3 class="font-bold text-navy-900 mb-4">إجراءات سريعة</h3>
   <div class="grid grid-cols-4 gap-3">
+    {% if has_permission('invoices.create') %}
     <a href="{{ url_for('invoices.new') }}" class="flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 to-green-50 hover:from-emerald-100 hover:to-green-100 rounded-xl p-5 border border-emerald-100 transition-all hover:scale-[1.02]">
       <div class="text-3xl mb-2">🧾</div>
       <div class="font-semibold text-navy-900">فاتورة جديدة</div>
     </a>
+    {% endif %}
+    {% if has_permission('journals.create') %}
     <a href="{{ url_for('journals.new') }}" class="flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 to-green-50 hover:from-emerald-100 hover:to-green-100 rounded-xl p-5 border border-emerald-100 transition-all hover:scale-[1.02]">
       <div class="text-3xl mb-2">📒</div>
       <div class="font-semibold text-navy-900">قيد محاسبي</div>
     </a>
+    {% endif %}
+    {% if has_permission('partners.manage') %}
     <a href="{{ url_for('customers.new') }}" class="flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 to-green-50 hover:from-emerald-100 hover:to-green-100 rounded-xl p-5 border border-emerald-100 transition-all hover:scale-[1.02]">
       <div class="text-3xl mb-2">👤</div>
       <div class="font-semibold text-navy-900">عميل جديد</div>
     </a>
+    {% endif %}
+    {% if has_permission('reports.view') %}
     <a href="{{ url_for('reports.balance') }}" class="flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 to-green-50 hover:from-emerald-100 hover:to-green-100 rounded-xl p-5 border border-emerald-100 transition-all hover:scale-[1.02]">
       <div class="text-3xl mb-2">📊</div>
       <div class="font-semibold text-navy-900">الميزانية</div>
     </a>
+    {% endif %}
   </div>
 </div>
+{% endif %}
 
 <script>
-const ctx = document.getElementById('revenueChart').getContext('2d');
+const _chartEl = document.getElementById('revenueChart');
+if (_chartEl) {
+const ctx = _chartEl.getContext('2d');
 new Chart(ctx, {
   type: 'bar',
   data: {
@@ -134,5 +159,6 @@ new Chart(ctx, {
     }
   }
 });
+}
 </script>
 {% endblock %}

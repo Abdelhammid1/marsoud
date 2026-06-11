@@ -261,26 +261,70 @@ tailwind.config = {
         ] %}
       {% endif %}
 
+      {# MARSOUD-32 — each sidebar endpoint maps to the permission code
+         required to access it. If `None`, anyone with login can see it.
+         Owners have every permission so see everything. Custom roles
+         (cloned from sales_rep etc.) only see the links their granted
+         permissions cover, instead of falling through to the full owner
+         sidebar. #}
+      {% set permission_map = {
+        'dashboard.index': None,
+        'accounts.index': 'accounts.manage',
+        'journals.index': 'journals.create',
+        'invoices.index': 'invoices.create',
+        'vendor_bills.index': 'vendor_bills.create',
+        'payment_methods.index': 'payment_methods.manage',
+        'products.index': 'products.manage',
+        'customers.index': 'partners.manage',
+        'leads.index': 'leads.view',
+        'vendors.index': 'partners.manage',
+        'projects.index': 'projects.view',
+        'tasks.index': 'tasks.view',
+        'calendar.index': None,
+        'assets.index': 'assets.manage',
+        'inventory.index': 'inventory.view',
+        'inventory.transfers': 'transfers.view',
+        'inventory.inventory_balance': 'inventory.view',
+        'pos.index': 'pos.use',
+        'pos.shifts': 'shifts.manage',
+        'reports.cashier_sales': 'reports.cashier_sales',
+        'reports.profitability': 'reports.profitability',
+        'reports.index': 'reports.view',
+        'audit_log.index': 'users.view',
+        'hr.index': 'hr.manage',
+        'payroll.index': 'payroll.view',
+        'agent.index': 'agent.use',
+      } %}
+
       {# Flat list for the non-owner roles. #}
       {% if sections is not defined %}
       {% for endpoint, label, icon in links %}
+      {% set req = permission_map.get(endpoint) %}
+      {% if not req or has_permission(req) %}
       {% set is_active = request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
       <a href="{{ url_for(endpoint) }}"
          class="nav-link flex items-center gap-3 px-5 py-2.5 text-sm hover:bg-emerald-50 transition-colors {% if is_active %}active{% endif %}">
         <span class="text-base">{{ icon }}</span>
         <span>{{ label }}</span>
       </a>
+      {% endif %}
       {% endfor %}
       {% else %}
-      {# Sectioned layout for owner/admin/accountant/viewer. Each section
-         renders only if at least one link inside is endpoint-resolvable. #}
+      {# Sectioned layout for owner/admin/accountant/viewer/custom. Each
+         link is filtered by its required permission; sections with NO
+         visible links are skipped entirely. #}
       {% for section_title, section_icon, section_links in sections %}
-        {% set ns = namespace(active=false) %}
+        {% set ns = namespace(active=false, visible=[]) %}
         {% for endpoint, label, icon in section_links %}
-          {% if request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
-            {% set ns.active = true %}
+          {% set req = permission_map.get(endpoint) %}
+          {% if not req or has_permission(req) %}
+            {% set _ = ns.visible.append((endpoint, label, icon)) %}
+            {% if request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
+              {% set ns.active = true %}
+            {% endif %}
           {% endif %}
         {% endfor %}
+        {% if ns.visible %}
         <div class="sidebar-section" data-section="{{ section_title }}">
           <button type="button"
                   class="section-toggle w-full flex items-center justify-between px-5 py-2.5 text-[13px] font-bold text-navy-900 hover:bg-emerald-50/60 transition-all"
@@ -292,7 +336,7 @@ tailwind.config = {
             <span class="section-chevron text-[10px] text-slate-400 transition-transform duration-200">▼</span>
           </button>
           <div class="section-body {% if not ns.active %}section-collapsed{% endif %}">
-          {% for endpoint, label, icon in section_links %}
+          {% for endpoint, label, icon in ns.visible %}
           {% set is_active = request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
           <a href="{{ url_for(endpoint) }}"
              class="nav-link flex items-center gap-3 pr-9 pl-5 py-2 text-sm text-slate-600 hover:bg-emerald-50/40 transition-colors {% if is_active %}active{% endif %}">
@@ -302,6 +346,7 @@ tailwind.config = {
           {% endfor %}
           </div>
         </div>
+        {% endif %}
       {% endfor %}
       {% endif %}
       {% if current_role in ('owner', 'admin') %}
