@@ -96,6 +96,35 @@
     </div>
     {% endif %}
 
+    {% if company %}
+    <div class="border border-slate-200 rounded-lg p-4">
+      <h3 class="font-bold text-navy-900 mb-3">📦 إعدادات المخزون والبيع</h3>
+
+      <label class="flex items-center gap-2 mb-3">
+        <input type="checkbox" name="stock_strict_mode"
+               {% if company.stock_strict_mode %}checked{% endif %}>
+        <span class="text-sm">رفض البيع لو الكمية مش متاحة (Strict mode)</span>
+      </label>
+
+      <label class="flex items-center gap-2 mb-3">
+        <input type="checkbox" name="shift_required_for_pos"
+               {% if company.shift_required_for_pos %}checked{% endif %}>
+        <span class="text-sm">يستلزم فتح وردية قبل استخدام نقطة البيع</span>
+      </label>
+
+      <div class="mt-3">
+        <label class="block text-sm font-semibold text-slate-700 mb-1">طريقة تقييم تكلفة المخزون</label>
+        <select name="cost_method" class="select text-sm">
+          <option value="AVERAGE" {% if company.cost_method == 'AVERAGE' %}selected{% endif %}>متوسط مرجّح (Weighted Average) — الافتراضي</option>
+          <option value="FIFO" {% if company.cost_method == 'FIFO' %}selected{% endif %}>وارد أولاً صادر أولاً (FIFO)</option>
+        </select>
+        <p class="text-xs text-slate-500 mt-1">
+          ⚠ بعد التفعيل بـ FIFO، البيوعات اللاحقة تستخدم تكلفة أقدم الأصناف أولاً. التكلفة الموجودة على فواتير قديمة لا تتغيّر.
+        </p>
+      </div>
+    </div>
+    {% endif %}
+
     <div class="flex justify-end gap-2 pt-2">
       <a href="{{ url_for('companies.index') }}" class="btn-secondary">إلغاء</a>
       <button type="submit" class="btn-primary">{% if company %}حفظ التغييرات{% else %}إنشاء وتهيئة شجرة الحسابات{% endif %}</button>

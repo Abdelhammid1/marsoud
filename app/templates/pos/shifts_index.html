@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block page_title %}الورديات{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-3">
+  <div>
+    <h2 class="font-bold text-navy-900">⏰ ورديات الكاشير</h2>
+    <p class="text-xs text-slate-500">سجل الورديات + الفرق بين النقدية المتوقعة والفعلية.</p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('pos.shift_open_form') }}" class="btn-primary text-sm">+ فتح وردية</a>
+    {% if has_permission('users.view') %}
+      {% if show_all %}<a href="{{ url_for('pos.shifts') }}" class="btn-secondary text-sm">ورديتي فقط</a>
+      {% else %}<a href="{{ url_for('pos.shifts', all=1) }}" class="btn-secondary text-sm">عرض الكل</a>{% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<div class="card p-4">
+  {% if shifts %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>الكاشير</th>
+        <th>فتحت</th>
+        <th>أُغلقت</th>
+        <th class="text-end">الافتتاحي</th>
+        <th class="text-end">المتوقع</th>
+        <th class="text-end">الفعلي</th>
+        <th class="text-end">الفرق</th>
+        <th>الحالة</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in shifts %}
+      <tr>
+        <td class="font-mono"><a href="{{ url_for('pos.shift_detail', shift_id=s.id) }}" class="text-emerald-600 hover:underline">{{ s.id }}</a></td>
+        <td class="text-xs">{{ s.cashier.full_name if s.cashier else '—' }}</td>
+        <td class="text-xs font-mono">{{ s.opened_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td class="text-xs font-mono">{{ s.closed_at.strftime('%Y-%m-%d %H:%M') if s.closed_at else '—' }}</td>
+        <td class="text-end font-mono">{{ '%.2f'|format(s.opening_cash) }}</td>
+        <td class="text-end font-mono">{{ '%.2f'|format(s.expected_cash) if s.expected_cash is not none else '—' }}</td>
+        <td class="text-end font-mono">{{ '%.2f'|format(s.closing_cash) if s.closing_cash is not none else '—' }}</td>
+        <td class="text-end font-mono {% if s.variance and s.variance != 0 %}{% if s.variance > 0 %}text-emerald-700{% else %}text-rose-600{% endif %} font-bold{% endif %}">{{ '%+.2f'|format(s.variance) if s.variance is not none else '—' }}</td>
+        <td>
+          {% if s.is_open %}<span class="badge badge-sent">مفتوحة</span>
+          {% else %}<span class="badge badge-paid">مقفلة</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-sm text-slate-400 text-center py-8">لا توجد ورديات بعد.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

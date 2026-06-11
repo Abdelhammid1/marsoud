@@ -40,12 +40,28 @@ def accept(token):
     email = payload["email"]
     company_id = payload["company_id"]
     role = payload["role"]
+    kind = payload.get("kind")    # HR-SS — "activation" means set a fresh password
 
     existing_user = User.query.filter_by(email=email).first()
     company = db.session.get(Company, company_id)
 
     if request.method == "POST":
-        if existing_user:
+        if existing_user and kind == "activation":
+            # HR-SS: PENDING employee setting their first password.
+            password = request.form.get("password", "")
+            if len(password) < 6:
+                flash("كلمة المرور (6 أحرف على الأقل) مطلوبة", "error")
+                return render_template(
+                    "invitations/accept.html",
+                    invitation=invitation, company=company,
+                    existing_user=existing_user, activation=True,
+                )
+            existing_user.set_password(password)
+            from app.models import UserStatus
+            existing_user.status = UserStatus.ACTIVE.value
+            existing_user.is_active = True
+            user = existing_user
+        elif existing_user:
             # Existing user must authenticate
             password = request.form.get("password", "")
             if not existing_user.check_password(password):
@@ -105,4 +121,5 @@ def accept(token):
         "invitations/accept.html",
         invitation=invitation, company=company,
         existing_user=existing_user,
+        activation=(kind == "activation"),
     )

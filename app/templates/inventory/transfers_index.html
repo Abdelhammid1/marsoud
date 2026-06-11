@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block page_title %}تحويلات المخازن{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-3">
+  <div>
+    <h2 class="font-bold text-navy-900">🔁 تحويلات المخازن</h2>
+    <p class="text-xs text-slate-500">تحويل بضاعة بين مخازن — بدون قيد محاسبي (القيمة لا تتغيّر).</p>
+  </div>
+  {% if has_permission('transfers.manage') %}
+  <a href="{{ url_for('inventory.transfer_new') }}" class="btn-primary text-sm">+ تحويل جديد</a>
+  {% endif %}
+</div>
+
+<div class="card p-4">
+  {% if transfers %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>الرقم</th>
+        <th>التاريخ</th>
+        <th>من</th>
+        <th>إلى</th>
+        <th class="text-end">كمية</th>
+        <th>الحالة</th>
+        <th>منفّذ</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in transfers %}
+      <tr>
+        <td class="font-mono font-semibold">
+          <a href="{{ url_for('inventory.transfer_detail', transfer_id=t.id) }}" class="text-emerald-600 hover:underline">{{ t.number }}</a>
+        </td>
+        <td class="text-xs font-mono">{{ t.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td class="text-xs">{{ t.from_warehouse.code }}</td>
+        <td class="text-xs">{{ t.to_warehouse.code }}</td>
+        <td class="text-end font-mono">{{ '%.2f'|format(t.total_qty) }}</td>
+        <td>
+          {% set st = t.status_enum %}
+          {% if st and st.value == 'POSTED' %}<span class="badge badge-paid">{{ st.label_ar }}</span>
+          {% elif st and st.value == 'CANCELLED' %}<span class="badge badge-cancelled">{{ st.label_ar }}</span>
+          {% else %}<span class="badge badge-draft">{{ st.label_ar if st else t.status }}</span>{% endif %}
+        </td>
+        <td class="text-xs">{{ t.posted_by.full_name if t.posted_by else (t.created_by.full_name if t.created_by else '—') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-sm text-slate-400 text-center py-8">لا توجد تحويلات بعد.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

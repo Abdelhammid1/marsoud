@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block page_title %}مبيعات الكاشير{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+  <h2 class="font-bold text-navy-900">🧑‍💼 مبيعات الكاشير</h2>
+  <div class="flex items-end gap-2 flex-wrap">
+    <form method="GET" class="flex items-end gap-2">
+      <div>
+        <label class="block text-xs mb-1">من</label>
+        <input type="date" name="start_date" value="{{ start_date.isoformat() }}" class="input text-sm">
+      </div>
+      <div>
+        <label class="block text-xs mb-1">إلى</label>
+        <input type="date" name="end_date" value="{{ end_date.isoformat() }}" class="input text-sm">
+      </div>
+      <button type="submit" class="btn-primary text-sm">تطبيق</button>
+    </form>
+    <a href="{{ url_for('reports.export', report_type='cashier-sales', fmt='excel', start_date=start_date.isoformat(), end_date=end_date.isoformat()) }}"
+       class="btn-secondary text-sm">⬇ Excel</a>
+    <a href="{{ url_for('reports.export', report_type='cashier-sales', fmt='pdf', start_date=start_date.isoformat(), end_date=end_date.isoformat()) }}"
+       class="btn-secondary text-sm">⬇ PDF</a>
+  </div>
+</div>
+
+<div class="card p-4">
+  {% if rows %}
+  {% for r in rows %}
+  <div class="border-b border-slate-100 last:border-0 py-4">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="font-bold text-navy-900">{{ r.cashier.full_name if r.cashier else 'بدون كاشير' }}</h3>
+      <div class="text-sm text-slate-500">{{ r.orders }} أوردر{% if r.voids %} · <span class="text-rose-600">{{ r.voids }} ملغى</span>{% endif %}</div>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div class="bg-slate-50 rounded p-3">
+        <div class="text-xs text-slate-500">الإجمالي</div>
+        <div class="text-xl font-bold font-mono text-emerald-700">{{ '%.2f'|format(r.gross) }}</div>
+      </div>
+      <div class="bg-slate-50 rounded p-3">
+        <div class="text-xs text-slate-500">صافي بعد الملغى</div>
+        <div class="text-xl font-bold font-mono text-navy-900">{{ '%.2f'|format(r.net) }}</div>
+      </div>
+      <div class="bg-emerald-50 rounded p-3">
+        <div class="text-xs text-slate-500 mb-1">حسب طريقة الدفع</div>
+        {% if r.by_method %}
+          {% for mname, amt in r.by_method.items() %}
+          <div class="flex justify-between text-sm">
+            <span>{{ mname }}</span><span class="font-mono">{{ '%.2f'|format(amt) }}</span>
+          </div>
+          {% endfor %}
+        {% else %}
+        <div class="text-xs text-slate-400">—</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="text-sm text-slate-400 text-center py-8">لا توجد أوردرات POS في هذه الفترة.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,105 @@
+{# Standalone receipt — does NOT extend base.html so we get a clean
+   80mm-thermal-friendly print surface. #}
+<!doctype html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="utf-8">
+  <title>إيصال {{ invoice.number }}</title>
+  <style>
+    body { font-family: 'Cairo', system-ui, sans-serif; background: #f5f5f5; }
+    .receipt {
+      width: 80mm; max-width: 80mm; min-height: 100mm;
+      background: #fff; margin: 1rem auto; padding: 0.75rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      font-size: 12px; color: #111;
+    }
+    .center { text-align: center; }
+    .row { display: flex; justify-content: space-between; padding: 2px 0; }
+    .row.b { border-top: 1px dashed #999; padding-top: 4px; margin-top: 4px; }
+    .h1 { font-size: 14px; font-weight: bold; }
+    .muted { color: #666; font-size: 10px; }
+    .right { text-align: end; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 2px 0; text-align: start; font-size: 11px; }
+    th { border-bottom: 1px solid #ccc; }
+    .mono { font-family: ui-monospace, monospace; }
+    .total { font-size: 13px; font-weight: bold; }
+    .footer-bar {
+      width: 80mm; margin: 0.5rem auto; text-align: center;
+    }
+    .footer-bar button {
+      background: #059669; color: #fff; border: 0; padding: 8px 24px;
+      border-radius: 8px; font-weight: bold; cursor: pointer; margin: 4px;
+    }
+    .footer-bar a { color: #059669; text-decoration: none; margin: 0 8px; }
+
+    @media print {
+      body { background: #fff; }
+      .footer-bar { display: none; }
+      .receipt { box-shadow: none; margin: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="receipt">
+  <div class="center">
+    <div class="h1">{{ company.name }}</div>
+    {% if company.address %}<div class="muted">{{ company.address }}</div>{% endif %}
+    {% if company.tax_number %}<div class="muted">VAT: {{ company.tax_number }}</div>{% endif %}
+    <div class="muted">────────────────</div>
+    <div><strong>إيصال {{ invoice.number }}</strong></div>
+    <div class="muted mono">{{ invoice.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+    {% if invoice.cashier %}<div class="muted">الكاشير: {{ invoice.cashier.full_name }}</div>{% endif %}
+    {% if invoice.customer %}<div>العميل: {{ invoice.customer.name }}</div>
+    {% else %}<div class="muted">— زبون نقدي —</div>{% endif %}
+  </div>
+
+  <table style="margin-top:8px;">
+    <thead>
+      <tr><th>الصنف</th><th class="right">الكمية</th><th class="right">السعر</th><th class="right">الإجمالي</th></tr>
+    </thead>
+    <tbody>
+      {% for it in invoice.items %}
+      <tr>
+        <td>{{ it.description }}</td>
+        <td class="right mono">{{ '%.0f'|format(it.quantity) }}</td>
+        <td class="right mono">{{ '%.2f'|format(it.unit_price) }}</td>
+        <td class="right mono">{{ '%.2f'|format(it.line_total) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="row b"><span>قبل الضريبة</span><span class="mono">{{ '%.2f'|format(invoice.taxable_base) }}</span></div>
+  {% if invoice.invoice_discount_amount and invoice.invoice_discount_amount > 0 %}
+  <div class="row"><span>خصم</span><span class="mono">-{{ '%.2f'|format(invoice.invoice_discount_amount) }}</span></div>
+  {% endif %}
+  <div class="row"><span>الضريبة ({{ invoice.tax_rate }}%)</span><span class="mono">{{ '%.2f'|format(invoice.tax_amount) }}</span></div>
+  <div class="row total"><span>الإجمالي</span><span class="mono">{{ '%.2f'|format(invoice.total) }}</span></div>
+
+  {% if invoice.cash_received is not none %}
+  <div class="row"><span>المستلم</span><span class="mono">{{ '%.2f'|format(invoice.cash_received) }}</span></div>
+  <div class="row"><span>الباقي</span><span class="mono">{{ '%.2f'|format(invoice.change_due) }}</span></div>
+  {% endif %}
+
+  {% if invoice.is_voided %}
+  <div class="row" style="color:#dc2626; font-weight:bold; margin-top:8px;">
+    ⚠ ملغى — {{ invoice.voided_at.strftime('%Y-%m-%d %H:%M') }}
+  </div>
+  <div class="muted">السبب: {{ invoice.void_reason }}</div>
+  {% endif %}
+
+  <div class="center muted" style="margin-top:8px;">
+    شكراً لزيارتكم!
+  </div>
+</div>
+
+<div class="footer-bar">
+  <button onclick="window.print()">🖨 طباعة</button>
+  <a href="{{ url_for('pos.index') }}">← أوردر جديد</a>
+  <a href="{{ url_for('pos.detail', invoice_id=invoice.id) }}">تفاصيل</a>
+</div>
+
+</body>
+</html>

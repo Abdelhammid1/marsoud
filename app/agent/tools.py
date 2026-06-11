@@ -140,6 +140,88 @@ TOOL_SCHEMAS = [
             "required": ["concept"],
         },
     },
+    {
+        "name": "get_stock_level",
+        "description": "اعرف كام عندك من منتج معين دلوقتي — يرجع الأرصدة لكل مخزن والإجمالي.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "اسم المنتج أو SKU أو باركود"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "list_low_stock",
+        "description": "الأصناف اللي قاربت تخلص — الكمية الحالية أقل من حد الطلب.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "multiplier": {"type": "number", "description": "ضاعف حد الطلب (1.0 = العتبة الحقيقية، 2.0 = تحذير مبكر)"},
+            },
+        },
+    },
+    {
+        "name": "get_product_profitability",
+        "description": "كسبنا كام من منتج في فترة — مبيعات ناقص تكلفة البضاعة المباعة.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "اسم المنتج أو SKU"},
+                "from_date": {"type": "string", "description": "YYYY-MM-DD"},
+                "to_date": {"type": "string", "description": "YYYY-MM-DD"},
+            },
+            "required": ["query"],
+        },
+    },
+    {
+        "name": "get_cashier_sales",
+        "description": "مين باع إيه في يوم معين — إجمالي مبيعات كل كاشير وأوردراته.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "date": {"type": "string", "description": "YYYY-MM-DD (افتراضي اليوم)"},
+            },
+        },
+    },
+    {
+        "name": "get_top_products",
+        "description": "أحسن المنتجات مبيعاً في فترة.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "from_date": {"type": "string"},
+                "to_date": {"type": "string"},
+                "limit": {"type": "integer", "description": "افتراضي 10"},
+            },
+        },
+    },
+    {
+        "name": "get_open_shifts",
+        "description": "مين عنده وردية مفتوحة دلوقتي + الكاش المتوقع في كل درج.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_shift_summary",
+        "description": "ملخص وردية معينة — أوردرات، صافي، الكاش المتوقع، الفرق.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"shift_id": {"type": "integer"}},
+            "required": ["shift_id"],
+        },
+    },
+    {
+        "name": "transfer_history",
+        "description": "تاريخ تحويلات صنف بين المخازن.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "SKU أو اسم المنتج"},
+                "limit": {"type": "integer", "description": "افتراضي 20"},
+            },
+            "required": ["query"],
+        },
+    },
 ]
 
 
@@ -299,6 +381,233 @@ def execute_tool(name, args, company_id, user_id):
         if name == "explain_concept":
             # The agent itself does the explaining; this just confirms which concept.
             return {"concept": args["concept"], "instruction": "اشرح هذا المفهوم بالعربية بشكل مبسط وعملي"}
+
+        if name == "get_stock_level":
+            from app.models import ProductVariant
+            from app.services.inventory import find_variant_by_barcode
+            q = (args.get("query") or "").strip()
+            v = find_variant_by_barcode(company_id, q)
+            if not v:
+                v = ProductVariant.query.filter(
+                    ProductVariant.company_id == company_id,
+                    db.or_(ProductVariant.sku == q,
+                           ProductVariant.sku.ilike(f"%{q}%")),
+                ).first()
+            if not v:
+                # Fall back to product name
+                from app.models import Product
+                p = Product.query.filter(
+                    Product.company_id == company_id,
+                    Product.name.ilike(f"%{q}%"),
+                ).first()
+                if p:
+                    v = p.default_variant
+            if not v:
+                return {"error": f"لم يُعثر على صنف بـ '{q}'"}
+            from app.models import StockBalance
+            balances = StockBalance.query.filter_by(variant_id=v.id).all()
+            return {
+                "sku": v.sku,
+                "name": v.display_name,
+                "total_qty": v.total_qty,
+                "total_value": v.total_value,
+                "average_cost": v.average_cost,
+                "by_warehouse": [
+                    {"warehouse": b.warehouse.code, "qty": float(b.qty),
+                     "value": float(b.value)}
+                    for b in balances
+                ],
+            }
+
+        if name == "list_low_stock":
+            from app.services.inventory import low_stock_variants
+            mult = float(args.get("multiplier") or 1.0)
+            rows = low_stock_variants(company_id, mult)
+            return {
+                "count": len(rows),
+                "items": [{
+                    "sku": v.sku, "name": v.display_name,
+                    "current": v.total_qty,
+                    "reorder_level": float(v.reorder_level or 0),
+                } for v in rows],
+            }
+
+        if name == "get_product_profitability":
+            from app.models import (
+                ProductVariant, Invoice, InvoiceItem, InvoiceStatus,
+            )
+            q = (args.get("query") or "").strip()
+            v = ProductVariant.query.filter(
+                ProductVariant.company_id == company_id,
+                db.or_(ProductVariant.sku == q,
+                       ProductVariant.sku.ilike(f"%{q}%")),
+            ).first()
+            if not v:
+                from app.models import Product
+                p = Product.query.filter(
+                    Product.company_id == company_id,
+                    Product.name.ilike(f"%{q}%"),
+                ).first()
+                if p:
+                    v = p.default_variant
+            if not v:
+                return {"error": f"لم يُعثر على صنف بـ '{q}'"}
+            start = _parse_date(args.get("from_date"),
+                                date.today().replace(day=1))
+            end = _parse_date(args.get("to_date"), date.today())
+            rows = (
+                db.session.query(InvoiceItem, Invoice)
+                .join(Invoice, InvoiceItem.invoice_id == Invoice.id)
+                .filter(Invoice.company_id == company_id,
+                        InvoiceItem.variant_id == v.id,
+                        Invoice.issue_date >= start,
+                        Invoice.issue_date <= end,
+                        Invoice.status != InvoiceStatus.DRAFT)
+                .all()
+            )
+            qty_sold = sum(float(it.quantity or 0) for it, _ in rows)
+            revenue = sum(float(it.line_total or 0) for it, _ in rows)
+            cogs = sum(float(it.quantity or 0) * float(it.unit_cost_at_sale or 0)
+                       for it, _ in rows)
+            profit = revenue - cogs
+            margin = (profit / revenue * 100) if revenue > 0 else 0
+            return {
+                "sku": v.sku, "name": v.display_name,
+                "from": start.isoformat(), "to": end.isoformat(),
+                "qty_sold": qty_sold, "revenue": revenue,
+                "cogs": cogs, "gross_profit": profit,
+                "gross_margin_pct": round(margin, 2),
+            }
+
+        if name == "get_cashier_sales":
+            from app.models import Invoice, InvoiceStatus, User
+            day = _parse_date(args.get("date"), date.today())
+            rows = Invoice.query.filter(
+                Invoice.company_id == company_id,
+                Invoice.source == "POS",
+                Invoice.issue_date == day,
+            ).all()
+            agg = {}
+            for inv in rows:
+                cid_key = inv.cashier_id or 0
+                a = agg.setdefault(cid_key, {
+                    "cashier": inv.cashier.full_name if inv.cashier else "—",
+                    "orders": 0, "voids": 0, "gross": 0,
+                })
+                a["orders"] += 1
+                if inv.is_voided:
+                    a["voids"] += 1
+                else:
+                    a["gross"] += float(inv.total or 0)
+            return {
+                "date": day.isoformat(),
+                "cashiers": list(agg.values()),
+            }
+
+        if name == "get_open_shifts":
+            from app.models import CashierShift
+            from app.services.pos_shifts import _expected_cash_for
+            open_shifts = CashierShift.query.filter_by(
+                company_id=company_id, status="OPEN",
+            ).all()
+            return {"shifts": [{
+                "id": s.id,
+                "cashier": s.cashier.full_name if s.cashier else "—",
+                "opened_at": s.opened_at.isoformat(),
+                "opening_cash": float(s.opening_cash or 0),
+                "expected_cash": _expected_cash_for(s),
+            } for s in open_shifts]}
+
+        if name == "get_shift_summary":
+            from app.models import CashierShift
+            from app.services.pos_shifts import shift_summary, _expected_cash_for
+            s = db.session.get(CashierShift, args["shift_id"])
+            if not s or s.company_id != company_id:
+                return {"error": "الوردية غير موجودة"}
+            summary = shift_summary(s)
+            return {
+                "shift_id": s.id,
+                "cashier": s.cashier.full_name if s.cashier else "—",
+                "status": s.status,
+                "opening_cash": float(s.opening_cash or 0),
+                "expected_cash": float(s.expected_cash or _expected_cash_for(s)),
+                "closing_cash": float(s.closing_cash) if s.closing_cash is not None else None,
+                "variance": float(s.variance) if s.variance is not None else None,
+                **summary,
+            }
+
+        if name == "transfer_history":
+            from app.models import (
+                StockTransfer, StockTransferItem, ProductVariant, Product,
+            )
+            q = (args.get("query") or "").strip()
+            v = ProductVariant.query.filter(
+                ProductVariant.company_id == company_id,
+                ProductVariant.sku.ilike(f"%{q}%"),
+            ).first()
+            if not v:
+                p = Product.query.filter(
+                    Product.company_id == company_id,
+                    Product.name.ilike(f"%{q}%"),
+                ).first()
+                if p:
+                    v = p.default_variant
+            if not v:
+                return {"error": f"الصنف '{q}' غير موجود"}
+            limit = int(args.get("limit") or 20)
+            rows = (
+                db.session.query(StockTransfer, StockTransferItem)
+                .join(StockTransferItem,
+                      StockTransferItem.transfer_id == StockTransfer.id)
+                .filter(StockTransferItem.variant_id == v.id,
+                        StockTransfer.company_id == company_id)
+                .order_by(StockTransfer.created_at.desc())
+                .limit(limit).all()
+            )
+            return {
+                "sku": v.sku, "name": v.display_name,
+                "transfers": [{
+                    "number": t.number,
+                    "from": t.from_warehouse.code,
+                    "to": t.to_warehouse.code,
+                    "qty": float(it.qty or 0),
+                    "status": t.status,
+                    "date": t.created_at.isoformat(),
+                } for t, it in rows],
+            }
+
+        if name == "get_top_products":
+            from app.models import InvoiceItem, Invoice, InvoiceStatus
+            start = _parse_date(args.get("from_date"),
+                                date.today().replace(day=1))
+            end = _parse_date(args.get("to_date"), date.today())
+            limit = int(args.get("limit") or 10)
+            rows = (
+                db.session.query(InvoiceItem, Invoice)
+                .join(Invoice, InvoiceItem.invoice_id == Invoice.id)
+                .filter(Invoice.company_id == company_id,
+                        Invoice.issue_date >= start,
+                        Invoice.issue_date <= end,
+                        Invoice.status != InvoiceStatus.DRAFT,
+                        Invoice.status != InvoiceStatus.VOIDED,
+                        InvoiceItem.variant_id.isnot(None))
+                .all()
+            )
+            agg = {}
+            for item, inv in rows:
+                key = item.variant_id
+                a = agg.setdefault(key, {
+                    "sku": item.variant.sku if item.variant else "",
+                    "name": item.variant.display_name if item.variant else "",
+                    "qty": 0, "revenue": 0,
+                })
+                a["qty"] += float(item.quantity or 0)
+                a["revenue"] += float(item.line_total or 0)
+            top = sorted(agg.values(), key=lambda r: -r["revenue"])[:limit]
+            return {
+                "from": start.isoformat(), "to": end.isoformat(),
+                "items": top,
+            }
 
         return {"error": f"أداة غير معروفة: {name}"}
     except LedgerError as e:

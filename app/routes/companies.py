@@ -91,6 +91,12 @@ def new():
         ))
         db.session.commit()
         seed_default_coa(company.id)
+        # MARSOUD-32 — system roles + backfill the owner's user_companies row
+        try:
+            from app.services.roles_seed import ensure_roles_ready_for_company
+            ensure_roles_ready_for_company(company.id)
+        except Exception:
+            current_app.logger.exception("seed system roles failed")
         # HR-05 — every new company starts with the 4 default leave types
         try:
             from app.services.leave import seed_default_leave_types
@@ -134,6 +140,15 @@ def edit(company_id):
         company.tax_number = request.form.get("tax_number", company.tax_number)
         company.vat_rate = float(request.form.get("vat_rate", company.vat_rate))
         company.address = request.form.get("address", company.address)
+
+        # ERP-03 — inventory + POS toggles.
+        company.stock_strict_mode = request.form.get("stock_strict_mode") == "on"
+        company.shift_required_for_pos = (
+            request.form.get("shift_required_for_pos") == "on"
+        )
+        cm = (request.form.get("cost_method") or "AVERAGE").upper()
+        if cm in ("AVERAGE", "FIFO"):
+            company.cost_method = cm
 
         # Weekend config — checkbox group from the form
         if request.form.get("weekend_config_present") == "1":

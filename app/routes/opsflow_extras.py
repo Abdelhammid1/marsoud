@@ -131,6 +131,31 @@ def index():
     return render_template("notifications/index.html", notifications=notifs)
 
 
+@notifications_bp.route("/dropdown")
+@login_required
+def dropdown():
+    """JSON for the bell dropdown — last 10 + unread count."""
+    from flask import jsonify
+    rows = Notification.query.filter_by(
+        user_id=current_user.id,
+    ).order_by(Notification.created_at.desc()).limit(10).all()
+    unread = Notification.query.filter_by(
+        user_id=current_user.id, read_at=None,
+    ).count()
+    return jsonify({
+        "unread": unread,
+        "items": [{
+            "id": n.id,
+            "title": n.title,
+            "body": (n.body or "")[:120],
+            "kind": n.kind,
+            "link_url": n.link_url,
+            "is_read": n.is_read,
+            "created_at": n.created_at.strftime("%Y-%m-%d %H:%M"),
+        } for n in rows],
+    })
+
+
 @notifications_bp.route("/<int:n_id>/read", methods=["POST"])
 @login_required
 def read(n_id):
@@ -138,6 +163,9 @@ def read(n_id):
     if not n or n.user_id != current_user.id:
         abort(404)
     mark_notification_read(n)
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        from flask import jsonify
+        return jsonify({"ok": True})
     return redirect(n.link_url or url_for("notifications.index"))
 
 
@@ -148,6 +176,9 @@ def read_all():
         user_id=current_user.id, read_at=None,
     ).update({"read_at": datetime.utcnow()})
     db.session.commit()
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        from flask import jsonify
+        return jsonify({"ok": True})
     return redirect(url_for("notifications.index"))
 
 

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block page_title %}الأوردر {{ invoice.number }}{% endblock %}
+{% block content %}
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <div class="card p-6 md:col-span-2">
+    <div class="flex items-start justify-between gap-2 flex-wrap">
+      <div>
+        <h2 class="text-2xl font-bold text-navy-900">{{ invoice.number }}</h2>
+        <div class="text-sm text-slate-500 mt-1">
+          {{ invoice.created_at.strftime('%Y-%m-%d %H:%M') }}
+          · الكاشير: {{ invoice.cashier.full_name if invoice.cashier else '—' }}
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        {% if invoice.is_voided %}<span class="badge badge-cancelled">ملغى</span>
+        {% else %}<span class="badge badge-paid">مدفوع</span>{% endif %}
+        <a href="{{ url_for('pos.receipt', invoice_id=invoice.id) }}" target="_blank" class="btn-secondary text-sm">🧾 إيصال</a>
+      </div>
+    </div>
+
+    <div class="mt-4 text-sm">
+      <div><span class="text-slate-500">العميل:</span> {{ invoice.customer.name if invoice.customer else 'زبون نقدي' }}</div>
+    </div>
+
+    <table class="data-table mt-4">
+      <thead><tr><th>الصنف</th><th class="text-end">الكمية</th><th class="text-end">السعر</th><th class="text-end">الإجمالي</th></tr></thead>
+      <tbody>
+        {% for it in invoice.items %}
+        <tr>
+          <td>{{ it.description }}</td>
+          <td class="text-end font-mono">{{ '%.0f'|format(it.quantity) }}</td>
+          <td class="text-end font-mono">{{ '%.2f'|format(it.unit_price) }}</td>
+          <td class="text-end font-mono">{{ '%.2f'|format(it.line_total) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="mt-4 space-y-1 text-sm">
+      <div class="flex justify-between"><span>قبل الضريبة</span><span class="font-mono">{{ '%.2f'|format(invoice.taxable_base) }}</span></div>
+      <div class="flex justify-between"><span>الضريبة ({{ invoice.tax_rate }}%)</span><span class="font-mono">{{ '%.2f'|format(invoice.tax_amount) }}</span></div>
+      <div class="flex justify-between text-lg font-bold text-emerald-700"><span>الإجمالي</span><span class="font-mono">{{ '%.2f'|format(invoice.total) }}</span></div>
+      {% if invoice.cash_received is not none %}
+      <div class="flex justify-between text-xs text-slate-500"><span>المستلم</span><span class="font-mono">{{ '%.2f'|format(invoice.cash_received) }}</span></div>
+      <div class="flex justify-between text-xs text-slate-500"><span>الباقي</span><span class="font-mono">{{ '%.2f'|format(invoice.change_due) }}</span></div>
+      {% endif %}
+    </div>
+
+    {% if invoice.is_voided %}
+    <div class="bg-rose-50 border border-rose-200 rounded-lg p-3 text-sm mt-4">
+      <div class="font-bold text-rose-700">⚠ ملغى</div>
+      <div class="text-xs text-slate-600 mt-1">
+        {{ invoice.voided_at.strftime('%Y-%m-%d %H:%M') }}{% if invoice.voided_by %} بواسطة {{ invoice.voided_by.full_name }}{% endif %}
+      </div>
+      <div class="text-sm mt-1">السبب: {{ invoice.void_reason }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if can_void %}
+  <div class="card p-5">
+    <h3 class="font-bold text-rose-700 mb-2">❌ إلغاء الأوردر</h3>
+    <p class="text-xs text-slate-500 mb-3">
+      الإلغاء يعكس المخزون + يعكس القيود + يسجّل اسمك وسبب الإلغاء.
+    </p>
+    <form method="POST" action="{{ url_for('pos.void', invoice_id=invoice.id) }}"
+          onsubmit="return confirm('تأكيد إلغاء الأوردر؟ لا يمكن التراجع.');">
+      <textarea name="reason" rows="3" required minlength="3" placeholder="سبب الإلغاء (مطلوب)…" class="textarea text-sm mb-2"></textarea>
+      <button type="submit" class="btn-primary w-full" style="background:#dc2626;">إلغاء الأوردر</button>
+    </form>
+  </div>
+  {% elif not invoice.is_voided %}
+  <div class="card p-5">
+    <p class="text-xs text-slate-500">ليس لديك صلاحية إلغاء أوردرات POS.</p>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1,14 +1,39 @@
+import enum
 from datetime import datetime
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import db
 
 
+class UserStatus(str, enum.Enum):
+    """HR-SS — accounts auto-provisioned for employees start as PENDING
+    until OWNER activates them. DISABLED is a soft revoke."""
+    ACTIVE = "ACTIVE"
+    PENDING = "PENDING"
+    DISABLED = "DISABLED"
+
+    @property
+    def label_ar(self):
+        return {"ACTIVE": "نشط",
+                "PENDING": "قيد التفعيل",
+                "DISABLED": "معطّل"}[self.value]
+
+    @property
+    def badge_class(self):
+        return {"ACTIVE": "badge-paid",
+                "PENDING": "badge-sent",
+                "DISABLED": "badge-cancelled"}[self.value]
+
+
 user_companies = db.Table(
     "user_companies",
     db.Column("user_id", db.Integer, db.ForeignKey("users.id"), primary_key=True),
     db.Column("company_id", db.Integer, db.ForeignKey("companies.id"), primary_key=True),
+    # Legacy string column — kept for backward-compat. Reading still falls back
+    # to this when role_id is NULL. New writes set BOTH.
     db.Column("role", db.String(20), default="owner"),
+    # MARSOUD-32 — FK to the per-company Role row.
+    db.Column("role_id", db.Integer, nullable=True),
 )
 
 
@@ -25,6 +50,13 @@ class User(UserMixin, db.Model):
     # When this user is a client portal account, links them to a Customer row
     # in some company. Their role per-company will be "client".
     linked_customer_id = db.Column(db.Integer, db.ForeignKey("customers.id"), nullable=True)
+
+    # HR-SS: lifecycle state + link to the employee record (if any).
+    status = db.Column(db.String(20), default="ACTIVE", nullable=False)
+    employee_id = db.Column(db.Integer,
+                            db.ForeignKey("employees.id", ondelete="SET NULL"),
+                            nullable=True)
+
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     companies = db.relationship(
@@ -39,3 +71,18 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    @property
+    def status_enum(self):
+        try:
+            return UserStatus(self.status or "ACTIVE")
+        except ValueError:
+            return UserStatus.ACTIVE
+
+    @property
+    def is_pending(self):
+        return self.status == UserStatus.PENDING.value
+
+    @property
+    def is_disabled(self):
+        return self.status == UserStatus.DISABLED.value

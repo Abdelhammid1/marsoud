@@ -24,10 +24,16 @@
         <p class="text-xs text-slate-500 mt-1">يمكنك إنشاء مهمة بدون مشروع لمتابعة شخصية أو عمل لا يتبع لخطة محددة.</p>
       </div>
       <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">المُعيَّن إليه</label>
-        <select name="assigned_to_id" required class="select">
-          {% for u in users %}{% if u %}<option value="{{ u.id }}" {% if task and task.assigned_to_id == u.id %}selected{% endif %}>{{ u.full_name }}</option>{% endif %}{% endfor %}
-        </select>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">المكلَّفون (يمكن اختيار أكثر من واحد)</label>
+        <div class="bg-slate-50 rounded p-2 max-h-40 overflow-auto space-y-1 border border-slate-200">
+          {% for u in users %}{% if u %}
+          <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="assignee_ids" value="{{ u.id }}"
+                   {% if u.id in selected_assignee_ids %}checked{% elif not task and not selected_assignee_ids and u.id == current_user.id %}checked{% endif %}>
+            {{ u.full_name }}
+          </label>
+          {% endif %}{% endfor %}
+        </div>
       </div>
     </div>
     <div class="grid grid-cols-3 gap-4">

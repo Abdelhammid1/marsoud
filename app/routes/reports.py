@@ -149,9 +149,121 @@ def fixed_assets():
     return render_template("reports/fixed_assets.html", data=data)
 
 
+@bp.route("/profitability")
+@login_required
+def profitability():
+    """ERP-02 — per-product profit (revenue − COGS) over a date range.
+
+    Pulls InvoiceItem rows for non-voided invoices, sums revenue from
+    line_total and COGS from quantity × unit_cost_at_sale (frozen at
+    sale time). Groups by variant.
+    """
+    from app.services.permissions import has_permission
+    if not has_permission("reports.profitability"):
+        return redirect(url_for("reports.index"))
+    from app.models import InvoiceItem, Invoice, InvoiceStatus, ProductVariant
+    from app import db as _db
+    today = date.today()
+    start = _parse_date(request.args.get("start_date"), today.replace(day=1))
+    end = _parse_date(request.args.get("end_date"), today)
+    cid = g.active_company.id
+    rows = (
+        _db.session.query(InvoiceItem, Invoice)
+        .join(Invoice, InvoiceItem.invoice_id == Invoice.id)
+        .filter(Invoice.company_id == cid,
+                Invoice.issue_date >= start, Invoice.issue_date <= end,
+                Invoice.status != InvoiceStatus.DRAFT,
+                Invoice.status != InvoiceStatus.VOIDED,
+                InvoiceItem.variant_id.isnot(None))
+        .all()
+    )
+    agg = {}
+    for item, inv in rows:
+        v = item.variant
+        if not v:
+            continue
+        a = agg.setdefault(v.id, {
+            "sku": v.sku, "name": v.display_name,
+            "qty": 0, "revenue": 0, "cogs": 0,
+        })
+        a["qty"] += float(item.quantity or 0)
+        a["revenue"] += float(item.line_total or 0)
+        a["cogs"] += float(item.quantity or 0) * float(item.unit_cost_at_sale or 0)
+    rows_out = []
+    for v_id, r in agg.items():
+        gp = r["revenue"] - r["cogs"]
+        gm = (gp / r["revenue"] * 100) if r["revenue"] > 0 else 0
+        rows_out.append({**r, "gross_profit": gp, "gross_margin": gm})
+    rows_out.sort(key=lambda r: -r["gross_profit"])
+    totals = {
+        "qty": sum(r["qty"] for r in rows_out),
+        "revenue": sum(r["revenue"] for r in rows_out),
+        "cogs": sum(r["cogs"] for r in rows_out),
+        "gross_profit": sum(r["gross_profit"] for r in rows_out),
+    }
+    if totals["revenue"] > 0:
+        totals["gross_margin"] = totals["gross_profit"] / totals["revenue"] * 100
+    else:
+        totals["gross_margin"] = 0
+    return render_template("reports/profitability.html",
+                           rows=rows_out, totals=totals,
+                           start_date=start, end_date=end)
+
+
+@bp.route("/cashier-sales")
+@login_required
+def cashier_sales():
+    """ERP-02 — per-cashier sales totals + by-payment-method breakdown."""
+    from app.services.permissions import has_permission
+    if not has_permission("reports.cashier_sales"):
+        return redirect(url_for("reports.index"))
+    from app.models import Invoice, InvoiceStatus, Payment, PaymentMethod, User
+    from app import db as _db
+    today = date.today()
+    start = _parse_date(request.args.get("start_date"), today)
+    end = _parse_date(request.args.get("end_date"), today)
+    cid = g.active_company.id
+    pos_orders = Invoice.query.filter(
+        Invoice.company_id == cid,
+        Invoice.source == "POS",
+        Invoice.issue_date >= start,
+        Invoice.issue_date <= end,
+    ).all()
+
+    by_cashier = {}
+    for inv in pos_orders:
+        cid_key = inv.cashier_id or 0
+        row = by_cashier.setdefault(cid_key, {
+            "cashier": inv.cashier, "orders": 0, "voids": 0,
+            "gross": 0, "net": 0, "by_method": {},
+        })
+        row["orders"] += 1
+        if inv.is_voided:
+            row["voids"] += 1
+        else:
+            row["gross"] += float(inv.total or 0)
+            row["net"] += float(inv.total or 0)
+        # Payment method breakdown
+        for pay in inv.payments:
+            mname = pay.payment_method.name_ar if pay.payment_method else (pay.method or "غير محدد")
+            if inv.is_voided:
+                continue
+            row["by_method"][mname] = row["by_method"].get(mname, 0) + float(pay.amount or 0)
+    rows_out = sorted(by_cashier.values(), key=lambda r: -r["gross"])
+    return render_template("reports/cashier_sales.html",
+                           rows=rows_out, start_date=start, end_date=end)
+
+
 @bp.route("/<report_type>/export/<fmt>")
 @login_required
 def export(report_type, fmt):
+    # GAP-3: profitability + cashier-sales gated by their own permissions.
+    from app.services.permissions import has_permission
+    if report_type == "profitability" and not has_permission("reports.profitability"):
+        return redirect(url_for("reports.index"))
+    if report_type == "cashier-sales" and not has_permission("reports.cashier_sales"):
+        return redirect(url_for("reports.index"))
+
     from app.services.export import export_report
     today = date.today()
     start = _parse_date(request.args.get("start_date"), today.replace(day=1))

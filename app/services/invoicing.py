@@ -39,9 +39,10 @@ def post_invoice_to_ledger(invoice, created_by=None):
             "memo": "ضريبة قيمة مضافة",
         })
 
-    return post_journal(
+    customer_label = invoice.customer.name if invoice.customer else "زبون نقدي"
+    entry = post_journal(
         company_id=invoice.company_id,
-        description=f"فاتورة مبيعات #{invoice.number} — {invoice.customer.name}",
+        description=f"فاتورة مبيعات #{invoice.number} — {customer_label}",
         lines=lines,
         entry_date=invoice.issue_date,
         reference=f"INV-{invoice.number}",
@@ -50,6 +51,77 @@ def post_invoice_to_ledger(invoice, created_by=None):
         source_type="invoice",
         source_id=invoice.id,
     )
+
+    # ERP-01 — drop stock + post the COGS journal for every tracked item.
+    # Runs inside the same transaction as the revenue journal so a stock
+    # error (e.g. overdraw) rolls both back together.
+    _apply_inventory_side_for_invoice(invoice, entry, created_by)
+
+    return entry
+
+
+def _apply_inventory_side_for_invoice(invoice, entry, created_by):
+    """For each tracked invoice line:
+      - resolve variant + warehouse (default to company's main warehouse)
+      - call record_sale() to drop stock + snapshot the cost
+      - aggregate the cost basis, then post a single COGS journal
+        (Dr 5100 / Cr 1140) covering the whole invoice.
+    """
+    from app.services.inventory import (
+        record_sale, default_warehouse, post_sale_cogs_journal,
+        InventoryError,
+    )
+
+    # Pre-flight: catch missing variant/warehouse before mutating anything.
+    tracked = []
+    for item in invoice.items:
+        if not item.product or not item.product.is_tracked:
+            continue
+        variant = item.variant
+        if variant is None and item.product:
+            variant = item.product.default_variant
+        if not variant:
+            raise LedgerError(
+                f"الصنف '{item.description}' متتبّع لكن لا يوجد له variant"
+            )
+        warehouse = item.warehouse or default_warehouse(invoice.company_id)
+        if not warehouse:
+            raise LedgerError("لا يوجد مخزن افتراضي للشركة")
+        tracked.append((item, variant, warehouse))
+
+    total_cogs = 0.0
+    for item, variant, warehouse in tracked:
+        qty = float(item.quantity or 0)
+        if qty <= 0:
+            continue
+        try:
+            unit_cost = record_sale(
+                variant=variant, warehouse=warehouse, qty=qty,
+                invoice_id=invoice.id, line_id=item.id,
+                actor_id=created_by,
+            )
+        except InventoryError as e:
+            raise LedgerError(str(e))
+        # Backfill the columns on the line so refunds + reports read it later.
+        item.variant_id = variant.id
+        item.warehouse_id = warehouse.id
+        item.unit_cost_at_sale = unit_cost
+        total_cogs += unit_cost * qty
+
+    if total_cogs > 0.001:
+        cogs_entry = post_sale_cogs_journal(
+            company_id=invoice.company_id,
+            total_cost=total_cogs, invoice=invoice,
+            created_by=created_by,
+        )
+        # Link the COGS journal back onto each movement so the audit log
+        # shows "this sale produced THIS journal entry".
+        from app.models import StockMovement
+        for item, variant, _ in tracked:
+            StockMovement.query.filter_by(
+                source_type="invoice_item", source_id=item.id,
+                journal_entry_id=None,
+            ).update({"journal_entry_id": cogs_entry.id})
 
 
 def record_payment(invoice, amount, payment_date=None, method=None, payment_method_id=None, created_by=None, notify=True):
@@ -83,7 +155,7 @@ def record_payment(invoice, amount, payment_date=None, method=None, payment_meth
 
     entry = post_journal(
         company_id=invoice.company_id,
-        description=f"تحصيل من {invoice.customer.name} — فاتورة #{invoice.number} ({method_label})",
+        description=f"تحصيل من {invoice.customer.name if invoice.customer else 'زبون نقدي'} — فاتورة #{invoice.number} ({method_label})",
         lines=[
             {"account_id": receiving_account.id, "debit": amount, "credit": 0},
             {"account_id": ar.id, "debit": 0, "credit": amount},
@@ -124,6 +196,61 @@ def record_payment(invoice, amount, payment_date=None, method=None, payment_meth
             logging.getLogger("ledgeros.invoicing").exception("Failed to send payment email")
 
     return payment
+
+
+def _apply_inventory_side_for_refund(invoice, refund, created_by):
+    """Restock the tracked lines + post a reversing COGS journal."""
+    from app.services.inventory import (
+        record_return, default_warehouse, post_refund_cogs_reversal,
+        InventoryError,
+    )
+    from app.models import StockMovement
+
+    tracked = []
+    for item in invoice.items:
+        if not item.product or not item.product.is_tracked:
+            continue
+        variant = item.variant or (item.product.default_variant
+                                    if item.product else None)
+        if not variant:
+            continue
+        warehouse = item.warehouse or default_warehouse(invoice.company_id)
+        if not warehouse:
+            continue
+        # No frozen cost on this line? Skip — the original sale didn't
+        # post COGS (older data) so reversal would be wrong.
+        if not item.unit_cost_at_sale or float(item.unit_cost_at_sale) <= 0:
+            continue
+        tracked.append((item, variant, warehouse))
+
+    total_restock_cost = 0.0
+    for item, variant, warehouse in tracked:
+        qty = float(item.quantity or 0)
+        if qty <= 0:
+            continue
+        cost = float(item.unit_cost_at_sale or 0)
+        try:
+            record_return(
+                variant=variant, warehouse=warehouse, qty=qty,
+                unit_cost_at_sale=cost,
+                refund_id=refund.id, line_id=item.id,
+                actor_id=created_by,
+            )
+        except InventoryError as e:
+            raise LedgerError(str(e))
+        total_restock_cost += cost * qty
+
+    if total_restock_cost > 0.001:
+        cogs_reversal = post_refund_cogs_reversal(
+            company_id=invoice.company_id,
+            total_cost=total_restock_cost, refund=refund,
+            created_by=created_by,
+        )
+        if cogs_reversal:
+            StockMovement.query.filter_by(
+                source_type="refund", source_id=refund.id,
+                journal_entry_id=None,
+            ).update({"journal_entry_id": cogs_reversal.id})
 
 
 def issue_refund(invoice, refund_type, amount=None, reason=None, created_by=None, notify=False):
@@ -231,6 +358,13 @@ def issue_refund(invoice, refund_type, amount=None, reason=None, created_by=None
         journal_entry_id=entry.id,
     )
     db.session.add(refund)
+    db.session.flush()
+
+    # ERP-01 — for a FULL refund of a tracked-item invoice, restock at
+    # the frozen unit_cost_at_sale and reverse the COGS. PARTIAL/CREDIT
+    # don't restock automatically — we just flash a hint in the route.
+    if refund_type == RefundType.FULL:
+        _apply_inventory_side_for_refund(invoice, refund, created_by)
 
     if refund_type == RefundType.FULL:
         invoice.status = InvoiceStatus.REFUNDED

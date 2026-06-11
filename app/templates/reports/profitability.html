@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block page_title %}ربحية المنتجات{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+  <h2 class="font-bold text-navy-900">💹 ربحية المنتجات</h2>
+  <div class="flex items-end gap-2 flex-wrap">
+    <form method="GET" class="flex items-end gap-2">
+      <div>
+        <label class="block text-xs mb-1">من</label>
+        <input type="date" name="start_date" value="{{ start_date.isoformat() }}" class="input text-sm">
+      </div>
+      <div>
+        <label class="block text-xs mb-1">إلى</label>
+        <input type="date" name="end_date" value="{{ end_date.isoformat() }}" class="input text-sm">
+      </div>
+      <button type="submit" class="btn-primary text-sm">تطبيق</button>
+    </form>
+    <a href="{{ url_for('reports.export', report_type='profitability', fmt='excel', start_date=start_date.isoformat(), end_date=end_date.isoformat()) }}"
+       class="btn-secondary text-sm">⬇ Excel</a>
+    <a href="{{ url_for('reports.export', report_type='profitability', fmt='pdf', start_date=start_date.isoformat(), end_date=end_date.isoformat()) }}"
+       class="btn-secondary text-sm">⬇ PDF</a>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+  <div class="card p-4">
+    <div class="text-xs text-slate-500">المبيعات</div>
+    <div class="text-2xl font-bold font-mono text-emerald-700">{{ '%.2f'|format(totals.revenue) }}</div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500">تكلفة البضاعة</div>
+    <div class="text-2xl font-bold font-mono text-slate-700">{{ '%.2f'|format(totals.cogs) }}</div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500">مجمل الربح</div>
+    <div class="text-2xl font-bold font-mono text-emerald-700">{{ '%.2f'|format(totals.gross_profit) }}</div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500">هامش الربح</div>
+    <div class="text-2xl font-bold font-mono text-navy-900">{{ '%.1f'|format(totals.gross_margin) }}%</div>
+  </div>
+</div>
+
+<div class="card p-4">
+  {% if rows %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>SKU</th>
+        <th>المنتج</th>
+        <th class="text-center">الكمية المباعة</th>
+        <th class="text-end">المبيعات</th>
+        <th class="text-end">تكلفة البضاعة</th>
+        <th class="text-end">مجمل الربح</th>
+        <th class="text-end">الهامش</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="font-mono">{{ r.sku }}</td>
+        <td>{{ r.name }}</td>
+        <td class="text-center font-mono">{{ '%.0f'|format(r.qty) }}</td>
+        <td class="text-end font-mono">{{ '%.2f'|format(r.revenue) }}</td>
+        <td class="text-end font-mono text-slate-500">{{ '%.2f'|format(r.cogs) }}</td>
+        <td class="text-end font-mono font-bold {% if r.gross_profit >= 0 %}text-emerald-700{% else %}text-rose-600{% endif %}">{{ '%.2f'|format(r.gross_profit) }}</td>
+        <td class="text-end font-mono">{{ '%.1f'|format(r.gross_margin) }}%</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-sm text-slate-400 text-center py-8">لا توجد مبيعات بهذه الفترة.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -21,8 +21,9 @@
     </div>
     <div class="grid grid-cols-2 gap-4">
       <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">البريد الإلكتروني</label>
-        <input type="email" name="email" dir="ltr" value="{{ employee.email if employee else '' }}" class="input">
+        <label class="block text-sm font-semibold text-slate-700 mb-2">البريد الإلكتروني <span class="text-rose-500">*</span></label>
+        <input type="email" name="email" required dir="ltr" value="{{ employee.email if employee else '' }}" class="input">
+        <p class="text-xs text-slate-500 mt-1">سيُنشأ حساب للموظف بهذا البريد بحالة PENDING.</p>
       </div>
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">الهاتف</label>

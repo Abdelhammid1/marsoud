@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% block page_title %}🏷️ نقطة البيع{% endblock %}
+{% block content %}
+
+<style>
+  .pos-grid { height: calc(100vh - 200px); min-height: 500px; }
+  .pos-pane { display: flex; flex-direction: column; min-height: 0; }
+  .cart-rows { overflow-y: auto; }
+  /* Make the barcode bar visually obvious so a scanner user knows it's the focus. */
+  #barcode-input { font-size: 1.25rem; }
+</style>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3 pos-grid">
+
+  <!-- ─── Left: Cart ─────────────────────────────────────────── -->
+  <div class="card p-4 pos-pane md:col-span-1">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="font-bold text-navy-900">🛒 الكارت</h3>
+      <button type="button" onclick="emptyCart()" class="text-xs text-rose-600 hover:underline">تفريغ</button>
+    </div>
+    <div id="cart-rows" class="cart-rows flex-1 space-y-2 mb-2"></div>
+    <div class="border-t pt-3 space-y-1 text-sm">
+      <div class="flex justify-between"><span>الإجمالي قبل الضريبة</span><span id="sub-total" class="font-mono">0.00</span></div>
+      <div class="flex justify-between text-slate-500"><span>الضريبة <span id="tax-rate-lbl">15</span>%</span><span id="tax-total" class="font-mono">0.00</span></div>
+      <div class="flex justify-between text-lg font-bold text-emerald-700"><span>الإجمالي</span><span id="grand-total" class="font-mono">0.00</span></div>
+    </div>
+  </div>
+
+  <!-- ─── Center: Scanner + product picker ───────────────────── -->
+  <div class="card p-4 pos-pane md:col-span-1">
+    <h3 class="font-bold text-navy-900 mb-2">🔍 سكانر</h3>
+    <input id="barcode-input" type="text" autofocus dir="ltr"
+           class="input mb-3" placeholder="امسح الباركود أو اكتب SKU…">
+    <div id="lookup-error" class="hidden bg-rose-100 text-rose-700 text-sm rounded p-2 mb-2"></div>
+    <p class="text-xs text-slate-500 mb-2">سكانر USB يكتب الباركود وExit يضيف الصنف للكارت تلقائياً.</p>
+    <div class="border-t pt-2 mt-2 text-xs text-slate-400">
+      آخر صنف اتضاف: <span id="last-added" class="font-mono">—</span>
+    </div>
+  </div>
+
+  <!-- ─── Right: Pay ─────────────────────────────────────────── -->
+  <div class="card p-4 pos-pane md:col-span-1">
+    <h3 class="font-bold text-navy-900 mb-2">💵 الدفع</h3>
+    <form method="POST" action="{{ url_for('pos.order_new') }}" id="pos-form" class="space-y-3 flex-1 flex flex-col">
+      <input type="hidden" name="cart_json" id="cart-json" value="[]">
+
+      <div>
+        <label class="block text-xs font-semibold mb-1">طريقة الدفع</label>
+        <select name="payment_method_id" required class="select text-sm">
+          {% for pm in payment_methods %}<option value="{{ pm.id }}" {% if pm.is_default %}selected{% endif %}>{{ pm.name_ar or pm.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold mb-1">العميل (اختياري)</label>
+        <select name="customer_id" class="select text-sm">
+          <option value="">— زبون نقدي —</option>
+          {% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold mb-1">نسبة الضريبة %</label>
+        <input type="number" name="tax_rate" step="0.01" min="0" max="100" value="15" id="tax-rate-input" class="input text-sm">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold mb-1">المبلغ المستلم</label>
+        <input type="number" name="cash_received" step="0.01" id="cash-received" class="input text-sm" placeholder="اختياري">
+        <div class="text-xs text-emerald-700 mt-1">الباقي: <span id="change-due" class="font-mono">0.00</span></div>
+      </div>
+      <button type="submit" id="pay-btn"
+              class="btn-primary mt-auto text-lg py-3" disabled>
+        💳 دفع
+      </button>
+    </form>
+  </div>
+</div>
+
+<script>
+const lookupUrl = "{{ url_for('pos.lookup') }}";
+let cart = [];
+let taxRate = 15.0;
+
+function recalc() {
+  let sub = 0;
+  for (const r of cart) sub += (parseFloat(r.qty) || 0) * (parseFloat(r.unit_price) || 0);
+  const tax = sub * (taxRate / 100);
+  document.getElementById('sub-total').textContent = sub.toFixed(2);
+  document.getElementById('tax-total').textContent = tax.toFixed(2);
+  document.getElementById('tax-rate-lbl').textContent = taxRate;
+  const grand = sub + tax;
+  document.getElementById('grand-total').textContent = grand.toFixed(2);
+  document.getElementById('cart-json').value = JSON.stringify(cart);
+  document.getElementById('pay-btn').disabled = cart.length === 0;
+  const cash = parseFloat(document.getElementById('cash-received').value || 0);
+  const change = cash > grand ? cash - grand : 0;
+  document.getElementById('change-due').textContent = change.toFixed(2);
+}
+
+function renderCart() {
+  const wrap = document.getElementById('cart-rows');
+  if (cart.length === 0) {
+    wrap.innerHTML = '<div class="text-sm text-slate-400 text-center py-8">الكارت فارغ — امسح صنف للبدء.</div>';
+    recalc();
+    return;
+  }
+  wrap.innerHTML = cart.map((r, i) => `
+    <div class="bg-slate-50 rounded-lg p-2">
+      <div class="flex items-start justify-between gap-2">
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-semibold truncate">${escapeHtml(r.name)}</div>
+          <div class="text-xs text-slate-400 font-mono">${escapeHtml(r.sku)}</div>
+        </div>
+        <button type="button" onclick="removeLine(${i})" class="text-rose-500 hover:underline text-xs">حذف</button>
+      </div>
+      <div class="flex items-center gap-2 mt-1">
+        <input type="number" min="1" step="1" value="${r.qty}" onchange="setQty(${i}, this.value)" class="input text-sm w-20 text-center">
+        <span class="text-slate-400">×</span>
+        <input type="number" min="0" step="0.01" value="${r.unit_price}" onchange="setPrice(${i}, this.value)" class="input text-sm w-24 text-center">
+        <span class="ms-auto text-sm font-bold font-mono text-emerald-700">${(r.qty * r.unit_price).toFixed(2)}</span>
+      </div>
+    </div>
+  `).join('');
+  recalc();
+}
+
+function addLine(v) {
+  // Merge if already in cart by variant_id.
+  for (const r of cart) {
+    if (r.variant_id === v.variant_id) {
+      r.qty = (parseFloat(r.qty) || 0) + 1;
+      renderCart();
+      return;
+    }
+  }
+  cart.push({
+    variant_id: v.variant_id, sku: v.sku, name: v.name,
+    qty: 1, unit_price: v.price,
+  });
+  if (v.tax_rate) {
+    taxRate = parseFloat(v.tax_rate);
+    document.getElementById('tax-rate-input').value = taxRate;
+  }
+  document.getElementById('last-added').textContent = `${v.sku} — ${v.name}`;
+  renderCart();
+}
+
+function setQty(i, v) { cart[i].qty = parseFloat(v) || 1; renderCart(); }
+function setPrice(i, v) { cart[i].unit_price = parseFloat(v) || 0; renderCart(); }
+function removeLine(i) { cart.splice(i, 1); renderCart(); }
+function emptyCart() { if (cart.length && !confirm('تفريغ الكارت؟')) return; cart = []; renderCart(); }
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function doLookup(q) {
+  const err = document.getElementById('lookup-error');
+  try {
+    const r = await fetch(lookupUrl, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+      body: JSON.stringify({query: q}),
+    });
+    const data = await r.json();
+    if (!r.ok || data.error) {
+      err.textContent = data.error || `خطأ ${r.status}`;
+      err.classList.remove('hidden');
+      setTimeout(() => err.classList.add('hidden'), 3000);
+      return;
+    }
+    err.classList.add('hidden');
+    addLine(data);
+  } catch (e) {
+    err.textContent = 'تعذّر الوصول للخادم';
+    err.classList.remove('hidden');
+  }
+}
+
+document.getElementById('barcode-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const q = e.target.value.trim();
+    if (!q) return;
+    e.target.value = '';
+    doLookup(q);
+  }
+});
+document.getElementById('cash-received').addEventListener('input', recalc);
+document.getElementById('tax-rate-input').addEventListener('input', (e) => {
+  taxRate = parseFloat(e.target.value) || 0;
+  recalc();
+});
+
+renderCart();
+</script>
+
+{% endblock %}

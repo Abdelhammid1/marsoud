@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block page_title %}الرصيد الافتتاحي{% endblock %}
+{% block content %}
+<div class="card p-6 max-w-xl">
+  <h2 class="font-bold text-navy-900 mb-2">📦 إدخال رصيد افتتاحي</h2>
+  <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm mb-4">
+    ⚠ <strong>عملية لمرة واحدة لكل صنف.</strong> تستخدم عند بدء استخدام النظام لإدخال البضاعة الموجودة بالفعل بدون قيد مشتريات.
+    سيتم توليد قيد «مدين المخزون / دائن حساب الافتتاح».
+  </div>
+  {% if not variants %}
+  <p class="text-sm text-slate-400">كل الأصناف الحالية لها حركات مخزون بالفعل — لا يمكن إدخال رصيد افتتاحي لها.</p>
+  {% else %}
+  <form method="POST" class="space-y-3">
+    <div>
+      <label class="block text-sm font-semibold mb-1">الصنف</label>
+      <select name="variant_id" required class="select">
+        <option value="">— اختر —</option>
+        {% for v in variants %}<option value="{{ v.id }}">{{ v.sku }} — {{ v.display_name }}</option>{% endfor %}
+      </select>
+      <p class="text-xs text-slate-500 mt-1">فقط الأصناف التي لم تُسجَّل لها أي حركة سابقاً.</p>
+    </div>
+    <div>
+      <label class="block text-sm font-semibold mb-1">المخزن</label>
+      <select name="warehouse_id" required class="select">
+        {% for w in warehouses %}<option value="{{ w.id }}" {% if w.is_default %}selected{% endif %}>{{ w.code }} — {{ w.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-semibold mb-1">الكمية</label>
+        <input type="number" step="0.01" name="qty" required class="input">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-1">تكلفة الوحدة</label>
+        <input type="number" step="0.0001" name="unit_cost" required class="input">
+      </div>
+    </div>
+    <div class="flex justify-end gap-2">
+      <a href="{{ url_for('inventory.index') }}" class="btn-secondary">إلغاء</a>
+      <button type="submit" class="btn-primary">حفظ الرصيد الافتتاحي</button>
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

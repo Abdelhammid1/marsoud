@@ -1,0 +1,68 @@
+{# Standalone print-ready label sheet — does NOT extend base.html. #}
+<!doctype html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="utf-8">
+  <title>طباعة باركود</title>
+  <style>
+    @page { size: A4; margin: 8mm; }
+    body {
+      font-family: 'Cairo', system-ui, sans-serif;
+      margin: 0; padding: 8mm; background: #fafafa;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat({{ cols }}, 1fr);
+      gap: 4mm;
+    }
+    .label {
+      border: 1px dashed #ccc;
+      padding: 4mm 2mm;
+      text-align: center;
+      page-break-inside: avoid;
+    }
+    .label .sku { font-family: ui-monospace, monospace; font-size: 9pt; color: #666; }
+    .label .name { font-size: 9pt; margin: 1mm 0; max-height: 8mm; overflow: hidden; }
+    .label img { max-width: 100%; height: 12mm; }
+    .toolbar {
+      position: fixed; top: 0; left: 0; right: 0;
+      background: #fff; padding: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+    .toolbar button {
+      background: #059669; color: #fff; border: 0;
+      padding: 6px 16px; border-radius: 6px; font-weight: bold; cursor: pointer;
+    }
+    @media print {
+      .toolbar { display: none; }
+      body { background: #fff; padding: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="toolbar">
+  <button onclick="window.print()">🖨️ طباعة</button>
+  <a href="javascript:history.back()" style="margin-right: 1em; color: #059669;">← رجوع</a>
+</div>
+
+<div style="height: 50px;"></div>
+
+<div class="grid">
+  {% for v in variants %}
+  <div class="label">
+    <div class="sku">{{ v.sku }}</div>
+    <div class="name">{{ v.display_name }}</div>
+    <img src="{{ url_for('inventory.variant_barcode', variant_id=v.id) }}" alt="{{ v.barcode or v.sku }}">
+    {% if v.product.default_price %}
+    <div style="font-size:10pt;font-weight:bold;">{{ '%.2f'|format(v.product.default_price) }}</div>
+    {% endif %}
+  </div>
+  {% else %}
+  <div style="grid-column: 1/-1; text-align:center; color:#999; padding:2em;">لم تُحدَّد أصناف.</div>
+  {% endfor %}
+</div>
+
+</body>
+</html>

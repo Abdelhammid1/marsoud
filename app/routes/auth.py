@@ -18,7 +18,13 @@ def login():
         password = request.form.get("password", "")
         user = User.query.filter_by(email=email).first()
         if user and user.check_password(password):
-            if not user.is_active:
+            # HR-SS — PENDING accounts can't sign in. They show a distinct
+            # message so the employee knows to wait for activation rather
+            # than thinking their password is wrong.
+            if (user.status or "ACTIVE") == "PENDING":
+                flash("حسابك في انتظار التفعيل من مالك الشركة.", "warning")
+                return render_template("auth/login.html")
+            if (user.status or "ACTIVE") == "DISABLED" or not user.is_active:
                 flash("الحساب موقوف. تواصل مع مالك المنصة.", "error")
                 return render_template("auth/login.html")
             active_companies = [c for c in user.companies

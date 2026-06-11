@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block page_title %}تفعيل حسابات الموظفين{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h2 class="font-bold text-navy-900">🔑 حسابات قيد التفعيل</h2>
+    <p class="text-xs text-slate-500">
+      الموظفون الجدد يحصلون على حساب بحالة PENDING — فعّل لإرسال إيميل تعيين كلمة السر.
+    </p>
+  </div>
+  <div class="text-sm text-slate-500">
+    حسابات نشطة مرتبطة بموظفين: <span class="font-mono font-bold text-emerald-700">{{ active_emp_count }}</span>
+  </div>
+</div>
+
+<div class="card p-6">
+  {% if pending %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>الاسم</th>
+        <th>البريد</th>
+        <th>تاريخ الإنشاء</th>
+        <th>الإجراء</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in pending %}
+      <tr>
+        <td class="font-semibold">{{ u.full_name }}</td>
+        <td dir="ltr" class="text-sm">{{ u.email }}</td>
+        <td class="text-xs font-mono">{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '—' }}</td>
+        <td>
+          <form method="POST" action="{{ url_for('hr_ss.activate', user_id=u.id) }}" class="inline">
+            <button type="submit" class="btn-primary text-sm">✅ تفعيل وإرسال إيميل</button>
+          </form>
+          <form method="POST" action="{{ url_for('hr_ss.disable', user_id=u.id) }}" class="inline ms-2"
+                onsubmit="return confirm('تعطيل الحساب بدلاً من تفعيله؟')">
+            <button type="submit" class="text-xs text-rose-600 hover:underline">تعطيل</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-sm text-slate-400 text-center py-8">
+    لا توجد حسابات قيد التفعيل حالياً.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

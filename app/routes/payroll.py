@@ -106,6 +106,8 @@ def new_employee():
             )
             if not emp.name:
                 raise ValueError("اسم الموظف مطلوب")
+            if not emp.email:
+                raise ValueError("البريد الإلكتروني مطلوب")
             db.session.add(emp)
             db.session.commit()
             # HR-05 — give the new employee an empty balance row for every active leave type
@@ -115,6 +117,24 @@ def new_employee():
             except Exception:
                 from flask import current_app
                 current_app.logger.exception("ensure_employee_balances failed")
+            # HR-SS — auto-provision a User account (PENDING).
+            try:
+                from app.services.hr_self_service import ensure_user_for_employee
+                user, created = ensure_user_for_employee(
+                    emp, actor_id=current_user.id,
+                )
+                if created:
+                    flash(
+                        "تم إنشاء حساب الموظف بحالة PENDING — يحتاج للتفعيل من المالك.",
+                        "info",
+                    )
+                else:
+                    flash("تم ربط الموظف بحساب مستخدم موجود.", "info")
+            except ValueError as e:
+                flash(str(e), "error")
+            except Exception:
+                from flask import current_app
+                current_app.logger.exception("ensure_user_for_employee failed")
             flash(f"تم إضافة الموظف {emp.employee_number}", "success")
             return redirect(url_for("payroll.employee_profile", employee_id=emp.id))
         except (ValueError, KeyError) as e:
@@ -159,7 +179,7 @@ def edit_employee(employee_id):
     has_history = bool(list(emp.payroll_lines))
     if request.method == "POST":
         try:
-            update_employee(emp, request.form)
+            update_employee(emp, request.form, changed_by_id=current_user.id)
             flash("تم حفظ تعديلات الموظف", "success")
             return redirect(url_for("payroll.employee_profile", employee_id=emp.id))
         except (ValueError, KeyError) as e:

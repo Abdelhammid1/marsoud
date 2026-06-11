@@ -20,6 +20,8 @@ DOC_PREFIXES = {
     "REFUND": "REF",
     "CREDIT_NOTE": "CN",
     "VENDOR_BILL": "VB",
+    "POS": "POS",   # ERP-02 — POS orders
+    "STOCK_TRANSFER": "TR",  # ERP-03 — warehouse transfers
 }
 
 

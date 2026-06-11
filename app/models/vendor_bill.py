@@ -84,8 +84,14 @@ class VendorBillItem(db.Model):
     salvage_value = db.Column(db.Numeric(15, 4), default=0)
     created_asset_id = db.Column(db.Integer, db.ForeignKey("fixed_assets.id"))   # set after posting
 
+    # ERP-01 — inventory line targets. Required when line_type == INVENTORY.
+    variant_id = db.Column(db.Integer, db.ForeignKey("product_variants.id"))
+    warehouse_id = db.Column(db.Integer, db.ForeignKey("warehouses.id"))
+
     account = db.relationship("Account")
     created_asset = db.relationship("FixedAsset")
+    variant = db.relationship("ProductVariant", foreign_keys=[variant_id])
+    warehouse = db.relationship("Warehouse", foreign_keys=[warehouse_id])
 
 
 class VendorBillPayment(db.Model):

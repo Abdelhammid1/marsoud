@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block page_title %}إدارة الأدوار والصلاحيات{% endblock %}
+{% block content %}
+<div class="flex items-start justify-between mb-5">
+  <div>
+    <h2 class="text-xl font-bold text-navy-900">إدارة الـ Roles والصلاحيات</h2>
+    <p class="text-sm text-slate-500 mt-1">اضبط كل role اللي تريده واربطها بالأدمن</p>
+  </div>
+  <button type="button" onclick="document.getElementById('new-role-modal').classList.remove('hidden')"
+          class="btn-primary text-sm">+ إضافة role جديد</button>
+</div>
+
+<div class="grid grid-cols-3 gap-4">
+  <!-- ─── LEFT PANE: roles list ──────────────────────────────────── -->
+  <div class="card p-4">
+    <div class="space-y-2">
+      {% for r in roles %}
+      {% set is_selected = selected and selected.id == r.id %}
+      <a href="{{ url_for('settings_roles.index', role_id=r.id, tab=tab) }}"
+         class="block rounded-lg border p-3 transition
+                {% if is_selected %}border-emerald-500 bg-emerald-50{% else %}border-slate-200 hover:border-emerald-300 hover:bg-slate-50{% endif %}">
+        <div class="flex items-start justify-between mb-1">
+          <div class="font-bold {% if is_selected %}text-emerald-700{% else %}text-navy-900{% endif %}">{{ r.name_ar }}</div>
+          {% if r.type == 'SYSTEM' %}
+          <span class="badge bg-slate-100 text-slate-600 text-[10px]">نظام</span>
+          {% else %}
+          <span class="badge bg-purple-100 text-purple-700 text-[10px]">مخصص</span>
+          {% endif %}
+        </div>
+        <div class="text-xs text-slate-500">أدمن {{ counts.get(r.id, 0) }}</div>
+      </a>
+      {% endfor %}
+    </div>
+    <div class="mt-4 border-2 border-dashed border-slate-200 rounded-lg p-4 text-center">
+      <button type="button" onclick="document.getElementById('new-role-modal').classList.remove('hidden')"
+              class="text-sm text-slate-500 hover:text-emerald-600 font-semibold">+ role جديد</button>
+    </div>
+  </div>
+
+  <!-- ─── RIGHT PANE: role detail ────────────────────────────────── -->
+  <div class="card p-6 col-span-2">
+    {% if not selected %}
+    <div class="text-center text-slate-400 py-12">اختر دوراً من الجانب الأيمن</div>
+    {% else %}
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <div class="flex items-center gap-2">
+          <h3 class="text-2xl font-bold text-navy-900">{{ selected.name_ar }}</h3>
+          {% if selected.type == 'SYSTEM' %}
+          <span class="badge bg-slate-100 text-slate-600">نظام</span>
+          {% else %}
+          <span class="badge bg-purple-100 text-purple-700">مخصص</span>
+          {% endif %}
+        </div>
+        {% if selected.description %}
+        <p class="text-sm text-slate-500 mt-1">{{ selected.description }}</p>
+        {% endif %}
+      </div>
+      <div class="flex items-center gap-2">
+        <form method="POST" action="{{ url_for('settings_roles.role_clone', role_id=selected.id) }}">
+          <input type="hidden" name="name_ar" value="نسخة من {{ selected.name_ar }}">
+          <button type="submit" class="btn-secondary text-xs">📋 استنساخ</button>
+        </form>
+        {% if not selected.is_system %}
+        <form method="POST" action="{{ url_for('settings_roles.role_delete', role_id=selected.id) }}"
+              onsubmit="return confirm('حذف الدور {{ selected.name_ar|e }}؟ لا يمكن التراجع.')">
+          <button type="submit" class="btn-danger text-xs">حذف</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex items-center gap-2 border-b border-slate-200 mb-5">
+      <a href="{{ url_for('settings_roles.index', role_id=selected.id, tab='admins') }}"
+         class="px-4 py-2 text-sm font-semibold border-b-2 transition
+                {% if tab == 'admins' %}border-emerald-600 text-emerald-700{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}">
+        الأدمن ({{ counts.get(selected.id, 0) }})
+      </a>
+      <a href="{{ url_for('settings_roles.index', role_id=selected.id, tab='permissions') }}"
+         class="px-4 py-2 text-sm font-semibold border-b-2 transition
+                {% if tab == 'permissions' %}border-emerald-600 text-emerald-700{% else %}border-transparent text-slate-500 hover:text-slate-700{% endif %}">
+        الصلاحيات
+      </a>
+    </div>
+
+    <!-- Tab content -->
+    {% if tab == 'admins' %}
+      <div class="space-y-2">
+        {% for u in members %}
+        <div class="flex items-center justify-between bg-slate-50 rounded-lg p-3">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center text-sm font-bold text-slate-600">{{ u.full_name[:1] if u.full_name else 'م' }}</div>
+            <div>
+              <div class="font-semibold text-navy-900 text-sm">{{ u.full_name }}</div>
+              <div class="text-xs text-slate-500" dir="ltr">{{ u.email }}</div>
+            </div>
+          </div>
+          <form method="POST" action="{{ url_for('settings_roles.member_remove', role_id=selected.id, user_id=u.id) }}"
+                onsubmit="return confirm('إزالة {{ u.full_name|e }} من هذا الدور؟')">
+            <button type="submit" class="btn-secondary text-xs">إزالة</button>
+          </form>
+        </div>
+        {% else %}
+        <div class="text-sm text-slate-400 text-center py-6">لا يوجد أدمن في هذا الدور بعد.</div>
+        {% endfor %}
+      </div>
+      {% if candidates %}
+      <hr class="my-5">
+      <form method="POST" action="{{ url_for('settings_roles.member_add', role_id=selected.id) }}" class="flex items-end gap-2">
+        <div class="flex-1">
+          <label class="block text-xs font-semibold text-slate-700 mb-1">اختر أدمن لإضافته…</label>
+          <select name="user_id" required class="select text-sm">
+            {% for u in candidates %}
+            <option value="{{ u.id }}">{{ u.full_name }} ({{ u.email }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn-primary text-sm">ربط</button>
+      </form>
+      {% endif %}
+
+    {% else %}
+      <!-- Permissions tab -->
+      {% if selected.is_system %}
+      <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-sm">
+        <div class="font-bold text-amber-900 mb-1">🔒 دور نظام — للقراءة فقط</div>
+        <p class="text-amber-800">صلاحيات هذا الدور مثبّتة. لو محتاج توسيع أو تقليل، استنسخه بدور مخصص واعدّل عليه.</p>
+      </div>
+      {% endif %}
+      <form method="POST" action="{{ url_for('settings_roles.role_permissions', role_id=selected.id) }}">
+        {% for group_ar, perms in groups %}
+        <div class="mb-6">
+          <h4 class="font-bold text-navy-900 border-b border-slate-200 pb-2 mb-3">{{ group_ar }}</h4>
+          <div class="space-y-2">
+            {% for p in perms %}
+            <label class="flex items-center gap-3 py-1.5 px-3 rounded hover:bg-slate-50 cursor-pointer">
+              <input type="checkbox" name="permission_id" value="{{ p.id }}"
+                     {% if p.id in selected_perm_ids %}checked{% endif %}
+                     {% if selected.is_system %}disabled{% endif %}
+                     class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500">
+              <span class="text-sm text-slate-700">{{ p.label_ar }}</span>
+              <span class="text-[10px] font-mono text-slate-400 mr-auto" dir="ltr">{{ p.code }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+        {% if not selected.is_system %}
+        <div class="flex justify-end gap-2 pt-4 border-t border-slate-200">
+          <button type="submit" class="btn-primary">حفظ الصلاحيات</button>
+        </div>
+        {% endif %}
+      </form>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<!-- ─── Modal: new role ──────────────────────────────────────────── -->
+<div id="new-role-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4"
+     onclick="if(event.target===this)this.classList.add('hidden')">
+  <div class="bg-white rounded-2xl max-w-md w-full p-6">
+    <h3 class="text-lg font-bold text-navy-900 mb-4">إضافة role جديد</h3>
+    <form method="POST" action="{{ url_for('settings_roles.role_new') }}" class="space-y-3">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">اسم الدور</label>
+        <input type="text" name="name_ar" required class="input" placeholder="مثلاً: مساعد مدير">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">الوصف (اختياري)</label>
+        <textarea name="description" rows="2" class="textarea"></textarea>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">استنسخ من دور موجود (اختياري)</label>
+        <select name="clone_from" class="select">
+          <option value="">— من الصفر —</option>
+          {% for r in roles %}
+          <option value="{{ r.id }}">{{ r.name_ar }} {% if r.type == 'SYSTEM' %}(نظام){% else %}(مخصص){% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="document.getElementById('new-role-modal').classList.add('hidden')" class="btn-secondary">إلغاء</button>
+        <button type="submit" class="btn-primary">إنشاء</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

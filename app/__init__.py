@@ -51,6 +51,12 @@ def create_app(config_class=Config):
         documents_bp, notifications_bp, audit_bp, portal_bp,
     )
     from app.routes.calendar import bp as calendar_bp
+    from app.routes.settings_roles import bp as settings_roles_bp
+    from app.routes.hr_self_service import (
+        hr_ss_bp, portal_emp_bp,
+    )
+    from app.routes.inventory import bp as inventory_bp
+    from app.routes.pos import bp as pos_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -80,6 +86,11 @@ def create_app(config_class=Config):
     app.register_blueprint(audit_bp, url_prefix="/audit")
     app.register_blueprint(portal_bp, url_prefix="/portal")
     app.register_blueprint(calendar_bp, url_prefix="/calendar")
+    app.register_blueprint(settings_roles_bp, url_prefix="/settings/roles")
+    app.register_blueprint(hr_ss_bp, url_prefix="/hr/accounts")
+    app.register_blueprint(portal_emp_bp, url_prefix="/my")
+    app.register_blueprint(inventory_bp, url_prefix="/inventory")
+    app.register_blueprint(pos_bp, url_prefix="/pos")
 
     @app.before_request
     def load_active_company():
@@ -148,6 +159,12 @@ def create_app(config_class=Config):
         "portal.", "notifications.", "auth.", "static",
         "invitations.",   # accept-invitation pages
     )
+    # HR-SS — employees only see their own portal + invariants (notifications,
+    # auth, static, invitation acceptance). Everything else 403s.
+    EMPLOYEE_ALLOWED_ENDPOINTS = (
+        "portal_emp.", "notifications.", "auth.", "static",
+        "invitations.",
+    )
 
     @app.before_request
     def confine_client_to_portal():
@@ -157,15 +174,19 @@ def create_app(config_class=Config):
         if not current_user.is_authenticated or not g.get("active_company"):
             return
         endpoint = (request.endpoint or "")
-        if endpoint.startswith(CLIENT_ALLOWED_ENDPOINTS):
-            return
         role = get_user_role(current_user.id, g.active_company.id)
-        if role != "client":
-            return
-        # On the dashboard? Redirect to /portal/ instead of 403'ing.
-        if endpoint == "dashboard.index":
-            return redirect(url_for("portal.index"))
-        abort(403)
+        if role == "client":
+            if endpoint.startswith(CLIENT_ALLOWED_ENDPOINTS):
+                return
+            if endpoint == "dashboard.index":
+                return redirect(url_for("portal.index"))
+            abort(403)
+        if role == "employee":
+            if endpoint.startswith(EMPLOYEE_ALLOWED_ENDPOINTS):
+                return
+            if endpoint == "dashboard.index":
+                return redirect(url_for("portal_emp.index"))
+            abort(403)
 
     @app.context_processor
     def inject_globals():
@@ -217,6 +238,19 @@ def create_app(config_class=Config):
             init_audit_listeners()
         except Exception as e:
             app.logger.exception("audit listeners init failed: %s", e)
+
+    # ─── MARSOUD-32: seed permission catalogue + system roles per company
+    with app.app_context():
+        try:
+            from app.services.roles_seed import (
+                seed_permissions_catalog, ensure_roles_ready_for_company,
+            )
+            from app.models import Company
+            seed_permissions_catalog()
+            for c in Company.query.all():
+                ensure_roles_ready_for_company(c.id)
+        except Exception as e:
+            app.logger.exception("roles seed failed: %s", e)
 
     # ─── Cycle 7 gap-close: context for the bell-icon unread counter ────
     @app.context_processor

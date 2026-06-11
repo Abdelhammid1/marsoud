@@ -320,9 +320,42 @@ def settle_accrual(accrual, payment_method_account_code="1110", created_by=None)
     return accrual
 
 
-def update_employee(employee, form):
+def update_employee(employee, form, *, changed_by_id=None):
     """Update an existing employee. Locks fields that would invalidate
-    historical proration if changed retroactively."""
+    historical proration if changed retroactively.
+
+    HR-SS — snapshots tracked fields BEFORE mutation and writes
+    EmployeeHistory rows for any that actually changed.
+    """
+    # ── HR-SS snapshot (read every tracked field before we mutate it) ──
+    from app.services.hr_self_service import (
+        diff_employee_for_history, apply_history_log,
+    )
+    from app.models import Department
+
+    def _dept_name(dept_id):
+        if not dept_id:
+            return None
+        d = db.session.get(Department, dept_id)
+        return d.name if d else None
+
+    def _status_label(s):
+        if not s:
+            return None
+        if hasattr(s, "label_ar"):
+            return s.label_ar
+        labels = {"ACTIVE": "نشط",
+                  "SUSPENDED": "موقوف",
+                  "TERMINATED": "منتهي"}
+        return labels.get(s.value if hasattr(s, "value") else str(s),
+                          str(s))
+
+    history_snapshot = diff_employee_for_history(
+        employee, form,
+        dept_lookup=_dept_name,
+        status_label_lookup=_status_label,
+    )
+
     has_history = employee.payroll_lines and len(list(employee.payroll_lines)) > 0
     employee.name = (form.get("name") or employee.name).strip()
     employee.email = (form.get("email") or "").strip()
@@ -409,4 +442,17 @@ def update_employee(employee, form):
             employee.gender = None
 
     db.session.commit()
+
+    # HR-SS: write history rows for any fields that actually flipped.
+    try:
+        apply_history_log(
+            employee, history_snapshot,
+            dept_lookup=_dept_name,
+            status_label_lookup=_status_label,
+            changed_by_id=changed_by_id,
+        )
+    except Exception:
+        from flask import current_app
+        current_app.logger.exception("apply_history_log failed")
+
     return employee

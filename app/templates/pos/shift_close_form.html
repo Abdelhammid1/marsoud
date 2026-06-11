@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block page_title %}إغلاق وردية #{{ shift.id }}{% endblock %}
+{% block content %}
+<div class="card p-6 max-w-md mx-auto">
+  <h2 class="font-bold text-navy-900 mb-3">إغلاق الوردية #{{ shift.id }}</h2>
+
+  <div class="bg-emerald-50 rounded p-3 text-sm mb-4">
+    <div class="flex justify-between"><span>الافتتاحي</span><span class="font-mono">{{ '%.2f'|format(shift.opening_cash) }}</span></div>
+    <div class="flex justify-between font-bold text-emerald-700">
+      <span>المتوقع في الدرج</span><span class="font-mono">{{ '%.2f'|format(expected) }}</span>
+    </div>
+    <div class="text-xs text-slate-500 mt-1">الافتتاحي + إجمالي البيوعات النقدية في هذه الوردية</div>
+  </div>
+
+  <form method="POST" class="space-y-3">
+    <div>
+      <label class="block text-sm font-semibold mb-1">المبلغ الفعلي في الدرج</label>
+      <input type="number" name="closing_cash" step="0.01" required min="0" class="input"
+             value="{{ '%.2f'|format(expected) }}">
+    </div>
+    <div>
+      <label class="block text-sm font-semibold mb-1">ملاحظات (اختياري)</label>
+      <textarea name="notes" rows="2" class="textarea text-sm"></textarea>
+    </div>
+    <div class="flex justify-end gap-2">
+      <a href="{{ url_for('pos.shift_detail', shift_id=shift.id) }}" class="btn-secondary">إلغاء</a>
+      <button type="submit" class="btn-primary">إغلاق</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

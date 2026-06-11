@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block page_title %}إحصائيات الفريق{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h2 class="font-bold text-navy-900">📊 إحصائيات المهام للفريق</h2>
+    <p class="text-xs text-slate-500">عدد المهام لكل عضو في الفريق — يتم احتساب المهمة لكل مكلَّف بها.</p>
+  </div>
+  <a href="{{ url_for('tasks.index') }}" class="btn-secondary text-sm">← العودة للوحة</a>
+</div>
+
+<div class="card p-6">
+  {% if rows %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>العضو</th>
+        <th class="text-center">المجموع</th>
+        <th class="text-center">قيد التنفيذ</th>
+        <th class="text-center">مكتملة</th>
+        <th class="text-center">متأخرة</th>
+        <th class="text-center">قريبة (≤24س)</th>
+        <th class="text-center">معدّل الإنجاز</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="font-semibold">{{ r.user.full_name if r.user else '—' }}</td>
+        <td class="text-center font-mono">{{ r.total }}</td>
+        <td class="text-center font-mono">{{ r.open }}</td>
+        <td class="text-center font-mono text-emerald-700">{{ r.done }}</td>
+        <td class="text-center font-mono {% if r.overdue %}text-rose-600 font-bold{% endif %}">{{ r.overdue }}</td>
+        <td class="text-center font-mono {% if r.deadline_soon %}text-amber-600{% endif %}">{{ r.deadline_soon }}</td>
+        <td class="text-center font-mono">
+          {% if r.total %}{{ ((r.done / r.total) * 100)|round(0)|int }}%{% else %}—{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-sm text-slate-400 text-center py-8">لا توجد بيانات بعد.</div>
+  {% endif %}
+</div>
+{% endblock %}

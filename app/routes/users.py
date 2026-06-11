@@ -18,27 +18,47 @@ from app.services.email import send_invitation_email
 bp = Blueprint("users", __name__)
 
 
+def _invitable_db_roles(company_id):
+    """Per-company list of roles that can be picked in invite/change-role
+    dropdowns. Includes every Role except 'owner' (per-company singleton)
+    and 'client' (portal-only signup path). Sorted SYSTEM first, then
+    CUSTOM (so old default UX is preserved when no custom roles exist)."""
+    from app.models import Role
+    return Role.query.filter(
+        Role.company_id == company_id,
+        Role.code != "owner",
+        Role.code != "client",
+    ).order_by(Role.type.desc(), Role.id).all()
+
+
 @bp.route("/")
 @login_required
 @require_permission("users.view")
 def index():
     company_id = g.active_company.id
-    # Member list with roles
     rows = db.session.execute(
         user_companies.select().where(user_companies.c.company_id == company_id)
     ).fetchall()
     members = []
+    db_roles = _invitable_db_roles(company_id)
+    # Resolve role name_ar for each membership for display
+    code_to_label = {r.code: r.name_ar for r in db_roles}
+    code_to_label.setdefault("owner", ROLE_LABELS_AR.get("owner", "owner"))
     for r in rows:
         u = db.session.get(User, r.user_id)
         if u:
-            members.append({"user": u, "role": r.role})
+            members.append({
+                "user": u,
+                "role": r.role,
+                "role_label": code_to_label.get(r.role, ROLE_LABELS_AR.get(r.role, r.role)),
+            })
     invitations = Invitation.query.filter_by(company_id=company_id).order_by(
         Invitation.created_at.desc()
     ).all()
     return render_template(
         "users/index.html",
         members=members, invitations=invitations,
-        roles=INVITABLE_ROLES, role_labels=ROLE_LABELS_AR,
+        roles=db_roles, role_labels=ROLE_LABELS_AR,
     )
 
 
@@ -51,7 +71,12 @@ def invite():
     if not email or "@" not in email:
         flash("بريد إلكتروني غير صالح", "error")
         return redirect(url_for("users.index"))
-    if role not in ALL_ROLES:
+    # MARSOUD-32 — accept any company role (system + custom) except owner/client
+    from app.models import Role
+    role_row = Role.query.filter_by(
+        company_id=g.active_company.id, code=role,
+    ).first()
+    if not role_row:
         flash("دور غير صالح", "error")
         return redirect(url_for("users.index"))
     if role == "owner":
@@ -69,10 +94,10 @@ def invite():
                     (user_companies.c.user_id == existing_user.id) &
                     (user_companies.c.company_id == g.active_company.id)
                 )
-                .values(role=role)
+                .values(role=role, role_id=role_row.id)
             )
             db.session.commit()
-            flash(f"تم تحديث دور {existing_user.full_name} إلى {ROLE_LABELS_AR.get(role, role)}", "success")
+            flash(f"تم تحديث دور {existing_user.full_name} إلى {role_row.name_ar}", "success")
             return redirect(url_for("users.index"))
 
     # Otherwise create + send an invitation
@@ -97,7 +122,11 @@ def invite():
 @require_permission("users.manage")
 def change_role(user_id):
     new_role = request.form.get("role")
-    if new_role not in ALL_ROLES:
+    from app.models import Role
+    role_row = Role.query.filter_by(
+        company_id=g.active_company.id, code=new_role,
+    ).first()
+    if not role_row:
         flash("دور غير صالح", "error")
         return redirect(url_for("users.index"))
     if new_role == "owner":
@@ -124,7 +153,7 @@ def change_role(user_id):
             (user_companies.c.user_id == user_id) &
             (user_companies.c.company_id == g.active_company.id)
         )
-        .values(role=new_role)
+        .values(role=new_role, role_id=role_row.id)
     )
     db.session.commit()
     flash("تم تحديث الدور", "success")

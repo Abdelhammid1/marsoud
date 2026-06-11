@@ -15,16 +15,18 @@
           <td dir="ltr" class="text-sm">{{ m.user.email }}</td>
           <td>
             <span class="badge {% if m.role=='owner' %}badge-paid{% elif m.role=='admin' %}badge-sent{% elif m.role=='accountant' %}badge-partial{% else %}badge-draft{% endif %}">
-              {{ role_labels.get(m.role, m.role) }}
+              {{ m.role_label }}
             </span>
           </td>
           <td class="text-xs">
             {% if m.role != 'owner' %}
             <form method="POST" action="{{ url_for('users.change_role', user_id=m.user.id) }}" class="inline">
               <select name="role" class="select text-xs inline-block w-auto" onchange="this.form.submit()">
-                {% for r in roles %}{% if r != 'owner' %}
-                <option value="{{r}}" {% if m.role==r %}selected{% endif %}>{{ role_labels.get(r, r) }}</option>
-                {% endif %}{% endfor %}
+                {% for r in roles %}
+                <option value="{{ r.code }}" {% if m.role==r.code %}selected{% endif %}>
+                  {{ r.name_ar }}{% if r.type == 'CUSTOM' %} (مخصص){% endif %}
+                </option>
+                {% endfor %}
               </select>
             </form>
             <form method="POST" action="{{ url_for('users.revoke', user_id=m.user.id) }}" class="inline ms-2" onsubmit="return confirm('إزالة العضو من الشركة؟')">
@@ -78,10 +80,13 @@
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">الدور</label>
         <select name="role" class="select">
-          <option value="admin">{{ role_labels.admin }} — كل شيء ما عدا إدارة الأعضاء</option>
-          <option value="accountant" selected>{{ role_labels.accountant }} — يقيد ويصدر تقارير</option>
-          <option value="viewer">{{ role_labels.viewer }} — مشاهدة فقط</option>
+          {% for r in roles %}
+          <option value="{{ r.code }}" {% if r.code == 'accountant' %}selected{% endif %}>
+            {{ r.name_ar }}{% if r.type == 'CUSTOM' %} (مخصص){% endif %}
+          </option>
+          {% endfor %}
         </select>
+        <p class="text-xs text-slate-500 mt-1">يمكنك إنشاء أدوار مخصصة من <a href="{{ url_for('settings_roles.index') }}" class="text-emerald-600 hover:underline font-semibold">إدارة الأدوار والصلاحيات</a></p>
       </div>
       <button type="submit" class="btn-primary w-full">إرسال الدعوة</button>
       <p class="text-xs text-slate-500">سيستلم العضو الجديد إيميل برابط ينقله لإنشاء حسابه أو تسجيل الدخول.</p>

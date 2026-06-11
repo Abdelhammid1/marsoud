@@ -176,3 +176,58 @@ class EmployeeAccrual(db.Model):
     @property
     def is_settled(self):
         return self.settled_at is not None
+
+
+# ─── HR-SS — EmployeeHistory ────────────────────────────────────────────
+class EmployeeChangeType(str, enum.Enum):
+    DEPARTMENT = "DEPARTMENT"
+    JOB_TITLE = "JOB_TITLE"
+    SALARY = "SALARY"
+    STATUS = "STATUS"
+
+    @property
+    def label_ar(self):
+        return {
+            "DEPARTMENT": "نقل قسم",
+            "JOB_TITLE": "تغيير المسمى الوظيفي",
+            "SALARY": "تعديل الراتب",
+            "STATUS": "تغيير الحالة",
+        }[self.value]
+
+    @property
+    def icon(self):
+        return {"DEPARTMENT": "🏢", "JOB_TITLE": "💼",
+                "SALARY": "💰", "STATUS": "🔄"}[self.value]
+
+
+class EmployeeHistory(db.Model):
+    """Auto-written by update_employee() whenever a tracked field flips.
+
+    Stored as plain strings so we can render the timeline without needing
+    to resolve FKs (e.g. dept name when a department row is later renamed).
+    """
+    __tablename__ = "employee_history"
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer,
+                            db.ForeignKey("employees.id", ondelete="CASCADE"),
+                            nullable=False, index=True)
+    change_type = db.Column(db.String(30), nullable=False)
+    old_value = db.Column(db.String(255))
+    new_value = db.Column(db.String(255))
+    changed_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    changed_at = db.Column(db.DateTime, default=datetime.now, nullable=False, index=True)
+    notes = db.Column(db.String(255))
+
+    employee = db.relationship(
+        "Employee", foreign_keys=[employee_id],
+        backref=db.backref("history",
+                           order_by="EmployeeHistory.changed_at.desc()",
+                           cascade="all, delete-orphan"))
+    changed_by = db.relationship("User", foreign_keys=[changed_by_id])
+
+    @property
+    def change_enum(self):
+        try:
+            return EmployeeChangeType(self.change_type)
+        except ValueError:
+            return None

@@ -27,7 +27,17 @@ class Company(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     status = db.Column(db.String(20), default="ACTIVE", nullable=False)
     plan = db.Column(db.String(30), default="FREE", nullable=False)
+    # ERP-01 — when True, a sale that would overdraw stock is refused.
+    stock_strict_mode = db.Column(db.Boolean, default=True, nullable=False)
+    # ERP-03 — inventory + POS toggles
+    cost_method = db.Column(db.String(10), default="AVERAGE", nullable=False)
+    shift_required_for_pos = db.Column(db.Boolean, default=False, nullable=False)
+    barcode_format = db.Column(db.String(20), default="CODE128", nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
+
+    @property
+    def is_fifo(self):
+        return self.cost_method == "FIFO"
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
     @property

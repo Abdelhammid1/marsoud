@@ -66,6 +66,21 @@ P = {
 
     "agent.use":            {"owner", "admin", "accountant"},   # agent can post journals → not viewer
 
+    # ERP-01 — inventory + (Phase 2) POS
+    "inventory.view":       {"owner", "admin", "accountant", "viewer"},
+    "inventory.manage":     {"owner", "admin", "accountant"},
+    # ERP-02 — POS register + void + reports.
+    # NB: cashier role lives in a separate ticket but is already named here
+    # so the perm wiring is ready when that role lands.
+    "pos.use":              {"owner", "admin", "accountant", "cashier"},
+    "pos.void":             {"owner", "admin"},
+    "reports.profitability": {"owner", "admin", "accountant", "ceo"},
+    "reports.cashier_sales": {"owner", "admin"},
+    # ERP-03 — transfers + shifts
+    "transfers.view":       {"owner", "admin", "accountant", "inventory_manager"},
+    "transfers.manage":     {"owner", "admin", "accountant", "inventory_manager"},
+    "shifts.manage":        {"owner", "admin", "cashier"},
+
     "reports.view":         {"owner", "admin", "accountant", "ceo", "viewer"},
     "reports.export":       {"owner", "admin", "accountant", "ceo", "viewer"},
 }
@@ -74,9 +89,12 @@ ALL_ROLES = [
     "owner", "admin", "ceo", "accountant", "hr_manager",
     "sales_manager", "sales_rep",
     "project_manager", "team_member",
+    "employee",
     "viewer", "client",
 ]
 # All invitable for staff/clients except "owner" (per-company singleton).
+# "employee" is also excluded — it's auto-provisioned by HR when an
+# employee record is created, not picked from a manual invite dropdown.
 INVITABLE_ROLES = [
     "admin", "ceo", "accountant", "hr_manager",
     "sales_manager", "sales_rep",
@@ -93,16 +111,18 @@ ROLE_LABELS_AR = {
     "sales_rep":       "مندوب مبيعات",
     "project_manager": "مدير مشروع",
     "team_member":     "عضو فريق",
+    "employee":        "موظف (بوابة شخصية)",
     "viewer":          "مشاهد",
     "client":          "عميل (بوابة)",
 }
 
 
 def get_user_role(user_id, company_id):
-    """Look up a user's role for a specific company.
+    """Look up a user's role code (string) for a specific company.
 
-    Reads user_companies association table directly. Returns None if there's
-    no membership.
+    Returns the legacy string code so existing callers comparing against
+    strings (e.g. role == "hr_manager") keep working. Returns None if
+    there's no membership.
     """
     from app import db
     from app.models.user import user_companies
@@ -115,11 +135,53 @@ def get_user_role(user_id, company_id):
     return row.role if row else None
 
 
+def get_user_role_id(user_id, company_id):
+    """Look up the user's Role.id for the active company (MARSOUD-32).
+
+    Returns None when the row hasn't been backfilled yet — callers fall
+    back to the legacy string lookup.
+    """
+    from app import db
+    from app.models.user import user_companies
+    row = db.session.execute(
+        user_companies.select().where(
+            (user_companies.c.user_id == user_id) &
+            (user_companies.c.company_id == company_id)
+        )
+    ).first()
+    return row.role_id if row else None
+
+
+def _db_has_permission(action, user_id, company_id):
+    """DB-backed permission check (MARSOUD-32). Returns None when
+    indeterminate (e.g. role_id not backfilled) so the caller can fall
+    back to the legacy P-dict lookup."""
+    from app import db
+    from app.models import Permission, role_permissions
+    role_id = get_user_role_id(user_id, company_id)
+    if role_id is None:
+        return None
+    granted = db.session.query(Permission.code).join(
+        role_permissions, role_permissions.c.permission_id == Permission.id,
+    ).filter(role_permissions.c.role_id == role_id).all()
+    return action in {row[0] for row in granted}
+
+
 def has_permission(action, user=None, company=None):
     user = user or current_user
     company = company or g.get("active_company")
     if not user or not getattr(user, "is_authenticated", False) or not company:
         return False
+
+    # MARSOUD-32: prefer the DB; fall back to the legacy P dict if the
+    # user_companies row hasn't been backfilled yet.
+    try:
+        db_result = _db_has_permission(action, user.id, company.id)
+        if db_result is not None:
+            return db_result
+    except Exception:
+        pass
+
     role = get_user_role(user.id, company.id)
     if not role:
         return False

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block page_title %}تحويل {{ transfer.number }}{% endblock %}
+{% block content %}
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <div class="card p-6 md:col-span-2">
+    <div class="flex items-start justify-between mb-3 gap-2 flex-wrap">
+      <div>
+        <h2 class="text-2xl font-bold text-navy-900">{{ transfer.number }}</h2>
+        <div class="text-sm text-slate-500 mt-1">
+          {{ transfer.created_at.strftime('%Y-%m-%d %H:%M') }}
+          · من <strong>{{ transfer.from_warehouse.code }}</strong>
+          → إلى <strong>{{ transfer.to_warehouse.code }}</strong>
+        </div>
+      </div>
+      {% set st = transfer.status_enum %}
+      {% if st and st.value == 'POSTED' %}<span class="badge badge-paid">{{ st.label_ar }}</span>
+      {% elif st and st.value == 'CANCELLED' %}<span class="badge badge-cancelled">{{ st.label_ar }}</span>
+      {% else %}<span class="badge badge-draft">{{ st.label_ar if st else transfer.status }}</span>{% endif %}
+    </div>
+
+    <table class="data-table mt-4">
+      <thead>
+        <tr>
+          <th>SKU</th>
+          <th>المنتج</th>
+          <th class="text-end">الكمية</th>
+          <th class="text-end">تكلفة الوحدة</th>
+          <th class="text-end">قيمة</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in transfer.items %}
+        <tr>
+          <td class="font-mono">{{ it.variant.sku if it.variant else '—' }}</td>
+          <td>{{ it.variant.display_name if it.variant else '—' }}</td>
+          <td class="text-end font-mono">{{ '%.2f'|format(it.qty) }}</td>
+          <td class="text-end font-mono">{{ '%.4f'|format(it.unit_cost_at_time) }}</td>
+          <td class="text-end font-mono">{{ '%.2f'|format(it.qty * it.unit_cost_at_time) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="text-xs text-slate-500 mt-3">
+      إجمالي الكمية: <strong>{{ '%.2f'|format(transfer.total_qty) }}</strong>
+      · إجمالي القيمة: <strong>{{ '%.2f'|format(transfer.total_value) }}</strong>
+      · <span class="text-emerald-700">لم يُسجَّل أي قيد محاسبي (القيمة لم تتغيّر، فقط الموقع).</span>
+    </div>
+
+    {% if transfer.notes %}
+    <div class="bg-slate-50 rounded p-3 text-sm mt-3 whitespace-pre-wrap">{{ transfer.notes }}</div>
+    {% endif %}
+    {% if transfer.cancel_reason %}
+    <div class="bg-rose-50 border border-rose-200 rounded p-3 text-sm mt-3">
+      <strong>سبب الإلغاء:</strong> {{ transfer.cancel_reason }}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card p-5">
+    {% if transfer.status == 'DRAFT' and has_permission('transfers.manage') %}
+    <form method="POST" action="{{ url_for('inventory.transfer_post', transfer_id=transfer.id) }}"
+          onsubmit="return confirm('تنفيذ التحويل؟ سيتم تحديث المخزون.');">
+      <button type="submit" class="btn-primary w-full">✅ تنفيذ التحويل</button>
+    </form>
+    <hr class="my-3">
+    <form method="POST" action="{{ url_for('inventory.transfer_cancel', transfer_id=transfer.id) }}" class="space-y-2"
+          onsubmit="return confirm('إلغاء التحويل؟');">
+      <textarea name="reason" rows="2" placeholder="سبب الإلغاء (اختياري)" class="textarea text-sm"></textarea>
+      <button type="submit" class="btn-secondary w-full text-sm">إلغاء التحويل</button>
+    </form>
+    {% elif transfer.status == 'POSTED' %}
+    <p class="text-sm text-slate-500">
+      تم التنفيذ في {{ transfer.posted_at.strftime('%Y-%m-%d %H:%M') }}{% if transfer.posted_by %} بواسطة {{ transfer.posted_by.full_name }}{% endif %}.
+    </p>
+    <p class="text-xs text-slate-400 mt-2">
+      للتراجع عن تحويل منفّذ، أنشئ تحويل عكسي.
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

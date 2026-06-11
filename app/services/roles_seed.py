@@ -1,0 +1,186 @@
+"""MARSOUD-32 — seed permissions catalogue + system roles per company.
+
+The catalogue (PERMISSION_CATALOG) is the source of truth for every action
+that can appear on the permission grid. Each entry maps a P-dict code →
+(group_ar, label_ar). Adding a new permission is one entry here + an
+update to the P dict in permissions.py.
+
+System roles are seeded from app.services.permissions.P (so this stays
+the canonical mapping until the DB rewrite lands). For each company we
+create one Role row per name in ALL_ROLES, attach the matching set of
+permissions, and link existing user_companies rows to the right role_id.
+"""
+from app import db
+from app.models import Role, Permission
+from app.models.user import user_companies
+from app.services.permissions import P, ALL_ROLES, ROLE_LABELS_AR
+
+
+# ─── Catalogue ──────────────────────────────────────────────────────────
+# code → (group_ar, label_ar, action_kind)
+# action_kind is one of: view, add, edit, delete, run — used to bucket
+# entries into the 4-column matrix when possible.
+PERMISSION_CATALOG = {
+    # ─── المالية والمحاسبة ──────────────────────────────────────────────
+    "invoices.create":      ("المالية والمحاسبة", "الفواتير: إنشاء + إرسال", "add"),
+    "invoices.send":        ("المالية والمحاسبة", "الفواتير: إرسال", "edit"),
+    "invoices.refund":      ("المالية والمحاسبة", "الفواتير: استرداد / إلغاء", "delete"),
+
+    "journals.create":      ("المالية والمحاسبة", "القيود اليومية: إنشاء", "add"),
+    "journals.pause":       ("المالية والمحاسبة", "القيود اليومية: إيقاف", "edit"),
+    "journals.reverse":     ("المالية والمحاسبة", "القيود اليومية: قيد عكسي", "delete"),
+    "journals.recurring":   ("المالية والمحاسبة", "القيود اليومية: المتكررة", "edit"),
+
+    "vendor_bills.create":  ("المالية والمحاسبة", "فواتير الموردين: إنشاء", "add"),
+
+    "accounts.manage":      ("المالية والمحاسبة", "شجرة الحسابات: إدارة كاملة", "edit"),
+    "partners.manage":      ("المالية والمحاسبة", "العملاء والموردون: إدارة", "edit"),
+    "products.manage":      ("المالية والمحاسبة", "المنتجات والخدمات: إدارة", "edit"),
+    "payment_methods.manage": ("المالية والمحاسبة", "طرق الدفع: إدارة", "edit"),
+    "assets.manage":        ("المالية والمحاسبة", "الأصول الثابتة: إدارة", "edit"),
+
+    "reports.view":         ("المالية والمحاسبة", "التقارير المالية: عرض", "view"),
+    "reports.export":       ("المالية والمحاسبة", "التقارير المالية: تصدير", "edit"),
+
+    # ─── الموارد البشرية ────────────────────────────────────────────────
+    "payroll.run":          ("الموارد البشرية", "الرواتب: تشغيل كشف", "run"),
+    "payroll.employees":    ("الموارد البشرية", "الموظفون: إدارة كاملة", "edit"),
+    "payroll.accruals":     ("الموارد البشرية", "الرواتب: سداد المستحقات", "delete"),
+    "payroll.view":         ("الموارد البشرية", "الرواتب: عرض", "view"),
+    "hr.manage":            ("الموارد البشرية", "HR: أقسام + بيانات الموظف", "edit"),
+
+    # ─── العمليات والمبيعات ─────────────────────────────────────────────
+    "leads.view":           ("العمليات والمبيعات", "العملاء المحتملون: عرض", "view"),
+    "leads.manage":         ("العمليات والمبيعات", "العملاء المحتملون: إدارة", "edit"),
+    "leads.convert":        ("العمليات والمبيعات", "العملاء المحتملون: تحويل لمشروع", "edit"),
+
+    "projects.view":        ("العمليات والمبيعات", "المشاريع: عرض", "view"),
+    "projects.create":      ("العمليات والمبيعات", "المشاريع: إنشاء", "add"),
+    "projects.manage":      ("العمليات والمبيعات", "المشاريع: إدارة", "edit"),
+
+    "tasks.view":           ("العمليات والمبيعات", "المهام: عرض", "view"),
+    "tasks.manage":         ("العمليات والمبيعات", "المهام: إدارة", "edit"),
+
+    "inventory.view":       ("العمليات والمبيعات", "المخزون: عرض الأرصدة والسجل", "view"),
+    "inventory.manage":     ("العمليات والمبيعات", "المخزون: تسويات + رصيد افتتاحي + مخازن", "edit"),
+
+    "pos.use":              ("العمليات والمبيعات", "نقطة البيع: تسجيل أوردرات", "add"),
+    "pos.void":             ("العمليات والمبيعات", "نقطة البيع: إلغاء أوردر", "delete"),
+    "reports.profitability": ("المالية والمحاسبة", "تقرير ربحية المنتجات", "view"),
+    "reports.cashier_sales": ("المالية والمحاسبة", "تقرير مبيعات الكاشير", "view"),
+    "transfers.view":       ("العمليات والمبيعات", "تحويلات المخازن: عرض", "view"),
+    "transfers.manage":     ("العمليات والمبيعات", "تحويلات المخازن: إنشاء + تنفيذ", "edit"),
+    "shifts.manage":        ("العمليات والمبيعات", "ورديات الكاشير: فتح وإغلاق", "edit"),
+
+    # ─── النظام ─────────────────────────────────────────────────────────
+    "users.manage":         ("النظام", "المستخدمون: دعوة وإدارة", "edit"),
+    "users.view":           ("النظام", "المستخدمون: عرض", "view"),
+    "company.edit":         ("النظام", "إعدادات الشركة", "edit"),
+    "company.create":       ("النظام", "إنشاء شركة جديدة", "add"),
+    "agent.use":            ("النظام", "المحاسب الذكي (AI)", "run"),
+}
+
+
+def seed_permissions_catalog():
+    """Insert any catalogue entries not already in `permissions`. Idempotent."""
+    existing = {p.code for p in Permission.query.all()}
+    added = 0
+    for code, (group_ar, label_ar, action_kind) in PERMISSION_CATALOG.items():
+        if code in existing:
+            continue
+        # Derive resource + action from the code (e.g. "invoices.create" → "invoices", "create")
+        resource, _, action = code.partition(".")
+        db.session.add(Permission(
+            code=code, resource=resource, action=action,
+            group_ar=group_ar, label_ar=label_ar,
+        ))
+        added += 1
+    if added:
+        db.session.commit()
+    return added
+
+
+def seed_system_roles_for_company(company_id):
+    """Create the system roles for a company (idempotent) + attach their
+    canonical permission sets from app.services.permissions.P.
+    """
+    if not Permission.query.first():
+        seed_permissions_catalog()
+
+    existing = {r.code: r for r in Role.query.filter_by(company_id=company_id).all()}
+    created = 0
+    for code in ALL_ROLES:
+        name_ar = ROLE_LABELS_AR.get(code, code)
+        if code in existing:
+            role = existing[code]
+            role.type = "SYSTEM"
+            role.name_ar = name_ar
+        else:
+            role = Role(
+                company_id=company_id, code=code, name_ar=name_ar,
+                type="SYSTEM",
+                description=f"دور النظام: {name_ar}",
+            )
+            db.session.add(role)
+            db.session.flush()
+            created += 1
+        # Always re-sync permissions from the P dict — so newly-added
+        # permission codes flow into existing system roles on next boot
+        # without needing a manual migration. Custom roles are left alone.
+        granted_codes = {
+            permission_code
+            for permission_code, allowed_roles in P.items()
+            if code in allowed_roles
+        }
+        if granted_codes:
+            granted_perms = Permission.query.filter(
+                Permission.code.in_(granted_codes)
+            ).all()
+            role.permissions = granted_perms
+        else:
+            role.permissions = []
+    db.session.commit()
+    return created
+
+
+def backfill_user_companies_role_ids(company_id):
+    """For every user_companies row in this company, set role_id to the
+    matching system role's id based on the string `role` value.
+
+    Safe to re-run — only updates rows where role_id is currently NULL.
+    """
+    rows = db.session.execute(
+        user_companies.select().where(user_companies.c.company_id == company_id)
+    ).fetchall()
+    code_to_id = {
+        r.code: r.id
+        for r in Role.query.filter_by(company_id=company_id).all()
+    }
+    updated = 0
+    for row in rows:
+        if row.role_id is not None:
+            continue
+        role_id = code_to_id.get(row.role)
+        if role_id is None:
+            continue  # unknown role string — leave NULL, will fall back to string
+        db.session.execute(
+            user_companies.update().where(
+                (user_companies.c.user_id == row.user_id) &
+                (user_companies.c.company_id == company_id)
+            ).values(role_id=role_id)
+        )
+        updated += 1
+    if updated:
+        db.session.commit()
+    return updated
+
+
+def ensure_roles_ready_for_company(company_id):
+    """One-shot setup wrapper: seed permissions catalogue if needed,
+    seed system roles for this company, then backfill user_companies.
+
+    Cheap to call repeatedly — every sub-step is idempotent.
+    """
+    seed_permissions_catalog()
+    seed_system_roles_for_company(company_id)
+    return backfill_user_companies_role_ids(company_id)

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block page_title %}فتح وردية{% endblock %}
+{% block content %}
+<div class="card p-6 max-w-md mx-auto">
+  <h2 class="font-bold text-navy-900 mb-2">⏰ فتح وردية جديدة</h2>
+  <p class="text-xs text-slate-500 mb-4">أدخل المبلغ النقدي الموجود في الدرج الآن — هذا هو الافتتاحي.</p>
+  <form method="POST" class="space-y-3">
+    <div>
+      <label class="block text-sm font-semibold mb-1">المبلغ الافتتاحي في الدرج</label>
+      <input type="number" name="opening_cash" step="0.01" required min="0" value="0" class="input">
+    </div>
+    <div>
+      <label class="block text-sm font-semibold mb-1">ملاحظات (اختياري)</label>
+      <textarea name="notes" rows="2" class="textarea text-sm"></textarea>
+    </div>
+    <div class="flex justify-end gap-2">
+      <a href="{{ url_for('pos.shifts') }}" class="btn-secondary">إلغاء</a>
+      <button type="submit" class="btn-primary">فتح الوردية</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

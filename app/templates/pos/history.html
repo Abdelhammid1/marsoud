@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block page_title %}سجل أوردرات POS{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-3">
+  <h2 class="font-bold text-navy-900">🧾 سجل الأوردرات</h2>
+  <div class="flex gap-2">
+    <a href="{{ url_for('pos.index') }}" class="btn-primary text-sm">+ أوردر جديد</a>
+    {% if has_permission('users.view') %}
+      {% if show_all %}
+      <a href="{{ url_for('pos.history') }}" class="btn-secondary text-sm">مهامي فقط</a>
+      {% else %}
+      <a href="{{ url_for('pos.history', all=1) }}" class="btn-secondary text-sm">عرض الكل</a>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<div class="card p-4">
+  {% if orders %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>الرقم</th>
+        <th>التاريخ</th>
+        <th>الكاشير</th>
+        <th>العميل</th>
+        <th class="text-end">الإجمالي</th>
+        <th>الحالة</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in orders %}
+      <tr>
+        <td class="font-mono font-semibold">{{ o.number }}</td>
+        <td class="text-xs font-mono">{{ o.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td class="text-xs">{{ o.cashier.full_name if o.cashier else '—' }}</td>
+        <td class="text-xs">{{ o.customer.name if o.customer else 'زبون نقدي' }}</td>
+        <td class="text-end font-mono">{{ '%.2f'|format(o.total) }}</td>
+        <td>
+          {% if o.is_voided %}<span class="badge badge-cancelled">ملغى</span>
+          {% else %}<span class="badge badge-paid">مدفوع</span>{% endif %}
+        </td>
+        <td class="text-xs">
+          <a href="{{ url_for('pos.detail', invoice_id=o.id) }}" class="text-emerald-600 hover:underline">تفاصيل</a>
+          ·
+          <a href="{{ url_for('pos.receipt', invoice_id=o.id) }}" target="_blank" class="text-emerald-600 hover:underline">إيصال</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-sm text-slate-400 text-center py-8">لا توجد أوردرات بعد.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block page_title %}{{ variant.sku }}{% endblock %}
+{% block content %}
+
+<div class="card p-6 mb-4">
+  <h2 class="text-2xl font-bold text-navy-900">{{ variant.display_name }}</h2>
+  <div class="text-sm text-slate-500 font-mono mt-1">SKU: {{ variant.sku }}{% if variant.barcode %} · باركود: {{ variant.barcode }}{% endif %}</div>
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4">
+    <div>
+      <div class="text-xs text-slate-400">إجمالي الكمية</div>
+      <div class="text-2xl font-bold text-emerald-700 font-mono">{{ '%.2f'|format(variant.total_qty) }}</div>
+    </div>
+    <div>
+      <div class="text-xs text-slate-400">القيمة الدفترية</div>
+      <div class="text-2xl font-bold text-navy-900 font-mono">{{ '%.2f'|format(variant.total_value) }}</div>
+    </div>
+    <div>
+      <div class="text-xs text-slate-400">متوسط التكلفة</div>
+      <div class="text-2xl font-bold text-navy-900 font-mono">{{ '%.2f'|format(variant.average_cost) }}</div>
+    </div>
+    <div>
+      <div class="text-xs text-slate-400">حد إعادة الطلب</div>
+      <div class="text-2xl font-bold {% if variant.is_low_stock %}text-rose-600{% else %}text-slate-500{% endif %} font-mono">{{ variant.reorder_level }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <div class="card p-5">
+    <h3 class="font-bold text-navy-900 mb-3">📍 الأرصدة حسب المخزن</h3>
+    {% if balances %}
+    <table class="data-table">
+      <thead><tr><th>المخزن</th><th class="text-end">الكمية</th><th class="text-end">القيمة</th></tr></thead>
+      <tbody>
+        {% for b in balances %}
+        <tr>
+          <td>{{ b.warehouse.code }}</td>
+          <td class="text-end font-mono">{{ '%.2f'|format(b.qty) }}</td>
+          <td class="text-end font-mono">{{ '%.2f'|format(b.value) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="text-sm text-slate-400 text-center py-4">لم يدخل لهذا الصنف أي مخزون بعد.</div>
+    {% endif %}
+  </div>
+
+  <div class="card p-5 md:col-span-2">
+    <h3 class="font-bold text-navy-900 mb-3">📜 الحركات</h3>
+    {% if movements %}
+    <div class="overflow-x-auto">
+      <table class="data-table">
+        <thead><tr><th>التاريخ</th><th>النوع</th><th>المخزن</th><th class="text-end">الكمية</th><th class="text-end">رصيد بعد</th><th>المنفّذ</th></tr></thead>
+        <tbody>
+          {% for m in movements %}
+          <tr>
+            <td class="text-xs font-mono">{{ m.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td>
+              {% set k = m.kind_enum %}
+              <span class="badge {% if k and k.is_inflow %}badge-paid{% else %}badge-overdue{% endif %} text-[10px]">
+                {{ k.label_ar if k else m.kind }}
+              </span>
+            </td>
+            <td class="text-xs">{{ m.warehouse.code }}</td>
+            <td class="text-end font-mono {% if m.qty_delta and m.qty_delta < 0 %}text-rose-600{% else %}text-emerald-700{% endif %}">{{ '%+.2f'|format(m.qty_delta) }}</td>
+            <td class="text-end font-mono">{{ '%.2f'|format(m.balance_qty_after) }}</td>
+            <td class="text-xs">{{ m.actor.full_name if m.actor else 'نظام' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-sm text-slate-400 text-center py-4">لا توجد حركات.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}

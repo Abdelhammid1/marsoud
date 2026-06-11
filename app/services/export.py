@@ -11,6 +11,7 @@ from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import arabic_reshaper
+from app import db
 from bidi.algorithm import get_display
 from app.services.reports import (
     balance_sheet, income_statement, cash_flow,
@@ -1185,4 +1186,484 @@ def export_report(company, report_type, fmt, start, end, **kwargs):
                                       year=kwargs.get("year"), month=kwargs.get("month"))
     if report_type == "fixed-assets":
         return export_fixed_assets(company, fmt)
+    if report_type == "low-stock":
+        if fmt == "pdf":
+            return (export_low_stock_pdf(company),
+                    f"low-stock-{date.today()}.pdf", "application/pdf")
+        return (export_low_stock_excel(company),
+                f"low-stock-{date.today()}.xlsx", XLSX_MIME)
+    if report_type == "stock-movements":
+        if fmt == "pdf":
+            return (export_stock_movements_pdf(company, start, end),
+                    f"stock-movements-{start}-{end}.pdf", "application/pdf")
+        return (export_stock_movements_excel(company, start, end),
+                f"stock-movements-{start}-{end}.xlsx", XLSX_MIME)
+    if report_type == "inventory-balance":
+        if fmt == "pdf":
+            return (export_inventory_balance_pdf(company),
+                    f"inventory-balance-{date.today()}.pdf", "application/pdf")
+        return (export_inventory_balance_excel(company),
+                f"inventory-balance-{date.today()}.xlsx", XLSX_MIME)
+    if report_type == "profitability":
+        if fmt == "pdf":
+            return (export_profitability_pdf(company, start, end),
+                    f"profitability-{start}-{end}.pdf", "application/pdf")
+        return (export_profitability_excel(company, start, end),
+                f"profitability-{start}-{end}.xlsx", XLSX_MIME)
+    if report_type == "cashier-sales":
+        if fmt == "pdf":
+            return (export_cashier_sales_pdf(company, start, end),
+                    f"cashier-sales-{start}-{end}.pdf", "application/pdf")
+        return (export_cashier_sales_excel(company, start, end),
+                f"cashier-sales-{start}-{end}.xlsx", XLSX_MIME)
     raise ValueError(f"Unknown report: {report_type}")
+
+
+# ─── ERP-02 — inventory exports ──────────────────────────────────────────
+def export_low_stock_excel(company):
+    """Variants whose total qty is below their reorder_level."""
+    from app.services.inventory import low_stock_variants
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Low Stock"
+    _excel_styled_header(ws, "أصناف تحت حد الطلب", company.name,
+                         f"كما في {date.today()}")
+    row = 5
+    headers = ["SKU", "المنتج", "المتاح", "حد الطلب", "متوسط التكلفة", "القيمة الدفترية"]
+    for col, h in enumerate(headers, start=1):
+        c = ws.cell(row=row, column=col, value=h)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="0A2540")
+    row += 1
+    for v in low_stock_variants(company.id):
+        ws.cell(row=row, column=1, value=v.sku)
+        ws.cell(row=row, column=2, value=v.display_name)
+        ws.cell(row=row, column=3, value=v.total_qty).number_format = "#,##0.00"
+        ws.cell(row=row, column=4, value=float(v.reorder_level or 0)).number_format = "#,##0.00"
+        ws.cell(row=row, column=5, value=v.average_cost).number_format = "#,##0.00"
+        ws.cell(row=row, column=6, value=v.total_value).number_format = "#,##0.00"
+        row += 1
+    for i, w in enumerate([14, 35, 12, 12, 14, 16], start=1):
+        ws.column_dimensions[chr(ord("A") + i - 1)].width = w
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def export_stock_movements_excel(company, start, end):
+    """Full movement log for the given date range."""
+    from app.models import StockMovement, StockMovementKind
+    from datetime import datetime as _dt, timedelta as _td
+    rows = StockMovement.query.filter(
+        StockMovement.company_id == company.id,
+        StockMovement.created_at >= _dt.combine(start, _dt.min.time()),
+        StockMovement.created_at < _dt.combine(end, _dt.min.time()) + _td(days=1),
+    ).order_by(StockMovement.created_at.asc()).all()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Movements"
+    _excel_styled_header(ws, "سجل حركات المخزون", company.name,
+                         f"من {start} إلى {end}")
+    row = 5
+    headers = ["التاريخ", "النوع", "الصنف", "المخزن", "الكمية",
+               "تكلفة الوحدة", "الرصيد بعد", "المصدر", "المنفّذ", "السبب"]
+    for col, h in enumerate(headers, start=1):
+        c = ws.cell(row=row, column=col, value=h)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="0A2540")
+    row += 1
+    kind_labels = {k.value: k.label_ar for k in StockMovementKind}
+    for m in rows:
+        ws.cell(row=row, column=1, value=m.created_at.strftime("%Y-%m-%d %H:%M"))
+        ws.cell(row=row, column=2, value=kind_labels.get(m.kind, m.kind))
+        ws.cell(row=row, column=3, value=m.variant.sku if m.variant else "")
+        ws.cell(row=row, column=4, value=m.warehouse.code if m.warehouse else "")
+        ws.cell(row=row, column=5, value=float(m.qty_delta or 0)).number_format = "+#,##0.00;-#,##0.00"
+        ws.cell(row=row, column=6, value=float(m.unit_cost_at_time or 0)).number_format = "#,##0.0000"
+        ws.cell(row=row, column=7, value=float(m.balance_qty_after or 0)).number_format = "#,##0.00"
+        ws.cell(row=row, column=8,
+                value=f"{m.source_type or ''}#{m.source_id}" if m.source_id else (m.source_type or ""))
+        ws.cell(row=row, column=9, value=m.actor.full_name if m.actor else "نظام")
+        ws.cell(row=row, column=10, value=m.reason or "")
+        row += 1
+    for i, w in enumerate([18, 14, 14, 10, 12, 12, 12, 16, 18, 30], start=1):
+        ws.column_dimensions[chr(ord("A") + i - 1)].width = w
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+# ─── GAP closure: rest of the ERP-01 reports (PDF + Excel) ──────────────
+def _simple_pdf_table(buf, company, title, period, headers, rows,
+                      col_widths=None):
+    """Render an A4 portrait PDF with the Marsoud Arabic header + a single
+    full-width table. Auto-paginates when the page fills. Numeric columns
+    are right-aligned; text columns are left-aligned in their cells.
+
+    headers: list[str].
+    rows: list[list[str]]. Caller pre-formats numbers as strings.
+    col_widths: list[float] in cm; defaults to equal columns.
+    """
+    p = canvas.Canvas(buf, pagesize=A4)
+    _pdf_header(p, company, title, period)
+    y = 24.5 * cm
+    n = len(headers)
+    if col_widths is None:
+        total = 19.0
+        col_widths = [total / n] * n
+    # cumulative x offsets in cm (table starts at 1cm)
+    x_starts = [1.0]
+    for w in col_widths:
+        x_starts.append(x_starts[-1] + w)
+    # Header band
+    p.setFillColor(NAVY)
+    p.rect(1 * cm, y - 0.5 * cm, sum(col_widths) * cm, 0.7 * cm, fill=1, stroke=0)
+    p.setFillColor(colors.white)
+    p.setFont(_FONT_BOLD, 9)
+    for i, h in enumerate(headers):
+        cx = (x_starts[i] + col_widths[i] / 2) * cm
+        p.drawCentredString(cx, y - 0.25 * cm, ar(h))
+    y -= 1 * cm
+    p.setFillColor(colors.black)
+    p.setFont(_FONT_REGULAR, 9)
+    for row in rows:
+        if y < 2.5 * cm:
+            p.showPage()
+            _pdf_header(p, company, title + " (cont.)", period)
+            y = 24.5 * cm
+            # Re-draw header band
+            p.setFillColor(NAVY)
+            p.rect(1 * cm, y - 0.5 * cm, sum(col_widths) * cm, 0.7 * cm, fill=1, stroke=0)
+            p.setFillColor(colors.white)
+            p.setFont(_FONT_BOLD, 9)
+            for i, h in enumerate(headers):
+                cx = (x_starts[i] + col_widths[i] / 2) * cm
+                p.drawCentredString(cx, y - 0.25 * cm, ar(h))
+            y -= 1 * cm
+            p.setFillColor(colors.black)
+            p.setFont(_FONT_REGULAR, 9)
+        for i, cell in enumerate(row):
+            cell_s = str(cell)
+            # Right-align if it looks numeric (digits, comma, dot, %).
+            looks_num = bool(cell_s) and all(
+                c.isdigit() or c in ".,%-+" for c in cell_s
+            )
+            cx_right = (x_starts[i] + col_widths[i] - 0.1) * cm
+            cx_left = (x_starts[i] + 0.1) * cm
+            if looks_num:
+                p.drawRightString(cx_right, y, cell_s)
+            else:
+                p.drawString(cx_left, y, ar(cell_s))
+        y -= 0.5 * cm
+    p.showPage()
+    p.save()
+    buf.seek(0)
+    return buf
+
+
+# ─── 1. رصيد المخزون الحالي (inventory balance) ────────────────────────
+def _inventory_balance_rows(company_id):
+    """One row per (variant, warehouse) with current qty + value."""
+    from app.models import StockBalance, ProductVariant, Warehouse
+    out = []
+    rows = (
+        db.session.query(StockBalance, ProductVariant, Warehouse)
+        .join(ProductVariant, StockBalance.variant_id == ProductVariant.id)
+        .join(Warehouse, StockBalance.warehouse_id == Warehouse.id)
+        .filter(ProductVariant.company_id == company_id)
+        .order_by(ProductVariant.sku, Warehouse.code)
+        .all()
+    )
+    for bal, v, w in rows:
+        qty = float(bal.qty or 0)
+        value = float(bal.value or 0)
+        avg = (value / qty) if qty > 0 else 0
+        out.append({
+            "sku": v.sku, "name": v.display_name,
+            "warehouse": w.code, "qty": qty,
+            "avg_cost": avg, "value": value,
+        })
+    return out
+
+
+def export_inventory_balance_excel(company):
+    rows = _inventory_balance_rows(company.id)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Inventory Balance"
+    _excel_styled_header(ws, "رصيد المخزون الحالي", company.name,
+                         f"كما في {date.today()}")
+    row = 5
+    headers = ["SKU", "المنتج", "المخزن", "الكمية", "متوسط التكلفة", "القيمة"]
+    for col, h in enumerate(headers, start=1):
+        c = ws.cell(row=row, column=col, value=h)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="0A2540")
+    row += 1
+    total_value = 0.0
+    for r in rows:
+        ws.cell(row=row, column=1, value=r["sku"])
+        ws.cell(row=row, column=2, value=r["name"])
+        ws.cell(row=row, column=3, value=r["warehouse"])
+        ws.cell(row=row, column=4, value=r["qty"]).number_format = "#,##0.00"
+        ws.cell(row=row, column=5, value=r["avg_cost"]).number_format = "#,##0.0000"
+        ws.cell(row=row, column=6, value=r["value"]).number_format = "#,##0.00"
+        total_value += r["value"]
+        row += 1
+    ws.cell(row=row, column=5, value="إجمالي القيمة").font = Font(bold=True)
+    ws.cell(row=row, column=6, value=total_value).number_format = "#,##0.00"
+    ws.cell(row=row, column=6).font = Font(bold=True)
+    for i, w in enumerate([14, 30, 12, 12, 14, 14], start=1):
+        ws.column_dimensions[chr(ord("A") + i - 1)].width = w
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def export_inventory_balance_pdf(company):
+    rows = _inventory_balance_rows(company.id)
+    out = [
+        [r["sku"], r["name"], r["warehouse"],
+         f"{r['qty']:,.2f}", f"{r['avg_cost']:,.4f}", f"{r['value']:,.2f}"]
+        for r in rows
+    ]
+    total = sum(r["value"] for r in rows)
+    out.append(["", "", "", "", "إجمالي", f"{total:,.2f}"])
+    buf = io.BytesIO()
+    return _simple_pdf_table(
+        buf, company, "رصيد المخزون الحالي", f"كما في {date.today()}",
+        ["SKU", "المنتج", "المخزن", "الكمية", "متوسط التكلفة", "القيمة"],
+        out, col_widths=[2.5, 6.0, 2.0, 2.5, 3.0, 3.0],
+    )
+
+
+# ─── 2. ربحية المنتج (profitability) ───────────────────────────────────
+def _profitability_rows(company_id, start, end):
+    from app.models import (
+        InvoiceItem, Invoice, InvoiceStatus, ProductVariant,
+    )
+    items = (
+        db.session.query(InvoiceItem, Invoice)
+        .join(Invoice, InvoiceItem.invoice_id == Invoice.id)
+        .filter(Invoice.company_id == company_id,
+                Invoice.issue_date >= start, Invoice.issue_date <= end,
+                Invoice.status != InvoiceStatus.DRAFT,
+                Invoice.status != InvoiceStatus.VOIDED,
+                InvoiceItem.variant_id.isnot(None))
+        .all()
+    )
+    agg = {}
+    for it, inv in items:
+        if not it.variant:
+            continue
+        a = agg.setdefault(it.variant_id, {
+            "sku": it.variant.sku, "name": it.variant.display_name,
+            "qty": 0, "revenue": 0, "cogs": 0,
+        })
+        a["qty"] += float(it.quantity or 0)
+        a["revenue"] += float(it.line_total or 0)
+        a["cogs"] += float(it.quantity or 0) * float(it.unit_cost_at_sale or 0)
+    out = []
+    for r in agg.values():
+        gp = r["revenue"] - r["cogs"]
+        gm = (gp / r["revenue"] * 100) if r["revenue"] > 0 else 0
+        out.append({**r, "gross_profit": gp, "gross_margin": gm})
+    out.sort(key=lambda r: -r["gross_profit"])
+    return out
+
+
+def export_profitability_excel(company, start, end):
+    rows = _profitability_rows(company.id, start, end)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Profitability"
+    _excel_styled_header(ws, "ربحية المنتجات", company.name,
+                         f"من {start} إلى {end}")
+    row = 5
+    headers = ["SKU", "المنتج", "الكمية المباعة",
+               "المبيعات", "تكلفة البضاعة", "مجمل الربح", "الهامش %"]
+    for col, h in enumerate(headers, start=1):
+        c = ws.cell(row=row, column=col, value=h)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="0A2540")
+    row += 1
+    total_rev = total_cogs = 0.0
+    for r in rows:
+        ws.cell(row=row, column=1, value=r["sku"])
+        ws.cell(row=row, column=2, value=r["name"])
+        ws.cell(row=row, column=3, value=r["qty"]).number_format = "#,##0.00"
+        ws.cell(row=row, column=4, value=r["revenue"]).number_format = "#,##0.00"
+        ws.cell(row=row, column=5, value=r["cogs"]).number_format = "#,##0.00"
+        ws.cell(row=row, column=6, value=r["gross_profit"]).number_format = "#,##0.00"
+        ws.cell(row=row, column=7, value=r["gross_margin"]).number_format = "0.0\"%\""
+        total_rev += r["revenue"]; total_cogs += r["cogs"]
+        row += 1
+    total_gp = total_rev - total_cogs
+    total_gm = (total_gp / total_rev * 100) if total_rev > 0 else 0
+    ws.cell(row=row, column=3, value="الإجمالي").font = Font(bold=True)
+    ws.cell(row=row, column=4, value=total_rev).number_format = "#,##0.00"
+    ws.cell(row=row, column=5, value=total_cogs).number_format = "#,##0.00"
+    ws.cell(row=row, column=6, value=total_gp).number_format = "#,##0.00"
+    ws.cell(row=row, column=7, value=total_gm).number_format = "0.0\"%\""
+    for col in (4, 5, 6, 7):
+        ws.cell(row=row, column=col).font = Font(bold=True)
+    for i, w in enumerate([12, 28, 12, 14, 14, 14, 10], start=1):
+        ws.column_dimensions[chr(ord("A") + i - 1)].width = w
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def export_profitability_pdf(company, start, end):
+    rows = _profitability_rows(company.id, start, end)
+    out = [
+        [r["sku"], r["name"], f"{r['qty']:,.2f}",
+         f"{r['revenue']:,.2f}", f"{r['cogs']:,.2f}",
+         f"{r['gross_profit']:,.2f}", f"{r['gross_margin']:.1f}%"]
+        for r in rows
+    ]
+    total_rev = sum(r["revenue"] for r in rows)
+    total_cogs = sum(r["cogs"] for r in rows)
+    total_gp = total_rev - total_cogs
+    total_gm = (total_gp / total_rev * 100) if total_rev > 0 else 0
+    out.append(["", "إجمالي", "",
+                f"{total_rev:,.2f}", f"{total_cogs:,.2f}",
+                f"{total_gp:,.2f}", f"{total_gm:.1f}%"])
+    buf = io.BytesIO()
+    return _simple_pdf_table(
+        buf, company, "ربحية المنتجات", f"من {start} إلى {end}",
+        ["SKU", "المنتج", "الكمية", "المبيعات",
+         "تكلفة البضاعة", "مجمل الربح", "الهامش"],
+        out, col_widths=[2.0, 5.0, 2.0, 2.7, 2.7, 2.7, 1.9],
+    )
+
+
+# ─── 3. مبيعات الكاشير (cashier sales) ─────────────────────────────────
+def _cashier_sales_rows(company_id, start, end):
+    from app.models import Invoice, InvoiceStatus
+    invs = Invoice.query.filter(
+        Invoice.company_id == company_id,
+        Invoice.source == "POS",
+        Invoice.issue_date >= start,
+        Invoice.issue_date <= end,
+    ).all()
+    agg = {}
+    for inv in invs:
+        cid_key = inv.cashier_id or 0
+        a = agg.setdefault(cid_key, {
+            "cashier": inv.cashier.full_name if inv.cashier else "—",
+            "orders": 0, "voids": 0, "gross": 0, "net": 0,
+            "by_method": {},
+        })
+        a["orders"] += 1
+        if inv.is_voided:
+            a["voids"] += 1
+            continue
+        a["gross"] += float(inv.total or 0)
+        a["net"] += float(inv.total or 0)
+        for pay in inv.payments:
+            mname = pay.payment_method.name_ar if pay.payment_method else (pay.method or "غير محدد")
+            a["by_method"][mname] = a["by_method"].get(mname, 0) + float(pay.amount or 0)
+    return sorted(agg.values(), key=lambda r: -r["gross"])
+
+
+def export_cashier_sales_excel(company, start, end):
+    rows = _cashier_sales_rows(company.id, start, end)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Cashier Sales"
+    _excel_styled_header(ws, "مبيعات الكاشير", company.name,
+                         f"من {start} إلى {end}")
+    row = 5
+    headers = ["الكاشير", "الأوردرات", "الملغى",
+               "المبيعات", "صافي", "حسب طريقة الدفع"]
+    for col, h in enumerate(headers, start=1):
+        c = ws.cell(row=row, column=col, value=h)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="0A2540")
+    row += 1
+    for r in rows:
+        ws.cell(row=row, column=1, value=r["cashier"])
+        ws.cell(row=row, column=2, value=r["orders"])
+        ws.cell(row=row, column=3, value=r["voids"])
+        ws.cell(row=row, column=4, value=r["gross"]).number_format = "#,##0.00"
+        ws.cell(row=row, column=5, value=r["net"]).number_format = "#,##0.00"
+        methods = ", ".join(f"{m}: {v:,.2f}" for m, v in r["by_method"].items())
+        ws.cell(row=row, column=6, value=methods)
+        row += 1
+    for i, w in enumerate([22, 10, 10, 14, 14, 40], start=1):
+        ws.column_dimensions[chr(ord("A") + i - 1)].width = w
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def export_cashier_sales_pdf(company, start, end):
+    rows = _cashier_sales_rows(company.id, start, end)
+    out = [
+        [r["cashier"], str(r["orders"]), str(r["voids"]),
+         f"{r['gross']:,.2f}", f"{r['net']:,.2f}",
+         ", ".join(f"{m}:{v:,.0f}" for m, v in r["by_method"].items())]
+        for r in rows
+    ]
+    buf = io.BytesIO()
+    return _simple_pdf_table(
+        buf, company, "مبيعات الكاشير", f"من {start} إلى {end}",
+        ["الكاشير", "الأوردرات", "الملغى", "المبيعات", "صافي", "طرق الدفع"],
+        out, col_widths=[3.5, 1.8, 1.8, 2.8, 2.8, 6.3],
+    )
+
+
+# ─── 4. Low-stock PDF (Excel already exists) ───────────────────────────
+def export_low_stock_pdf(company):
+    from app.services.inventory import low_stock_variants
+    rows = []
+    for v in low_stock_variants(company.id):
+        rows.append([v.sku, v.display_name,
+                     f"{v.total_qty:,.2f}",
+                     f"{float(v.reorder_level or 0):,.2f}",
+                     f"{v.average_cost:,.2f}",
+                     f"{v.total_value:,.2f}"])
+    buf = io.BytesIO()
+    return _simple_pdf_table(
+        buf, company, "أصناف تحت حد الطلب", f"كما في {date.today()}",
+        ["SKU", "المنتج", "المتاح", "حد الطلب",
+         "متوسط التكلفة", "القيمة"],
+        rows, col_widths=[2.5, 6.0, 2.5, 2.5, 2.5, 3.0],
+    )
+
+
+# ─── 5. Movement log PDF (Excel already exists) ────────────────────────
+def export_stock_movements_pdf(company, start, end):
+    from app.models import StockMovement, StockMovementKind
+    from datetime import datetime as _dt, timedelta as _td
+    rows = StockMovement.query.filter(
+        StockMovement.company_id == company.id,
+        StockMovement.created_at >= _dt.combine(start, _dt.min.time()),
+        StockMovement.created_at < _dt.combine(end, _dt.min.time()) + _td(days=1),
+    ).order_by(StockMovement.created_at.asc()).all()
+    kind_labels = {k.value: k.label_ar for k in StockMovementKind}
+    out = []
+    for m in rows:
+        out.append([
+            m.created_at.strftime("%Y-%m-%d %H:%M"),
+            kind_labels.get(m.kind, m.kind),
+            m.variant.sku if m.variant else "",
+            m.warehouse.code if m.warehouse else "",
+            f"{float(m.qty_delta or 0):+,.2f}",
+            f"{float(m.balance_qty_after or 0):,.2f}",
+            m.actor.full_name if m.actor else "نظام",
+        ])
+    buf = io.BytesIO()
+    return _simple_pdf_table(
+        buf, company, "سجل حركات المخزون", f"من {start} إلى {end}",
+        ["التاريخ", "النوع", "الصنف", "المخزن",
+         "الكمية", "الرصيد بعد", "المنفّذ"],
+        out, col_widths=[2.8, 2.0, 2.5, 1.5, 2.0, 2.5, 5.7],
+    )

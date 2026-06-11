@@ -26,7 +26,7 @@ from app.services.ledger import post_journal, get_account_by_code, LedgerError
 LINE_TYPE_ACCOUNT_PREFIX = {
     BillLineType.EXPENSE: "5",        # any 5xxx expense account
     BillLineType.FIXED_ASSET: "12",   # any 12xx fixed asset account (excl. 1290)
-    BillLineType.INVENTORY: "1140",   # only the inventory account
+    BillLineType.INVENTORY: "1300",   # only the inventory account
 }
 
 
@@ -48,7 +48,7 @@ def get_allowed_accounts_for_line_type(company_id, line_type):
     if line_type == BillLineType.INVENTORY:
         return Account.query.filter(
             Account.company_id == company_id,
-            Account.code == "1140",
+            Account.code == "1300",
         ).all()
     return []
 
@@ -66,7 +66,7 @@ def _validate_line_account(line, company_id):
             raise LedgerError(f"البند '{line.description}' من نوع أصل ثابت لكن الحساب ليس أصلاً")
         if not line.useful_life_years or line.useful_life_years <= 0:
             raise LedgerError(f"العمر الإنتاجي مطلوب للأصل: {line.description}")
-    if line.line_type == BillLineType.INVENTORY and acc.code != "1140":
+    if line.line_type == BillLineType.INVENTORY and acc.code != "1300":
         raise LedgerError(f"البند '{line.description}' من نوع مخزون لكن الحساب ليس حساب المخزون")
 
 
@@ -145,6 +145,33 @@ def post_vendor_bill(bill, created_by=None):
     )
 
     bill.journal_entry_id = entry.id
+
+    # ERP-01 — receive stock for every INVENTORY line. Runs inside the same
+    # transaction as the journal so a failure rolls everything back together.
+    from app.services.inventory import receive_stock, InventoryError
+    for item in bill.items:
+        if item.line_type != BillLineType.INVENTORY:
+            continue
+        if not item.variant_id or not item.warehouse_id:
+            raise LedgerError(
+                f"سطر مخزون يحتاج اختيار صنف ومخزن: {item.description}"
+            )
+        qty = float(item.quantity or 0)
+        if qty <= 0:
+            raise LedgerError(f"كمية الاستلام غير صالحة: {item.description}")
+        # Unit cost = line_total / qty so VAT (which is posted separately)
+        # doesn't pollute the inventory valuation.
+        unit_cost = float(item.line_total or 0) / qty
+        try:
+            receive_stock(
+                variant=item.variant, warehouse=item.warehouse,
+                qty=qty, unit_cost=unit_cost,
+                bill_id=bill.id, line_id=item.id,
+                actor_id=created_by,
+                journal_entry_id=entry.id,
+            )
+        except InventoryError as e:
+            raise LedgerError(str(e))
 
     # Create FixedAsset for each fixed-asset line
     for item in bill.items:

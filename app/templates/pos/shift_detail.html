@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block page_title %}وردية #{{ shift.id }}{% endblock %}
+{% block content %}
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <div class="card p-6 md:col-span-2">
+    <div class="flex items-start justify-between mb-3 flex-wrap gap-2">
+      <div>
+        <h2 class="text-xl font-bold text-navy-900">وردية #{{ shift.id }}</h2>
+        <div class="text-sm text-slate-500">{{ shift.cashier.full_name if shift.cashier else '—' }}</div>
+      </div>
+      {% if shift.is_open %}<span class="badge badge-sent">مفتوحة</span>
+      {% else %}<span class="badge badge-paid">مقفلة</span>{% endif %}
+    </div>
+
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+      <div>
+        <div class="text-xs text-slate-500">فتحت</div>
+        <div class="font-mono">{{ shift.opened_at.strftime('%Y-%m-%d %H:%M') }}</div>
+      </div>
+      <div>
+        <div class="text-xs text-slate-500">أُغلقت</div>
+        <div class="font-mono">{{ shift.closed_at.strftime('%Y-%m-%d %H:%M') if shift.closed_at else '—' }}</div>
+      </div>
+      <div>
+        <div class="text-xs text-slate-500">المدة</div>
+        <div class="font-mono">
+          {% if shift.closed_at %}{{ ((shift.closed_at - shift.opened_at).total_seconds() / 3600) | round(1) }}س{% else %}—{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-slate-50 rounded p-3 text-sm space-y-1 mb-4">
+      <div class="flex justify-between"><span>الافتتاحي</span><span class="font-mono">{{ '%.2f'|format(shift.opening_cash) }}</span></div>
+      <div class="flex justify-between"><span>المتوقع</span><span class="font-mono">{{ '%.2f'|format(shift.expected_cash) if shift.expected_cash is not none else '—' }}</span></div>
+      <div class="flex justify-between"><span>الفعلي</span><span class="font-mono">{{ '%.2f'|format(shift.closing_cash) if shift.closing_cash is not none else '—' }}</span></div>
+      <div class="flex justify-between font-bold {% if shift.variance and shift.variance < 0 %}text-rose-600{% elif shift.variance and shift.variance > 0 %}text-emerald-700{% endif %}">
+        <span>الفرق</span><span class="font-mono">{{ '%+.2f'|format(shift.variance) if shift.variance is not none else '—' }}</span>
+      </div>
+    </div>
+
+    <h3 class="font-bold text-navy-900 mb-2">ملخّص البيوعات</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+      <div class="bg-emerald-50 rounded p-3">
+        <div class="text-xs text-slate-500">الأوردرات</div>
+        <div class="text-2xl font-bold font-mono">{{ summary.orders }}{% if summary.voids %} <span class="text-rose-600 text-sm">({{ summary.voids }} ملغى)</span>{% endif %}</div>
+      </div>
+      <div class="bg-emerald-50 rounded p-3">
+        <div class="text-xs text-slate-500">صافي البيوعات</div>
+        <div class="text-2xl font-bold font-mono text-emerald-700">{{ '%.2f'|format(summary.net) }}</div>
+      </div>
+      <div class="bg-emerald-50 rounded p-3">
+        <div class="text-xs text-slate-500 mb-1">حسب طريقة الدفع</div>
+        {% for mname, amt in summary.by_method.items() %}
+        <div class="flex justify-between text-sm">
+          <span>{{ mname }}</span><span class="font-mono">{{ '%.2f'|format(amt) }}</span>
+        </div>
+        {% else %}—{% endfor %}
+      </div>
+    </div>
+
+    {% if shift.notes %}
+    <div class="bg-slate-50 rounded p-3 text-sm whitespace-pre-wrap">{{ shift.notes }}</div>
+    {% endif %}
+  </div>
+
+  <div class="card p-5">
+    {% if shift.is_open %}
+    <a href="{{ url_for('pos.shift_close', shift_id=shift.id) }}" class="btn-primary w-full text-center">⏏ إغلاق الوردية</a>
+    {% endif %}
+    <a href="{{ url_for('pos.shifts') }}" class="btn-secondary w-full text-center mt-2">← السجل</a>
+  </div>
+</div>
+
+{% endblock %}

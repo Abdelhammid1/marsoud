@@ -7,7 +7,7 @@ parallel user system. Lead → Won → "Convert to project" auto-creates a
 Marsoud `Customer` row tied to the project.
 """
 import enum
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decimal import Decimal
 from app import db
 
@@ -359,3 +359,85 @@ class Task(db.Model):
         if not self.deadline or self.status in (TaskStatus.DONE, TaskStatus.BLOCKED):
             return False
         return self.deadline < date.today()
+
+    @property
+    def deadline_soon(self):
+        """True when deadline is today or within the next 24h."""
+        if not self.deadline or self.status in (TaskStatus.DONE, TaskStatus.BLOCKED):
+            return False
+        today = date.today()
+        return today <= self.deadline <= today + timedelta(days=1)
+
+    @property
+    def all_assignees(self):
+        """Union of multi-assignee rows + the legacy primary assignee."""
+        out = list(self.assignees) if self.assignees else []
+        if self.assigned_to and self.assigned_to not in out:
+            out.insert(0, self.assigned_to)
+        return out
+
+    @property
+    def assignee_ids(self):
+        return [u.id for u in self.all_assignees]
+
+
+# ─── TASKS-02 multi-assignee + comments + activity log ──────────────────
+task_assignees = db.Table(
+    "task_assignees",
+    db.Column("task_id", db.Integer,
+              db.ForeignKey("tasks.id", ondelete="CASCADE"),
+              primary_key=True),
+    db.Column("user_id", db.Integer,
+              db.ForeignKey("users.id"), primary_key=True),
+    db.Column("assigned_by_id", db.Integer, db.ForeignKey("users.id")),
+    db.Column("assigned_at", db.DateTime, default=datetime.now, nullable=False),
+)
+
+Task.assignees = db.relationship(
+    "User", secondary=task_assignees, lazy="select",
+    foreign_keys=[task_assignees.c.task_id, task_assignees.c.user_id],
+)
+
+
+class TaskComment(db.Model):
+    __tablename__ = "task_comments"
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer,
+                        db.ForeignKey("tasks.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"),
+                           nullable=False, index=True)
+    content = db.Column(db.Text, nullable=False)
+    attachment_url = db.Column(db.String(400))
+    attachment_name = db.Column(db.String(200))
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+    task = db.relationship(
+        "Task", foreign_keys=[task_id],
+        backref=db.backref("comments",
+                           order_by="TaskComment.created_at.asc()",
+                           cascade="all, delete-orphan"))
+    user = db.relationship("User", foreign_keys=[user_id])
+
+
+class TaskActivityLog(db.Model):
+    __tablename__ = "task_activity_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer,
+                        db.ForeignKey("tasks.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"),
+                           nullable=False, index=True)
+    action = db.Column(db.String(60), nullable=False)
+    before_json = db.Column(db.Text)
+    after_json = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+    task = db.relationship(
+        "Task", foreign_keys=[task_id],
+        backref=db.backref("activity",
+                           order_by="TaskActivityLog.created_at.desc()",
+                           cascade="all, delete-orphan"))
+    user = db.relationship("User", foreign_keys=[user_id])

@@ -1,4 +1,4 @@
-from app.models.user import User, user_companies
+from app.models.user import User, user_companies, UserStatus
 from app.models.company import Company
 from app.models.account import Account, AccountType, NormalSide
 from app.models.journal import JournalEntry, JournalLine
@@ -19,6 +19,7 @@ from app.models.vendor_bill import (
 from app.models.payroll import (
     Employee, PayrollRun, PayrollLine, EmployeeAccrual,
     ContractType, EmployeeStatus, TerminationReason, Gender,
+    EmployeeHistory, EmployeeChangeType,
 )
 from app.models.department import Department
 from app.models.leave import (
@@ -31,12 +32,19 @@ from app.models.crm import (
     Project, ProjectStatus, ProjectMember, Milestone, ProjectStatusEvent,
     PROJECT_TRANSITIONS,
     Task, TaskStatus, TaskPriority, KANBAN_ORDER,
+    TaskComment, TaskActivityLog, task_assignees,
 )
 from app.models.opsflow_extras import (
     Document, DocumentSourceType, DocumentVisibility,
     Notification, NotificationKind,
     ClientFeedback,
     AuditEntry,
+)
+from app.models.roles import Role, Permission, role_permissions
+from app.models.inventory import (
+    Warehouse, ProductVariant, StockBalance, StockMovement, StockMovementKind,
+    StockTransfer, StockTransferItem, StockTransferStatus,
+    StockLot, CashierShift, CashierShiftStatus,
 )
 from app.models.refund import Refund, RefundType, CreditNote
 from app.models.invitation import Invitation
@@ -46,13 +54,14 @@ from app.models.platform_audit import PlatformAuditLog, SuperadminImpersonation,
 
 __all__ = [
     "PlatformAuditLog", "SuperadminImpersonation", "PlatformError",
-    "User", "user_companies", "Company",
+    "User", "user_companies", "UserStatus", "Company",
     "Account", "AccountType", "NormalSide",
     "JournalEntry", "JournalLine",
     "Invoice", "InvoiceItem", "InvoiceStatus", "Payment", "InvoiceReminderSent",
     "Customer", "Vendor",
     "FixedAsset",
     "Employee", "PayrollRun", "PayrollLine", "EmployeeAccrual", "Gender",
+    "EmployeeHistory", "EmployeeChangeType",
     "Department",
     "LeaveType", "LeaveBalance",
     "AttendanceException", "AttendanceExceptionType",
@@ -61,9 +70,15 @@ __all__ = [
     "Project", "ProjectStatus", "ProjectMember", "Milestone", "ProjectStatusEvent",
     "PROJECT_TRANSITIONS",
     "Task", "TaskStatus", "TaskPriority", "KANBAN_ORDER",
+    "TaskComment", "TaskActivityLog", "task_assignees",
     "Document", "DocumentSourceType", "DocumentVisibility",
     "Notification", "NotificationKind",
     "ClientFeedback", "AuditEntry",
+    "Role", "Permission", "role_permissions",
+    "Warehouse", "ProductVariant", "StockBalance",
+    "StockMovement", "StockMovementKind",
+    "StockTransfer", "StockTransferItem", "StockTransferStatus",
+    "StockLot", "CashierShift", "CashierShiftStatus",
     "Refund", "RefundType", "CreditNote",
     "Invitation",
     "AgentMessage",

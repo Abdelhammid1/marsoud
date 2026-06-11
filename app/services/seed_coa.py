@@ -10,7 +10,7 @@ DEFAULT_COA = [
     ("1110", "Cash", "النقدية", AccountType.ASSET, "1100"),
     ("1120", "Bank", "البنك", AccountType.ASSET, "1100"),
     ("1130", "Accounts Receivable", "العملاء — المدينون", AccountType.ASSET, "1100"),
-    ("1140", "Inventory", "المخزون", AccountType.ASSET, "1100"),
+    ("1300", "Inventory", "المخزون", AccountType.ASSET, "1100"),
     ("1150", "Prepaid Expenses", "المصروفات المدفوعة مقدماً", AccountType.ASSET, "1100"),
     ("1200", "Fixed Assets", "الأصول الثابتة", AccountType.ASSET, "1000"),
     ("1210", "Equipment", "المعدات", AccountType.ASSET, "1200"),
@@ -31,6 +31,8 @@ DEFAULT_COA = [
     ("3100", "Owner's Capital", "رأس المال", AccountType.EQUITY, "3000"),
     ("3200", "Retained Earnings", "الأرباح المحتجزة", AccountType.EQUITY, "3000"),
     ("3300", "Drawings", "المسحوبات الشخصية", AccountType.EQUITY, "3000"),
+    # ERP-01 — opening-balance contra for first-time inventory entry
+    ("3900", "Opening Balance Equity", "حساب الافتتاح", AccountType.EQUITY, "3000"),
     # REVENUE (4xxx)
     ("4000", "Revenue", "الإيرادات", AccountType.REVENUE, None),
     ("4100", "Sales Revenue", "إيرادات المبيعات", AccountType.REVENUE, "4000"),
@@ -47,6 +49,8 @@ DEFAULT_COA = [
     ("5250", "Fixed Assets Depreciation Expense", "مصاريف إهلاك الأصول الثابتة", AccountType.EXPENSE, "5200"),
     ("5260", "Office Supplies", "أدوات مكتبية", AccountType.EXPENSE, "5200"),
     ("5270", "Bank Charges", "عمولات البنك", AccountType.EXPENSE, "5200"),
+    # ERP-01 — stock-count variance account
+    ("5990", "Inventory Variance", "فروقات الجرد", AccountType.EXPENSE, "5000"),
 ]
 
 

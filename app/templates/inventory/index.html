@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block page_title %}المخزون{% endblock %}
+{% block content %}
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+  <div class="card p-5">
+    <div class="text-xs text-slate-500">إجمالي قيمة المخزون</div>
+    <div class="text-3xl font-bold text-emerald-700 font-mono mt-1">{{ '%.2f'|format(total_value) }}</div>
+    <div class="text-xs text-slate-400 mt-1">جميع المخازن والأصناف</div>
+  </div>
+  <div class="card p-5">
+    <div class="text-xs text-slate-500">عدد الأصناف النشطة</div>
+    <div class="text-3xl font-bold text-navy-900 font-mono mt-1">{{ variants_count }}</div>
+    <div class="text-xs text-slate-400 mt-1">variants فعّالة</div>
+  </div>
+  <div class="card p-5">
+    <div class="text-xs text-slate-500">أصناف تحت حد الطلب</div>
+    <div class="text-3xl font-bold {% if low_stock %}text-rose-600{% else %}text-slate-400{% endif %} font-mono mt-1">{{ low_stock|length }}</div>
+    {% if low_stock %}<div class="text-xs text-rose-500 mt-1">⚠ يحتاج إعادة طلب</div>
+    {% else %}<div class="text-xs text-slate-400 mt-1">المخزون كافٍ</div>{% endif %}
+  </div>
+</div>
+
+<div class="card p-6 mb-4">
+  <div class="flex flex-wrap items-center justify-between mb-3 gap-2">
+    <h3 class="font-bold text-navy-900">⚠ تحت حد الطلب</h3>
+    <div class="flex gap-2">
+      <form method="POST" action="{{ url_for('inventory.recheck') }}" class="inline">
+        <button type="submit" class="btn-secondary text-sm">🔄 إعادة فحص الأرصدة</button>
+      </form>
+      <a href="{{ url_for('inventory.inventory_balance') }}" class="btn-secondary text-sm">📊 رصيد المخزون</a>
+      <a href="{{ url_for('inventory.export_low_stock', fmt='xlsx') }}" class="btn-secondary text-sm">⬇ Excel: تحت حد الطلب</a>
+      <a href="{{ url_for('inventory.export_low_stock', fmt='pdf') }}" class="btn-secondary text-sm">⬇ PDF: تحت حد الطلب</a>
+      {% if has_permission('inventory.manage') %}
+      <a href="{{ url_for('inventory.adjust') }}" class="btn-secondary text-sm">+ تسوية جرد</a>
+      <a href="{{ url_for('inventory.opening_balance') }}" class="btn-primary text-sm">📦 رصيد افتتاحي</a>
+      {% endif %}
+    </div>
+  </div>
+  {% if low_stock %}
+  <table class="data-table">
+    <thead><tr><th>SKU</th><th>المنتج</th><th class="text-center">المتاح</th><th class="text-center">حد الطلب</th></tr></thead>
+    <tbody>
+      {% for v in low_stock %}
+      <tr>
+        <td class="font-mono">{{ v.sku }}</td>
+        <td><a href="{{ url_for('inventory.variant_detail', variant_id=v.id) }}" class="text-emerald-600 hover:underline">{{ v.display_name }}</a></td>
+        <td class="text-center font-mono text-rose-600 font-bold">{{ v.total_qty }}</td>
+        <td class="text-center font-mono text-slate-500">{{ v.reorder_level }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-sm text-slate-400 text-center py-4">لا يوجد أي صنف تحت حد الطلب الحالي.</div>
+  {% endif %}
+</div>
+
+<div class="card p-6">
+  <div class="flex items-center justify-between mb-3">
+    <h3 class="font-bold text-navy-900">📋 آخر الحركات</h3>
+    <a href="{{ url_for('inventory.movements') }}" class="text-emerald-600 hover:underline text-sm">عرض كل السجل ←</a>
+  </div>
+  {% if recent %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>التاريخ</th>
+        <th>النوع</th>
+        <th>الصنف</th>
+        <th>المخزن</th>
+        <th class="text-end">الكمية</th>
+        <th class="text-end">الرصيد بعد</th>
+        <th>المنفّذ</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in recent %}
+      <tr>
+        <td class="text-xs font-mono">{{ m.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td>
+          {% set k = m.kind_enum %}
+          <span class="badge {% if k and k.is_inflow %}badge-paid{% else %}badge-overdue{% endif %} text-[10px]">
+            {{ k.label_ar if k else m.kind }}
+          </span>
+        </td>
+        <td>{% if m.variant %}<a href="{{ url_for('inventory.variant_detail', variant_id=m.variant.id) }}" class="text-emerald-600 hover:underline">{{ m.variant.sku }}</a>{% else %}—{% endif %}</td>
+        <td class="text-xs">{{ m.warehouse.code if m.warehouse else '—' }}</td>
+        <td class="text-end font-mono {% if m.qty_delta and m.qty_delta < 0 %}text-rose-600{% else %}text-emerald-700{% endif %}">{{ '%+.2f'|format(m.qty_delta) }}</td>
+        <td class="text-end font-mono">{{ '%.2f'|format(m.balance_qty_after) }}</td>
+        <td class="text-xs">{{ m.actor.full_name if m.actor else 'نظام' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-sm text-slate-400 text-center py-4">لا توجد حركات بعد.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

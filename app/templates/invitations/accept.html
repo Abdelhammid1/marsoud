@@ -10,7 +10,15 @@
   </div>
 
   <form method="POST" class="space-y-4">
-    {% if existing_user %}
+    {% if existing_user and activation %}
+    <div class="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-sm">
+      تفعيل حسابك الجديد — اختر كلمة مرور (6 أحرف على الأقل).
+    </div>
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">كلمة المرور الجديدة</label>
+      <input type="password" name="password" required minlength="6" class="input">
+    </div>
+    {% elif existing_user %}
     <div class="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm">
       لديك حساب بالفعل بهذا البريد — أدخل كلمة المرور للقبول.
     </div>

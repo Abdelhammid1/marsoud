@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block page_title %}رصيد المخزون الحالي{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+  <div>
+    <h2 class="font-bold text-navy-900">📊 رصيد المخزون الحالي</h2>
+    <p class="text-xs text-slate-500">لكل صنف وvariant، الكمية والقيمة الدفترية لكل مخزن.</p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('inventory.export_inventory_balance', fmt='xlsx') }}" class="btn-secondary text-sm">⬇ Excel</a>
+    <a href="{{ url_for('inventory.export_inventory_balance', fmt='pdf') }}" class="btn-secondary text-sm">⬇ PDF</a>
+  </div>
+</div>
+
+<div class="card p-4">
+  {% if rows %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>SKU</th>
+        <th>المنتج</th>
+        <th>المخزن</th>
+        <th class="text-end">الكمية</th>
+        <th class="text-end">متوسط التكلفة</th>
+        <th class="text-end">القيمة</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="font-mono">{{ r.sku }}</td>
+        <td>{{ r.name }}</td>
+        <td class="text-xs">{{ r.warehouse }}</td>
+        <td class="text-end font-mono">{{ '%.2f'|format(r.qty) }}</td>
+        <td class="text-end font-mono">{{ '%.4f'|format(r.avg_cost) }}</td>
+        <td class="text-end font-mono font-semibold">{{ '%.2f'|format(r.value) }}</td>
+      </tr>
+      {% endfor %}
+      <tr class="bg-slate-50 font-bold">
+        <td colspan="5" class="text-end">إجمالي القيمة</td>
+        <td class="text-end font-mono text-emerald-700">{{ '%.2f'|format(total_value) }}</td>
+      </tr>
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-sm text-slate-400 text-center py-8">لا توجد بضاعة حالياً في أي مخزن.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

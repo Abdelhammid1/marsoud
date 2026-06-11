@@ -140,7 +140,7 @@ def _classify_cashflow_entry(entry, cash_ids):
             has_dep_expense = True
         if code == "1290":
             has_acc_dep = True
-        if code in ("1140",) or (code.startswith("12") and code != "1290"):
+        if code in ("1300",) or (code.startswith("12") and code != "1290"):
             cats.add("INVESTING")
         elif code.startswith("3"):
             cats.add("FINANCING")
@@ -498,7 +498,7 @@ def dashboard_metrics(company_id):
     total_equity = bs["totals"]["equity"]
     debt_to_equity = (total_liab / total_equity) if total_equity > 0.01 else 0.0
 
-    current_assets_codes = ["1110", "1120", "1130", "1140", "1150"]
+    current_assets_codes = ["1110", "1120", "1130", "1300", "1150"]
     current_liab_codes = ["2110", "2120", "2130", "2140"]
     current_assets = sum(
         float(a.balance) for a in Account.query.filter(

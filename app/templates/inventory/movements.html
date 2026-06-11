@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block page_title %}سجل حركات المخزون{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+  <div>
+    <h2 class="font-bold text-navy-900">📋 سجل المساءلة</h2>
+    <p class="text-xs text-slate-500">كل حركة مخزون — مين عملها، إمتى، والرصيد بعد.</p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('inventory.export_movements', fmt='xlsx', **({'from': from_filter, 'to': to_filter} if from_filter or to_filter else {})) }}"
+       class="btn-secondary text-sm">⬇ Excel</a>
+    <a href="{{ url_for('inventory.export_movements', fmt='pdf', **({'from': from_filter, 'to': to_filter} if from_filter or to_filter else {})) }}"
+       class="btn-secondary text-sm">⬇ PDF</a>
+  </div>
+</div>
+
+<form method="GET" class="card p-4 mb-4 grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+  <div>
+    <label class="block text-xs font-semibold mb-1">النوع</label>
+    <select name="kind" class="select text-sm">
+      <option value="">الكل</option>
+      {% for k in kinds %}<option value="{{ k.value }}" {% if kind_filter == k.value %}selected{% endif %}>{{ k.label_ar }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold mb-1">المنفّذ</label>
+    <select name="user_id" class="select text-sm">
+      <option value="">الكل</option>
+      {% for u in users %}{% if u %}<option value="{{ u.id }}" {% if user_filter == u.id %}selected{% endif %}>{{ u.full_name }}</option>{% endif %}{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold mb-1">الصنف</label>
+    <select name="variant_id" class="select text-sm">
+      <option value="">الكل</option>
+      {% for v in variants %}<option value="{{ v.id }}" {% if variant_filter == v.id %}selected{% endif %}>{{ v.sku }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold mb-1">المخزن</label>
+    <select name="warehouse_id" class="select text-sm">
+      <option value="">الكل</option>
+      {% for w in warehouses %}<option value="{{ w.id }}" {% if warehouse_filter == w.id %}selected{% endif %}>{{ w.code }}</option>{% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold mb-1">من</label>
+    <input type="date" name="from" value="{{ from_filter or '' }}" class="input text-sm">
+  </div>
+  <div>
+    <label class="block text-xs font-semibold mb-1">إلى</label>
+    <input type="date" name="to" value="{{ to_filter or '' }}" class="input text-sm">
+  </div>
+  <div class="md:col-span-6 flex justify-end">
+    <button type="submit" class="btn-primary text-sm">تطبيق الفلتر</button>
+  </div>
+</form>
+
+<div class="card p-4">
+  {% if movements %}
+  <div class="overflow-x-auto">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>التاريخ</th>
+          <th>النوع</th>
+          <th>الصنف</th>
+          <th>المخزن</th>
+          <th class="text-end">الكمية</th>
+          <th class="text-end">تكلفة الوحدة</th>
+          <th class="text-end">الرصيد بعد</th>
+          <th>المصدر</th>
+          <th>المنفّذ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in movements %}
+        <tr>
+          <td class="text-xs font-mono">{{ m.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td>
+            {% set k = m.kind_enum %}
+            <span class="badge {% if k and k.is_inflow %}badge-paid{% else %}badge-overdue{% endif %} text-[10px]">
+              {{ k.label_ar if k else m.kind }}
+            </span>
+          </td>
+          <td>{% if m.variant %}<a href="{{ url_for('inventory.variant_detail', variant_id=m.variant.id) }}" class="text-emerald-600 hover:underline">{{ m.variant.sku }}</a>{% else %}—{% endif %}</td>
+          <td class="text-xs">{{ m.warehouse.code if m.warehouse else '—' }}</td>
+          <td class="text-end font-mono {% if m.qty_delta and m.qty_delta < 0 %}text-rose-600{% else %}text-emerald-700{% endif %}">{{ '%+.2f'|format(m.qty_delta) }}</td>
+          <td class="text-end font-mono">{{ '%.4f'|format(m.unit_cost_at_time) }}</td>
+          <td class="text-end font-mono font-semibold">{{ '%.2f'|format(m.balance_qty_after) }}</td>
+          <td class="text-xs font-mono">{{ m.source_type or '—' }}{% if m.source_id %}#{{ m.source_id }}{% endif %}</td>
+          <td class="text-xs">{{ m.actor.full_name if m.actor else 'نظام' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-sm text-slate-400 text-center py-8">لا توجد حركات تطابق الفلتر.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

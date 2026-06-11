@@ -1,39 +1,81 @@
 {% extends "base.html" %}
 {% block page_title %}{{ task.title }}{% endblock %}
 {% block content %}
-<div class="grid grid-cols-3 gap-4">
-  <div class="card p-6 col-span-2">
-    <div class="flex items-start justify-between mb-4">
-      <div>
-        <h2 class="text-2xl font-bold text-navy-900">{{ task.title }}</h2>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <div class="card p-6 md:col-span-2">
+    <div class="flex flex-wrap items-start justify-between gap-2 mb-4">
+      <div class="flex-1 min-w-0">
+        <h2 class="text-2xl font-bold text-navy-900 break-words">{{ task.title }}</h2>
         <div class="text-sm text-slate-500 mt-1">
-          {% if task.project %}في مشروع: <a href="{{ url_for('projects.detail', project_id=task.project_id) }}" class="text-brand-600 hover:underline">{{ task.project.name }}</a>
+          {% if task.project %}في مشروع: <a href="{{ url_for('projects.detail', project_id=task.project_id) }}" class="text-emerald-600 hover:underline">{{ task.project.name }}</a>
           {% else %}<span class="text-amber-700">📌 مهمة مستقلة (بدون مشروع)</span>
           {% endif %}
         </div>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 flex-wrap">
         <span class="badge {{ task.priority.badge_class }}">{{ task.priority.label_ar }}</span>
         <span class="badge {{ task.status.badge_class }} text-base px-3 py-1.5">{{ task.status.label_ar }}</span>
+        {% if task.is_overdue %}<span class="badge badge-overdue">⚠ متأخرة</span>
+        {% elif task.deadline_soon %}<span class="badge badge-partial">⏰ خلال 24 ساعة</span>{% endif %}
         {% if has_permission('tasks.manage') %}
-        <a href="{{ url_for('tasks.edit', task_id=task.id) }}" class="btn-secondary text-sm">✎ تعديل</a>
+        <a href="{{ url_for('tasks.edit', task_id=task.id) }}" class="btn-secondary text-sm">✎ تعديل كامل</a>
         {% endif %}
       </div>
     </div>
 
+    <!-- ─── Inline-editable metadata grid ──────────────────────────── -->
+    {% if can_edit %}
+    <form method="POST" action="{{ url_for('tasks.inline_edit', task_id=task.id) }}"
+          class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm mb-4 bg-slate-50 rounded-lg p-3">
+      <label class="block">
+        <span class="text-slate-500 text-xs">الأولوية</span>
+        <select name="priority" class="select text-sm mt-1" onchange="this.form.submit()">
+          {% for p in priorities %}<option value="{{ p.name }}" {% if p == task.priority %}selected{% endif %}>{{ p.label_ar }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="block">
+        <span class="text-slate-500 text-xs">الموعد النهائي</span>
+        <input type="date" name="deadline" value="{{ task.deadline.isoformat() if task.deadline else '' }}"
+               class="input text-sm mt-1" onchange="this.form.submit()">
+      </label>
+      <label class="block">
+        <span class="text-slate-500 text-xs">الحالة</span>
+        <select name="status" class="select text-sm mt-1" onchange="this.form.submit()">
+          {% for s in statuses %}<option value="{{ s.name }}" {% if s == task.status %}selected{% endif %}>{{ s.label_ar }}</option>{% endfor %}
+        </select>
+      </label>
+      <div class="block">
+        <span class="text-slate-500 text-xs">المرحلة</span>
+        <div class="font-semibold mt-1">{{ task.milestone.name if task.milestone else '—' }}</div>
+      </div>
+    </form>
+    {% else %}
     <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm mb-4">
-      <div><span class="text-slate-500">المُعيَّن إليه:</span> {{ task.assigned_to.full_name if task.assigned_to else '—' }}</div>
+      <div><span class="text-slate-500">الأولوية:</span> {{ task.priority.label_ar }}</div>
+      <div><span class="text-slate-500">الحالة:</span> {{ task.status.label_ar }}</div>
       <div><span class="text-slate-500">المرحلة:</span> {{ task.milestone.name if task.milestone else '—' }}</div>
       <div><span class="text-slate-500">Deadline:</span>
-        {% if task.deadline %}
-          <span class="font-mono {% if task.is_overdue %}text-rose-600 font-bold{% endif %}">{{ task.deadline.isoformat() }}{% if task.is_overdue %} ⚠ متأخرة{% endif %}</span>
-        {% else %}—{% endif %}
+        {% if task.deadline %}<span class="font-mono">{{ task.deadline.isoformat() }}</span>{% else %}—{% endif %}
       </div>
-      <div><span class="text-slate-500">أُنشئت:</span> <span class="font-mono">{{ task.created_at.strftime('%Y-%m-%d') }}</span></div>
-      {% if task.completed_at %}<div><span class="text-slate-500">أُكملت:</span> <span class="font-mono">{{ task.completed_at.strftime('%Y-%m-%d %H:%M') }}</span></div>{% endif %}
+    </div>
+    {% endif %}
+
+    <div class="text-xs text-slate-500 mb-4">
+      أُنشئت <span class="font-mono">{{ task.created_at.strftime('%Y-%m-%d') }}</span>
+      {% if task.completed_at %} · أُكملت <span class="font-mono">{{ task.completed_at.strftime('%Y-%m-%d %H:%M') }}</span>{% endif %}
     </div>
 
-    {% if task.description %}
+    <!-- ─── Description ───────────────────────────────────────────── -->
+    {% if can_edit %}
+    <details class="bg-slate-50 rounded-lg p-3 mb-3" {% if not task.description %}open{% endif %}>
+      <summary class="cursor-pointer text-sm font-semibold text-slate-700">📝 الوصف {% if task.description %}<span class="text-xs text-slate-400">(انقر للتعديل)</span>{% endif %}</summary>
+      <form method="POST" action="{{ url_for('tasks.inline_edit', task_id=task.id) }}" class="mt-2">
+        <textarea name="description" rows="4" class="input text-sm w-full"
+                  placeholder="وصف المهمة…">{{ task.description or '' }}</textarea>
+        <button type="submit" class="btn-primary text-sm mt-2">حفظ الوصف</button>
+      </form>
+    </details>
+    {% elif task.description %}
     <div class="bg-slate-50 rounded-lg p-3 text-sm whitespace-pre-wrap mb-3">{{ task.description }}</div>
     {% endif %}
     {% if task.notes %}
@@ -43,12 +85,35 @@
     </div>
     {% endif %}
 
+    <!-- ─── Comments ──────────────────────────────────────────────── -->
+    <hr class="my-4">
+    <h3 id="comments" class="font-bold text-navy-900 mb-3">💬 التعليقات
+      <span class="text-xs text-slate-400 font-normal">({{ task.comments|length }})</span></h3>
+    <div class="space-y-2 mb-3">
+      {% for c in task.comments %}
+      <div class="bg-slate-50 rounded-lg p-3">
+        <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+          <div class="font-semibold text-slate-700">{{ c.user.full_name if c.user else '—' }}</div>
+          <div class="font-mono">{{ c.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+        </div>
+        <div class="text-sm whitespace-pre-wrap">{{ c.content }}</div>
+      </div>
+      {% else %}
+      <div class="text-sm text-slate-400">لا توجد تعليقات بعد.</div>
+      {% endfor %}
+    </div>
+    <form method="POST" action="{{ url_for('tasks.comment_add', task_id=task.id) }}" class="flex gap-2">
+      <textarea name="content" rows="2" required placeholder="أضف تعليقاً…" class="input text-sm flex-1"></textarea>
+      <button type="submit" class="btn-primary text-sm self-end">إرسال</button>
+    </form>
+
+    <!-- ─── Attachments ────────────────────────────────────────────── -->
     <hr class="my-4">
     <h3 class="font-bold text-navy-900 mb-3">📎 المرفقات</h3>
     <div class="space-y-2 mb-3">
     {% for d in docs %}
       <div class="flex items-center justify-between bg-slate-50 rounded-lg p-3">
-        <a href="{{ d.file_path }}" target="_blank" class="text-sm font-semibold text-navy-900 hover:text-brand-600">📄 {{ d.name }}</a>
+        <a href="{{ d.file_path }}" target="_blank" class="text-sm font-semibold text-navy-900 hover:text-emerald-600">📄 {{ d.name }}</a>
         {% if has_permission('tasks.manage') %}
         <form method="POST" action="{{ url_for('documents.delete', doc_id=d.id) }}" onsubmit="return confirm('حذف الملف؟')">
           <button type="submit" class="text-xs text-rose-600 hover:underline">حذف</button>
@@ -67,16 +132,50 @@
     {% endif %}
   </div>
 
-  {% if has_permission('tasks.manage') %}
-  <div class="card p-5">
-    <h3 class="font-bold text-navy-900 mb-3">تغيير الحالة</h3>
-    <form method="POST" action="{{ url_for('tasks.status', task_id=task.id) }}" class="space-y-3">
-      <select name="new_status" required class="select text-sm">
-        {% for s in statuses %}{% if s != task.status %}<option value="{{ s.name }}">{{ s.label_ar }}</option>{% endif %}{% endfor %}
-      </select>
-      <button type="submit" class="btn-primary w-full text-sm">حفظ</button>
-    </form>
+  <!-- ─── Sidebar: assignees + activity ─────────────────────────────── -->
+  <div class="space-y-4">
+    <div class="card p-5">
+      <h3 class="font-bold text-navy-900 mb-3">👥 المكلَّفون</h3>
+      <div class="space-y-1 mb-3">
+        {% for u in task.all_assignees %}
+        <div class="flex items-center gap-2 text-sm">
+          <span class="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-xs">{{ u.full_name[:1] }}</span>
+          <span>{{ u.full_name }}{% if u.id == task.assigned_to_id %} <span class="text-xs text-slate-400">(الأساسي)</span>{% endif %}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% if can_edit %}
+      <details>
+        <summary class="cursor-pointer text-xs text-emerald-700 font-semibold">تعديل المكلَّفين</summary>
+        <form method="POST" action="{{ url_for('tasks.update_assignees', task_id=task.id) }}" class="mt-2 space-y-2">
+          <div class="max-h-40 overflow-auto bg-slate-50 rounded p-2 space-y-1">
+            {% for u in users %}
+            <label class="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="assignee_ids" value="{{ u.id }}"
+                     {% if u.id in current_assignee_ids %}checked{% endif %}>
+              {{ u.full_name }}
+            </label>
+            {% endfor %}
+          </div>
+          <button type="submit" class="btn-primary text-sm w-full">حفظ</button>
+        </form>
+      </details>
+      {% endif %}
+    </div>
+
+    <div class="card p-5">
+      <h3 class="font-bold text-navy-900 mb-3">📜 السجل</h3>
+      <div class="space-y-2 max-h-96 overflow-auto">
+        {% for a in task.activity %}
+        <div class="text-xs border-r-2 border-emerald-200 pe-2 pl-2">
+          <div class="text-slate-600">{{ activity_description(a) }}</div>
+          <div class="text-slate-400 font-mono">{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+        </div>
+        {% else %}
+        <div class="text-sm text-slate-400">لا يوجد سجل بعد.</div>
+        {% endfor %}
+      </div>
+    </div>
   </div>
-  {% endif %}
 </div>
 {% endblock %}
