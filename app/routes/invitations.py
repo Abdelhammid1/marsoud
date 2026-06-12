@@ -57,8 +57,6 @@ def accept(token):
                     existing_user=existing_user, activation=True,
                 )
             existing_user.set_password(password)
-            from app.models import UserStatus
-            existing_user.status = UserStatus.ACTIVE.value
             existing_user.is_active = True
             user = existing_user
         elif existing_user:
