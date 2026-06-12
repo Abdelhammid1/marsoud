@@ -44,16 +44,23 @@ def _company_user_ids():
 
 
 def _sales_reps():
+    """All active company members who can own a lead. Excludes client-portal
+    accounts (those linked to a Customer). Role-agnostic so custom roles
+    (role_id-based) are included too, not just legacy string roles."""
     cid = g.active_company.id
     rows = db.session.execute(
-        user_companies.select().where(
-            (user_companies.c.company_id == cid) &
-            (user_companies.c.role.in_(
-                ["sales_rep", "sales_manager", "admin", "owner"],
-            ))
-        )
+        user_companies.select().where(user_companies.c.company_id == cid)
     ).fetchall()
-    return [db.session.get(User, r.user_id) for r in rows]
+    seen = set()
+    reps = []
+    for r in rows:
+        if r.user_id in seen:
+            continue
+        seen.add(r.user_id)
+        u = db.session.get(User, r.user_id)
+        if u and u.is_active and u.linked_customer_id is None:
+            reps.append(u)
+    return reps
 
 
 def _project_managers():
