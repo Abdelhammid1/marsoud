@@ -52,10 +52,12 @@ def ensure_user_for_employee(employee, *, actor_id=None):
         db.session.commit()
         return existing, False
 
+    from app.models import UserStatus
     user = User(
         email=email,
         full_name=employee.name or email.split("@", 1)[0],
         is_active=False,
+        status=UserStatus.PENDING.value,
         employee_id=employee.id,
     )
     # Placeholder password the user will never know.
@@ -104,14 +106,9 @@ def activate_user(user, *, company_id, actor_id=None):
     email or flash the URL to the OWNER in dev. Idempotent — re-activating
     just rotates the token.
     """
-    if user.is_active == False:
-        # Re-enable: explicit step, but allowed.
-        user.is_active = True
-    elif user.is_active == True:
-        pass  # nothing to do, but still rotate token below
-    else:
-        user.is_active = True
-
+    from app.models import UserStatus
+    # Keep status and is_active in sync — both flows check different one.
+    user.status = UserStatus.ACTIVE.value
     user.is_active = True
 
     # Generate a fresh activation token (same shape as invitations).
@@ -137,7 +134,8 @@ def activate_user(user, *, company_id, actor_id=None):
 
 
 def disable_user(user):
-    user.is_active = False
+    from app.models import UserStatus
+    user.status = UserStatus.DISABLED.value
     user.is_active = False
     db.session.commit()
 

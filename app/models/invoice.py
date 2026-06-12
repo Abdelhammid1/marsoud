@@ -12,6 +12,7 @@ class InvoiceStatus(enum.Enum):
     CANCELLED = "CANCELLED"
     REFUNDED = "REFUNDED"
     PARTIALLY_REFUNDED = "PARTIALLY_REFUNDED"
+    VOIDED = "VOIDED"   # ERP-02 — POS order fully reversed
 
 
 class DiscountType(enum.Enum):
@@ -43,7 +44,20 @@ class Invoice(db.Model):
     notes = db.Column(db.Text)              # customer-facing
     internal_notes = db.Column(db.Text)     # private to the company
     send_reminders = db.Column(db.Boolean, default=True)
+
+    # ERP-02 — POS-specific fields. Columns exist in DB from migration
+    # n2b8f5d4e1a9 (POS phase 2).
+    source = db.Column(db.String(20), default="MANUAL", nullable=False, index=True)
+    cashier_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    cash_received = db.Column(db.Numeric(15, 4))
+    voided_at = db.Column(db.DateTime)
+    voided_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    void_reason = db.Column(db.Text)
+
     created_at = db.Column(db.DateTime, default=datetime.now)
+
+    cashier = db.relationship("User", foreign_keys=[cashier_id])
+    voided_by = db.relationship("User", foreign_keys=[voided_by_id])
 
     company = db.relationship("Company", backref=db.backref("invoices", lazy="dynamic"))
     customer = db.relationship("Customer", backref=db.backref("invoices", lazy="dynamic"))
@@ -57,6 +71,20 @@ class Invoice(db.Model):
     @property
     def balance(self):
         return float(self.total or 0) - float(self.paid_amount or 0)
+
+    @property
+    def is_pos(self):
+        return self.source == "POS"
+
+    @property
+    def is_voided(self):
+        return self.status == InvoiceStatus.VOIDED
+
+    @property
+    def change_due(self):
+        if self.cash_received is None:
+            return None
+        return float(self.cash_received) - float(self.total or 0)
 
     def recalc(self):
         """Compute totals respecting line-level and invoice-level discounts.
@@ -104,7 +132,15 @@ class InvoiceItem(db.Model):
     discount_value = db.Column(db.Numeric(15, 4), default=0)
     line_total = db.Column(db.Numeric(15, 4), default=0)
 
+    # ERP-01 — inventory line targets + frozen-at-sale cost basis.
+    # Columns exist in DB from migration m1a4e7c9b3f6.
+    variant_id = db.Column(db.Integer, db.ForeignKey("product_variants.id"))
+    warehouse_id = db.Column(db.Integer, db.ForeignKey("warehouses.id"))
+    unit_cost_at_sale = db.Column(db.Numeric(15, 4), default=0, nullable=False)
+
     product = db.relationship("Product")
+    variant = db.relationship("ProductVariant", foreign_keys=[variant_id])
+    warehouse = db.relationship("Warehouse", foreign_keys=[warehouse_id])
 
     @property
     def gross(self):

@@ -1,7 +1,33 @@
+import enum
 from datetime import datetime
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from app import db
+
+
+class UserStatus(str, enum.Enum):
+    """HR-SS — accounts auto-provisioned for employees start as PENDING
+    until OWNER activates them. DISABLED is a soft revoke.
+
+    NB: kept in sync with is_active — PENDING/DISABLED imply is_active=False,
+    ACTIVE implies is_active=True. Both checks work; status is the source
+    of truth for the HR portal flow.
+    """
+    ACTIVE = "ACTIVE"
+    PENDING = "PENDING"
+    DISABLED = "DISABLED"
+
+    @property
+    def label_ar(self):
+        return {"ACTIVE": "نشط",
+                "PENDING": "قيد التفعيل",
+                "DISABLED": "معطّل"}[self.value]
+
+    @property
+    def badge_class(self):
+        return {"ACTIVE": "badge-paid",
+                "PENDING": "badge-sent",
+                "DISABLED": "badge-cancelled"}[self.value]
 
 
 user_companies = db.Table(
@@ -26,6 +52,14 @@ class User(UserMixin, db.Model):
     # When this user is a client portal account, links them to a Customer row
     # in some company. Their role per-company will be "client".
     linked_customer_id = db.Column(db.Integer, db.ForeignKey("customers.id"), nullable=True)
+
+    # HR-SS: lifecycle state + link to the employee record (if any).
+    # Column exists in DB from migration l9f7d3a5b2c8.
+    status = db.Column(db.String(20), default="ACTIVE", nullable=False)
+    employee_id = db.Column(db.Integer,
+                            db.ForeignKey("employees.id", ondelete="SET NULL"),
+                            nullable=True)
+
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     companies = db.relationship(
@@ -40,3 +74,18 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    @property
+    def status_enum(self):
+        try:
+            return UserStatus(self.status or "ACTIVE")
+        except ValueError:
+            return UserStatus.ACTIVE
+
+    @property
+    def is_pending(self):
+        return self.status == UserStatus.PENDING.value
+
+    @property
+    def is_disabled(self):
+        return self.status == UserStatus.DISABLED.value
