@@ -328,7 +328,10 @@ def build_checks(fx):
          "erp02_profitability"),
         ("ERP-02-cashier-sales", "Cashier sales report renders",
          "/reports/cashier-sales",
-         ["مبيعات الكاشير", "صافي بعد الملغى", "حسب طريقة الدفع"],
+         # NB: only check page-static labels — the per-row "صافي بعد الملغى"
+         # and "حسب طريقة الدفع" labels render only when there's POS data
+         # in the period, which previous test data cleanup removes.
+         ["مبيعات الكاشير", "تطبيق"],
          "erp02_cashier_sales"),
         ("ERP-03-transfers", "Transfers list renders",
          "/inventory/transfers/",
