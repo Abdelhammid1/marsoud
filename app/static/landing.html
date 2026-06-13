@@ -282,7 +282,7 @@
 }
 .whatsapp-main-btn:hover{transform:scale(1.05)}
 .whatsapp-main-btn svg{width:22px;height:22px;flex-shrink:0}
-
+.whatsapp-float-menu.open{display:block}
 .whatsapp-float-menu{
   display:none;position:absolute;bottom:60px;right:0;
   background:#fff;border-radius:12px;box-shadow:var(--shadow-md);
@@ -601,6 +601,18 @@
         gtag('event', 'click_whatsapp', { event_category: 'Contact' });
       }
     });
+  });
+  // WhatsApp float toggle
+  const waBtn = document.querySelector('.whatsapp-main-btn');
+  const waMenu = document.querySelector('.whatsapp-float-menu');
+  waBtn.addEventListener('click', function(e){
+    e.stopPropagation();
+    waMenu.classList.toggle('open');
+  });
+  document.addEventListener('click', function(e){
+    if(!e.target.closest('.whatsapp-country-float')){
+      waMenu.classList.remove('open');
+    }
   });
 </script>
 </body>
