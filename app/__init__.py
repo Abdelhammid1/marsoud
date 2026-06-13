@@ -58,14 +58,6 @@ def create_app(config_class=Config):
     from app.routes.inventory import bp as inventory_bp
     from app.routes.pos import bp as pos_bp
 
-    from flask_login import current_user
-
-    @app.route("/")
-    def landing_or_dashboard():
-        if current_user.is_authenticated:
-            return redirect(url_for("dashboard.index"))
-        return send_from_directory(app.static_folder, "landing.html")
-
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(companies_bp, url_prefix="/companies")
