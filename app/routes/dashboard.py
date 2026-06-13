@@ -1,5 +1,5 @@
-from flask import Blueprint, render_template, redirect, url_for, g
-from flask_login import login_required
+from flask import Blueprint, render_template, redirect, url_for, g, send_from_directory, current_app
+from flask_login import login_required, current_user
 from app.services.reports import dashboard_metrics
 from app.services.invoicing import update_overdue_statuses
 
@@ -7,6 +7,11 @@ bp = Blueprint("dashboard", __name__)
 
 
 @bp.route("/")
+def landing():
+    return send_from_directory(current_app.static_folder, "landing.html")
+
+
+@bp.route("/home")
 @login_required
 def index():
     if not g.active_company:
