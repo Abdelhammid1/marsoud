@@ -27,14 +27,17 @@ from app.services.permissions import generate_invite_token
 
 
 # ─── Auto-provisioning ─────────────────────────────────────────────────
-def ensure_user_for_employee(employee, *, actor_id=None):
+def ensure_user_for_employee(employee, *, actor_id=None, role_code="employee"):
     """Make sure there's a User row linked to this employee.
 
     - If `employee.email` is empty: raise. Employee form requires email.
     - If a User with that email exists: link them by setting
       `User.employee_id` and return the existing User (no status change).
-    - Otherwise: create a fresh User with status=PENDING, role=EMPLOYEE
-      on the company, and a random placeholder password.
+      We DO NOT overwrite an existing user's role — the caller can change
+      it explicitly through the users / settings_roles UI.
+    - Otherwise: create a fresh User with status=PENDING and the given
+      `role_code` on the company (defaults to "employee"), and a random
+      placeholder password.
 
     Returns (user, was_created: bool).
     """
@@ -42,13 +45,19 @@ def ensure_user_for_employee(employee, *, actor_id=None):
     if not email:
         raise ValueError("البريد الإلكتروني مطلوب لإنشاء حساب الموظف")
 
+    # Defensive: never let the caller pass owner or client through here.
+    if role_code in ("owner", "client") or not role_code:
+        role_code = "employee"
+
     existing = User.query.filter(db.func.lower(User.email) == email).first()
     if existing:
         # Link the User → Employee (overwrite only if it's currently NULL or
-        # already pointing at this same employee).
+        # already pointing at this same employee). Role NOT changed on
+        # existing users to avoid downgrading an admin who happens to also
+        # be an employee.
         if existing.employee_id in (None, employee.id):
             existing.employee_id = employee.id
-        _ensure_membership(existing.id, employee.company_id, role_code="employee")
+        _ensure_membership(existing.id, employee.company_id, role_code=role_code)
         db.session.commit()
         return existing, False
 
@@ -64,7 +73,7 @@ def ensure_user_for_employee(employee, *, actor_id=None):
     user.set_password(secrets.token_urlsafe(24))
     db.session.add(user)
     db.session.flush()
-    _ensure_membership(user.id, employee.company_id, role_code="employee")
+    _ensure_membership(user.id, employee.company_id, role_code=role_code)
     db.session.commit()
     return user, True
 

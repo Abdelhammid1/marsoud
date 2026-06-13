@@ -65,9 +65,20 @@ def _hr_form_context(employee=None):
     managers_q = Employee.query.filter_by(
         company_id=cid, status=EmployeeStatus.ACTIVE
     ).order_by(Employee.name)
+    # MARSOUD-37 — role picker on the employee form. Exclude owner
+    # (per-company singleton) and client (customer portal only). Order:
+    # employee first (the default), then alphabetical.
+    from app.models import Role
+    all_roles = Role.query.filter_by(company_id=cid).filter(
+        ~Role.code.in_(("owner", "client"))
+    ).order_by(Role.type.asc(), Role.name_ar.asc()).all()
+    available_roles = sorted(
+        all_roles, key=lambda r: (0 if r.code == "employee" else 1, r.name_ar)
+    )
     return {
         "departments": departments,
         "possible_managers": managers_q.all(),
+        "available_roles": available_roles,
     }
 
 
@@ -120,14 +131,25 @@ def new_employee():
             # HR-SS — auto-provision a User account (PENDING).
             try:
                 from app.services.hr_self_service import ensure_user_for_employee
+                picked_role = (request.form.get("user_role_code") or "employee").strip()
+                # Defensive: never let owner/client be picked from the form.
+                if picked_role in ("owner", "client"):
+                    picked_role = "employee"
                 user, created = ensure_user_for_employee(
                     emp, actor_id=current_user.id,
+                    role_code=picked_role,
                 )
                 if created:
-                    flash(
-                        "تم إنشاء حساب الموظف بحالة PENDING — يحتاج للتفعيل من المالك.",
-                        "info",
-                    )
+                    if picked_role != "employee":
+                        flash(
+                            f"تم إنشاء حساب الموظف بدور '{picked_role}' بحالة PENDING — يحتاج للتفعيل من المالك.",
+                            "info",
+                        )
+                    else:
+                        flash(
+                            "تم إنشاء حساب الموظف بحالة PENDING — يحتاج للتفعيل من المالك.",
+                            "info",
+                        )
                 else:
                     flash("تم ربط الموظف بحساب مستخدم موجود.", "info")
             except ValueError as e:

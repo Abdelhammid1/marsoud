@@ -30,6 +30,24 @@
         <input type="text" name="phone" dir="ltr" value="{{ employee.phone if employee else '' }}" class="input">
       </div>
     </div>
+    {% if not employee and available_roles %}
+    <div class="grid grid-cols-1 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">الدور / الصلاحية في النظام</label>
+        <select name="user_role_code" class="select">
+          {% for r in available_roles %}
+          <option value="{{ r.code }}" {% if r.code == 'employee' %}selected{% endif %}>
+            {{ r.name_ar }}{% if r.type == 'CUSTOM' %} (مخصص){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+        <p class="text-xs text-slate-500 mt-1">
+          الافتراضي = <strong>موظف</strong> (يشوف بوابته الشخصية فقط). لو محتاج تديله صلاحيات أكتر، اختار دور تاني هنا. تقدر تغيّر الدور بعدين من
+          <code dir="ltr">/users/</code>.
+        </p>
+      </div>
+    </div>
+    {% endif %}
     {% if employee %}
     <div class="grid grid-cols-2 gap-4">
       <div>
