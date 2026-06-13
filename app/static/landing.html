@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>مرصود — نظام إدارة الأعمال الذكي</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --slate-50:#f8fafc; --slate-100:#f1f5f9; --slate-200:#e2e8f0;
+    --slate-400:#94a3b8; --slate-500:#64748b; --slate-600:#475569;
+    --slate-700:#334155; --slate-800:#1e293b; --slate-900:#0f172a;
+    --emerald:#059669; --emerald-600:#047857; --emerald-light:#d1fae5;
+    --emerald-50:#ecfdf5;
+    --navy:#0c2461; --amber:#f59e0b;
+    --debit:#0ea5e9;  /* مدين */
+    --credit:#059669; /* دائن */
+    --radius:18px; --maxw:1180px;
+    --shadow-sm:0 1px 3px rgba(15,23,42,.06),0 1px 2px rgba(15,23,42,.04);
+    --shadow-md:0 12px 32px -8px rgba(15,23,42,.12),0 4px 12px -4px rgba(15,23,42,.06);
+    --shadow-lg:0 28px 60px -16px rgba(15,23,42,.18);
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:'Tajawal',system-ui,sans-serif;
+    background:var(--slate-50); color:var(--slate-800);
+    line-height:1.7; -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  h1,h2,h3{font-family:'Cairo',sans-serif;line-height:1.25;letter-spacing:-.01em}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  a{text-decoration:none;color:inherit}
+
+  /* ===== buttons ===== */
+  .btn{
+    display:inline-flex;align-items:center;gap:9px;
+    font-family:'Tajawal';font-weight:700;font-size:1.02rem;
+    padding:14px 28px;border-radius:12px;border:none;cursor:pointer;
+    transition:transform .18s ease, box-shadow .18s ease, background .18s ease;
+  }
+  .btn-primary{background:var(--emerald);color:#fff;box-shadow:0 8px 20px -6px rgba(5,150,105,.5)}
+  .btn-primary:hover{background:var(--emerald-600);transform:translateY(-2px);box-shadow:0 14px 28px -8px rgba(5,150,105,.55)}
+  .btn-ghost{background:#fff;color:var(--slate-700);border:1.5px solid var(--slate-200);box-shadow:var(--shadow-sm)}
+  .btn-ghost:hover{border-color:var(--slate-400);transform:translateY(-2px)}
+
+  /* ===== nav ===== */
+  nav{
+    position:sticky;top:0;z-index:50;
+    background:rgba(248,250,252,.82);backdrop-filter:blur(14px);
+    border-bottom:1px solid var(--slate-200);
+  }
+  .nav-in{display:flex;align-items:center;justify-content:space-between;height:70px}
+  .logo{display:flex;align-items:center;gap:10px;font-family:'Cairo';font-weight:900;font-size:1.4rem;color:var(--slate-900)}
+  .logo .mark{
+    width:38px;height:38px;border-radius:10px;
+    background:linear-gradient(135deg,var(--emerald),var(--navy));
+    display:grid;place-items:center;color:#fff;font-size:1.2rem;
+    box-shadow:0 6px 16px -4px rgba(5,150,105,.5);
+  }
+  .nav-links{display:flex;gap:30px;align-items:center;font-weight:500;color:var(--slate-600)}
+  .nav-links a:hover{color:var(--emerald)}
+  .nav-cta{display:flex;gap:12px;align-items:center}
+  .menu-btn{display:none;background:none;border:none;font-size:1.6rem;cursor:pointer;color:var(--slate-700)}
+
+  /* ===== hero ===== */
+  .hero{position:relative;padding:78px 0 90px;overflow:hidden}
+  .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
+  .eyebrow{
+    display:inline-flex;align-items:center;gap:8px;
+    background:var(--emerald-50);color:var(--emerald-600);
+    font-weight:700;font-size:.86rem;padding:7px 15px;border-radius:99px;
+    border:1px solid var(--emerald-light);margin-bottom:22px;
+  }
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 0 3px rgba(5,150,105,.18)}
+  .hero h1{font-size:clamp(2.3rem,4.6vw,3.5rem);font-weight:900;color:var(--slate-900)}
+  .hero h1 .hl{color:var(--emerald);position:relative}
+  .hero h1 .hl::after{content:"";position:absolute;right:0;bottom:4px;width:100%;height:11px;background:var(--emerald-light);z-index:-1;border-radius:4px}
+  .hero p.lead{font-size:1.18rem;color:var(--slate-600);margin:22px 0 32px;max-width:540px}
+  .hero-cta{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+  .micro{margin-top:18px;font-size:.9rem;color:var(--slate-500);display:flex;align-items:center;gap:7px}
+  .micro svg{width:17px;height:17px;color:var(--emerald)}
+
+  /* ===== signature: balanced journal entry ===== */
+  .ledger-card{
+    background:#fff;border-radius:var(--radius);box-shadow:var(--shadow-lg);
+    border:1px solid var(--slate-200);overflow:hidden;
+  }
+  .ledger-head{
+    background:var(--slate-900);color:#fff;padding:16px 22px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .ledger-head .t{font-family:'Cairo';font-weight:700;font-size:1.02rem}
+  .ledger-head .tag{font-size:.78rem;background:rgba(255,255,255,.12);padding:4px 11px;border-radius:7px;color:#cbd5e1}
+  .ledger-body{padding:8px 0}
+  .ledger-trigger{
+    padding:14px 22px;display:flex;align-items:center;gap:11px;
+    border-bottom:1px dashed var(--slate-200);
+  }
+  .ledger-trigger .ic{width:34px;height:34px;border-radius:9px;background:var(--emerald-50);display:grid;place-items:center;font-size:1.05rem}
+  .ledger-trigger .txt{font-size:.95rem;color:var(--slate-600)}
+  .ledger-trigger .txt b{color:var(--slate-900);font-weight:700}
+  table.je{width:100%;border-collapse:collapse;font-size:.92rem}
+  table.je th{
+    text-align:right;padding:11px 22px;color:var(--slate-400);
+    font-weight:700;font-size:.78rem;background:var(--slate-50);
+    border-bottom:1px solid var(--slate-200);
+  }
+  table.je th.num,table.je td.num{text-align:left;font-variant-numeric:tabular-nums;font-family:'Cairo'}
+  table.je td{padding:13px 22px;border-bottom:1px solid var(--slate-100);color:var(--slate-700)}
+  .acct{display:flex;align-items:center;gap:9px}
+  .acct .code{font-family:'Cairo';font-size:.72rem;font-weight:700;color:#fff;padding:2px 7px;border-radius:5px}
+  .acct.debit .code{background:var(--debit)}
+  .acct.credit .code{background:var(--credit)}
+  .je-foot{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:14px 22px;background:var(--emerald-50);
+  }
+  .je-foot .bal{display:flex;align-items:center;gap:9px;font-family:'Cairo';font-weight:700;color:var(--emerald-600);font-size:.95rem}
+  .je-foot .bal svg{width:19px;height:19px}
+  .je-foot .sums{display:flex;gap:26px;font-family:'Cairo';font-weight:700;font-size:.92rem}
+  .je-foot .sums .s-d{color:var(--debit)} .je-foot .sums .s-c{color:var(--credit)}
+  @keyframes rowIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:translateX(0)}}
+  .je tbody tr{animation:rowIn .5s ease both}
+  .je tbody tr:nth-child(1){animation-delay:.15s}
+  .je tbody tr:nth-child(2){animation-delay:.35s}
+  @keyframes pulseGlow{0%,100%{box-shadow:0 0 0 0 rgba(5,150,105,0)}50%{box-shadow:0 0 0 6px rgba(5,150,105,.12)}}
+  .je-foot .bal svg{animation:pulseGlow 2.4s ease infinite;border-radius:50%}
+
+  /* ===== trust bar ===== */
+  .trust{border-top:1px solid var(--slate-200);border-bottom:1px solid var(--slate-200);background:#fff}
+  .trust-in{display:flex;flex-wrap:wrap;justify-content:space-around;gap:18px;padding:30px 0}
+  .stat{text-align:center;min-width:140px}
+  .stat .n{font-family:'Cairo';font-weight:900;font-size:1.9rem;color:var(--slate-900)}
+  .stat .n .u{color:var(--emerald)}
+  .stat .l{font-size:.9rem;color:var(--slate-500);margin-top:2px}
+
+  /* ===== section base ===== */
+  section.blk{padding:88px 0}
+  .sec-head{text-align:center;max-width:640px;margin:0 auto 54px}
+  .sec-head .kick{color:var(--emerald-600);font-weight:700;font-size:.9rem;letter-spacing:.04em;margin-bottom:10px}
+  .sec-head h2{font-size:clamp(1.7rem,3.2vw,2.4rem);font-weight:900;color:var(--slate-900)}
+  .sec-head p{color:var(--slate-600);margin-top:14px;font-size:1.08rem}
+
+  /* ===== modules grid ===== */
+  .mods{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  .mod{
+    background:#fff;border:1px solid var(--slate-200);border-radius:var(--radius);
+    padding:28px;box-shadow:var(--shadow-sm);transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease;
+    position:relative;overflow:hidden;
+  }
+  .mod::before{content:"";position:absolute;top:0;right:0;width:100%;height:3px;background:var(--accent,var(--emerald));transform:scaleX(0);transform-origin:right;transition:transform .3s ease}
+  .mod:hover{transform:translateY(-5px);box-shadow:var(--shadow-md);border-color:transparent}
+  .mod:hover::before{transform:scaleX(1)}
+  .mod .ic{
+    width:52px;height:52px;border-radius:13px;display:grid;place-items:center;
+    font-size:1.5rem;margin-bottom:18px;background:var(--accent-bg,var(--emerald-50));
+  }
+  .mod h3{font-size:1.22rem;font-weight:700;color:var(--slate-900);margin-bottom:9px}
+  .mod p{color:var(--slate-600);font-size:.97rem}
+  .mod ul{list-style:none;margin-top:14px;display:flex;flex-wrap:wrap;gap:7px}
+  .mod ul li{font-size:.8rem;background:var(--slate-100);color:var(--slate-600);padding:4px 10px;border-radius:7px;font-weight:500}
+
+  /* ===== differentiator (GL real) ===== */
+  .diff{background:var(--slate-900);color:#fff;border-radius:26px;overflow:hidden;position:relative}
+  .diff-bg{position:absolute;inset:0;opacity:.5;background:
+    radial-gradient(600px 300px at 85% 0%,rgba(5,150,105,.22),transparent),
+    radial-gradient(500px 300px at 10% 100%,rgba(12,36,97,.5),transparent)}
+  .diff-in{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:50px;align-items:center;padding:60px}
+  .diff h2{font-size:clamp(1.7rem,3vw,2.3rem);font-weight:900;color:#fff;margin-bottom:18px}
+  .diff h2 .g{color:#34d399}
+  .diff p{color:#cbd5e1;font-size:1.08rem;margin-bottom:26px}
+  .diff-list{display:flex;flex-direction:column;gap:16px}
+  .diff-list .it{display:flex;gap:13px;align-items:flex-start}
+  .diff-list .it .chk{width:26px;height:26px;flex-shrink:0;border-radius:8px;background:rgba(52,211,153,.16);display:grid;place-items:center;color:#34d399;font-weight:900}
+  .diff-list .it b{color:#fff;font-weight:700}
+  .diff-list .it span{color:#94a3b8;font-size:.95rem;display:block}
+  .flow{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:26px}
+  .flow .step{display:flex;align-items:center;gap:14px;padding:13px 0}
+  .flow .step:not(:last-child){border-bottom:1px solid rgba(255,255,255,.07)}
+  .flow .step .n{width:30px;height:30px;border-radius:9px;background:rgba(52,211,153,.16);color:#34d399;display:grid;place-items:center;font-family:'Cairo';font-weight:700;font-size:.85rem;flex-shrink:0}
+  .flow .step .lbl{color:#e2e8f0;font-weight:500;font-size:.98rem}
+  .flow .arrow{text-align:center;color:#475569;font-size:1.1rem;padding:2px 0}
+
+  /* ===== AI agent ===== */
+  .ai-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:50px;align-items:center}
+  .ai-txt .kick{color:var(--emerald-600);font-weight:700;font-size:.9rem;margin-bottom:10px}
+  .ai-txt h2{font-size:clamp(1.6rem,3vw,2.3rem);font-weight:900;color:var(--slate-900);margin-bottom:16px}
+  .ai-txt p{color:var(--slate-600);font-size:1.08rem;margin-bottom:14px}
+  .chat{background:#fff;border:1px solid var(--slate-200);border-radius:var(--radius);box-shadow:var(--shadow-md);overflow:hidden}
+  .chat-head{padding:15px 20px;border-bottom:1px solid var(--slate-200);display:flex;align-items:center;gap:11px}
+  .chat-head .av{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--emerald),var(--navy));display:grid;place-items:center;color:#fff}
+  .chat-head .nm{font-family:'Cairo';font-weight:700;color:var(--slate-900);font-size:.98rem}
+  .chat-head .st{font-size:.78rem;color:var(--emerald);display:flex;align-items:center;gap:5px}
+  .chat-head .st::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--emerald)}
+  .chat-body{padding:20px;display:flex;flex-direction:column;gap:14px;background:var(--slate-50)}
+  .bubble{max-width:82%;padding:12px 16px;border-radius:14px;font-size:.95rem;line-height:1.6}
+  .bubble.user{align-self:flex-start;background:#fff;border:1px solid var(--slate-200);color:var(--slate-700);border-bottom-right-radius:4px}
+  .bubble.bot{align-self:flex-end;background:var(--emerald);color:#fff;border-bottom-left-radius:4px}
+  .bubble.bot .mini-je{margin-top:9px;background:rgba(255,255,255,.13);border-radius:9px;padding:9px 12px;font-size:.83rem;font-family:'Cairo'}
+  .bubble.bot .mini-je div{display:flex;justify-content:space-between;padding:2px 0}
+
+  /* ===== final CTA ===== */
+  .cta-band{padding:90px 0}
+  .cta-box{
+    background:linear-gradient(135deg,var(--emerald),var(--emerald-600));
+    border-radius:28px;padding:62px 40px;text-align:center;position:relative;overflow:hidden;
+    box-shadow:0 30px 70px -20px rgba(5,150,105,.55);
+  }
+  .cta-box::before{content:"";position:absolute;inset:0;opacity:.4;background:
+    radial-gradient(400px 200px at 80% 10%,rgba(255,255,255,.3),transparent),
+    radial-gradient(400px 240px at 15% 110%,rgba(12,36,97,.4),transparent)}
+  .cta-box h2{position:relative;font-size:clamp(1.8rem,3.4vw,2.6rem);font-weight:900;color:#fff;margin-bottom:14px}
+  .cta-box p{position:relative;color:rgba(255,255,255,.92);font-size:1.12rem;margin-bottom:30px;max-width:520px;margin-inline:auto}
+  .cta-box .btns{position:relative;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+  .cta-box .btn-white{background:#fff;color:var(--emerald-600)}
+  .cta-box .btn-white:hover{transform:translateY(-2px);box-shadow:0 14px 30px -8px rgba(0,0,0,.25)}
+  .cta-box .btn-outline{background:rgba(255,255,255,.12);color:#fff;border:1.5px solid rgba(255,255,255,.4)}
+  .cta-box .btn-outline:hover{background:rgba(255,255,255,.2)}
+
+  /* ===== footer ===== */
+  footer{background:#fff;border-top:1px solid var(--slate-200);padding:48px 0 30px}
+  .foot-grid{display:flex;justify-content:space-between;flex-wrap:wrap;gap:30px;margin-bottom:34px}
+  .foot-brand{max-width:300px}
+  .foot-brand .logo{margin-bottom:14px}
+  .foot-brand p{color:var(--slate-500);font-size:.95rem}
+  .foot-col h4{font-family:'Cairo';font-size:.95rem;color:var(--slate-900);margin-bottom:14px}
+  .foot-col a{display:block;color:var(--slate-500);font-size:.92rem;padding:5px 0}
+  .foot-col a:hover{color:var(--emerald)}
+  .foot-bottom{border-top:1px solid var(--slate-100);padding-top:22px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;color:var(--slate-400);font-size:.88rem}
+
+  /* ===== reveal ===== */
+  .reveal{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease}
+  .reveal.in{opacity:1;transform:none}
+
+  /* ===== responsive ===== */
+  @media(max-width:900px){
+    .hero-grid,.diff-in,.ai-grid{grid-template-columns:1fr;gap:40px}
+    .mods{grid-template-columns:repeat(2,1fr)}
+    .diff-in{padding:40px 28px}
+    .nav-links{display:none}
+  }
+  @media(max-width:600px){
+    .mods{grid-template-columns:1fr}
+    .menu-btn{display:block}
+    .hero{padding:50px 0 60px}
+    section.blk{padding:60px 0}
+    .je-foot .sums{gap:14px;font-size:.82rem}
+    .cta-box{padding:46px 24px}
+  }
+  @media(prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+    .reveal{opacity:1;transform:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="wrap nav-in">
+    <a href="#" class="logo"><span class="mark">م</span> مرصود</a>
+    <div class="nav-links">
+      <a href="#modules">الموديولات</a>
+      <a href="#why">ليه مرصود</a>
+      <a href="#ai">المحاسب الذكي</a>
+      <a href="#start">الأسعار</a>
+    </div>
+    <div class="nav-cta">
+      <a href="#" class="btn btn-ghost" style="padding:10px 18px">دخول</a>
+      <a href="#start" class="btn btn-primary" style="padding:10px 20px">ابدأ مجانًا</a>
+    </div>
+    <button class="menu-btn" aria-label="القائمة">☰</button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="eyebrow"><span class="dot"></span> نظام إدارة أعمال متكامل للشركات</span>
+      <h1>كل عملية في شركتك <span class="hl">تتحوّل لقيد محاسبي</span> متوازن تلقائيًا</h1>
+      <p class="lead">مرصود يجمع المحاسبة، المخزون والـ POS، الفواتير والموردين، الرواتب والموارد البشرية، إدارة المشاريع والمهام، والـ CRM — في نظام واحد مبني على دفتر أستاذ عام حقيقي.</p>
+      <div class="hero-cta">
+        <a href="#start" class="btn btn-primary">ابدأ مجانًا
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
+        </a>
+        <a href="#ai" class="btn btn-ghost">شوف المحاسب الذكي</a>
+      </div>
+      <div class="micro">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>
+        تجربة كاملة بدون بطاقة · جاهز بالعربي وضريبة 15% · يدعم تعدد الشركات
+      </div>
+    </div>
+
+    <!-- SIGNATURE: balanced journal entry -->
+    <div class="ledger-card" aria-label="مثال على قيد محاسبي متوازن">
+      <div class="ledger-head">
+        <span class="t">قيد يومية #1042</span>
+        <span class="tag">تلقائي · من فاتورة مبيعات</span>
+      </div>
+      <div class="ledger-body">
+        <div class="ledger-trigger">
+          <span class="ic">🧾</span>
+          <span class="txt">سجّلت فاتورة بيع بقيمة <b>5,000 ر.س</b> + ضريبة 15% — مرصود ولّد القيد فورًا</span>
+        </div>
+        <table class="je">
+          <thead>
+            <tr><th>الحساب</th><th class="num">مدين</th><th class="num">دائن</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="acct debit"><span class="code">1110</span> النقدية / العملاء</span></td>
+              <td class="num">5,750</td><td class="num">—</td>
+            </tr>
+            <tr>
+              <td><span class="acct credit"><span class="code">4100</span> إيرادات المبيعات</span></td>
+              <td class="num">—</td><td class="num">5,000</td>
+            </tr>
+            <tr>
+              <td><span class="acct credit"><span class="code">2310</span> ضريبة القيمة المضافة</span></td>
+              <td class="num">—</td><td class="num">750</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="je-foot">
+          <span class="bal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>
+            القيد متوازن
+          </span>
+          <span class="sums">
+            <span class="s-d">مدين 5,750</span>
+            <span class="s-c">دائن 5,750</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- TRUST BAR -->
+<div class="trust">
+  <div class="wrap trust-in">
+    <div class="stat"><div class="n">7<span class="u"> موديولات</span></div><div class="l">في نظام واحد متكامل</div></div>
+    <div class="stat"><div class="n">100<span class="u">%</span></div><div class="l">قيد مزدوج حقيقي</div></div>
+    <div class="stat"><div class="n">15<span class="u">%</span></div><div class="l">ضريبة سعودية جاهزة</div></div>
+    <div class="stat"><div class="n">∞</div><div class="l">تعدد شركات وفروع</div></div>
+  </div>
+</div>
+
+<!-- MODULES -->
+<section class="blk" id="modules">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="kick">نظام واحد · كل العمليات</div>
+      <h2>سبع موديولات مترابطة تشتغل مع بعض</h2>
+      <p>مش أنظمة منفصلة بتجمّعها بنفسك — كل موديول مربوط بالدفتر المحاسبي والباقي من اللحظة الأولى.</p>
+    </div>
+    <div class="mods">
+      <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
+        <div class="ic">📊</div>
+        <h3>المحاسبة والقيود</h3>
+        <p>دفتر أستاذ عام، دليل حسابات، قيود يومية، قيود دورية وقوالب، وتقارير مالية كاملة.</p>
+        <ul><li>الميزانية</li><li>قائمة الدخل</li><li>التدفق النقدي</li><li>الضريبة</li></ul>
+      </div>
+      <div class="mod reveal" style="--accent:#0ea5e9;--accent-bg:#e0f2fe">
+        <div class="ic">📦</div>
+        <h3>المخزون و POS</h3>
+        <p>أصناف وباركود، حركات مخزون بتكلفة متوسط مرجّح، نقاط بيع، وتقارير ربحية.</p>
+        <ul><li>SKU / باركود</li><li>مستودعات</li><li>تحويلات</li><li>الورديات</li></ul>
+      </div>
+      <div class="mod reveal" style="--accent:#f59e0b;--accent-bg:#fef3c7">
+        <div class="ic">🧾</div>
+        <h3>الفواتير والموردين</h3>
+        <p>فواتير عملاء بخصومات وضريبة، فواتير موردين بأسطر مختلطة، ودفعات وذمم.</p>
+        <ul><li>خصم بعد الضريبة</li><li>ذمم مدينة/دائنة</li><li>استرجاعات</li></ul>
+      </div>
+      <div class="mod reveal" style="--accent:#8b5cf6;--accent-bg:#f3e8ff">
+        <div class="ic">👥</div>
+        <h3>الرواتب والموارد البشرية</h3>
+        <p>رواتب باستحقاقات، حضور بالاستثناءات، إجازات، وبوابة موظف ذاتية.</p>
+        <ul><li>مسيّر رواتب</li><li>الاستحقاقات</li><li>الإجازات</li><li>بوابة الموظف</li></ul>
+      </div>
+      <div class="mod reveal" style="--accent:#0c2461;--accent-bg:#e0e7ff">
+        <div class="ic">✅</div>
+        <h3>المشاريع والمهام</h3>
+        <p>لوحات Kanban، مهام متعددة المسؤولين، تقويم، وإشعارات لحظية.</p>
+        <ul><li>Kanban</li><li>تقويم</li><li>إشعارات</li></ul>
+      </div>
+      <div class="mod reveal" style="--accent:#e11d48;--accent-bg:#ffe4e6">
+        <div class="ic">🎯</div>
+        <h3>CRM وإدارة العملاء</h3>
+        <p>إدارة العملاء المحتملين (Leads)، تحويلهم لعملاء، ومتابعة المبيعات.</p>
+        <ul><li>Leads</li><li>تحويل</li><li>متابعة</li></ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DIFFERENTIATOR -->
+<section class="blk" id="why">
+  <div class="wrap">
+    <div class="diff reveal">
+      <div class="diff-bg"></div>
+      <div class="diff-in">
+        <div>
+          <h2>الفرق إنه <span class="g">دفتر أستاذ حقيقي</span> — مش نظام فواتير</h2>
+          <p>أغلب الأنظمة بتسجّل العمليات في جداول منفصلة وتطلّع تقارير تقريبية. مرصود يبني كل تقرير من القيود نفسها — فالأرقام دايمًا مضبوطة ومتطابقة.</p>
+          <div class="diff-list">
+            <div class="it"><span class="chk">✓</span><div><b>كل عملية = قيد متوازن</b><span>فاتورة، دفعة، راتب، إهلاك، استرجاع — كلها تولّد قيد تلقائي.</span></div></div>
+            <div class="it"><span class="chk">✓</span><div><b>مسار تدقيق كامل</b><span>سجل لكل تعديل بالمستخدم والوقت والسبب.</span></div></div>
+            <div class="it"><span class="chk">✓</span><div><b>منع الازدواجية</b><span>قيود فريدة تمنع تكرار إهلاك أو راتب لنفس الفترة.</span></div></div>
+          </div>
+        </div>
+        <div class="flow">
+          <div class="step"><span class="n">١</span><span class="lbl">تسجّل فاتورة بيع</span></div>
+          <div class="arrow">↓</div>
+          <div class="step"><span class="n">٢</span><span class="lbl">مرصود يولّد القيد المزدوج فورًا</span></div>
+          <div class="arrow">↓</div>
+          <div class="step"><span class="n">٣</span><span class="lbl">المخزون والتكلفة يتحدّثوا تلقائيًا</span></div>
+          <div class="arrow">↓</div>
+          <div class="step"><span class="n">٤</span><span class="lbl">التقارير المالية تتحدّث لحظيًا</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- AI AGENT -->
+<section class="blk" id="ai">
+  <div class="wrap ai-grid">
+    <div class="ai-txt reveal">
+      <div class="kick">ميزة تفرّد مرصود</div>
+      <h2>محاسب ذكي يفهم العربي وينفّذ فعليًا</h2>
+      <p>كلّم مرصود بالعربي زي ما تكلّم محاسبك. اطلب قيد، اسأل عن صافي الربح، أو راجع رصيد عميل — والوكيل ينفّذ عبر نفس المحرك المحاسبي.</p>
+      <p style="color:var(--slate-500);font-size:.97rem">مدعوم بنماذج Claude مع tool-calling حقيقي — مش مجرد ردود نصية.</p>
+    </div>
+    <div class="chat reveal">
+      <div class="chat-head">
+        <div class="av">م</div>
+        <div>
+          <div class="nm">المحاسب الذكي</div>
+          <div class="st">متصل</div>
+        </div>
+      </div>
+      <div class="chat-body">
+        <div class="bubble user">اعملي قيد صرف إيجار المكتب 8,000 ر.س نقدًا</div>
+        <div class="bubble bot">
+          تمام، سجّلت القيد ✅
+          <div class="mini-je">
+            <div><span>مصروف إيجار (5200)</span><span>مدين 8,000</span></div>
+            <div><span>النقدية (1110)</span><span>دائن 8,000</span></div>
+          </div>
+        </div>
+        <div class="bubble user">إيه صافي الربح الشهر ده؟</div>
+        <div class="bubble bot">صافي ربح شهر يونيو = <b>42,300 ر.س</b> 📈 بزيادة 12% عن الشهر اللي فات.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="cta-band" id="start">
+  <div class="wrap">
+    <div class="cta-box reveal">
+      <h2>ابدأ بإدارة شركتك بنظام واحد ذكي</h2>
+      <p>جرّب مرصود مجانًا — جاهز بالعربي وضريبة 15% من أول دقيقة، بدون بطاقة ائتمان.</p>
+      <div class="btns">
+        <a href="#" class="btn btn-white">ابدأ مجانًا الآن
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
+        </a>
+        <a href="#" class="btn btn-outline">احجز عرض توضيحي</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a href="#" class="logo"><span class="mark">م</span> مرصود</a>
+        <p>نظام إدارة أعمال ذكي — من القيد للتقرير. منتج من منصتي للبرمجيات وحلول الذكاء الاصطناعي.</p>
+      </div>
+      <div class="foot-col">
+        <h4>المنتج</h4>
+        <a href="#modules">الموديولات</a>
+        <a href="#ai">المحاسب الذكي</a>
+        <a href="#start">الأسعار</a>
+        <a href="#">التحديثات</a>
+      </div>
+      <div class="foot-col">
+        <h4>الشركة</h4>
+        <a href="#">من نحن</a>
+        <a href="#">المدوّنة</a>
+        <a href="#">تواصل معنا</a>
+      </div>
+      <div class="foot-col">
+        <h4>قانوني</h4>
+        <a href="#">الخصوصية</a>
+        <a href="#">الشروط</a>
+        <a href="#">الدعم</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 مرصود — منصتي للبرمجيات وحلول الذكاء الاصطناعي</span>
+      <span>صُنع بعناية في السعودية 🇸🇦</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // scroll reveal
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+  },{threshold:.14});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>
