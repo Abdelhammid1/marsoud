@@ -89,7 +89,7 @@ def index():
     # Role picker options for the backfill form. Exclude owner + client.
     available_roles = Role.query.filter_by(company_id=cid).filter(
         ~Role.code.in_(("owner", "client"))
-    ).order_by(Role.type.asc(), Role.name_ar.asc()).all()
+    ).order_by(Role.type.desc(), Role.name_ar.asc()).all()
 
     return render_template(
         "hr_ss/index.html",
