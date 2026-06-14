@@ -33,10 +33,31 @@
       <a href="{{ url_for('inventory.export_low_stock', fmt='pdf') }}" class="btn-secondary text-sm">⬇ PDF: تحت حد الطلب</a>
       {% if has_permission('inventory.manage') %}
       <a href="{{ url_for('inventory.adjust') }}" class="btn-secondary text-sm">+ تسوية جرد</a>
-      <a href="{{ url_for('inventory.opening_balance') }}" class="btn-primary text-sm">📦 رصيد افتتاحي</a>
+      <a href="{{ url_for('inventory.opening_balance') }}" class="btn-secondary text-sm">📦 رصيد افتتاحي</a>
+      {% endif %}
+      {% if has_permission('vendor_bills.create') %}
+      <a href="{{ url_for('vendor_bills.new') }}" class="btn-primary text-sm" title="إضافة بضاعة جديدة عبر فاتورة مشتريات">
+        + استلام من مورد
+      </a>
       {% endif %}
     </div>
   </div>
+
+  {% if variants_count == 0 %}
+  <div class="bg-emerald-50/60 border border-emerald-200 rounded-lg p-4 mb-4 text-sm">
+    <div class="font-bold text-emerald-900 mb-1">📥 إزاي تضيف بضاعة للمخزون؟</div>
+    <ul class="list-disc pr-5 space-y-1 text-emerald-800">
+      <li><strong>استلام من مورد</strong> (الأشهر): اضغط الزرار اللي فوق
+        — هينقلك لـ <code dir="ltr">/vendor-bills/new</code> → اعمل فاتورة
+        مشتريات وحدد سطر بنوع <strong>INVENTORY</strong> مع تحديد
+        الصنف والكمية.</li>
+      <li><strong>رصيد افتتاحي</strong> (مرة واحدة بس): لو عندك بضاعة موجودة
+        في المخزن قبل ما تستخدم النظام → "📦 رصيد افتتاحي".</li>
+      <li><strong>تسوية جرد</strong>: لتعديل الرصيد بعد جرد فعلي
+        → "+ تسوية جرد".</li>
+    </ul>
+  </div>
+  {% endif %}
   {% if low_stock %}
   <table class="data-table">
     <thead><tr><th>SKU</th><th>المنتج</th><th class="text-center">المتاح</th><th class="text-center">حد الطلب</th></tr></thead>
