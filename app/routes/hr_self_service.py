@@ -34,27 +34,153 @@ hr_ss_bp = Blueprint("hr_ss", __name__)
 @login_required
 @require_permission("users.manage")
 def index():
+    """Single page where OWNER manages every employee account from inside
+    the company panel — no super-admin detour needed.
+
+    Renders 4 buckets:
+      1. Employees with NO User account → backfill button + role picker
+      2. PENDING accounts → activate / disable
+      3. ACTIVE accounts (employees) → resend password link / disable
+      4. DISABLED accounts → reactivate
+    """
+    from app.models import Employee, EmployeeStatus, Role
     cid = g.active_company.id
-    # Pull every user who is a member of this company + currently PENDING.
+
+    # All members of this company.
     rows = db.session.execute(
         user_companies.select().where(user_companies.c.company_id == cid)
     ).fetchall()
     user_ids = [r.user_id for r in rows]
+    role_by_user = {r.user_id: r.role for r in rows}
+
+    # Bucket 2: PENDING — User exists, is_active=False
     pending = User.query.filter(
         User.id.in_(user_ids),
         User.is_active == False,
-    ).all()
-    # Also expose the count of ACTIVE employee-portal accounts for context.
-    active_emp_count = User.query.filter(
+        User.status != "DISABLED",
+    ).order_by(User.created_at.desc()).all()
+
+    # Bucket 4: DISABLED — explicitly disabled by OWNER
+    disabled = User.query.filter(
+        User.id.in_(user_ids),
+        User.status == "DISABLED",
+    ).order_by(User.created_at.desc()).all()
+
+    # Bucket 3: ACTIVE accounts linked to an employee
+    active_emps = User.query.filter(
         User.id.in_(user_ids),
         User.is_active == True,
+        User.status != "DISABLED",
         User.employee_id.isnot(None),
-    ).count()
+    ).order_by(User.full_name).all()
+
+    # Bucket 1: employees without any User account at all (or with an
+    # email that exists but is not linked to them).
+    linked_emp_ids = {u.employee_id for u in
+                     User.query.filter(User.employee_id.isnot(None)).all()}
+    unlinked_employees = (
+        Employee.query.filter(
+            Employee.company_id == cid,
+            Employee.status == EmployeeStatus.ACTIVE,
+            ~Employee.id.in_(linked_emp_ids) if linked_emp_ids else True,
+        ).order_by(Employee.name).all()
+    )
+
+    # Role picker options for the backfill form. Exclude owner + client.
+    available_roles = Role.query.filter_by(company_id=cid).filter(
+        ~Role.code.in_(("owner", "client"))
+    ).order_by(Role.type.asc(), Role.name_ar.asc()).all()
+
     return render_template(
         "hr_ss/index.html",
+        unlinked_employees=unlinked_employees,
         pending=pending,
-        active_emp_count=active_emp_count,
+        active_emps=active_emps,
+        disabled=disabled,
+        available_roles=available_roles,
+        role_by_user=role_by_user,
     )
+
+
+@hr_ss_bp.route("/employee/<int:emp_id>/create-user", methods=["POST"])
+@login_required
+@require_permission("users.manage")
+def create_user_for_employee(emp_id):
+    """Backfill: create a User account for an existing employee that
+    doesn't have one yet. Picks role from the form (default: employee)."""
+    from app.models import Employee
+    from app.services.hr_self_service import ensure_user_for_employee
+    emp = db.session.get(Employee, emp_id)
+    if not emp or emp.company_id != g.active_company.id:
+        abort(404)
+    if not (emp.email or "").strip():
+        flash("الموظف ما عندوش إيميل. عدّل بياناته الأول.", "error")
+        return redirect(url_for("hr_ss.index"))
+    picked_role = (request.form.get("user_role_code") or "employee").strip()
+    if picked_role in ("owner", "client"):
+        picked_role = "employee"
+    try:
+        user, created = ensure_user_for_employee(
+            emp, actor_id=current_user.id, role_code=picked_role,
+        )
+        if created:
+            flash(
+                f"تم إنشاء حساب لـ {emp.name} بدور '{picked_role}' "
+                f"وحالة PENDING. اضغط 'تفعيل' لإرسال رابط كلمة السر.",
+                "success",
+            )
+        else:
+            flash(
+                f"تم ربط {emp.name} بحساب موجود ({user.email}).",
+                "info",
+            )
+    except ValueError as e:
+        flash(str(e), "error")
+    return redirect(url_for("hr_ss.index"))
+
+
+@hr_ss_bp.route("/<int:user_id>/set-password", methods=["POST"])
+@login_required
+@require_permission("users.manage")
+def set_password(user_id):
+    """Direct password-set — OWNER types the password manually. Used when
+    the user can't access email and OWNER wants to dictate the password
+    over WhatsApp / SMS / in person."""
+    u = db.session.get(User, user_id)
+    if not u or not _is_company_member(u.id, g.active_company.id):
+        abort(404)
+    new_password = request.form.get("new_password", "")
+    if len(new_password) < 6:
+        flash("كلمة المرور لازم 6 أحرف على الأقل", "error")
+        return redirect(url_for("hr_ss.index"))
+    u.set_password(new_password)
+    # Owner intentionally typed it → activate the account too.
+    from app.models import UserStatus
+    u.is_active = True
+    u.status = UserStatus.ACTIVE.value
+    db.session.commit()
+    flash(
+        f"تم تعيين كلمة سر جديدة لـ {u.full_name} وتفعيل الحساب.",
+        "success",
+    )
+    return redirect(url_for("hr_ss.index"))
+
+
+@hr_ss_bp.route("/<int:user_id>/reactivate", methods=["POST"])
+@login_required
+@require_permission("users.manage")
+def reactivate(user_id):
+    """Flip a DISABLED account back to ACTIVE without rotating password.
+    For temporarily-disabled employees coming back."""
+    u = db.session.get(User, user_id)
+    if not u or not _is_company_member(u.id, g.active_company.id):
+        abort(404)
+    from app.models import UserStatus
+    u.is_active = True
+    u.status = UserStatus.ACTIVE.value
+    db.session.commit()
+    flash(f"تم إعادة تفعيل حساب {u.full_name}", "success")
+    return redirect(url_for("hr_ss.index"))
 
 
 @hr_ss_bp.route("/<int:user_id>/activate", methods=["POST"])

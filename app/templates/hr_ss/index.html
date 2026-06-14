@@ -1,41 +1,88 @@
 {% extends "base.html" %}
-{% block page_title %}تفعيل حسابات الموظفين{% endblock %}
+{% block page_title %}🔑 إدارة حسابات الموظفين{% endblock %}
 {% block content %}
-<div class="flex items-center justify-between mb-4">
-  <div>
-    <h2 class="font-bold text-navy-900">🔑 حسابات قيد التفعيل</h2>
-    <p class="text-xs text-slate-500">
-      الموظفون الجدد يحصلون على حساب بحالة PENDING — فعّل لإرسال إيميل تعيين كلمة السر.
-    </p>
-  </div>
-  <div class="text-sm text-slate-500">
-    حسابات نشطة مرتبطة بموظفين: <span class="font-mono font-bold text-emerald-700">{{ active_emp_count }}</span>
-  </div>
+
+<div class="mb-4">
+  <h2 class="font-bold text-navy-900 text-lg">إدارة حسابات الموظفين</h2>
+  <p class="text-xs text-slate-500 mt-1">
+    من هنا تقدر تنشئ حسابات للموظفين القدامى، تفعّل الحسابات الجديدة،
+    تبعت روابط كلمة سر، أو تعيّن كلمات سر يدوياً — كل ده من لوحة الشركة
+    بدون super-admin.
+  </p>
 </div>
 
-<div class="card p-6">
-  {% if pending %}
+{# ─── BUCKET 1: Employees with NO User account ─────────────────────── #}
+{% if unlinked_employees %}
+<div class="card p-5 mb-4 border-l-4 border-amber-400">
+  <h3 class="font-bold text-amber-900 mb-2">⚠ موظفون من غير حسابات ({{ unlinked_employees|length }})</h3>
+  <p class="text-xs text-slate-500 mb-3">
+    الموظفين دول موجودين في النظام بس مالهمش حساب User بعد. اضغط
+    "إنشاء حساب" لكل واحد، اختار الدور المناسب، وبعدها تقدر تفعّل
+    الحساب من القسم اللي تحت.
+  </p>
   <table class="data-table">
     <thead>
       <tr>
         <th>الاسم</th>
         <th>البريد</th>
-        <th>تاريخ الإنشاء</th>
-        <th>الإجراء</th>
+        <th>الدور المطلوب + الإجراء</th>
       </tr>
+    </thead>
+    <tbody>
+      {% for emp in unlinked_employees %}
+      <tr>
+        <td class="font-semibold">{{ emp.name }}</td>
+        <td dir="ltr" class="text-sm">{{ emp.email or '— لا يوجد إيميل —' }}</td>
+        <td>
+          {% if emp.email %}
+          <form method="POST" action="{{ url_for('hr_ss.create_user_for_employee', emp_id=emp.id) }}" class="flex items-center gap-2">
+            <select name="user_role_code" class="select text-sm flex-1 max-w-xs">
+              {% for r in available_roles %}
+              <option value="{{ r.code }}" {% if r.code == 'employee' %}selected{% endif %}>
+                {{ r.name_ar }}{% if r.type == 'CUSTOM' %} (مخصص){% endif %}
+              </option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn-primary text-sm whitespace-nowrap">+ إنشاء حساب</button>
+          </form>
+          {% else %}
+          <span class="text-xs text-rose-600">عدّل بياناته وضيف الإيميل أولاً من <a href="{{ url_for('payroll.edit_employee', employee_id=emp.id) }}" class="underline">صفحته</a></span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ─── BUCKET 2: PENDING accounts ─────────────────────────────────────── #}
+<div class="card p-5 mb-4 border-l-4 border-emerald-400">
+  <h3 class="font-bold text-emerald-900 mb-2">⏳ حسابات قيد التفعيل ({{ pending|length }})</h3>
+  {% if pending %}
+  <p class="text-xs text-slate-500 mb-3">
+    الحسابات دي اتعملت بس لسه ما اتفعّلتش. ضغطة <strong>"تفعيل وإرسال إيميل"</strong>
+    بتفعّل الحساب وبتولّد رابط تعيين كلمة سر — لو SMTP مفعّل
+    الإيميل بيوصله، ولو لأ الرابط بيظهر لك تنسخه يدوياً.
+  </p>
+  <table class="data-table">
+    <thead>
+      <tr><th>الاسم</th><th>البريد</th><th>الدور</th><th>تاريخ الإنشاء</th><th>الإجراء</th></tr>
     </thead>
     <tbody>
       {% for u in pending %}
       <tr>
         <td class="font-semibold">{{ u.full_name }}</td>
         <td dir="ltr" class="text-sm">{{ u.email }}</td>
+        <td class="text-xs"><span class="badge badge-sent">{{ role_by_user.get(u.id, '—') }}</span></td>
         <td class="text-xs font-mono">{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '—' }}</td>
-        <td>
+        <td class="space-x-2 space-x-reverse">
           <form method="POST" action="{{ url_for('hr_ss.activate', user_id=u.id) }}" class="inline">
             <button type="submit" class="btn-primary text-sm">✅ تفعيل وإرسال إيميل</button>
           </form>
-          <form method="POST" action="{{ url_for('hr_ss.disable', user_id=u.id) }}" class="inline ms-2"
-                onsubmit="return confirm('تعطيل الحساب بدلاً من تفعيله؟')">
+          <button type="button" onclick="openPwdModal({{ u.id }}, '{{ u.full_name|e }}')" class="btn-secondary text-sm">🔒 تعيين كلمة سر</button>
+          <form method="POST" action="{{ url_for('hr_ss.disable', user_id=u.id) }}" class="inline"
+                onsubmit="return confirm('تعطيل الحساب؟')">
             <button type="submit" class="text-xs text-rose-600 hover:underline">تعطيل</button>
           </form>
         </td>
@@ -44,9 +91,105 @@
     </tbody>
   </table>
   {% else %}
-  <div class="text-sm text-slate-400 text-center py-8">
-    لا توجد حسابات قيد التفعيل حالياً.
-  </div>
+  <div class="text-sm text-slate-400 py-4">مفيش حسابات قيد التفعيل دلوقتي.</div>
   {% endif %}
 </div>
+
+{# ─── BUCKET 3: ACTIVE accounts ──────────────────────────────────────── #}
+{% if active_emps %}
+<div class="card p-5 mb-4">
+  <h3 class="font-bold text-navy-900 mb-2">✅ حسابات الموظفين النشطة ({{ active_emps|length }})</h3>
+  <p class="text-xs text-slate-500 mb-3">
+    الحسابات اللي بتدخل دلوقتي. تقدر تبعت لهم رابط كلمة سر جديدة
+    (في حالة نسيان كلمة السر) أو تعيّن لهم كلمة سر مباشرةً.
+  </p>
+  <table class="data-table">
+    <thead>
+      <tr><th>الاسم</th><th>البريد</th><th>الدور</th><th>آخر دخول</th><th>الإجراء</th></tr>
+    </thead>
+    <tbody>
+      {% for u in active_emps %}
+      <tr>
+        <td class="font-semibold">{{ u.full_name }}</td>
+        <td dir="ltr" class="text-sm">{{ u.email }}</td>
+        <td class="text-xs"><span class="badge badge-paid">{{ role_by_user.get(u.id, '—') }}</span></td>
+        <td class="text-xs font-mono">{{ u.last_login_at.strftime('%Y-%m-%d %H:%M') if u.last_login_at else '— لسه ما دخلش —' }}</td>
+        <td class="space-x-2 space-x-reverse">
+          <form method="POST" action="{{ url_for('hr_ss.activate', user_id=u.id) }}" class="inline"
+                onsubmit="return confirm('إرسال رابط تعيين كلمة سر جديد لـ {{ u.full_name|e }}؟')">
+            <button type="submit" class="btn-secondary text-sm">📧 إرسال رابط كلمة سر</button>
+          </form>
+          <button type="button" onclick="openPwdModal({{ u.id }}, '{{ u.full_name|e }}')" class="btn-secondary text-sm">🔒 تعيين كلمة سر</button>
+          <form method="POST" action="{{ url_for('hr_ss.disable', user_id=u.id) }}" class="inline"
+                onsubmit="return confirm('تعطيل {{ u.full_name|e }}؟')">
+            <button type="submit" class="text-xs text-rose-600 hover:underline">تعطيل</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ─── BUCKET 4: DISABLED accounts ────────────────────────────────────── #}
+{% if disabled %}
+<div class="card p-5 mb-4 border-l-4 border-rose-400">
+  <h3 class="font-bold text-rose-900 mb-2">🚫 حسابات معطّلة ({{ disabled|length }})</h3>
+  <table class="data-table">
+    <thead>
+      <tr><th>الاسم</th><th>البريد</th><th>الإجراء</th></tr>
+    </thead>
+    <tbody>
+      {% for u in disabled %}
+      <tr>
+        <td class="font-semibold">{{ u.full_name }}</td>
+        <td dir="ltr" class="text-sm">{{ u.email }}</td>
+        <td>
+          <form method="POST" action="{{ url_for('hr_ss.reactivate', user_id=u.id) }}" class="inline">
+            <button type="submit" class="btn-primary text-sm">↻ إعادة تفعيل</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ─── Modal: set password directly ──────────────────────────────────── #}
+<div id="pwd-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4"
+     onclick="if(event.target===this)closePwdModal()">
+  <div class="bg-white rounded-2xl max-w-md w-full p-6">
+    <h3 class="text-lg font-bold text-navy-900 mb-1">🔒 تعيين كلمة سر مباشرة</h3>
+    <p class="text-xs text-slate-500 mb-4">
+      كلمة السر اللي هتكتبها هي اللي الموظف هيستخدمها يدخل. شاركها معاه شخصياً.
+      الحساب هيتفعّل تلقائياً بعد الحفظ.
+    </p>
+    <p class="text-sm mb-4">الموظف: <strong id="pwd-target-name" class="text-emerald-700"></strong></p>
+    <form method="POST" id="pwd-form" class="space-y-3">
+      <div>
+        <label class="block text-xs font-semibold mb-1">كلمة السر الجديدة (6 أحرف على الأقل)</label>
+        <input type="text" name="new_password" required minlength="6"
+               class="input font-mono" dir="ltr" autocomplete="new-password">
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closePwdModal()" class="btn-secondary">إلغاء</button>
+        <button type="submit" class="btn-primary">💾 حفظ كلمة السر</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openPwdModal(userId, name) {
+  document.getElementById('pwd-target-name').textContent = name;
+  document.getElementById('pwd-form').action = '/hr/accounts/' + userId + '/set-password';
+  document.getElementById('pwd-modal').classList.remove('hidden');
+}
+function closePwdModal() {
+  document.getElementById('pwd-modal').classList.add('hidden');
+}
+</script>
+
 {% endblock %}
