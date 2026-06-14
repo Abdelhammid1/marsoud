@@ -160,6 +160,56 @@ def change_role(user_id):
     return redirect(url_for("users.index"))
 
 
+@bp.route("/<int:user_id>/send-password-link", methods=["POST"])
+@login_required
+@require_permission("users.manage")
+def send_password_link(user_id):
+    """MARSOUD-36 follow-up — owner can resend an activation/password-set
+    link to ANY member of the company (PENDING or ACTIVE) without going
+    through super-admin. Uses the same Invitation+token flow we already
+    have for HR-SS PENDING activation."""
+    from app.models import User
+    from app.services.hr_self_service import activate_user
+    target = db.session.get(User, user_id)
+    if not target:
+        flash("المستخدم غير موجود", "error")
+        return redirect(url_for("users.index"))
+    # Ensure they're a member of this company.
+    row = db.session.execute(
+        user_companies.select().where(
+            (user_companies.c.user_id == target.id) &
+            (user_companies.c.company_id == g.active_company.id)
+        )
+    ).first()
+    if not row:
+        flash("المستخدم ليس عضو في هذه الشركة", "error")
+        return redirect(url_for("users.index"))
+    inv, accept_url = activate_user(
+        target, company_id=g.active_company.id, actor_id=current_user.id,
+    )
+    # Try to send email; fall back to flashing the link.
+    sent = False
+    try:
+        from app.services.email import send_invitation_email
+        send_invitation_email(inv, accept_url)
+        sent = True
+    except Exception:
+        from flask import current_app
+        current_app.logger.exception("password link email send failed")
+    if sent:
+        flash(
+            f"تم إرسال رابط تعيين كلمة السر لـ {target.full_name}",
+            "success",
+        )
+    else:
+        flash(
+            f"تم توليد رابط جديد لـ {target.full_name}. "
+            f"شاركه يدوياً: {accept_url}",
+            "info",
+        )
+    return redirect(url_for("users.index"))
+
+
 @bp.route("/<int:user_id>/revoke", methods=["POST"])
 @login_required
 @require_permission("users.manage")

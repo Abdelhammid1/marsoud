@@ -29,6 +29,11 @@
                 {% endfor %}
               </select>
             </form>
+            <form method="POST" action="{{ url_for('users.send_password_link', user_id=m.user.id) }}" class="inline ms-2"
+                  onsubmit="return confirm('إرسال رابط تعيين كلمة سر جديدة لـ {{ m.user.full_name|e }}؟')"
+                  title="يولّد رابط فيه token جديد. لو SMTP مفعّل، يبعت إيميل. لو مفعّلش، الرابط يظهر لك تنسخه يدوياً.">
+              <button type="submit" class="text-emerald-700 hover:underline">🔑 إرسال رابط كلمة السر</button>
+            </form>
             <form method="POST" action="{{ url_for('users.revoke', user_id=m.user.id) }}" class="inline ms-2" onsubmit="return confirm('إزالة العضو من الشركة؟')">
               <button type="submit" class="text-red-600 hover:underline">إزالة</button>
             </form>
