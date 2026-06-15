@@ -44,6 +44,7 @@ P = {
     "leads.view":      {"owner", "admin", "ceo", "sales_manager", "sales_rep"},
     "leads.manage":    {"owner", "admin", "sales_manager", "sales_rep"},
     "leads.convert":   {"owner", "admin", "sales_manager", "sales_rep"},
+    "leads.delete":    {"owner", "admin"},  # MARSOUD-47 — gated higher than .manage
 
     # ─── Projects ──────────────────────────────────────────────────────
     "projects.view":   {"owner", "admin", "ceo", "sales_manager", "sales_rep",

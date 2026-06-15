@@ -13,6 +13,12 @@
         {% if not lead.is_converted %}
         <a href="{{ url_for('leads.edit', lead_id=lead.id) }}" class="btn-secondary text-sm">✎ تعديل</a>
         {% endif %}
+        {% if has_permission('leads.delete') and not lead.is_converted %}
+        <form method="POST" action="{{ url_for('leads.delete', lead_id=lead.id) }}" class="inline"
+              onsubmit="return confirm('متأكد إنك عاوز تحذف العميل المحتمل ({{ lead.client_name|e }})؟ هيتشال من القوائم لكن السجل بيفضل في قاعدة البيانات.');">
+          <button type="submit" class="btn-secondary text-sm text-rose-600 border-rose-200 hover:bg-rose-50">🗑️ حذف</button>
+        </form>
+        {% endif %}
       </div>
     </div>
 

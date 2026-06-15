@@ -80,6 +80,10 @@ def _lead_or_403(lead_id):
     lead = db.session.get(Lead, lead_id)
     if not lead or lead.company_id != g.active_company.id:
         abort(404)
+    if lead.deleted_at is not None:
+        # Soft-deleted leads are 404 to everyone in the company panel.
+        # Super-admin can still find them via the admin tools.
+        abort(404)
     if not _can_view_all_leads() and lead.assigned_to_id != current_user.id:
         abort(403)
     return lead
@@ -134,7 +138,7 @@ def index():
     date_from = (request.args.get("from") or "").strip()
     date_to = (request.args.get("to") or "").strip()
 
-    query = Lead.query.filter_by(company_id=cid)
+    query = Lead.query.filter_by(company_id=cid).filter(Lead.deleted_at.is_(None))
     if not _can_view_all_leads():
         query = query.filter(Lead.assigned_to_id == current_user.id)
 
@@ -165,7 +169,7 @@ def index():
     leads = query.order_by(Lead.created_at.desc()).all()
 
     # Status counts within current visibility scope
-    base = Lead.query.filter_by(company_id=cid)
+    base = Lead.query.filter_by(company_id=cid).filter(Lead.deleted_at.is_(None))
     if not _can_view_all_leads():
         base = base.filter(Lead.assigned_to_id == current_user.id)
     status_counts = {s: base.filter(Lead.status == s).count() for s in LeadStatus}
@@ -259,6 +263,27 @@ def edit(lead_id):
             flash(str(e), "error")
     return render_template("leads/form.html", lead=lead, reps=_sales_reps(),
                            lead_types=LeadType, lead_sources=LeadSource)
+
+
+@bp.route("/<int:lead_id>/delete", methods=["POST"])
+@login_required
+@require_permission("leads.delete")
+def delete(lead_id):
+    """MARSOUD-47 — soft delete a lead. Only OWNER + admin can do this.
+    Converted leads (already turned into a Customer) are refused — the
+    Customer/invoices chain stays intact."""
+    lead = _lead_or_403(lead_id)
+    if lead.is_converted:
+        flash(
+            "لا يمكن حذف عميل محتمل تم تحويله لمشروع — احذف المشروع/العميل أولاً.",
+            "error",
+        )
+        return redirect(url_for("leads.detail", lead_id=lead.id))
+    lead.deleted_at = datetime.now()
+    lead.deleted_by_id = current_user.id
+    db.session.commit()
+    flash(f"تم حذف العميل المحتمل: {lead.client_name}", "success")
+    return redirect(url_for("leads.index"))
 
 
 @bp.route("/<int:lead_id>/status", methods=["POST"])

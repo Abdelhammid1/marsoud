@@ -121,10 +121,15 @@ class Lead(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.now,
                            onupdate=datetime.now, nullable=False)
+    # MARSOUD-47 — soft delete (OWNER + admin only)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    deleted_by_id = db.Column(db.Integer, db.ForeignKey("users.id"),
+                              nullable=True)
 
     company = db.relationship("Company")
     assigned_to = db.relationship("User", foreign_keys=[assigned_to_id])
     converted_customer = db.relationship("Customer", foreign_keys=[converted_customer_id])
+    deleted_by = db.relationship("User", foreign_keys=[deleted_by_id])
     history = db.relationship(
         "LeadStatusEvent", back_populates="lead",
         cascade="all, delete-orphan", order_by="LeadStatusEvent.created_at",
