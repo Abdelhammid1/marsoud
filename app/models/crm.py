@@ -109,6 +109,7 @@ class Lead(db.Model):
 
     next_meeting = db.Column(db.DateTime)
     meeting_notes = db.Column(db.Text)
+    notes = db.Column(db.Text)  # MARSOUD-46 follow-up — generic optional notes
 
     quotation_path = db.Column(db.Text)
     contract_path = db.Column(db.Text)

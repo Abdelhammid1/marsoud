@@ -362,3 +362,97 @@ def impersonations():
 def _404():
     from flask import abort
     abort(404)
+
+
+# ── MARSOUD-48: email diagnostic ─────────────────────────────────────────── #
+@bp.route("/email-test", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def email_test():
+    """Synchronous SMTP probe — sends a test email to whatever address the
+    super-admin types in and reports the EXACT result (success / failure +
+    full exception text). Bypasses the cron + reminders pipeline so we can
+    isolate whether the problem is in send_email itself or in the cron."""
+    from flask import current_app
+    cfg = current_app.config
+    snapshot = {
+        "SMTP_HOST": cfg.get("SMTP_HOST") or "(empty — log-only mode)",
+        "SMTP_PORT": cfg.get("SMTP_PORT") or "(empty)",
+        "SMTP_USER": cfg.get("SMTP_USER") or "(no user)",
+        "SMTP_USE_TLS": cfg.get("SMTP_USE_TLS", True),
+        "SMTP_FROM": cfg.get("SMTP_FROM") or "no-reply@marsoud.app",
+        "SMTP_FROM_NAME": cfg.get("SMTP_FROM_NAME") or "Marsoud",
+        "smtp_password_set": bool(cfg.get("SMTP_PASSWORD")),
+    }
+    result = None
+    if request.method == "POST":
+        target = (request.form.get("to") or "").strip()
+        if not target or "@" not in target:
+            result = {"ok": False, "error": "أدخل بريد صالح"}
+        else:
+            # Send synchronously, capture the EXACT exception if any.
+            import smtplib
+            import traceback
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+            from email.utils import formataddr
+            try:
+                if not cfg.get("SMTP_HOST"):
+                    result = {
+                        "ok": False,
+                        "error": "SMTP_HOST not configured — emails are log-only. Set SMTP_HOST in .env and restart.",
+                    }
+                else:
+                    msg = MIMEMultipart("alternative")
+                    msg["Subject"] = "Marsoud — اختبار إرسال إيميل"
+                    msg["From"] = formataddr((cfg.get("SMTP_FROM_NAME", "Marsoud"),
+                                              cfg.get("SMTP_FROM", "no-reply@marsoud.app")))
+                    msg["To"] = target
+                    msg.attach(MIMEText(
+                        f"<p>هذا اختبار من /admin/email-test بواسطة {current_user.full_name}.</p>"
+                        f"<p>الوقت: {datetime.utcnow().isoformat()}Z UTC</p>",
+                        "html", "utf-8",
+                    ))
+                    with smtplib.SMTP(cfg["SMTP_HOST"], cfg["SMTP_PORT"], timeout=30) as s:
+                        if cfg.get("SMTP_USE_TLS", True):
+                            s.starttls()
+                        if cfg.get("SMTP_USER"):
+                            s.login(cfg["SMTP_USER"], cfg["SMTP_PASSWORD"])
+                        s.send_message(msg)
+                    result = {"ok": True, "msg": f"تم الإرسال إلى {target}. افحص صندوق الوارد + spam folder."}
+                    log_platform_action(
+                        "EMAIL_TEST_SENT",
+                        actor_id=current_user.id,
+                        details=f"to={target}",
+                    )
+            except Exception as e:
+                result = {
+                    "ok": False,
+                    "error": f"{type(e).__name__}: {str(e)[:500]}",
+                    "trace": traceback.format_exc()[:2000],
+                }
+    return render_template("admin/email_test.html", snapshot=snapshot, result=result)
+
+
+@bp.route("/cron-tick", methods=["POST"])
+@login_required
+@superadmin_required
+def cron_tick_now():
+    """Run the cron pipeline immediately so the super-admin can see what
+    would have happened if the external scheduler had fired. Returns the
+    same summary JSON as POST /cron/tick."""
+    from app.services.reminders import process_invoice_reminders
+    from app.services.invoicing import update_overdue_statuses
+    summary = {}
+    overdue_total = 0
+    for c in Company.query.filter_by(is_active=True).all():
+        overdue_total += update_overdue_statuses(c.id)
+    summary["marked_overdue"] = overdue_total
+    summary["reminders"] = process_invoice_reminders()
+    log_platform_action(
+        "CRON_MANUAL_TICK",
+        actor_id=current_user.id,
+        details=str(summary)[:500],
+    )
+    flash(f"تم تشغيل cron يدوياً: {summary}", "success")
+    return redirect(url_for("superadmin.email_test"))

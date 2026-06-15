@@ -34,6 +34,12 @@
       <div><span class="text-slate-500">أُنشئ:</span> <span class="font-mono">{{ lead.created_at.strftime('%Y-%m-%d') }}</span></div>
     </div>
 
+    {% if lead.notes %}
+    <div class="mt-4 bg-amber-50/50 border border-amber-200 rounded-lg p-3 text-sm">
+      <div class="text-xs text-amber-700 mb-1">ملاحظات</div>
+      <div class="whitespace-pre-wrap">{{ lead.notes }}</div>
+    </div>
+    {% endif %}
     {% if lead.meeting_notes %}
     <div class="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm">
       <div class="text-xs text-slate-500 mb-1">ملاحظات الاجتماع</div>

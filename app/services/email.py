@@ -33,8 +33,8 @@ def send_email(to, subject, html_body, attachments=None, text_body=None):
 
     if not _smtp_configured():
         # Log-only mode for dev
-        logger.info(
-            "[EMAIL — log only, SMTP not configured]\n"
+        logger.warning(
+            "[EMAIL NOT SENT — SMTP_HOST not configured in .env]\n"
             "  To:      %s\n"
             "  Subject: %s\n"
             "  Body:    %s\n"
@@ -66,17 +66,27 @@ def send_email(to, subject, html_body, attachments=None, text_body=None):
         mixed["To"] = to
         msg = mixed
 
+    smtp_host = config["SMTP_HOST"]
+    smtp_port = config["SMTP_PORT"]
+    smtp_user = config.get("SMTP_USER") or "(no user)"
     try:
-        with smtplib.SMTP(config["SMTP_HOST"], config["SMTP_PORT"]) as server:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
             if config.get("SMTP_USE_TLS", True):
                 server.starttls()
             if config.get("SMTP_USER"):
                 server.login(config["SMTP_USER"], config["SMTP_PASSWORD"])
             server.send_message(msg)
-        logger.info("Email sent → %s (subject=%r)", to, subject)
+        logger.info("Email sent → %s (subject=%r, host=%s:%s, user=%s)",
+                    to, subject, smtp_host, smtp_port, smtp_user)
         return True
     except Exception as e:
-        logger.exception("SMTP send failed: %s", e)
+        # Surface every detail we have — host, port, user, and the actual exception text.
+        # This is the line abdelhamid asked about: previously the failure was hidden
+        # under a generic message that hid which step failed (connect / TLS / login / send).
+        logger.exception(
+            "SMTP send failed → host=%s:%s, user=%s, to=%s — %s: %s",
+            smtp_host, smtp_port, smtp_user, to, type(e).__name__, str(e)[:300],
+        )
         return False
 
 
@@ -111,6 +121,10 @@ def send_payment_received_email(invoice, payment, is_full):
 def send_overdue_reminder(invoice, days_label):
     """days_label: 'before_<N>', 'overdue', or 'overdue_<N>'"""
     if not invoice.customer.email:
+        logger.info(
+            "Skip reminder: invoice %s — customer %s has no email",
+            invoice.number, invoice.customer.name,
+        )
         return False
     if days_label.startswith("before_"):
         n = days_label.split("_", 1)[1]

@@ -203,6 +203,7 @@ def new():
                 assigned_to_id=assigned_id,
                 next_meeting=_parse_datetime_local(request.form.get("next_meeting")),
                 meeting_notes=(request.form.get("meeting_notes") or "").strip() or None,
+                notes=(request.form.get("notes") or "").strip() or None,
                 status=LeadStatus.NEW_LEAD,
             )
             if not lead.client_name or not lead.phone or not lead.service_needed:
@@ -256,6 +257,7 @@ def edit(lead_id):
             lead.assigned_to_id = assigned_id
             lead.next_meeting = _parse_datetime_local(request.form.get("next_meeting"))
             lead.meeting_notes = (request.form.get("meeting_notes") or "").strip() or None
+            lead.notes = (request.form.get("notes") or "").strip() or None
             db.session.commit()
             flash("تم حفظ التعديلات", "success")
             return redirect(url_for("leads.detail", lead_id=lead.id))

@@ -1,0 +1,90 @@
+{% extends "admin/base.html" %}
+{% block page_title %}🔧 اختبار إرسال الإيميل{% endblock %}
+{% block content %}
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+  {# ─── Left: Test form + result ───────────────────────────────────── #}
+  <div class="card p-6 md:col-span-2">
+    <h2 class="font-bold text-navy-900 mb-1">🔧 اختبار SMTP / Resend</h2>
+    <p class="text-xs text-slate-500 mb-4">
+      اكتب بريد، اضغط "إرسال اختبار" — النظام بيحاول يبعت إيميل بنفس الإعدادات
+      اللي بتستخدمها الفواتير والتذكيرات. لو فشل، الخطأ بالتفصيل بيظهر تحت.
+    </p>
+
+    <form method="POST" class="space-y-3 mb-4">
+      <label class="block">
+        <span class="text-sm font-semibold text-slate-700">إرسال إلى</span>
+        <input type="email" name="to" required dir="ltr" placeholder="you@example.com"
+               class="input mt-1">
+      </label>
+      <button type="submit" class="btn-primary w-full">📨 إرسال اختبار</button>
+    </form>
+
+    {% if result %}
+      {% if result.ok %}
+      <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm">
+        <div class="font-bold text-emerald-800 mb-1">✅ نجاح</div>
+        <div class="text-slate-700">{{ result.msg }}</div>
+      </div>
+      {% else %}
+      <div class="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm">
+        <div class="font-bold text-rose-800 mb-1">❌ فشل</div>
+        <div class="text-slate-700 mb-3" dir="ltr"><code>{{ result.error }}</code></div>
+        {% if result.trace %}
+        <details>
+          <summary class="cursor-pointer text-xs text-rose-700">عرض traceback كامل</summary>
+          <pre dir="ltr" class="text-[10px] mt-2 bg-white p-2 rounded overflow-auto max-h-64">{{ result.trace }}</pre>
+        </details>
+        {% endif %}
+      </div>
+      {% endif %}
+    {% endif %}
+
+    <hr class="my-5">
+
+    <h3 class="font-bold text-navy-900 mb-2">⏰ Cron tick يدوياً</h3>
+    <p class="text-xs text-slate-500 mb-3">
+      التذكيرات بتشتغل من cron خارجي (POST /cron/tick). لو الـ cron مش متجدول
+      في deployment ولا حد بيناديه، التذكيرات مش بتتبعت أبداً. اضغط التحت
+      تشغّل دورة واحدة دلوقتي وتشوف الـ summary.
+    </p>
+    <form method="POST" action="{{ url_for('superadmin.cron_tick_now') }}">
+      <button type="submit" class="btn-secondary w-full">↻ تشغيل cron tick الآن</button>
+    </form>
+  </div>
+
+  {# ─── Right: Config snapshot ─────────────────────────────────────── #}
+  <div class="card p-5">
+    <h3 class="font-bold text-navy-900 mb-3">إعدادات حالية (من .env)</h3>
+    <dl class="text-xs space-y-2" dir="ltr">
+      {% for k, v in snapshot.items() %}
+      <div class="flex justify-between gap-2 border-b border-slate-100 pb-1">
+        <dt class="text-slate-500 font-mono">{{ k }}</dt>
+        <dd class="font-semibold text-slate-800 text-end font-mono break-all">{{ v }}</dd>
+      </div>
+      {% endfor %}
+    </dl>
+
+    <hr class="my-4">
+
+    <details class="text-xs">
+      <summary class="cursor-pointer font-semibold text-slate-700">دليل إعدادات Resend</summary>
+      <div class="mt-2 space-y-1 text-slate-600">
+        <p>إذا كنت تستخدم Resend عبر SMTP:</p>
+        <ul class="ms-4 list-disc space-y-1" dir="ltr">
+          <li>SMTP_HOST=smtp.resend.com</li>
+          <li>SMTP_PORT=587</li>
+          <li>SMTP_USER=resend</li>
+          <li>SMTP_PASSWORD=re_xxxxx (API key)</li>
+          <li>SMTP_USE_TLS=true</li>
+          <li>SMTP_FROM=verified-domain@yourdomain.com</li>
+        </ul>
+        <p class="mt-2">⚠ ملاحظة: عنوان "From" لازم يكون من نطاق مُتحقق منه في Resend، وإلا الرسالة تُرفض.</p>
+      </div>
+    </details>
+  </div>
+
+</div>
+
+{% endblock %}
