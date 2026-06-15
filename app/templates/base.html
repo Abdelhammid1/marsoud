@@ -147,6 +147,29 @@ tailwind.config = {
     .sidebar-aside { transform: translateX(100%); }
     .sidebar-main { margin-right: 0 !important; }
     body.sidebar-open-mobile .sidebar-aside { transform: translateX(0); }
+
+    /* Mobile responsive fixes:
+       1. Body overflow-x:hidden absorbs the translated-off-screen
+          sidebar so it doesn't extend scrollWidth.
+       2. data-table gets horizontal scroll inside its card wrapper
+          so wide tables don't push the whole page wider than viewport.
+       3. Header padding shrinks so the page title doesn't wrap.
+       4. Card padding shrinks so content gets more horizontal room. */
+    html, body { overflow-x: hidden; max-width: 100vw; }
+    .card { padding: 1rem !important; }
+    table.data-table { display: block; overflow-x: auto; max-width: 100%;
+                       white-space: nowrap; -webkit-overflow-scrolling: touch; }
+    table.data-table thead th,
+    table.data-table tbody td {
+      padding: 0.625rem 0.75rem; font-size: 0.8rem;
+    }
+    /* Make the topbar fit smaller screens */
+    header > div { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+    header h1 { font-size: 1rem !important; }
+    /* KPI / stat grids that cram 3-4 cols default to 2 on phone */
+    main .grid.grid-cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    main .grid.grid-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    main .grid.grid-cols-5 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
   }
 </style>
 {% block head %}{% endblock %}
@@ -448,7 +471,7 @@ tailwind.config = {
     </div>
     {% endif %}
     <header class="bg-white/80 backdrop-blur border-b border-slate-200 sticky top-0 z-30">
-      <div class="px-8 py-4 flex items-center justify-between">
+      <div class="px-3 sm:px-6 lg:px-8 py-3 sm:py-4 flex items-center justify-between gap-2">
         <div class="flex items-center gap-3">
           <!-- MARSOUD-42 — hamburger: hides/shows the whole sidebar -->
           <button type="button" onclick="toggleSidebar()"
@@ -469,16 +492,16 @@ tailwind.config = {
             {% endif %}
           </a>
           {% if current_role not in ('client', 'team_member') %}
-          <button onclick="toggleAgent()" class="btn-accent text-sm">
+          <button onclick="toggleAgent()" class="btn-accent text-sm whitespace-nowrap" title="المحاسب الذكي" aria-label="المحاسب الذكي">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
-            المحاسب الذكي
+            <span class="hidden sm:inline">المحاسب الذكي</span>
           </button>
           {% endif %}
         </div>
       </div>
     </header>
 
-    <div class="px-8 py-6">
+    <div class="px-3 sm:px-6 lg:px-8 py-4 sm:py-6">
       <!-- Flash messages -->
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
