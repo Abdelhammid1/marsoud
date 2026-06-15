@@ -33,8 +33,27 @@
         <input type="text" name="service_needed" required value="{{ lead.service_needed if lead else '' }}" class="input">
       </div>
       <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">المصدر (اختياري)</label>
-        <input type="text" name="source" value="{{ lead.source if lead else '' }}" placeholder="إعلان / إحالة / موقع …" class="input">
+        <label class="block text-sm font-semibold text-slate-700 mb-2">نوع العميل (Lead Type)</label>
+        <select name="lead_type" class="select">
+          <option value="">— اختر —</option>
+          {% for t in lead_types %}
+          <option value="{{ t.name }}" {% if lead and lead.lead_type == t.value %}selected{% endif %}>{{ t.label_ar }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">مصدر الوصول (Lead Source)</label>
+        <select name="source" class="select">
+          <option value="">— اختر —</option>
+          {% for s in lead_sources %}
+          <option value="{{ s.name }}" {% if lead and lead.source == s.value %}selected{% endif %}>{{ s.label_ar }}</option>
+          {% endfor %}
+        </select>
+        {% if lead and lead.source and lead.source not in lead_sources|map(attribute='value')|list %}
+        <p class="text-xs text-amber-700 mt-1">القيمة الحالية ("{{ lead.source }}") من تسجيل قديم — اختر مصدر من القائمة لتحديثها.</p>
+        {% endif %}
       </div>
     </div>
     <div class="grid grid-cols-2 gap-4">

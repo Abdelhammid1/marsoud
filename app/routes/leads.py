@@ -11,7 +11,7 @@ from sqlalchemy import or_
 
 from app import db
 from app.models import (
-    Lead, LeadStatus, LeadStatusEvent,
+    Lead, LeadStatus, LeadType, LeadSource, LeadStatusEvent,
     User, Customer, Employee,
 )
 from app.models.user import user_companies
@@ -91,6 +91,22 @@ def _parse_date(s):
     try:
         return datetime.strptime(s, "%Y-%m-%d").date()
     except (TypeError, ValueError):
+        return None
+
+
+def _validate_enum_value(raw, enum_cls):
+    """Accept either an enum member name (e.g. 'INBOUND') or empty/None.
+    Returns the enum's .value string when valid, else None.
+    Old free-text values that aren't valid enum keys get cleared to None
+    on edit — but the dropdown is the only way to set them now."""
+    if not raw:
+        return None
+    raw = raw.strip()
+    if not raw:
+        return None
+    try:
+        return enum_cls[raw].value
+    except KeyError:
         return None
 
 
@@ -178,7 +194,8 @@ def new():
                 phone=request.form.get("phone", "").strip(),
                 email=(request.form.get("email") or "").strip().lower() or None,
                 service_needed=request.form.get("service_needed", "").strip(),
-                source=(request.form.get("source") or "").strip() or None,
+                lead_type=_validate_enum_value(request.form.get("lead_type"), LeadType),
+                source=_validate_enum_value(request.form.get("source"), LeadSource),
                 assigned_to_id=assigned_id,
                 next_meeting=_parse_datetime_local(request.form.get("next_meeting")),
                 meeting_notes=(request.form.get("meeting_notes") or "").strip() or None,
@@ -200,7 +217,8 @@ def new():
         except (CRMError, ValueError, TypeError) as e:
             flash(str(e), "error")
     return render_template("leads/form.html", lead=None,
-                           reps=_sales_reps())
+                           reps=_sales_reps(),
+                           lead_types=LeadType, lead_sources=LeadSource)
 
 
 @bp.route("/<int:lead_id>")
@@ -211,6 +229,7 @@ def detail(lead_id):
     can_manage_files = _can_view_all_leads() or lead.assigned_to_id == current_user.id
     return render_template("leads/detail.html",
                            lead=lead, statuses=LeadStatus,
+                           lead_types=LeadType, lead_sources=LeadSource,
                            can_manage_files=can_manage_files)
 
 
@@ -228,7 +247,8 @@ def edit(lead_id):
             lead.phone = request.form.get("phone", lead.phone).strip()
             lead.email = (request.form.get("email") or "").strip().lower() or None
             lead.service_needed = request.form.get("service_needed", lead.service_needed).strip()
-            lead.source = (request.form.get("source") or "").strip() or None
+            lead.lead_type = _validate_enum_value(request.form.get("lead_type"), LeadType)
+            lead.source = _validate_enum_value(request.form.get("source"), LeadSource)
             lead.assigned_to_id = assigned_id
             lead.next_meeting = _parse_datetime_local(request.form.get("next_meeting"))
             lead.meeting_notes = (request.form.get("meeting_notes") or "").strip() or None
@@ -237,7 +257,8 @@ def edit(lead_id):
             return redirect(url_for("leads.detail", lead_id=lead.id))
         except (CRMError, ValueError, TypeError) as e:
             flash(str(e), "error")
-    return render_template("leads/form.html", lead=lead, reps=_sales_reps())
+    return render_template("leads/form.html", lead=lead, reps=_sales_reps(),
+                           lead_types=LeadType, lead_sources=LeadSource)
 
 
 @bp.route("/<int:lead_id>/status", methods=["POST"])
@@ -252,6 +273,13 @@ def status(lead_id):
             note=request.form.get("note"),
             lost_reason=request.form.get("lost_reason"),
         )
+        # MARSOUD-45 — when the new status is "اجتماع مجدول", also persist the
+        # date+time the user picked in the conditional inputs.
+        if lead.status == LeadStatus.MEETING_SCHEDULED:
+            nm = _parse_datetime_local(request.form.get("next_meeting"))
+            if nm:
+                lead.next_meeting = nm
+                db.session.commit()
         flash(f"تم تغيير الحالة إلى: {lead.status.label_ar}", "success")
     except CRMError as e:
         flash(str(e), "error")

@@ -192,6 +192,7 @@ def new():
                 project_id=pid,
                 milestone_id=milestone_id,
                 assigned_to_id=assignee_ids[0],
+                created_by_id=current_user.id,
                 priority=TaskPriority[priority_str],
                 status=TaskStatus.TODO,
                 deadline=_parse_date(request.form.get("deadline")),

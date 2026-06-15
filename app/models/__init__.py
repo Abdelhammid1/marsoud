@@ -28,7 +28,7 @@ from app.models.leave import (
     LeaveRequest, LeaveRequestStatus,
 )
 from app.models.crm import (
-    Lead, LeadStatus, LeadStatusEvent,
+    Lead, LeadStatus, LeadType, LeadSource, LeadStatusEvent,
     Project, ProjectStatus, ProjectMember, Milestone, ProjectStatusEvent,
     PROJECT_TRANSITIONS,
     Task, TaskStatus, TaskPriority, KANBAN_ORDER,
@@ -66,7 +66,7 @@ __all__ = [
     "LeaveType", "LeaveBalance",
     "AttendanceException", "AttendanceExceptionType",
     "LeaveRequest", "LeaveRequestStatus",
-    "Lead", "LeadStatus", "LeadStatusEvent",
+    "Lead", "LeadStatus", "LeadType", "LeadSource", "LeadStatusEvent",
     "Project", "ProjectStatus", "ProjectMember", "Milestone", "ProjectStatusEvent",
     "PROJECT_TRANSITIONS",
     "Task", "TaskStatus", "TaskPriority", "KANBAN_ORDER",

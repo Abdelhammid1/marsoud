@@ -48,6 +48,48 @@ class LeadStatus(enum.Enum):
         }[self.value]
 
 
+class LeadType(enum.Enum):
+    INBOUND = "INBOUND"
+    OUTBOUND = "OUTBOUND"
+    REFERRAL = "REFERRAL"
+    EXISTING_CLIENT = "EXISTING_CLIENT"
+
+    @property
+    def label_ar(self):
+        return {
+            "INBOUND":         "Inbound (هو اللي جه بنفسه)",
+            "OUTBOUND":        "Outbound (إحنا اللي وصلناله)",
+            "REFERRAL":        "Referral (ترشيح)",
+            "EXISTING_CLIENT": "Existing Client (عميل سابق)",
+        }[self.value]
+
+
+class LeadSource(enum.Enum):
+    LINKEDIN = "LINKEDIN"
+    FACEBOOK = "FACEBOOK"
+    GOOGLE_SEARCH = "GOOGLE_SEARCH"
+    WEBSITE = "WEBSITE"
+    WHATSAPP = "WHATSAPP"
+    COLD_CALL = "COLD_CALL"
+    EMAIL_OUTREACH = "EMAIL_OUTREACH"
+    EVENT = "EVENT"
+    OTHER = "OTHER"
+
+    @property
+    def label_ar(self):
+        return {
+            "LINKEDIN":       "LinkedIn",
+            "FACEBOOK":       "Facebook",
+            "GOOGLE_SEARCH":  "Google Search",
+            "WEBSITE":        "Website",
+            "WHATSAPP":       "WhatsApp",
+            "COLD_CALL":      "Cold Call",
+            "EMAIL_OUTREACH": "Email Outreach",
+            "EVENT":          "Event",
+            "OTHER":          "أخرى",
+        }[self.value]
+
+
 class Lead(db.Model):
     __tablename__ = "leads"
     id = db.Column(db.Integer, primary_key=True)
@@ -57,6 +99,7 @@ class Lead(db.Model):
     email = db.Column(db.String(200))
     phone = db.Column(db.String(30), nullable=False)
     service_needed = db.Column(db.String(200), nullable=False)
+    lead_type = db.Column(db.String(20))
     source = db.Column(db.String(100))
 
     assigned_to_id = db.Column(db.Integer, db.ForeignKey("users.id"),
@@ -334,6 +377,8 @@ class Task(db.Model):
                              db.ForeignKey("milestones.id", ondelete="SET NULL"))
     assigned_to_id = db.Column(db.Integer, db.ForeignKey("users.id"),
                                nullable=False)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"),
+                              nullable=True)
 
     priority = db.Column(db.Enum(TaskPriority),
                          default=TaskPriority.MEDIUM, nullable=False)
@@ -352,6 +397,7 @@ class Task(db.Model):
     project = db.relationship("Project", foreign_keys=[project_id], backref="tasks")
     milestone = db.relationship("Milestone", foreign_keys=[milestone_id])
     assigned_to = db.relationship("User", foreign_keys=[assigned_to_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_id])
 
     @property
     def is_overdue(self):

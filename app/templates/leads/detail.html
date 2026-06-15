@@ -16,11 +16,14 @@
       </div>
     </div>
 
+    {% set type_label = (lead_types[lead.lead_type].label_ar if lead.lead_type and lead.lead_type in lead_types.__members__ else None) %}
+    {% set source_label = (lead_sources[lead.source].label_ar if lead.source and lead.source in lead_sources.__members__ else lead.source) %}
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
       <div><span class="text-slate-500">الهاتف:</span> <span dir="ltr" class="font-mono">{{ lead.phone }}</span></div>
       <div><span class="text-slate-500">البريد:</span> <span dir="ltr">{{ lead.email or '—' }}</span></div>
       <div><span class="text-slate-500">المسؤول:</span> {{ lead.assigned_to.full_name if lead.assigned_to else '—' }}</div>
-      <div><span class="text-slate-500">المصدر:</span> {{ lead.source or '—' }}</div>
+      <div><span class="text-slate-500">نوع العميل:</span> {{ type_label or '—' }}</div>
+      <div><span class="text-slate-500">المصدر:</span> {{ source_label or '—' }}</div>
       <div><span class="text-slate-500">اجتماع قادم:</span> <span class="font-mono">{{ lead.next_meeting.strftime('%Y-%m-%d %H:%M') if lead.next_meeting else '—' }}</span></div>
       <div><span class="text-slate-500">أُنشئ:</span> <span class="font-mono">{{ lead.created_at.strftime('%Y-%m-%d') }}</span></div>
     </div>
@@ -108,7 +111,7 @@
   <div class="card p-5">
     <h3 class="font-bold text-navy-900 mb-3">تغيير الحالة</h3>
     <form method="POST" action="{{ url_for('leads.status', lead_id=lead.id) }}" class="space-y-3">
-      <select name="new_status" required class="select text-sm" onchange="document.getElementById('lost').style.display = this.value === 'LOST' ? '' : 'none'">
+      <select name="new_status" required class="select text-sm" onchange="toggleLeadStatusExtras(this.value)">
         <option value="">— اختر —</option>
         {% for s in statuses %}{% if s != lead.status %}<option value="{{ s.name }}">{{ s.label_ar }}</option>{% endif %}{% endfor %}
       </select>
@@ -116,9 +119,22 @@
       <div id="lost" style="display:none">
         <input type="text" name="lost_reason" placeholder="سبب الخسارة" class="input text-sm">
       </div>
+      {# MARSOUD-45 — reveal date+time inputs only when status = MEETING_SCHEDULED #}
+      <div id="meeting-fields" style="display:none" class="bg-amber-50 border border-amber-200 rounded p-2">
+        <label class="block text-xs font-semibold text-amber-800 mb-1">موعد الاجتماع</label>
+        <input type="datetime-local" name="next_meeting"
+               value="{{ lead.next_meeting.strftime('%Y-%m-%dT%H:%M') if lead.next_meeting else '' }}"
+               class="input text-sm">
+      </div>
       <button type="submit" class="btn-primary w-full text-sm">حفظ التغيير</button>
     </form>
   </div>
+  <script>
+    function toggleLeadStatusExtras(val) {
+      document.getElementById('lost').style.display = (val === 'LOST') ? '' : 'none';
+      document.getElementById('meeting-fields').style.display = (val === 'MEETING_SCHEDULED') ? '' : 'none';
+    }
+  </script>
   {% endif %}
 </div>
 {% endblock %}
