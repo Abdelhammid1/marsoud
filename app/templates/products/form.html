@@ -3,6 +3,35 @@
 {% block content %}
 <div class="card p-6 max-w-2xl">
   <form method="POST" class="space-y-4">
+
+    {# MARSOUD-50.1 — type toggle.
+       "بضاعة" → is_tracked=True, auto-creates a ProductVariant on save
+       "خدمة"  → is_tracked=False, no variant, no stock side                  #}
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">النوع</label>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="cursor-pointer">
+          <input type="radio" name="product_type" value="goods" checked class="peer sr-only"
+                 onchange="toggleProductType('goods')">
+          <div class="border-2 border-slate-200 rounded-xl p-4 text-center peer-checked:border-emerald-500 peer-checked:bg-emerald-50 hover:border-emerald-300 transition">
+            <div class="text-2xl mb-1">📦</div>
+            <div class="font-bold text-navy-900">بضاعة (مخزون)</div>
+            <div class="text-xs text-slate-500 mt-1">رصيد افتتاحي + تتبع الكميات</div>
+          </div>
+        </label>
+        <label class="cursor-pointer">
+          <input type="radio" name="product_type" value="service" class="peer sr-only"
+                 onchange="toggleProductType('service')">
+          <div class="border-2 border-slate-200 rounded-xl p-4 text-center peer-checked:border-emerald-500 peer-checked:bg-emerald-50 hover:border-emerald-300 transition">
+            <div class="text-2xl mb-1">💼</div>
+            <div class="font-bold text-navy-900">خدمة</div>
+            <div class="text-xs text-slate-500 mt-1">بدون مخزون، تتباع مباشرةً</div>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    {# ─── Common fields ───────────────────────────────────────────── #}
     <div class="grid grid-cols-2 gap-4">
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">الاسم</label>
@@ -10,7 +39,9 @@
       </div>
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">SKU (اختياري)</label>
-        <input type="text" name="sku" class="input font-mono">
+        <input type="text" name="sku" class="input font-mono"
+               placeholder="مثال: PRD-001">
+        <p class="text-xs text-slate-500 mt-1" id="sku-hint-goods">لو سيبته فاضي هنولّد لك SKU تلقائي.</p>
       </div>
     </div>
     <div>
@@ -27,10 +58,61 @@
         <input type="number" name="default_tax_rate" step="0.01" class="input font-mono" placeholder="يستخدم الشركة الافتراضية">
       </div>
     </div>
+
+    {# ─── Goods-only inventory section ────────────────────────────── #}
+    <div id="goods-section" class="border-t border-slate-200 pt-4 space-y-4">
+      <h3 class="font-bold text-navy-900 text-sm">قسم المخزون</h3>
+      <p class="text-xs text-slate-500 -mt-3">
+        كل بضاعة لازم يبقى لها variant واحد على الأقل + رصيد. لو سيبت الكمية صفر،
+        البضاعة هتتعمل ولكن مفيهاش مخزون لحد ما تستلم من مورد.
+      </p>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">باركود (اختياري)</label>
+          <input type="text" name="barcode" class="input font-mono"
+                 placeholder="USB scanner / كود EAN">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">المخزن</label>
+          <select name="warehouse_id" class="select">
+            {% for w in warehouses %}
+            <option value="{{ w.id }}" {% if w.is_default %}selected{% endif %}>
+              {{ w.name }}{% if w.is_default %} (افتراضي){% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">الرصيد الافتتاحي (الكمية)</label>
+          <input type="number" name="opening_qty" step="0.01" min="0" value="0" class="input font-mono">
+          <p class="text-xs text-slate-500 mt-1">اللي عندك من البضاعة دلوقتي.</p>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">تكلفة الوحدة</label>
+          <input type="number" name="unit_cost" step="0.0001" min="0" value="0" class="input font-mono">
+          <p class="text-xs text-slate-500 mt-1">سعر الشراء — مش سعر البيع.</p>
+        </div>
+      </div>
+    </div>
+
     <div class="flex justify-end gap-2 pt-2">
       <a href="{{ url_for('products.index') }}" class="btn-secondary">إلغاء</a>
       <button type="submit" class="btn-primary">إضافة</button>
     </div>
   </form>
 </div>
+
+<script>
+function toggleProductType(t) {
+  document.getElementById('goods-section').style.display = (t === 'goods') ? '' : 'none';
+  document.getElementById('sku-hint-goods').style.display = (t === 'goods') ? '' : 'none';
+}
+// Initialize from the checked radio (works on form re-render after error too)
+(function() {
+  const checked = document.querySelector('input[name="product_type"]:checked');
+  toggleProductType(checked ? checked.value : 'goods');
+})();
+</script>
 {% endblock %}
