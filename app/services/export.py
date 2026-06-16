@@ -1,6 +1,8 @@
 """PDF and Excel export for financial reports."""
 import io
 import os
+import base64
+import logging
 from datetime import date
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
@@ -11,7 +13,10 @@ from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import arabic_reshaper
+from flask import render_template
 from app import db
+
+_export_logger = logging.getLogger("ledgeros.export")
 from bidi.algorithm import get_display
 from app.services.reports import (
     balance_sheet, income_statement, cash_flow,
@@ -151,6 +156,34 @@ def export_income_statement_excel(company, start, end):
 
     buf = io.BytesIO()
     wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+# ─── MARSOUD-51: WeasyPrint helpers for the new HTML→PDF flow ─────────
+def _company_logo_data_uri(company):
+    """Return the company logo as a data: URI so WeasyPrint embeds it inline.
+    None if the company has no logo or the file is missing."""
+    if not getattr(company, "logo_path", None):
+        return None
+    rel = company.logo_path.lstrip("/")
+    candidate = os.path.join(os.path.dirname(os.path.dirname(__file__)), rel)
+    if not os.path.exists(candidate):
+        return None
+    ext = os.path.splitext(candidate)[1].lstrip(".").lower()
+    mime = "image/png" if ext == "png" else f"image/{ext}"
+    with open(candidate, "rb") as f:
+        return f"data:{mime};base64,{base64.b64encode(f.read()).decode('ascii')}"
+
+
+def _weasyprint_render(template_name, **context):
+    """Render a Jinja template + run it through WeasyPrint. Returns a BytesIO
+    with the PDF. WeasyPrint is imported lazily so the rest of the app keeps
+    booting on a host that doesn't have libpango installed."""
+    import weasyprint  # lazy — system libs (libpango/cairo) only needed for PDFs
+    html = render_template(template_name, **context)
+    buf = io.BytesIO()
+    weasyprint.HTML(string=html, base_url=os.path.dirname(os.path.dirname(__file__))).write_pdf(buf)
     buf.seek(0)
     return buf
 
@@ -302,11 +335,22 @@ _STATUS_COLOR = {
 
 
 def export_invoice_pdf(invoice):
-    """Generate a customer-facing invoice PDF — branded layout with header
-    logo (MARSOUD-23), status banner, customer & dates card, items table
-    with alternating shading, and a totals card showing subtotal / VAT /
-    total / paid / balance.
-    """
+    """MARSOUD-51 — Generate a customer-facing invoice PDF via WeasyPrint
+    using the new branded HTML template. Falls back to the legacy ReportLab
+    renderer if WeasyPrint fails to load (e.g. missing libpango on host)."""
+    try:
+        return _weasyprint_render(
+            "pdfs/invoice.html",
+            invoice=invoice,
+            company_logo_data_uri=_company_logo_data_uri(invoice.company),
+        )
+    except Exception as e:
+        _export_logger.exception("WeasyPrint invoice render failed, falling back to legacy: %s", e)
+        return _export_invoice_pdf_legacy(invoice)
+
+
+def _export_invoice_pdf_legacy(invoice):
+    """Legacy ReportLab-based invoice PDF kept as fallback."""
     buf = io.BytesIO()
     p = canvas.Canvas(buf, pagesize=A4)
     _pdf_header(p, invoice.company,
@@ -438,9 +482,22 @@ def export_invoice_pdf(invoice):
 
 
 def export_payslip_pdf(employee, line, run):
-    """One-page payslip — branded header (MARSOUD-23), employee identity card,
-    earnings + deductions sections with subtotals, and a Net Pay banner.
-    """
+    """MARSOUD-51 — Generate a payslip PDF via WeasyPrint using the new
+    branded HTML template. Falls back to the legacy ReportLab renderer if
+    WeasyPrint fails to load."""
+    try:
+        return _weasyprint_render(
+            "pdfs/payslip.html",
+            employee=employee, line=line, run=run,
+            company_logo_data_uri=_company_logo_data_uri(employee.company),
+        )
+    except Exception as e:
+        _export_logger.exception("WeasyPrint payslip render failed, falling back to legacy: %s", e)
+        return _export_payslip_pdf_legacy(employee, line, run)
+
+
+def _export_payslip_pdf_legacy(employee, line, run):
+    """Legacy ReportLab-based payslip PDF kept as fallback."""
     buf = io.BytesIO()
     p = canvas.Canvas(buf, pagesize=A4)
     _pdf_header(

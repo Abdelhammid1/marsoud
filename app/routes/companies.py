@@ -140,6 +140,11 @@ def edit(company_id):
         company.tax_number = request.form.get("tax_number", company.tax_number)
         company.vat_rate = float(request.form.get("vat_rate", company.vat_rate))
         company.address = request.form.get("address", company.address)
+        # MARSOUD-51 — bank info for invoice PDF (all optional)
+        company.bank_name = (request.form.get("bank_name") or "").strip() or None
+        company.bank_account_holder = (request.form.get("bank_account_holder") or "").strip() or None
+        company.bank_account_number = (request.form.get("bank_account_number") or "").strip() or None
+        company.iban = (request.form.get("iban") or "").strip() or None
 
         # ERP-03 — inventory + POS toggles.
         company.stock_strict_mode = request.form.get("stock_strict_mode") == "on"

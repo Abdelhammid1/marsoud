@@ -1,0 +1,207 @@
+{# MARSOUD-51 — Payslip PDF, ported from abdelhamid's mockup
+   Renders via WeasyPrint with a fixed A4 size.
+   Optional rows (allowances/bonus/overtime, deductions) only render
+   when > 0, per abdelhamid's spec. #}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>Payslip {{ employee.name }} — {{ run.period_month }}/{{ run.period_year }}</title>
+<style>
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif; direction: rtl; }
+.page { background: #fff; width: 210mm; min-height: 297mm; position: relative; }
+.pad { padding: 40px 44px 90px; }
+.top-bar { height: 8px; background: #0A2540; }
+.top-bar-accent { height: 3px; background: #1D9E75; }
+.header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 24px; border-bottom: 2px solid #0A2540; margin-bottom: 24px; }
+.logo-box { width: 64px; height: 64px; background: #0A2540; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 28px; color: #fff; overflow: hidden; }
+.logo-box img { max-width: 100%; max-height: 100%; }
+.title-block { text-align: left; }
+.title-block h1 { font-size: 26px; color: #0A2540; font-weight: 700; }
+.title-meta { font-size: 12px; color: #64748B; margin-top: 4px; }
+.emp-card { background: #F8FAFC; border-radius: 10px; padding: 18px 20px; border: 1px solid #E2E8F0; margin-bottom: 24px; }
+.emp-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+.emp-item .lbl { font-size: 10px; color: #94A3B8; margin-bottom: 3px; }
+.emp-item .val { font-size: 13px; color: #0A2540; font-weight: 600; }
+.section-eyebrow { font-size: 13px; font-weight: 700; color: #1D9E75; margin-bottom: 12px; padding-right: 10px; border-right: 3px solid #1D9E75; }
+.attendance { display: grid; grid-template-columns: repeat(5,1fr); gap: 10px; margin-bottom: 24px; }
+.att-card { border-radius: 8px; padding: 12px; text-align: center; border: 1px solid; }
+.att-card .lbl { font-size: 10px; margin-bottom: 4px; }
+.att-card .val { font-size: 20px; font-weight: 700; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 24px; }
+table thead th { background: #0A2540; color: #fff; padding: 11px 12px; font-weight: 600; }
+table thead th:first-child { text-align: right; }
+table thead th.l { text-align: left; }
+table thead th.c { text-align: center; }
+table tbody td { padding: 10px 12px; border-bottom: 1px solid #E2E8F0; color: #0A2540; }
+table tbody tr:nth-child(even) { background: #F8FAFC; }
+.l { text-align: left; font-family: monospace; }
+.c { text-align: center; }
+.badge-add { background: #E1F5EE; color: #0F6E56; font-size: 11px; padding: 2px 8px; border-radius: 20px; }
+.badge-ded { background: #FEF2F2; color: #DC2626; font-size: 11px; padding: 2px 8px; border-radius: 20px; }
+.summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+.sum-box { border-radius: 10px; padding: 16px 18px; }
+.sum-box.add { background: #E1F5EE; border: 1px solid #5DCAA5; }
+.sum-box.ded { background: #FEF2F2; border: 1px solid #FECACA; }
+.sum-box .lbl { font-size: 11px; font-weight: 600; margin-bottom: 6px; }
+.sum-box .val { font-size: 20px; font-weight: 700; font-family: monospace; }
+.net-box { background: #0A2540; border-radius: 12px; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-right: 4px solid #1D9E75; }
+.net-box .lbl { color: #94A3B8; font-size: 13px; }
+.net-box .val { color: #4ADE80; font-size: 28px; font-weight: 700; font-family: monospace; }
+.paid-box { background: #E1F5EE; border-radius: 0 8px 8px 0; border-right: 3px solid #1D9E75; padding: 14px 18px; margin-bottom: 28px; }
+.signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; padding-top: 16px; }
+.sig { text-align: center; }
+.sig-line { border-top: 1px solid #94A3B8; margin-bottom: 6px; padding-top: 40px; }
+.sig-label { font-size: 11px; color: #64748B; }
+.footer { position: absolute; bottom: 0; right: 0; left: 0; border-top: 2px solid #1D9E75; padding: 16px 44px; display: flex; justify-content: space-between; align-items: center; background: #fff; }
+.footer-badge { display: inline-flex; align-items: center; gap: 8px; }
+.footer-logo { width: 28px; height: 28px; background: #1D9E75; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 14px; }
+.footer-text { font-size: 11px; color: #64748B; }
+.footer-text strong { color: #0F6E56; }
+</style>
+</head>
+<body>
+{# Pre-compute sums so the summary boxes match the line items #}
+{% set basic = line.basic|float if line.basic else 0 %}
+{% set allowances = line.allowances|float if line.allowances else 0 %}
+{% set bonus = line.bonus|float if line.bonus else 0 %}
+{% set overtime = line.overtime|float if line.overtime else 0 %}
+{% set fixed_ded = line.deductions|float if line.deductions else 0 %}
+{% set abs_ded = line.absence_deduction|float if line.absence_deduction else 0 %}
+{% set late_ded = line.late_deduction|float if line.late_deduction else 0 %}
+{% set adv_ded = line.advance_deduction|float if line.advance_deduction else 0 %}
+{% set total_add = basic + allowances + bonus + overtime %}
+{% set total_ded = fixed_ded + abs_ded + late_ded + adv_ded %}
+
+{% set absences_count = line.absences_count or 0 %}
+{% set late_hours = line.late_hours|float if line.late_hours else 0 %}
+{% set overtime_hours = line.overtime_hours|float if line.overtime_hours else 0 %}
+{% set leaves_count = line.leaves_count or 0 %}
+
+<div class="page">
+  <div class="top-bar"></div>
+  <div class="top-bar-accent"></div>
+  <div class="pad">
+
+    {# ─── HEADER ─────────────────────────────────────────────── #}
+    <div class="header">
+      <div style="display:flex;gap:16px;align-items:flex-start">
+        <div class="logo-box">{% if company_logo_data_uri %}<img src="{{ company_logo_data_uri }}">{% else %}{{ employee.company.name[:1] }}{% endif %}</div>
+        <div>
+          <div style="font-size:20px;font-weight:700;color:#0A2540">{{ employee.company.name }}</div>
+          <div style="font-size:11px;color:#64748B;line-height:1.8;margin-top:4px">
+            {% if employee.company.address %}{{ employee.company.address }}<br>{% endif %}
+            {% if employee.company.tax_number %}الرقم الضريبي: {{ employee.company.tax_number }}{% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="title-block">
+        <h1>كشف راتب</h1>
+        <div class="title-meta">شهر {{ run.period_month }}/{{ run.period_year }}</div>
+        <div class="title-meta">رقم الكشف: PAY-{{ run.period_year }}-{{ "%02d"|format(run.period_month) }}-{{ "%03d"|format(line.id) }}</div>
+      </div>
+    </div>
+
+    {# ─── EMPLOYEE INFO ─────────────────────────────────────── #}
+    <div class="emp-card">
+      <div class="emp-grid">
+        <div class="emp-item"><div class="lbl">اسم الموظف</div><div class="val">{{ employee.name }}</div></div>
+        <div class="emp-item"><div class="lbl">الرقم الوظيفي</div><div class="val">{{ employee.employee_number or '—' }}</div></div>
+        <div class="emp-item"><div class="lbl">القسم</div><div class="val">{{ employee.department.name if employee.department else '—' }}</div></div>
+        <div class="emp-item"><div class="lbl">المسمى الوظيفي</div><div class="val">{{ employee.job_title or '—' }}</div></div>
+        <div class="emp-item"><div class="lbl">تاريخ التعيين</div><div class="val">{{ employee.start_date.isoformat() if employee.start_date else '—' }}</div></div>
+        <div class="emp-item"><div class="lbl">نوع العقد</div><div class="val">{{ employee.contract_type.value if employee.contract_type else '—' }}</div></div>
+      </div>
+    </div>
+
+    {# ─── ATTENDANCE SUMMARY ─────────────────────────────────── #}
+    <div class="section-eyebrow">ملخص الحضور والانصراف</div>
+    <div class="attendance">
+      <div class="att-card" style="background:#F8FAFC;border-color:#E2E8F0"><div class="lbl" style="color:#64748B">أيام العمل</div><div class="val" style="color:#0A2540">{{ line.working_days or 0 }}</div></div>
+      <div class="att-card" style="background:#FEF2F2;border-color:#FECACA"><div class="lbl" style="color:#DC2626">غياب</div><div class="val" style="color:#DC2626">{{ absences_count }}</div></div>
+      <div class="att-card" style="background:#FFFBEB;border-color:#FDE68A"><div class="lbl" style="color:#B45309">تأخير</div><div class="val" style="color:#B45309;font-size:16px">{{ "%g"|format(late_hours) }}س</div></div>
+      <div class="att-card" style="background:#E1F5EE;border-color:#5DCAA5"><div class="lbl" style="color:#0F6E56">أوفرتايم</div><div class="val" style="color:#0F6E56;font-size:16px">{{ "%g"|format(overtime_hours) }}س</div></div>
+      <div class="att-card" style="background:#E6F1FB;border-color:#85B7EB"><div class="lbl" style="color:#185FA5">إجازات</div><div class="val" style="color:#185FA5">{{ leaves_count }}</div></div>
+    </div>
+
+    {# ─── SALARY TABLE ─────────────────────────────────────── #}
+    <div class="section-eyebrow">تفاصيل الراتب</div>
+    <table>
+      <thead>
+        <tr><th>البند</th><th class="l">المبلغ ({{ employee.company.base_currency }})</th><th class="c">النوع</th></tr>
+      </thead>
+      <tbody>
+        {% if basic > 0 %}
+        <tr><td>الراتب الأساسي</td><td class="l" style="color:#0F6E56;font-weight:600">+ {{ "%.2f"|format(basic) }}</td><td class="c"><span class="badge-add">إضافة</span></td></tr>
+        {% endif %}
+        {% if allowances > 0 %}
+        <tr><td>البدلات</td><td class="l" style="color:#0F6E56;font-weight:600">+ {{ "%.2f"|format(allowances) }}</td><td class="c"><span class="badge-add">إضافة</span></td></tr>
+        {% endif %}
+        {% if bonus > 0 %}
+        <tr><td>بونص</td><td class="l" style="color:#0F6E56;font-weight:600">+ {{ "%.2f"|format(bonus) }}</td><td class="c"><span class="badge-add">إضافة</span></td></tr>
+        {% endif %}
+        {% if overtime > 0 %}
+        <tr><td>أوفرتايم{% if overtime_hours > 0 %} ({{ "%g"|format(overtime_hours) }} ساعة){% endif %}</td><td class="l" style="color:#0F6E56;font-weight:600">+ {{ "%.2f"|format(overtime) }}</td><td class="c"><span class="badge-add">إضافة</span></td></tr>
+        {% endif %}
+        {% if abs_ded > 0 %}
+        <tr><td>خصم غياب{% if absences_count > 0 %} ({{ absences_count }} يوم){% endif %}</td><td class="l" style="color:#DC2626;font-weight:600">- {{ "%.2f"|format(abs_ded) }}</td><td class="c"><span class="badge-ded">خصم</span></td></tr>
+        {% endif %}
+        {% if late_ded > 0 %}
+        <tr><td>خصم تأخير{% if late_hours > 0 %} ({{ "%g"|format(late_hours) }} ساعة){% endif %}</td><td class="l" style="color:#DC2626;font-weight:600">- {{ "%.2f"|format(late_ded) }}</td><td class="c"><span class="badge-ded">خصم</span></td></tr>
+        {% endif %}
+        {% if fixed_ded > 0 %}
+        <tr><td>خصومات ثابتة</td><td class="l" style="color:#DC2626;font-weight:600">- {{ "%.2f"|format(fixed_ded) }}</td><td class="c"><span class="badge-ded">خصم</span></td></tr>
+        {% endif %}
+        {% if adv_ded > 0 %}
+        <tr><td>سلف مستردة</td><td class="l" style="color:#DC2626;font-weight:600">- {{ "%.2f"|format(adv_ded) }}</td><td class="c"><span class="badge-ded">خصم</span></td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+    {# ─── SUMMARY BOXES ────────────────────────────────────── #}
+    <div class="summary-grid">
+      <div class="sum-box add"><div class="lbl" style="color:#0F6E56">إجمالي الإضافات</div><div class="val" style="color:#04342C">{{ "%.2f"|format(total_add) }}</div></div>
+      <div class="sum-box ded"><div class="lbl" style="color:#DC2626">إجمالي الخصومات</div><div class="val" style="color:#991B1B">- {{ "%.2f"|format(total_ded) }}</div></div>
+    </div>
+
+    {# ─── NET ─────────────────────────────────────────────── #}
+    <div class="net-box">
+      <div class="lbl">صافي الراتب المستحق</div>
+      <div class="val">{{ "%.2f"|format(line.net|float) }} {{ employee.company.base_currency }}</div>
+    </div>
+
+    {# ─── PAID INFO ───────────────────────────────────────── #}
+    {% if line.amount_paid and line.amount_paid|float > 0 %}
+    <div class="paid-box">
+      <div style="font-size:12px;color:#0F6E56;font-weight:700;margin-bottom:4px">المدفوع فعلياً</div>
+      <div style="font-family:monospace;font-size:16px;font-weight:700;color:#04342C">{{ "%.2f"|format(line.amount_paid|float) }} {{ employee.company.base_currency }}</div>
+      {% if line.payment_method or line.payment_date or employee.bank_account_last4 %}
+      <div style="font-size:11px;color:#0F6E56;margin-top:2px">
+        {% if line.payment_method %}{{ line.payment_method }}{% endif %}
+        {% if line.payment_date %}{% if line.payment_method %} — {% endif %}{{ line.payment_date.isoformat() }}{% endif %}
+        {% if employee.bank_account_last4 %} — حساب ينتهي بـ {{ employee.bank_account_last4 }}{% endif %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {# ─── SIGNATURES ──────────────────────────────────────── #}
+    <div class="signatures">
+      <div class="sig"><div class="sig-line"></div><div class="sig-label">توقيع الموظف</div></div>
+      <div class="sig"><div class="sig-line"></div><div class="sig-label">المدير المالي / HR</div></div>
+    </div>
+  </div>
+
+  {# ─── FOOTER — fixed branding ─────────────────────────────── #}
+  <div class="footer">
+    <div class="footer-badge">
+      <div class="footer-logo">م</div>
+      <span class="footer-text">صادر عبر نظام <strong>مرصود</strong> — نظام إدارة أعمال متكامل للشركات</span>
+    </div>
+    <span style="font-size:11px;color:#94A3B8">صفحة 1 من 1</span>
+  </div>
+</div>
+</body>
+</html>

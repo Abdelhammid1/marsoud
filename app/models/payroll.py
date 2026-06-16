@@ -62,6 +62,8 @@ class Employee(db.Model):
 
     is_active = db.Column(db.Boolean, default=True)  # legacy mirror — kept in sync with status
     created_at = db.Column(db.DateTime, default=datetime.now)
+    # MARSOUD-51 — last 4 digits of bank account, shown in payslip "paid" box
+    bank_account_last4 = db.Column(db.String(4))
 
     company = db.relationship("Company", backref=db.backref("employees", lazy="dynamic"))
     department = db.relationship("Department", foreign_keys=[department_id],
@@ -145,6 +147,14 @@ class PayrollLine(db.Model):
     # rather than manually entered. Flipped back to False the moment a user
     # overrides the value in the payroll form.
     attendance_auto_calculated = db.Column(db.Boolean, default=False, nullable=False)
+
+    # MARSOUD-51 — attendance summary + payment info for the payslip PDF
+    absences_count = db.Column(db.Integer, default=0)
+    late_hours = db.Column(db.Numeric(5, 2), default=0)
+    overtime_hours = db.Column(db.Numeric(5, 2), default=0)
+    leaves_count = db.Column(db.Integer, default=0)
+    payment_method = db.Column(db.String(30))  # "تحويل بنكي" / "نقدي" / etc.
+    payment_date = db.Column(db.Date)
 
     employee = db.relationship("Employee", backref="payroll_lines")
 

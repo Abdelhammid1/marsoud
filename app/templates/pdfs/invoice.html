@@ -1,0 +1,215 @@
+{# MARSOUD-51 — Invoice PDF, ported from abdelhamid's mockup
+   Renders via WeasyPrint with a fixed A4 size.
+   Optional fields (po_reference, sales_rep, bank info, payment_terms_days)
+   render their sections only when present, per abdelhamid's spec. #}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>Invoice {{ invoice.number }}</title>
+<style>
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif; direction: rtl; }
+.page { background: #fff; width: 210mm; min-height: 297mm; position: relative; }
+.pad { padding: 40px 44px 90px; }
+.top-bar { height: 8px; background: #0A2540; }
+.top-bar-accent { height: 3px; background: #1D9E75; }
+.header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 24px; border-bottom: 2px solid #0A2540; margin-bottom: 24px; }
+.company-block { display: flex; gap: 16px; align-items: flex-start; }
+.logo-box { width: 64px; height: 64px; background: #0A2540; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 28px; color: #fff; flex-shrink: 0; overflow: hidden; }
+.logo-box img { max-width: 100%; max-height: 100%; }
+.inv-title { text-align: left; }
+.inv-title h1 { font-size: 32px; color: #0A2540; font-weight: 700; letter-spacing: 1px; }
+.inv-meta { font-size: 12px; color: #64748B; margin-top: 4px; }
+.inv-num { font-family: monospace; color: #0A2540; font-weight: 700; }
+.parties { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 28px; }
+.party { background: #F8FAFC; border-radius: 10px; padding: 16px 18px; border: 1px solid #E2E8F0; }
+.party-label { font-size: 11px; color: #1D9E75; font-weight: 700; margin-bottom: 8px; letter-spacing: 1px; padding-right: 10px; border-right: 3px solid #1D9E75; }
+.party-name { font-size: 15px; font-weight: 700; color: #0A2540; margin-bottom: 6px; }
+.party-detail { font-size: 12px; color: #475569; line-height: 1.9; }
+.party-detail .row-lbl { color: #94A3B8; }
+.dates-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 28px; }
+.date-card { background: #0A2540; border-radius: 8px; padding: 12px 14px; text-align: center; }
+.date-card .lbl { font-size: 10px; color: #94A3B8; margin-bottom: 4px; }
+.date-card .val { font-size: 13px; color: #fff; font-family: monospace; font-weight: 600; }
+.section-eyebrow { font-size: 12px; font-weight: 700; color: #1D9E75; margin-bottom: 10px; padding-right: 10px; border-right: 3px solid #1D9E75; }
+table.items { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 24px; }
+table.items thead th { background: #0A2540; color: #fff; padding: 12px 10px; font-weight: 600; font-size: 12px; }
+table.items thead th:first-child { text-align: right; }
+table.items thead th.c { text-align: center; }
+table.items thead th.l { text-align: left; }
+table.items tbody td { padding: 11px 10px; border-bottom: 1px solid #E2E8F0; color: #0A2540; }
+table.items tbody tr:nth-child(even) { background: #F8FAFC; }
+.c { text-align: center; } .l { text-align: left; font-family: monospace; }
+.totals { display: flex; justify-content: flex-start; margin-bottom: 28px; }
+.totals-box { width: 300px; }
+.totals-row { display: flex; justify-content: space-between; padding: 8px 14px; font-size: 13px; color: #475569; }
+.totals-row.discount { color: #B45309; }
+.totals-row.grand { background: #0A2540; color: #fff; border-radius: 8px; padding: 14px; font-size: 16px; font-weight: 700; margin-top: 6px; border-right: 4px solid #1D9E75; }
+.totals-row.grand .amt { color: #4ADE80; font-family: monospace; }
+.bank-box { background: #E1F5EE; border-radius: 10px; padding: 16px 18px; margin-bottom: 24px; border: 1px solid #5DCAA5; }
+.bank-title { font-size: 12px; font-weight: 700; color: #0F6E56; margin-bottom: 8px; }
+.bank-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px; color: #0F6E56; }
+.terms { background: #F8FAFC; border-radius: 0 8px 8px 0; border-right: 3px solid #2563EB; padding: 16px 18px; margin-bottom: 24px; }
+.terms-title { font-size: 12px; font-weight: 700; color: #0A2540; margin-bottom: 8px; }
+.terms-text { font-size: 11px; color: #475569; line-height: 1.9; }
+.signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; padding-top: 16px; }
+.sig { text-align: center; }
+.sig-line { border-top: 1px solid #94A3B8; margin-bottom: 6px; padding-top: 40px; }
+.sig-label { font-size: 11px; color: #64748B; }
+.footer { position: absolute; bottom: 0; right: 0; left: 0; border-top: 2px solid #1D9E75; padding: 16px 44px; display: flex; justify-content: space-between; align-items: center; background: #fff; }
+.footer-badge { display: inline-flex; align-items: center; gap: 8px; }
+.footer-logo { width: 28px; height: 28px; background: #1D9E75; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 14px; }
+.footer-text { font-size: 11px; color: #64748B; }
+.footer-text strong { color: #0F6E56; }
+.optional-tag { font-size: 9px; color: #1D9E75; background: #E1F5EE; padding: 1px 6px; border-radius: 10px; margin-right: 6px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="top-bar"></div>
+  <div class="top-bar-accent"></div>
+  <div class="pad">
+
+    {# ─── HEADER — company logo + name + tax/contact ─────────────── #}
+    <div class="header">
+      <div class="company-block">
+        <div class="logo-box">{% if company_logo_data_uri %}<img src="{{ company_logo_data_uri }}">{% else %}{{ invoice.company.name[:1] }}{% endif %}</div>
+        <div>
+          <div style="font-size:20px;font-weight:700;color:#0A2540">{{ invoice.company.name }}</div>
+          <div style="font-size:11px;color:#64748B;line-height:1.8;margin-top:4px">
+            {% if invoice.company.address %}{{ invoice.company.address }}<br>{% endif %}
+            {% if invoice.company.tax_number %}الرقم الضريبي: {{ invoice.company.tax_number }}{% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="inv-title">
+        <h1>فاتورة</h1>
+        <div class="inv-meta">رقم: <span class="inv-num">{{ invoice.number }}</span></div>
+        <div class="inv-meta">ضريبية مبسّطة</div>
+      </div>
+    </div>
+
+    {# ─── PARTIES — customer (left) + invoice meta (right) ───────── #}
+    <div class="parties">
+      <div class="party">
+        <div class="party-label">فاتورة إلى</div>
+        <div class="party-name">{{ invoice.customer.name if invoice.customer else 'زبون نقدي' }}</div>
+        <div class="party-detail">
+          {% if invoice.customer and invoice.customer.address %}{{ invoice.customer.address }}<br>{% endif %}
+          {% if invoice.customer and invoice.customer.tax_number %}<span class="row-lbl">الرقم الضريبي:</span> {{ invoice.customer.tax_number }}<br>{% endif %}
+          {% if invoice.customer and invoice.customer.email %}{{ invoice.customer.email }}<br>{% endif %}
+          {% if invoice.customer and invoice.customer.phone %}{{ invoice.customer.phone }}{% endif %}
+        </div>
+      </div>
+      <div class="party">
+        <div class="party-label">تفاصيل الفاتورة</div>
+        <div class="party-detail" style="margin-top:4px">
+          {% if invoice.sales_rep %}<span class="row-lbl">المندوب:</span> {{ invoice.sales_rep.full_name }}<br>{% endif %}
+          <span class="row-lbl">العملة:</span> {{ invoice.currency }}<br>
+          {% if invoice.po_reference %}<span class="optional-tag">اختياري</span><span class="row-lbl">المرجع/أمر الشراء:</span> {{ invoice.po_reference }}<br>{% endif %}
+          {% if invoice.is_pos %}<span class="row-lbl">المصدر:</span> نقطة بيع (POS){% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ─── DATES — issue / due / terms_days ───────────────────────── #}
+    <div class="dates-row">
+      <div class="date-card"><div class="lbl">تاريخ الإصدار</div><div class="val">{{ invoice.issue_date.isoformat() }}</div></div>
+      <div class="date-card"><div class="lbl">تاريخ الاستحقاق</div><div class="val">{{ invoice.due_date.isoformat() }}</div></div>
+      <div class="date-card">
+        <div class="lbl">مدة السداد</div>
+        <div class="val">{% if invoice.payment_terms_days %}{{ invoice.payment_terms_days }} يوم{% else %}—{% endif %}</div>
+      </div>
+    </div>
+
+    {# ─── LINE ITEMS ────────────────────────────────────────────── #}
+    <div class="section-eyebrow">بنود الفاتورة</div>
+    <table class="items">
+      <thead>
+        <tr>
+          <th>البيان</th>
+          <th class="c">الكمية</th>
+          <th class="l">سعر الوحدة</th>
+          <th class="l">الخصم</th>
+          <th class="l">قبل الضريبة</th>
+          <th class="l">ضريبة {{ "%g"|format(invoice.tax_rate|float) }}%</th>
+          <th class="l">الإجمالي</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in invoice.items %}
+        {% set qty = item.quantity|float if item.quantity else 0 %}
+        {% set price = item.unit_price|float if item.unit_price else 0 %}
+        {% set line_disc = (item.discount_amount|float if item.discount_amount else 0) %}
+        {% set pre_tax = (item.line_total|float if item.line_total else (qty * price - line_disc)) %}
+        {% set line_tax = pre_tax * (invoice.tax_rate|float) / 100 %}
+        <tr>
+          <td>{{ item.description }}</td>
+          <td class="c">{{ "%g"|format(qty) }}</td>
+          <td class="l">{{ "%.2f"|format(price) }}</td>
+          <td class="l" style="color:#B45309">{{ "%.2f"|format(line_disc) }}</td>
+          <td class="l">{{ "%.2f"|format(pre_tax) }}</td>
+          <td class="l">{{ "%.2f"|format(line_tax) }}</td>
+          <td class="l" style="font-weight:700">{{ "%.2f"|format(pre_tax + line_tax) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {# ─── TOTALS ─────────────────────────────────────────────────── #}
+    <div class="totals">
+      <div class="totals-box">
+        <div class="totals-row"><span>الإجمالي قبل الضريبة</span><span class="l">{{ "%.2f"|format(invoice.subtotal|float) }} {{ invoice.currency }}</span></div>
+        {% if invoice.invoice_discount_amount and invoice.invoice_discount_amount|float > 0 %}
+        <div class="totals-row discount"><span>إجمالي الخصومات</span><span class="l">- {{ "%.2f"|format(invoice.invoice_discount_amount|float) }} {{ invoice.currency }}</span></div>
+        {% endif %}
+        <div class="totals-row"><span>ضريبة القيمة المضافة ({{ "%g"|format(invoice.tax_rate|float) }}%)</span><span class="l">{{ "%.2f"|format(invoice.tax_amount|float) }} {{ invoice.currency }}</span></div>
+        <div class="totals-row grand"><span>الإجمالي النهائي</span><span class="amt">{{ "%.2f"|format(invoice.total|float) }} {{ invoice.currency }}</span></div>
+      </div>
+    </div>
+
+    {# ─── BANK INFO — only if any bank field is filled ──────────── #}
+    {% if invoice.company.bank_name or invoice.company.iban %}
+    <div class="bank-box">
+      <div class="bank-title">بيانات التحويل البنكي</div>
+      <div class="bank-grid">
+        {% if invoice.company.bank_name %}<div>البنك: {{ invoice.company.bank_name }}</div>{% endif %}
+        {% if invoice.company.bank_account_holder %}<div>اسم الحساب: {{ invoice.company.bank_account_holder }}</div>{% endif %}
+        {% if invoice.company.bank_account_number %}<div>رقم الحساب: {{ invoice.company.bank_account_number }}</div>{% endif %}
+        {% if invoice.company.iban %}<div>IBAN: {{ invoice.company.iban }}</div>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# ─── TERMS ─────────────────────────────────────────────────── #}
+    {% if invoice.payment_terms_days %}
+    <div class="terms">
+      <div class="terms-title">شروط الدفع</div>
+      <div class="terms-text">
+        • يُستحق سداد الفاتورة خلال {{ invoice.payment_terms_days }} يوماً من تاريخ الإصدار.<br>
+        • يُرجى ذكر رقم الفاتورة عند التحويل.<br>
+        • في حال التأخر عن السداد، قد تُطبّق رسوم تأخير حسب الاتفاق.
+      </div>
+    </div>
+    {% endif %}
+
+    {# ─── SIGNATURES ────────────────────────────────────────────── #}
+    <div class="signatures">
+      <div class="sig"><div class="sig-line"></div><div class="sig-label">توقيع المُصدِر</div></div>
+      <div class="sig"><div class="sig-line"></div><div class="sig-label">ختم الشركة</div></div>
+    </div>
+  </div>
+
+  {# ─── FIXED FOOTER — Marsoud branding ─────────────────────────── #}
+  <div class="footer">
+    <div class="footer-badge">
+      <div class="footer-logo">م</div>
+      <span class="footer-text">صادرة عبر نظام <strong>مرصود</strong> — نظام إدارة أعمال متكامل للشركات</span>
+    </div>
+    <span style="font-size:11px;color:#94A3B8">صفحة 1 من 1</span>
+  </div>
+</div>
+</body>
+</html>

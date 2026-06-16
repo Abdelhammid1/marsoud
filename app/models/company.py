@@ -34,6 +34,11 @@ class Company(db.Model):
     cost_method = db.Column(db.String(10), default="AVERAGE", nullable=False)
     shift_required_for_pos = db.Column(db.Boolean, default=False, nullable=False)
     barcode_format = db.Column(db.String(20), default="CODE128", nullable=False)
+    # MARSOUD-51 — bank info for the invoice PDF
+    bank_name = db.Column(db.String(150))
+    bank_account_holder = db.Column(db.String(150))
+    bank_account_number = db.Column(db.String(50))
+    iban = db.Column(db.String(50))
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 

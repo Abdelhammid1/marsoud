@@ -16,3 +16,8 @@ Werkzeug==3.0.3
 itsdangerous==2.2.0
 python-barcode==0.16.1
 Pillow>=10.0.0
+# MARSOUD-51 — WeasyPrint renders the new invoice + payslip PDFs.
+# Production hosts need libpango + libcairo installed via OS package manager:
+#   Debian/Ubuntu: apt install libpango-1.0-0 libpangoft2-1.0-0
+#   macOS dev:     brew install pango
+weasyprint>=60.0

@@ -54,10 +54,16 @@ class Invoice(db.Model):
     voided_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     void_reason = db.Column(db.Text)
 
+    # MARSOUD-51 — optional PDF fields
+    po_reference = db.Column(db.String(100))
+    sales_rep_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    payment_terms_days = db.Column(db.Integer)
+
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     cashier = db.relationship("User", foreign_keys=[cashier_id])
     voided_by = db.relationship("User", foreign_keys=[voided_by_id])
+    sales_rep = db.relationship("User", foreign_keys=[sales_rep_id])
 
     company = db.relationship("Company", backref=db.backref("invoices", lazy="dynamic"))
     customer = db.relationship("Customer", backref=db.backref("invoices", lazy="dynamic"))
