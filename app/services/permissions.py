@@ -57,6 +57,7 @@ P = {
     "tasks.manage":    {"owner", "admin", "project_manager", "team_member"},
 
     "vendor_bills.create":  {"owner", "admin", "accountant"},
+    "vendor_bills.delete":  {"owner", "admin"},  # MARSOUD-52 — DRAFT only, gated
 
     "accounts.manage":      {"owner", "admin", "accountant"},
     "partners.manage":      {"owner", "admin", "accountant"},   # customers + vendors

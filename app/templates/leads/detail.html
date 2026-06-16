@@ -31,7 +31,11 @@
       <div><span class="text-slate-500">نوع العميل:</span> {{ type_label or '—' }}</div>
       <div><span class="text-slate-500">المصدر:</span> {{ source_label or '—' }}</div>
       <div><span class="text-slate-500">اجتماع قادم:</span> <span class="font-mono">{{ lead.next_meeting.strftime('%Y-%m-%d %H:%M') if lead.next_meeting else '—' }}</span></div>
-      <div><span class="text-slate-500">أُنشئ:</span> <span class="font-mono">{{ lead.created_at.strftime('%Y-%m-%d') }}</span></div>
+      <div>
+        <span class="text-slate-500">أُنشئ:</span>
+        <span class="font-mono">{{ lead.created_at.strftime('%Y-%m-%d') }}</span>
+        {% if lead.created_by %}<span class="text-slate-500">بواسطة</span> <span class="font-semibold">{{ lead.created_by.full_name }}</span>{% endif %}
+      </div>
     </div>
 
     {% if lead.notes %}

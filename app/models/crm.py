@@ -104,6 +104,9 @@ class Lead(db.Model):
 
     assigned_to_id = db.Column(db.Integer, db.ForeignKey("users.id"),
                                nullable=False)
+    # MARSOUD-44 follow-up — who CREATED the lead (vs the rep it's assigned to)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"),
+                              nullable=True)
     status = db.Column(db.Enum(LeadStatus),
                        default=LeadStatus.NEW_LEAD, nullable=False, index=True)
 
@@ -129,6 +132,7 @@ class Lead(db.Model):
 
     company = db.relationship("Company")
     assigned_to = db.relationship("User", foreign_keys=[assigned_to_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_id])
     converted_customer = db.relationship("Customer", foreign_keys=[converted_customer_id])
     deleted_by = db.relationship("User", foreign_keys=[deleted_by_id])
     history = db.relationship(

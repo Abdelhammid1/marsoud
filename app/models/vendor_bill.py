@@ -47,11 +47,15 @@ class VendorBill(db.Model):
     notes = db.Column(db.Text)
     journal_entry_id = db.Column(db.Integer, db.ForeignKey("journal_entries.id"))
     created_at = db.Column(db.DateTime, default=datetime.now)
+    # MARSOUD-52 — soft delete, DRAFT only
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    deleted_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
 
     company = db.relationship("Company", backref=db.backref("vendor_bills", lazy="dynamic"))
     vendor = db.relationship("Vendor", backref=db.backref("bills", lazy="dynamic"))
     items = db.relationship("VendorBillItem", backref="bill", cascade="all, delete-orphan")
     payments = db.relationship("VendorBillPayment", backref="bill", cascade="all, delete-orphan")
+    deleted_by = db.relationship("User", foreign_keys=[deleted_by_id])
 
     __table_args__ = (
         db.UniqueConstraint("company_id", "number", name="uq_vendor_bill_number"),

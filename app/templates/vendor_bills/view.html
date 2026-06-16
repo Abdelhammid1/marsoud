@@ -18,6 +18,13 @@
         {% if bill.journal_entry_id %}
         <a href="{{ url_for('journals.view', entry_id=bill.journal_entry_id) }}" class="btn-secondary text-sm">📒 القيد</a>
         {% endif %}
+        {# MARSOUD-52 — delete is allowed only on DRAFT bills #}
+        {% if bill.status.value == 'DRAFT' and has_permission('vendor_bills.delete') %}
+        <form method="POST" action="{{ url_for('vendor_bills.delete', bill_id=bill.id) }}" class="inline"
+              onsubmit="return confirm('متأكد إنك عاوز تحذف الفاتورة {{ bill.number }}؟ هتتشال من القوائم لكن السطر بيفضل في قاعدة البيانات.');">
+          <button type="submit" class="btn-secondary text-sm text-rose-600 border-rose-200 hover:bg-rose-50">🗑️ حذف</button>
+        </form>
+        {% endif %}
       </div>
     </div>
 

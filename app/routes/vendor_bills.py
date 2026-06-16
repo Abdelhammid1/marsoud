@@ -28,7 +28,7 @@ def index():
         return redirect(url_for("companies.new"))
     update_overdue_vendor_bills(g.active_company.id)
 
-    q = VendorBill.query.filter_by(company_id=g.active_company.id)
+    q = VendorBill.query.filter_by(company_id=g.active_company.id).filter(VendorBill.deleted_at.is_(None))
     status = request.args.get("status")
     if status:
         try:
@@ -171,12 +171,35 @@ def new():
 @login_required
 def view(bill_id):
     bill = db.session.get(VendorBill, bill_id)
-    if not bill or bill.company_id != g.active_company.id:
+    if not bill or bill.company_id != g.active_company.id or bill.deleted_at is not None:
         return redirect(url_for("vendor_bills.index"))
     payment_methods = PaymentMethod.query.filter_by(
         company_id=g.active_company.id, is_active=True
     ).all()
     return render_template("vendor_bills/view.html", bill=bill, payment_methods=payment_methods)
+
+
+@bp.route("/<int:bill_id>/delete", methods=["POST"])
+@login_required
+@require_permission("vendor_bills.delete")
+def delete(bill_id):
+    """MARSOUD-52 — soft delete a DRAFT vendor bill. OWNER + admin only.
+    Refused for any non-DRAFT status (posted bills have a journal entry +
+    possibly stock movements / payments that must not be silently dropped)."""
+    bill = db.session.get(VendorBill, bill_id)
+    if not bill or bill.company_id != g.active_company.id or bill.deleted_at is not None:
+        return redirect(url_for("vendor_bills.index"))
+    if bill.status != VendorBillStatus.DRAFT:
+        flash(
+            f"لا يمكن حذف فاتورة {bill.number} — حالتها {bill.status.value} وليس DRAFT.",
+            "error",
+        )
+        return redirect(url_for("vendor_bills.view", bill_id=bill.id))
+    bill.deleted_at = datetime.now()
+    bill.deleted_by_id = current_user.id
+    db.session.commit()
+    flash(f"تم حذف الفاتورة {bill.number}", "success")
+    return redirect(url_for("vendor_bills.index"))
 
 
 # MARSOUD vendor-bill edit — supports full edit on DRAFT, cosmetic-only on posted

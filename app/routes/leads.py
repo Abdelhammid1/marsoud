@@ -201,6 +201,7 @@ def new():
                 lead_type=_validate_enum_value(request.form.get("lead_type"), LeadType),
                 source=_validate_enum_value(request.form.get("source"), LeadSource),
                 assigned_to_id=assigned_id,
+                created_by_id=current_user.id,
                 next_meeting=_parse_datetime_local(request.form.get("next_meeting")),
                 meeting_notes=(request.form.get("meeting_notes") or "").strip() or None,
                 notes=(request.form.get("notes") or "").strip() or None,
