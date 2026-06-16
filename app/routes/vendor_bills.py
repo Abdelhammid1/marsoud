@@ -5,6 +5,7 @@ from app import db
 from app.models import (
     VendorBill, VendorBillItem, VendorBillStatus, VendorBillPaymentMethod,
     BillLineType, Vendor, Account, PaymentMethod,
+    Product, ProductVariant, Warehouse,
 )
 from app.services.vendor_bills import (
     post_vendor_bill, record_bill_payment, update_overdue_vendor_bills,
@@ -84,6 +85,90 @@ def api_accounts():
     ])
 
 
+@bp.route("/api/inventory-targets")
+@login_required
+def api_inventory_targets():
+    """MARSOUD-50.3 — Returns the variant + warehouse lists the INVENTORY
+    line picker needs. Scoped to active company. Only active tracked
+    products show their variants."""
+    cid = g.active_company.id
+    variants = (
+        db.session.query(ProductVariant, Product)
+        .join(Product, ProductVariant.product_id == Product.id)
+        .filter(ProductVariant.company_id == cid,
+                ProductVariant.is_active.is_(True),
+                Product.is_active.is_(True),
+                Product.is_tracked.is_(True))
+        .order_by(Product.name, ProductVariant.sku)
+        .all()
+    )
+    warehouses = Warehouse.query.filter_by(
+        company_id=cid, is_active=True,
+    ).order_by(Warehouse.is_default.desc(), Warehouse.name).all()
+    return jsonify({
+        "variants": [
+            {
+                "id": v.id, "sku": v.sku,
+                "label": f"{p.name} — {v.sku}" + (f" ({v.name})" if v.name else ""),
+                "unit_cost": float(v.unit_cost or 0),
+            }
+            for v, p in variants
+        ],
+        "warehouses": [
+            {"id": w.id, "name": w.name, "is_default": w.is_default}
+            for w in warehouses
+        ],
+    })
+
+
+def _resolve_inventory_target(form, i, company_id):
+    """For row i of an INVENTORY line, return (variant, warehouse).
+    Creates a new Product + ProductVariant inline when the row supplies
+    new_product_name + new_product_sku instead of a variant_id."""
+    variants_in = form.getlist("item_variant_id[]")
+    warehouses_in = form.getlist("item_warehouse_id[]")
+    new_names = form.getlist("item_new_product_name[]")
+    new_skus = form.getlist("item_new_product_sku[]")
+
+    wh_id_raw = warehouses_in[i] if i < len(warehouses_in) else ""
+    if not wh_id_raw:
+        raise LedgerError("سطر مخزون يحتاج اختيار مخزن")
+    wh = db.session.get(Warehouse, int(wh_id_raw))
+    if not wh or wh.company_id != company_id:
+        raise LedgerError("المخزن غير صحيح")
+
+    new_name = (new_names[i] if i < len(new_names) else "").strip()
+    if new_name:
+        new_sku = (new_skus[i] if i < len(new_skus) else "").strip()
+        if not new_sku:
+            raise LedgerError(f"المنتج الجديد '{new_name}' يحتاج SKU")
+        if ProductVariant.query.filter_by(company_id=company_id, sku=new_sku).first():
+            raise LedgerError(f"SKU '{new_sku}' مستخدم بالفعل لمنتج آخر")
+        # Create product + variant inline
+        p = Product(
+            company_id=company_id, name=new_name,
+            is_tracked=True, sku=new_sku,
+        )
+        db.session.add(p)
+        db.session.flush()
+        v = ProductVariant(
+            company_id=company_id, product_id=p.id,
+            sku=new_sku, name="",
+        )
+        db.session.add(v)
+        db.session.flush()
+        return v, wh
+
+    # Otherwise: existing variant
+    v_id_raw = variants_in[i] if i < len(variants_in) else ""
+    if not v_id_raw:
+        raise LedgerError("سطر مخزون يحتاج اختيار variant أو إنشاء منتج جديد")
+    v = db.session.get(ProductVariant, int(v_id_raw))
+    if not v or v.company_id != company_id:
+        raise LedgerError("الـ variant غير صحيح")
+    return v, wh
+
+
 def _populate_from_form(bill, form):
     """Fill bill + items from form data."""
     bill.vendor_id = int(form.get("vendor_id")) if form.get("vendor_id") else None
@@ -122,6 +207,12 @@ def _populate_from_form(bill, form):
         if lt == BillLineType.FIXED_ASSET:
             item.useful_life_years = int(lives[i] or 0) if i < len(lives) and lives[i] else None
             item.salvage_value = float(salvages[i] or 0) if i < len(salvages) and salvages[i] else 0
+        elif lt == BillLineType.INVENTORY:
+            # MARSOUD-50.3 — resolve variant + warehouse for INVENTORY lines.
+            # Inline-creates a Product+Variant if the row supplied a new name.
+            v, wh = _resolve_inventory_target(form, i, bill.company_id)
+            item.variant_id = v.id
+            item.warehouse_id = wh.id
         db.session.add(item)
     db.session.flush()
     bill.items = VendorBillItem.query.filter_by(bill_id=bill.id).all()

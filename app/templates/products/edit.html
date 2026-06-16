@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block page_title %}تعديل {{ product.name }}{% endblock %}
+{% block content %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+  {# ─── LEFT: product fields ───────────────────────────────────── #}
+  <div class="card p-6 lg:col-span-1">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-bold text-navy-900">بيانات المنتج</h2>
+      <span class="badge {% if product.is_tracked %}badge-sent{% else %}badge-paid{% endif %}">
+        {% if product.is_tracked %}📦 بضاعة{% else %}💼 خدمة{% endif %}
+      </span>
+    </div>
+    <form method="POST" class="space-y-3">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">الاسم</label>
+        <input type="text" name="name" required value="{{ product.name }}" class="input">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">SKU</label>
+        <input type="text" name="sku" value="{{ product.sku or '' }}" class="input font-mono">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">الوصف</label>
+        <textarea name="description" rows="2" class="textarea">{{ product.description or '' }}</textarea>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">السعر الافتراضي</label>
+        <input type="number" name="default_price" step="0.01" value="{{ product.default_price }}" class="input font-mono">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">الضريبة % (اختياري)</label>
+        <input type="number" name="default_tax_rate" step="0.01"
+               value="{{ product.default_tax_rate if product.default_tax_rate is not none else '' }}"
+               placeholder="يستخدم الشركة الافتراضية" class="input font-mono">
+      </div>
+      <label class="flex items-center gap-2">
+        <input type="checkbox" name="is_active" {% if product.is_active %}checked{% endif %}>
+        <span class="text-sm font-semibold">نشط (يظهر في القوائم)</span>
+      </label>
+      <div class="flex justify-between gap-2 pt-2">
+        <a href="{{ url_for('products.index') }}" class="btn-secondary">← الرجوع</a>
+        <button type="submit" class="btn-primary">💾 حفظ</button>
+      </div>
+    </form>
+  </div>
+
+  {# ─── RIGHT: variants management — only for tracked products ─── #}
+  <div class="lg:col-span-2 space-y-4">
+    {% if product.is_tracked %}
+    <div class="card p-6">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold text-navy-900">الـ Variants ({{ product.variants|length }})</h3>
+      </div>
+      <p class="text-xs text-slate-500 mb-4">
+        كل variant ليه SKU وباركود وتكلفة مستقلة. لو فيه مقاسات/ألوان مختلفة من
+        نفس البضاعة، اعمل لكل واحدة variant.
+      </p>
+
+      <div class="space-y-2">
+        {% for v in product.variants %}
+        {% set total_qty = variant_qtys.get(v.id, 0) %}
+        <details class="bg-slate-50 rounded-lg border border-slate-200 {% if not v.is_active %}opacity-60{% endif %}">
+          <summary class="cursor-pointer p-3 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-3 flex-wrap">
+              <span class="font-mono text-sm font-bold text-navy-900">{{ v.sku }}</span>
+              {% if v.name %}<span class="text-sm text-slate-700">— {{ v.name }}</span>{% endif %}
+              {% if v.barcode %}<span class="text-xs text-slate-500 font-mono">🏷️ {{ v.barcode }}</span>{% endif %}
+            </div>
+            <div class="flex items-center gap-2 text-xs">
+              <span class="font-mono">رصيد: <strong>{{ "%.2f"|format(total_qty) }}</strong></span>
+              {% if total_qty < v.reorder_level|float and v.reorder_level|float > 0 %}
+              <span class="badge badge-overdue">⚠ ناقص</span>
+              {% endif %}
+              {% if not v.is_active %}<span class="badge badge-cancelled">معطّل</span>{% endif %}
+            </div>
+          </summary>
+          <div class="p-3 border-t border-slate-200">
+            <form method="POST" action="{{ url_for('products.variant_edit', product_id=product.id, variant_id=v.id) }}"
+                  class="grid grid-cols-2 gap-2 text-sm">
+              <label class="block">
+                <span class="text-xs text-slate-500">SKU</span>
+                <input type="text" name="sku" required value="{{ v.sku }}" class="input text-sm font-mono">
+              </label>
+              <label class="block">
+                <span class="text-xs text-slate-500">باركود</span>
+                <input type="text" name="barcode" value="{{ v.barcode or '' }}" class="input text-sm font-mono">
+              </label>
+              <label class="block col-span-2">
+                <span class="text-xs text-slate-500">اسم الـ variant (مثل: أحمر / مقاس M)</span>
+                <input type="text" name="name" value="{{ v.name or '' }}" class="input text-sm">
+              </label>
+              <label class="block">
+                <span class="text-xs text-slate-500">تكلفة الوحدة</span>
+                <input type="number" name="unit_cost" step="0.0001" value="{{ v.unit_cost }}" class="input text-sm font-mono">
+              </label>
+              <label class="block">
+                <span class="text-xs text-slate-500">حد إعادة الطلب</span>
+                <input type="number" name="reorder_level" step="0.01" value="{{ v.reorder_level }}" class="input text-sm font-mono">
+              </label>
+              <div class="col-span-2 flex items-center justify-end gap-2 pt-1">
+                <button type="submit" class="btn-secondary text-sm">💾 حفظ التعديلات</button>
+              </div>
+            </form>
+            <form method="POST" action="{{ url_for('products.variant_deactivate', product_id=product.id, variant_id=v.id) }}"
+                  onsubmit="return confirm('{% if v.is_active %}تعطيل هذا الـ variant؟ مش هيظهر في القوائم.{% else %}إعادة تفعيل؟{% endif %}')"
+                  class="mt-2 text-end">
+              <button type="submit" class="text-xs text-rose-600 hover:underline">
+                {% if v.is_active %}🚫 تعطيل{% else %}↻ إعادة تفعيل{% endif %}
+              </button>
+            </form>
+          </div>
+        </details>
+        {% else %}
+        <div class="text-sm text-slate-400 py-4 text-center">لا توجد variants — أضف واحد من الأسفل.</div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card p-5">
+      <h3 class="font-bold text-navy-900 mb-3">+ إضافة variant جديد</h3>
+      <form method="POST" action="{{ url_for('products.variant_new', product_id=product.id) }}"
+            class="grid grid-cols-2 gap-3 text-sm">
+        <label class="block">
+          <span class="text-xs font-semibold text-slate-700">SKU (مطلوب)</span>
+          <input type="text" name="sku" required class="input text-sm font-mono"
+                 placeholder="مثال: PRD-001-RED-M">
+        </label>
+        <label class="block">
+          <span class="text-xs font-semibold text-slate-700">باركود (اختياري)</span>
+          <input type="text" name="barcode" class="input text-sm font-mono">
+        </label>
+        <label class="block col-span-2">
+          <span class="text-xs font-semibold text-slate-700">اسم الـ variant</span>
+          <input type="text" name="name" class="input text-sm" placeholder="أحمر / مقاس M">
+        </label>
+        <label class="block">
+          <span class="text-xs font-semibold text-slate-700">تكلفة الوحدة</span>
+          <input type="number" name="unit_cost" step="0.0001" value="0" class="input text-sm font-mono">
+        </label>
+        <label class="block">
+          <span class="text-xs font-semibold text-slate-700">حد إعادة الطلب</span>
+          <input type="number" name="reorder_level" step="0.01" value="0" class="input text-sm font-mono">
+        </label>
+        <div class="col-span-2 flex justify-end pt-1">
+          <button type="submit" class="btn-primary text-sm">+ إضافة variant</button>
+        </div>
+      </form>
+    </div>
+    {% else %}
+    <div class="card p-6 bg-slate-50">
+      <div class="text-center text-sm text-slate-500">
+        💼 هذا منتج "خدمة" — مفيش variants ولا مخزون مرتبط بيه.
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

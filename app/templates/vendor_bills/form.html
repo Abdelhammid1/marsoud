@@ -100,6 +100,44 @@ async function refreshAccountDropdown(tr) {
   assetFields.style.display = (typeSel.value === 'FIXED_ASSET') ? 'block' : 'none';
 }
 
+// MARSOUD-50.3 — load variants + warehouses once for all INVENTORY lines.
+let _inventoryTargets = null;
+async function loadInventoryTargets() {
+  if (_inventoryTargets) return _inventoryTargets;
+  const res = await fetch('/vendor-bills/api/inventory-targets');
+  _inventoryTargets = await res.json();
+  return _inventoryTargets;
+}
+
+async function refreshInventoryFields(tr) {
+  const typeSel = tr.querySelector('select[name="item_line_type[]"]');
+  const invFields = tr.querySelector('.inventory-fields');
+  if (typeSel.value !== 'INVENTORY') {
+    invFields.style.display = 'none';
+    return;
+  }
+  invFields.style.display = 'block';
+  // Populate the picker dropdowns the first time we expand them
+  const variantSel = tr.querySelector('select[name="item_variant_id[]"]');
+  const whSel = tr.querySelector('select[name="item_warehouse_id[]"]');
+  if (variantSel.options.length > 1) return;  // already populated
+  const data = await loadInventoryTargets();
+  variantSel.innerHTML = '<option value="">— اختر variant —</option>'
+    + data.variants.map(v => `<option value="${v.id}" data-cost="${v.unit_cost}">${escapeHtml(v.label)}</option>`).join('');
+  whSel.innerHTML = data.warehouses.map(w =>
+    `<option value="${w.id}" ${w.is_default ? 'selected' : ''}>${escapeHtml(w.name)}${w.is_default?' (افتراضي)':''}</option>`
+  ).join('');
+}
+
+function toggleNewProduct(tr, on) {
+  const existingSel = tr.querySelector('select[name="item_variant_id[]"]');
+  const newBlock = tr.querySelector('.new-product-block');
+  newBlock.style.display = on ? 'block' : 'none';
+  existingSel.disabled = on;
+  existingSel.required = !on;
+  newBlock.querySelectorAll('input').forEach(i => { i.required = on; });
+}
+
 function addItem() {
   const tbody = document.getElementById('items-body');
   const tr = document.createElement('tr');
@@ -116,9 +154,29 @@ function addItem() {
           <input type="number" name="item_salvage_value[]" step="0.01" value="0" class="input text-xs font-mono" style="width:6rem">
         </div>
       </div>
+      <div class="inventory-fields mt-2 space-y-1" style="display:none">
+        <div class="flex gap-2 items-end">
+          <div class="flex-1">
+            <label class="block text-xs text-slate-500 mb-1">المنتج (variant)</label>
+            <select name="item_variant_id[]" class="select text-xs"><option value="">— اختر variant —</option></select>
+          </div>
+          <div style="width:9rem">
+            <label class="block text-xs text-slate-500 mb-1">المخزن</label>
+            <select name="item_warehouse_id[]" class="select text-xs"></select>
+          </div>
+        </div>
+        <label class="flex items-center gap-2 text-xs text-emerald-700 cursor-pointer">
+          <input type="checkbox" onchange="toggleNewProduct(this.closest('tr'), this.checked)">
+          + منتج جديد (هيتعمل ويضاف للمخزون مع رصيد افتتاحي من هذه الفاتورة)
+        </label>
+        <div class="new-product-block grid grid-cols-2 gap-2" style="display:none">
+          <input type="text" name="item_new_product_name[]" placeholder="اسم المنتج" class="input text-xs">
+          <input type="text" name="item_new_product_sku[]" placeholder="SKU" class="input text-xs font-mono">
+        </div>
+      </div>
     </td>
     <td>
-      <select name="item_line_type[]" class="select text-sm" onchange="refreshAccountDropdown(this.closest('tr'))">
+      <select name="item_line_type[]" class="select text-sm" onchange="onLineTypeChange(this.closest('tr'))">
         <option value="EXPENSE">مصروف</option>
         <option value="FIXED_ASSET">أصل ثابت</option>
         <option value="INVENTORY">مخزون</option>
@@ -131,7 +189,14 @@ function addItem() {
     <td><button type="button" onclick="this.closest('tr').remove(); calcTotals()" class="text-red-500">×</button></td>
   `;
   tbody.appendChild(tr);
+  // For empty rows, mirror the placeholder slots so getlist() arrays stay
+  // index-aligned across rows.
   refreshAccountDropdown(tr);
+}
+
+async function onLineTypeChange(tr) {
+  await refreshAccountDropdown(tr);
+  await refreshInventoryFields(tr);
 }
 
 function calcTotals() {
