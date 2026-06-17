@@ -13,7 +13,7 @@ from sqlalchemy import or_
 from app import db
 from app.models import (
     User, Company, PlatformAuditLog, SuperadminImpersonation, Invitation,
-    user_companies,
+    user_companies, Plan, SubscriptionReminderSent,
 )
 from app.services.superadmin import (
     superadmin_required, log_platform_action, platform_overview,
@@ -58,10 +58,12 @@ def company_detail(company_id):
                        .filter(PlatformAuditLog.target_company_id == company_id)
                        .order_by(PlatformAuditLog.created_at.desc())
                        .limit(25).all())
+    plans = Plan.query.filter_by(is_active=True).order_by(Plan.id).all()
     return render_template("admin/company_detail.html",
                            company=company,
                            company_users=company_users,
-                           recent_activity=recent_activity)
+                           recent_activity=recent_activity,
+                           plans=plans)
 
 
 @bp.route("/companies/<int:company_id>/toggle", methods=["POST"])
@@ -456,3 +458,158 @@ def cron_tick_now():
     )
     flash(f"تم تشغيل cron يدوياً: {summary}", "success")
     return redirect(url_for("superadmin.email_test"))
+
+
+# ─── MARSOUD-57.2: Plans CRUD ────────────────────────────────────────────
+ALL_MODULES = ["accounting", "sales", "inventory", "purchases", "pos",
+               "crm", "hr", "reports", "agent"]
+MODULE_LABELS_AR = {
+    "accounting": "المحاسبة",
+    "sales": "المبيعات",
+    "inventory": "المخزون",
+    "purchases": "المشتريات",
+    "pos": "نقطة البيع",
+    "crm": "العملاء المحتملين (CRM)",
+    "hr": "الموارد البشرية",
+    "reports": "التقارير",
+    "agent": "المحاسب الذكي",
+}
+
+
+@bp.route("/plans")
+@login_required
+@superadmin_required
+def plans_index():
+    plans = Plan.query.order_by(Plan.id).all()
+    counts = {p.id: Company.query.filter_by(plan_id=p.id).count() for p in plans}
+    return render_template("admin/plans_index.html",
+                           plans=plans, counts=counts,
+                           all_modules=ALL_MODULES,
+                           module_labels=MODULE_LABELS_AR)
+
+
+@bp.route("/plans/new", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def plans_new():
+    if request.method == "POST":
+        code = (request.form.get("code") or "").strip().lower()
+        if not code or Plan.query.filter_by(code=code).first():
+            flash("الكود مطلوب وفريد", "error")
+            return redirect(url_for("superadmin.plans_new"))
+        p = Plan(
+            code=code,
+            name_ar=(request.form.get("name_ar") or "").strip(),
+            name=(request.form.get("name") or "").strip(),
+            description=(request.form.get("description") or "").strip() or None,
+            price_monthly=float(request.form.get("price_monthly") or 0) or None,
+            price_yearly=float(request.form.get("price_yearly") or 0) or None,
+        )
+        p.set_modules(request.form.getlist("modules"))
+        db.session.add(p)
+        db.session.commit()
+        log_platform_action("plan_create", details=f"code={code}",
+                            actor_id=current_user.id)
+        flash(f"تم إنشاء باقة: {p.name_ar}", "success")
+        return redirect(url_for("superadmin.plans_index"))
+    return render_template("admin/plans_form.html", plan=None,
+                           all_modules=ALL_MODULES,
+                           module_labels=MODULE_LABELS_AR)
+
+
+@bp.route("/plans/<int:plan_id>/edit", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def plans_edit(plan_id):
+    p = db.session.get(Plan, plan_id) or _404()
+    if request.method == "POST":
+        p.name_ar = (request.form.get("name_ar") or p.name_ar).strip()
+        p.name = (request.form.get("name") or p.name).strip()
+        p.description = (request.form.get("description") or "").strip() or None
+        p.price_monthly = float(request.form.get("price_monthly") or 0) or None
+        p.price_yearly = float(request.form.get("price_yearly") or 0) or None
+        p.is_active = request.form.get("is_active") == "on"
+        p.set_modules(request.form.getlist("modules"))
+        db.session.commit()
+        log_platform_action("plan_edit", details=f"code={p.code}",
+                            actor_id=current_user.id)
+        flash(f"تم حفظ الباقة: {p.name_ar}", "success")
+        return redirect(url_for("superadmin.plans_index"))
+    return render_template("admin/plans_form.html", plan=p,
+                           all_modules=ALL_MODULES,
+                           module_labels=MODULE_LABELS_AR)
+
+
+@bp.route("/companies/<int:company_id>/assign-plan", methods=["POST"])
+@login_required
+@superadmin_required
+def companies_assign_plan(company_id):
+    company = db.session.get(Company, company_id) or _404()
+    raw = request.form.get("plan_id")
+    new_plan_id = int(raw) if raw and raw.isdigit() else None
+    if new_plan_id:
+        plan = db.session.get(Plan, new_plan_id) or _404()
+        company.plan_id = plan.id
+    else:
+        company.plan_id = None
+    db.session.commit()
+    log_platform_action("plan_assign", target_company_id=company_id,
+                        details=f"plan_id={new_plan_id}",
+                        actor_id=current_user.id)
+    flash("تم تحديث الباقة", "success")
+    return redirect(url_for("superadmin.company_detail", company_id=company_id))
+
+
+# ─── MARSOUD-57.3: Subscriptions ─────────────────────────────────────────
+@bp.route("/subscriptions")
+@login_required
+@superadmin_required
+def subscriptions_index():
+    from datetime import datetime as _dt
+    rows = []
+    for c in Company.query.filter_by(is_active=True).order_by(Company.name).all():
+        expires = c.subscription_expires_at
+        days = None
+        bucket = "unknown"
+        if expires:
+            delta = (expires - _dt.utcnow()).days
+            days = delta
+            if delta < 0:
+                bucket = "expired"
+            elif delta <= 7:
+                bucket = "soon"
+            else:
+                bucket = "active"
+        rows.append({
+            "company": c,
+            "plan": c.subscription_plan,
+            "expires": expires,
+            "days_remaining": days,
+            "bucket": bucket,
+        })
+    return render_template("admin/subscriptions_index.html", rows=rows)
+
+
+@bp.route("/subscriptions/<int:company_id>/renew", methods=["POST"])
+@login_required
+@superadmin_required
+def subscriptions_renew(company_id):
+    from datetime import datetime as _dt, timedelta as _td
+    company = db.session.get(Company, company_id) or _404()
+    period = (request.form.get("period") or "month").lower()
+    days = 365 if period == "year" else 30
+    base = company.subscription_expires_at
+    # Renew from now if already expired, otherwise extend the current expiry.
+    if not base or base < _dt.utcnow():
+        base = _dt.utcnow()
+    company.subscription_expires_at = base + _td(days=days)
+    if not company.subscription_started_at:
+        company.subscription_started_at = _dt.utcnow()
+    # Clear reminder history for the new expiry so future reminders can fire.
+    SubscriptionReminderSent.query.filter_by(company_id=company.id).delete()
+    db.session.commit()
+    log_platform_action("subscription_renew", target_company_id=company.id,
+                        details=f"period={period}, new_expires={company.subscription_expires_at}",
+                        actor_id=current_user.id)
+    flash(f"تم تجديد اشتراك {company.name} لمدة {'سنة' if period=='year' else 'شهر'}", "success")
+    return redirect(url_for("superadmin.subscriptions_index"))

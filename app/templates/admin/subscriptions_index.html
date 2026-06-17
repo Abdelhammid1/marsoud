@@ -1,0 +1,97 @@
+{% extends "admin/base.html" %}
+{% block page_title %}إدارة الاشتراكات{% endblock %}
+{% block content %}
+
+<div class="card p-6 mb-4">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="font-bold text-navy-900">⏰ اشتراكات الشركات</h2>
+    <div class="text-xs text-slate-500">{{ rows|length }} شركة</div>
+  </div>
+
+  {# Quick filter — JS-only to keep it client-side. #}
+  <div class="flex flex-wrap gap-2 mb-4 text-xs">
+    {% set buckets = [('all','الكل','bg-slate-100 text-slate-700'),
+                      ('active','نشطة','bg-emerald-100 text-emerald-800'),
+                      ('soon','قاربت','bg-amber-100 text-amber-800'),
+                      ('expired','منتهية','bg-rose-100 text-rose-800')] %}
+    {% for code, label, cls in buckets %}
+    <button type="button" onclick="filterBucket('{{ code }}')" class="px-3 py-1 rounded-full font-semibold {{ cls }} hover:opacity-90 transition" data-bucket-btn="{{ code }}">
+      {{ label }}
+    </button>
+    {% endfor %}
+  </div>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>الشركة</th>
+        <th>الباقة</th>
+        <th>تاريخ الانتهاء</th>
+        <th class="text-center">الأيام المتبقية</th>
+        <th>الحالة</th>
+        <th>تجديد</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr data-bucket="{{ r.bucket }}">
+        <td>
+          <a href="{{ url_for('superadmin.company_detail', company_id=r.company.id) }}" class="font-semibold text-navy-900 hover:text-emerald-600">{{ r.company.name }}</a>
+        </td>
+        <td class="text-xs">
+          {% if r.plan %}<span class="badge badge-paid">{{ r.plan.name_ar }}</span>
+          {% else %}<span class="badge badge-cancelled">—</span>{% endif %}
+        </td>
+        <td class="text-xs font-mono">{{ r.expires.strftime('%Y-%m-%d') if r.expires else '—' }}</td>
+        <td class="text-center text-sm font-mono">
+          {% if r.days_remaining is none %}
+            —
+          {% elif r.bucket == 'expired' %}
+            <span class="text-rose-700 font-bold">منتهي ({{ r.days_remaining * -1 }} يوم)</span>
+          {% elif r.bucket == 'soon' %}
+            <span class="text-amber-700 font-bold">{{ r.days_remaining }} يوم</span>
+          {% else %}
+            <span class="text-emerald-700 font-bold">{{ r.days_remaining }} يوم</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if r.bucket == 'expired' %}
+            <span class="badge badge-overdue">منتهي</span>
+          {% elif r.bucket == 'soon' %}
+            <span class="badge badge-partial">قاربت</span>
+          {% elif r.bucket == 'active' %}
+            <span class="badge badge-paid">نشط</span>
+          {% else %}
+            <span class="badge badge-cancelled">—</span>
+          {% endif %}
+        </td>
+        <td>
+          <form method="POST" action="{{ url_for('superadmin.subscriptions_renew', company_id=r.company.id) }}" class="flex items-center gap-1"
+                onsubmit="return confirm('تجديد اشتراك {{ r.company.name }}؟')">
+            <select name="period" class="select text-xs">
+              <option value="month">شهر</option>
+              <option value="year">سنة</option>
+            </select>
+            <button type="submit" class="btn-primary text-xs">+ تجديد</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-center text-slate-400 py-8">لا توجد شركات.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+function filterBucket(bucket) {
+  document.querySelectorAll('tr[data-bucket]').forEach(tr => {
+    tr.style.display = (bucket === 'all' || tr.dataset.bucket === bucket) ? '' : 'none';
+  });
+  document.querySelectorAll('[data-bucket-btn]').forEach(b => {
+    b.style.opacity = (b.dataset.bucketBtn === bucket) ? '1' : '0.6';
+  });
+}
+filterBucket('all');
+</script>
+{% endblock %}

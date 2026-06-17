@@ -8,9 +8,13 @@ Each (kind, days) pair fires at most once per invoice via InvoiceReminderSent.
 """
 from datetime import date, datetime
 from app import db
-from app.models import Invoice, InvoiceStatus, InvoiceReminderSent, Company
-from app.services.email import send_overdue_reminder
+from app.models import (
+    Invoice, InvoiceStatus, InvoiceReminderSent, Company,
+    SubscriptionReminderSent,
+)
+from app.services.email import send_overdue_reminder, send_email
 import logging
+from flask import render_template, url_for
 
 logger = logging.getLogger("ledgeros.reminders")
 
@@ -78,4 +82,80 @@ def process_invoice_reminders():
 
     db.session.commit()
     logger.info("Reminders processed: %s", sent_counts)
+    return sent_counts
+
+
+# ─── MARSOUD-57.3: subscription expiry reminders ─────────────────────────
+SUBSCRIPTION_THRESHOLDS = [7, 3, 1, 0]
+
+
+def _company_owner_email(company):
+    """Best-effort: pick an OWNER's email from the company's members."""
+    from app.models import User
+    from app.models.user import user_companies
+    row = db.session.execute(
+        user_companies.select().where(
+            (user_companies.c.company_id == company.id) &
+            (user_companies.c.role == "owner")
+        )
+    ).first()
+    if not row:
+        return None
+    u = db.session.get(User, row.user_id)
+    return u.email if u and u.email else None
+
+
+def process_subscription_reminders():
+    """Single pass — scan companies, fire expiry reminders for thresholds
+    that match their days-remaining and haven't been sent yet. Returns a
+    summary dict."""
+    today = date.today()
+    sent_counts = {"sent": 0, "skipped_no_email": 0,
+                   "skipped_already_sent": 0, "skipped_no_expiry": 0}
+    companies = Company.query.filter_by(is_active=True).all()
+    for c in companies:
+        if not c.subscription_expires_at:
+            sent_counts["skipped_no_expiry"] += 1
+            continue
+        days_remaining = (c.subscription_expires_at.date() - today).days
+        for threshold in SUBSCRIPTION_THRESHOLDS:
+            if days_remaining != threshold:
+                continue
+            already = SubscriptionReminderSent.query.filter_by(
+                company_id=c.id,
+                threshold_days=threshold,
+                expires_at_when_sent=c.subscription_expires_at,
+            ).first()
+            if already:
+                sent_counts["skipped_already_sent"] += 1
+                continue
+            email = _company_owner_email(c)
+            if not email:
+                sent_counts["skipped_no_email"] += 1
+                continue
+            # Build the email body
+            if threshold == 0:
+                subject = f"اشتراك {c.name} ينتهي اليوم"
+            else:
+                subject = f"اشتراك {c.name} ينتهي خلال {threshold} يوم"
+            try:
+                html = render_template(
+                    "emails/subscription_reminder.html",
+                    company=c, days_remaining=threshold,
+                    expires_at=c.subscription_expires_at,
+                )
+            except Exception:
+                # Template doesn't exist — fall back to plain HTML
+                html = (f"<p>اشتراك شركتك <b>{c.name}</b> ينتهي خلال "
+                        f"<b>{threshold} يوم</b> ({c.subscription_expires_at.date().isoformat()}). "
+                        f"يرجى التواصل لتجديد الاشتراك.</p>")
+            if send_email(email, subject, html):
+                db.session.add(SubscriptionReminderSent(
+                    company_id=c.id, threshold_days=threshold,
+                    expires_at_when_sent=c.subscription_expires_at,
+                    sent_at=datetime.utcnow(),
+                ))
+                sent_counts["sent"] += 1
+    db.session.commit()
+    logger.info("Subscription reminders processed: %s", sent_counts)
     return sent_counts

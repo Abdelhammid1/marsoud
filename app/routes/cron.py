@@ -36,6 +36,16 @@ def tick():
     # Send reminder emails
     summary["reminders"] = process_invoice_reminders()
 
+    # MARSOUD-57.3 — subscription expiry reminders
+    try:
+        from app.services.reminders import process_subscription_reminders
+        summary["subscription_reminders"] = process_subscription_reminders()
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception(
+            "subscription reminders failed: %s", e)
+        summary["subscription_reminders"] = {"error": str(e)[:200]}
+
     # Post any due recurring journal entries
     summary["recurring"] = process_recurring_journals()
 

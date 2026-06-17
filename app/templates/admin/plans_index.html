@@ -1,0 +1,60 @@
+{% extends "admin/base.html" %}
+{% block page_title %}الباقات{% endblock %}
+{% block content %}
+
+<div class="card p-6 mb-4">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="font-bold text-navy-900">📦 الباقات التجارية</h2>
+    <a href="{{ url_for('superadmin.plans_new') }}" class="btn-primary text-sm">+ باقة جديدة</a>
+  </div>
+  <p class="text-sm text-slate-500 mb-4">
+    كل باقة بتفتح أقسام معيّنة من النظام (modules). الشركة المرتبطة
+    بالباقة بتشوف الأقسام دي فقط مهما كان دور المستخدم. الباقة بتشتغل
+    طبقة فوق نظام الأدوار — مش بتلغيه.
+  </p>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for p in plans %}
+    <div class="rounded-xl border border-slate-200 p-5 bg-white hover:shadow-soft transition">
+      <div class="flex items-start justify-between mb-2">
+        <div>
+          <div class="text-lg font-bold text-navy-900">{{ p.name_ar }}</div>
+          <div class="text-xs text-slate-500 font-mono">{{ p.code }}</div>
+        </div>
+        <span class="badge {% if p.is_active %}badge-paid{% else %}badge-cancelled{% endif %} text-xs">
+          {% if p.is_active %}نشطة{% else %}موقوفة{% endif %}
+        </span>
+      </div>
+      {% if p.description %}<p class="text-xs text-slate-600 mb-3">{{ p.description }}</p>{% endif %}
+
+      <div class="grid grid-cols-2 gap-2 mb-3">
+        <div class="text-center bg-slate-50 rounded-lg p-2">
+          <div class="text-[10px] text-slate-500">شهري</div>
+          <div class="font-bold font-mono text-emerald-700">{% if p.price_monthly %}{{ "%g"|format(p.price_monthly|float) }}{% else %}—{% endif %}</div>
+        </div>
+        <div class="text-center bg-slate-50 rounded-lg p-2">
+          <div class="text-[10px] text-slate-500">سنوي</div>
+          <div class="font-bold font-mono text-emerald-700">{% if p.price_yearly %}{{ "%g"|format(p.price_yearly|float) }}{% else %}—{% endif %}</div>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <div class="text-[10px] text-slate-500 mb-1">الأقسام المفتوحة</div>
+        <div class="flex flex-wrap gap-1">
+          {% for m in all_modules %}
+            {% if m in p.modules %}
+            <span class="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">✓ {{ module_labels.get(m, m) }}</span>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between text-xs">
+        <span class="text-slate-500">الشركات: <strong class="text-navy-900">{{ counts.get(p.id, 0) }}</strong></span>
+        <a href="{{ url_for('superadmin.plans_edit', plan_id=p.id) }}" class="text-emerald-700 hover:underline">✎ تعديل</a>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

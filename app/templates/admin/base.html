@@ -79,6 +79,8 @@ tailwind.config = {
         ('superadmin.errors_global', 'سجل الأخطاء', '🛑'),
         ('superadmin.impersonations', 'سجل المعاينات', '👁️'),
         ('superadmin.email_test', 'اختبار الإيميل', '📨'),
+        ('superadmin.plans_index', 'الباقات', '📦'),
+        ('superadmin.subscriptions_index', 'الاشتراكات', '⏰'),
       ] %}
       {% for endpoint, label, icon in links %}
       {% set is_active = request.endpoint == endpoint %}

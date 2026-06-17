@@ -1,5 +1,6 @@
 from app.models.user import User, user_companies, UserStatus
 from app.models.company import Company
+from app.models.plan import Plan, SubscriptionReminderSent
 from app.models.account import Account, AccountType, NormalSide
 from app.models.journal import JournalEntry, JournalLine
 from app.models.journal_extras import (
@@ -55,6 +56,7 @@ from app.models.platform_audit import PlatformAuditLog, SuperadminImpersonation,
 __all__ = [
     "PlatformAuditLog", "SuperadminImpersonation", "PlatformError",
     "User", "user_companies", "UserStatus", "Company",
+    "Plan", "SubscriptionReminderSent",
     "Account", "AccountType", "NormalSide",
     "JournalEntry", "JournalLine",
     "Invoice", "InvoiceItem", "InvoiceStatus", "Payment", "InvoiceReminderSent",

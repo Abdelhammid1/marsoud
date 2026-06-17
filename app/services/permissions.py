@@ -175,6 +175,18 @@ def has_permission(action, user=None, company=None):
     if not user or not getattr(user, "is_authenticated", False) or not company:
         return False
 
+    # MARSOUD-57.2 — plan gating runs BEFORE the role check. If the
+    # company's plan doesn't include the action's module, no role can
+    # bypass that. Super-admins are exempt (they need to admin every
+    # company regardless of plan).
+    if not getattr(user, "is_superadmin", False):
+        try:
+            from app.services.plan_gating import plan_allows
+            if not plan_allows(action, company):
+                return False
+        except Exception:
+            pass
+
     # MARSOUD-32: prefer the DB; fall back to the legacy P dict if the
     # user_companies row hasn't been backfilled yet.
     try:

@@ -39,7 +39,15 @@ class Company(db.Model):
     bank_account_holder = db.Column(db.String(150))
     bank_account_number = db.Column(db.String(50))
     iban = db.Column(db.String(50))
+    # MARSOUD-57.2 + 57.3 — commercial plan + subscription window
+    plan_id = db.Column(db.Integer, db.ForeignKey("plans.id"))
+    subscription_started_at = db.Column(db.DateTime)
+    subscription_expires_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.now)
+
+    # Named `subscription_plan` to avoid collision with the legacy `plan`
+    # String column (kept for back-compat with the super-admin form).
+    subscription_plan = db.relationship("Plan", foreign_keys=[plan_id])
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
     @property
