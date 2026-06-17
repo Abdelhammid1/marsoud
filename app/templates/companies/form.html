@@ -1,6 +1,14 @@
 {% extends "base.html" %}
 {% block page_title %}{% if company %}تعديل الشركة{% else %}شركة جديدة{% endif %}{% endblock %}
 {% block content %}
+{% if company %}
+<div class="max-w-2xl mb-4">
+  <a href="{{ url_for('companies.index', sort='activity') }}"
+     class="inline-flex items-center gap-2 btn-secondary text-sm">
+    🏢 شركاتي
+  </a>
+</div>
+{% endif %}
 <div class="card p-6 max-w-2xl">
   <form method="POST" enctype="multipart/form-data" class="space-y-4">
     <div>
