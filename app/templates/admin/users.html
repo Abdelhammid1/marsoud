@@ -18,8 +18,9 @@
     <tr>
       <th>الاسم</th>
       <th>البريد</th>
+      <th style="white-space:nowrap"><a href="{{ url_for('superadmin.users', q=q, sort='created_asc') }}" class="text-white hover:underline">تاريخ الإنشاء</a> <a href="{{ url_for('superadmin.users', q=q, sort='created_asc') }}" class="text-white hover:underline">↑</a><a href="{{ url_for('superadmin.users', q=q, sort='created_desc') }}" class="text-white hover:underline">↓</a></th>
       <th>الشركات</th>
-      <th>آخر دخول</th>
+      <th><a href="{{ url_for('superadmin.users', q=q, sort='login') }}" class="text-white hover:underline">آخر دخول ↓</a></th>
       <th>الحالة</th>
       <th>الإجراءات</th>
     </tr>
@@ -32,6 +33,7 @@
         {% if u.is_superadmin %}<span class="badge badge-bad mr-2">ADMIN</span>{% endif %}
       </td>
       <td class="text-ink-200">{{ u.email }}</td>
+      <td class="font-mono text-xs">{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '—' }}</td>
       <td>
         {% for c in u.companies %}<span class="badge badge-neutral">{{ c.name }}</span> {% endfor %}
         {% if not u.companies %}<span class="text-ink-200 text-xs">—</span>{% endif %}

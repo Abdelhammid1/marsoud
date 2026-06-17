@@ -1,6 +1,15 @@
 {% extends "base.html" %}
 {% block page_title %}الشركات{% endblock %}
 {% block content %}
+<div class="mb-4 flex gap-2 text-sm">
+  <span class="text-slate-500">ترتيب حسب:</span>
+  <a href="{{ url_for('companies.index', sort='activity') }}" class="{{ 'font-bold text-green-600' if sort=='activity' else 'text-slate-600' }}">آخر نشاط</a>
+  <span>·</span>
+  <a href="{{ url_for('companies.index', sort='created_asc') }}" class="{{ 'font-bold text-green-600' if sort=='created_asc' else 'text-slate-600' }}">تاريخ الإنشاء ↑</a>
+  <span>·</span>
+  <a href="{{ url_for('companies.index') }}" class="{{ 'font-bold text-green-600' if not sort else 'text-slate-600' }}">افتراضي</a>
+</div>
+
 <div class="card p-6">
   <div class="flex items-center justify-between mb-5">
     <h2 class="font-bold text-navy-900">جميع شركاتي</h2>

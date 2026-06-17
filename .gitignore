@@ -11,3 +11,9 @@ venv/
 # Playwright test artifacts — regenerated on every test run, bloat the repo
 tests/screenshots/
 tests/REPORT.md
+
+# server-side temp files
+*.bak
+cleanup_test_users.py
+gunicorn.log*
+app/static/logos/

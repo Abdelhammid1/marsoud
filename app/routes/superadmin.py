@@ -42,7 +42,16 @@ def companies():
     rows = companies_with_stats()
     if q:
         rows = [r for r in rows if q.lower() in (r["company"].name or "").lower()]
-    return render_template("admin/companies.html", rows=rows, q=q)
+    sort = (request.args.get("sort") or "").strip()
+    from datetime import datetime
+    _min = datetime.min
+    if sort == "activity":
+        rows.sort(key=lambda r: r.get("last_activity") or _min, reverse=True)
+    elif sort == "created_asc":
+        rows.sort(key=lambda r: r["company"].created_at or _min)
+    elif sort == "created_desc":
+        rows.sort(key=lambda r: r["company"].created_at or _min, reverse=True)
+    return render_template("admin/companies.html", rows=rows, q=q, sort=sort)
 
 
 @bp.route("/companies/<int:company_id>")
@@ -137,7 +146,17 @@ def users():
     if q:
         rows = [u for u in rows
                 if q in (u.email or "").lower() or q in (u.full_name or "").lower()]
-    return render_template("admin/users.html", rows=rows, q=q)
+    sort = (request.args.get("sort") or "").strip()
+    from datetime import datetime
+    _min = datetime.min
+    rows = list(rows)
+    if sort == "login":
+        rows.sort(key=lambda u: u.last_login_at or _min, reverse=True)
+    elif sort == "created_asc":
+        rows.sort(key=lambda u: u.created_at or _min)
+    elif sort == "created_desc":
+        rows.sort(key=lambda u: u.created_at or _min, reverse=True)
+    return render_template("admin/users.html", rows=rows, q=q, sort=sort)
 
 
 @bp.route("/users/<int:user_id>/toggle", methods=["POST"])

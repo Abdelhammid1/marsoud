@@ -17,11 +17,11 @@
   <thead>
     <tr>
       <th>الشركة</th>
-      <th>تاريخ الإنشاء</th>
+      <th><a href="{{ url_for('superadmin.companies', q=q, sort='created_asc') }}" class="text-white hover:underline">تاريخ الإنشاء ↑</a> / <a href="{{ url_for('superadmin.companies', q=q, sort='created_desc') }}" class="text-white hover:underline">↓</a></th>
       <th>المستخدمون</th>
       <th>القيود</th>
       <th>الفواتير</th>
-      <th>آخر نشاط</th>
+      <th><a href="{{ url_for('superadmin.companies', q=q, sort='activity') }}" class="text-white hover:underline">آخر نشاط ↓</a></th>
       <th>الحالة</th>
       <th>الإجراءات</th>
     </tr>

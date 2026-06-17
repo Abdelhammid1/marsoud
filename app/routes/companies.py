@@ -59,7 +59,31 @@ def _save_logo(company, file_storage):
 @bp.route("/")
 @login_required
 def index():
-    return render_template("companies/index.html", companies=current_user.companies)
+    from sqlalchemy import func
+    from app.models.journal import JournalEntry
+
+    sort = request.args.get("sort", "")
+    companies = list(current_user.companies)
+
+    if sort == "activity":
+        try:
+            rows = db.session.query(
+                JournalEntry.company_id,
+                func.max(JournalEntry.created_at)
+            ).group_by(JournalEntry.company_id).all()
+            last_act = {cid: ts for cid, ts in rows}
+        except Exception:
+            current_app.logger.exception("activity sort fallback")
+            last_act = {}
+        companies.sort(
+            key=lambda c: (last_act.get(c.id) is not None, last_act.get(c.id)),
+            reverse=True,
+        )
+    elif sort == "created_asc":
+        from datetime import datetime
+        companies.sort(key=lambda c: c.created_at or datetime.min)
+
+    return render_template("companies/index.html", companies=companies, sort=sort)
 
 
 @bp.route("/new", methods=["GET", "POST"])
