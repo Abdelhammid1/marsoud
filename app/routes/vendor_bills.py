@@ -132,10 +132,17 @@ def _resolve_inventory_target(form, i, company_id):
 
     wh_id_raw = warehouses_in[i] if i < len(warehouses_in) else ""
     if not wh_id_raw:
+        # MARSOUD-53 — if the company has no warehouse at all, the picker
+        # was empty, so point the user to fix that root cause.
+        any_wh = Warehouse.query.filter_by(company_id=company_id).count()
+        if any_wh == 0:
+            raise LedgerError(
+                "الشركة مفيهاش مخزن. أنشئ مخزن من: العمليات ← المخزون ← المخازن.",
+            )
         raise LedgerError("سطر مخزون يحتاج اختيار مخزن")
     wh = db.session.get(Warehouse, int(wh_id_raw))
     if not wh or wh.company_id != company_id:
-        raise LedgerError("المخزن غير صحيح")
+        raise LedgerError("المخزن المختار غير صحيح")
 
     new_name = (new_names[i] if i < len(new_names) else "").strip()
     if new_name:

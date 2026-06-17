@@ -108,8 +108,18 @@ def new():
                     wh_id = request.form.get("warehouse_id")
                     wh = (db.session.get(Warehouse, int(wh_id))
                           if wh_id else default_warehouse(cid))
-                    if not wh or wh.company_id != cid:
-                        raise ValueError("المخزن غير صحيح")
+                    # MARSOUD-53 — friendlier error pointing the user to the
+                    # warehouses page instead of just "المخزن غير صحيح".
+                    if not wh:
+                        any_wh = Warehouse.query.filter_by(company_id=cid).count()
+                        if any_wh == 0:
+                            raise ValueError(
+                                "الشركة مفيهاش مخزن. أنشئ مخزن أولاً من: "
+                                "العمليات ← المخزون ← المخازن.",
+                            )
+                        raise ValueError("المخزن المختار غير صحيح — اختر مخزن آخر.")
+                    if wh.company_id != cid:
+                        raise ValueError("المخزن لا ينتمي لهذه الشركة")
                     record_opening_balance(
                         variant=v, warehouse=wh,
                         qty=opening_qty, unit_cost=unit_cost,

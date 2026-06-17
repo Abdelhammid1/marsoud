@@ -8,10 +8,16 @@
 <meta charset="UTF-8">
 <title>Invoice {{ invoice.number }}</title>
 <style>
+/* MARSOUD-54.2 layout fix: don't wrap content in an extra fixed-width
+   `.page` div — `@page` already gives us the A4 sheet. The old wrapper
+   was leftover from the HTML-preview mockup; with `direction: rtl` on
+   the body it can drift to one side on some WeasyPrint/cairo versions,
+   leaving an empty white column on the left. */
 @page { size: A4; margin: 0; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif; direction: rtl; }
-.page { background: #fff; width: 210mm; min-height: 297mm; position: relative; }
+html, body { width: 100%; height: 100%; }
+body { font-family: 'Cairo', 'Segoe UI', Tahoma, sans-serif; direction: rtl; background: #fff; position: relative; min-height: 297mm; }
+.page { width: 100%; min-height: 297mm; position: relative; }
 .pad { padding: 40px 44px 90px; }
 .top-bar { height: 8px; background: #0A2540; }
 .top-bar-accent { height: 3px; background: #1D9E75; }

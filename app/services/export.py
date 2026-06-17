@@ -345,7 +345,18 @@ def export_invoice_pdf(invoice):
             company_logo_data_uri=_company_logo_data_uri(invoice.company),
         )
     except Exception as e:
-        _export_logger.exception("WeasyPrint invoice render failed, falling back to legacy: %s", e)
+        # MARSOUD-54.1 — make the silent regression loud. Old log line was
+        # logger.exception() which is buried inside a normal log feed; this
+        # prints a clearly tagged warning so deploy issues are obvious.
+        _export_logger.warning(
+            "[PDF-FALLBACK] Invoice %s: WeasyPrint failed (%s: %s) — "
+            "rendering the OLD ReportLab layout instead. This means the "
+            "customer is NOT getting the new branded PDF. Cause is almost "
+            "always missing weasyprint pip install OR missing libpango on "
+            "the host. Run: pip install -r requirements.txt + "
+            "apt install libpango-1.0-0 libpangoft2-1.0-0 libcairo2",
+            invoice.number, type(e).__name__, str(e)[:200],
+        )
         return _export_invoice_pdf_legacy(invoice)
 
 
@@ -492,7 +503,15 @@ def export_payslip_pdf(employee, line, run):
             company_logo_data_uri=_company_logo_data_uri(employee.company),
         )
     except Exception as e:
-        _export_logger.exception("WeasyPrint payslip render failed, falling back to legacy: %s", e)
+        # MARSOUD-54.1 — loud warning so the silent regression is visible.
+        _export_logger.warning(
+            "[PDF-FALLBACK] Payslip %s/%s for %s: WeasyPrint failed "
+            "(%s: %s) — rendering the OLD ReportLab layout instead. Run "
+            "pip install -r requirements.txt + apt install "
+            "libpango-1.0-0 libpangoft2-1.0-0 libcairo2 on the host.",
+            run.period_month, run.period_year, employee.name,
+            type(e).__name__, str(e)[:200],
+        )
         return _export_payslip_pdf_legacy(employee, line, run)
 
 
