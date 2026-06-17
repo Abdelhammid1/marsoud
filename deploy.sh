@@ -25,7 +25,7 @@ cd "$REPO_DIR" || { echo "❌ cannot cd to $REPO_DIR"; exit 1; }
 PYTHON="${PYTHON:-.venv/bin/python}"
 PIP="${PIP:-.venv/bin/pip}"
 FLASK_APP="${FLASK_APP:-flask_app.py}"
-SERVICE_NAME="${SERVICE_NAME:-marsoud}"
+SERVICE_NAME="${SERVICE_NAME:-accountant}"
 
 # Cache the requirements hash before pulling so we can detect if it changed.
 HASH_BEFORE=""
