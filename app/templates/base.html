@@ -374,7 +374,11 @@ tailwind.config = {
           {% set icon = item[2] %}
           {% set kwargs = item[3] if item|length > 3 else {} %}
           {% set req = permission_map.get(endpoint) %}
-          {% if not req or has_permission(req) %}
+          {# MARSOUD-58 — sub-item gate filters individual links inside
+             an otherwise-open section. subitem_allowed() returns True
+             when the company has no plan, the plan's allowed_subitems is
+             null (legacy), or the endpoint is listed in it. #}
+          {% if (not req or has_permission(req)) and subitem_allowed(endpoint) %}
             {% set _ = ns.visible.append((endpoint, label, icon, kwargs)) %}
             {% if request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
               {% set ns.active = true %}

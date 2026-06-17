@@ -20,6 +20,10 @@ class Plan(db.Model):
     price_monthly = db.Column(db.Numeric(10, 2))
     price_yearly = db.Column(db.Numeric(10, 2))
     allowed_modules = db.Column(db.Text, nullable=False, default="[]")
+    # MARSOUD-58 — per-sub-item gating within open sections.
+    # NULL = back-compat = all sub-items allowed. A non-null JSON list
+    # restricts which sub-items show + which routes are reachable.
+    allowed_subitems = db.Column(db.Text, nullable=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -33,6 +37,26 @@ class Plan(db.Model):
 
     def set_modules(self, modules):
         self.allowed_modules = json.dumps(list(modules))
+
+    @property
+    def subitems(self):
+        """MARSOUD-58 — list of sub-item endpoint strings allowed by this
+        plan. None means "no restriction" (back-compat); an empty list
+        means "no sub-items at all"."""
+        raw = self.allowed_subitems
+        if raw is None:
+            return None
+        try:
+            data = json.loads(raw)
+            return [s for s in data if isinstance(s, str)]
+        except (ValueError, TypeError):
+            return None
+
+    def set_subitems(self, items):
+        if items is None:
+            self.allowed_subitems = None
+        else:
+            self.allowed_subitems = json.dumps(list(items))
 
 
 class SubscriptionReminderSent(db.Model):

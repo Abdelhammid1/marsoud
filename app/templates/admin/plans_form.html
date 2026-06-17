@@ -57,6 +57,45 @@
       </p>
     </div>
 
+    {# MARSOUD-58 — nested sub-item checkboxes. Hidden flag lets the
+       route distinguish "user submitted with all unchecked" (= lock
+       everything) from "form didn't include the sub-item block at all"
+       (= legacy: keep current value). #}
+    <input type="hidden" name="submit_subitems" value="1">
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">العناصر الفرعية داخل كل قسم</label>
+      <p class="text-xs text-slate-500 mb-3">
+        💡 لو القسم نفسه مش مفعّل فوق، عناصره الفرعية مش هتظهر للشركة حتى لو
+        أنت فعّلت العنصر هنا. سيب الكل مش متظبط (NULL) → كل العناصر تظهر تلقائياً
+        (سلوك "متكامل" الكامل).
+      </p>
+      {% set current_items = plan.subitems if plan else None %}
+      <div class="space-y-3">
+        {% for section_key, items in sub_item_catalog.items() %}
+        <details class="bg-slate-50 rounded-lg border border-slate-200" open>
+          <summary class="cursor-pointer p-3 font-semibold text-navy-900 text-sm">
+            📂 {{ section_label_ar.get(section_key, section_key) }}
+            <span class="text-xs text-slate-500 font-normal">
+              ({{ items|length }} عنصر
+              {% set required = section_requires_modules.get(section_key, []) %}
+              {% if required %}— يحتاج: {{ required|join(' / ') }}{% endif %})
+            </span>
+          </summary>
+          <div class="p-3 border-t border-slate-200 grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {% for endpoint, label, icon in items %}
+            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white rounded p-2 transition">
+              <input type="checkbox" name="subitems" value="{{ endpoint }}"
+                     {% if current_items is none or endpoint in (current_items or []) %}checked{% endif %}>
+              <span class="text-base">{{ icon }}</span>
+              <span>{{ label }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </details>
+        {% endfor %}
+      </div>
+    </div>
+
     {% if plan %}
     <label class="flex items-center gap-2">
       <input type="checkbox" name="is_active" {% if plan.is_active %}checked{% endif %}>

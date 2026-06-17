@@ -495,6 +495,12 @@ MODULE_LABELS_AR = {
 }
 
 
+def _read_subitems_form():
+    """MARSOUD-58 — parse selected sub-items from the plan form. Empty
+    list = "lock everything"; missing key = legacy mode (NULL = all)."""
+    return request.form.getlist("subitems")
+
+
 @bp.route("/plans")
 @login_required
 @superadmin_required
@@ -525,15 +531,26 @@ def plans_new():
             price_yearly=float(request.form.get("price_yearly") or 0) or None,
         )
         p.set_modules(request.form.getlist("modules"))
+        # MARSOUD-58 — sub-item list. Form sends a submit_subitems=1 flag
+        # so we can distinguish "user opted to enable everything" (no
+        # checkboxes shown yet for a new plan) from "user unchecked all".
+        if request.form.get("submit_subitems") == "1":
+            p.set_subitems(_read_subitems_form())
         db.session.add(p)
         db.session.commit()
         log_platform_action("plan_create", details=f"code={code}",
                             actor_id=current_user.id)
         flash(f"تم إنشاء باقة: {p.name_ar}", "success")
         return redirect(url_for("superadmin.plans_index"))
+    from app.services.plan_gating import (
+        SUB_ITEM_CATALOG, SECTION_LABEL_AR, SECTION_REQUIRES_MODULES,
+    )
     return render_template("admin/plans_form.html", plan=None,
                            all_modules=ALL_MODULES,
-                           module_labels=MODULE_LABELS_AR)
+                           module_labels=MODULE_LABELS_AR,
+                           sub_item_catalog=SUB_ITEM_CATALOG,
+                           section_label_ar=SECTION_LABEL_AR,
+                           section_requires_modules=SECTION_REQUIRES_MODULES)
 
 
 @bp.route("/plans/<int:plan_id>/edit", methods=["GET", "POST"])
@@ -549,14 +566,22 @@ def plans_edit(plan_id):
         p.price_yearly = float(request.form.get("price_yearly") or 0) or None
         p.is_active = request.form.get("is_active") == "on"
         p.set_modules(request.form.getlist("modules"))
+        if request.form.get("submit_subitems") == "1":
+            p.set_subitems(_read_subitems_form())
         db.session.commit()
         log_platform_action("plan_edit", details=f"code={p.code}",
                             actor_id=current_user.id)
         flash(f"تم حفظ الباقة: {p.name_ar}", "success")
         return redirect(url_for("superadmin.plans_index"))
+    from app.services.plan_gating import (
+        SUB_ITEM_CATALOG, SECTION_LABEL_AR, SECTION_REQUIRES_MODULES,
+    )
     return render_template("admin/plans_form.html", plan=p,
                            all_modules=ALL_MODULES,
-                           module_labels=MODULE_LABELS_AR)
+                           module_labels=MODULE_LABELS_AR,
+                           sub_item_catalog=SUB_ITEM_CATALOG,
+                           section_label_ar=SECTION_LABEL_AR,
+                           section_requires_modules=SECTION_REQUIRES_MODULES)
 
 
 @bp.route("/companies/<int:company_id>/assign-plan", methods=["POST"])

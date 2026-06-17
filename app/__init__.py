@@ -154,6 +154,31 @@ def create_app(config_class=Config):
         if role in NON_FINANCIAL_ROLES:
             abort(403)
 
+    # MARSOUD-58 — sub-item gating enforcement. Block routes whose
+    # sub-item is not in the company's plan, regardless of method.
+    @app.before_request
+    def enforce_subitem_gating():
+        from flask_login import current_user
+        from flask import abort
+        if not current_user.is_authenticated:
+            return
+        # Super-admins must reach every route to administer.
+        if getattr(current_user, "is_superadmin", False):
+            return
+        company = g.get("active_company")
+        if not company:
+            return
+        try:
+            from app.services.plan_gating import (
+                endpoint_to_subitem, subitem_allowed,
+            )
+            si = endpoint_to_subitem(request.endpoint)
+        except Exception:
+            # Never let the import/helper take the app down — fall through.
+            return
+        if si and not subitem_allowed(si, company):
+            abort(403)
+
     # TICKET 1 — subscription read-only enforcement.
     # When a company's subscription is past its grace period AND the
     # read-only toggle is on, reject any unsafe-method request unless the
@@ -177,22 +202,22 @@ def create_app(config_class=Config):
             if is_endpoint_exempt(request.endpoint):
                 return
             state = subscription_state(company)
-            if state["state"] != "read_only":
-                return
-            # Super-admin always passes (also exempt via prefix above, but
-            # double-check via the model attribute).
-            if getattr(current_user, "is_superadmin", False):
-                return
-            flash(
-                "اشتراك الشركة منتهي والنظام في وضع القراءة فقط. "
-                "جدّد الاشتراك للمتابعة.",
-                "error",
-            )
-            # Redirect to dashboard if we have a referrer, else dashboard.
-            return redirect(request.referrer or url_for("dashboard.index"))
         except Exception:
-            # Never let the gating helper break the app.
+            # Never let the gating helper break the app — fall through.
             return
+        if state["state"] != "read_only":
+            return
+        # Super-admin always passes (also exempt via prefix above, but
+        # double-check via the model attribute).
+        if getattr(current_user, "is_superadmin", False):
+            return
+        flash(
+            "اشتراك الشركة منتهي والنظام في وضع القراءة فقط. "
+            "جدّد الاشتراك للمتابعة.",
+            "error",
+        )
+        # Redirect to dashboard if we have a referrer, else dashboard.
+        return redirect(request.referrer or url_for("dashboard.index"))
 
     # Client-portal users can only reach /portal/, /notifications/, /auth/, /static/
     CLIENT_ALLOWED_ENDPOINTS = (
@@ -247,6 +272,11 @@ def create_app(config_class=Config):
                 sub_state = subscription_state(active_company)
             except Exception:
                 sub_state = None
+        # MARSOUD-58 — make the sub-item gate available to templates so
+        # the sidebar can hide individual links the plan disabled.
+        from app.services.plan_gating import subitem_allowed
+        def _subitem_allowed_template(endpoint):
+            return subitem_allowed(endpoint, active_company)
         return {
             "active_company": active_company,
             "user_companies": g.get("user_companies", []),
@@ -255,6 +285,7 @@ def create_app(config_class=Config):
             "current_role": current_role,
             "impersonating": g.get("impersonating", False),
             "subscription": sub_state,
+            "subitem_allowed": _subitem_allowed_template,
         }
 
     @app.errorhandler(500)

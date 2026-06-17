@@ -89,3 +89,130 @@ def plan_allows(action, company):
         return True
     plan = company.subscription_plan
     return module in plan.modules
+
+
+# ─── MARSOUD-58 — per-section sub-item catalog ─────────────────────────
+# Section keys map to the 7 sidebar sections from MARSOUD-56. Each entry
+# lists the sub-items (endpoint, label, icon) the section can contain.
+# This is the source of truth for the /admin/plans nested-checkbox UI.
+SUB_ITEM_CATALOG = {
+    "main": [
+        ("dashboard.index", "لوحة المعلومات", "📊"),
+    ],
+    "sales": [
+        ("pos.index", "نقطة البيع", "🛒"),
+        ("invoices.index", "الفواتير", "🧾"),
+        ("customers.index", "العملاء", "👥"),
+        ("products.index", "المنتجات والخدمات", "📦"),
+    ],
+    "inventory_purchases": [
+        ("inventory.index", "المخزون", "📊"),
+        ("inventory.warehouses", "المخازن", "🏬"),
+        ("vendor_bills.index", "فواتير الموردين", "📥"),
+        ("vendors.index", "الموردين", "🏢"),
+    ],
+    "crm": [
+        ("leads.index", "Leads", "🎯"),
+        ("tasks.index", "المهام", "✅"),
+        ("projects.index", "المشاريع", "📂"),
+        ("calendar.index", "التقويم", "📅"),
+    ],
+    "hr": [
+        ("hr.index", "الموظفين", "👤"),
+        ("payroll.index", "الرواتب", "💼"),
+        ("hr.attendance", "الحضور والإجازات", "📅"),
+        ("hr_ss.index", "حسابات الموظفين", "🔑"),
+    ],
+    "accounting": [
+        ("journals.index", "القيود اليومية", "📒"),
+        ("accounts.index", "دليل الحسابات", "🌳"),
+        ("assets.index", "الأصول الثابتة", "🏗️"),
+        ("reports.index", "التقارير المالية", "📑"),
+    ],
+    "settings": [
+        ("settings_roles.index", "المستخدمين والأدوار", "🔐"),
+        ("payment_methods.index", "طرق الدفع", "💳"),
+        ("companies.edit", "بيانات الشركة", "🏢"),
+        ("audit_log.index", "سجل التدقيق", "🔍"),
+    ],
+}
+
+SECTION_LABEL_AR = {
+    "main": "الرئيسية",
+    "sales": "المبيعات",
+    "inventory_purchases": "المخزون والمشتريات",
+    "crm": "العملاء المحتملين (CRM)",
+    "hr": "الموارد البشرية",
+    "accounting": "المحاسبة والتقارير",
+    "settings": "الإعدادات والنظام",
+}
+
+# Sections need at least ONE of these modules to be visible. Empty list
+# means "section is always available regardless of plan".
+SECTION_REQUIRES_MODULES = {
+    "main": [],
+    "sales": ["sales"],
+    "inventory_purchases": ["inventory", "purchases"],
+    "crm": ["crm"],
+    "hr": ["hr"],
+    "accounting": ["accounting", "reports"],
+    "settings": [],
+}
+
+ALL_SUB_ITEM_ENDPOINTS = [
+    ep for items in SUB_ITEM_CATALOG.values() for (ep, _, _) in items
+]
+
+
+def subitem_allowed(endpoint, company):
+    """True if the company's plan allows this sub-item endpoint.
+
+    Returns True when:
+      - the company has no plan attached (back-compat)
+      - the plan's allowed_subitems is None (legacy / not yet set)
+      - the endpoint is in the plan's allowed_subitems list
+    """
+    if not company:
+        return True
+    plan = getattr(company, "subscription_plan", None)
+    if not plan:
+        return True
+    items = plan.subitems
+    if items is None:
+        # Back-compat: NULL allowed_subitems = no filtering.
+        return True
+    return endpoint in items
+
+
+def endpoint_to_subitem(endpoint):
+    """Map a request endpoint to the sub-item key that gates it.
+
+    Returns None for endpoints that aren't gated by any sub-item — e.g.
+    superadmin.*, auth.*, cron.*, portal_emp.*, notifications.*.
+    """
+    if not endpoint:
+        return None
+    # Bypass exempt blueprints entirely.
+    if endpoint.startswith(("superadmin.", "auth.", "cron.", "portal_emp.",
+                             "portal.", "notifications.", "static",
+                             "invitations.")):
+        return None
+    # Direct match in the catalog.
+    if endpoint in ALL_SUB_ITEM_ENDPOINTS:
+        return endpoint
+    # Special-case inventory: warehouses is a separate sub-item.
+    if endpoint == "inventory.warehouses" or endpoint.startswith("inventory.warehouse_"):
+        return "inventory.warehouses"
+    if endpoint.startswith("inventory."):
+        return "inventory.index"
+    # Special-case HR: attendance has its own sub-item.
+    if endpoint == "hr.attendance" or endpoint.startswith("hr.attendance_"):
+        return "hr.attendance"
+    if endpoint.startswith("hr."):
+        return "hr.index"
+    # Generic: same blueprint as a sub-item endpoint.
+    bp = endpoint.split(".")[0]
+    for ep in ALL_SUB_ITEM_ENDPOINTS:
+        if ep.split(".")[0] == bp:
+            return ep
+    return None
