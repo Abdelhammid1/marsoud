@@ -255,6 +255,14 @@ def _my_employee():
 @portal_emp_bp.route("/")
 @login_required
 def index():
+    """MARSOUD-57.1 — keep /my/ working but redirect to the new unified
+    /my/account page so existing bookmarks + emails don't break."""
+    return redirect(url_for("portal_emp.account"))
+
+
+@portal_emp_bp.route("/account")
+@login_required
+def account():
     emp = _my_employee()
     if not emp:
         flash("هذه الصفحة للموظفين المرتبطين بسجل HR فقط.", "warning")
@@ -285,14 +293,65 @@ def index():
         employee_id=emp.id,
     ).order_by(LeaveRequest.created_at.desc()).limit(50).all()
 
+    # MARSOUD-57.1 — compute tenure (years + months) from start_date so the
+    # unified account page can show "سنة و3 شهور" without doing math in Jinja.
+    tenure_label = "—"
+    if emp.start_date:
+        today = date.today()
+        months = (today.year - emp.start_date.year) * 12 + (today.month - emp.start_date.month)
+        if today.day < emp.start_date.day:
+            months -= 1
+        if months < 0:
+            tenure_label = "أقل من شهر"
+        else:
+            years = months // 12
+            rem = months % 12
+            parts = []
+            if years:
+                parts.append(f"{years} {'سنة' if years == 1 else 'سنتين' if years == 2 else 'سنوات'}")
+            if rem:
+                parts.append(f"{rem} {'شهر' if rem == 1 else 'شهرين' if rem == 2 else 'شهور'}")
+            tenure_label = " و".join(parts) if parts else "أقل من شهر"
+
     return render_template(
-        "portal_emp/index.html",
+        "portal_emp/account.html",
         employee=emp, payslips=payslips, history=history,
         balances=balances, leave_types=types,
         bal_by_type=bal_by_type,
         requests=requests,
         statuses=LeaveRequestStatus,
+        tenure_label=tenure_label,
     )
+
+
+@portal_emp_bp.route("/account/password", methods=["POST"])
+@login_required
+def change_password():
+    """MARSOUD-57.1 — employee changes their own password. Requires the
+    OLD password before the new one — separate endpoint from the
+    super-admin set_password flow so the audit trail stays distinct."""
+    emp = _my_employee()
+    if not emp:
+        abort(403)
+    old = request.form.get("old_password", "")
+    new = request.form.get("new_password", "")
+    confirm = request.form.get("confirm_password", "")
+    if not current_user.check_password(old):
+        flash("كلمة السر القديمة غير صحيحة.", "error")
+        return redirect(url_for("portal_emp.account") + "#password")
+    if len(new) < 6:
+        flash("كلمة السر الجديدة لازم 6 أحرف على الأقل.", "error")
+        return redirect(url_for("portal_emp.account") + "#password")
+    if new != confirm:
+        flash("كلمة السر الجديدة وتأكيدها غير متطابقين.", "error")
+        return redirect(url_for("portal_emp.account") + "#password")
+    if new == old:
+        flash("كلمة السر الجديدة لازم تكون مختلفة عن القديمة.", "error")
+        return redirect(url_for("portal_emp.account") + "#password")
+    current_user.set_password(new)
+    db.session.commit()
+    flash("تم تغيير كلمة السر بنجاح.", "success")
+    return redirect(url_for("portal_emp.account") + "#password")
 
 
 @portal_emp_bp.route("/payslip/<int:line_id>.pdf")

@@ -505,6 +505,13 @@ tailwind.config = {
           <h1 class="text-xl font-bold text-navy-900">{% block page_title %}{% endblock %}</h1>
         </div>
         <div class="flex items-center gap-3">
+          {# MARSOUD-57.1 — حسابي icon visible to any employee with a
+             linked HR record. Outside the sidebar per spec. #}
+          {% if current_user.employee_id %}
+          <a href="{{ url_for('portal_emp.account') }}" class="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:border-emerald-500 hover:bg-emerald-50 transition" title="حسابي">
+            👤
+          </a>
+          {% endif %}
           <a href="{{ url_for('notifications.index') }}" class="relative inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:border-brand-500 transition" title="الإشعارات">
             🔔
             {% if notif_unread_count and notif_unread_count > 0 %}

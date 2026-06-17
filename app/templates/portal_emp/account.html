@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block page_title %}حسابي{% endblock %}
+{% block content %}
+
+{# MARSOUD-57.1 — Unified employee account page.
+   Replaces the scattered /my portal with one page that has 3 sections:
+     1. بياناتي     — read-only profile + salary + payslips + leaves
+     2. تعديل حسابي  — avatar + simple preferences
+     3. تغيير كلمة السر #}
+
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+  {# ─── Identity card ───────────────────────────────────────────── #}
+  <div class="card p-6 lg:col-span-1 text-center">
+    <div class="w-20 h-20 mx-auto rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-3xl">
+      {{ employee.name[:1] }}
+    </div>
+    <h2 class="text-lg font-bold text-navy-900 mt-3">{{ employee.name }}</h2>
+    <p class="text-xs text-slate-500">{{ employee.job_title or '—' }}</p>
+    <div class="mt-3 inline-block text-xs px-3 py-1 rounded-full bg-emerald-50 text-emerald-700">
+      الرقم الوظيفي: <span class="font-mono">{{ employee.employee_number or '—' }}</span>
+    </div>
+  </div>
+
+  {# ─── Quick tabs nav ──────────────────────────────────────────── #}
+  <div class="card p-3 lg:col-span-3">
+    <nav class="flex flex-wrap gap-2 text-sm">
+      <a href="#mydata" class="flex-1 text-center px-4 py-3 rounded-lg bg-emerald-50 text-emerald-800 font-semibold hover:bg-emerald-100 transition">
+        📋 بياناتي
+      </a>
+      <a href="#account-edit" class="flex-1 text-center px-4 py-3 rounded-lg bg-slate-50 text-slate-700 font-semibold hover:bg-slate-100 transition">
+        ✎ تعديل حسابي
+      </a>
+      <a href="#password" class="flex-1 text-center px-4 py-3 rounded-lg bg-slate-50 text-slate-700 font-semibold hover:bg-slate-100 transition">
+        🔒 تغيير كلمة السر
+      </a>
+    </nav>
+  </div>
+</div>
+
+{# ════ SECTION 1 — بياناتي (read-only profile) ═══════════════════════ #}
+<div class="card p-6 mb-4" id="mydata">
+  <h3 class="font-bold text-navy-900 mb-4 flex items-center gap-2">
+    📋 بياناتي
+    <span class="text-xs text-slate-500 font-normal">(تعديل الاسم/الجوال/الإيميل من إدارة الموارد البشرية)</span>
+  </h3>
+
+  <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4 text-sm">
+    <div>
+      <div class="text-xs text-slate-400">الاسم الكامل</div>
+      <div class="font-semibold text-navy-900">{{ employee.name }}</div>
+    </div>
+    <div>
+      <div class="text-xs text-slate-400">رقم الجوال</div>
+      <div class="font-mono">{{ employee.phone or '—' }}</div>
+    </div>
+    <div>
+      <div class="text-xs text-slate-400">البريد الإلكتروني</div>
+      <div dir="ltr" class="font-mono text-sm break-all">{{ employee.email or '—' }}</div>
+    </div>
+    <div>
+      <div class="text-xs text-slate-400">القسم</div>
+      <div class="font-semibold">{{ employee.department.name if employee.department else '—' }}</div>
+    </div>
+    <div>
+      <div class="text-xs text-slate-400">المسمى الوظيفي</div>
+      <div class="font-semibold">{{ employee.job_title or '—' }}</div>
+    </div>
+    <div>
+      <div class="text-xs text-slate-400">نوع العقد</div>
+      <div class="font-semibold">{{ employee.contract_type.value if employee.contract_type else '—' }}</div>
+    </div>
+    <div>
+      <div class="text-xs text-slate-400">تاريخ التعيين</div>
+      <div class="font-mono">{{ employee.start_date.isoformat() if employee.start_date else '—' }}</div>
+    </div>
+    <div>
+      <div class="text-xs text-slate-400">مدة الخدمة</div>
+      <div class="font-semibold text-emerald-700">{{ tenure_label }}</div>
+    </div>
+    <div>
+      <div class="text-xs text-slate-400">الراتب الأساسي</div>
+      <div class="font-mono font-semibold">{{ "%.2f"|format(employee.basic_salary|float) }} {{ employee.company.base_currency }}</div>
+    </div>
+    <div>
+      <div class="text-xs text-slate-400">البدلات</div>
+      <div class="font-mono">{{ "%.2f"|format(employee.allowances|float) }} {{ employee.company.base_currency }}</div>
+    </div>
+    {% if employee.bank_account_last4 %}
+    <div>
+      <div class="text-xs text-slate-400">آخر 4 أرقام للحساب البنكي</div>
+      <div class="font-mono">**** {{ employee.bank_account_last4 }}</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# ─── Leave balances + request form ───────────────────────────── #}
+<div class="card p-6 mb-4" id="leaves">
+  <div class="flex items-start justify-between mb-3 flex-wrap gap-2">
+    <h3 class="font-bold text-navy-900">🌴 رصيد الإجازات</h3>
+    <div class="text-xs text-slate-500">السنة الحالية: {{ leave_types|length }} نوع متاح</div>
+  </div>
+
+  {% if leave_types %}
+  <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+    {% for lt in leave_types %}
+    {% set bal = bal_by_type.get(lt.id) %}
+    <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
+      <div class="text-xs text-slate-500">{{ lt.name }}</div>
+      <div class="text-lg font-bold text-navy-900 font-mono mt-1">
+        {{ "%.1f"|format(bal.remaining_days if bal else 0) }} <span class="text-xs text-slate-500">يوم</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <details class="bg-amber-50/40 border border-amber-200 rounded-lg p-3">
+    <summary class="cursor-pointer text-sm font-semibold text-amber-800">+ طلب إجازة جديد</summary>
+    <form method="POST" action="{{ url_for('portal_emp.leave_new') }}" class="grid grid-cols-2 gap-3 mt-3 text-sm">
+      <label class="col-span-2">
+        <span class="text-xs font-semibold text-slate-700">نوع الإجازة</span>
+        <select name="leave_type_id" required class="select text-sm mt-1">
+          <option value="">— اختر —</option>
+          {% for lt in leave_types %}<option value="{{ lt.id }}">{{ lt.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>
+        <span class="text-xs font-semibold text-slate-700">من تاريخ</span>
+        <input type="date" name="start_date" required class="input text-sm mt-1">
+      </label>
+      <label>
+        <span class="text-xs font-semibold text-slate-700">إلى تاريخ</span>
+        <input type="date" name="end_date" required class="input text-sm mt-1">
+      </label>
+      <label class="col-span-2">
+        <span class="text-xs font-semibold text-slate-700">السبب (اختياري)</span>
+        <textarea name="reason" rows="2" class="textarea text-sm mt-1"></textarea>
+      </label>
+      <div class="col-span-2 flex justify-end">
+        <button type="submit" class="btn-primary text-sm">إرسال الطلب</button>
+      </div>
+    </form>
+  </details>
+  {% else %}
+  <p class="text-sm text-slate-400">لا توجد أنواع إجازة معرّفة.</p>
+  {% endif %}
+
+  {% if requests %}
+  <hr class="my-4">
+  <h4 class="font-bold text-navy-900 text-sm mb-2">طلباتي السابقة</h4>
+  <table class="data-table text-xs">
+    <thead><tr><th>النوع</th><th>من</th><th>إلى</th><th>أيام</th><th>الحالة</th></tr></thead>
+    <tbody>
+      {% for r in requests %}
+      <tr>
+        <td>{{ r.leave_type.name if r.leave_type else '—' }}</td>
+        <td class="font-mono">{{ r.start_date.isoformat() }}</td>
+        <td class="font-mono">{{ r.end_date.isoformat() }}</td>
+        <td class="font-mono">{{ r.days_count }}</td>
+        <td>
+          {% if r.status == statuses.PENDING %}<span class="badge badge-sent">قيد المراجعة</span>
+          {% elif r.status == statuses.APPROVED %}<span class="badge badge-paid">معتمدة</span>
+          {% elif r.status == statuses.REJECTED %}<span class="badge badge-cancelled">مرفوضة</span>
+          {% else %}{{ r.status.value }}{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+
+{# ─── Payslips ────────────────────────────────────────────────── #}
+<div class="card p-6 mb-4" id="payslips">
+  <h3 class="font-bold text-navy-900 mb-3">💰 قسائم الرواتب</h3>
+  {% if payslips %}
+  <div class="overflow-x-auto">
+    <table class="data-table text-sm">
+      <thead>
+        <tr>
+          <th>الفترة</th>
+          <th class="text-end">الأساسي</th>
+          <th class="text-end">البدلات</th>
+          <th class="text-end">الإضافات</th>
+          <th class="text-end">الخصومات</th>
+          <th class="text-end">الصافي</th>
+          <th>PDF</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line, run in payslips %}
+        {% set add = (line.bonus or 0)|float + (line.overtime or 0)|float %}
+        {% set ded = (line.deductions or 0)|float + (line.absence_deduction or 0)|float + (line.late_deduction or 0)|float + (line.advance_deduction or 0)|float %}
+        <tr>
+          <td class="font-mono">{{ run.period_year }}-{{ '%02d'|format(run.period_month) }}</td>
+          <td class="text-end font-mono">{{ '%.2f'|format(line.basic|float if line.basic else 0) }}</td>
+          <td class="text-end font-mono">{{ '%.2f'|format(line.allowances|float if line.allowances else 0) }}</td>
+          <td class="text-end font-mono text-emerald-700">+{{ '%.2f'|format(add) }}</td>
+          <td class="text-end font-mono text-rose-700">-{{ '%.2f'|format(ded) }}</td>
+          <td class="text-end font-mono font-bold">{{ '%.2f'|format(line.net|float if line.net else 0) }}</td>
+          <td>
+            <a href="{{ url_for('portal_emp.payslip_pdf', line_id=line.id) }}" target="_blank" class="text-emerald-700 hover:underline text-xs">📄 تحميل</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-sm text-slate-400">لا توجد قسائم بعد.</p>
+  {% endif %}
+</div>
+
+{# ════ SECTION 2 — تعديل حسابي ═══════════════════════════════════════ #}
+<div class="card p-6 mb-4" id="account-edit">
+  <h3 class="font-bold text-navy-900 mb-3">✎ تعديل حسابي</h3>
+  <p class="text-sm text-slate-500 mb-3">
+    التحكم في الحساب الشخصي. لتعديل الاسم أو رقم الجوال أو البريد، راجع إدارة الموارد البشرية.
+  </p>
+  <div class="bg-slate-50 rounded-lg p-4 text-sm text-slate-600">
+    💡 الصورة الشخصية وتفضيلات اللغة والإشعارات هتتفعّل في تحديثات قادمة.
+  </div>
+</div>
+
+{# ════ SECTION 3 — تغيير كلمة السر ═══════════════════════════════════ #}
+<div class="card p-6 mb-4" id="password">
+  <h3 class="font-bold text-navy-900 mb-3">🔒 تغيير كلمة السر</h3>
+  <p class="text-sm text-slate-500 mb-4">
+    لتغيير كلمة السر، أدخل كلمة السر القديمة أولاً، ثم الجديدة مرتين للتأكيد.
+    كلمة السر لازم تكون 6 أحرف على الأقل.
+  </p>
+  <form method="POST" action="{{ url_for('portal_emp.change_password') }}" class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
+    <label class="col-span-2">
+      <span class="text-xs font-semibold text-slate-700">كلمة السر القديمة</span>
+      <input type="password" name="old_password" required autocomplete="current-password" class="input text-sm mt-1">
+    </label>
+    <label>
+      <span class="text-xs font-semibold text-slate-700">كلمة السر الجديدة</span>
+      <input type="password" name="new_password" required minlength="6" autocomplete="new-password" class="input text-sm mt-1">
+    </label>
+    <label>
+      <span class="text-xs font-semibold text-slate-700">تأكيد كلمة السر الجديدة</span>
+      <input type="password" name="confirm_password" required minlength="6" autocomplete="new-password" class="input text-sm mt-1">
+    </label>
+    <div class="col-span-2 flex justify-end">
+      <button type="submit" class="btn-primary text-sm">💾 تغيير كلمة السر</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}
