@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block page_title %}كشف حركة الحساب: {{ account.code }} — {{ account.name_ar or account.name }}{% endblock %}
+{% block content %}
+
+{# MARSOUD-55 — Detailed running-balance view for one account.
+   Excludes paused journals so the running total matches /accounts. #}
+
+<div class="card p-6 mb-4">
+  <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+    <div>
+      <div class="text-xs text-slate-500 mb-1">
+        <a href="{{ url_for('accounts.index') }}" class="hover:text-emerald-600">← دليل الحسابات</a>
+      </div>
+      <h2 class="font-bold text-navy-900 text-lg">
+        <span class="font-mono text-slate-500">{{ account.code }}</span>
+        — {{ account.name_ar or account.name }}
+      </h2>
+      <div class="text-xs text-slate-500 mt-1">
+        نوع: <span class="font-semibold">{{ account.type.name }}</span>
+        · الجانب الطبيعي: <span class="font-semibold">{{ account.normal_side.name }}</span>
+        · إجمالي الحركات: <span class="font-mono font-semibold">{{ rows|length }}</span>
+      </div>
+    </div>
+    <div class="text-end">
+      <div class="text-xs text-slate-500">الرصيد الحالي (يطابق دليل الحسابات)</div>
+      <div class="text-2xl font-bold font-mono {% if account.balance >= 0 %}text-emerald-700{% else %}text-rose-700{% endif %}">
+        {{ "%.2f"|format(account.balance) }}
+      </div>
+    </div>
+  </div>
+
+  {# Date filter form. Optional; if empty, shows the full history. #}
+  <form method="GET" class="flex flex-wrap items-end gap-3 mb-4 bg-slate-50 rounded-lg p-3">
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">من تاريخ</label>
+      <input type="date" name="from" value="{{ date_from }}" class="input text-sm">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">إلى تاريخ</label>
+      <input type="date" name="to" value="{{ date_to }}" class="input text-sm">
+    </div>
+    <button type="submit" class="btn-primary text-sm">تطبيق</button>
+    {% if date_from or date_to %}
+    <a href="{{ url_for('accounts.ledger', account_id=account.id) }}" class="btn-secondary text-sm">مسح الفلتر</a>
+    {% endif %}
+  </form>
+
+  {% if rows %}
+  <div class="overflow-x-auto">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>التاريخ</th>
+          <th>رقم القيد</th>
+          <th>الوصف</th>
+          <th>المصدر</th>
+          <th class="text-left">مدين</th>
+          <th class="text-left">دائن</th>
+          <th class="text-left">الرصيد المتراكم</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td class="font-mono text-xs">{{ r.date.isoformat() }}</td>
+          <td class="text-xs">
+            <a href="{{ url_for('journals.view', entry_id=r.entry.id) }}"
+               class="font-mono text-emerald-700 hover:underline">{{ r.entry.number or '#' + r.entry.id|string }}</a>
+          </td>
+          <td class="text-sm">{{ r.memo or '—' }}</td>
+          <td class="text-xs">
+            {% if r.src_link %}
+            <a href="{{ r.src_link }}" class="text-emerald-700 hover:underline">{{ r.src_label }}</a>
+            {% else %}
+            <span class="text-slate-500">{{ r.src_label }}</span>
+            {% endif %}
+          </td>
+          <td class="text-left font-mono">{% if r.debit %}{{ "%.2f"|format(r.debit) }}{% else %}—{% endif %}</td>
+          <td class="text-left font-mono">{% if r.credit %}{{ "%.2f"|format(r.credit) }}{% else %}—{% endif %}</td>
+          <td class="text-left font-mono font-semibold {% if r.running >= 0 %}text-emerald-700{% else %}text-rose-700{% endif %}">
+            {{ "%.2f"|format(r.running) }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot class="bg-slate-50 font-semibold">
+        <tr>
+          <td colspan="4" class="text-left text-sm">الإجماليات</td>
+          <td class="text-left font-mono">{{ "%.2f"|format(totals.debit) }}</td>
+          <td class="text-left font-mono">{{ "%.2f"|format(totals.credit) }}</td>
+          <td class="text-left font-mono text-base {% if totals.balance >= 0 %}text-emerald-700{% else %}text-rose-700{% endif %}">
+            {{ "%.2f"|format(totals.balance) }}
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center text-slate-400 py-8 text-sm">
+    لا توجد حركات على هذا الحساب{% if date_from or date_to %} في النطاق المحدد{% endif %}.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

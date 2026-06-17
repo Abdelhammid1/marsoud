@@ -1,7 +1,8 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, g, jsonify
+from datetime import datetime
+from flask import Blueprint, render_template, redirect, url_for, flash, request, g, jsonify, abort
 from flask_login import login_required
 from app import db
-from app.models import Account, AccountType, NormalSide
+from app.models import Account, AccountType, NormalSide, JournalEntry, JournalLine
 from app.models.account import NORMAL_SIDE_FOR_TYPE
 from app.services.permissions import require_permission
 
@@ -305,3 +306,114 @@ def delete(account_id):
         db.session.commit()
         flash("تم الحذف", "success")
     return redirect(url_for("accounts.index"))
+
+
+# ─── MARSOUD-55: account ledger (detailed account movement) ────────────
+SOURCE_LABELS_AR = {
+    "invoice": ("فاتورة بيع", "invoices.view"),
+    "invoice_cogs": ("تكلفة بضاعة مباعة", "invoices.view"),
+    "refund": ("إرجاع", "invoices.view"),
+    "refund_cogs": ("عكس تكلفة إرجاع", "invoices.view"),
+    "credit_note": ("إشعار دائن", "invoices.view"),
+    "vendor_bill": ("فاتورة مورد", "vendor_bills.view"),
+    "vendor_bill_payment": ("سداد لمورد", "vendor_bills.view"),
+    "payment": ("سداد فاتورة", "invoices.view"),
+    "asset": ("أصل ثابت", None),
+    "depreciation": ("استهلاك", None),
+    "payroll": ("راتب", "payroll.view"),
+    "opening_balance": ("رصيد افتتاحي", None),
+    "stock_receipt": ("استلام مخزون", None),
+    "stock_adjustment": ("تسوية مخزون", None),
+    "manual": ("قيد يدوي", "journals.view"),
+}
+
+
+def _resolve_source(entry):
+    """Return (label_ar, link_url_or_None) for a JournalEntry's source."""
+    st = entry.source_type or "manual"
+    label, view_endpoint = SOURCE_LABELS_AR.get(st, (st, None))
+    link = None
+    if view_endpoint and entry.source_id:
+        try:
+            if "vendor_bills" in view_endpoint:
+                link = url_for(view_endpoint, bill_id=entry.source_id)
+            elif "invoices" in view_endpoint:
+                link = url_for(view_endpoint, invoice_id=entry.source_id)
+            elif view_endpoint == "journals.view":
+                link = url_for(view_endpoint, entry_id=entry.id)
+            elif view_endpoint == "payroll.view":
+                link = url_for("payroll.index")
+        except Exception:
+            link = None
+    return label, link
+
+
+@bp.route("/<int:account_id>/ledger")
+@login_required
+def ledger(account_id):
+    """MARSOUD-55 — detailed running-balance view of one account's journal
+    lines. Excludes paused entries so the running total matches the
+    balance shown in the account tree."""
+    acc = db.session.get(Account, account_id)
+    if not acc or acc.company_id != g.active_company.id:
+        abort(404)
+
+    # Date filters (optional, nullable in any direction).
+    df_raw = (request.args.get("from") or "").strip()
+    dt_raw = (request.args.get("to") or "").strip()
+    df = None
+    dt = None
+    try:
+        df = datetime.strptime(df_raw, "%Y-%m-%d").date() if df_raw else None
+    except ValueError:
+        df = None
+    try:
+        dt = datetime.strptime(dt_raw, "%Y-%m-%d").date() if dt_raw else None
+    except ValueError:
+        dt = None
+
+    q = (db.session.query(JournalLine, JournalEntry)
+         .join(JournalEntry, JournalLine.entry_id == JournalEntry.id)
+         .filter(JournalLine.account_id == acc.id,
+                 JournalEntry.is_active.is_(True))
+         .order_by(JournalEntry.date.asc(), JournalEntry.id.asc(),
+                   JournalLine.id.asc()))
+    if df:
+        q = q.filter(JournalEntry.date >= df)
+    if dt:
+        q = q.filter(JournalEntry.date <= dt)
+    rows = q.all()
+
+    # Build the rendered list with running balance respecting normal_side.
+    debit_normal = acc.normal_side == NormalSide.DEBIT
+    running = 0.0
+    rendered = []
+    for line, entry in rows:
+        debit = float(line.debit_base or line.debit or 0)
+        credit = float(line.credit_base or line.credit or 0)
+        delta = (debit - credit) if debit_normal else (credit - debit)
+        running += delta
+        src_label, src_link = _resolve_source(entry)
+        rendered.append({
+            "line_id": line.id,
+            "entry": entry,
+            "date": entry.date,
+            "memo": line.memo or entry.description,
+            "src_label": src_label,
+            "src_link": src_link,
+            "debit": debit,
+            "credit": credit,
+            "running": running,
+        })
+
+    totals = {
+        "debit": sum(r["debit"] for r in rendered),
+        "credit": sum(r["credit"] for r in rendered),
+        "balance": running,
+    }
+
+    return render_template(
+        "accounts/ledger.html",
+        account=acc, rows=rendered, totals=totals,
+        date_from=df_raw, date_to=dt_raw,
+    )

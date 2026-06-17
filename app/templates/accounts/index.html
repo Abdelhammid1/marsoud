@@ -27,15 +27,20 @@
           <td class="font-mono text-xs">{{ acc.code }}</td>
           <td style="padding-right: {{ 1 + depth * 1.5 }}rem">
             {% if depth > 0 %}<span class="text-slate-300">└</span> {% endif %}
-            {{ acc.name_ar or acc.name }}
+            <a href="{{ url_for('accounts.ledger', account_id=acc.id) }}"
+               class="hover:text-emerald-600 hover:underline" title="عرض كشف الحركة">{{ acc.name_ar or acc.name }}</a>
           </td>
           <td>
             {% set type_colors = {'ASSET':'bg-blue-50 text-blue-700','LIABILITY':'bg-amber-50 text-amber-700','EQUITY':'bg-purple-50 text-purple-700','REVENUE':'bg-emerald-50 text-emerald-700','EXPENSE':'bg-red-50 text-red-700'} %}
             <span class="badge {{ type_colors.get(acc.type.value, 'bg-slate-100') }}">{{ acc.type.value }}</span>
           </td>
           <td class="text-xs">{{ acc.normal_side.value }}</td>
-          <td class="text-left font-mono font-semibold">{{ "%.2f"|format(acc.balance) }}</td>
+          <td class="text-left font-mono font-semibold">
+            <a href="{{ url_for('accounts.ledger', account_id=acc.id) }}"
+               class="hover:underline" title="عرض كشف الحركة">{{ "%.2f"|format(acc.balance) }}</a>
+          </td>
           <td class="text-left">
+            <a href="{{ url_for('accounts.ledger', account_id=acc.id) }}" class="text-xs text-emerald-700 hover:underline ml-3">📋 كشف</a>
             <a href="{{ url_for('accounts.edit', account_id=acc.id) }}" class="text-xs text-brand-600 hover:underline ml-3">تعديل</a>
             <form method="POST" action="{{ url_for('accounts.delete', account_id=acc.id) }}" class="inline" onsubmit="return confirm('تعطيل/حذف الحساب؟')">
               <button type="submit" class="text-xs text-red-600 hover:underline">حذف</button>

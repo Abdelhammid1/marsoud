@@ -256,51 +256,51 @@ tailwind.config = {
           ('portal.index', 'مشاريعي', '📁'),
         ] %}
       {% else %}
-        {# Categorized sidebar for owner/admin/accountant/viewer. #}
+        {# MARSOUD-56 — Sidebar reorganized into 7 sections ordered by
+           workflow frequency. Each link is permission-filtered; sections
+           with zero visible links are skipped entirely. Items may have an
+           optional 4th tuple element with url_for kwargs (used for
+           companies.edit which needs company_id). #}
         {% set sections = [
-          ('رئيسي', '🏠', [('dashboard.index', 'لوحة التحكم', '📊')]),
-          ('المحاسبة', '🧮', [
-            ('accounts.index', 'شجرة الحسابات', '🌳'),
-            ('journals.index', 'القيود اليومية', '📒'),
+          ('الرئيسية', '🏠', [
+            ('dashboard.index', 'لوحة المعلومات', '📊'),
+          ]),
+          ('المبيعات', '💰', [
+            ('pos.index', 'نقطة البيع', '🛒'),
             ('invoices.index', 'الفواتير', '🧾'),
-            ('vendor_bills.index', 'فواتير الموردين', '📥'),
-            ('payment_methods.index', 'طرق الدفع', '💳'),
+            ('customers.index', 'العملاء', '👥'),
             ('products.index', 'المنتجات والخدمات', '📦'),
           ]),
-          ('CRM', '🤝', [
-            ('customers.index', 'العملاء', '👥'),
-            ('leads.index', 'العملاء المحتملون', '🎯'),
-            ('vendors.index', 'الموردون', '🏢'),
-          ]),
-          ('العمليات', '⚙️', [
-            ('projects.index', 'المشاريع', '📂'),
-            ('tasks.index', 'المهام', '✅'),
-            ('calendar.index', 'التقويم', '📅'),
-            ('assets.index', 'الأصول الثابتة', '🏗️'),
-          ]),
-          ('المخزون', '📦', [
-            ('inventory.index', 'المخزون', '📦'),
+          ('المخزون والمشتريات', '📦', [
+            ('inventory.index', 'المخزون', '📊'),
             ('inventory.warehouses', 'المخازن', '🏬'),
-            ('inventory.transfers', 'التحويلات', '🔄'),
-            ('inventory.inventory_balance', 'تقرير الأرصدة', '📋'),
+            ('vendor_bills.index', 'فواتير الموردين', '📥'),
+            ('vendors.index', 'الموردين', '🏢'),
           ]),
-          ('نقطة البيع', '🛒', [
-            ('pos.index', 'نقطة البيع', '🛒'),
-            ('pos.shifts', 'ورديات الكاشير', '🕐'),
-            ('reports.cashier_sales', 'مبيعات الكاشير', '💰'),
-            ('reports.profitability', 'الربحية', '📈'),
+          ('العملاء المحتملين (CRM)', '🤝', [
+            ('leads.index', 'Leads', '🎯'),
+            ('tasks.index', 'المهام', '✅'),
+            ('projects.index', 'المشاريع', '📂'),
+            ('calendar.index', 'التقويم', '📅'),
           ]),
           ('الموارد البشرية', '👥', [
-            ('hr.index', 'HR', '👥'),
+            ('hr.index', 'الموظفين', '👤'),
             ('payroll.index', 'الرواتب', '💼'),
-            ('hr_ss.index', 'تفعيل حسابات الموظفين', '🔑'),
+            ('hr.attendance', 'الحضور والإجازات', '📅'),
+            ('hr_ss.index', 'حسابات الموظفين', '🔑'),
           ]),
-          ('التقارير والمراجعة', '📑', [
+          ('المحاسبة والتقارير', '📊', [
+            ('journals.index', 'القيود اليومية', '📒'),
+            ('accounts.index', 'دليل الحسابات', '🌳'),
+            ('assets.index', 'الأصول الثابتة', '🏗️'),
             ('reports.index', 'التقارير المالية', '📑'),
-            ('audit_log.index', 'سجل التدقيق', '🔍'),
           ]),
-          ('الذكاء الاصطناعي', '🤖', [
-            ('agent.index', 'المحاسب الذكي', '🤖'),
+          ('الإعدادات والنظام', '⚙️', [
+            ('settings_roles.index', 'المستخدمين والأدوار', '🔐'),
+            ('payment_methods.index', 'طرق الدفع', '💳'),
+            ('companies.edit', 'بيانات الشركة', '🏢',
+             {'company_id': active_company.id} if active_company else {}),
+            ('audit_log.index', 'سجل التدقيق', '🔍'),
           ]),
         ] %}
       {% endif %}
@@ -337,9 +337,12 @@ tailwind.config = {
         'reports.index': 'reports.view',
         'audit_log.index': 'users.view',
         'hr.index': 'hr.manage',
+        'hr.attendance': 'hr.manage',
         'hr_ss.index': 'users.manage',
         'payroll.index': 'payroll.view',
         'agent.index': 'agent.use',
+        'companies.edit': 'users.manage',
+        'settings_roles.index': 'users.manage',
       } %}
 
       {# Flat list for the non-owner roles. #}
@@ -359,12 +362,20 @@ tailwind.config = {
       {# Sectioned layout for owner/admin/accountant/viewer/custom. Each
          link is filtered by its required permission; sections with NO
          visible links are skipped entirely. #}
+      {# MARSOUD-56 — section_links may be either 3-tuples
+         (endpoint, label, icon) or 4-tuples (endpoint, label, icon,
+         url_for_kwargs_dict). The kwargs are used for endpoints like
+         companies.edit that need company_id. #}
       {% for section_title, section_icon, section_links in sections %}
         {% set ns = namespace(active=false, visible=[]) %}
-        {% for endpoint, label, icon in section_links %}
+        {% for item in section_links %}
+          {% set endpoint = item[0] %}
+          {% set label = item[1] %}
+          {% set icon = item[2] %}
+          {% set kwargs = item[3] if item|length > 3 else {} %}
           {% set req = permission_map.get(endpoint) %}
           {% if not req or has_permission(req) %}
-            {% set _ = ns.visible.append((endpoint, label, icon)) %}
+            {% set _ = ns.visible.append((endpoint, label, icon, kwargs)) %}
             {% if request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
               {% set ns.active = true %}
             {% endif %}
@@ -382,9 +393,9 @@ tailwind.config = {
             <span class="section-chevron text-[10px] text-slate-400 transition-transform duration-200">▼</span>
           </button>
           <div class="section-body {% if not ns.active %}section-collapsed{% endif %}">
-          {% for endpoint, label, icon in ns.visible %}
+          {% for endpoint, label, icon, kwargs in ns.visible %}
           {% set is_active = request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
-          <a href="{{ url_for(endpoint) }}"
+          <a href="{{ url_for(endpoint, **kwargs) }}"
              class="nav-link flex items-center gap-3 pr-9 pl-5 py-2 text-sm text-slate-600 hover:bg-emerald-50/40 transition-colors {% if is_active %}active{% endif %}">
             <span class="text-base">{{ icon }}</span>
             <span>{{ label }}</span>
@@ -395,7 +406,14 @@ tailwind.config = {
         {% endif %}
       {% endfor %}
       {% endif %}
-      {% if current_role in ('owner', 'admin') %}
+      {# MARSOUD-56 — the old hardcoded الإعدادات block is removed; its
+         contents (members/roles, company settings) live in section 7
+         "الإعدادات والنظام" of the new sections list. The old block
+         stays below ONLY to keep the legacy fallback for roles that
+         don't render `sections` (sales_rep etc.) — but the new
+         sectioned sidebar already covers owner/admin/accountant/viewer
+         which is where settings UX lives. #}
+      {% if current_role in ('owner', 'admin') and sections is not defined %}
       {% set settings_active = request.endpoint and (request.endpoint.startswith('users.') or request.endpoint.startswith('settings_roles') or request.endpoint == 'companies.edit') %}
       <div class="sidebar-section" data-section="الإعدادات">
         <button type="button"
