@@ -5,6 +5,7 @@ from flask_login import login_required, current_user
 from app import db
 from app.models import Company
 from app.models.user import user_companies
+from app.models.payroll import Employee
 from app.services.seed_coa import seed_default_coa
 from app.services.permissions import require_permission
 
@@ -89,6 +90,14 @@ def new():
         db.session.execute(user_companies.insert().values(
             user_id=current_user.id, company_id=company.id, role="owner",
         ))
+        owner_emp = Employee(
+            company_id=company.id,
+            name=current_user.full_name,
+            email=current_user.email,
+        )
+        db.session.add(owner_emp)
+        db.session.flush()
+        current_user.employee_id = owner_emp.id
         db.session.commit()
         seed_default_coa(company.id)
         # MARSOUD-32 — system roles + backfill the owner's user_companies row

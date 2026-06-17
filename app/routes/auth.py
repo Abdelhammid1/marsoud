@@ -4,6 +4,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from app import db
 from app.models import User, Company
 from app.services.seed_coa import seed_default_coa
+from app.models.payroll import Employee
 from app.services.superadmin import log_platform_action, end_impersonation
 
 bp = Blueprint("auth", __name__)
@@ -65,6 +66,15 @@ def register():
         company = Company(name=company_name, base_currency=base_currency)
         user.companies.append(company)
         db.session.add(user)
+        db.session.flush()
+        owner_emp = Employee(
+            company_id=company.id,
+            name=user.full_name,
+            email=user.email,
+        )
+        db.session.add(owner_emp)
+        db.session.flush()
+        user.employee_id = owner_emp.id
         db.session.commit()
         seed_default_coa(company.id)
         login_user(user)
