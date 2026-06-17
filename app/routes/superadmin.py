@@ -613,3 +613,50 @@ def subscriptions_renew(company_id):
                         actor_id=current_user.id)
     flash(f"تم تجديد اشتراك {company.name} لمدة {'سنة' if period=='year' else 'شهر'}", "success")
     return redirect(url_for("superadmin.subscriptions_index"))
+
+
+# ─── TICKET 1: subscription settings (platform-level) ────────────────────
+@bp.route("/subscription-settings", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def subscription_settings():
+    from app.services.subscription import (
+        get_reminder_thresholds, set_reminder_thresholds,
+        get_grace_days, set_grace_days,
+        get_readonly_enabled, set_readonly_enabled,
+        DEFAULT_REMINDER_THRESHOLDS, DEFAULT_GRACE_DAYS,
+        DEFAULT_READONLY_ENABLED,
+    )
+    if request.method == "POST":
+        raw = request.form.get("reminder_thresholds", "")
+        nums = []
+        for piece in raw.split(","):
+            piece = piece.strip()
+            if piece.lstrip("-").isdigit() and 0 <= int(piece) <= 365:
+                nums.append(int(piece))
+        if not nums:
+            nums = list(DEFAULT_REMINDER_THRESHOLDS)
+        set_reminder_thresholds(nums)
+
+        grace = request.form.get("grace_days", "").strip()
+        if grace.lstrip("-").isdigit() and 0 <= int(grace) <= 365:
+            set_grace_days(int(grace))
+
+        set_readonly_enabled(request.form.get("readonly_enabled") == "on")
+
+        db.session.commit()
+        log_platform_action("subscription_settings_update",
+                            actor_id=current_user.id,
+                            details=f"thresholds={nums}, grace={grace}")
+        flash("تم حفظ إعدادات الاشتراك", "success")
+        return redirect(url_for("superadmin.subscription_settings"))
+
+    return render_template(
+        "admin/subscription_settings.html",
+        thresholds=get_reminder_thresholds(),
+        grace_days=get_grace_days(),
+        readonly_enabled=get_readonly_enabled(),
+        default_thresholds=DEFAULT_REMINDER_THRESHOLDS,
+        default_grace=DEFAULT_GRACE_DAYS,
+        default_readonly=DEFAULT_READONLY_ENABLED,
+    )

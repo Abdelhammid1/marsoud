@@ -86,7 +86,10 @@ def process_invoice_reminders():
 
 
 # ─── MARSOUD-57.3: subscription expiry reminders ─────────────────────────
-SUBSCRIPTION_THRESHOLDS = [7, 3, 1, 0]
+# Thresholds now come from platform_settings (via subscription service),
+# default [7,5,3,1,0]. SUBSCRIPTION_THRESHOLDS retained only for legacy
+# imports — DO NOT use it; call get_reminder_thresholds() instead.
+SUBSCRIPTION_THRESHOLDS = [7, 5, 3, 1, 0]
 
 
 def _company_owner_email(company):
@@ -108,17 +111,20 @@ def _company_owner_email(company):
 def process_subscription_reminders():
     """Single pass — scan companies, fire expiry reminders for thresholds
     that match their days-remaining and haven't been sent yet. Returns a
-    summary dict."""
+    summary dict. Thresholds are configurable via platform_settings."""
+    from app.services.subscription import get_reminder_thresholds
+    thresholds = get_reminder_thresholds()
     today = date.today()
     sent_counts = {"sent": 0, "skipped_no_email": 0,
-                   "skipped_already_sent": 0, "skipped_no_expiry": 0}
+                   "skipped_already_sent": 0, "skipped_no_expiry": 0,
+                   "thresholds": thresholds}
     companies = Company.query.filter_by(is_active=True).all()
     for c in companies:
         if not c.subscription_expires_at:
             sent_counts["skipped_no_expiry"] += 1
             continue
         days_remaining = (c.subscription_expires_at.date() - today).days
-        for threshold in SUBSCRIPTION_THRESHOLDS:
+        for threshold in thresholds:
             if days_remaining != threshold:
                 continue
             already = SubscriptionReminderSent.query.filter_by(

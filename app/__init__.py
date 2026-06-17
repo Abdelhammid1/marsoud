@@ -154,6 +154,46 @@ def create_app(config_class=Config):
         if role in NON_FINANCIAL_ROLES:
             abort(403)
 
+    # TICKET 1 — subscription read-only enforcement.
+    # When a company's subscription is past its grace period AND the
+    # read-only toggle is on, reject any unsafe-method request unless the
+    # endpoint is explicitly exempt (super-admin / auth / cron / employee
+    # password change / renewal). GET / HEAD / OPTIONS always pass through.
+    @app.before_request
+    def enforce_subscription_read_only():
+        from flask import flash, redirect, url_for
+        from flask_login import current_user
+        if request.method in ("GET", "HEAD", "OPTIONS"):
+            return
+        if not current_user.is_authenticated:
+            return
+        company = g.get("active_company")
+        if not company:
+            return
+        try:
+            from app.services.subscription import (
+                subscription_state, is_endpoint_exempt,
+            )
+            if is_endpoint_exempt(request.endpoint):
+                return
+            state = subscription_state(company)
+            if state["state"] != "read_only":
+                return
+            # Super-admin always passes (also exempt via prefix above, but
+            # double-check via the model attribute).
+            if getattr(current_user, "is_superadmin", False):
+                return
+            flash(
+                "اشتراك الشركة منتهي والنظام في وضع القراءة فقط. "
+                "جدّد الاشتراك للمتابعة.",
+                "error",
+            )
+            # Redirect to dashboard if we have a referrer, else dashboard.
+            return redirect(request.referrer or url_for("dashboard.index"))
+        except Exception:
+            # Never let the gating helper break the app.
+            return
+
     # Client-portal users can only reach /portal/, /notifications/, /auth/, /static/
     CLIENT_ALLOWED_ENDPOINTS = (
         "portal.", "notifications.", "auth.", "static",
@@ -198,6 +238,15 @@ def create_app(config_class=Config):
             from flask_login import current_user as _cu
             if _cu.is_authenticated:
                 current_role = get_user_role(_cu.id, active_company.id)
+        # TICKET 1 — surface subscription state to every template so the
+        # banner in base.html knows what (if anything) to display.
+        sub_state = None
+        if active_company:
+            try:
+                from app.services.subscription import subscription_state
+                sub_state = subscription_state(active_company)
+            except Exception:
+                sub_state = None
         return {
             "active_company": active_company,
             "user_companies": g.get("user_companies", []),
@@ -205,6 +254,7 @@ def create_app(config_class=Config):
             "has_permission": has_permission,
             "current_role": current_role,
             "impersonating": g.get("impersonating", False),
+            "subscription": sub_state,
         }
 
     @app.errorhandler(500)

@@ -85,6 +85,10 @@ def new():
             vat_rate=vat_rate,
             address=address,
         )
+        # Bug fix (abdelhamid) — companies created from the /companies/new
+        # form also need the +1 month default subscription window.
+        from app.services.subscription import activate_default_subscription
+        activate_default_subscription(company)
         db.session.add(company)
         db.session.flush()
         db.session.execute(user_companies.insert().values(

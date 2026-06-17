@@ -133,9 +133,12 @@ def upgrade():
                 "m": m, "y": y, "mods": json.dumps(mods), "now": now})
             plan_ids[code] = res.lastrowid
 
-    # ── backfill every active company → enterprise plan + 100-year expiry
+    # ── backfill every active company → enterprise plan + 1-month expiry
+    # FIX (abdelhamid): the original migration used 100 years which produced
+    # year 2126 dates that look like data corruption. The right default for
+    # new sign-ups is one month from the activation date.
     enterprise_id = plan_ids.get("enterprise")
-    far_future = (datetime.utcnow() + timedelta(days=365 * 100)).isoformat(
+    one_month = (datetime.utcnow() + timedelta(days=30)).isoformat(
         sep=" ", timespec="seconds"
     )
     if enterprise_id:
@@ -147,9 +150,9 @@ def upgrade():
         "WHERE subscription_started_at IS NULL"
     ), {"now": now})
     conn.execute(sa.text(
-        "UPDATE companies SET subscription_expires_at = :far "
+        "UPDATE companies SET subscription_expires_at = :ex "
         "WHERE subscription_expires_at IS NULL"
-    ), {"far": far_future})
+    ), {"ex": one_month})
 
 
 def downgrade():

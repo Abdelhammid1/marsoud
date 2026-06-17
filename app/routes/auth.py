@@ -64,6 +64,11 @@ def register():
         user = User(email=email, full_name=full_name)
         user.set_password(password)
         company = Company(name=company_name, base_currency=base_currency)
+        # Bug fix (abdelhamid) — every new company gets the one-month
+        # default subscription window + the enterprise plan, instead of
+        # being created without any subscription state.
+        from app.services.subscription import activate_default_subscription
+        activate_default_subscription(company)
         user.companies.append(company)
         db.session.add(user)
         db.session.flush()

@@ -1,0 +1,76 @@
+{% extends "admin/base.html" %}
+{% block page_title %}إعدادات الاشتراك{% endblock %}
+{% block content %}
+
+<div class="card p-6 max-w-3xl">
+  <h2 class="font-bold text-navy-900 mb-1">⚙️ إعدادات الاشتراك</h2>
+  <p class="text-sm text-slate-500 mb-5">
+    التحكم في دورة حياة الاشتراك على مستوى المنصة. الإعدادات دي بتأثر
+    على كل الشركات. النظام بيشتغل بالقيم الافتراضية من أول لحظة لو
+    ماغيّرتش حاجة هنا.
+  </p>
+
+  <form method="POST" class="space-y-6">
+    {# ─── Reminder thresholds ───────────────────────────────────── #}
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">
+        📨 مواعيد التنبيهات قبل الانتهاء (أيام)
+      </label>
+      <input type="text" name="reminder_thresholds"
+             value="{{ thresholds|join(',') }}"
+             class="input font-mono" dir="ltr"
+             placeholder="7, 5, 3, 1, 0">
+      <p class="text-xs text-slate-500 mt-1">
+        قائمة أرقام (افتراضي: <span class="font-mono">{{ default_thresholds|join(', ') }}</span>).
+        مثلاً 7 يعني تذكير قبل الانتهاء بأسبوع. 0 يعني التذكير يوم الانتهاء نفسه.
+      </p>
+    </div>
+
+    {# ─── Grace days ────────────────────────────────────────────── #}
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">
+        ⏱️ فترة السماح بعد الانتهاء (GRACE_DAYS)
+      </label>
+      <input type="number" name="grace_days" min="0" max="365" value="{{ grace_days }}" class="input font-mono w-32">
+      <p class="text-xs text-slate-500 mt-1">
+        خلال الفترة دي بعد انتهاء الاشتراك، النظام يشتغل عادي بس مع
+        banner تحذيري. بعدها يدخل وضع القراءة فقط (لو مفعّل).
+        افتراضي: <span class="font-mono">{{ default_grace }}</span> يوم.
+      </p>
+    </div>
+
+    {# ─── Read-only enforcement toggle ─────────────────────────── #}
+    <div>
+      <label class="flex items-start gap-3 cursor-pointer">
+        <input type="checkbox" name="readonly_enabled" {% if readonly_enabled %}checked{% endif %} class="mt-1">
+        <div>
+          <div class="text-sm font-semibold text-slate-700">
+            🔒 تفعيل وضع القراءة فقط بعد فترة السماح
+          </div>
+          <p class="text-xs text-slate-500 mt-1">
+            لما مفعّل، بعد ما تنتهي فترة السماح النظام بيرفض أي إضافة/تعديل/حذف
+            ويسمح بالقراءة والتقارير فقط. لو متعطّل، الـ banner التحذيري يفضل
+            ظاهر لكن ما فيش تقييد فعلي.
+            <br>
+            افتراضي: <span class="font-mono">{% if default_readonly %}مفعّل{% else %}معطّل{% endif %}</span>.
+          </p>
+        </div>
+      </label>
+    </div>
+
+    <div class="flex justify-end pt-2">
+      <button type="submit" class="btn-primary">💾 حفظ الإعدادات</button>
+    </div>
+  </form>
+</div>
+
+<div class="card p-5 max-w-3xl mt-4 bg-slate-50">
+  <h3 class="font-bold text-navy-900 text-sm mb-2">📖 ملاحظات</h3>
+  <ul class="text-xs text-slate-600 space-y-1 list-disc pr-4">
+    <li>تنبيهات الإيميل بتتبعت لمالك الشركة على المواعيد المحدّدة. مفيش تكرار — كل تنبيه بيتبعت مرة واحدة لكل دورة اشتراك.</li>
+    <li>الـ super-admin + auth (login/logout) + cron + تجديد الاشتراك دايماً مستثنيين من تقييد القراءة فقط.</li>
+    <li>لما تجدد اشتراك أي شركة من <a href="{{ url_for('superadmin.subscriptions_index') }}" class="text-emerald-700 underline">إدارة الاشتراكات</a>، تاريخ التذكيرات بيتمسح عشان الدورة الجديدة تشتغل.</li>
+  </ul>
+</div>
+
+{% endblock %}
