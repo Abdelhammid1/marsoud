@@ -354,4 +354,10 @@ def create_app(config_class=Config):
         except (TypeError, ValueError):
             return str(value)
 
+    # MARSOUD-62 — Expose company_logo_email_uri so the email base
+    # template can embed the logo as a data: URI (email clients can't
+    # fetch /static/ relative paths).
+    from app.services.email import company_logo_email_uri
+    app.jinja_env.globals["company_logo_email_uri"] = company_logo_email_uri
+
     return app

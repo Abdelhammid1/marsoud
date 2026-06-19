@@ -988,10 +988,15 @@ def run_checks(fx):
                     "emails/contract_expiry.html",
                     company=co, items=[], today=datetime.date.today(),
                 )
-            expected = f"/static/logos/{fx['company_id']}.png"
-            email_render["passed"] = expected in html
+            # MARSOUD-62 — the email base now embeds the logo as a base64
+            # data URI (more reliable than /static/ paths for email clients),
+            # so accept either form.
+            legacy_url = f"/static/logos/{fx['company_id']}.png"
+            email_render["passed"] = (legacy_url in html) or ("data:image/" in html)
             if not email_render["passed"]:
-                email_render["missing"] = [f"logo {expected} missing from rendered email"]
+                email_render["missing"] = [
+                    f"logo missing — neither {legacy_url} nor data:image/ in rendered email"
+                ]
         except Exception as e:
             email_render["error"] = str(e)[:200]
         finally:

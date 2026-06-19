@@ -3,6 +3,8 @@
 If SMTP_HOST is not configured, emails are logged to console instead of sent —
 this keeps dev environments functional without requiring credentials.
 """
+import os
+import base64
 import smtplib
 import logging
 from email.mime.multipart import MIMEMultipart
@@ -16,6 +18,27 @@ logger = logging.getLogger("ledgeros.email")
 
 def _smtp_configured():
     return bool(current_app.config.get("SMTP_HOST"))
+
+
+def company_logo_email_uri(company):
+    """MARSOUD-62 — Return the company logo as a data: URI for embedding in
+    HTML emails. Email clients can't fetch local /static/ paths, so we
+    encode the file bytes inline. Returns None if there's no logo or the
+    file isn't on disk."""
+    if not company or not getattr(company, "logo_path", None):
+        return None
+    rel = company.logo_path.lstrip("/")
+    # static lives at app/static/ — same trick as services/export.py
+    candidate = os.path.join(os.path.dirname(os.path.dirname(__file__)), rel)
+    if not os.path.exists(candidate):
+        return None
+    ext = os.path.splitext(candidate)[1].lstrip(".").lower()
+    mime = "image/png" if ext == "png" else f"image/{ext}"
+    try:
+        with open(candidate, "rb") as f:
+            return f"data:{mime};base64,{base64.b64encode(f.read()).decode('ascii')}"
+    except OSError:
+        return None
 
 
 def send_email(to, subject, html_body, attachments=None, text_body=None):
