@@ -26,3 +26,4 @@ class Config:
     SMTP_FROM = os.environ.get("SMTP_FROM", "no-reply@marsoud.app")
     SMTP_FROM_NAME = os.environ.get("SMTP_FROM_NAME", "Marsoud")
     SMTP_USE_TLS = os.environ.get("SMTP_USE_TLS", "true").lower() == "true"
+    CRON_TOKEN = os.environ.get("CRON_TOKEN", "")
