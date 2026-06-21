@@ -2,6 +2,10 @@ from app.models.user import User, user_companies, UserStatus
 from app.models.company import Company
 from app.models.plan import Plan, SubscriptionReminderSent
 from app.models.platform_setting import PlatformSetting
+from app.models.recurring_bill import (
+    RecurringBill, RecurringBillOverride,
+    INTERVAL_UNITS, OVERRIDE_ACTIONS,
+)
 from app.models.account import Account, AccountType, NormalSide
 from app.models.journal import JournalEntry, JournalLine
 from app.models.journal_extras import (
@@ -58,6 +62,8 @@ __all__ = [
     "PlatformAuditLog", "SuperadminImpersonation", "PlatformError",
     "User", "user_companies", "UserStatus", "Company",
     "Plan", "SubscriptionReminderSent", "PlatformSetting",
+    "RecurringBill", "RecurringBillOverride",
+    "INTERVAL_UNITS", "OVERRIDE_ACTIONS",
     "Account", "AccountType", "NormalSide",
     "JournalEntry", "JournalLine",
     "Invoice", "InvoiceItem", "InvoiceStatus", "Payment", "InvoiceReminderSent",

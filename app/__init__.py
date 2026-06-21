@@ -40,6 +40,7 @@ def create_app(config_class=Config):
     from app.routes.products import bp as products_bp
     from app.routes.payment_methods import bp as pmethods_bp
     from app.routes.vendor_bills import bp as vbills_bp
+    from app.routes.recurring_bills import bp as recurring_bills_bp, forecast_bp
     from app.routes.users import bp as users_bp
     from app.routes.invitations import bp as invitations_bp
     from app.routes.superadmin import bp as superadmin_bp
@@ -74,6 +75,8 @@ def create_app(config_class=Config):
     app.register_blueprint(products_bp, url_prefix="/products")
     app.register_blueprint(pmethods_bp, url_prefix="/payment-methods")
     app.register_blueprint(vbills_bp, url_prefix="/vendor-bills")
+    app.register_blueprint(recurring_bills_bp, url_prefix="/recurring-bills")
+    app.register_blueprint(forecast_bp, url_prefix="/forecast")
     app.register_blueprint(users_bp, url_prefix="/users")
     app.register_blueprint(invitations_bp, url_prefix="/invitations")
     app.register_blueprint(superadmin_bp, url_prefix="/admin")

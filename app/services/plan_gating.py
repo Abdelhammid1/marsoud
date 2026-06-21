@@ -39,6 +39,8 @@ _PREFIX_TO_MODULE = {
     "inventory.": "inventory",
     "transfers.": "inventory",
     "vendor_bills.": "purchases",
+    "recurring_bills.": "purchases",
+    "forecast.": "purchases",
     # pos
     "pos.": "pos",
     "shifts.": "pos",
@@ -109,6 +111,8 @@ SUB_ITEM_CATALOG = {
         ("inventory.index", "المخزون", "📊"),
         ("inventory.warehouses", "المخازن", "🏬"),
         ("vendor_bills.index", "فواتير الموردين", "📥"),
+        ("recurring_bills.index", "الفواتير المتكررة", "🔁"),
+        ("forecast.index", "الفواتير الجايّة", "📅"),
         ("vendors.index", "الموردين", "🏢"),
     ],
     "crm": [

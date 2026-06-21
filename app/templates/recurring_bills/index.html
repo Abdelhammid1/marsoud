@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block page_title %}🔁 الفواتير المتكررة{% endblock %}
+{% block content %}
+
+<div class="card p-6 mb-4">
+  <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
+    <div>
+      <h2 class="font-bold text-navy-900">🔁 الفواتير المتكررة</h2>
+      <p class="text-xs text-slate-500 mt-1">
+        قوالب من فواتير المورد القائمة. النظام بيستخدمها يوريك التوقّعات
+        — مفيش قيود محاسبية بتتعمل من هنا، الفاتورة الحقيقية بتتسجّل
+        عادي لما تيجي.
+      </p>
+    </div>
+    <a href="{{ url_for('forecast.index') }}" class="btn-primary text-sm">📅 الفواتير الجايّة (التوقّعات)</a>
+  </div>
+
+  {% if items %}
+  <div class="overflow-x-auto">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>المورد</th>
+          <th>الفاتورة الأصلية</th>
+          <th>المبلغ</th>
+          <th>نوع التكرار</th>
+          <th>تاريخ البداية</th>
+          <th>تاريخ النهاية</th>
+          <th>الحالة</th>
+          <th>إجراء</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rb in items %}
+        <tr class="{% if not rb.active %}opacity-50{% endif %}">
+          <td class="font-semibold">{{ rb.vendor.name if rb.vendor else '— بدون —' }}</td>
+          <td class="text-xs">
+            {% if rb.source_bill %}
+            <a href="{{ url_for('vendor_bills.view', bill_id=rb.source_bill_id) }}"
+               class="font-mono text-emerald-700 hover:underline">{{ rb.source_bill.number }}</a>
+            {% else %}—{% endif %}
+          </td>
+          <td class="font-mono">{{ "%.2f"|format(rb.amount|float) }} <span class="text-xs text-slate-500">{{ rb.currency }}</span></td>
+          <td class="text-xs">{{ rb.label_ar }}</td>
+          <td class="font-mono text-xs">{{ rb.start_date.isoformat() }}</td>
+          <td class="font-mono text-xs">{% if rb.end_date %}{{ rb.end_date.isoformat() }}{% else %}<span class="text-slate-400">مفتوح</span>{% endif %}</td>
+          <td>
+            {% if rb.active %}<span class="badge badge-paid">نشط</span>
+            {% else %}<span class="badge badge-cancelled">موقوف</span>{% endif %}
+          </td>
+          <td>
+            {% if rb.active %}
+            <form method="POST" action="{{ url_for('recurring_bills.deactivate', rb_id=rb.id) }}"
+                  onsubmit="return confirm('إيقاف التكرار؟ التوقّعات الجايّة هتختفي، اللي اتنفّذ كما هو.');"
+                  class="inline">
+              <button type="submit" class="text-xs text-rose-600 hover:underline">⏸ إيقاف</button>
+            </form>
+            <details class="inline-block ms-2">
+              <summary class="text-xs text-emerald-700 hover:underline cursor-pointer">+ استثناء</summary>
+              <form method="POST" action="{{ url_for('recurring_bills.override', rb_id=rb.id) }}"
+                    class="mt-2 grid grid-cols-2 gap-2 text-xs p-3 bg-slate-50 rounded">
+                <label class="block">
+                  <span class="text-slate-500">التاريخ</span>
+                  <input type="date" name="occurrence_date" required class="input text-xs mt-1">
+                </label>
+                <label class="block">
+                  <span class="text-slate-500">الإجراء</span>
+                  <select name="action" class="select text-xs mt-1" onchange="this.form.querySelector('.amend-amt').style.display=this.value==='AMEND'?'':'none'">
+                    <option value="SKIP">إلغاء (SKIP)</option>
+                    <option value="AMEND">تعديل المبلغ (AMEND)</option>
+                  </select>
+                </label>
+                <label class="block col-span-2 amend-amt" style="display:none">
+                  <span class="text-slate-500">المبلغ الجديد</span>
+                  <input type="number" name="amount" step="0.01" class="input text-xs mt-1 font-mono">
+                </label>
+                <button type="submit" class="col-span-2 btn-primary text-xs">حفظ</button>
+              </form>
+            </details>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center text-sm text-slate-400 py-8">
+    لا توجد فواتير متكررة. افتح أي فاتورة مورد واضغط زرار "🔁 اعمل الفاتورة دي متكررة".
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}
