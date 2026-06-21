@@ -89,7 +89,14 @@ def set_assignees(task, user_ids, *, actor_id=None):
     if invalid:
         raise TaskError("بعض المستخدمين لا ينتمون لهذه الشركة")
 
-    old_ids = assignee_ids_for(task)
+    # old_ids من جدول task_assignees مباشرةً (مش assignee_ids_for) — عشان
+    # ميتضمّش assigned_to_id الـ legacy، اللي بيتحط وقت الإنشاء ويخلي added فاضية.
+    old_ids = {
+        r[0] for r in db.session.execute(
+            select(task_assignees.c.user_id)
+            .where(task_assignees.c.task_id == task.id)
+        ).fetchall()
+    }
     added = new_ids - old_ids
     removed = old_ids - new_ids
 
