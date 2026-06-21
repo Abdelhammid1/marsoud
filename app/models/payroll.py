@@ -155,6 +155,10 @@ class PayrollLine(db.Model):
     leaves_count = db.Column(db.Integer, default=0)
     payment_method = db.Column(db.String(30))  # "تحويل بنكي" / "نقدي" / etc.
     payment_date = db.Column(db.Date)
+    # MARSOUD-COMM-01 Phase C — net sales commissions settled in this
+    # payroll line. Can be negative when carry-forward clawbacks
+    # exceed the rep's earnings for the period.
+    commissions = db.Column(db.Numeric(15, 2), default=0)
 
     employee = db.relationship("Employee", backref="payroll_lines")
 

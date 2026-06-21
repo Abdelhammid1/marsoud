@@ -70,12 +70,17 @@ table tbody tr:nth-child(even) { background: #F8FAFC; }
 {% set allowances = line.allowances|float if line.allowances else 0 %}
 {% set bonus = line.bonus|float if line.bonus else 0 %}
 {% set overtime = line.overtime|float if line.overtime else 0 %}
+{% set commissions = line.commissions|float if line.commissions else 0 %}
 {% set fixed_ded = line.deductions|float if line.deductions else 0 %}
 {% set abs_ded = line.absence_deduction|float if line.absence_deduction else 0 %}
 {% set late_ded = line.late_deduction|float if line.late_deduction else 0 %}
 {% set adv_ded = line.advance_deduction|float if line.advance_deduction else 0 %}
-{% set total_add = basic + allowances + bonus + overtime %}
-{% set total_ded = fixed_ded + abs_ded + late_ded + adv_ded %}
+{# Positive commissions add to gross; negatives (carry-forward clawbacks)
+   subtract from gross — they net out into a single "commissions" amount
+   that flows directly into the line's net. We display them in the
+   appropriate column so the payslip stays readable. #}
+{% set total_add = basic + allowances + bonus + overtime + (commissions if commissions > 0 else 0) %}
+{% set total_ded = fixed_ded + abs_ded + late_ded + adv_ded + (-commissions if commissions < 0 else 0) %}
 
 {% set absences_count = line.absences_count or 0 %}
 {% set late_hours = line.late_hours|float if line.late_hours else 0 %}
@@ -146,6 +151,12 @@ table tbody tr:nth-child(even) { background: #F8FAFC; }
         {% endif %}
         {% if overtime > 0 %}
         <tr><td>أوفرتايم{% if overtime_hours > 0 %} ({{ "%g"|format(overtime_hours) }} ساعة){% endif %}</td><td class="l" style="color:#0F6E56;font-weight:600">+ {{ "%.2f"|format(overtime) }}</td><td class="c"><span class="badge-add">إضافة</span></td></tr>
+        {% endif %}
+        {% if commissions > 0 %}
+        <tr><td>عمولات مبيعات</td><td class="l" style="color:#0F6E56;font-weight:600">+ {{ "%.2f"|format(commissions) }}</td><td class="c"><span class="badge-add">إضافة</span></td></tr>
+        {% endif %}
+        {% if commissions < 0 %}
+        <tr><td>تسوية عمولات (استرجاع سابق)</td><td class="l" style="color:#DC2626;font-weight:600">- {{ "%.2f"|format(-commissions) }}</td><td class="c"><span class="badge-ded">خصم</span></td></tr>
         {% endif %}
         {% if abs_ded > 0 %}
         <tr><td>خصم غياب{% if absences_count > 0 %} ({{ absences_count }} يوم){% endif %}</td><td class="l" style="color:#DC2626;font-weight:600">- {{ "%.2f"|format(abs_ded) }}</td><td class="c"><span class="badge-ded">خصم</span></td></tr>

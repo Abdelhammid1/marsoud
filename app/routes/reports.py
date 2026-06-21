@@ -7,6 +7,7 @@ from app.services.reports import (
     aging_report, ap_aging_report, vat_report,
     payroll_summary_report, fixed_assets_report,
 )
+from app.services.permissions import require_permission
 
 bp = Blueprint("reports", __name__)
 
@@ -274,3 +275,23 @@ def export(report_type, fmt):
         kwargs["month"] = request.args.get("month", type=int)
     file_io, filename, mimetype = export_report(g.active_company, report_type, fmt, start, end, **kwargs)
     return send_file(file_io, as_attachment=True, download_name=filename, mimetype=mimetype)
+
+
+# ─── MARSOUD-COMM-01 Phase C: sales commissions report ────────────
+@bp.route("/sales-commissions")
+@login_required
+@require_permission("reports.view")
+def sales_commissions():
+    """Per-rep breakdown of sales commissions: unpaid total, paid total,
+    plus a drill-down of every commission row in the date range."""
+    from app.services.sales_commissions import commission_report
+    today = date.today()
+    start = _parse_date(request.args.get("start_date"),
+                         today.replace(day=1))
+    end = _parse_date(request.args.get("end_date"), today)
+    rows = commission_report(g.active_company.id,
+                              from_date=start, to_date=end)
+    return render_template(
+        "reports/sales_commissions.html",
+        rep_buckets=rows, start=start, end=end,
+    )

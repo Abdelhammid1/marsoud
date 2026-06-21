@@ -25,6 +25,10 @@
     {% if line.allowances %}<tr><td style="padding:8px 12px;color:#0F172A;border-bottom:1px solid #F1F5F9">البدلات</td><td style="padding:8px 12px;text-align:left;font-family:monospace;border-bottom:1px solid #F1F5F9">{{ "%.2f"|format(line.allowances) }}</td></tr>{% endif %}
     {% if line.overtime %}<tr><td style="padding:8px 12px;color:#10B981;border-bottom:1px solid #F1F5F9">أوفرتايم</td><td style="padding:8px 12px;text-align:left;font-family:monospace;border-bottom:1px solid #F1F5F9;color:#10B981">+{{ "%.2f"|format(line.overtime) }}</td></tr>{% endif %}
     {% if line.bonus %}<tr><td style="padding:8px 12px;color:#10B981;border-bottom:1px solid #F1F5F9">بونص</td><td style="padding:8px 12px;text-align:left;font-family:monospace;border-bottom:1px solid #F1F5F9;color:#10B981">+{{ "%.2f"|format(line.bonus) }}</td></tr>{% endif %}
+    {# MARSOUD-COMM-01 Phase C — sales commissions, positive or negative. #}
+    {% set _c = line.commissions|float if line.commissions else 0 %}
+    {% if _c > 0 %}<tr><td style="padding:8px 12px;color:#10B981;border-bottom:1px solid #F1F5F9">عمولات مبيعات</td><td style="padding:8px 12px;text-align:left;font-family:monospace;border-bottom:1px solid #F1F5F9;color:#10B981">+{{ "%.2f"|format(_c) }}</td></tr>
+    {% elif _c < 0 %}<tr><td style="padding:8px 12px;color:#B91C1C;border-bottom:1px solid #F1F5F9">تسوية عمولات (استرجاع سابق)</td><td style="padding:8px 12px;text-align:left;font-family:monospace;border-bottom:1px solid #F1F5F9;color:#B91C1C">−{{ "%.2f"|format(-_c) }}</td></tr>{% endif %}
     {# MARSOUD-54.3 — show each deduction line separately to match the PDF
        (instead of aggregating into "إجمالي الخصومات"). #}
     {% if line.absence_deduction and line.absence_deduction|float > 0 %}

@@ -168,7 +168,25 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
         allowances = float(emp.allowances or 0)
         fixed_deductions = float(emp.deductions or 0)
 
-        gross = prorated_basic + allowances + overtime + bonus
+        # MARSOUD-COMM-01 Phase C — sum + settle the rep's outstanding
+        # commission rows (positive earnings + negative carry-forwards)
+        # before computing net pay. Adds to gross like a bonus does.
+        # The rows themselves are flipped to PAID + linked to this run
+        # once db.session.commit() lands at the end of run_payroll.
+        try:
+            from app.services.sales_commissions import settle_commissions_for_employee
+            commissions_net, _commission_rows = settle_commissions_for_employee(
+                emp, run, period_year=year, period_month=month,
+            )
+        except Exception:
+            import logging
+            logging.getLogger("ledgeros.payroll").exception(
+                "settle_commissions_for_employee failed for %s — defaulting to 0",
+                emp.name,
+            )
+            commissions_net = 0.0
+
+        gross = prorated_basic + allowances + overtime + bonus + commissions_net
         total_deductions = fixed_deductions + absence + late + advance
         net = round(gross - total_deductions, 2)
 
@@ -195,6 +213,9 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
             net=net,
             amount_paid=amount_paid,
             attendance_auto_calculated=attendance_auto,
+            # MARSOUD-COMM-01 Phase C — surface settled commissions
+            # for the payslip + reporting.
+            commissions=round(commissions_net, 2),
         )
         db.session.add(line)
         db.session.flush()

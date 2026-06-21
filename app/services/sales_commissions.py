@@ -278,3 +278,104 @@ def record_commission_refund(invoice, refund, refund_amount,
         out_rows.append(row)
 
     return out_rows
+
+
+# ─── Phase C: payroll integration ──────────────────────────────────
+def settle_commissions_for_employee(employee, run, *, period_year, period_month):
+    """MARSOUD-COMM-01 Phase C — fold the employee's outstanding sales
+    commissions into a payroll run.
+
+    Finds the User linked to this Employee (via User.employee_id), sums
+    every UNPAID SalesCommission row keyed to that user where the row's
+    (period_year, period_month) is <= the run's period (so carry-forward
+    rows from prior months are settled here too), and returns the net
+    amount. The rows are flipped to PAID + linked to the run.
+
+    Returns 0 when:
+      - employee has no linked user
+      - employee's user has no commission rows in scope
+
+    The amount can be negative when carry-forward clawbacks exceed the
+    rep's earned commission for the period. The caller (run_payroll)
+    just adds this to the line.commissions field; payroll math handles
+    the negative naturally."""
+    from app.models import User
+    user = User.query.filter_by(employee_id=employee.id).first()
+    if not user:
+        return 0.0, []
+
+    rows = SalesCommission.query.filter(
+        SalesCommission.sales_rep_id == user.id,
+        SalesCommission.company_id == run.company_id,
+        SalesCommission.status == "UNPAID",
+        db.or_(
+            SalesCommission.period_year < period_year,
+            db.and_(
+                SalesCommission.period_year == period_year,
+                SalesCommission.period_month <= period_month,
+            ),
+        ),
+    ).all()
+    if not rows:
+        return 0.0, []
+
+    net = sum(float(r.amount or 0) for r in rows)
+    # Mark as paid + link to the run regardless of net sign (carry-forward
+    # rows still get consumed by this run; the next month picks up clean).
+    for r in rows:
+        r.status = "PAID"
+        r.payroll_run_id = run.id
+    db.session.flush()
+    return round(net, 2), rows
+
+
+# ─── Reports ──────────────────────────────────────────────────────
+def commission_report(company_id, *, from_date=None, to_date=None):
+    """MARSOUD-COMM-01 Phase C — per-rep commission report. Returns a
+    list of dicts: rep + their commission breakdown over the date range
+    (or all time if dates are None). Filtered on the row's created_at.
+
+    For each rep:
+      unpaid_total   sum of unpaid amounts (positive + negative)
+      paid_total     sum of paid amounts (positive + negative)
+      row_count      total rows in scope
+      rows           the SalesCommission rows themselves, for drill-down
+    """
+    from app.models import User
+    q = SalesCommission.query.filter_by(company_id=company_id)
+    if from_date:
+        q = q.filter(SalesCommission.created_at >= from_date)
+    if to_date:
+        from datetime import datetime, timedelta
+        eod = datetime.combine(to_date + timedelta(days=1),
+                                datetime.min.time())
+        q = q.filter(SalesCommission.created_at < eod)
+    all_rows = q.order_by(SalesCommission.created_at.desc()).all()
+
+    by_rep = {}
+    for r in all_rows:
+        bucket = by_rep.setdefault(r.sales_rep_id, {
+            "sales_rep_id": r.sales_rep_id,
+            "sales_rep_name": None,
+            "unpaid_total": 0.0, "paid_total": 0.0,
+            "row_count": 0, "rows": [],
+        })
+        bucket["row_count"] += 1
+        bucket["rows"].append(r)
+        amt = float(r.amount or 0)
+        if r.status == "PAID":
+            bucket["paid_total"] += amt
+        else:
+            bucket["unpaid_total"] += amt
+    # Resolve rep names in one go
+    rep_ids = list(by_rep.keys())
+    if rep_ids:
+        users = User.query.filter(User.id.in_(rep_ids)).all()
+        name_map = {u.id: u.full_name for u in users}
+        for rep_id, bucket in by_rep.items():
+            bucket["sales_rep_name"] = name_map.get(rep_id, f"User #{rep_id}")
+            bucket["paid_total"] = round(bucket["paid_total"], 2)
+            bucket["unpaid_total"] = round(bucket["unpaid_total"], 2)
+    return sorted(by_rep.values(),
+                   key=lambda b: b["unpaid_total"] + b["paid_total"],
+                   reverse=True)
