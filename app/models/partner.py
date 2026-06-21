@@ -13,8 +13,14 @@ class Customer(db.Model):
     tax_number = db.Column(db.String(50))
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
+    # MARSOUD-COMM-01 — sales rep + commission rate per customer.
+    # Both nullable: a customer without a sales_rep generates no
+    # commission rows on payments.
+    sales_rep_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    commission_rate = db.Column(db.Numeric(5, 2))   # % on pre-tax taxable share
 
     company = db.relationship("Company", backref=db.backref("customers", lazy="dynamic"))
+    sales_rep = db.relationship("User", foreign_keys=[sales_rep_id])
 
     @property
     def balance(self):

@@ -46,13 +46,30 @@
     </table>
   </div>
   <div class="card p-6">
-    <h3 class="font-bold text-navy-900 mb-3">بيانات العميل</h3>
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-bold text-navy-900">بيانات العميل</h3>
+      <a href="{{ url_for('customers.edit', customer_id=customer.id) }}" class="text-xs text-emerald-700 hover:underline">✎ تعديل</a>
+    </div>
     <div class="space-y-2 text-sm">
       <div><span class="text-slate-500">البريد:</span> <span dir="ltr">{{ customer.email or '—' }}</span></div>
       <div><span class="text-slate-500">الهاتف:</span> <span dir="ltr">{{ customer.phone or '—' }}</span></div>
       <div><span class="text-slate-500">الرقم الضريبي:</span> {{ customer.tax_number or '—' }}</div>
       <div><span class="text-slate-500">العنوان:</span> {{ customer.address or '—' }}</div>
     </div>
+
+    {# MARSOUD-COMM-01 — show the rep + rate so the owner sees what
+       commission rule is in force for this customer. #}
+    {% if customer.sales_rep or customer.commission_rate is not none %}
+    <hr class="my-3 border-slate-100">
+    <div class="bg-emerald-50/50 border border-emerald-200 rounded-lg p-3 text-sm">
+      <div class="text-xs text-emerald-700 font-semibold mb-1">💼 العمولات</div>
+      <div><span class="text-slate-500">المندوب:</span> {{ customer.sales_rep.full_name if customer.sales_rep else '—' }}</div>
+      <div><span class="text-slate-500">النسبة:</span>
+        {% if customer.commission_rate is not none %}{{ "%g"|format(customer.commission_rate|float) }}%{% else %}—{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
     <hr class="my-4 border-slate-100">
     <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
       <div class="text-xs text-amber-700 font-semibold mb-1">إجمالي المديونية</div>

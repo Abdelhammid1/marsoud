@@ -184,6 +184,26 @@ def record_payment(invoice, amount, payment_date=None, method=None, payment_meth
         invoice.status = InvoiceStatus.PAID
     else:
         invoice.status = InvoiceStatus.PARTIALLY_PAID
+
+    # MARSOUD-COMM-01 Phase A — record + post a commission row for the
+    # customer's assigned sales rep, if any. Wrapped + try/except so a
+    # commission posting failure never blocks the actual payment.
+    try:
+        from app.services.sales_commissions import record_commission_for_payment
+        # payment was added but not flushed yet; flush so we have payment.id
+        db.session.flush()
+        record_commission_for_payment(
+            invoice, payment, amount,
+            payment_date=payment_date or date.today(),
+            created_by=created_by,
+        )
+    except Exception:
+        import logging
+        logging.getLogger("ledgeros.invoicing").exception(
+            "Failed to record sales commission for payment on invoice %s",
+            invoice.number,
+        )
+
     db.session.commit()
 
     # Email notification — non-blocking, controlled by caller

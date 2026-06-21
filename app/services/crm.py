@@ -96,9 +96,21 @@ def convert_lead_to_project(lead, *, project_name, project_type, manager_id,
                 name=lead.client_name,
                 email=(lead.email or "").lower() or None,
                 phone=lead.phone,
+                # MARSOUD-COMM-01 — carry the lead's sales rep through to
+                # the customer so payments earn commission automatically.
+                # The commission_rate isn't set here on purpose — the
+                # owner decides it on the customer page (the rate may
+                # differ from a generic default).
+                sales_rep_id=lead.assigned_to_id,
             )
             db.session.add(customer)
             db.session.flush()
+        else:
+            # MARSOUD-COMM-01 — also fill the rep on a deduped existing
+            # customer that doesn't have one yet. Don't override an
+            # already-set sales_rep_id (the owner may have changed it).
+            if not customer.sales_rep_id and lead.assigned_to_id:
+                customer.sales_rep_id = lead.assigned_to_id
 
     project = Project(
         company_id=lead.company_id,

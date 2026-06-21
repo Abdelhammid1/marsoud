@@ -24,6 +24,9 @@ DEFAULT_COA = [
     ("2120", "VAT Payable", "ضريبة القيمة المضافة المستحقة", AccountType.LIABILITY, "2100"),
     ("2130", "Salaries Payable", "الرواتب المستحقة", AccountType.LIABILITY, "2100"),
     ("2140", "Short-term Loans", "قروض قصيرة الأجل", AccountType.LIABILITY, "2100"),
+    # MARSOUD-COMM-01 — sales commissions owed to reps (separate from
+    # 2130 so commission/salary balances are individually visible).
+    ("2150", "Sales Commissions Payable", "عمولات مبيعات مستحقة", AccountType.LIABILITY, "2100"),
     ("2200", "Long-term Liabilities", "الالتزامات طويلة الأجل", AccountType.LIABILITY, "2000"),
     ("2210", "Long-term Loans", "قروض طويلة الأجل", AccountType.LIABILITY, "2200"),
     # EQUITY (3xxx)
@@ -49,6 +52,9 @@ DEFAULT_COA = [
     ("5250", "Fixed Assets Depreciation Expense", "مصاريف إهلاك الأصول الثابتة", AccountType.EXPENSE, "5200"),
     ("5260", "Office Supplies", "أدوات مكتبية", AccountType.EXPENSE, "5200"),
     ("5270", "Bank Charges", "عمولات البنك", AccountType.EXPENSE, "5200"),
+    # MARSOUD-COMM-01 — commission expense, separate from salary expense
+    # so the P&L distinguishes commissions from fixed compensation.
+    ("5280", "Sales Commissions Expense", "مصروف عمولات المبيعات", AccountType.EXPENSE, "5200"),
     # ERP-01 — stock-count variance account
     ("5990", "Inventory Variance", "فروقات الجرد", AccountType.EXPENSE, "5000"),
 ]

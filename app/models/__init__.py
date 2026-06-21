@@ -6,6 +6,7 @@ from app.models.recurring_bill import (
     RecurringBill, RecurringBillOverride,
     INTERVAL_UNITS, OVERRIDE_ACTIONS,
 )
+from app.models.sales_commission import SalesCommission, COMMISSION_STATUSES
 from app.models.account import Account, AccountType, NormalSide
 from app.models.journal import JournalEntry, JournalLine
 from app.models.journal_extras import (
@@ -64,6 +65,7 @@ __all__ = [
     "Plan", "SubscriptionReminderSent", "PlatformSetting",
     "RecurringBill", "RecurringBillOverride",
     "INTERVAL_UNITS", "OVERRIDE_ACTIONS",
+    "SalesCommission", "COMMISSION_STATUSES",
     "Account", "AccountType", "NormalSide",
     "JournalEntry", "JournalLine",
     "Invoice", "InvoiceItem", "InvoiceStatus", "Payment", "InvoiceReminderSent",

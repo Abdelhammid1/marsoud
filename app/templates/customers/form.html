@@ -1,33 +1,61 @@
 {% extends "base.html" %}
-{% block page_title %}عميل جديد{% endblock %}
+{% block page_title %}{% if customer %}تعديل {{ customer.name }}{% else %}عميل جديد{% endif %}{% endblock %}
 {% block content %}
 <div class="card p-6 max-w-2xl">
   <form method="POST" class="space-y-4">
     <div>
       <label class="block text-sm font-semibold text-slate-700 mb-2">الاسم</label>
-      <input type="text" name="name" required class="input">
+      <input type="text" name="name" required value="{{ customer.name if customer else '' }}" class="input">
     </div>
     <div class="grid grid-cols-2 gap-4">
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">البريد الإلكتروني</label>
-        <input type="email" name="email" dir="ltr" class="input">
+        <input type="email" name="email" dir="ltr" value="{{ customer.email if customer else '' }}" class="input">
       </div>
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">الهاتف</label>
-        <input type="text" name="phone" dir="ltr" class="input">
+        <input type="text" name="phone" dir="ltr" value="{{ customer.phone if customer else '' }}" class="input">
       </div>
     </div>
     <div>
       <label class="block text-sm font-semibold text-slate-700 mb-2">العنوان</label>
-      <textarea name="address" rows="2" class="textarea"></textarea>
+      <textarea name="address" rows="2" class="textarea">{{ customer.address if customer else '' }}</textarea>
     </div>
     <div>
       <label class="block text-sm font-semibold text-slate-700 mb-2">الرقم الضريبي</label>
-      <input type="text" name="tax_number" class="input">
+      <input type="text" name="tax_number" value="{{ customer.tax_number if customer else '' }}" class="input">
     </div>
+
+    {# MARSOUD-COMM-01 — sales rep + commission rate. Both optional;
+       leave blank to disable commissions for this customer. #}
+    <div class="border border-emerald-100 rounded-lg p-4 bg-emerald-50/30">
+      <h3 class="font-bold text-navy-900 mb-1 text-sm">💼 العمولات (اختياري)</h3>
+      <p class="text-xs text-slate-500 mb-3">
+        لو سيبت الحقلين فاضيين، دفعات العميل ده مش هتولّد عمولة لأي مندوب.
+        العمولة بتتحسب على الأصل قبل الضريبة من كل دفعة.
+      </p>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">المندوب المسؤول</label>
+          <select name="sales_rep_id" class="select text-sm">
+            <option value="">— بدون مندوب —</option>
+            {% for r in reps %}
+            <option value="{{ r.id }}" {% if customer and customer.sales_rep_id == r.id %}selected{% endif %}>{{ r.full_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">نسبة العمولة %</label>
+          <input type="number" name="commission_rate" step="0.01" min="0" max="100"
+                 value="{{ customer.commission_rate if customer and customer.commission_rate is not none else '' }}"
+                 placeholder="مثال: 5.00" class="input text-sm font-mono">
+        </div>
+      </div>
+    </div>
+
     <div class="flex justify-end gap-2 pt-2">
       <a href="{{ url_for('customers.index') }}" class="btn-secondary">إلغاء</a>
-      <button type="submit" class="btn-primary">إضافة</button>
+      <button type="submit" class="btn-primary">{% if customer %}💾 حفظ{% else %}+ إضافة{% endif %}</button>
     </div>
   </form>
 </div>
