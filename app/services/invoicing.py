@@ -386,6 +386,24 @@ def issue_refund(invoice, refund_type, amount=None, reason=None, created_by=None
     if refund_type == RefundType.FULL:
         _apply_inventory_side_for_refund(invoice, refund, created_by)
 
+    # MARSOUD-COMM-01 Phase B — claw back any commission earned on the
+    # refunded portion. Reverses from the rep's unpaid bucket if any
+    # exists, else creates a carry-forward charge against next month.
+    # Wrapped so a commission posting failure never blocks the refund.
+    try:
+        from app.services.sales_commissions import record_commission_refund
+        record_commission_refund(
+            invoice, refund, amount,
+            refund_date=date.today(),
+            created_by=created_by,
+        )
+    except Exception:
+        import logging
+        logging.getLogger("ledgeros.invoicing").exception(
+            "Failed to record commission clawback for refund on invoice %s",
+            invoice.number,
+        )
+
     if refund_type == RefundType.FULL:
         invoice.status = InvoiceStatus.REFUNDED
     elif refund_type == RefundType.PARTIAL:
