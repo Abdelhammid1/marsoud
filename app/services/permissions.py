@@ -37,11 +37,19 @@ P = {
     "payroll.employees":    {"owner", "admin", "accountant", "hr_manager"},  # employee lifecycle (create/edit/terminate) — HR owns this
     "payroll.accruals":     {"owner", "admin", "accountant"},  # settling accruals = posts a journal → financial-only
     "payroll.view":         {"owner", "admin", "accountant", "hr_manager", "viewer"},
+    # MARSOUD-PERM-FIX-01 — view employee personal/HR data WITHOUT salary
+    # figures. Whoever has payroll.view sees the salary numbers; this is the
+    # broader gate for the employees list + profile (data without numbers).
+    "employees.view":       {"owner", "admin", "accountant", "hr_manager",
+                             "sales_manager", "ceo", "project_manager", "viewer"},
 
     "hr.manage":            {"owner", "admin", "hr_manager"},  # departments + employee HR fields
 
     # ─── CRM (Leads) ───────────────────────────────────────────────────
     "leads.view":      {"owner", "admin", "ceo", "sales_manager", "sales_rep"},
+    # MARSOUD-PERM-FIX-01 — view ALL company leads (not just assigned-to-me).
+    # Without this, leads.view shows only the user's own assigned leads.
+    "leads.view_all":  {"owner", "admin", "ceo", "sales_manager"},
     "leads.manage":    {"owner", "admin", "sales_manager", "sales_rep"},
     "leads.convert":   {"owner", "admin", "sales_manager", "sales_rep"},
     "leads.delete":    {"owner", "admin"},  # MARSOUD-47 — gated higher than .manage
@@ -54,6 +62,8 @@ P = {
 
     # ─── Tasks ─────────────────────────────────────────────────────────
     "tasks.view":      {"owner", "admin", "ceo", "project_manager", "team_member"},
+    # MARSOUD-PERM-FIX-01 — see ALL tasks in the company (not just assigned).
+    "tasks.view_all":  {"owner", "admin"},
     "tasks.manage":    {"owner", "admin", "project_manager", "team_member"},
 
     "vendor_bills.create":  {"owner", "admin", "accountant"},

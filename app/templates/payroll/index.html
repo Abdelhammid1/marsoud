@@ -1,11 +1,17 @@
 {% extends "base.html" %}
 {% block page_title %}الرواتب والموظفون{% endblock %}
 {% block content %}
+{# MARSOUD-PERM-FIX-01 — split: employees.view shows the list without numbers;
+   payroll.view unlocks the salary column + the payroll-runs panel. #}
+{% set can_view_payroll = has_permission('payroll.view') %}
+{% set can_manage_employees = has_permission('payroll.employees') %}
 <div class="grid grid-cols-3 gap-4">
-  <div class="card p-6 col-span-2">
+  <div class="card p-6 {% if can_view_payroll %}col-span-2{% else %}col-span-3{% endif %}">
     <div class="flex items-center justify-between mb-4">
       <h2 class="font-bold text-navy-900">الموظفون</h2>
+      {% if can_manage_employees %}
       <a href="{{ url_for('payroll.new_employee') }}" class="btn-primary text-sm">+ موظف</a>
+      {% endif %}
     </div>
 
     <form method="GET" class="flex items-end gap-3 mb-4">
@@ -26,7 +32,7 @@
     </form>
 
     <table class="data-table">
-      <thead><tr><th>الرقم</th><th>الاسم</th><th>الوظيفة</th><th>القسم</th><th>العقد</th><th class="text-left">الراتب الصافي</th><th>آخر كشف</th><th>الحالة</th></tr></thead>
+      <thead><tr><th>الرقم</th><th>الاسم</th><th>الوظيفة</th><th>القسم</th><th>العقد</th>{% if can_view_payroll %}<th class="text-left">الراتب الصافي</th><th>آخر كشف</th>{% endif %}<th>الحالة</th></tr></thead>
       <tbody>
         {% for e in employees %}
         {% set last = e.last_payslip %}
@@ -36,8 +42,10 @@
           <td class="text-sm text-slate-500">{{ e.job_title or '—' }}</td>
           <td class="text-xs">{% if e.department %}<span class="badge badge-sent">{{ e.department.name }}</span>{% else %}<span class="text-slate-400">—</span>{% endif %}</td>
           <td class="text-xs">{{ e.contract_type.value if e.contract_type else '—' }}</td>
+          {% if can_view_payroll %}
           <td class="text-left font-mono">{% if last %}{{ "%.2f"|format(last.net) }}{% else %}—{% endif %}</td>
           <td class="text-xs text-slate-500">{% if last %}{{ last.run.period_month }}/{{ last.run.period_year }}{% else %}—{% endif %}</td>
+          {% endif %}
           <td>
             {% if e.status.value == 'ACTIVE' %}<span class="badge badge-paid">نشط</span>
             {% elif e.status.value == 'SUSPENDED' %}<span class="badge badge-partial">موقوف</span>
@@ -45,15 +53,18 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="8" class="text-center text-slate-400 py-8">لا يوجد موظفون مطابقون</td></tr>
+        <tr><td colspan="{% if can_view_payroll %}8{% else %}6{% endif %}" class="text-center text-slate-400 py-8">لا يوجد موظفون مطابقون</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 
+  {% if can_view_payroll %}
   <div class="card p-6">
     <h3 class="font-bold text-navy-900 mb-3">كشف رواتب جديد</h3>
+    {% if has_permission('payroll.run') %}
     <a href="{{ url_for('payroll.run') }}" class="btn-primary w-full text-center block">تشغيل كشف</a>
+    {% endif %}
     <hr class="my-4 border-slate-100">
     <h4 class="font-semibold text-navy-900 mb-2">آخر الكشوفات</h4>
     <div class="space-y-1 text-sm">
@@ -70,5 +81,6 @@
       {% endfor %}
     </div>
   </div>
+  {% endif %}
 </div>
 {% endblock %}

@@ -19,6 +19,7 @@ bp = Blueprint("payroll", __name__)
 
 @bp.route("/")
 @login_required
+@require_permission("employees.view")
 def index():
     if not g.active_company:
         return redirect(url_for("companies.new"))
@@ -167,6 +168,7 @@ def new_employee():
 
 @bp.route("/employees/<int:employee_id>")
 @login_required
+@require_permission("employees.view")
 def employee_profile(employee_id):
     emp = db.session.get(Employee, employee_id)
     if not emp or emp.company_id != g.active_company.id:
@@ -314,6 +316,7 @@ def run():
 
 @bp.route("/run/<int:run_id>")
 @login_required
+@require_permission("payroll.view")
 def view_run(run_id):
     pr = db.session.get(PayrollRun, run_id)
     if not pr or pr.company_id != g.active_company.id:
@@ -323,6 +326,7 @@ def view_run(run_id):
 
 @bp.route("/run/<int:run_id>/export/<fmt>")
 @login_required
+@require_permission("payroll.view")
 def export_run(run_id, fmt):
     pr = db.session.get(PayrollRun, run_id)
     if not pr or pr.company_id != g.active_company.id:
@@ -344,6 +348,7 @@ def export_run(run_id, fmt):
 
 @bp.route("/run/<int:run_id>/line/<int:line_id>/payslip.pdf")
 @login_required
+@require_permission("payroll.view")
 def payslip_pdf(run_id, line_id):
     line = db.session.get(PayrollLine, line_id)
     if not line or line.run_id != run_id:

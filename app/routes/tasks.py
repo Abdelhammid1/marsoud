@@ -23,7 +23,7 @@ from app.models import (
 from app.models.user import user_companies
 from app.services.crm import set_task_status, CRMError
 from app.services.permissions import (
-    require_permission, get_user_role,
+    require_permission, get_user_role, has_permission,
 )
 from app.services.tasks_extras import (
     TaskError,
@@ -36,11 +36,21 @@ from app.services.tasks_extras import (
 bp = Blueprint("tasks", __name__)
 
 
+# MARSOUD-PERM-FIX-01 — legacy role list kept as a fallback. Canonical
+# check is the `tasks.view_all` permission (auto-attached to these roles
+# on boot by roles_seed.seed_system_roles_for_company).
 FULL_VISIBILITY = {"owner", "admin"}
 
 
 def _role():
     return get_user_role(current_user.id, g.active_company.id)
+
+
+def _has_full_task_visibility():
+    """Permission-based, with role-name fallback for the first-boot window."""
+    if has_permission("tasks.view_all"):
+        return True
+    return _role() in FULL_VISIBILITY
 
 
 def _pm_project_ids():
@@ -53,9 +63,8 @@ def _pm_project_ids():
 
 def _visible_tasks_query():
     cid = g.active_company.id
-    role = _role()
-    full = role in FULL_VISIBILITY
-    pm_pids = _pm_project_ids() if role == "project_manager" else None
+    full = _has_full_task_visibility()
+    pm_pids = _pm_project_ids() if _role() == "project_manager" else None
     return visible_tasks_query(cid, current_user.id, full, pm_pids)
 
 
@@ -76,9 +85,8 @@ def _task_or_403(task_id):
     t = db.session.get(Task, task_id)
     if not t or t.company_id != g.active_company.id:
         abort(404)
-    role = _role()
-    full = role in FULL_VISIBILITY
-    pm_pids = _pm_project_ids() if role == "project_manager" else None
+    full = _has_full_task_visibility()
+    pm_pids = _pm_project_ids() if _role() == "project_manager" else None
     if not is_visible_to(t, current_user.id, full, pm_pids):
         abort(403)
     return t
@@ -233,7 +241,7 @@ def detail(task_id):
     from app.services.tasks_extras import activity_description
     docs = documents_for("TASK", t.id)
     role = _role()
-    can_edit = role in FULL_VISIBILITY or current_user.id in assignee_ids_for(t) \
+    can_edit = _has_full_task_visibility() or current_user.id in assignee_ids_for(t) \
         or (role == "project_manager"
             and t.project_id in set(_pm_project_ids()))
     return render_template(
@@ -407,11 +415,12 @@ def comment_add(task_id):
 @login_required
 @require_permission("tasks.view")
 def stats():
-    # Only owner/admin/PM see team-wide stats; team_member sees only their row.
+    # Owner/admin (or anyone granted tasks.view_all) + PMs see team-wide
+    # stats; everyone else sees only their own row.
     role = _role()
     cid = g.active_company.id
     rows = team_stats(cid)
-    if role not in FULL_VISIBILITY and role != "project_manager":
+    if not _has_full_task_visibility() and role != "project_manager":
         rows = [r for r in rows if r["user"] and r["user"].id == current_user.id]
     return render_template("tasks/stats.html",
                            rows=rows, role=role, today=date.today())

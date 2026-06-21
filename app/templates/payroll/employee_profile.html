@@ -1,8 +1,14 @@
 {% extends "base.html" %}
 {% block page_title %}{{ employee.name }}{% endblock %}
 {% block content %}
+{# MARSOUD-PERM-FIX-01 — split: employees.view sees personal + HR fields,
+   payroll.view unlocks every salary figure (basic, allowances, payslips,
+   accruals, total received). #}
+{% set can_view_payroll = has_permission('payroll.view') %}
+{% set can_manage_employees = has_permission('payroll.employees') %}
+{% set can_settle_accruals = has_permission('payroll.accruals') %}
 <div class="grid grid-cols-3 gap-4">
-  <div class="card p-6 col-span-2">
+  <div class="card p-6 {% if not can_view_payroll %}col-span-3{% else %}col-span-2{% endif %}">
     <div class="flex items-start justify-between mb-5">
       <div>
         <div class="text-xs text-slate-500 font-mono">{{ employee.employee_number or '—' }}</div>
@@ -13,7 +19,9 @@
         {% if employee.status.value == 'ACTIVE' %}<span class="badge badge-paid">نشط</span>
         {% elif employee.status.value == 'SUSPENDED' %}<span class="badge badge-partial">موقوف</span>
         {% else %}<span class="badge badge-cancelled">منتهي العقد</span>{% endif %}
+        {% if can_manage_employees %}
         <a href="{{ url_for('payroll.edit_employee', employee_id=employee.id) }}" class="btn-secondary text-xs">✎ تعديل</a>
+        {% endif %}
       </div>
     </div>
 
@@ -42,8 +50,10 @@
       <div><span class="text-slate-500">الجنس:</span>
         {% if employee.gender %}{{ 'ذكر' if employee.gender.value == 'MALE' else 'أنثى' }}{% else %}—{% endif %}
       </div>
+      {% if can_view_payroll %}
       <div><span class="text-slate-500">الراتب الأساسي:</span> <span class="font-mono">{{ "%.2f"|format(employee.basic_salary) }}</span></div>
       <div><span class="text-slate-500">البدلات الثابتة:</span> <span class="font-mono">{{ "%.2f"|format(employee.allowances) }}</span></div>
+      {% endif %}
       {% if employee.notes %}
       <div class="col-span-2 bg-slate-50 border border-slate-200 rounded-lg p-3">
         <span class="text-slate-500 text-xs">ملاحظات:</span>
@@ -60,6 +70,7 @@
       {% endif %}
     </div>
 
+    {% if can_view_payroll %}
     <hr class="my-5 border-slate-100">
     <h3 class="font-bold text-navy-900 mb-3">سجل كشوف الرواتب</h3>
     <table class="data-table">
@@ -81,9 +92,12 @@
         {% endfor %}
       </tbody>
     </table>
+    {% endif %}
   </div>
 
+  {% if can_view_payroll or can_manage_employees %}
   <div class="space-y-4">
+    {% if can_view_payroll %}
     <div class="card p-5 bg-gradient-to-br from-navy-900 to-navy-700 text-white">
       <div class="text-xs text-navy-200 mb-1">إجمالي ما استلمه</div>
       <div class="text-3xl font-bold font-mono">{{ "%.2f"|format(employee.total_received) }}</div>
@@ -104,6 +118,7 @@
               <span class="font-mono font-bold">{{ "%.2f"|format(a.amount) }}</span>
               <span class="text-xs text-slate-500">من كشف {{ a.source_run.period_month }}/{{ a.source_run.period_year }}</span>
             </div>
+            {% if can_settle_accruals %}
             <form method="POST" action="{{ url_for('payroll.settle_accrual_route', accrual_id=a.id) }}" class="inline" onsubmit="return confirm('سداد المبلغ من النقدية؟')">
               <select name="payment_account_code" class="select text-xs inline-block w-auto">
                 <option value="1110">نقدي</option>
@@ -111,6 +126,7 @@
               </select>
               <button type="submit" class="text-emerald-700 text-xs hover:underline ms-1">سداد</button>
             </form>
+            {% endif %}
           </div>
         </div>
         {% endfor %}
@@ -131,8 +147,9 @@
       </div>
     </div>
     {% endif %}
+    {% endif %}{# end can_view_payroll #}
 
-    {% if employee.status.value != 'TERMINATED' %}
+    {% if can_manage_employees and employee.status.value != 'TERMINATED' %}
     <div class="card p-5 border-red-100 bg-red-50/50">
       <h3 class="font-bold text-red-800 mb-3">⚠ إنهاء العقد</h3>
       <form method="POST" action="{{ url_for('payroll.terminate', employee_id=employee.id) }}" class="space-y-2" onsubmit="return confirm('تأكيد إنهاء العقد؟ لا يمكن التراجع تلقائياً.')">
@@ -150,5 +167,6 @@
     <script>document.getElementById('term_date').value = new Date().toISOString().split('T')[0];</script>
     {% endif %}
   </div>
+  {% endif %}{# end can_view_payroll or can_manage_employees #}
 </div>
 {% endblock %}

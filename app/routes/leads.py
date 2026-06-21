@@ -19,17 +19,25 @@ from app.services.crm import (
     change_lead_status, convert_lead_to_project, CRMError,
 )
 from app.services.permissions import (
-    require_permission, get_user_role,
+    require_permission, get_user_role, has_permission,
 )
 
 bp = Blueprint("leads", __name__)
 
 
-# ─── Role helpers ────────────────────────────────────────────────────────
+# ─── Visibility helpers ──────────────────────────────────────────────────
+# Legacy role list kept as a fallback only — the canonical check is the
+# leads.view_all permission, which is auto-attached to these roles on boot
+# via roles_seed.seed_system_roles_for_company(). The fallback covers the
+# narrow window between deploy and first boot of the re-sync.
 FULL_VISIBILITY = {"owner", "admin", "sales_manager"}
 
 
 def _can_view_all_leads():
+    """MARSOUD-PERM-FIX-01 — permission-based. Custom roles get full-visibility
+    by being granted `leads.view_all`, not by having a hardcoded role name."""
+    if has_permission("leads.view_all"):
+        return True
     role = get_user_role(current_user.id, g.active_company.id)
     return role in FULL_VISIBILITY
 
