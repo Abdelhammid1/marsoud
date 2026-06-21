@@ -44,6 +44,19 @@
       <div class="whitespace-pre-wrap">{{ lead.notes }}</div>
     </div>
     {% endif %}
+    {# MARSOUD-63 — show the two new fields above status history if filled. #}
+    {% if lead.request_description %}
+    <div class="mt-4 bg-sky-50/60 border border-sky-200 rounded-lg p-3 text-sm">
+      <div class="text-xs text-sky-700 font-semibold mb-1">وصف طلب العميل</div>
+      <div class="whitespace-pre-wrap">{{ lead.request_description }}</div>
+    </div>
+    {% endif %}
+    {% if lead.sales_action_required %}
+    <div class="mt-4 bg-emerald-50/60 border border-emerald-200 rounded-lg p-3 text-sm">
+      <div class="text-xs text-emerald-700 font-semibold mb-1">المطلوب من السيلز</div>
+      <div class="whitespace-pre-wrap">{{ lead.sales_action_required }}</div>
+    </div>
+    {% endif %}
     {% if lead.meeting_notes %}
     <div class="mt-4 bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm">
       <div class="text-xs text-slate-500 mb-1">ملاحظات الاجتماع</div>

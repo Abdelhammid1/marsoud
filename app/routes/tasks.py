@@ -30,7 +30,7 @@ from app.services.tasks_extras import (
     visible_tasks_query, is_visible_to,
     set_assignees, assignee_ids_for,
     add_comment, apply_inline_edit, log_activity,
-    team_stats,
+    team_stats, delete_task_fully,
 )
 
 bp = Blueprint("tasks", __name__)
@@ -329,6 +329,27 @@ def status(task_id):
     if request.form.get("return_to") == "kanban":
         return redirect(url_for("tasks.index"))
     return redirect(url_for("tasks.detail", task_id=t.id))
+
+
+# ─── MARSOUD-67: full task delete (admin/owner only) ────────────────────
+@bp.route("/<int:task_id>/delete", methods=["POST"])
+@login_required
+@require_permission("tasks.manage")
+def delete(task_id):
+    """Hard-delete a task + all its dependents in one transaction:
+    attachments (files on disk + documents rows), comments, activity
+    log, assignee m2m rows, then the task row itself. Gated to admins
+    via tasks.manage so non-admins can't even reach this URL."""
+    t = _task_or_403(task_id)
+    try:
+        delete_task_fully(t)
+        flash("تم حذف المهمة وكل ما يتعلق بها", "success")
+    except Exception as e:
+        from flask import current_app
+        current_app.logger.exception("delete_task_fully failed for %s", task_id)
+        flash(f"تعذّر حذف المهمة: {e}", "error")
+        return redirect(url_for("tasks.detail", task_id=task_id))
+    return redirect(url_for("tasks.index"))
 
 
 # ─── Inline field edits (AJAX form posts) ────────────────────────────────

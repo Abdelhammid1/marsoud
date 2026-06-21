@@ -113,6 +113,10 @@ class Lead(db.Model):
     next_meeting = db.Column(db.DateTime)
     meeting_notes = db.Column(db.Text)
     notes = db.Column(db.Text)  # MARSOUD-46 follow-up — generic optional notes
+    # MARSOUD-63 — two optional long-text fields for capturing the lead's
+    # actual request and the action sales needs to take on it.
+    request_description = db.Column(db.Text)
+    sales_action_required = db.Column(db.Text)
 
     quotation_path = db.Column(db.Text)
     contract_path = db.Column(db.Text)

@@ -428,3 +428,66 @@ def mark_read(notification_id, user_id):
         n.read_at = datetime.now()
         db.session.commit()
     return n
+
+
+# ─── MARSOUD-67: full task delete with cascade cleanup ────────────────
+def delete_task_fully(task):
+    """Atomically delete a Task and every dependent row + file on disk.
+
+    The documents table stores attachments via (source_type='TASK',
+    source_id=task.id) WITHOUT an FK, so deleting the task without
+    explicit cleanup leaves orphan rows + leaks the files on disk + can
+    let a new task reuse the id and inherit the orphan attachments
+    (SQLite id reuse).
+
+    Order matters — child rows before the parent:
+      1. documents (table) + files on disk (best-effort)
+      2. task_comments
+      3. task_activity_logs
+      4. task_assignees (m2m, no cascade configured)
+      5. tasks (the row itself)
+    """
+    import os
+    from flask import current_app
+    from app.models import (
+        Document, DocumentSourceType,
+        TaskComment, TaskActivityLog, task_assignees,
+    )
+
+    company_id = task.company_id
+    task_id = task.id
+
+    # 1. attachments — delete files first, then the rows.
+    docs = Document.query.filter_by(
+        source_type=DocumentSourceType.TASK,
+        source_id=task_id,
+        company_id=company_id,
+    ).all()
+    for doc in docs:
+        if doc.file_path:
+            # file_path stored as `/static/...` — resolve to disk path.
+            rel = doc.file_path.lstrip("/")
+            disk = os.path.join(current_app.root_path, rel)
+            if os.path.exists(disk):
+                try:
+                    os.remove(disk)
+                except OSError:
+                    current_app.logger.warning(
+                        "delete_task_fully: failed to remove %s", disk,
+                    )
+        db.session.delete(doc)
+
+    # 2. comments
+    TaskComment.query.filter_by(task_id=task_id).delete()
+
+    # 3. activity log
+    TaskActivityLog.query.filter_by(task_id=task_id).delete()
+
+    # 4. assignees (m2m secondary table — no cascade configured at the ORM)
+    db.session.execute(
+        task_assignees.delete().where(task_assignees.c.task_id == task_id)
+    )
+
+    # 5. the task itself
+    db.session.delete(task)
+    db.session.commit()

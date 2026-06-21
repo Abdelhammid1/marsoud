@@ -19,6 +19,12 @@
         {% elif task.deadline_soon %}<span class="badge badge-partial">⏰ خلال 24 ساعة</span>{% endif %}
         {% if has_permission('tasks.manage') %}
         <a href="{{ url_for('tasks.edit', task_id=task.id) }}" class="btn-secondary text-sm">✎ تعديل كامل</a>
+        {# MARSOUD-67 — hard-delete the task + everything dependent. #}
+        <form method="POST" action="{{ url_for('tasks.delete', task_id=task.id) }}"
+              onsubmit="return confirm('حذف المهمة نهائياً مع كل مرفقاتها وتعليقاتها وسجل نشاطها؟ لا يمكن التراجع.');"
+              class="inline">
+          <button type="submit" class="btn-secondary text-sm text-rose-600 border-rose-200 hover:bg-rose-50">🗑 حذف المهمة</button>
+        </form>
         {% endif %}
       </div>
     </div>
