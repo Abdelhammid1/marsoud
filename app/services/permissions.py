@@ -164,6 +164,17 @@ def get_user_role_id(user_id, company_id):
     return row.role_id if row else None
 
 
+# MARSOUD-PERM-FIX-01 — *.view_all implies *.view at the route gate.
+# Without this, an owner who grants only leads.view_all (intending
+# "manager sees ALL leads") would still get redirected because the route
+# decorator asks for leads.view. The visibility helpers inside the
+# routes layer on top of this to widen the result set.
+_IMPLIES = {
+    "leads.view": "leads.view_all",
+    "tasks.view": "tasks.view_all",
+}
+
+
 def _db_has_permission(action, user_id, company_id):
     """DB-backed permission check (MARSOUD-32). Returns None when
     indeterminate (e.g. role_id not backfilled) so the caller can fall
@@ -173,10 +184,15 @@ def _db_has_permission(action, user_id, company_id):
     role_id = get_user_role_id(user_id, company_id)
     if role_id is None:
         return None
-    granted = db.session.query(Permission.code).join(
+    granted = {row[0] for row in db.session.query(Permission.code).join(
         role_permissions, role_permissions.c.permission_id == Permission.id,
-    ).filter(role_permissions.c.role_id == role_id).all()
-    return action in {row[0] for row in granted}
+    ).filter(role_permissions.c.role_id == role_id).all()}
+    if action in granted:
+        return True
+    implier = _IMPLIES.get(action)
+    if implier and implier in granted:
+        return True
+    return False
 
 
 def has_permission(action, user=None, company=None):
@@ -209,7 +225,14 @@ def has_permission(action, user=None, company=None):
     role = get_user_role(user.id, company.id)
     if not role:
         return False
-    return role in P.get(action, set())
+    if role in P.get(action, set()):
+        return True
+    # Same implication as the DB-backed path: leads.view_all → leads.view,
+    # tasks.view_all → tasks.view.
+    implier = _IMPLIES.get(action)
+    if implier and role in P.get(implier, set()):
+        return True
+    return False
 
 
 def require_permission(action):

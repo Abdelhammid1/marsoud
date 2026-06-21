@@ -320,8 +320,16 @@ def settle_commissions_for_employee(employee, run, *, period_year, period_month)
         return 0.0, []
 
     net = sum(float(r.amount or 0) for r in rows)
-    # Mark as paid + link to the run regardless of net sign (carry-forward
-    # rows still get consumed by this run; the next month picks up clean).
+
+    # MARSOUD-COMM-01 #9 — multi-month rollover. If the running balance is
+    # negative (clawbacks > earned commissions), DON'T touch the rep's
+    # salary AND don't settle anything — leave every row UNPAID so the
+    # chain continues into next month's run with any new earnings layered
+    # on top. The original clawback journal already adjusted 5280/2150;
+    # we just defer the salary effect until earnings absorb the deficit.
+    if net < -0.001:
+        return 0.0, []
+
     for r in rows:
         r.status = "PAID"
         r.payroll_run_id = run.id
