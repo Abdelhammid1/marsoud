@@ -117,6 +117,9 @@ class Lead(db.Model):
     # actual request and the action sales needs to take on it.
     request_description = db.Column(db.Text)
     sales_action_required = db.Column(db.Text)
+    # MARSOUD-DASH-01 — expected deal size if the lead converts. Summed
+    # across open leads on the owner dashboard's pipeline card.
+    expected_value = db.Column(db.Numeric(15, 2), nullable=True)
 
     quotation_path = db.Column(db.Text)
     contract_path = db.Column(db.Text)

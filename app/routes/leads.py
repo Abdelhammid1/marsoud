@@ -122,6 +122,21 @@ def _validate_enum_value(raw, enum_cls):
         return None
 
 
+def _parse_expected_value(raw):
+    """MARSOUD-DASH-01 — clean numeric input from the lead form. Accepts
+    empty/None, returns None; otherwise float (or None on garbage)."""
+    if raw is None:
+        return None
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        v = float(raw)
+        return v if v >= 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _parse_datetime_local(s):
     if not s:
         return None
@@ -215,6 +230,7 @@ def new():
                 notes=(request.form.get("notes") or "").strip() or None,
                 request_description=(request.form.get("request_description") or "").strip() or None,
                 sales_action_required=(request.form.get("sales_action_required") or "").strip() or None,
+                expected_value=_parse_expected_value(request.form.get("expected_value")),
                 status=LeadStatus.NEW_LEAD,
             )
             if not lead.client_name or not lead.phone or not lead.service_needed:
@@ -271,6 +287,7 @@ def edit(lead_id):
             lead.notes = (request.form.get("notes") or "").strip() or None
             lead.request_description = (request.form.get("request_description") or "").strip() or None
             lead.sales_action_required = (request.form.get("sales_action_required") or "").strip() or None
+            lead.expected_value = _parse_expected_value(request.form.get("expected_value"))
             db.session.commit()
             flash("تم حفظ التعديلات", "success")
             return redirect(url_for("leads.detail", lead_id=lead.id))

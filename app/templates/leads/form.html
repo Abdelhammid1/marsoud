@@ -71,6 +71,16 @@
       <label class="block text-sm font-semibold text-slate-700 mb-2">المطلوب من السيلز (اختياري)</label>
       <textarea name="sales_action_required" rows="3" placeholder="نكتب هنا التعليمات أو الخطوة المطلوبة من مندوب المبيعات تجاه العميل المحتمل ده تحديداً" class="textarea">{{ lead.sales_action_required if lead else '' }}</textarea>
     </div>
+    {# MARSOUD-DASH-01 — expected deal size if this lead converts. #}
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">القيمة المتوقعة للصفقة (اختياري)</label>
+        <input type="number" name="expected_value" step="0.01" min="0" dir="ltr"
+               value="{{ '%.2f'|format(lead.expected_value|float) if lead and lead.expected_value else '' }}"
+               placeholder="0.00" class="input font-mono">
+        <p class="text-xs text-slate-500 mt-1">تظهر في إجمالي خط المبيعات المتوقع على لوحة المالك.</p>
+      </div>
+    </div>
     <div class="grid grid-cols-2 gap-4">
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">موعد الاجتماع القادم</label>
