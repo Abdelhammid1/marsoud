@@ -1,164 +1,568 @@
 {% extends "base.html" %}
-{% block title %}لوحة التحكم — مرصود{% endblock %}
-{% block page_title %}لوحة التحكم{% endblock %}
+{% block title %}لوحة المعلومات — {{ active_company.name }}{% endblock %}
+{% block page_title %}لوحة المعلومات{% endblock %}
 {% block content %}
+{# MARSOUD-DASH-01 — Owner Dashboard. Sidebar + base topbar untouched;
+   the whole content block is the dashboard. Permission gates:
+     - Financial Health + Trend → reports.view
+     - Team Performance → users.view (admin-ish only)
+   Every card is clickable to its source page. #}
+{% set can_finance = has_permission('reports.view') %}
+{% set can_team = has_permission('users.view') %}
+{% set cur = metrics.currency %}
 
-<!-- Hero — MARSOUD-32: hide the financial number from users without
-     reports.view (e.g. sales reps + clones of sales rep). -->
-<div class="card p-6 mb-6 bg-gradient-to-br from-emerald-800 to-emerald-600 text-white border-0">
-  <div class="flex items-center justify-between">
-    <div>
-      <div class="text-sm text-navy-200 mb-1">{{ active_company.name }}</div>
-      <h2 class="text-2xl font-bold mb-1">
-        {% if has_permission('reports.view') %}نظرة 360° على وضعك المالي
-        {% else %}مرحباً بك في {{ active_company.name }}{% endif %}
-      </h2>
-      <p class="text-navy-200 text-sm">
-        {% if has_permission('reports.view') %}جميع البيانات محدّثة لحظياً مع كل قيد محاسبي
-        {% else %}اختر من القائمة الجانبية للبدء.{% endif %}
-      </p>
-    </div>
-    {% if has_permission('reports.view') %}
-    <div class="text-right">
-      <div class="text-xs text-navy-200">صافي الربح</div>
-      <div class="text-3xl font-bold {% if metrics.net_profit >= 0 %}text-emerald-300{% else %}text-red-300{% endif %}">
-        {{ "%.2f"|format(metrics.net_profit) }}
-        <span class="text-sm font-normal text-navy-200">{{ active_company.base_currency }}</span>
-      </div>
-    </div>
-    {% endif %}
-  </div>
-</div>
+<!-- DASH-01 styles, scoped via #dash-root so they can't leak into other
+     pages. Mirrors the reference HTML 1:1 minus the standalone shell. -->
+<style>
+  #dash-root{
+    --d-green:#159b54;--d-green-deep:#0f7a41;--d-green-soft:#e7f6ed;--d-green-tint:#f1faf4;
+    --d-red:#dc4640;--d-red-soft:#fceceb;
+    --d-amber:#c47d10;--d-amber-soft:#fdf3e1;
+    --d-blue:#2d6fb3;--d-blue-soft:#e9f1fb;
+    --d-violet:#6a52c4;--d-violet-soft:#efebfb;
+    --d-teal:#0e9b86;--d-teal-soft:#e3f6f2;
+    --d-ink:#16241d;--d-ink-2:#586660;--d-ink-3:#8b988f;
+    --d-line:#e8ece9;--d-line-strong:#d6ded8;--d-bg:#f5f7f6;--d-surface:#fff;
+    --d-radius:16px;--d-radius-sm:11px;
+    --d-shadow:0 1px 2px rgba(22,36,29,.04);--d-shadow-hov:0 10px 30px rgba(22,36,29,.09);
+    font-family:'IBM Plex Sans Arabic','Cairo',system-ui,sans-serif;color:var(--d-ink);
+  }
+  #dash-root .section-label{font-size:12.5px;font-weight:600;color:var(--d-ink-3);margin:24px 2px 13px;display:flex;align-items:center;gap:8px;letter-spacing:.3px}
+  #dash-root .section-label:first-of-type{margin-top:6px}
+  #dash-root .section-label .more{margin-right:auto;color:var(--d-green-deep);font-weight:600;font-size:12.5px;text-decoration:none}
+  #dash-root .period{display:inline-flex;background:var(--d-bg);border:1px solid var(--d-line);border-radius:11px;padding:3px;gap:2px;margin-bottom:14px}
+  #dash-root .period button{border:0;background:transparent;font-family:inherit;font-size:12.5px;font-weight:500;color:var(--d-ink-2);padding:6px 14px;border-radius:8px;cursor:pointer}
+  #dash-root .period button.on{background:var(--d-surface);color:var(--d-green-deep);font-weight:600;box-shadow:var(--d-shadow)}
+  #dash-root .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}
+  #dash-root .kpi{background:var(--d-surface);border:1px solid var(--d-line);border-radius:var(--d-radius);padding:17px 18px;cursor:pointer;transition:.16s;box-shadow:var(--d-shadow);text-decoration:none;color:inherit;display:block}
+  #dash-root .kpi:hover{border-color:var(--d-line-strong);transform:translateY(-3px);box-shadow:var(--d-shadow-hov);text-decoration:none;color:inherit}
+  #dash-root .kpi-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}
+  #dash-root .kpi-ico{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:19px}
+  #dash-root .kpi-trend{font-size:12px;font-weight:600;display:flex;align-items:center;gap:3px;padding:3px 8px;border-radius:8px}
+  #dash-root .trend-up{background:var(--d-green-soft);color:var(--d-green-deep)}
+  #dash-root .trend-down{background:var(--d-red-soft);color:var(--d-red)}
+  #dash-root .trend-flat{background:var(--d-bg);color:var(--d-ink-3)}
+  #dash-root .kpi-label{font-size:12.5px;color:var(--d-ink-2);font-weight:500;margin-bottom:4px}
+  #dash-root .kpi-val{font-size:26px;font-weight:700;letter-spacing:-.6px;line-height:1.15}
+  #dash-root .kpi-val .cur{font-size:13px;font-weight:500;color:var(--d-ink-3);margin-right:5px}
+  #dash-root .spark-wrap{margin-top:10px;height:32px;width:100%;position:relative}
+  #dash-root .spark{position:absolute;inset:0}
+  #dash-root .i-green{background:var(--d-green-soft);color:var(--d-green-deep)}
+  #dash-root .i-blue{background:var(--d-blue-soft);color:var(--d-blue)}
+  #dash-root .i-amber{background:var(--d-amber-soft);color:var(--d-amber)}
+  #dash-root .i-red{background:var(--d-red-soft);color:var(--d-red)}
+  #dash-root .i-violet{background:var(--d-violet-soft);color:var(--d-violet)}
+  #dash-root .i-teal{background:var(--d-teal-soft);color:var(--d-teal)}
+  #dash-root .ops{display:grid;grid-template-columns:repeat(4,1fr);gap:15px}
+  #dash-root .op{background:var(--d-surface);border:1px solid var(--d-line);border-radius:var(--d-radius);padding:16px 18px;cursor:pointer;transition:.16s;box-shadow:var(--d-shadow);display:flex;align-items:center;gap:14px;text-decoration:none;color:inherit}
+  #dash-root .op:hover{border-color:var(--d-line-strong);transform:translateY(-3px);box-shadow:var(--d-shadow-hov);text-decoration:none;color:inherit}
+  #dash-root .op-ico{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+  #dash-root .op-val{font-size:21px;font-weight:700;letter-spacing:-.4px;line-height:1.1}
+  #dash-root .op-label{font-size:12.5px;color:var(--d-ink-2);font-weight:500;margin-top:2px}
+  #dash-root .op-extra{font-size:11.5px;font-weight:600;margin-top:3px}
+  #dash-root .tag-red{color:var(--d-red)}
+  #dash-root .tag-amber{color:var(--d-amber)}
+  #dash-root .tag-green{color:var(--d-green-deep)}
+  #dash-root .action-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+  #dash-root .d-panel{background:var(--d-surface);border:1px solid var(--d-line);border-radius:var(--d-radius);overflow:hidden;box-shadow:var(--d-shadow)}
+  #dash-root .panel-amber{border-color:#f0ddbb}
+  #dash-root .panel-red{border-color:#f1cfcb}
+  #dash-root .panel-head{display:flex;align-items:center;justify-content:space-between;padding:15px 19px;border-bottom:1px solid var(--d-line)}
+  #dash-root .panel-head-l{display:flex;align-items:center;gap:11px}
+  #dash-root .panel-ico{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}
+  #dash-root .panel-title{font-size:14.5px;font-weight:600}
+  #dash-root .panel-meta{font-size:11.5px;color:var(--d-ink-3)}
+  #dash-root .pill{font-size:11.5px;font-weight:600;padding:4px 11px;border-radius:20px}
+  #dash-root .pill-red{background:var(--d-red-soft);color:var(--d-red)}
+  #dash-root .pill-amber{background:var(--d-amber-soft);color:var(--d-amber)}
+  #dash-root .d-row{display:flex;align-items:center;justify-content:space-between;padding:12px 19px;border-bottom:1px solid var(--d-line);text-decoration:none;color:inherit}
+  #dash-root .d-row:last-of-type{border-bottom:0}
+  #dash-root .d-row:hover{background:var(--d-green-tint);text-decoration:none;color:inherit}
+  #dash-root .row-l{display:flex;align-items:center;gap:11px;min-width:0}
+  #dash-root .row-ava{width:36px;height:36px;border-radius:10px;background:var(--d-bg);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12.5px;color:var(--d-ink-2);flex-shrink:0}
+  #dash-root .row-name{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #dash-root .row-sub{font-size:11.5px;color:var(--d-ink-3)}
+  #dash-root .row-r{text-align:left;flex-shrink:0}
+  #dash-root .row-amt{font-size:14px;font-weight:700}
+  #dash-root .row-tag{font-size:11px;font-weight:600;margin-top:1px}
+  #dash-root .panel-foot{padding:11px 19px;display:flex;align-items:center;justify-content:space-between;background:var(--d-bg)}
+  #dash-root .panel-foot .sum{font-size:12.5px;color:var(--d-ink-2);font-weight:500}
+  #dash-root .panel-foot .sum b{color:var(--d-ink);font-weight:700;font-size:14.5px}
+  #dash-root .lower-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:15px}
+  #dash-root .d-card{background:var(--d-surface);border:1px solid var(--d-line);border-radius:var(--d-radius);padding:19px;box-shadow:var(--d-shadow)}
+  #dash-root .card-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px}
+  #dash-root .card-title{font-size:15px;font-weight:700}
+  #dash-root .card-sub{font-size:12px;color:var(--d-ink-3);margin-top:2px}
+  #dash-root .legend{display:flex;gap:15px;font-size:12px;color:var(--d-ink-2)}
+  #dash-root .legend span{display:flex;align-items:center;gap:6px}
+  #dash-root .swatch{width:11px;height:11px;border-radius:3px}
+  #dash-root .chart-wrap{position:relative;height:240px;overflow:hidden}
+  #dash-root .bd-item{margin-bottom:14px}
+  #dash-root .bd-top{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;margin-bottom:6px}
+  #dash-root .bd-name{font-weight:500;display:flex;align-items:center;gap:8px}
+  #dash-root .bd-dot{width:9px;height:9px;border-radius:3px}
+  #dash-root .bd-val{font-weight:700}
+  #dash-root .bd-pct{font-size:11px;color:var(--d-ink-3);font-weight:500;margin-right:5px}
+  #dash-root .bar{height:7px;background:var(--d-bg);border-radius:6px;overflow:hidden}
+  #dash-root .bar i{display:block;height:100%;border-radius:6px}
+  #dash-root .team-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:15px}
+  #dash-root .tcard{background:var(--d-surface);border:1px solid var(--d-line);border-radius:var(--d-radius);overflow:hidden;box-shadow:var(--d-shadow)}
+  #dash-root .tcard-head{display:flex;align-items:center;gap:10px;padding:15px 18px;border-bottom:1px solid var(--d-line)}
+  #dash-root .tcard-ico{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px}
+  #dash-root .tcard-title{font-size:14px;font-weight:600}
+  #dash-root .tcard-sub{font-size:11px;color:var(--d-ink-3)}
+  #dash-root .trow{display:flex;align-items:center;gap:11px;padding:11px 18px;border-bottom:1px solid var(--d-line)}
+  #dash-root .trow:last-of-type{border-bottom:0}
+  #dash-root .rank{width:22px;font-size:13px;font-weight:700;color:var(--d-ink-3);text-align:center}
+  #dash-root .rank.r1{color:#c9a227}#dash-root .rank.r2{color:#9ba3a8}#dash-root .rank.r3{color:#c08552}
+  #dash-root .emp-ava{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12.5px;flex-shrink:0}
+  #dash-root .emp-info{flex:1;min-width:0}
+  #dash-root .emp-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #dash-root .emp-role{font-size:11px;color:var(--d-ink-3)}
+  #dash-root .emp-metric{text-align:left}
+  #dash-root .emp-num{font-size:15px;font-weight:700;line-height:1}
+  #dash-root .emp-unit{font-size:10.5px;color:var(--d-ink-3);font-weight:500}
+  #dash-root .quick{display:grid;grid-template-columns:repeat(8,1fr);gap:12px}
+  #dash-root .q{background:var(--d-surface);border:1px solid var(--d-line);border-radius:var(--d-radius-sm);padding:15px 10px;display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;transition:.14s;text-align:center;box-shadow:var(--d-shadow);text-decoration:none;color:inherit}
+  #dash-root .q:hover{border-color:var(--d-green);background:var(--d-green-tint);transform:translateY(-3px);text-decoration:none;color:inherit}
+  #dash-root .q .q-ico{font-size:22px;color:var(--d-green-deep)}
+  #dash-root .q .q-label{font-size:11.5px;font-weight:600;color:var(--d-ink-2)}
+  @media(max-width:1200px){
+    #dash-root .kpis,#dash-root .ops{grid-template-columns:repeat(2,1fr)}
+    #dash-root .team-grid{grid-template-columns:1fr}
+    #dash-root .quick{grid-template-columns:repeat(4,1fr)}
+  }
+  @media(max-width:920px){
+    #dash-root .action-grid,#dash-root .lower-grid{grid-template-columns:1fr}
+    #dash-root .kpis,#dash-root .ops{grid-template-columns:1fr}
+  }
+</style>
 
-<!-- KPI cards — financial overview, gated by reports.view -->
-{% if has_permission('reports.view') %}
-<div class="grid grid-cols-4 gap-4 mb-6">
-  {% set kpis = [
-    ('إجمالي الإيرادات', metrics.total_revenue, '#2563EB', '📈'),
-    ('إجمالي المصروفات', metrics.total_expenses, '#EF4444', '📉'),
-    ('الوضع النقدي', metrics.cash_position, '#10B981', '💰'),
-    ('المستحقات للموردين', metrics.accounts_payable, '#F59E0B', '🏢'),
-  ] %}
-  {% for label, value, color, icon in kpis %}
-  <div class="card p-5 hover:shadow-soft transition-shadow">
-    <div class="flex items-start justify-between mb-3">
-      <div class="text-xs text-slate-500 font-medium">{{ label }}</div>
-      <div class="text-2xl">{{ icon }}</div>
-    </div>
-    <div class="text-2xl font-bold text-navy-900">{{ "%.2f"|format(value) }}</div>
-    <div class="text-xs text-slate-400 mt-1">{{ active_company.base_currency }}</div>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
+<div id="dash-root">
+  <h1 class="sr-only">لوحة معلومات المالك</h1>
 
-<!-- Charts + actions row — financial chart also gated by reports.view -->
-{% if has_permission('reports.view') %}
-<div class="grid grid-cols-3 gap-4 mb-6">
-  <div class="card p-6 col-span-2">
-    <div class="flex items-center justify-between mb-4">
-      <h3 class="font-bold text-navy-900">الإيرادات vs المصروفات</h3>
-      <span class="text-xs text-slate-400">الشهر الحالي</span>
-    </div>
-    <canvas id="revenueChart" height="100"></canvas>
+  <!-- Period switcher — visual placeholder for v1 -->
+  <div class="period" role="tablist" aria-label="فترة التحليل">
+    <button type="button">اليوم</button>
+    <button type="button" class="on" aria-current="true">الشهر</button>
+    <button type="button">الربع</button>
+    <button type="button">السنة</button>
   </div>
-  <div class="card p-6">
-    <h3 class="font-bold text-navy-900 mb-4">النسب المالية</h3>
-    <div class="space-y-4">
-      <div>
-        <div class="flex justify-between text-sm mb-1">
-          <span class="text-slate-600">Debt to Equity</span>
-          <span class="font-bold text-navy-900">{{ "%.2f"|format(metrics.debt_to_equity) }}</span>
-        </div>
-        <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
-          {% set dte_pct = (metrics.debt_to_equity / 2 * 100) if metrics.debt_to_equity < 2 else 100 %}
-          {% set dte_color = '#10B981' if metrics.debt_to_equity < 0.5 else ('#F59E0B' if metrics.debt_to_equity < 1 else '#EF4444') %}
-          <div class="h-full rounded-full" style="width: {{ dte_pct }}%; background: {{ dte_color }}"></div>
-        </div>
-      </div>
-      <div>
-        <div class="flex justify-between text-sm mb-1">
-          <span class="text-slate-600">Current Ratio</span>
-          <span class="font-bold text-navy-900">{{ "%.2f"|format(metrics.current_ratio) }}</span>
-        </div>
-        <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
-          {% set cr_pct = (metrics.current_ratio / 3 * 100) if metrics.current_ratio < 3 else 100 %}
-          {% set cr_color = '#EF4444' if metrics.current_ratio < 1 else ('#F59E0B' if metrics.current_ratio < 1.5 else '#10B981') %}
-          <div class="h-full rounded-full" style="width: {{ cr_pct }}%; background: {{ cr_color }}"></div>
-        </div>
-      </div>
-    </div>
-    <hr class="my-5 border-slate-100">
-    <div class="space-y-2 text-sm">
-      <div class="flex justify-between">
-        <span class="text-slate-600">فواتير غير مدفوعة</span>
-        <span class="font-semibold text-navy-900">{{ metrics.unpaid_invoices.count }} · {{ "%.2f"|format(metrics.unpaid_invoices.total) }}</span>
-      </div>
-      <div class="flex justify-between">
-        <span class="text-slate-600">فواتير متأخرة</span>
-        <span class="font-semibold text-red-600">{{ metrics.overdue_invoices.count }} · {{ "%.2f"|format(metrics.overdue_invoices.total) }}</span>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
 
-<!-- Quick actions — also gated, since each link requires its own permission anyway -->
-{% if has_permission('invoices.create') or has_permission('journals.create') or has_permission('partners.manage') or has_permission('reports.view') %}
-<div class="card p-6">
-  <h3 class="font-bold text-navy-900 mb-4">إجراءات سريعة</h3>
-  <div class="grid grid-cols-4 gap-3">
-    {% if has_permission('invoices.create') %}
-    <a href="{{ url_for('invoices.new') }}" class="flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 to-green-50 hover:from-emerald-100 hover:to-green-100 rounded-xl p-5 border border-emerald-100 transition-all hover:scale-[1.02]">
-      <div class="text-3xl mb-2">🧾</div>
-      <div class="font-semibold text-navy-900">فاتورة جديدة</div>
+  {# ─── Section 1: Financial Health ────────────────────────────── #}
+  {% if can_finance %}
+  <div class="section-label">💚 الصحة المالية</div>
+  <div class="kpis">
+    {% set k = metrics.kpis.liquidity %}
+    <a class="kpi" href="{{ url_for('accounts.index') }}" title="السيولة المتاحة">
+      <div class="kpi-head">
+        <div class="kpi-ico i-green">💰</div>
+        <div class="kpi-trend {% if k.change_pct > 0 %}trend-up{% elif k.change_pct < 0 %}trend-down{% else %}trend-flat{% endif %}">
+          {% if k.change_pct > 0 %}↑{% elif k.change_pct < 0 %}↓{% else %}—{% endif %} {{ k.change_pct }}%
+        </div>
+      </div>
+      <div class="kpi-label">السيولة المتاحة</div>
+      <div class="kpi-val"><span class="cur">{{ cur }}</span>{{ "{:,.0f}".format(k.value) }}</div>
+      <div class="spark-wrap"><canvas class="spark" data-spark="{{ k.spark|join(',') }}" data-color="#159b54"></canvas></div>
     </a>
+
+    {% set k = metrics.kpis.net_profit_month %}
+    <a class="kpi" href="{{ url_for('reports.income') }}" title="صافي الربح هذا الشهر">
+      <div class="kpi-head">
+        <div class="kpi-ico i-blue">📈</div>
+        <div class="kpi-trend {% if k.change_pct > 0 %}trend-up{% elif k.change_pct < 0 %}trend-down{% else %}trend-flat{% endif %}">
+          {% if k.change_pct > 0 %}↑{% elif k.change_pct < 0 %}↓{% else %}—{% endif %} {{ k.change_pct }}%
+        </div>
+      </div>
+      <div class="kpi-label">صافي الربح (الشهر)</div>
+      <div class="kpi-val"><span class="cur">{{ cur }}</span>{{ "{:,.0f}".format(k.value) }}</div>
+      <div class="spark-wrap"><canvas class="spark" data-spark="{{ k.spark|join(',') }}" data-color="#2d6fb3"></canvas></div>
+    </a>
+
+    {% set k = metrics.kpis.ar_open %}
+    <a class="kpi" href="{{ url_for('reports.ar_aging') }}" title="مستحقات العملاء">
+      <div class="kpi-head">
+        <div class="kpi-ico i-amber">⬇</div>
+        <div class="kpi-trend {% if k.overdue_count %}trend-down{% else %}trend-flat{% endif %}">
+          ⏱ {{ k.overdue_count }} متأخرة
+        </div>
+      </div>
+      <div class="kpi-label">مستحق لك (عملاء)</div>
+      <div class="kpi-val"><span class="cur">{{ cur }}</span>{{ "{:,.0f}".format(k.value) }}</div>
+      <div class="spark-wrap"><canvas class="spark" data-spark="{{ k.spark|join(',') }}" data-color="#c47d10"></canvas></div>
+    </a>
+
+    {% set k = metrics.kpis.ap_open %}
+    <a class="kpi" href="{{ url_for('reports.ap_aging') }}" title="مستحقات الموردين">
+      <div class="kpi-head">
+        <div class="kpi-ico i-red">⬆</div>
+        <div class="kpi-trend trend-flat">
+          {% if k.next_due_days is none %}— لا توجد{% elif k.next_due_days == 0 %}اليوم{% elif k.next_due_days < 0 %}متأخرة{% else %}خلال {{ k.next_due_days }} أيام{% endif %}
+        </div>
+      </div>
+      <div class="kpi-label">مستحق عليك (موردين)</div>
+      <div class="kpi-val"><span class="cur">{{ cur }}</span>{{ "{:,.0f}".format(k.value) }}</div>
+      <div class="spark-wrap"><canvas class="spark" data-spark="{{ k.spark|join(',') }}" data-color="#dc4640"></canvas></div>
+    </a>
+  </div>
+  {% endif %}
+
+  {# ─── Section 2: Operations ───────────────────────────────────── #}
+  <div class="section-label">⚡ نظرة على العمليات</div>
+  <div class="ops">
+    <a class="op" href="{{ url_for('inventory.index') }}" title="المخزون">
+      <div class="op-ico i-teal">📦</div>
+      <div>
+        <div class="op-val">{{ "{:,}".format(metrics.ops.inventory_count) }}</div>
+        <div class="op-label">صنف في المخزون</div>
+        {% if metrics.ops.inventory_low_stock %}
+        <div class="op-extra tag-red">⚠ {{ metrics.ops.inventory_low_stock }} تحت الحد</div>
+        {% else %}
+        <div class="op-extra tag-green">المخزون مستقر</div>
+        {% endif %}
+      </div>
+    </a>
+    <a class="op" href="{{ url_for('tasks.index') }}" title="المهام">
+      <div class="op-ico i-violet">📋</div>
+      <div>
+        <div class="op-val">{{ metrics.ops.tasks_open }}</div>
+        <div class="op-label">مهمة نشطة</div>
+        {% if metrics.ops.tasks_overdue %}
+        <div class="op-extra tag-amber">{{ metrics.ops.tasks_overdue }} متأخرة</div>
+        {% else %}
+        <div class="op-extra tag-green">على المسار</div>
+        {% endif %}
+      </div>
+    </a>
+    <a class="op" href="{{ url_for('leads.index') }}" title="العملاء المحتملون">
+      <div class="op-ico i-blue">🎯</div>
+      <div>
+        <div class="op-val">{{ metrics.ops.leads_open_count }}</div>
+        <div class="op-label">عميل محتمل</div>
+        {% if metrics.ops.leads_expected_total %}
+        <div class="op-extra tag-green">قيمة متوقعة {{ "{:,.0f}".format(metrics.ops.leads_expected_total) }}</div>
+        {% else %}
+        <div class="op-extra" style="color:var(--d-ink-3)">— لم تُحدَّد قيمة</div>
+        {% endif %}
+      </div>
+    </a>
+    <a class="op" href="{{ url_for('customers.index') }}" title="العملاء">
+      <div class="op-ico i-green">👤</div>
+      <div>
+        <div class="op-val">+{{ metrics.ops.customers_new_month }}</div>
+        <div class="op-label">عميل جديد (الشهر)</div>
+        <div class="op-extra {% if metrics.ops.customers_delta >= 0 %}tag-green{% else %}tag-red{% endif %}">
+          {% if metrics.ops.customers_delta >= 0 %}+{% endif %}{{ metrics.ops.customers_delta }} عن الشهر الماضي
+        </div>
+      </div>
+    </a>
+  </div>
+
+  {# ─── Section 3: Needs Attention ─────────────────────────────── #}
+  {% if can_finance %}
+  <div class="section-label">🔔 يحتاج انتباهك الآن</div>
+  <div class="action-grid">
+    <!-- Late invoices -->
+    <div class="d-panel panel-red">
+      <div class="panel-head">
+        <div class="panel-head-l">
+          <div class="panel-ico i-red">⏰</div>
+          <div>
+            <div class="panel-title">فواتير عملاء متأخرة</div>
+            <div class="panel-meta">مستحقة ولم تُحصَّل</div>
+          </div>
+        </div>
+        {% if metrics.late_invoices_count %}
+        <span class="pill pill-red">{{ metrics.late_invoices_count }} فواتير</span>
+        {% endif %}
+      </div>
+      {% if metrics.late_invoices %}
+        {% for inv in metrics.late_invoices %}
+        <a class="d-row" href="{{ url_for('invoices.view', invoice_id=inv.id) }}">
+          <div class="row-l">
+            <div class="row-ava">{{ inv.customer_initials }}</div>
+            <div>
+              <div class="row-name">{{ inv.customer_name }}</div>
+              <div class="row-sub">{{ inv.number }}</div>
+            </div>
+          </div>
+          <div class="row-r">
+            <div class="row-amt">{{ "{:,.0f}".format(inv.amount) }}</div>
+            <div class="row-tag tag-red">متأخرة {{ inv.days_late }} يوم</div>
+          </div>
+        </a>
+        {% endfor %}
+        <div class="panel-foot">
+          <div class="sum">الإجمالي المتأخر: <b>{{ cur }} {{ "{:,.0f}".format(metrics.late_invoices_total) }}</b></div>
+          <a href="{{ url_for('reports.ar_aging') }}" style="color:var(--d-green-deep);font-weight:600;font-size:12.5px;text-decoration:none">عرض الكل →</a>
+        </div>
+      {% else %}
+        <div style="padding:34px 19px;text-align:center;color:var(--d-ink-3);font-size:13px">لا توجد فواتير متأخرة حالياً ✅</div>
+      {% endif %}
+    </div>
+
+    <!-- Upcoming bills -->
+    <div class="d-panel panel-amber">
+      <div class="panel-head">
+        <div class="panel-head-l">
+          <div class="panel-ico i-amber">📅</div>
+          <div>
+            <div class="panel-title">فواتير جايّة عليك</div>
+            <div class="panel-meta">متوقعة خلال 7 أيام</div>
+          </div>
+        </div>
+        {% if metrics.upcoming_bills_count %}
+        <span class="pill pill-amber">{{ metrics.upcoming_bills_count }} فواتير</span>
+        {% endif %}
+      </div>
+      {% if metrics.upcoming_bills %}
+        {% for b in metrics.upcoming_bills %}
+        <a class="d-row" href="{{ url_for('recurring_bills.index') }}">
+          <div class="row-l">
+            <div class="row-ava">{{ b.vendor_initials }}</div>
+            <div>
+              <div class="row-name">{{ b.label }}</div>
+              <div class="row-sub">{{ b.interval_label }}</div>
+            </div>
+          </div>
+          <div class="row-r">
+            <div class="row-amt">{{ "{:,.0f}".format(b.amount) }}</div>
+            <div class="row-tag tag-amber">
+              {% if b.days_until == 0 %}اليوم{% elif b.days_until == 1 %}غداً{% else %}بعد {{ b.days_until }} أيام{% endif %}
+            </div>
+          </div>
+        </a>
+        {% endfor %}
+        <div class="panel-foot">
+          <div class="sum">الإجمالي المتوقع: <b>{{ cur }} {{ "{:,.0f}".format(metrics.upcoming_bills_total) }}</b></div>
+          <a href="{{ url_for('forecast.index') }}" style="color:var(--d-green-deep);font-weight:600;font-size:12.5px;text-decoration:none">الجدول الكامل →</a>
+        </div>
+      {% else %}
+        <div style="padding:34px 19px;text-align:center;color:var(--d-ink-3);font-size:13px">لا توجد فواتير قادمة خلال 7 أيام</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# ─── Section 4: Financial Trend ─────────────────────────────── #}
+  {% if can_finance %}
+  <div class="section-label">📊 الاتجاه المالي</div>
+  <div class="lower-grid">
+    <div class="d-card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">الإيراد مقابل المصروف</div>
+          <div class="card-sub">آخر 6 شهور</div>
+        </div>
+        <div class="legend">
+          <span><span class="swatch" style="background:#159b54"></span> إيراد</span>
+          <span><span class="swatch" style="background:#dc4640"></span> مصروف</span>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="dashTrend" aria-label="إيرادات ومصروفات شهرية"></canvas></div>
+    </div>
+    <div class="d-card">
+      <div class="card-head">
+        <div>
+          <div class="card-title">توزيع المصروفات</div>
+          <div class="card-sub">هذا الشهر</div>
+        </div>
+      </div>
+      {% if metrics.expense_breakdown %}
+        {% for e in metrics.expense_breakdown %}
+        <div class="bd-item">
+          <div class="bd-top">
+            <div class="bd-name"><span class="bd-dot" style="background:{{ e.color }}"></span>{{ e.name }}</div>
+            <div><span class="bd-pct">{{ "%.0f"|format(e.pct) }}%</span><span class="bd-val">{{ "{:,.0f}".format(e.amount) }}</span></div>
+          </div>
+          <div class="bar"><i style="width:{{ e.pct }}%;background:{{ e.color }}"></i></div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="padding:24px;text-align:center;color:var(--d-ink-3);font-size:13px">لا توجد مصروفات مسجّلة هذا الشهر</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# ─── Section 5: Team Performance ────────────────────────────── #}
+  {% if can_team %}
+  <div class="section-label">
+    👥 أداء الفريق
+    <a class="more" href="{{ url_for('tasks.stats') }}">التقرير الكامل →</a>
+  </div>
+  <div class="team-grid">
+    <div class="tcard">
+      <div class="tcard-head">
+        <div class="tcard-ico i-green">💗</div>
+        <div>
+          <div class="tcard-title">الأكثر نشاطاً</div>
+          <div class="tcard-sub">عدد المعاملات هذا الشهر</div>
+        </div>
+      </div>
+      {% if metrics.team_most_active %}
+        {% for r in metrics.team_most_active %}
+        <div class="trow">
+          <div class="rank {% if loop.index == 1 %}r1{% elif loop.index == 2 %}r2{% elif loop.index == 3 %}r3{% endif %}">{{ loop.index }}</div>
+          <div class="emp-ava i-green">{{ r.initials }}</div>
+          <div class="emp-info">
+            <div class="emp-name">{{ r.name }}</div>
+            <div class="emp-role">{{ r.role_ar }}</div>
+          </div>
+          <div class="emp-metric">
+            <div class="emp-num">{{ r.count }}</div>
+            <div class="emp-unit">معاملة</div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="padding:24px;text-align:center;color:var(--d-ink-3);font-size:12.5px">لا توجد معاملات بعد</div>
+      {% endif %}
+    </div>
+
+    <div class="tcard">
+      <div class="tcard-head">
+        <div class="tcard-ico i-violet">📋</div>
+        <div>
+          <div class="tcard-title">أكثر مهام مسندة</div>
+          <div class="tcard-sub">مهام مفتوحة حالياً</div>
+        </div>
+      </div>
+      {% if metrics.team_most_tasks %}
+        {% for r in metrics.team_most_tasks %}
+        <div class="trow">
+          <div class="rank {% if loop.index == 1 %}r1{% elif loop.index == 2 %}r2{% elif loop.index == 3 %}r3{% endif %}">{{ loop.index }}</div>
+          <div class="emp-ava i-violet">{{ r.initials }}</div>
+          <div class="emp-info">
+            <div class="emp-name">{{ r.name }}</div>
+            <div class="emp-role">{{ r.role_ar }}</div>
+          </div>
+          <div class="emp-metric">
+            <div class="emp-num">{{ r.count }}</div>
+            <div class="emp-unit">مهام{% if r.overdue %} · {{ r.overdue }} متأخرة{% endif %}</div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="padding:24px;text-align:center;color:var(--d-ink-3);font-size:12.5px">لا توجد مهام بعد</div>
+      {% endif %}
+    </div>
+
+    <div class="tcard">
+      <div class="tcard-head">
+        <div class="tcard-ico i-blue">🎯</div>
+        <div>
+          <div class="tcard-title">أكثر عملاء محتملين</div>
+          <div class="tcard-sub">مسندة للمتابعة</div>
+        </div>
+      </div>
+      {% if metrics.team_most_leads %}
+        {% for r in metrics.team_most_leads %}
+        <div class="trow">
+          <div class="rank {% if loop.index == 1 %}r1{% elif loop.index == 2 %}r2{% elif loop.index == 3 %}r3{% endif %}">{{ loop.index }}</div>
+          <div class="emp-ava i-blue">{{ r.initials }}</div>
+          <div class="emp-info">
+            <div class="emp-name">{{ r.name }}</div>
+            <div class="emp-role">{{ r.role_ar }}</div>
+          </div>
+          <div class="emp-metric">
+            <div class="emp-num">{{ r.count }}</div>
+            <div class="emp-unit">عميل محتمل</div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="padding:24px;text-align:center;color:var(--d-ink-3);font-size:12.5px">لا توجد عملاء محتملين مسندون</div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# ─── Section 6: Quick Actions ───────────────────────────────── #}
+  <div class="section-label">⚡ إجراءات سريعة</div>
+  <div class="quick">
+    {% if has_permission('invoices.create') %}
+    <a class="q" href="{{ url_for('invoices.new') }}"><span class="q-ico">🧾</span><span class="q-label">فاتورة جديدة</span></a>
+    {% endif %}
+    {% if has_permission('vendor_bills.create') %}
+    <a class="q" href="{{ url_for('vendor_bills.new') }}"><span class="q-ico">📥</span><span class="q-label">فاتورة مورد</span></a>
     {% endif %}
     {% if has_permission('journals.create') %}
-    <a href="{{ url_for('journals.new') }}" class="flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 to-green-50 hover:from-emerald-100 hover:to-green-100 rounded-xl p-5 border border-emerald-100 transition-all hover:scale-[1.02]">
-      <div class="text-3xl mb-2">📒</div>
-      <div class="font-semibold text-navy-900">قيد محاسبي</div>
-    </a>
+    <a class="q" href="{{ url_for('journals.new') }}"><span class="q-ico">✍️</span><span class="q-label">قيد يدوي</span></a>
     {% endif %}
-    {% if has_permission('partners.manage') %}
-    <a href="{{ url_for('customers.new') }}" class="flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 to-green-50 hover:from-emerald-100 hover:to-green-100 rounded-xl p-5 border border-emerald-100 transition-all hover:scale-[1.02]">
-      <div class="text-3xl mb-2">👤</div>
-      <div class="font-semibold text-navy-900">عميل جديد</div>
-    </a>
+    {% if has_permission('payroll.run') %}
+    <a class="q" href="{{ url_for('payroll.run') }}"><span class="q-ico">💵</span><span class="q-label">تشغيل رواتب</span></a>
     {% endif %}
-    {% if has_permission('reports.view') %}
-    <a href="{{ url_for('reports.balance') }}" class="flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 to-green-50 hover:from-emerald-100 hover:to-green-100 rounded-xl p-5 border border-emerald-100 transition-all hover:scale-[1.02]">
-      <div class="text-3xl mb-2">📊</div>
-      <div class="font-semibold text-navy-900">الميزانية</div>
-    </a>
+    {% if has_permission('leads.manage') %}
+    <a class="q" href="{{ url_for('leads.new') }}"><span class="q-ico">🎯</span><span class="q-label">عميل محتمل</span></a>
+    {% endif %}
+    {% if has_permission('tasks.manage') %}
+    <a class="q" href="{{ url_for('tasks.new') }}"><span class="q-ico">📋</span><span class="q-label">مهمة جديدة</span></a>
+    {% endif %}
+    {% if can_finance %}
+    <a class="q" href="{{ url_for('reports.index') }}"><span class="q-ico">📊</span><span class="q-label">التقارير</span></a>
+    {% endif %}
+    {% if has_permission('agent.use') %}
+    <a class="q" href="{{ url_for('agent.index') }}"><span class="q-ico">🤖</span><span class="q-label">المساعد</span></a>
     {% endif %}
   </div>
 </div>
-{% endif %}
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
-const _chartEl = document.getElementById('revenueChart');
-if (_chartEl) {
-const ctx = _chartEl.getContext('2d');
-new Chart(ctx, {
-  type: 'bar',
-  data: {
-    labels: ['الإيرادات', 'المصروفات', 'صافي الربح'],
-    datasets: [{
-      data: [{{ metrics.total_revenue }}, {{ metrics.total_expenses }}, {{ metrics.net_profit }}],
-      backgroundColor: ['#2563EB', '#EF4444', '#10B981'],
-      borderRadius: 8,
-    }]
-  },
-  options: {
-    responsive: true,
-    plugins: { legend: { display: false } },
-    scales: {
-      y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { color: '#64748B' } },
-      x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'Cairo', size: 12 } } }
+  (function(){
+    if (typeof Chart === 'undefined') return;
+
+    // Sparklines on the 4 KPI cards. Each canvas lives inside a fixed-height
+    // wrapper (.spark-wrap, height:32px) so Chart.js can resize without
+    // entering a feedback loop.
+    document.querySelectorAll('#dash-root .spark').forEach(function(cv){
+      var raw = cv.dataset.spark || '';
+      var data = raw.split(',').map(function(s){ return Number(s) || 0; });
+      if (!data.length) return;
+      var color = cv.dataset.color || '#159b54';
+      new Chart(cv, {
+        type:'line',
+        data:{
+          labels:data.map(function(_,i){return i;}),
+          datasets:[{data:data,borderColor:color,borderWidth:2,fill:true,
+                     backgroundColor:color+'22',tension:.4,pointRadius:0}]
+        },
+        options:{
+          responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false},tooltip:{enabled:false}},
+          scales:{x:{display:false},y:{display:false}}
+        }
+      });
+    });
+
+    // 6-month revenue/expense bars
+    var trend = document.getElementById('dashTrend');
+    if (trend) {
+      var labels = {{ metrics.trend_6m.labels|tojson }};
+      var rev = {{ metrics.trend_6m.revenue|tojson }};
+      var exp = {{ metrics.trend_6m.expenses|tojson }};
+      new Chart(trend, {
+        type:'bar',
+        data:{labels:labels,datasets:[
+          {label:'إيراد',data:rev,backgroundColor:'#159b54',borderRadius:6,maxBarThickness:24},
+          {label:'مصروف',data:exp,backgroundColor:'#dc4640',borderRadius:6,maxBarThickness:24},
+        ]},
+        options:{
+          responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false},tooltip:{rtl:true,callbacks:{
+            label:function(c){return c.dataset.label+': '+(c.parsed.y||0).toLocaleString('en-US');}
+          }}},
+          scales:{
+            x:{grid:{display:false},ticks:{font:{family:'IBM Plex Sans Arabic',size:12},color:'#586660'}},
+            y:{grid:{color:'#eef2ee'},ticks:{
+              font:{family:'IBM Plex Sans Arabic',size:11},color:'#8b988f',
+              callback:function(v){return (v/1000)+'k';}
+            }}
+          }
+        }
+      });
     }
-  }
-});
-}
+  })();
 </script>
 {% endblock %}

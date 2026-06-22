@@ -1,5 +1,5 @@
 """Financial report generators: Balance Sheet, Income Statement, Cash Flow."""
-from datetime import date
+from datetime import date, datetime, time, timedelta
 from sqlalchemy import func, and_
 from app import db
 from app.models import Account, AccountType, JournalLine, JournalEntry
@@ -466,53 +466,408 @@ def aging_report(company_id, as_of=None):
     return {"rows": rows, "totals": totals, "as_of": as_of}
 
 
-def dashboard_metrics(company_id):
-    """Key metrics for the dashboard."""
+def _month_range(year, month):
+    """Return (first_of_month, last_of_month) date objects."""
+    from calendar import monthrange
+    first = date(year, month, 1)
+    last = date(year, month, monthrange(year, month)[1])
+    return first, last
+
+
+def _shift_month(d, delta):
+    """Return the first-of-month date `delta` months before/after d."""
+    m = d.month + delta
+    y = d.year + (m - 1) // 12
+    m = (m - 1) % 12 + 1
+    return date(y, m, 1)
+
+
+def _arabic_month(d):
+    """Arabic month name for a date object."""
+    return [
+        "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
+        "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر",
+    ][d.month - 1]
+
+
+def _initials_for(name):
+    """Two-letter Arabic initials from a full name."""
+    if not name:
+        return "؟"
+    parts = name.strip().split()
+    if len(parts) == 1:
+        return parts[0][:2]
+    return parts[0][:1] + parts[-1][:1]
+
+
+def _account_balance_as_of(company_id, account_codes, as_of_date):
+    """Sum debit−credit on the given accounts up to and including
+    `as_of_date`. Used for historical sparkline points."""
+    from app.models import Account, JournalEntry, JournalLine
+    from app import db as _db
+    accounts = Account.query.filter(
+        Account.company_id == company_id,
+        Account.code.in_(account_codes),
+    ).all()
+    if not accounts:
+        return 0.0
+    account_ids = [a.id for a in accounts]
+    rows = _db.session.query(
+        _db.func.sum(JournalLine.debit - JournalLine.credit)
+    ).join(JournalEntry).filter(
+        JournalEntry.company_id == company_id,
+        JournalEntry.is_active.is_(True),
+        JournalEntry.date <= as_of_date,
+        JournalLine.account_id.in_(account_ids),
+    ).scalar()
+    return float(rows or 0)
+
+
+def _ar_balance_as_of(company_id, as_of_date):
+    """Sum of unpaid invoice balances issued on or before as_of_date.
+    Approximation for sparkline use: ignores partial payments that
+    happened after as_of_date (close enough for trend visualisation)."""
     from app.models import Invoice, InvoiceStatus
+    invs = Invoice.query.filter(
+        Invoice.company_id == company_id,
+        Invoice.issue_date <= as_of_date,
+        ~Invoice.status.in_((InvoiceStatus.PAID, InvoiceStatus.CANCELLED,
+                              InvoiceStatus.REFUNDED, InvoiceStatus.DRAFT)),
+    ).all()
+    return sum(float(i.balance or 0) for i in invs)
+
+
+def _next_ap_due_days(company_id):
+    """Days until the next vendor-bill due date, or None if no pending bills."""
+    from app.models import VendorBill, VendorBillStatus
+    bills = VendorBill.query.filter(
+        VendorBill.company_id == company_id,
+        VendorBill.status.in_((VendorBillStatus.POSTED,
+                                VendorBillStatus.PARTIALLY_PAID)),
+    ).all()
+    if not bills:
+        return None
+    today = date.today()
+    due_dates = [b.due_date for b in bills if b.due_date and b.due_date >= today]
+    if not due_dates:
+        return 0  # everything is overdue
+    return (min(due_dates) - today).days
+
+
+def _pct_change(curr, prev):
+    """Percentage delta of curr vs prev, rounded. Returns 0 for prev==0."""
+    if not prev or abs(prev) < 0.001:
+        return 0
+    return int(round((curr - prev) / abs(prev) * 100))
+
+
+def dashboard_metrics(company_id):
+    """MARSOUD-DASH-01 — Owner Dashboard data.
+
+    Returns a deeply-nested dict that feeds every section of the new
+    dashboard: financial-health KPIs (with 8-month sparklines + % change),
+    operations cards, needs-attention panels, financial trend (6-month
+    bars + expense breakdown), team performance leaderboards.
+
+    Backward-compat: every key from the original return shape is still
+    present so older callers (agent tools, existing dashboard fragments
+    if any survived) don't break.
+    """
+    from app.models import (
+        Invoice, InvoiceStatus, Lead, LeadStatus, Task, TaskStatus,
+        Customer, ProductVariant, JournalAudit, User, Company,
+        task_assignees,
+    )
+    from app.models.user import user_companies
+    from app import db as _db
+
     today = date.today()
     start_month = today.replace(day=1)
-    prev_month_end = start_month.replace(day=1)
-    from calendar import monthrange
-    prev_month_end = (start_month.replace(day=1).replace(day=1))
-    # Just compute current month
-    inc = income_statement(company_id, start_date=start_month, end_date=today)
-    bs = balance_sheet(company_id, as_of=today)
-    cash_accounts = Account.query.filter(
-        Account.company_id == company_id, Account.code.in_(["1110", "1120"])
-    ).all()
-    cash_position = sum(float(a.balance) for a in cash_accounts)
+    prev_month_start = _shift_month(start_month, -1)
+    prev_month_end = start_month - timedelta(days=1)
 
+    company = Company.query.get(company_id)
+    currency = company.base_currency if company else "EGP"
+
+    # ─── Current-month income statement (backwards-compat fields) ────
+    inc = income_statement(company_id, start_date=start_month, end_date=today)
+    inc_prev = income_statement(
+        company_id, start_date=prev_month_start, end_date=prev_month_end,
+    )
+
+    # ─── Cash position (current) ─────────────────────────────────────
+    cash_position = _account_balance_as_of(company_id, ["1110", "1120"], today)
+    cash_position_prev = _account_balance_as_of(
+        company_id, ["1110", "1120"], prev_month_end,
+    )
+
+    # ─── Invoices (open + overdue) ───────────────────────────────────
     unpaid = Invoice.query.filter(
         Invoice.company_id == company_id,
-        Invoice.status.in_([InvoiceStatus.SENT, InvoiceStatus.PARTIALLY_PAID, InvoiceStatus.OVERDUE])
+        Invoice.status.in_([InvoiceStatus.SENT, InvoiceStatus.PARTIALLY_PAID,
+                            InvoiceStatus.OVERDUE]),
     ).all()
-    unpaid_total = sum(i.balance for i in unpaid)
-    overdue = [i for i in unpaid if i.due_date < today]
-    overdue_total = sum(i.balance for i in overdue)
+    unpaid_total = sum(float(i.balance or 0) for i in unpaid)
+    overdue = [i for i in unpaid if i.due_date and i.due_date < today]
+    overdue_total = sum(float(i.balance or 0) for i in overdue)
+    ar_prev = _ar_balance_as_of(company_id, prev_month_end)
 
-    ap_account = Account.query.filter_by(company_id=company_id, code="2110").first()
+    # ─── AP (vendor bills payable) ───────────────────────────────────
+    ap_account = Account.query.filter_by(
+        company_id=company_id, code="2110",
+    ).first()
     accounts_payable = float(ap_account.balance) if ap_account else 0.0
+    ap_prev = _account_balance_as_of(company_id, ["2110"], prev_month_end)
+    # AP balances live as credit-positive — store the magnitude for display.
+    ap_prev = abs(ap_prev) if ap_prev else 0.0
 
-    total_assets = bs["totals"]["assets"]
-    total_liab = bs["totals"]["liabilities"]
+    # ─── Ratios (backwards-compat) ───────────────────────────────────
+    bs = balance_sheet(company_id, as_of=today)
     total_equity = bs["totals"]["equity"]
+    total_liab = bs["totals"]["liabilities"]
     debt_to_equity = (total_liab / total_equity) if total_equity > 0.01 else 0.0
-
-    current_assets_codes = ["1110", "1120", "1130", "1300", "1150"]
-    current_liab_codes = ["2110", "2120", "2130", "2140"]
     current_assets = sum(
         float(a.balance) for a in Account.query.filter(
-            Account.company_id == company_id, Account.code.in_(current_assets_codes)
+            Account.company_id == company_id,
+            Account.code.in_(["1110", "1120", "1130", "1300", "1150"]),
         ).all()
     )
     current_liab = sum(
         float(a.balance) for a in Account.query.filter(
-            Account.company_id == company_id, Account.code.in_(current_liab_codes)
+            Account.company_id == company_id,
+            Account.code.in_(["2110", "2120", "2130", "2140"]),
         ).all()
     )
     current_ratio = (current_assets / current_liab) if current_liab > 0.01 else 0.0
 
+    # ─── 8-month sparklines for the 4 main KPIs ──────────────────────
+    spark_months = [_shift_month(start_month, -i) for i in range(7, -1, -1)]
+    cash_spark = [
+        round(_account_balance_as_of(company_id, ["1110", "1120"],
+                                      _month_range(m.year, m.month)[1]), 2)
+        for m in spark_months
+    ]
+    profit_spark = [
+        round(income_statement(company_id,
+                                start_date=m,
+                                end_date=_month_range(m.year, m.month)[1])
+                ["net_income"], 2)
+        for m in spark_months
+    ]
+    ar_spark = [
+        round(_ar_balance_as_of(company_id,
+                                 _month_range(m.year, m.month)[1]), 2)
+        for m in spark_months
+    ]
+    ap_spark = [
+        round(abs(_account_balance_as_of(company_id, ["2110"],
+                                          _month_range(m.year, m.month)[1])), 2)
+        for m in spark_months
+    ]
+
+    # ─── 6-month revenue/expense trend (last 6 months) ───────────────
+    trend_months = [_shift_month(start_month, -i) for i in range(5, -1, -1)]
+    trend_labels = [_arabic_month(m) for m in trend_months]
+    trend_revenue = []
+    trend_expenses = []
+    for m in trend_months:
+        m_end = _month_range(m.year, m.month)[1]
+        s = income_statement(company_id, start_date=m, end_date=m_end)
+        trend_revenue.append(round(s["total_revenue"], 2))
+        trend_expenses.append(round(s["total_expense"], 2))
+
+    # ─── Current-month expense breakdown by account ──────────────────
+    expense_rows = expenses_summary(company_id, start_date=start_month,
+                                     end_date=today)
+    # expenses_summary returns {"rows": [{"name", "amount", ...}], "total": X}
+    exp_total = float(expense_rows.get("total") or 0)
+    exp_palette = ["#159b54", "#2d6fb3", "#c47d10", "#6a52c4", "#0e9b86", "#d6ded8"]
+    expense_breakdown = []
+    sorted_exp = sorted(expense_rows.get("rows", []),
+                         key=lambda r: -float(r.get("amount") or 0))
+    top = sorted_exp[:5]
+    other = sorted_exp[5:]
+    for i, row in enumerate(top):
+        amt = float(row.get("amount") or 0)
+        if amt <= 0:
+            continue
+        expense_breakdown.append({
+            "name": row.get("name") or "—",
+            "amount": amt,
+            "pct": round(amt / exp_total * 100, 1) if exp_total > 0 else 0,
+            "color": exp_palette[i],
+        })
+    if other:
+        other_amt = sum(float(r.get("amount") or 0) for r in other)
+        if other_amt > 0:
+            expense_breakdown.append({
+                "name": "أخرى",
+                "amount": other_amt,
+                "pct": round(other_amt / exp_total * 100, 1) if exp_total > 0 else 0,
+                "color": exp_palette[5],
+            })
+
+    # ─── Operations cards ───────────────────────────────────────────
+    inventory_count = ProductVariant.query.filter_by(
+        company_id=company_id, is_active=True,
+    ).count()
+    low_stock_variants = [
+        v for v in ProductVariant.query.filter_by(
+            company_id=company_id, is_active=True,
+        ).all() if v.is_low_stock
+    ]
+    tasks_open = Task.query.filter(
+        Task.company_id == company_id,
+        Task.status != TaskStatus.DONE,
+    ).count()
+    tasks_overdue = sum(
+        1 for t in Task.query.filter(
+            Task.company_id == company_id,
+            Task.status != TaskStatus.DONE,
+        ).all()
+        if t.is_overdue
+    )
+    open_lead_statuses = [s for s in LeadStatus
+                          if s not in (LeadStatus.WON, LeadStatus.LOST)]
+    open_leads = Lead.query.filter(
+        Lead.company_id == company_id,
+        Lead.deleted_at.is_(None),
+        Lead.status.in_(open_lead_statuses),
+    ).all()
+    leads_expected_total = sum(float(L.expected_value or 0) for L in open_leads)
+
+    new_customers_count = Customer.query.filter(
+        Customer.company_id == company_id,
+        Customer.created_at >= datetime.combine(start_month, time.min),
+    ).count()
+    new_customers_prev = Customer.query.filter(
+        Customer.company_id == company_id,
+        Customer.created_at >= datetime.combine(prev_month_start, time.min),
+        Customer.created_at < datetime.combine(start_month, time.min),
+    ).count()
+
+    # ─── Section 3: Needs Attention ─────────────────────────────────
+    late_sorted = sorted(overdue, key=lambda i: i.due_date or today)[:3]
+    late_invoices = [{
+        "id": i.id,
+        "number": i.number,
+        "customer_name": (i.customer.name if i.customer else "—"),
+        "customer_initials": _initials_for(i.customer.name if i.customer else None),
+        "amount": float(i.balance or 0),
+        "days_late": (today - i.due_date).days if i.due_date else 0,
+    } for i in late_sorted]
+
+    # Upcoming bills via the MARSOUD-65 forecast helper.
+    upcoming_bills = []
+    upcoming_total = 0.0
+    try:
+        from app.services.recurring_bills import get_due_within
+        forecast_data = get_due_within(company_id, days=7)
+        for row in forecast_data.get("rows", [])[:3]:
+            days_until = (row["date"] - today).days
+            upcoming_bills.append({
+                "id": row.get("recurring_bill_id"),
+                "label": row.get("template_label") or row.get("vendor_name") or "—",
+                "vendor_initials": _initials_for(row.get("vendor_name")),
+                "amount": float(row.get("amount") or 0),
+                "currency": row.get("currency") or currency,
+                "days_until": days_until,
+                "interval_label": "متكرر",
+            })
+        # Total in base currency (most installs use one currency).
+        upcoming_total = sum(float(r.get("amount") or 0)
+                              for r in forecast_data.get("rows", []))
+    except Exception:
+        pass
+
+    # ─── Section 5: Team Performance ────────────────────────────────
+    # The route gates this section on permission; we always compute it
+    # for simplicity (cheap-enough queries).
+    team_member_rows = _db.session.execute(
+        user_companies.select().where(user_companies.c.company_id == company_id)
+    ).fetchall()
+    role_label_map = {}
+    try:
+        from app.services.permissions import ROLE_LABELS_AR
+        role_label_map = ROLE_LABELS_AR
+    except Exception:
+        pass
+    user_ids = [r.user_id for r in team_member_rows]
+    user_map = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()}
+    role_by_user = {r.user_id: role_label_map.get(r.role, r.role or "—")
+                    for r in team_member_rows}
+
+    # Most-active: count JournalAudit rows this month, per user.
+    audit_counts = dict(_db.session.query(
+        JournalAudit.user_id, _db.func.count(JournalAudit.id),
+    ).filter(
+        JournalAudit.user_id.in_(user_ids),
+        JournalAudit.created_at >= datetime.combine(start_month, time.min),
+    ).group_by(JournalAudit.user_id).all())
+
+    def _make_team_row(uid, count_val, extra=None):
+        u = user_map.get(uid)
+        if not u:
+            return None
+        return {
+            "user_id": uid,
+            "name": u.full_name or u.email,
+            "role_ar": role_by_user.get(uid, "—"),
+            "initials": _initials_for(u.full_name or u.email),
+            "count": count_val,
+            **(extra or {}),
+        }
+
+    team_most_active = sorted(
+        [r for r in (_make_team_row(uid, c)
+                     for uid, c in audit_counts.items()) if r],
+        key=lambda r: -r["count"],
+    )[:4]
+
+    # Most tasks assigned: count open tasks per assignee (multi-assignee aware).
+    task_count_query = _db.session.query(
+        task_assignees.c.user_id, _db.func.count(Task.id),
+    ).join(Task, Task.id == task_assignees.c.task_id).filter(
+        Task.company_id == company_id,
+        Task.status != TaskStatus.DONE,
+        task_assignees.c.user_id.in_(user_ids),
+    ).group_by(task_assignees.c.user_id).all()
+    open_task_overdue = {}
+    for t in Task.query.filter(Task.company_id == company_id,
+                                 Task.status != TaskStatus.DONE).all():
+        if not t.is_overdue:
+            continue
+        # Count this task for each of its assignees
+        for uid_row in _db.session.execute(
+            task_assignees.select().where(task_assignees.c.task_id == t.id)
+        ).fetchall():
+            open_task_overdue[uid_row.user_id] = \
+                open_task_overdue.get(uid_row.user_id, 0) + 1
+
+    team_most_tasks = sorted(
+        [r for r in (_make_team_row(uid, c,
+                                     {"overdue": open_task_overdue.get(uid, 0)})
+                     for uid, c in task_count_query) if r],
+        key=lambda r: -r["count"],
+    )[:4]
+
+    # Most leads: count open leads per assignee.
+    lead_counts = dict(_db.session.query(
+        Lead.assigned_to_id, _db.func.count(Lead.id),
+    ).filter(
+        Lead.company_id == company_id,
+        Lead.deleted_at.is_(None),
+        Lead.status.in_(open_lead_statuses),
+        Lead.assigned_to_id.in_(user_ids),
+    ).group_by(Lead.assigned_to_id).all())
+    team_most_leads = sorted(
+        [r for r in (_make_team_row(uid, c)
+                     for uid, c in lead_counts.items()) if r],
+        key=lambda r: -r["count"],
+    )[:4]
+
     return {
+        # ─── Back-compat scalars ─────────────────────────────────────
         "total_revenue": inc["total_revenue"],
         "total_expenses": inc["total_expense"],
         "net_profit": inc["net_income"],
@@ -522,4 +877,57 @@ def dashboard_metrics(company_id):
         "accounts_payable": accounts_payable,
         "debt_to_equity": debt_to_equity,
         "current_ratio": current_ratio,
+
+        # ─── DASH-01 ─────────────────────────────────────────────────
+        "currency": currency,
+        "kpis": {
+            "liquidity": {
+                "value": cash_position,
+                "spark": cash_spark,
+                "change_pct": _pct_change(cash_position, cash_position_prev),
+            },
+            "net_profit_month": {
+                "value": inc["net_income"],
+                "spark": profit_spark,
+                "change_pct": _pct_change(inc["net_income"], inc_prev["net_income"]),
+            },
+            "ar_open": {
+                "value": unpaid_total,
+                "spark": ar_spark,
+                "overdue_count": len(overdue),
+                "change_pct": _pct_change(unpaid_total, ar_prev),
+            },
+            "ap_open": {
+                "value": accounts_payable,
+                "spark": ap_spark,
+                "next_due_days": _next_ap_due_days(company_id),
+                "change_pct": _pct_change(accounts_payable, ap_prev),
+            },
+        },
+        "ops": {
+            "inventory_count": inventory_count,
+            "inventory_low_stock": len(low_stock_variants),
+            "tasks_open": tasks_open,
+            "tasks_overdue": tasks_overdue,
+            "leads_open_count": len(open_leads),
+            "leads_expected_total": leads_expected_total,
+            "customers_new_month": new_customers_count,
+            "customers_new_prev": new_customers_prev,
+            "customers_delta": new_customers_count - new_customers_prev,
+        },
+        "late_invoices": late_invoices,
+        "late_invoices_total": overdue_total,
+        "late_invoices_count": len(overdue),
+        "upcoming_bills": upcoming_bills,
+        "upcoming_bills_total": upcoming_total,
+        "upcoming_bills_count": len(upcoming_bills),
+        "trend_6m": {
+            "labels": trend_labels,
+            "revenue": trend_revenue,
+            "expenses": trend_expenses,
+        },
+        "expense_breakdown": expense_breakdown,
+        "team_most_active": team_most_active,
+        "team_most_tasks": team_most_tasks,
+        "team_most_leads": team_most_leads,
     }
