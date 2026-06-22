@@ -40,6 +40,7 @@ from app.models.crm import (
     PROJECT_TRANSITIONS,
     Task, TaskStatus, TaskPriority, KANBAN_ORDER,
     TaskComment, TaskActivityLog, task_assignees,
+    LeadComment,
 )
 from app.models.opsflow_extras import (
     Document, DocumentSourceType, DocumentVisibility,
@@ -82,6 +83,7 @@ __all__ = [
     "PROJECT_TRANSITIONS",
     "Task", "TaskStatus", "TaskPriority", "KANBAN_ORDER",
     "TaskComment", "TaskActivityLog", "task_assignees",
+    "LeadComment",
     "Document", "DocumentSourceType", "DocumentVisibility",
     "Notification", "NotificationKind",
     "ClientFeedback", "AuditEntry",

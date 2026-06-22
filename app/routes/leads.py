@@ -12,7 +12,7 @@ from sqlalchemy import or_
 from app import db
 from app.models import (
     Lead, LeadStatus, LeadType, LeadSource, LeadStatusEvent,
-    User, Customer, Employee,
+    LeadComment, User, Customer, Employee,
 )
 from app.models.user import user_companies
 from app.services.crm import (
@@ -375,6 +375,28 @@ def upload(lead_id, kind):
     except DocumentError as e:
         flash(str(e), "error")
     return redirect(url_for("leads.detail", lead_id=lead.id))
+
+
+# ─── MARSOUD: comments on leads (ticket C / image #47) ───────────────
+@bp.route("/<int:lead_id>/comments", methods=["POST"])
+@login_required
+@require_permission("leads.view")
+def comment_add(lead_id):
+    lead = _lead_or_403(lead_id)
+    content = (request.form.get("content") or "").strip()
+    if not content:
+        flash("اكتب نص التعليق قبل الإرسال", "error")
+        return redirect(url_for("leads.detail", lead_id=lead.id) + "#comments")
+    c = LeadComment(
+        lead_id=lead.id,
+        user_id=current_user.id,
+        company_id=lead.company_id,
+        content=content,
+    )
+    db.session.add(c)
+    db.session.commit()
+    flash("تم إضافة التعليق", "success")
+    return redirect(url_for("leads.detail", lead_id=lead.id) + "#comments")
 
 
 @bp.route("/<int:lead_id>/convert", methods=["GET", "POST"])

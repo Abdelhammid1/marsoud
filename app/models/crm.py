@@ -462,6 +462,30 @@ Task.assignees = db.relationship(
 )
 
 
+class LeadComment(db.Model):
+    """MARSOUD — discussion thread attached to a Lead. Mirrors TaskComment
+    so the detail-page UI feels familiar."""
+    __tablename__ = "lead_comments"
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer,
+                        db.ForeignKey("leads.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"),
+                           nullable=False, index=True)
+    content = db.Column(db.Text, nullable=False)
+    attachment_url = db.Column(db.String(400))
+    attachment_name = db.Column(db.String(200))
+    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+    lead = db.relationship(
+        "Lead", foreign_keys=[lead_id],
+        backref=db.backref("comments",
+                           order_by="LeadComment.created_at.asc()",
+                           cascade="all, delete-orphan"))
+    user = db.relationship("User", foreign_keys=[user_id])
+
+
 class TaskComment(db.Model):
     __tablename__ = "task_comments"
     id = db.Column(db.Integer, primary_key=True)
