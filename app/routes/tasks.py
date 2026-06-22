@@ -436,12 +436,31 @@ def comment_add(task_id):
 @login_required
 @require_permission("tasks.view")
 def stats():
-    # Owner/admin (or anyone granted tasks.view_all) + PMs see team-wide
-    # stats; everyone else sees only their own row.
+    """MARSOUD — analytics-grade team-stats page.
+
+    Query string:
+      range=7|30|90|all  — restricts the count buckets to tasks created
+                           within that window (velocity_30d ignores this).
+    """
+    from datetime import datetime, timedelta
     role = _role()
     cid = g.active_company.id
-    rows = team_stats(cid)
+
+    range_arg = (request.args.get("range") or "all").lower()
+    days_map = {"7": 7, "30": 30, "90": 90}
+    since = None
+    if range_arg in days_map:
+        since = datetime.now() - timedelta(days=days_map[range_arg])
+
+    data = team_stats(cid, since=since)
+    rows = data["rows"]
     if not _has_full_task_visibility() and role != "project_manager":
         rows = [r for r in rows if r["user"] and r["user"].id == current_user.id]
-    return render_template("tasks/stats.html",
-                           rows=rows, role=role, today=date.today())
+    return render_template(
+        "tasks/stats.html",
+        rows=rows,
+        closed_per_week=data["closed_per_week"],
+        status_dist=data["status_dist"],
+        role=role, today=date.today(),
+        range_arg=range_arg,
+    )

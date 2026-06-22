@@ -63,7 +63,8 @@ def _():
     from app.services.tasks_extras import team_stats
     from app.models import Company
     company = Company.query.order_by(Company.id).first()
-    rows = team_stats(company.id)
+    result = team_stats(company.id)
+    rows = result["rows"] if isinstance(result, dict) else result
     if not rows:
         return "no team data — but team_stats returned an empty list (ok)"
     sample = rows[0]
@@ -90,7 +91,8 @@ def _():
     assert user, "no test user available"
 
     # Snapshot the user's todo count before
-    rows_before = team_stats(company.id)
+    res_before = team_stats(company.id)
+    rows_before = res_before["rows"] if isinstance(res_before, dict) else res_before
     before_todo = next((r["todo"] for r in rows_before
                        if r["user"] and r["user"].id == user.id), 0)
 
@@ -110,7 +112,8 @@ def _():
     ))
     db.session.commit()
 
-    rows_after = team_stats(company.id)
+    res_after = team_stats(company.id)
+    rows_after = res_after["rows"] if isinstance(res_after, dict) else res_after
     after_todo = next((r["todo"] for r in rows_after
                       if r["user"] and r["user"].id == user.id), 0)
     delta = after_todo - before_todo

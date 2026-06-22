@@ -356,33 +356,116 @@ def is_visible_to(task, user_id, full_visibility, pm_project_ids=None):
 
 
 # ─── Stats ────────────────────────────────────────────────────────────────
-def team_stats(company_id):
-    """Per-user stats: total/open/done/overdue counts.
+def _close_timestamps(company_id):
+    """Map task_id → first datetime the task hit DONE, by inspecting
+    TaskActivityLog rows with action='STATUS_CHANGED' and after.status==DONE.
 
-    Counts a user once per task: a multi-assignee task counts toward each
-    assignee's total. Only company members are returned.
+    Used for time-to-close + velocity calculations. Tasks whose close event
+    predates the activity log feature fall back to None and are excluded
+    from the median.
+    """
+    import json
+    from app.models import TaskActivityLog
+    rows = db.session.query(TaskActivityLog).filter(
+        TaskActivityLog.company_id == company_id,
+        TaskActivityLog.action == "STATUS_CHANGED",
+    ).order_by(TaskActivityLog.created_at.asc()).all()
+    out = {}
+    for r in rows:
+        if r.task_id in out:
+            continue   # only keep the first DONE transition
+        try:
+            after = json.loads(r.after_json or "{}")
+        except (TypeError, ValueError):
+            continue
+        if (after.get("status") or "").upper() == "DONE":
+            out[r.task_id] = r.created_at
+    return out
+
+
+def _median(values):
+    if not values:
+        return None
+    s = sorted(values)
+    n = len(s)
+    return s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2
+
+
+def team_stats(company_id, since=None):
+    """MARSOUD — analytics-grade per-user stats.
+
+    Each row reports counts (todo/in_progress/review/blocked/done/overdue),
+    a completion rate, plus deeper performance metrics:
+
+      avg_time_to_close   median days from task.created_at → first DONE
+                          activity log entry (None when no task has been
+                          closed)
+      velocity_30d        count of tasks the user closed in the last 30
+                          days (regardless of `since`, so the velocity
+                          column is always comparable)
+      overdue_ratio       overdue / total × 100 (0 when total = 0)
+      on_time_rate        of done tasks WITH a deadline, % closed on or
+                          before deadline (None when nothing qualifies)
+      badges              auto-assigned highlights: 'star', 'behind', 'new'
+
+    Args:
+      since: optional date — restrict the count buckets (todo / in_progress
+             / done / etc.) to tasks created on or after this date. The
+             velocity_30d metric ignores `since` so the column always
+             shows "last 30 days".
+
+    Returns:
+      {
+        "rows":            sorted-by-total list of per-user dicts,
+        "closed_per_week": list of 8 ints (last 8 weeks, oldest first),
+        "status_dist":     {todo,in_progress,review,done,blocked} counts
+                           across the WHOLE company (no `since`),
+      }
     """
     today = date.today()
+    now = datetime.now()
+    cutoff_30d = now - timedelta(days=30)
     members = db.session.execute(
         user_companies.select().where(user_companies.c.company_id == company_id)
     ).fetchall()
     member_ids = [m.user_id for m in members]
     users = {u.id: u for u in
              db.session.query(User).filter(User.id.in_(member_ids)).all()}
+    # Track when each user first joined this company so the 'new' badge
+    # can fire on members < 30 days old.
+    join_dates = {}
+    for m in members:
+        # user_companies.joined_at is the canonical column; some older rows
+        # may have None and fall back to user.created_at.
+        joined = getattr(m, "joined_at", None)
+        if joined is None:
+            u = users.get(m.user_id)
+            joined = getattr(u, "created_at", None) if u else None
+        if joined:
+            join_dates[m.user_id] = joined
 
     # Pull every task once + its assignee list, then aggregate in Python.
-    tasks = Task.query.filter(Task.company_id == company_id).all()
-    # MARSOUD — separate buckets per status so the team-stats page can show
-    # "للقيام" (TODO) and "قيد التنفيذ" (IN_PROGRESS) as distinct columns
-    # instead of lumping them under a generic "open". `open` is kept as a
-    # convenience aggregate (everything not DONE) for backwards compat.
-    out = {uid: {"user": users.get(uid), "total": 0,
-                 "todo": 0, "in_progress": 0, "review": 0, "blocked": 0,
-                 "open": 0, "done": 0, "overdue": 0, "deadline_soon": 0}
-           for uid in member_ids if uid in users}
+    task_query = Task.query.filter(Task.company_id == company_id)
+    if since:
+        task_query = task_query.filter(Task.created_at >= since)
+    tasks = task_query.all()
+
+    closes = _close_timestamps(company_id)
+
+    out = {uid: {
+        "user": users.get(uid),
+        "total": 0,
+        "todo": 0, "in_progress": 0, "review": 0, "blocked": 0,
+        "open": 0, "done": 0, "overdue": 0, "deadline_soon": 0,
+        "_close_days": [],      # gathered then medianed below
+        "velocity_30d": 0,
+        "_on_time_eligible": 0,
+        "_on_time_count": 0,
+    } for uid in member_ids if uid in users}
 
     for t in tasks:
         ids = assignee_ids_for(t)
+        closed_at = closes.get(t.id)
         for uid in ids:
             if uid not in out:
                 continue
@@ -390,6 +473,16 @@ def team_stats(company_id):
             row["total"] += 1
             if t.status == TaskStatus.DONE:
                 row["done"] += 1
+                if closed_at and t.created_at:
+                    delta_days = (closed_at - t.created_at).total_seconds() / 86400
+                    if delta_days >= 0:
+                        row["_close_days"].append(delta_days)
+                if t.deadline:
+                    row["_on_time_eligible"] += 1
+                    # Closed on or before the deadline?
+                    closed_date = closed_at.date() if closed_at else today
+                    if closed_date <= t.deadline:
+                        row["_on_time_count"] += 1
             else:
                 row["open"] += 1
                 if t.status == TaskStatus.TODO:
@@ -405,8 +498,91 @@ def team_stats(company_id):
             elif t.deadline_soon:
                 row["deadline_soon"] += 1
 
-    # Sort by total desc so heaviest contributors land at the top.
-    return sorted(out.values(), key=lambda r: -r["total"])
+    # Velocity: always last-30-days, regardless of `since`. Walk the close
+    # map directly (tasks already filtered by company_id at the source).
+    velocity_tasks = [tid for tid, ts in closes.items() if ts >= cutoff_30d]
+    if velocity_tasks:
+        # For each velocity-eligible task, bump every assignee's velocity.
+        from app.models import task_assignees
+        rows = db.session.execute(
+            task_assignees.select().where(
+                task_assignees.c.task_id.in_(velocity_tasks)
+            )
+        ).fetchall()
+        for r in rows:
+            if r.user_id in out:
+                out[r.user_id]["velocity_30d"] += 1
+
+    # Finalise derived metrics + auto-badges.
+    finalised = []
+    for uid, row in out.items():
+        row["avg_time_to_close"] = (
+            round(_median(row["_close_days"]), 1)
+            if row["_close_days"] else None
+        )
+        row["overdue_ratio"] = (
+            round(row["overdue"] / row["total"] * 100, 1)
+            if row["total"] else 0.0
+        )
+        row["on_time_rate"] = (
+            round(row["_on_time_count"] / row["_on_time_eligible"] * 100, 1)
+            if row["_on_time_eligible"] else None
+        )
+        row["completion_rate"] = (
+            round(row["done"] / row["total"] * 100, 1)
+            if row["total"] else 0.0
+        )
+        # Drop internal accumulators
+        row.pop("_close_days", None)
+        row.pop("_on_time_eligible", None)
+        row.pop("_on_time_count", None)
+        # Badges
+        badges = []
+        joined = join_dates.get(uid)
+        if joined and (now - joined).days < 30:
+            badges.append("new")
+        if row["overdue"] > row["done"] and row["total"] > 0:
+            badges.append("behind")
+        row["badges"] = badges
+        finalised.append(row)
+
+    # Star badge → top by composite score (completion_rate × velocity_30d).
+    # Only fires for users with at least 1 closed task in the velocity window.
+    velocity_users = [r for r in finalised if r["velocity_30d"] > 0]
+    if velocity_users:
+        top = max(velocity_users,
+                   key=lambda r: r["completion_rate"] * (r["velocity_30d"] + 1))
+        if top["completion_rate"] >= 50:   # avoid handing a star for 1/2 done
+            top["badges"].insert(0, "star")
+
+    # Company-wide status distribution (no `since` — current state).
+    all_tasks = Task.query.filter(Task.company_id == company_id).all()
+    status_dist = {"todo": 0, "in_progress": 0, "review": 0,
+                    "done": 0, "blocked": 0}
+    for t in all_tasks:
+        key = t.status.value.lower()
+        if key in status_dist:
+            status_dist[key] += 1
+
+    # 8-week closed-per-week histogram (anchored on the current week).
+    closed_per_week = [0] * 8
+    week_anchor = now - timedelta(days=now.weekday())  # Monday of this week
+    week_anchor = week_anchor.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = week_anchor - timedelta(weeks=7)
+    for ts in closes.values():
+        if ts < week_start:
+            continue
+        weeks_ago = int((now - ts).total_seconds() // (7 * 86400))
+        idx = 7 - weeks_ago
+        if 0 <= idx < 8:
+            closed_per_week[idx] += 1
+
+    rows = sorted(finalised, key=lambda r: -r["total"])
+    return {
+        "rows": rows,
+        "closed_per_week": closed_per_week,
+        "status_dist": status_dist,
+    }
 
 
 # ─── Notification utilities (bell dropdown) ───────────────────────────────
