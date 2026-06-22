@@ -372,8 +372,13 @@ def team_stats(company_id):
 
     # Pull every task once + its assignee list, then aggregate in Python.
     tasks = Task.query.filter(Task.company_id == company_id).all()
-    out = {uid: {"user": users.get(uid), "total": 0, "open": 0,
-                 "done": 0, "overdue": 0, "deadline_soon": 0}
+    # MARSOUD — separate buckets per status so the team-stats page can show
+    # "للقيام" (TODO) and "قيد التنفيذ" (IN_PROGRESS) as distinct columns
+    # instead of lumping them under a generic "open". `open` is kept as a
+    # convenience aggregate (everything not DONE) for backwards compat.
+    out = {uid: {"user": users.get(uid), "total": 0,
+                 "todo": 0, "in_progress": 0, "review": 0, "blocked": 0,
+                 "open": 0, "done": 0, "overdue": 0, "deadline_soon": 0}
            for uid in member_ids if uid in users}
 
     for t in tasks:
@@ -387,6 +392,14 @@ def team_stats(company_id):
                 row["done"] += 1
             else:
                 row["open"] += 1
+                if t.status == TaskStatus.TODO:
+                    row["todo"] += 1
+                elif t.status == TaskStatus.IN_PROGRESS:
+                    row["in_progress"] += 1
+                elif t.status == TaskStatus.REVIEW:
+                    row["review"] += 1
+                elif t.status == TaskStatus.BLOCKED:
+                    row["blocked"] += 1
             if t.is_overdue:
                 row["overdue"] += 1
             elif t.deadline_soon:

@@ -92,6 +92,15 @@ def _task_or_403(task_id):
     return t
 
 
+def _can_edit_description(task):
+    """MARSOUD — the task description belongs to whoever created it.
+    Nobody else (not even admin) can change the wording. Other fields
+    (status/priority/deadline/assignees) follow the normal tasks.manage
+    permission as before."""
+    return (task.created_by_id is not None
+            and task.created_by_id == current_user.id)
+
+
 def _parse_date(s):
     if not s:
         return None
@@ -281,10 +290,14 @@ def edit(task_id):
                              after={"title": new_title})
                 t.title = new_title
             if new_desc != t.description:
-                log_activity(t, "DESCRIPTION_CHANGED",
-                             before={"description": (t.description or "")[:200]},
-                             after={"description": (new_desc or "")[:200]})
-                t.description = new_desc
+                if _can_edit_description(t):
+                    log_activity(t, "DESCRIPTION_CHANGED",
+                                 before={"description": (t.description or "")[:200]},
+                                 after={"description": (new_desc or "")[:200]})
+                    t.description = new_desc
+                else:
+                    flash("لا يمكن تعديل الوصف — هذا الحقل محجوز لمن أنشأ المهمة فقط.",
+                          "warning")
             if new_priority != t.priority:
                 log_activity(t, "PRIORITY_CHANGED",
                              before={"priority": t.priority.value},
@@ -366,11 +379,19 @@ def delete(task_id):
 @require_permission("tasks.view")
 def inline_edit(task_id):
     t = _task_or_403(task_id)
+    desc_in = request.form.get("description")
+    # MARSOUD — description is creator-only. Silently drop the submitted
+    # value when a non-creator sends it (the editor form is hidden in the
+    # template, but defence-in-depth covers direct POSTs).
+    if desc_in is not None and not _can_edit_description(t):
+        desc_in = None
+        flash("لا يمكن تعديل الوصف — هذا الحقل محجوز لمن أنشأ المهمة فقط.",
+              "warning")
     try:
         apply_inline_edit(
             t,
             title=request.form.get("title"),
-            description=request.form.get("description"),
+            description=desc_in,
             priority=request.form.get("priority"),
             deadline=request.form.get("deadline"),
             status=request.form.get("status"),

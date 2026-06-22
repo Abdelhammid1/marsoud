@@ -16,7 +16,9 @@
       <tr>
         <th>العضو</th>
         <th class="text-center">المجموع</th>
+        <th class="text-center">للقيام</th>
         <th class="text-center">قيد التنفيذ</th>
+        <th class="text-center">مراجعة</th>
         <th class="text-center">مكتملة</th>
         <th class="text-center">متأخرة</th>
         <th class="text-center">قريبة (≤24س)</th>
@@ -28,7 +30,9 @@
       <tr>
         <td class="font-semibold">{{ r.user.full_name if r.user else '—' }}</td>
         <td class="text-center font-mono">{{ r.total }}</td>
-        <td class="text-center font-mono">{{ r.open }}</td>
+        <td class="text-center font-mono text-slate-600">{{ r.todo }}</td>
+        <td class="text-center font-mono text-sky-700">{{ r.in_progress }}</td>
+        <td class="text-center font-mono text-violet-700">{{ r.review }}</td>
         <td class="text-center font-mono text-emerald-700">{{ r.done }}</td>
         <td class="text-center font-mono {% if r.overdue %}text-rose-600 font-bold{% endif %}">{{ r.overdue }}</td>
         <td class="text-center font-mono {% if r.deadline_soon %}text-amber-600{% endif %}">{{ r.deadline_soon }}</td>

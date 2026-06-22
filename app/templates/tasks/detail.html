@@ -72,10 +72,11 @@
       {% if task.completed_at %} · أُكملت <span class="font-mono">{{ task.completed_at.strftime('%Y-%m-%d %H:%M') }}</span>{% endif %}
     </div>
 
-    <!-- ─── Description ───────────────────────────────────────────── -->
-    {% if can_edit %}
+    <!-- ─── Description (MARSOUD: creator-only edit) ───────────────── -->
+    {% set is_creator = task.created_by_id and task.created_by_id == current_user.id %}
+    {% if can_edit and is_creator %}
     <details class="bg-slate-50 rounded-lg p-3 mb-3" {% if not task.description %}open{% endif %}>
-      <summary class="cursor-pointer text-sm font-semibold text-slate-700">📝 الوصف {% if task.description %}<span class="text-xs text-slate-400">(انقر للتعديل)</span>{% endif %}</summary>
+      <summary class="cursor-pointer text-sm font-semibold text-slate-700">📝 الوصف <span class="text-xs text-slate-400">(انقر للتعديل)</span></summary>
       <form method="POST" action="{{ url_for('tasks.inline_edit', task_id=task.id) }}" class="mt-2">
         <textarea name="description" rows="4" class="input text-sm w-full"
                   placeholder="وصف المهمة…">{{ task.description or '' }}</textarea>
@@ -83,7 +84,13 @@
       </form>
     </details>
     {% elif task.description %}
-    <div class="bg-slate-50 rounded-lg p-3 text-sm whitespace-pre-wrap mb-3">{{ task.description }}</div>
+    <div class="bg-slate-50 rounded-lg p-3 mb-3">
+      <div class="text-xs text-slate-500 font-semibold mb-1">
+        📝 الوصف
+        {% if not is_creator %}<span class="text-slate-400 font-normal">(للقراءة — لا يمكن تعديله إلا من قِبل من أنشأ المهمة)</span>{% endif %}
+      </div>
+      <div class="text-sm whitespace-pre-wrap">{{ task.description }}</div>
+    </div>
     {% endif %}
     {% if task.notes %}
     <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm whitespace-pre-wrap mb-4">
