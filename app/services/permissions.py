@@ -32,6 +32,10 @@ P = {
     "journals.pause":       {"owner", "admin", "accountant"},
     "journals.reverse":     {"owner", "admin", "accountant"},
     "journals.recurring":   {"owner", "admin", "accountant"},
+    # MARSOUD — read access to the general ledger. Was missing entirely,
+    # which left /journals/* routes wide-open to any logged-in user. Same
+    # role list as the financial-reports gate (+ accountant explicitly).
+    "journals.view":        {"owner", "admin", "accountant", "ceo", "viewer"},
 
     "payroll.run":          {"owner", "admin", "accountant"},
     "payroll.employees":    {"owner", "admin", "accountant", "hr_manager"},  # employee lifecycle (create/edit/terminate) — HR owns this
@@ -172,6 +176,9 @@ def get_user_role_id(user_id, company_id):
 _IMPLIES = {
     "leads.view": "leads.view_all",
     "tasks.view": "tasks.view_all",
+    # MARSOUD — anyone who can create a journal entry can read the ledger.
+    # Lets us add the journals.view gate without locking accountants out.
+    "journals.view": "journals.create",
 }
 
 

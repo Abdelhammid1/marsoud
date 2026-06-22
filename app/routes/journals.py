@@ -28,6 +28,7 @@ def _parse_date(s, default=None):
 
 @bp.route("/")
 @login_required
+@require_permission("journals.view")
 def index():
     if not g.active_company:
         return redirect(url_for("companies.new"))
@@ -251,6 +252,7 @@ def new():
 
 @bp.route("/<int:entry_id>")
 @login_required
+@require_permission("journals.view")
 def view(entry_id):
     entry = db.session.get(JournalEntry, entry_id)
     if not entry or entry.company_id != g.active_company.id:
@@ -341,6 +343,7 @@ def reactivate(entry_id):
 
 @bp.route("/templates")
 @login_required
+@require_permission("journals.view")
 def templates_list():
     templates = JournalTemplate.query.filter_by(company_id=g.active_company.id).all()
     return render_template("journals/templates.html", templates=templates)
@@ -389,6 +392,7 @@ def templates_new():
 
 @bp.route("/templates/<int:template_id>/use")
 @login_required
+@require_permission("journals.create")
 def use_template(template_id):
     tpl = db.session.get(JournalTemplate, template_id)
     if not tpl or tpl.company_id != g.active_company.id:
@@ -402,6 +406,7 @@ def use_template(template_id):
 
 @bp.route("/recurring")
 @login_required
+@require_permission("journals.view")
 def recurring_list():
     items = RecurringJournal.query.filter_by(
         company_id=g.active_company.id, is_deleted=False
@@ -507,6 +512,7 @@ def recurring_delete(rec_id):
 
 @bp.route("/recurring/<int:rec_id>/log")
 @login_required
+@require_permission("journals.view")
 def recurring_log(rec_id):
     r = db.session.get(RecurringJournal, rec_id)
     if not r or r.company_id != g.active_company.id:
