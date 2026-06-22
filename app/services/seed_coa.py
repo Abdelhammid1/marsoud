@@ -57,6 +57,25 @@ DEFAULT_COA = [
     ("5280", "Sales Commissions Expense", "مصروف عمولات المبيعات", AccountType.EXPENSE, "5200"),
     # ERP-01 — stock-count variance account
     ("5990", "Inventory Variance", "فروقات الجرد", AccountType.EXPENSE, "5000"),
+# CoA cleanup June 2026 - Formation expenses
+    ("5300", "Formation & Setup Expenses", "مصروفات التأسيس", AccountType.EXPENSE, "5000"),
+    ("5310", "Formation-stage Salaries", "رواتب مرحلة التأسيس", AccountType.EXPENSE, "5300"),
+    ("5320", "Market Research & Studies", "أبحاث ودراسة السوق", AccountType.EXPENSE, "5300"),
+    ("5330", "Incorporation & Registration Fees", "رسوم التأسيس والتسجيل", AccountType.EXPENSE, "5300"),
+    ("5340", "Legal & Accounting Consultations", "الاستشارات القانونية والمحاسبية", AccountType.EXPENSE, "5300"),
+    ("5350", "Branding & Identity Design", "تصميم الهوية والعلامة التجارية", AccountType.EXPENSE, "5300"),
+    ("5360", "Travel & Founding Meetings", "السفر والاجتماعات التأسيسية", AccountType.EXPENSE, "5300"),
+    ("5390", "Other Formation Expenses", "مصروفات تأسيس أخرى", AccountType.EXPENSE, "5300"),
+    # CoA cleanup June 2026 - Supplementary accounts
+    ("1350", "Input VAT (Recoverable)", "ض.ق.م القابلة للخصم", AccountType.ASSET, "1100"),
+    ("2160", "Accrued Expenses", "مستحقات", AccountType.LIABILITY, "2100"),
+    ("2170", "Deposits & Retentions", "أمانات ومحتجزات", AccountType.LIABILITY, "2100"),
+    ("5215", "Communications & Internet", "اتصالات وإنترنت", AccountType.EXPENSE, "5200"),
+    ("5235", "Repairs & Maintenance", "صيانة وإصلاحات", AccountType.EXPENSE, "5200"),
+    ("5245", "Software Subscriptions (SaaS)", "اشتراكات برمجية", AccountType.EXPENSE, "5200"),
+    ("5255", "Government Fees & Charges", "رسوم ومصروفات حكومية", AccountType.EXPENSE, "5200"),
+    ("5265", "Legal & Accounting Fees", "رسوم قانونية ومحاسبية", AccountType.EXPENSE, "5200"),
+    ("5275", "Insurance", "تأمينات", AccountType.EXPENSE, "5200"),
 ]
 
 
