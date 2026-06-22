@@ -228,7 +228,39 @@ def new():
                 project.recompute_progress()
             db.session.commit()
 
-            flash(f"تم إنشاء المهمة: {t.title}", "success")
+            # MARSOUD — multi-attachment upload at creation. Each file
+            # goes through save_document() (same path the lead/project
+            # uploads use), so size + extension validation is shared.
+            # Failures on individual files don't roll back the task.
+            uploaded = 0
+            failed = []
+            files = [fs for fs in request.files.getlist("attachments")
+                     if fs and fs.filename]
+            if files:
+                from app.services.opsflow_extras import (
+                    save_document, DocumentError,
+                )
+                from app.models import DocumentSourceType, DocumentVisibility
+                for fs in files:
+                    try:
+                        save_document(
+                            company_id=cid,
+                            source_type=DocumentSourceType.TASK,
+                            source_id=t.id,
+                            file_storage=fs,
+                            visibility=DocumentVisibility.INTERNAL,
+                            uploaded_by_id=current_user.id,
+                        )
+                        uploaded += 1
+                    except DocumentError as e:
+                        failed.append(f"{fs.filename}: {e}")
+
+            msg = f"تم إنشاء المهمة: {t.title}"
+            if uploaded:
+                msg += f" + {uploaded} مرفق"
+            flash(msg, "success")
+            for f in failed:
+                flash(f"⚠ تعذّر رفع: {f}", "warning")
             return redirect(url_for("tasks.detail", task_id=t.id))
         except (CRMError, TaskError, ValueError, TypeError, KeyError) as e:
             db.session.rollback()

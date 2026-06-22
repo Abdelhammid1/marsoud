@@ -2,7 +2,9 @@
 {% block page_title %}{% if task %}تعديل مهمة{% else %}مهمة جديدة{% endif %}{% endblock %}
 {% block content %}
 <div class="card p-6 max-w-3xl">
-  <form method="POST" class="space-y-4">
+  {# MARSOUD — multi-file upload at task creation. The form submits as
+     multipart so the route can read request.files.getlist('attachments'). #}
+  <form method="POST" class="space-y-4" enctype="multipart/form-data">
     <div>
       <label class="block text-sm font-semibold text-slate-700 mb-2">العنوان</label>
       <input type="text" name="title" required value="{{ task.title if task else '' }}" class="input">
@@ -59,6 +61,24 @@
       <label class="block text-sm font-semibold text-slate-700 mb-2">ملاحظات</label>
       <textarea name="notes" rows="2" class="textarea">{{ task.notes if task else '' }}</textarea>
     </div>
+
+    {# MARSOUD — multi-attachment input. Hidden on edit because the
+       detail page already has a per-attachment uploader; we only want
+       this on the create form. #}
+    {% if not task %}
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">
+        📎 المرفقات (اختياري — يمكن اختيار أكثر من ملف)
+      </label>
+      <input type="file" name="attachments" multiple
+             accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.doc,.docx,.xls,.xlsx,.zip"
+             class="block w-full text-sm text-slate-700 file:me-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
+      <p class="text-xs text-slate-500 mt-1">
+        PDF / صور / Word / Excel / ZIP — حد أقصى 50 ميجا لكل ملف.
+      </p>
+    </div>
+    {% endif %}
+
     <div class="flex justify-end gap-2">
       <a href="{{ url_for('tasks.index') }}" class="btn-secondary">إلغاء</a>
       <button type="submit" class="btn-primary">{% if task %}حفظ التعديلات{% else %}إنشاء{% endif %}</button>
