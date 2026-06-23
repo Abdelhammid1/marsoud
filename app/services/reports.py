@@ -716,14 +716,20 @@ def dashboard_metrics(company_id):
             company_id=company_id, is_active=True,
         ).all() if v.is_low_stock
     ]
+    # MARSOUD dashboard fix (image #55): "active tasks" must reflect tasks
+    # actively being worked on. BLOCKED is parked, DONE is finished — both
+    # are excluded. Previously BLOCKED was counted, which made 10 active +
+    # 1 blocked render as 11.
+    _ACTIVE_STATUSES = (TaskStatus.TODO, TaskStatus.IN_PROGRESS,
+                         TaskStatus.REVIEW)
     tasks_open = Task.query.filter(
         Task.company_id == company_id,
-        Task.status != TaskStatus.DONE,
+        Task.status.in_(_ACTIVE_STATUSES),
     ).count()
     tasks_overdue = sum(
         1 for t in Task.query.filter(
             Task.company_id == company_id,
-            Task.status != TaskStatus.DONE,
+            Task.status.in_(_ACTIVE_STATUSES),
         ).all()
         if t.is_overdue
     )

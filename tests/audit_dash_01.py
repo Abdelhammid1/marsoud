@@ -204,6 +204,47 @@ def _():
     return "dashboard doesn't override the sidebar block"
 
 
+@check("11b. tasks_open excludes BLOCKED status (image #55 bug)")
+def _():
+    """Abdelhamid: 10 active + 1 blocked rendered as 11. Active should
+    only include TODO + IN_PROGRESS + REVIEW."""
+    from app.models import (
+        Task, TaskStatus, TaskPriority, Company, User,
+    )
+    from app.services.reports import dashboard_metrics
+    company = Company.query.first()
+    user = User.query.filter_by(email=DEMO_EMAIL).first()
+    before = dashboard_metrics(company.id)["ops"]["tasks_open"]
+    tasks = []
+    for status in [TaskStatus.TODO, TaskStatus.TODO, TaskStatus.BLOCKED]:
+        t = Task(company_id=company.id,
+                 title=f"_DASH_BLOCKED_TEST_{status.value}",
+                 status=status, priority=TaskPriority.LOW,
+                 assigned_to_id=user.id, created_by_id=user.id)
+        db.session.add(t); tasks.append(t)
+    db.session.commit()
+    after = dashboard_metrics(company.id)["ops"]["tasks_open"]
+    for t in tasks:
+        db.session.delete(t)
+    db.session.commit()
+    delta = after - before
+    assert delta == 2, \
+        f"expected +2 (BLOCKED excluded), got +{delta}"
+    return "BLOCKED excluded from tasks_open"
+
+
+@check("11c. 'Most Active' card labelled clearly (image #56 UX)")
+def _():
+    src = (ROOT / "app/templates/dashboard/index.html").read_text()
+    assert "الأكثر نشاطاً محاسبياً" in src, \
+        "card title missing the 'محاسبياً' qualifier"
+    assert "عدد القيود المحاسبية" in src, \
+        "subtitle should mention 'journal entries' explicitly"
+    assert "قيد محاسبي" in src, \
+        "unit label should be 'قيد محاسبي' not generic 'معاملة'"
+    return "title + subtitle + unit all spell out 'journal entries'"
+
+
 @check("12. Team Performance section gated by users.view (admin-ish)")
 def _():
     src = (ROOT / "app/templates/dashboard/index.html").read_text()

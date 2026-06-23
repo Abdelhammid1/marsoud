@@ -396,8 +396,8 @@
       <div class="tcard-head">
         <div class="tcard-ico i-green">💗</div>
         <div>
-          <div class="tcard-title">الأكثر نشاطاً</div>
-          <div class="tcard-sub">عدد المعاملات هذا الشهر</div>
+          <div class="tcard-title" title="عدد القيود المحاسبية التي أنشأها كل مستخدم خلال هذا الشهر">الأكثر نشاطاً محاسبياً</div>
+          <div class="tcard-sub">عدد القيود المحاسبية التي أنشأها هذا الشهر</div>
         </div>
       </div>
       {% if metrics.team_most_active %}
@@ -411,7 +411,7 @@
           </div>
           <div class="emp-metric">
             <div class="emp-num">{{ r.count }}</div>
-            <div class="emp-unit">معاملة</div>
+            <div class="emp-unit">قيد محاسبي</div>
           </div>
         </div>
         {% endfor %}
