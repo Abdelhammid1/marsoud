@@ -299,6 +299,7 @@ tailwind.config = {
           ]),
           ('الإعدادات والنظام', '⚙️', [
             ('settings_roles.index', 'المستخدمين والأدوار', '🔐'),
+            ('settings_api_tokens.index', 'مفاتيح الـ API', '🔑'),
             ('payment_methods.index', 'طرق الدفع', '💳'),
             ('companies.edit', 'بيانات الشركة', '🏢',
              {'company_id': active_company.id} if active_company else {}),
@@ -347,6 +348,7 @@ tailwind.config = {
         'agent.index': 'agent.use',
         'companies.edit': 'users.manage',
         'settings_roles.index': 'users.manage',
+        'settings_api_tokens.index': 'users.manage',
       } %}
 
       {# Flat list for the non-owner roles. #}

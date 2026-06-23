@@ -24,6 +24,25 @@ def create_app(config_class=Config):
     def load_user(user_id):
         return db.session.get(User, int(user_id))
 
+    # MARSOUD-API-V1 — resolve bearer-token requests to a User so that
+    # `current_user` works on /api/v1/* without a session cookie. Returns
+    # None when there's no `Authorization: Bearer …` header, leaving
+    # session-based requests untouched.
+    @login_manager.request_loader
+    def load_user_from_api_token(req):
+        auth = req.headers.get("Authorization", "")
+        if not auth.startswith("Bearer "):
+            return None
+        raw = auth[7:].strip()
+        if not raw:
+            return None
+        try:
+            from app.services.api_tokens import verify_token
+            tok = verify_token(raw)
+        except Exception:
+            return None
+        return tok.user if tok else None
+
     from app.routes.auth import bp as auth_bp
     from app.routes.dashboard import bp as dashboard_bp
     from app.routes.companies import bp as companies_bp
@@ -58,6 +77,8 @@ def create_app(config_class=Config):
     )
     from app.routes.inventory import bp as inventory_bp
     from app.routes.pos import bp as pos_bp
+    from app.routes.api_v1 import bp as api_v1_bp
+    from app.routes.settings_api_tokens import bp as settings_api_tokens_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -94,6 +115,31 @@ def create_app(config_class=Config):
     app.register_blueprint(portal_emp_bp, url_prefix="/my")
     app.register_blueprint(inventory_bp, url_prefix="/inventory")
     app.register_blueprint(pos_bp, url_prefix="/pos")
+    app.register_blueprint(api_v1_bp, url_prefix="/api/v1")
+    app.register_blueprint(settings_api_tokens_bp, url_prefix="/settings/api-tokens")
+
+    # MARSOUD-API-V1 — make sure /api/v1/* abort(...) / unauthorized
+    # responses come out as JSON instead of HTML / login redirects.
+    from werkzeug.exceptions import HTTPException as _HTTPException
+    from flask import jsonify as _jsonify
+
+    def _is_api(path):
+        return path.startswith("/api/")
+
+    @app.errorhandler(_HTTPException)
+    def _api_http_error(e):
+        if _is_api(request.path):
+            return _jsonify({"error": e.description or e.name}), e.code
+        return e
+
+    # Flask-Login redirects unauthenticated requests to login_view; flip
+    # that into a 401 JSON when the path is the API.
+    @login_manager.unauthorized_handler
+    def _api_unauthorized():
+        if _is_api(request.path):
+            return _jsonify({"error": "missing or invalid bearer token"}), 401
+        from flask import redirect, url_for
+        return redirect(url_for("auth.login"))
 
     @app.before_request
     def load_active_company():
@@ -214,6 +260,10 @@ def create_app(config_class=Config):
         # double-check via the model attribute).
         if getattr(current_user, "is_superadmin", False):
             return
+        # API calls get a JSON 402 instead of flash + redirect.
+        if request.path.startswith("/api/"):
+            from flask import jsonify as _jsonify
+            return _jsonify({"error": "subscription expired (read-only)"}), 402
         flash(
             "اشتراك الشركة منتهي والنظام في وضع القراءة فقط. "
             "جدّد الاشتراك للمتابعة.",

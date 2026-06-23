@@ -59,9 +59,11 @@ from app.models.invitation import Invitation
 from app.models.agent_chat import AgentMessage
 from app.models.numbering import NumberSequence
 from app.models.platform_audit import PlatformAuditLog, SuperadminImpersonation, PlatformError
+from app.models.api_token import ApiToken
 
 __all__ = [
     "PlatformAuditLog", "SuperadminImpersonation", "PlatformError",
+    "ApiToken",
     "User", "user_companies", "UserStatus", "Company",
     "Plan", "SubscriptionReminderSent", "PlatformSetting",
     "RecurringBill", "RecurringBillOverride",
