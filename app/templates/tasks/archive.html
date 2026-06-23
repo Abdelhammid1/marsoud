@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block page_title %}🗂 أرشيف المهام{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h2 class="font-bold text-navy-900">🗂 أرشيف المهام</h2>
+    <p class="text-xs text-slate-500">
+      المهام المؤرشفة لم تُحذف — تستطيع استعادتها للبورد بضغطة زر.
+      الأرشفة التلقائية تُجرى للمهام المكتملة منذ أكثر من 30 يوم.
+    </p>
+  </div>
+  <a href="{{ url_for('tasks.index') }}" class="btn-secondary text-sm">← رجوع للوحة</a>
+</div>
+
+<div class="card p-6">
+  {% if tasks %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>العنوان</th>
+        <th>المشروع</th>
+        <th>الحالة عند الأرشفة</th>
+        <th>المُنشئ</th>
+        <th>تاريخ الأرشفة</th>
+        <th>أُرشفت بواسطة</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tasks %}
+      <tr>
+        <td>
+          <a href="{{ url_for('tasks.detail', task_id=t.id) }}"
+             class="font-semibold text-navy-900 hover:text-emerald-700">{{ t.title }}</a>
+        </td>
+        <td class="text-xs">
+          {% if t.project %}<span class="badge badge-sent">{{ t.project.name }}</span>
+          {% else %}<em class="text-slate-400">مهمة مستقلة</em>{% endif %}
+        </td>
+        <td><span class="badge {{ t.status.badge_class }} text-[10px]">{{ t.status.label_ar }}</span></td>
+        <td class="text-xs">{{ t.created_by.full_name if t.created_by else '—' }}</td>
+        <td class="text-xs font-mono text-slate-500">
+          {{ t.archived_at.strftime('%Y-%m-%d %H:%M') if t.archived_at else '—' }}
+        </td>
+        <td class="text-xs">
+          {% if t.archived_by %}{{ t.archived_by.full_name }}
+          {% else %}<em class="text-slate-400">تلقائي</em>{% endif %}
+        </td>
+        <td>
+          <form method="POST" action="{{ url_for('tasks.unarchive', task_id=t.id) }}"
+                onsubmit="return confirm('استعادة المهمة للبورد؟');">
+            <button type="submit" class="text-emerald-700 text-xs hover:underline">
+              ↩ استعادة
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-sm text-slate-400 text-center py-12">
+    لا توجد مهام مؤرشفة.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

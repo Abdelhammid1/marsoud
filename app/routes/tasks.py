@@ -131,6 +131,68 @@ def _parse_assignee_ids(form):
 TASK_SCOPES = {"mine", "created", "employees", "all"}
 
 
+def _employee_monthly_stats(company_id, user_id, months=6):
+    """MARSOUD-TASK-ARCHIVE-01 — last N months of tasks-closed-per-month
+    for a single employee, used by the drill-down view to surface
+    performance trend over time. Counts INCLUDE archived rows (the
+    ticket says 'كل ما يخص الموظف').
+    """
+    import json as _json
+    from datetime import datetime as _dt
+    from app.models import Task, TaskActivityLog, task_assignees as _ta
+    # Step 1: get every task this user is involved with.
+    rows = db.session.execute(
+        _ta.select().where(_ta.c.user_id == user_id)
+    ).fetchall()
+    task_ids = {r.task_id for r in rows}
+    # Also include legacy primary-assignee tasks
+    legacy = db.session.query(Task.id).filter(
+        Task.company_id == company_id,
+        Task.assigned_to_id == user_id,
+    ).all()
+    task_ids.update(r[0] for r in legacy)
+    if not task_ids:
+        return {"labels": [], "closed": [], "user_total": 0}
+    # Step 2: walk DONE-transition events from the activity log.
+    close_events = db.session.query(TaskActivityLog).filter(
+        TaskActivityLog.task_id.in_(task_ids),
+        TaskActivityLog.action == "STATUS_CHANGED",
+    ).all()
+    # Build monthly buckets for the last `months` months (oldest → newest)
+    today = _dt.utcnow()
+    buckets = []
+    for i in range(months - 1, -1, -1):
+        m = today.month - i
+        y = today.year
+        while m <= 0:
+            m += 12; y -= 1
+        buckets.append((y, m))
+    closed_by_month = {(y, m): 0 for y, m in buckets}
+    seen = set()
+    for ev in close_events:
+        if ev.task_id in seen:
+            continue
+        try:
+            after = _json.loads(ev.after_json or "{}")
+        except (TypeError, ValueError):
+            continue
+        if (after.get("status") or "").upper() != "DONE":
+            continue
+        ts = ev.created_at
+        key = (ts.year, ts.month)
+        if key in closed_by_month:
+            closed_by_month[key] += 1
+        seen.add(ev.task_id)
+    ar_months = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
+                  "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"]
+    labels = [f"{ar_months[m-1]}" for y, m in buckets]
+    return {
+        "labels": labels,
+        "closed": [closed_by_month[k] for k in buckets],
+        "user_total": len(task_ids),
+    }
+
+
 def _employee_task_buckets(company_id):
     """Aggregate per-employee task counters for the "Employees" tab.
     Returns one dict per active company member sorted by total task
@@ -153,7 +215,10 @@ def _employee_task_buckets(company_id):
     task_id_to_uids = {}
     for r in rows:
         task_id_to_uids.setdefault(r.task_id, set()).add(r.user_id)
-    tasks = Task.query.filter_by(company_id=company_id).all()
+    # Exclude archived rows so the cards reflect what's still on the board.
+    tasks = Task.query.filter_by(company_id=company_id).filter(
+        Task.archived_at.is_(None),
+    ).all()
     by_user = {uid: {"user": users[uid], "total": 0, "done": 0,
                      "in_progress": 0, "overdue": 0}
                 for uid in user_ids if uid in users}
@@ -246,6 +311,9 @@ def index():
                 Task.id.in_(sub),
             ))
 
+    # MARSOUD-TASK-ARCHIVE-01 — every Kanban view hides archived tasks.
+    q = q.filter(Task.archived_at.is_(None))
+
     # Employees-tab landing (no specific user yet) — render the cards page.
     employee_cards = None
     if can_see_all and scope == "employees" and not emp_user_id:
@@ -282,10 +350,27 @@ def index():
     for t in tasks:
         columns.setdefault(t.status, []).append(t)
 
-    # If drill-down, surface the employee for the back-link banner.
+    # If drill-down, surface the employee for the back-link banner +
+    # build the monthly performance stats for the chart at the top.
     drill_user = None
+    drill_monthly = None
+    drill_archived_count = 0
     if can_see_all and scope == "employees" and emp_user_id:
         drill_user = db.session.get(User, emp_user_id)
+        if drill_user:
+            drill_monthly = _employee_monthly_stats(cid, emp_user_id)
+            # Count archived tasks too so the drill page surfaces them.
+            from app.models import task_assignees as _ta
+            sub = db.session.query(_ta.c.task_id).filter(
+                _ta.c.user_id == emp_user_id,
+            )
+            drill_archived_count = Task.query.filter(
+                Task.company_id == cid,
+                Task.archived_at.isnot(None),
+            ).filter(or_(
+                Task.assigned_to_id == emp_user_id,
+                Task.id.in_(sub),
+            )).count()
 
     return render_template(
         "tasks/index.html",
@@ -301,6 +386,8 @@ def index():
         scope=scope,
         employee_cards=employee_cards,
         drill_user=drill_user,
+        drill_monthly=drill_monthly,
+        drill_archived_count=drill_archived_count,
     )
 
 
@@ -537,6 +624,61 @@ def delete(task_id):
         flash(f"تعذّر حذف المهمة: {e}", "error")
         return redirect(url_for("tasks.detail", task_id=task_id))
     return redirect(url_for("tasks.index"))
+
+
+# ─── MARSOUD-TASK-ARCHIVE-01: archive lifecycle ──────────────────────────
+@bp.route("/<int:task_id>/archive", methods=["POST"])
+@login_required
+@require_permission("tasks.archive")
+def archive(task_id):
+    """Soft-archive a single task. Owner/admin only."""
+    from app.services.task_archive import archive_task
+    t = _task_or_403(task_id)
+    if archive_task(t, actor_id=current_user.id):
+        flash(f"تم أرشفة المهمة: {t.title}", "success")
+    else:
+        flash("المهمة مؤرشفة بالفعل", "info")
+    return redirect(request.referrer or url_for("tasks.index"))
+
+
+@bp.route("/archive-all-done", methods=["POST"])
+@login_required
+@require_permission("tasks.archive")
+def archive_all_done():
+    """Archive every DONE + non-archived task in the company."""
+    from app.services.task_archive import archive_all_done_in_company
+    n = archive_all_done_in_company(g.active_company.id,
+                                     actor_id=current_user.id)
+    flash(f"تم أرشفة {n} مهمة مكتملة", "success")
+    return redirect(request.referrer or url_for("tasks.index"))
+
+
+@bp.route("/<int:task_id>/unarchive", methods=["POST"])
+@login_required
+@require_permission("tasks.archive")
+def unarchive(task_id):
+    """Restore an archived task to the board."""
+    from app.services.task_archive import unarchive_task
+    t = db.session.get(Task, task_id)
+    if not t or t.company_id != g.active_company.id:
+        abort(404)
+    if unarchive_task(t):
+        flash(f"تم استعادة المهمة: {t.title}", "success")
+    else:
+        flash("المهمة ليست مؤرشفة", "info")
+    return redirect(request.referrer or url_for("tasks.archive_list"))
+
+
+@bp.route("/archive", methods=["GET"])
+@login_required
+@require_permission("tasks.archive")
+def archive_list():
+    """Read-only listing of archived tasks. Owner/admin only."""
+    archived = Task.query.filter(
+        Task.company_id == g.active_company.id,
+        Task.archived_at.isnot(None),
+    ).order_by(Task.archived_at.desc()).all()
+    return render_template("tasks/archive.html", tasks=archived)
 
 
 # ─── Inline field edits (AJAX form posts) ────────────────────────────────

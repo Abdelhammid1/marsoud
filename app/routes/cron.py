@@ -66,6 +66,15 @@ def tick():
         logging.getLogger("ledgeros.cron").exception("task deadlines failed: %s", e)
         summary["task_deadlines"] = {"error": str(e)[:200]}
 
+    # MARSOUD-TASK-ARCHIVE-01 — auto-archive DONE tasks > 30 days old
+    try:
+        from app.services.task_archive import auto_archive_old_done
+        summary["task_auto_archive"] = auto_archive_old_done()
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception("auto-archive failed: %s", e)
+        summary["task_auto_archive"] = {"error": str(e)[:200]}
+
     # HR-05: monthly leave accrual (only credits when the day is the 1st;
     # cron is meant to run daily but this work should fire once per month).
     from datetime import date as _date

@@ -8,6 +8,9 @@
   </div>
   <div class="flex items-center gap-2">
     <a href="{{ url_for('tasks.stats') }}" class="btn-secondary text-sm">📊 إحصائيات الفريق</a>
+    {% if has_permission('tasks.archive') %}
+    <a href="{{ url_for('tasks.archive_list') }}" class="btn-secondary text-sm">🗂 الأرشيف</a>
+    {% endif %}
     {% if has_permission('tasks.manage') %}
     <a href="{{ url_for('tasks.new') }}" class="btn-primary text-sm">+ مهمة جديدة</a>
     {% endif %}
@@ -59,15 +62,67 @@
 </script>
 {% endif %}
 
-{# Drill-down banner when looking at a specific employee. #}
+{# Drill-down banner + monthly performance chart for the selected employee. #}
 {% if drill_user %}
 <div class="flex items-center justify-between mb-3 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2">
   <div class="text-sm text-emerald-900">
     📂 عرض مهام الموظف: <strong>{{ drill_user.full_name }}</strong>
+    {% if drill_archived_count %}
+      <span class="text-xs text-amber-700 me-3">
+        + {{ drill_archived_count }} مهمة مؤرشفة
+        (<a href="{{ url_for('tasks.archive_list') }}" class="underline">عرض الأرشيف</a>)
+      </span>
+    {% endif %}
   </div>
   <a href="{{ url_for('tasks.index', scope='employees') }}"
      class="text-xs text-emerald-700 hover:underline">← رجوع لقائمة الموظفين</a>
 </div>
+
+{% if drill_monthly and drill_monthly.closed|sum > 0 %}
+<div class="card p-4 mb-4">
+  <div class="flex items-baseline justify-between mb-2">
+    <div>
+      <div class="font-bold text-navy-900 text-sm">📈 أداء الموظف شهرياً</div>
+      <div class="text-xs text-slate-500">المهام المُغلَقة على مدار آخر 6 شهور (الأرشيف محسوب)</div>
+    </div>
+    <div class="text-xs text-slate-500">
+      إجمالي مهامه:
+      <strong class="text-navy-900 font-mono">{{ drill_monthly.user_total }}</strong>
+    </div>
+  </div>
+  <div style="height:160px;position:relative">
+    <canvas id="empMonthly"></canvas>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function(){
+    if (typeof Chart === 'undefined') return;
+    var cv = document.getElementById('empMonthly');
+    if (!cv) return;
+    new Chart(cv, {
+      type: 'bar',
+      data: {
+        labels: {{ drill_monthly.labels|tojson }},
+        datasets: [{
+          label: 'مهام مُغلَقة',
+          data: {{ drill_monthly.closed|tojson }},
+          backgroundColor: '#10b981',
+          borderRadius: 6, maxBarThickness: 28,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {legend: {display: false}, tooltip: {rtl: true}},
+        scales: {
+          x: {grid: {display: false}, ticks: {font: {family: 'Cairo,sans-serif', size: 11}}},
+          y: {beginAtZero: true, ticks: {precision: 0, font: {family: 'Cairo,sans-serif', size: 11}}}
+        }
+      }
+    });
+  })();
+</script>
+{% endif %}
 {% endif %}
 
 {# Employees-tab landing — grid of cards instead of a Kanban. #}
@@ -136,9 +191,18 @@
 <div class="grid grid-cols-5 gap-3">
   {% for s in kanban %}
   <div class="bg-slate-50 rounded-lg p-3">
-    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200">
+    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 gap-2">
       <span class="badge {{ s.badge_class }} text-xs">{{ s.label_ar }}</span>
-      <span class="text-xs font-mono text-slate-500">{{ columns.get(s, [])|length }}</span>
+      <div class="flex items-center gap-2">
+        {# MARSOUD-TASK-ARCHIVE-01 — bulk archive button on DONE column. #}
+        {% if s.name == 'DONE' and has_permission('tasks.archive') and columns.get(s, [])|length > 0 %}
+        <form method="POST" action="{{ url_for('tasks.archive_all_done') }}"
+              onsubmit="return confirm('أرشفة كل المهام المكتملة الآن؟ تختفي من البورد لكن تظل قابلة للاستعادة.');">
+          <button type="submit" class="text-[10px] text-slate-500 hover:text-emerald-700 hover:underline" title="أرشفة كل المكتملة">🗂 أرشفة الكل</button>
+        </form>
+        {% endif %}
+        <span class="text-xs font-mono text-slate-500">{{ columns.get(s, [])|length }}</span>
+      </div>
     </div>
     <div class="space-y-2">
       {% for t in columns.get(s, []) %}
@@ -173,6 +237,13 @@
             {% for st in kanban %}{% if st != t.status %}<option value="{{ st.name }}">→ {{ st.label_ar }}</option>{% endif %}{% endfor %}
           </select>
           <button type="submit" class="text-xs text-brand-600 hover:underline">حفظ</button>
+        </form>
+        {% endif %}
+        {# MARSOUD-TASK-ARCHIVE-01 — per-task archive on DONE column. #}
+        {% if s.name == 'DONE' and has_permission('tasks.archive') %}
+        <form method="POST" action="{{ url_for('tasks.archive', task_id=t.id) }}"
+              class="mt-1 inline">
+          <button type="submit" class="text-[10px] text-slate-400 hover:text-slate-700 hover:underline" title="أرشفة هذه المهمة">🗂 أرشفة</button>
         </form>
         {% endif %}
       </div>

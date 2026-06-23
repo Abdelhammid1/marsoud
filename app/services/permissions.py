@@ -76,6 +76,9 @@ P = {
     # Project managers + team members can edit their assigned tasks via
     # tasks.manage, but cannot delete them.
     "tasks.delete":    {"owner", "admin"},
+    # MARSOUD-TASK-ARCHIVE-01 — soft-archive completed tasks. Owner/admin
+    # only; non-destructive but should still be a managerial action.
+    "tasks.archive":   {"owner", "admin"},
 
     # MARSOUD-PERM-FIX (PM scope) — customers module is sales-facing.
     # Project managers + team members are programming-focused and don't

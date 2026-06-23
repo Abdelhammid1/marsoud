@@ -409,10 +409,18 @@ class Task(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.now,
                            onupdate=datetime.now, nullable=False)
     completed_at = db.Column(db.DateTime)
+    # MARSOUD-TASK-ARCHIVE-01 — soft archive. When set, the task is
+    # hidden from every Kanban / dashboard / stats view but preserved
+    # with comments + attachments + activity log intact. Restoring just
+    # NULLs both columns.
+    archived_at = db.Column(db.DateTime, index=True)
+    archived_by_id = db.Column(db.Integer, db.ForeignKey("users.id"),
+                                nullable=True)
 
     company = db.relationship("Company")
     project = db.relationship("Project", foreign_keys=[project_id], backref="tasks")
     milestone = db.relationship("Milestone", foreign_keys=[milestone_id])
+    archived_by = db.relationship("User", foreign_keys=[archived_by_id])
     assigned_to = db.relationship("User", foreign_keys=[assigned_to_id])
     created_by = db.relationship("User", foreign_keys=[created_by_id])
 
