@@ -125,6 +125,63 @@ def _parse_assignee_ids(form):
 
 
 # ─── Kanban + filters ────────────────────────────────────────────────────
+# MARSOUD-TASK-SCOPE-01 — 4 tabs over the Kanban board, visible to
+# owner/manager (anyone with tasks.view_all). Regular employees still
+# see only "my tasks + tasks I created" with no tabs.
+TASK_SCOPES = {"mine", "created", "employees", "all"}
+
+
+def _employee_task_buckets(company_id):
+    """Aggregate per-employee task counters for the "Employees" tab.
+    Returns one dict per active company member sorted by total task
+    count desc. Cheap enough for v1 (small companies) — single Task
+    table scan + a few in-Python groupings."""
+    from datetime import date as _date
+    from app.models import User, Task, TaskStatus, task_assignees
+    members = db.session.execute(
+        user_companies.select().where(
+            user_companies.c.company_id == company_id,
+        )
+    ).fetchall()
+    user_ids = [m.user_id for m in members]
+    users = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()}
+    rows = db.session.execute(
+        task_assignees.select().where(
+            task_assignees.c.user_id.in_(user_ids),
+        )
+    ).fetchall()
+    task_id_to_uids = {}
+    for r in rows:
+        task_id_to_uids.setdefault(r.task_id, set()).add(r.user_id)
+    tasks = Task.query.filter_by(company_id=company_id).all()
+    by_user = {uid: {"user": users[uid], "total": 0, "done": 0,
+                     "in_progress": 0, "overdue": 0}
+                for uid in user_ids if uid in users}
+    today = _date.today()
+    for t in tasks:
+        uids = task_id_to_uids.get(t.id, set())
+        if t.assigned_to_id:
+            uids = uids | {t.assigned_to_id}
+        for uid in uids:
+            if uid not in by_user:
+                continue
+            b = by_user[uid]
+            b["total"] += 1
+            if t.status == TaskStatus.DONE:
+                b["done"] += 1
+            elif t.status == TaskStatus.IN_PROGRESS:
+                b["in_progress"] += 1
+            if t.deadline and t.deadline < today and t.status != TaskStatus.DONE:
+                b["overdue"] += 1
+    out = []
+    for b in by_user.values():
+        b["progress_pct"] = (round(b["done"] / b["total"] * 100)
+                              if b["total"] else 0)
+        out.append(b)
+    out.sort(key=lambda r: -r["total"])
+    return out
+
+
 @bp.route("/")
 @login_required
 @require_permission("tasks.view")
@@ -133,7 +190,68 @@ def index():
     priority_filter = request.args.get("priority")
     assignee_filter = request.args.get("assignee")
 
-    q = _visible_tasks_query()
+    # MARSOUD-TASK-SCOPE-01 — tabs for owner/manager.
+    can_see_all = _has_full_task_visibility()
+    scope = (request.args.get("scope") or "mine").lower()
+    emp_user_id = request.args.get("user_id", type=int)
+    # Defence-in-depth: a regular employee posting ?scope=all gets ignored
+    # — they always see their own + created. The scope query parameter is
+    # only honoured when the user actually has tasks.view_all.
+    if not can_see_all:
+        scope = "mine_or_created"   # synthetic — see assignees ∪ creator
+
+    cid = g.active_company.id
+    if not can_see_all:
+        # Employees: their tasks + tasks they created. Tabs hidden.
+        from app.models import task_assignees as _ta
+        sub = db.session.query(_ta.c.task_id).filter(
+            _ta.c.user_id == current_user.id,
+        )
+        q = Task.query.filter(Task.company_id == cid).filter(or_(
+            Task.assigned_to_id == current_user.id,
+            Task.id.in_(sub),
+            Task.created_by_id == current_user.id,
+        ))
+    else:
+        if scope == "created":
+            q = Task.query.filter_by(
+                company_id=cid, created_by_id=current_user.id,
+            )
+        elif scope == "all":
+            q = Task.query.filter_by(company_id=cid)
+        elif scope == "employees":
+            from app.models import task_assignees as _ta
+            if emp_user_id:
+                # Drill-down: tasks where the picked employee is an assignee.
+                sub = db.session.query(_ta.c.task_id).filter(
+                    _ta.c.user_id == emp_user_id,
+                )
+                q = Task.query.filter(Task.company_id == cid).filter(or_(
+                    Task.assigned_to_id == emp_user_id,
+                    Task.id.in_(sub),
+                ))
+            else:
+                # Cards landing — placeholder query (no rows will render
+                # because employee_cards branch in the template fires).
+                q = Task.query.filter(Task.id == 0)
+        else:
+            # Default: "mine" — tasks assigned to current_user.
+            scope = "mine"
+            from app.models import task_assignees as _ta
+            sub = db.session.query(_ta.c.task_id).filter(
+                _ta.c.user_id == current_user.id,
+            )
+            q = Task.query.filter(Task.company_id == cid).filter(or_(
+                Task.assigned_to_id == current_user.id,
+                Task.id.in_(sub),
+            ))
+
+    # Employees-tab landing (no specific user yet) — render the cards page.
+    employee_cards = None
+    if can_see_all and scope == "employees" and not emp_user_id:
+        employee_cards = _employee_task_buckets(cid)
+
+    # Standard filters apply on top of the scope filter.
     if project_filter:
         try:
             q = q.filter(Task.project_id == int(project_filter))
@@ -145,7 +263,6 @@ def index():
         except KeyError:
             pass
     if assignee_filter:
-        # Match either legacy primary or multi-assignee member.
         try:
             from app.models import task_assignees
             aid = int(assignee_filter)
@@ -156,19 +273,35 @@ def index():
         except (TypeError, ValueError):
             pass
 
-    tasks = q.order_by(Task.deadline.asc().nullslast(), Task.created_at.desc()).all()
+    if employee_cards is None:
+        tasks = q.order_by(Task.deadline.asc().nullslast(),
+                            Task.created_at.desc()).all()
+    else:
+        tasks = []
     columns = {s: [] for s in KANBAN_ORDER}
     for t in tasks:
         columns.setdefault(t.status, []).append(t)
 
-    return render_template("tasks/index.html",
-                           columns=columns, kanban=KANBAN_ORDER,
-                           projects=_company_projects(),
-                           users=_company_users(),
-                           priorities=TaskPriority,
-                           project_filter=project_filter,
-                           priority_filter=priority_filter,
-                           assignee_filter=assignee_filter)
+    # If drill-down, surface the employee for the back-link banner.
+    drill_user = None
+    if can_see_all and scope == "employees" and emp_user_id:
+        drill_user = db.session.get(User, emp_user_id)
+
+    return render_template(
+        "tasks/index.html",
+        columns=columns, kanban=KANBAN_ORDER,
+        projects=_company_projects(),
+        users=_company_users(),
+        priorities=TaskPriority,
+        project_filter=project_filter,
+        priority_filter=priority_filter,
+        assignee_filter=assignee_filter,
+        # MARSOUD-TASK-SCOPE-01 context
+        can_see_all=can_see_all,
+        scope=scope,
+        employee_cards=employee_cards,
+        drill_user=drill_user,
+    )
 
 
 @bp.route("/new", methods=["GET", "POST"])

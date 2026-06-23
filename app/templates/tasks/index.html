@@ -14,7 +14,101 @@
   </div>
 </div>
 
+{# MARSOUD-TASK-SCOPE-01 — 4 tabs over the Kanban board for owner/manager
+   (anyone with tasks.view_all). Regular employees get no tabs and always
+   see "my tasks ∪ tasks I created". #}
+{% if can_see_all %}
+{% set tabs = [
+  ('mine',      '🧑 مهامي'),
+  ('employees', '👥 الموظفون'),
+  ('created',   '✍️ أنشأتها'),
+  ('all',       '📋 الكل'),
+] %}
+<div class="flex flex-wrap gap-2 mb-3" id="task-scope-tabs" data-scope="{{ scope }}">
+  {% for code, label in tabs %}
+  <a href="{{ url_for('tasks.index', scope=code) }}"
+     class="px-4 py-2 rounded-lg text-sm font-semibold border transition
+            {% if scope == code %}bg-emerald-50 border-emerald-300 text-emerald-800
+            {% else %}bg-white border-slate-200 text-slate-600 hover:border-emerald-200 hover:text-emerald-700{% endif %}"
+     data-scope-code="{{ code }}">
+    {{ label }}
+  </a>
+  {% endfor %}
+</div>
+<script>
+  // Remember the last-used scope so reopening /tasks/ lands on it.
+  (function(){
+    var current = document.getElementById('task-scope-tabs');
+    if (!current) return;
+    var s = current.getAttribute('data-scope');
+    if (s) {
+      try { localStorage.setItem('marsoud:tasks:scope', s); } catch(_) {}
+    }
+    // Auto-redirect on first load if the URL has no scope but localStorage does.
+    var url = new URL(window.location.href);
+    if (!url.searchParams.has('scope')) {
+      try {
+        var saved = localStorage.getItem('marsoud:tasks:scope');
+        if (saved && saved !== 'mine') {
+          url.searchParams.set('scope', saved);
+          window.location.replace(url.toString());
+        }
+      } catch(_) {}
+    }
+  })();
+</script>
+{% endif %}
+
+{# Drill-down banner when looking at a specific employee. #}
+{% if drill_user %}
+<div class="flex items-center justify-between mb-3 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2">
+  <div class="text-sm text-emerald-900">
+    📂 عرض مهام الموظف: <strong>{{ drill_user.full_name }}</strong>
+  </div>
+  <a href="{{ url_for('tasks.index', scope='employees') }}"
+     class="text-xs text-emerald-700 hover:underline">← رجوع لقائمة الموظفين</a>
+</div>
+{% endif %}
+
+{# Employees-tab landing — grid of cards instead of a Kanban. #}
+{% if employee_cards is not none %}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  {% for emp in employee_cards %}
+  {% if emp.user %}
+  <a href="{{ url_for('tasks.index', scope='employees', user_id=emp.user.id) }}"
+     class="card p-5 hover:border-emerald-300 hover:shadow-soft transition block">
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm">
+        {{ (emp.user.full_name or '?')[:2] }}
+      </div>
+      <div class="min-w-0">
+        <div class="font-bold text-navy-900 truncate">{{ emp.user.full_name }}</div>
+        <div class="text-xs text-slate-500 truncate">{{ emp.user.email }}</div>
+      </div>
+    </div>
+    <div class="grid grid-cols-4 gap-2 text-center mb-3">
+      <div><div class="text-lg font-bold text-navy-900">{{ emp.total }}</div><div class="text-[10px] text-slate-500">إجمالي</div></div>
+      <div><div class="text-lg font-bold text-emerald-700">{{ emp.done }}</div><div class="text-[10px] text-slate-500">مكتمل</div></div>
+      <div><div class="text-lg font-bold text-sky-700">{{ emp.in_progress }}</div><div class="text-[10px] text-slate-500">جارٍ</div></div>
+      <div><div class="text-lg font-bold {% if emp.overdue %}text-rose-600{% else %}text-slate-400{% endif %}">{{ emp.overdue }}</div><div class="text-[10px] text-slate-500">متأخر</div></div>
+    </div>
+    <div class="text-xs text-slate-500 mb-1 flex justify-between">
+      <span>الإنجاز</span><span class="font-mono font-semibold">{{ emp.progress_pct }}%</span>
+    </div>
+    <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+      <div class="h-full bg-emerald-500" style="width: {{ emp.progress_pct }}%"></div>
+    </div>
+  </a>
+  {% endif %}
+  {% else %}
+  <div class="col-span-full text-sm text-slate-400 text-center py-10 card p-6">لا يوجد موظفون بعد.</div>
+  {% endfor %}
+</div>
+{% else %}
+
 <form method="GET" class="flex flex-wrap items-end gap-3 mb-4 card p-4">
+{% if can_see_all and scope and scope != 'mine' %}<input type="hidden" name="scope" value="{{ scope }}">{% endif %}
+{% if drill_user %}<input type="hidden" name="user_id" value="{{ drill_user.id }}">{% endif %}
   <div>
     <label class="block text-xs font-semibold text-slate-700 mb-1">المشروع</label>
     <select name="project_id" class="select text-sm">
@@ -89,4 +183,5 @@
   </div>
   {% endfor %}
 </div>
+{% endif %}{# MARSOUD-TASK-SCOPE-01 — close employee_cards-vs-Kanban branch #}
 {% endblock %}
