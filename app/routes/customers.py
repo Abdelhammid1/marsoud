@@ -42,6 +42,7 @@ def _parse_commission_rate(raw):
 
 @bp.route("/")
 @login_required
+@require_permission("customers.view")
 def index():
     if not g.active_company:
         return redirect(url_for("companies.new"))
@@ -101,6 +102,7 @@ def edit(customer_id):
 
 @bp.route("/<int:customer_id>")
 @login_required
+@require_permission("customers.view")
 def view(customer_id):
     c = db.session.get(Customer, customer_id)
     if not c or c.company_id != g.active_company.id:
@@ -116,6 +118,7 @@ def view(customer_id):
 
 @bp.route("/aging")
 @login_required
+@require_permission("customers.view")
 def aging():
     report = aging_report(g.active_company.id)
     return render_template("customers/aging.html", report=report)

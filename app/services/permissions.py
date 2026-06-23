@@ -61,6 +61,9 @@ P = {
     # ─── Projects ──────────────────────────────────────────────────────
     "projects.view":   {"owner", "admin", "ceo", "sales_manager", "sales_rep",
                         "project_manager", "team_member"},
+    # MARSOUD-PERM-FIX (PM scope) — see ALL company projects (not just
+    # the ones you manage or are a member of).
+    "projects.view_all": {"owner", "admin", "ceo"},
     "projects.create": {"owner", "admin", "project_manager"},
     "projects.manage": {"owner", "admin", "project_manager"},
 
@@ -69,6 +72,17 @@ P = {
     # MARSOUD-PERM-FIX-01 — see ALL tasks in the company (not just assigned).
     "tasks.view_all":  {"owner", "admin"},
     "tasks.manage":    {"owner", "admin", "project_manager", "team_member"},
+    # MARSOUD-PERM-FIX (PM scope) — hard delete is owner/admin only.
+    # Project managers + team members can edit their assigned tasks via
+    # tasks.manage, but cannot delete them.
+    "tasks.delete":    {"owner", "admin"},
+
+    # MARSOUD-PERM-FIX (PM scope) — customers module is sales-facing.
+    # Project managers + team members are programming-focused and don't
+    # need (and shouldn't see) customer data. partners.manage stays the
+    # write-side gate; customers.view is the new read-side gate.
+    "customers.view":  {"owner", "admin", "accountant", "ceo",
+                        "sales_manager", "sales_rep", "viewer"},
 
     "vendor_bills.create":  {"owner", "admin", "accountant"},
     "vendor_bills.delete":  {"owner", "admin"},  # MARSOUD-52 — DRAFT only, gated
@@ -179,6 +193,11 @@ _IMPLIES = {
     # MARSOUD — anyone who can create a journal entry can read the ledger.
     # Lets us add the journals.view gate without locking accountants out.
     "journals.view": "journals.create",
+    # MARSOUD-PERM-FIX (PM scope) — projects.view_all implies projects.view,
+    # and partners.manage (the write-side gate) implies customers.view so
+    # accountants editing customers don't need a second checkbox.
+    "projects.view": "projects.view_all",
+    "customers.view": "partners.manage",
 }
 
 

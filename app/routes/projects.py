@@ -21,7 +21,7 @@ from app.models import (
 from app.models.user import user_companies
 from app.services.crm import change_project_status, CRMError
 from app.services.permissions import (
-    require_permission, get_user_role,
+    require_permission, get_user_role, has_permission,
 )
 
 bp = Blueprint("projects", __name__)
@@ -35,6 +35,11 @@ def _role():
 
 
 def _can_view_all_projects():
+    """MARSOUD-PERM-FIX (PM scope) — permission-based. Custom roles that
+    grant projects.view_all see every project; legacy owner/admin still
+    pass via the role-name fallback for the first-boot window."""
+    if has_permission("projects.view_all"):
+        return True
     return _role() in FULL_VISIBILITY
 
 
@@ -58,15 +63,23 @@ def _project_managers():
 
 
 def _user_can_see_project(project):
+    """MARSOUD-PERM-FIX (PM scope) — direct URL access (e.g. /projects/<id>)
+    must enforce the same scope as the list page. Order:
+      1. projects.view_all → see anything.
+      2. Manager of this project → see it.
+      3. Member of this project → see it.
+      4. Sales user whose lead converted into this project → see it.
+    Anything else → 403 from the caller."""
+    if has_permission("projects.view_all"):
+        return True
+    if _role() in FULL_VISIBILITY:
+        return True
+    if project.manager_id == current_user.id:
+        return True
+    if any(m.user_id == current_user.id for m in project.members):
+        return True
     role = _role()
-    if role in FULL_VISIBILITY:
-        return True
-    if role == "project_manager" and project.manager_id == current_user.id:
-        return True
-    if role == "team_member":
-        return any(m.user_id == current_user.id for m in project.members)
     if role in ("sales_manager", "sales_rep"):
-        # sales staff see projects converted from a lead they own
         return bool(project.lead and project.lead.assigned_to_id == current_user.id)
     return False
 
@@ -106,23 +119,27 @@ def index():
     status_filter = (request.args.get("status") or "").strip()
     manager_filter = (request.args.get("manager") or "").strip()
 
+    # MARSOUD-PERM-FIX (PM scope) — switch from hardcoded role checks to a
+    # permission-driven filter. `projects.view_all` is the unambiguous
+    # "see every project" gate (owner / admin / ceo by default). Everyone
+    # else sees the union of: projects they manage, projects they're a
+    # member of, and (for sales) projects converted from a lead they own.
     query = Project.query.filter_by(company_id=cid)
     role = _role()
-    if role not in FULL_VISIBILITY:
-        if role == "project_manager":
-            query = query.filter(Project.manager_id == current_user.id)
-        elif role == "team_member":
-            member_pids = db.session.query(ProjectMember.project_id).filter(
-                ProjectMember.user_id == current_user.id,
-            )
-            query = query.filter(Project.id.in_(member_pids))
-        elif role in ("sales_manager", "sales_rep"):
+    if not has_permission("projects.view_all"):
+        member_pids = db.session.query(ProjectMember.project_id).filter(
+            ProjectMember.user_id == current_user.id,
+        )
+        scope_clauses = [
+            Project.manager_id == current_user.id,
+            Project.id.in_(member_pids),
+        ]
+        if role in ("sales_manager", "sales_rep"):
             lead_ids = db.session.query(Lead.id).filter(
                 Lead.company_id == cid, Lead.assigned_to_id == current_user.id,
             )
-            query = query.filter(Project.lead_id.in_(lead_ids))
-        else:
-            query = query.filter(False)  # other roles: see nothing
+            scope_clauses.append(Project.lead_id.in_(lead_ids))
+        query = query.filter(or_(*scope_clauses))
 
     if q:
         like = f"%{q}%"

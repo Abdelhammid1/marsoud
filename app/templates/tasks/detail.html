@@ -19,7 +19,11 @@
         {% elif task.deadline_soon %}<span class="badge badge-partial">⏰ خلال 24 ساعة</span>{% endif %}
         {% if has_permission('tasks.manage') %}
         <a href="{{ url_for('tasks.edit', task_id=task.id) }}" class="btn-secondary text-sm">✎ تعديل كامل</a>
-        {# MARSOUD-67 — hard-delete the task + everything dependent. #}
+        {% endif %}
+        {# MARSOUD-PERM-FIX (PM scope) — delete is owner/admin only via the
+           dedicated tasks.delete permission, so a project manager who can
+           edit cannot delete. #}
+        {% if has_permission('tasks.delete') %}
         <form method="POST" action="{{ url_for('tasks.delete', task_id=task.id) }}"
               onsubmit="return confirm('حذف المهمة نهائياً مع كل مرفقاتها وتعليقاتها وسجل نشاطها؟ لا يمكن التراجع.');"
               class="inline">

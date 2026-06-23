@@ -384,15 +384,16 @@ def status(task_id):
     return redirect(url_for("tasks.detail", task_id=t.id))
 
 
-# ─── MARSOUD-67: full task delete (admin/owner only) ────────────────────
+# ─── MARSOUD-67 + PERM-FIX (PM scope): full task delete (owner/admin) ──
 @bp.route("/<int:task_id>/delete", methods=["POST"])
 @login_required
-@require_permission("tasks.manage")
+@require_permission("tasks.delete")
 def delete(task_id):
     """Hard-delete a task + all its dependents in one transaction:
     attachments (files on disk + documents rows), comments, activity
-    log, assignee m2m rows, then the task row itself. Gated to admins
-    via tasks.manage so non-admins can't even reach this URL."""
+    log, assignee m2m rows, then the task row itself. Gated to
+    owner/admin via the dedicated `tasks.delete` permission so a
+    project_manager assigned to a task cannot delete it — only edit."""
     t = _task_or_403(task_id)
     try:
         delete_task_fully(t)
