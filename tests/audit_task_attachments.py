@@ -110,6 +110,59 @@ def _():
     return f"2 files attached: {names}"
 
 
+@check("5a. Arabic filename ('صورة.png') is accepted (Abdelhamid bug)")
+def _():
+    """secure_filename used to strip Arabic chars + their extension,
+    leaving the parser to reject the file as 'unsupported format'.
+    After the bug-fix, the extension is read from the ORIGINAL
+    filename first, so Arabic + Unicode names work."""
+    from app.services.opsflow_extras import save_document, DocumentError
+    from app.models import Task, Document
+    t = Task.query.filter(Task.title.like("AUDIT%")).first()
+    if not t:
+        # Create a minimal one
+        from app.models import (
+            Company, User, Task, TaskStatus, TaskPriority,
+        )
+        company = Company.query.first()
+        user = User.query.filter_by(email=DEMO_EMAIL).first()
+        t = Task(company_id=company.id, title="AUDIT_ARABIC_ATTACH",
+                  assigned_to_id=user.id, created_by_id=user.id,
+                  status=TaskStatus.TODO, priority=TaskPriority.LOW)
+        db.session.add(t); db.session.commit()
+        cleanup_task = True
+    else:
+        cleanup_task = False
+    try:
+        from werkzeug.datastructures import FileStorage
+        cases = [
+            ("صورة.png", "image/png"),
+            ("لقطة شاشة 2026.png", "image/png"),
+            ("IMG_1234.HEIC", "image/heic"),
+        ]
+        saved_docs = []
+        for fn, mime in cases:
+            fs = FileStorage(stream=io.BytesIO(b"x" * 50),
+                             filename=fn, content_type=mime)
+            doc = save_document(
+                company_id=t.company_id, source_type="TASK",
+                source_id=t.id, file_storage=fs, uploaded_by_id=1,
+            )
+            saved_docs.append(doc)
+            # name preserves the original (Arabic / Unicode) filename
+            assert doc.name == fn, \
+                f"name should preserve original {fn!r}, got {doc.name!r}"
+        # Cleanup
+        for d in saved_docs:
+            db.session.delete(d)
+        db.session.commit()
+    finally:
+        if cleanup_task:
+            db.session.delete(t)
+            db.session.commit()
+    return f"3 Arabic/HEIC filenames all accepted + name preserved"
+
+
 @check("5. Live: invalid extension fails per file, task still creates")
 def _():
     """An unsupported extension (.exe) must not abort the task creation

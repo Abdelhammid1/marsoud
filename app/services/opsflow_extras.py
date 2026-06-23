@@ -156,7 +156,9 @@ def init_audit_listeners(app=None):
 
 
 # ─── Documents ──────────────────────────────────────────────────────────
-ALLOWED_EXTS = {"pdf", "png", "jpg", "jpeg", "gif", "webp",
+# MARSOUD — supported attachment extensions. Includes iPhone-default
+# HEIC/HEIF and modern image formats.
+ALLOWED_EXTS = {"pdf", "png", "jpg", "jpeg", "gif", "webp", "heic", "heif",
                 "doc", "docx", "xls", "xlsx", "zip"}
 MAX_BYTES = 50 * 1024 * 1024   # 50 MB per spec NFR-11
 
@@ -165,14 +167,40 @@ class DocumentError(Exception):
     pass
 
 
+def _extract_ext(original_filename: str) -> str:
+    """MARSOUD bug-fix — extract the file extension from the *original*
+    filename BEFORE running it through `secure_filename()`. Werkzeug's
+    secure_filename strips non-ASCII characters (Arabic, emoji, etc.),
+    which turns `"صورة.png"` into just `"png"` — the parser then thinks
+    there's no extension and rejects the upload as "unsupported format".
+    Splitting on the raw filename first dodges that completely."""
+    if not original_filename or "." not in original_filename:
+        return ""
+    return original_filename.rsplit(".", 1)[-1].lower().strip()
+
+
 def save_document(*, company_id, source_type, source_id, file_storage,
                   visibility="INTERNAL", uploaded_by_id=None, name=None):
     if not file_storage or not file_storage.filename:
         raise DocumentError("لم يُرفع أي ملف")
-    filename = secure_filename(file_storage.filename)
-    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    # Read the extension from the ORIGINAL filename (before
+    # secure_filename mangles non-ASCII characters away).
+    original_filename = file_storage.filename
+    ext = _extract_ext(original_filename)
     if ext not in ALLOWED_EXTS:
-        raise DocumentError("صيغة غير مدعومة. المسموح: PDF / صور / Word / Excel / ZIP")
+        raise DocumentError(
+            "صيغة غير مدعومة. المسموح: "
+            "PDF / صور (PNG, JPG, GIF, WEBP, HEIC) / Word / Excel / ZIP"
+        )
+    safe_filename = secure_filename(original_filename)
+    # secure_filename may strip everything when the name was all-Arabic
+    # (e.g. "صورة.png" → "png" or even ""). Re-synthesise so the on-disk
+    # name is always identifiable.
+    if not safe_filename or safe_filename == ext:
+        safe_filename = f"file.{ext}"
+    elif "." not in safe_filename:
+        safe_filename = f"{safe_filename}.{ext}"
+
     file_storage.stream.seek(0, os.SEEK_END)
     size = file_storage.stream.tell()
     file_storage.stream.seek(0)
@@ -187,7 +215,7 @@ def save_document(*, company_id, source_type, source_id, file_storage,
     doc_dir.mkdir(parents=True, exist_ok=True)
     # Unique filename — entity id + timestamp
     ts = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-    safe_name = f"{source_id}_{ts}_{filename}"
+    safe_name = f"{source_id}_{ts}_{safe_filename}"
     disk = doc_dir / safe_name
     file_storage.save(str(disk))
 
@@ -196,9 +224,12 @@ def save_document(*, company_id, source_type, source_id, file_storage,
         company_id=company_id,
         source_type=src,
         source_id=source_id,
-        name=name or filename,
+        # Display name preserves the ORIGINAL (Arabic-friendly) filename
+        # so the task detail page shows what the uploader actually saw.
+        name=name or original_filename,
         file_path=rel_url,
-        mimetype=mimetypes.guess_type(filename)[0] or file_storage.mimetype,
+        mimetype=(mimetypes.guess_type(safe_filename)[0]
+                  or file_storage.mimetype),
         size_bytes=size,
         visibility=visibility.value if hasattr(visibility, "value") else visibility,
         uploaded_by_id=uploaded_by_id,
