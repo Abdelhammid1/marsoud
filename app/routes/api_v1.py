@@ -280,6 +280,76 @@ def my_companies():
     return jsonify({"count": len(out), "companies": out})
 
 
+@bp.route("/me/tasks", methods=["GET"])
+def my_tasks_global():
+    """MARSOUD — every task in the system where the token holder is the
+    primary assignee (assigned_to_id) OR a multi-assignee member.
+    Scope intentionally crosses company boundaries — if Abdelhamid in
+    company A assigned a ticket to ibrahimfakhreyams@gmail.com, this
+    surfaces it even when Ibrahim isn't a member of company A.
+
+    Useful for "show me everything I owe" dashboards. To get the full
+    detail (comments / attachments / activity) follow up with
+    `/api/v1/tasks/<id>?company_id=<task_company_id>` — the response
+    includes the company_id for each row so you know which to use.
+
+    Query params:
+      status=...           optional filter (TODO / IN_PROGRESS / REVIEW /
+                            DONE / BLOCKED)
+      include_archived=1   include archived rows too (default: exclude)
+      limit=N              cap at 200
+    """
+    from app.models import Task, TaskStatus, task_assignees as _ta, Company
+    status_arg = (request.args.get("status") or "").strip()
+    include_archived = request.args.get("include_archived", "0") == "1"
+    limit = min(int(request.args.get("limit", 100) or 100), 200)
+
+    # Build the OR(primary, multi-assignee) base, no company filter.
+    sub = db.session.query(_ta.c.task_id).filter(
+        _ta.c.user_id == current_user.id,
+    )
+    q = Task.query.filter(or_(
+        Task.assigned_to_id == current_user.id,
+        Task.id.in_(sub),
+    ))
+    if not include_archived:
+        q = q.filter(Task.archived_at.is_(None))
+    if status_arg:
+        try:
+            q = q.filter(Task.status == TaskStatus[status_arg])
+        except KeyError:
+            return _err(f"unknown status: {status_arg}", 400)
+    tasks = q.order_by(Task.deadline.asc().nullslast(),
+                        Task.created_at.desc()).limit(limit).all()
+    # Resolve every distinct company in one go for the response payload.
+    cid_set = {t.company_id for t in tasks}
+    companies = {c.id: c for c in
+                  Company.query.filter(Company.id.in_(cid_set)).all()}
+
+    def _row(t):
+        c = companies.get(t.company_id)
+        return {
+            "id": t.id,
+            "title": t.title,
+            "status": t.status.value if t.status else None,
+            "priority": t.priority.value if t.priority else None,
+            "deadline": t.deadline.isoformat() if t.deadline else None,
+            "is_overdue": t.is_overdue,
+            "project": _project_brief(t.project),
+            # Critical for cross-company follow-ups: tells the caller
+            # which company_id to pass when fetching task detail.
+            "company": ({"id": c.id, "name": c.name} if c else
+                         {"id": t.company_id, "name": None}),
+            "created_by": _user_brief(t.created_by),
+            "created_at": _iso(t.created_at),
+            "archived_at": _iso(t.archived_at),
+        }
+    return jsonify({
+        "count": len(tasks),
+        "tasks": [_row(t) for t in tasks],
+    })
+
+
 @bp.route("/me", methods=["GET"])
 def me():
     from app.services.permissions import get_user_role, P, _IMPLIES
