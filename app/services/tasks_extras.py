@@ -47,8 +47,15 @@ def _company_id_for_task(task):
     return task.company_id
 
 
-def _notify(user_id, *, company_id, kind, title, body=None, link_url=None):
-    """Best-effort notification insert."""
+def _notify(user_id, *, company_id, kind, title, body=None, link_url=None,
+            task=None):
+    """Best-effort notification insert + email fan-out.
+
+    MARSOUD — every in-app task notification is now mirrored as an email
+    to the recipient (when their address is set and SMTP is configured).
+    The email send is wrapped in try/except so a transient SMTP failure
+    never blocks the task workflow — the in-app bell still ticks.
+    """
     try:
         n = Notification(
             user_id=user_id, company_id=company_id,
@@ -58,6 +65,25 @@ def _notify(user_id, *, company_id, kind, title, body=None, link_url=None):
         db.session.add(n)
     except Exception:
         current_app.logger.exception("notification insert failed")
+
+    # Email fan-out for TASK_* kinds.
+    try:
+        kind_value = kind.value if hasattr(kind, "value") else str(kind)
+        if not kind_value.startswith("TASK_") or task is None:
+            return
+        from app.models import User
+        recipient = User.query.get(user_id)
+        if not recipient:
+            return
+        from app.services.email import send_task_notification_email
+        send_task_notification_email(
+            recipient, task, kind=kind_value, title=title, body_text=body,
+        )
+    except Exception:
+        current_app.logger.exception(
+            "task notification email send failed (in-app notification "
+            "still recorded)"
+        )
 
 
 # ─── Multi-assignee management ────────────────────────────────────────────
@@ -128,7 +154,8 @@ def set_assignees(task, user_ids, *, actor_id=None):
                 kind=NotificationKind.TASK_ASSIGNED,
                 title=f"📌 تم تكليفك بمهمة: {task.title}",
                 body=(task.description or "")[:200],
-                link_url=f"/tasks/{task.id}")
+                link_url=f"/tasks/{task.id}",
+                task=task)
 
     db.session.commit()
     return new_ids, added, removed
@@ -224,7 +251,8 @@ def add_comment(task, content, *, user_id=None,
                 kind=NotificationKind.TASK_COMMENT,
                 title=f"💬 تعليق جديد على: {task.title}",
                 body=text[:200],
-                link_url=f"/tasks/{task.id}")
+                link_url=f"/tasks/{task.id}",
+                task=task)
 
     db.session.commit()
     return c
@@ -304,7 +332,8 @@ def apply_inline_edit(task, *, title=None, description=None,
                         kind=NotificationKind.TASK_STATUS_CHANGED,
                         title=f"📊 تحديث حالة: {task.title}",
                         body=f"{old.label_ar} → {s_enum.label_ar}",
-                        link_url=f"/tasks/{task.id}")
+                        link_url=f"/tasks/{task.id}",
+                        task=task)
             changed = True
 
     if changed:

@@ -201,3 +201,39 @@ def send_payslip_email(employee, payroll_line, payroll_run, pdf_bytes=None):
     if pdf_bytes:
         attachments.append((f"payslip-{payroll_run.period_year}-{payroll_run.period_month:02d}.pdf", pdf_bytes, "application/pdf"))
     return send_email(employee.email, subject, html, attachments=attachments)
+
+
+def send_task_notification_email(recipient, task, *, kind, title=None,
+                                  body_text=None):
+    """MARSOUD — email tied to an in-app task notification. Fires on
+    TASK_ASSIGNED / TASK_STATUS_CHANGED / TASK_COMMENT_ADDED. Never raises;
+    silently returns False when the recipient has no email, or the user
+    isn't active, or SMTP isn't configured (logged-only mode picks it up).
+
+    Args:
+      recipient: User model instance receiving the notification.
+      task:      Task model instance.
+      kind:      one of the NotificationKind values (TASK_*).
+      title:     short notification title (mirrors the in-app body).
+      body_text: optional descriptive paragraph (preview of the comment,
+                 reason for the status change, etc.).
+    """
+    if not recipient or not getattr(recipient, "email", None):
+        return False
+    if not getattr(recipient, "is_active", True):
+        return False
+    # Build the deep-link to the task detail page.
+    from flask import url_for
+    try:
+        task_url = url_for("tasks.detail", task_id=task.id, _external=True)
+    except Exception:
+        task_url = "#"
+    subject = title or "تنبيه على مهمة في مرصود"
+    html = render_template(
+        "emails/task_notification.html",
+        recipient_name=recipient.full_name or recipient.email,
+        task=task, kind=kind, body_text=body_text,
+        task_url=task_url, subject=subject,
+        company=getattr(task, "company", None),
+    )
+    return send_email(recipient.email, subject, html)
