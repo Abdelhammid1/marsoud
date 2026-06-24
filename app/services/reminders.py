@@ -109,23 +109,50 @@ def _company_owner_email(company):
 
 
 def process_subscription_reminders():
-    """Single pass — scan companies, fire expiry reminders for thresholds
-    that match their days-remaining and haven't been sent yet. Returns a
-    summary dict. Thresholds are configurable via platform_settings."""
+    """Single pass — scan companies, fire expiry reminders for the
+    highest threshold the company has reached + not yet been notified at.
+    Returns a summary dict. Thresholds come from platform_settings.
+
+    MARSOUD bug-fix — two issues from the original implementation:
+
+      1. Strict `days_remaining == threshold` match.
+         If the cron didn't tick on the exact day the company hit that
+         threshold (host down, deploy in progress, etc.), the reminder
+         was silently lost forever. Fixed to "<=" so a missed day
+         catches up on the next tick.
+
+      2. send_email returns True in logs-only mode (SMTP_HOST not set),
+         and we used to write SubscriptionReminderSent on that True.
+         The row then marked it "sent" permanently — so when SMTP got
+         configured later, the reminder never re-fired. Fixed to only
+         persist the sent-row when SMTP is actually configured, so the
+         call self-heals once the env is corrected.
+    """
     from app.services.subscription import get_reminder_thresholds
-    thresholds = get_reminder_thresholds()
+    from flask import current_app
+    # Walk thresholds high → low so we send the "earliest-warning" first.
+    # E.g. defaults [7, 5, 3, 1, 0] become [7, 5, 3, 1, 0] already; if a
+    # site overrides them out of order, sort here.
+    thresholds = sorted(get_reminder_thresholds(), reverse=True)
     today = date.today()
+    smtp_configured = bool(current_app.config.get("SMTP_HOST"))
     sent_counts = {"sent": 0, "skipped_no_email": 0,
-                   "skipped_already_sent": 0, "skipped_no_expiry": 0,
-                   "thresholds": thresholds}
+                   "skipped_no_expiry": 0,
+                   "skipped_smtp_not_configured": 0,
+                   "thresholds": thresholds,
+                   "smtp_configured": smtp_configured}
     companies = Company.query.filter_by(is_active=True).all()
     for c in companies:
         if not c.subscription_expires_at:
             sent_counts["skipped_no_expiry"] += 1
             continue
         days_remaining = (c.subscription_expires_at.date() - today).days
+        # Walk thresholds high → low. Fire the FIRST threshold the
+        # company has reached AND hasn't been notified for under the
+        # current expiry date. Stop after one — lower thresholds will
+        # fire on later ticks as days_remaining decreases.
         for threshold in thresholds:
-            if days_remaining != threshold:
+            if days_remaining > threshold:
                 continue
             already = SubscriptionReminderSent.query.filter_by(
                 company_id=c.id,
@@ -133,35 +160,46 @@ def process_subscription_reminders():
                 expires_at_when_sent=c.subscription_expires_at,
             ).first()
             if already:
-                sent_counts["skipped_already_sent"] += 1
                 continue
             email = _company_owner_email(c)
             if not email:
                 sent_counts["skipped_no_email"] += 1
-                continue
-            # Build the email body
-            if threshold == 0:
+                break
+            # Build the email body — display the ACTUAL days remaining
+            # (not the threshold) so a catch-up reminder reads accurately.
+            if days_remaining <= 0:
                 subject = f"اشتراك {c.name} ينتهي اليوم"
             else:
-                subject = f"اشتراك {c.name} ينتهي خلال {threshold} يوم"
+                subject = (f"اشتراك {c.name} ينتهي خلال "
+                          f"{days_remaining} يوم")
             try:
                 html = render_template(
                     "emails/subscription_reminder.html",
-                    company=c, days_remaining=threshold,
+                    company=c, days_remaining=days_remaining,
+                    threshold=threshold,
                     expires_at=c.subscription_expires_at,
                 )
             except Exception:
                 # Template doesn't exist — fall back to plain HTML
                 html = (f"<p>اشتراك شركتك <b>{c.name}</b> ينتهي خلال "
-                        f"<b>{threshold} يوم</b> ({c.subscription_expires_at.date().isoformat()}). "
+                        f"<b>{days_remaining} يوم</b> "
+                        f"({c.subscription_expires_at.date().isoformat()}). "
                         f"يرجى التواصل لتجديد الاشتراك.</p>")
-            if send_email(email, subject, html):
+            sent = send_email(email, subject, html)
+            if sent and smtp_configured:
+                # Only persist when SMTP actually delivered. In dev /
+                # log-only mode, the row is NOT written so the reminder
+                # retries next tick once SMTP is wired.
                 db.session.add(SubscriptionReminderSent(
                     company_id=c.id, threshold_days=threshold,
                     expires_at_when_sent=c.subscription_expires_at,
                     sent_at=datetime.utcnow(),
                 ))
                 sent_counts["sent"] += 1
+            elif sent and not smtp_configured:
+                sent_counts["skipped_smtp_not_configured"] += 1
+            # Fired one reminder this tick — done with this company.
+            break
     db.session.commit()
     logger.info("Subscription reminders processed: %s", sent_counts)
     return sent_counts
