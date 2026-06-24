@@ -69,17 +69,31 @@ def _require_api_token():
     """Every endpoint requires a valid bearer token (resolved upstream
     by Flask-Login's request_loader). If `current_user` isn't set or
     isn't active, return 401 JSON instead of Flask-Login's default HTML
-    redirect to /login."""
+    redirect to /login.
+
+    Company resolution:
+      - `?company_id=N` query param → use that company if the caller is
+        a member; 403 otherwise. Lets a single token query any company
+        the user belongs to per request.
+      - Otherwise → first company in `current_user.companies`.
+    """
     if not current_user.is_authenticated:
         return _err("missing or invalid bearer token", 401)
     if not getattr(current_user, "is_active", False):
         return _err("inactive user", 401)
-    # Pin g.active_company from the user's first company. The session-
-    # based load_active_company() doesn't fire for token requests.
-    if not g.get("active_company"):
-        companies = list(current_user.companies)
-        if not companies:
-            return _err("user has no company", 403)
+    if g.get("active_company"):
+        return
+    companies = list(current_user.companies)
+    if not companies:
+        return _err("user has no company", 403)
+    cid_arg = request.args.get("company_id", type=int)
+    if cid_arg:
+        match = next((c for c in companies if c.id == cid_arg), None)
+        if not match:
+            return _err(
+                f"you are not a member of company {cid_arg}", 403)
+        g.active_company = match
+    else:
         g.active_company = companies[0]
 
 
@@ -237,6 +251,33 @@ def ping():
                     "name": g.active_company.name},
         "server_time": _iso(datetime.utcnow()),
     })
+
+
+@bp.route("/me/companies", methods=["GET"])
+def my_companies():
+    """List every company the token holder is a member of, with the
+    role in each. Use this to discover which company_id to pass on
+    subsequent calls (e.g. /api/v1/projects?company_id=N)."""
+    from app.models.user import user_companies
+    from app.models import Company
+    rows = db.session.execute(
+        user_companies.select().where(
+            user_companies.c.user_id == current_user.id,
+        )
+    ).fetchall()
+    out = []
+    for r in rows:
+        c = db.session.get(Company, r.company_id)
+        if not c:
+            continue
+        out.append({
+            "id": c.id,
+            "name": c.name,
+            "role": r.role,
+            "is_active_company_for_request": (g.active_company
+                                                and g.active_company.id == c.id),
+        })
+    return jsonify({"count": len(out), "companies": out})
 
 
 @bp.route("/me", methods=["GET"])
