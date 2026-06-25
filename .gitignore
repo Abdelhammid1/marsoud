@@ -20,3 +20,13 @@ app/static/logos/
 # MARSOUD-68 — uploaded company attachments (invoices, contracts, task
 # files). These are tenant data — must NEVER be committed to the repo.
 app/static/docs/
+# Database files & backups
+instance/
+*.db
+*.db.bak*
+*.db.backup*
+
+# Temp backup files
+*.bak
+*.bak.*
+*.bak-*
