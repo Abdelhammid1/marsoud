@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}لوحة التحكم — مرصود{% endblock %}
+{% block page_title %}لوحة التحكم{% endblock %}
+{% block content %}
+
+<!-- Hero — MARSOUD-32: hide the financial number from users without
+     reports.view (e.g. sales reps + clones of sales rep). -->
+<div class="card p-6 mb-6 bg-gradient-to-br from-emerald-800 to-emerald-600 text-white border-0">
+  <div class="flex items-center justify-between">
+    <div>
+      <div class="text-sm text-navy-200 mb-1">{{ active_company.name }}</div>
+      <h2 class="text-2xl font-bold mb-1">
+        {% if has_permission('reports.view') %}نظرة 360° على وضعك المالي
+        {% else %}مرحباً بك في {{ active_company.name }}{% endif %}
+      </h2>
+      <p class="text-navy-200 text-sm">
+        {% if has_permission('reports.view') %}جميع البيانات محدّثة لحظياً مع كل قيد محاسبي
+        {% else %}اختر من القائمة الجانبية للبدء.{% endif %}
+      </p>
+    </div>
+    {% if has_permission('reports.view') %}
+    <div class="text-right">
+      <div class="text-xs text-navy-200">صافي الربح</div>
+      <div class="text-3xl font-bold {% if metrics.net_profit >= 0 %}text-emerald-300{% else %}text-red-300{% endif %}">
+        {{ "%.2f"|format(metrics.net_profit) }}
+        <span class="text-sm font-normal text-navy-200">{{ active_company.base_currency }}</span>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- KPI cards — financial overview, gated by reports.view -->
+{% if has_permission('reports.view') %}
+<div class="grid grid-cols-4 gap-4 mb-6">
+  {% set kpis = [
+    ('إجمالي الإيرادات', metrics.total_revenue, '#2563EB', '📈'),
+    ('إجمالي المصروفات', metrics.total_expenses, '#EF4444', '📉'),
+    ('الوضع النقدي', metrics.cash_position, '#10B981', '💰'),
+    ('المستحقات للموردين', metrics.accounts_payable, '#F59E0B', '🏢'),
+  ] %}
+  {% for label, value, color, icon in kpis %}
+  <div class="card p-5 hover:shadow-soft transition-shadow">
+    <div class="flex items-start justify-between mb-3">
+      <div class="text-xs text-slate-500 font-medium">{{ label }}</div>
+      <div class="text-2xl">{{ icon }}</div>
+    </div>
+    <div class="text-2xl font-bold text-navy-900">{{ "%.2f"|format(value) }}</div>
+    <div class="text-xs text-slate-400 mt-1">{{ active_company.base_currency }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Charts + actions row — financial chart also gated by reports.view -->
+{% if has_permission('reports.view') %}
+<div class="grid grid-cols-3 gap-4 mb-6">
+  <div class="card p-6 col-span-2">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-bold text-navy-900">الإيرادات vs المصروفات</h3>
+      <span class="text-xs text-slate-400">الشهر الحالي</span>
+    </div>
+    <canvas id="revenueChart" height="100"></canvas>
+  </div>
+  <div class="card p-6">
+    <h3 class="font-bold text-navy-900 mb-4">النسب المالية</h3>
+    <div class="space-y-4">
+      <div>
+        <div class="flex justify-between text-sm mb-1">
+          <span class="text-slate-600">Debt to Equity</span>
+          <span class="font-bold text-navy-900">{{ "%.2f"|format(metrics.debt_to_equity) }}</span>
+        </div>
+        <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+          {% set dte_pct = (metrics.debt_to_equity / 2 * 100) if metrics.debt_to_equity < 2 else 100 %}
+          {% set dte_color = '#10B981' if metrics.debt_to_equity < 0.5 else ('#F59E0B' if metrics.debt_to_equity < 1 else '#EF4444') %}
+          <div class="h-full rounded-full" style="width: {{ dte_pct }}%; background: {{ dte_color }}"></div>
+        </div>
+      </div>
+      <div>
+        <div class="flex justify-between text-sm mb-1">
+          <span class="text-slate-600">Current Ratio</span>
+          <span class="font-bold text-navy-900">{{ "%.2f"|format(metrics.current_ratio) }}</span>
+        </div>
+        <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+          {% set cr_pct = (metrics.current_ratio / 3 * 100) if metrics.current_ratio < 3 else 100 %}
+          {% set cr_color = '#EF4444' if metrics.current_ratio < 1 else ('#F59E0B' if metrics.current_ratio < 1.5 else '#10B981') %}
+          <div class="h-full rounded-full" style="width: {{ cr_pct }}%; background: {{ cr_color }}"></div>
+        </div>
+      </div>
+    </div>
+    <hr class="my-5 border-slate-100">
+    <div class="space-y-2 text-sm">
+      <div class="flex justify-between">
+        <span class="text-slate-600">فواتير غير مدفوعة</span>
+        <span class="font-semibold text-navy-900">{{ metrics.unpaid_invoices.count }} · {{ "%.2f"|format(metrics.unpaid_invoices.total) }}</span>
+      </div>
+      <div class="flex justify-between">
+        <span class="text-slate-600">فواتير متأخرة</span>
+        <span class="font-semibold text-red-600">{{ metrics.overdue_invoices.count }} · {{ "%.2f"|format(metrics.overdue_invoices.total) }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Quick actions — also gated, since each link requires its own permission anyway -->
+{% if has_permission('invoices.create') or has_permission('journals.create') or has_permission('partners.manage') or has_permission('reports.view') %}
+<div class="card p-6">
+  <h3 class="font-bold text-navy-900 mb-4">إجراءات سريعة</h3>
+  <div class="grid grid-cols-4 gap-3">
+    {% if has_permission('invoices.create') %}
+    <a href="{{ url_for('invoices.new') }}" class="flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 to-green-50 hover:from-emerald-100 hover:to-green-100 rounded-xl p-5 border border-emerald-100 transition-all hover:scale-[1.02]">
+      <div class="text-3xl mb-2">🧾</div>
+      <div class="font-semibold text-navy-900">فاتورة جديدة</div>
+    </a>
+    {% endif %}
+    {% if has_permission('journals.create') %}
+    <a href="{{ url_for('journals.new') }}" class="flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 to-green-50 hover:from-emerald-100 hover:to-green-100 rounded-xl p-5 border border-emerald-100 transition-all hover:scale-[1.02]">
+      <div class="text-3xl mb-2">📒</div>
+      <div class="font-semibold text-navy-900">قيد محاسبي</div>
+    </a>
+    {% endif %}
+    {% if has_permission('partners.manage') %}
+    <a href="{{ url_for('customers.new') }}" class="flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 to-green-50 hover:from-emerald-100 hover:to-green-100 rounded-xl p-5 border border-emerald-100 transition-all hover:scale-[1.02]">
+      <div class="text-3xl mb-2">👤</div>
+      <div class="font-semibold text-navy-900">عميل جديد</div>
+    </a>
+    {% endif %}
+    {% if has_permission('reports.view') %}
+    <a href="{{ url_for('reports.balance') }}" class="flex flex-col items-center justify-center bg-gradient-to-br from-emerald-50 to-green-50 hover:from-emerald-100 hover:to-green-100 rounded-xl p-5 border border-emerald-100 transition-all hover:scale-[1.02]">
+      <div class="text-3xl mb-2">📊</div>
+      <div class="font-semibold text-navy-900">الميزانية</div>
+    </a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<script>
+const _chartEl = document.getElementById('revenueChart');
+if (_chartEl) {
+const ctx = _chartEl.getContext('2d');
+new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: ['الإيرادات', 'المصروفات', 'صافي الربح'],
+    datasets: [{
+      data: [{{ metrics.total_revenue }}, {{ metrics.total_expenses }}, {{ metrics.net_profit }}],
+      backgroundColor: ['#2563EB', '#EF4444', '#10B981'],
+      borderRadius: 8,
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { color: '#64748B' } },
+      x: { grid: { display: false }, ticks: { color: '#64748B', font: { family: 'Cairo', size: 12 } } }
+    }
+  }
+});
+}
+</script>
+{% endblock %}

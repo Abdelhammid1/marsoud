@@ -1,32 +1,101 @@
 {% extends "emails/_base.html" %}
-{% block title %}تذكير: اشتراك {{ company.name }} ينتهي خلال {{ days_remaining }} يوم{% endblock %}
-{% block content %}
-<h2 style="color:#0A2540;margin:0 0 8px;font-size:22px">السلام عليكم 👋</h2>
-<p style="line-height:1.7;color:#475569;margin:0 0 18px;font-size:14px">
-  {% if days_remaining == 0 %}
-  اشتراك شركتك <strong>{{ company.name }}</strong> في نظام مرصود ينتهي اليوم.
+{% block title %}
+  {% if days_remaining < 0 %}
+    تنبيه: اشتراك {{ company.name }} انتهى منذ {{ days_remaining|abs }} يوم
+  {% elif days_remaining == 0 %}
+    تنبيه: اشتراك {{ company.name }} ينتهي اليوم
   {% else %}
-  اشتراك شركتك <strong>{{ company.name }}</strong> في نظام مرصود ينتهي خلال
-  <strong style="color:{% if days_remaining <= 1 %}#DC2626{% elif days_remaining <= 3 %}#B45309{% else %}#0A2540{% endif %}">{{ days_remaining }} يوم</strong>.
+    تذكير: اشتراك {{ company.name }} ينتهي خلال {{ days_remaining }} يوم
+  {% endif %}
+{% endblock %}
+{% block content %}
+
+{% if days_remaining < 0 %}
+  {% set badge_bg = "#FEE2E2" %}
+  {% set badge_color = "#991B1B" %}
+  {% set badge_border = "#FCA5A5" %}
+  {% set badge_icon = "⛔" %}
+  {% set badge_text = "منتهي" %}
+{% elif days_remaining == 0 %}
+  {% set badge_bg = "#FEF3C7" %}
+  {% set badge_color = "#92400E" %}
+  {% set badge_border = "#FCD34D" %}
+  {% set badge_icon = "⚠️" %}
+  {% set badge_text = "ينتهي اليوم" %}
+{% elif days_remaining <= 3 %}
+  {% set badge_bg = "#FEF3C7" %}
+  {% set badge_color = "#92400E" %}
+  {% set badge_border = "#FCD34D" %}
+  {% set badge_icon = "⚠️" %}
+  {% set badge_text = "تنبيه عاجل" %}
+{% else %}
+  {% set badge_bg = "#ECFDF5" %}
+  {% set badge_color = "#065F46" %}
+  {% set badge_border = "#6EE7B7" %}
+  {% set badge_icon = "🔔" %}
+  {% set badge_text = "تذكير" %}
+{% endif %}
+
+<div style="display:inline-block;background:{{ badge_bg }};color:{{ badge_color }};border:1px solid {{ badge_border }};border-radius:20px;padding:4px 14px;font-size:12px;font-weight:bold;margin-bottom:20px">
+  {{ badge_icon }} {{ badge_text }}
+</div>
+
+<h2 style="color:#0A2540;margin:0 0 10px;font-size:21px;font-weight:bold">السلام عليكم 👋</h2>
+
+<p style="line-height:1.8;color:#475569;margin:0 0 20px;font-size:14px">
+  {% if days_remaining < 0 %}
+    اشتراك شركتك <strong style="color:#0A2540">{{ company.name }}</strong> في نظام
+    <strong style="color:#1D9E75">مرصود</strong>
+    قد <strong style="color:#DC2626">انتهى منذ {{ days_remaining|abs }} يوم</strong>.
+  {% elif days_remaining == 0 %}
+    اشتراك شركتك <strong style="color:#0A2540">{{ company.name }}</strong> في نظام
+    <strong style="color:#1D9E75">مرصود</strong>
+    ينتهي <strong style="color:#DC2626">اليوم</strong>.
+  {% else %}
+    اشتراك شركتك <strong style="color:#0A2540">{{ company.name }}</strong> في نظام
+    <strong style="color:#1D9E75">مرصود</strong> ينتهي خلال
+    <strong style="color:{% if days_remaining <= 3 %}#B45309{% else %}#0A2540{% endif %}">{{ days_remaining }} يوم</strong>.
   {% endif %}
 </p>
 
-<div style="background:#0A2540;border-right:4px solid #1D9E75;border-radius:12px;padding:20px 24px;margin:18px 0;color:#fff">
-  <div style="font-size:11px;color:#94A3B8;letter-spacing:1px">تاريخ انتهاء الاشتراك</div>
-  <div style="font-size:24px;font-weight:bold;font-family:monospace;margin-top:4px">{{ expires_at.strftime('%Y-%m-%d') }}</div>
+<div style="background:#0A2540;border-right:4px solid {% if days_remaining < 0 %}#DC2626{% elif days_remaining <= 1 %}#F59E0B{% else %}#1D9E75{% endif %};border-radius:12px;padding:20px 24px;margin:0 0 20px;color:#fff">
+  <table cellpadding="0" cellspacing="0" border="0" style="width:100%">
+    <tr>
+      <td>
+        <div style="font-size:11px;color:#94A3B8;letter-spacing:1px;margin-bottom:4px">تاريخ انتهاء الاشتراك</div>
+        <div style="font-size:22px;font-weight:bold;font-family:monospace;color:#fff">{{ expires_at.strftime('%Y-%m-%d') }}</div>
+      </td>
+      <td align="left" valign="middle">
+        <div style="font-size:28px">{% if days_remaining < 0 %}⛔{% elif days_remaining == 0 %}⏰{% elif days_remaining <= 3 %}⚠️{% else %}📅{% endif %}</div>
+      </td>
+    </tr>
+  </table>
   {% if company.subscription_plan %}
-  <div style="font-size:12px;color:#94A3B8;margin-top:6px">
+  <div style="font-size:12px;color:#94A3B8;margin-top:10px;padding-top:10px;border-top:1px solid #1E3A5F">
     الباقة الحالية: <strong style="color:#fff">{{ company.subscription_plan.name_ar }}</strong>
   </div>
   {% endif %}
 </div>
 
-<p style="line-height:1.7;color:#475569;font-size:13px;margin:0 0 12px">
+{% if days_remaining < 0 %}
+<div style="background:#FEF2F2;border-right:4px solid #DC2626;border-radius:8px;padding:14px 18px;margin:0 0 20px;font-size:13px;color:#7F1D1D;line-height:1.7">
+  ⚠️ <strong>تنبيه:</strong> سيتم تحويل حسابك إلى الوضع المحدود (عرض البيانات فقط). يرجى التواصل مع فريق مرصود فوراً لتجديد الاشتراك.
+</div>
+{% else %}
+<p style="line-height:1.7;color:#475569;font-size:13px;margin:0 0 20px">
   لتجديد الاشتراك، يرجى التواصل مع فريق مرصود مباشرة.
   بعد انتهاء الاشتراك سيتحوّل الحساب إلى الوضع المحدود (عرض البيانات فقط).
 </p>
+{% endif %}
 
-<p style="color:#475569;font-size:13px;margin-top:20px;border-top:1px solid #F1F5F9;padding-top:12px">
+<div style="text-align:center;margin:24px 0 8px">
+  <a href="https://wa.me/966551919337"
+     style="display:inline-block;background:#1D9E75;color:#fff;text-decoration:none;padding:12px 32px;border-radius:8px;font-size:14px;font-weight:bold;letter-spacing:0.5px">
+    💬 تواصل معنا للتجديد
+  </a>
+</div>
+
+<p style="color:#94A3B8;font-size:12px;margin-top:24px;padding-top:14px;border-top:1px solid #F1F5F9;text-align:center">
   هذا تذكير تلقائي من نظام <strong style="color:#1D9E75">مرصود</strong>.
 </p>
 {% endblock %}

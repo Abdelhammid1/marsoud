@@ -168,10 +168,9 @@ def process_subscription_reminders():
             # Build the email body — display the ACTUAL days remaining
             # (not the threshold) so a catch-up reminder reads accurately.
             if days_remaining <= 0:
-                subject = f"اشتراك {c.name} ينتهي اليوم"
+                subject = f"⛔ اشتراك {c.name} انتهى" if days_remaining < 0 else f"⏰ اشتراك {c.name} ينتهي اليوم"
             else:
-                subject = (f"اشتراك {c.name} ينتهي خلال "
-                          f"{days_remaining} يوم")
+                subject = f"🔔 تذكير: اشتراك {c.name} ينتهي خلال {days_remaining} يوم"
             try:
                 html = render_template(
                     "emails/subscription_reminder.html",

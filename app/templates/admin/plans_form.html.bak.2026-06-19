@@ -1,0 +1,112 @@
+{% extends "admin/base.html" %}
+{% block page_title %}{% if plan %}تعديل الباقة: {{ plan.name_ar }}{% else %}باقة جديدة{% endif %}{% endblock %}
+{% block content %}
+
+<div class="card p-6 max-w-3xl">
+  <div class="mb-4">
+    <a href="{{ url_for('superadmin.plans_index') }}" class="text-xs text-slate-500 hover:text-emerald-600">← كل الباقات</a>
+  </div>
+  <h2 class="font-bold text-navy-900 mb-4">{% if plan %}تعديل: {{ plan.name_ar }}{% else %}باقة جديدة{% endif %}</h2>
+
+  <form method="POST" class="space-y-4">
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">الكود (إنجليزي، فريد)</label>
+        <input type="text" name="code" required {% if plan %}readonly{% endif %}
+               value="{{ plan.code if plan else '' }}"
+               class="input font-mono" placeholder="مثال: premium">
+        {% if plan %}<p class="text-xs text-slate-500 mt-1">الكود مش قابل للتعديل بعد الإنشاء.</p>{% endif %}
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">الاسم العربي</label>
+        <input type="text" name="name_ar" required value="{{ plan.name_ar if plan else '' }}" class="input">
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">الاسم بالإنجليزي</label>
+      <input type="text" name="name" required value="{{ plan.name if plan else '' }}" class="input">
+    </div>
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">الوصف</label>
+      <textarea name="description" rows="2" class="textarea">{{ plan.description if plan else '' }}</textarea>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">السعر الشهري (SAR)</label>
+        <input type="number" name="price_monthly" step="0.01" value="{{ plan.price_monthly if plan and plan.price_monthly else '' }}" class="input font-mono">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">السعر السنوي (SAR)</label>
+        <input type="number" name="price_yearly" step="0.01" value="{{ plan.price_yearly if plan and plan.price_yearly else '' }}" class="input font-mono">
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">الأقسام المتاحة في هذه الباقة</label>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-slate-50 rounded-lg p-3">
+        {% set current_mods = plan.modules if plan else [] %}
+        {% for m in all_modules %}
+        <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white rounded p-2 transition">
+          <input type="checkbox" name="modules" value="{{ m }}" {% if m in current_mods %}checked{% endif %}>
+          <span>{{ module_labels.get(m, m) }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <p class="text-xs text-slate-500 mt-2">
+        ⓘ كل قسم يتحكم في مجموعة صلاحيات. مثلاً "نقطة البيع" بيخفي/يظهر POS + الشيفتات + تقارير الكاشير.
+      </p>
+    </div>
+
+    {# MARSOUD-58 — nested sub-item checkboxes. Hidden flag lets the
+       route distinguish "user submitted with all unchecked" (= lock
+       everything) from "form didn't include the sub-item block at all"
+       (= legacy: keep current value). #}
+    <input type="hidden" name="submit_subitems" value="1">
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">العناصر الفرعية داخل كل قسم</label>
+      <p class="text-xs text-slate-500 mb-3">
+        💡 لو القسم نفسه مش مفعّل فوق، عناصره الفرعية مش هتظهر للشركة حتى لو
+        أنت فعّلت العنصر هنا. سيب الكل مش متظبط (NULL) → كل العناصر تظهر تلقائياً
+        (سلوك "متكامل" الكامل).
+      </p>
+      {% set current_items = plan.subitems if plan else None %}
+      <div class="space-y-3">
+        {% for section_key, items in sub_item_catalog.items() %}
+        <details class="bg-slate-50 rounded-lg border border-slate-200" open>
+          <summary class="cursor-pointer p-3 font-semibold text-navy-900 text-sm">
+            📂 {{ section_label_ar.get(section_key, section_key) }}
+            <span class="text-xs text-slate-500 font-normal">
+              ({{ items|length }} عنصر
+              {% set required = section_requires_modules.get(section_key, []) %}
+              {% if required %}— يحتاج: {{ required|join(' / ') }}{% endif %})
+            </span>
+          </summary>
+          <div class="p-3 border-t border-slate-200 grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {% for endpoint, label, icon in items %}
+            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white rounded p-2 transition">
+              <input type="checkbox" name="subitems" value="{{ endpoint }}"
+                     {% if current_items is none or endpoint in (current_items or []) %}checked{% endif %}>
+              <span class="text-base">{{ icon }}</span>
+              <span>{{ label }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </details>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if plan %}
+    <label class="flex items-center gap-2">
+      <input type="checkbox" name="is_active" {% if plan.is_active %}checked{% endif %}>
+      <span class="text-sm font-semibold">نشطة (الشركات تقدر تتسند ليها)</span>
+    </label>
+    {% endif %}
+
+    <div class="flex justify-end gap-2 pt-2">
+      <a href="{{ url_for('superadmin.plans_index') }}" class="btn-secondary">إلغاء</a>
+      <button type="submit" class="btn-primary">{% if plan %}💾 حفظ{% else %}+ إنشاء{% endif %}</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

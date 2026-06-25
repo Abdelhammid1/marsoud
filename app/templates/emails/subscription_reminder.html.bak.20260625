@@ -1,0 +1,32 @@
+{% extends "emails/_base.html" %}
+{% block title %}تذكير: اشتراك {{ company.name }} ينتهي خلال {{ days_remaining }} يوم{% endblock %}
+{% block content %}
+<h2 style="color:#0A2540;margin:0 0 8px;font-size:22px">السلام عليكم 👋</h2>
+<p style="line-height:1.7;color:#475569;margin:0 0 18px;font-size:14px">
+  {% if days_remaining == 0 %}
+  اشتراك شركتك <strong>{{ company.name }}</strong> في نظام مرصود ينتهي اليوم.
+  {% else %}
+  اشتراك شركتك <strong>{{ company.name }}</strong> في نظام مرصود ينتهي خلال
+  <strong style="color:{% if days_remaining <= 1 %}#DC2626{% elif days_remaining <= 3 %}#B45309{% else %}#0A2540{% endif %}">{{ days_remaining }} يوم</strong>.
+  {% endif %}
+</p>
+
+<div style="background:#0A2540;border-right:4px solid #1D9E75;border-radius:12px;padding:20px 24px;margin:18px 0;color:#fff">
+  <div style="font-size:11px;color:#94A3B8;letter-spacing:1px">تاريخ انتهاء الاشتراك</div>
+  <div style="font-size:24px;font-weight:bold;font-family:monospace;margin-top:4px">{{ expires_at.strftime('%Y-%m-%d') }}</div>
+  {% if company.subscription_plan %}
+  <div style="font-size:12px;color:#94A3B8;margin-top:6px">
+    الباقة الحالية: <strong style="color:#fff">{{ company.subscription_plan.name_ar }}</strong>
+  </div>
+  {% endif %}
+</div>
+
+<p style="line-height:1.7;color:#475569;font-size:13px;margin:0 0 12px">
+  لتجديد الاشتراك، يرجى التواصل مع فريق مرصود مباشرة.
+  بعد انتهاء الاشتراك سيتحوّل الحساب إلى الوضع المحدود (عرض البيانات فقط).
+</p>
+
+<p style="color:#475569;font-size:13px;margin-top:20px;border-top:1px solid #F1F5F9;padding-top:12px">
+  هذا تذكير تلقائي من نظام <strong style="color:#1D9E75">مرصود</strong>.
+</p>
+{% endblock %}
