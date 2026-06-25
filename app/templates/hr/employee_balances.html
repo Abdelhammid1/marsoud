@@ -19,6 +19,11 @@
 </div>
 
 <div class="card p-6">
+  <p class="text-xs text-slate-500 mb-3">
+    💡 الرصيد التراكمي يضاف تلقائياً كل شهر بنسبة الـ accrual. لو محتاج
+    تمنح الموظف رصيد مباشرةً (مثلاً تعويض أو رصيد ابتدائي)، استخدم زر
+    "تعيين الرصيد" بجوار النوع. الرصيد لا يتجاوز الحد الأقصى للنوع.
+  </p>
   <table class="data-table">
     <thead>
       <tr>
@@ -26,6 +31,8 @@
         <th class="text-left">الرصيد</th>
         <th class="text-left">المستخدم</th>
         <th class="text-left">المتبقي</th>
+        <th class="text-left">الحد الأقصى</th>
+        <th class="text-left">تعيين</th>
       </tr>
     </thead>
     <tbody>
@@ -37,9 +44,26 @@
         <td class="text-left font-mono">{{ "%.2f"|format(b.balance_days) }}</td>
         <td class="text-left font-mono text-amber-600">{{ "%.2f"|format(b.used_days) }}</td>
         <td class="text-left font-mono font-bold text-emerald-700">{{ "%.2f"|format(b.remaining_days) }}</td>
+        <td class="text-left font-mono text-slate-500">{{ "%.2f"|format(b.leave_type.max_balance) }}</td>
+        <td class="text-left">
+          <form method="POST"
+                action="{{ url_for('hr.grant_leave_balance', employee_id=employee.id) }}"
+                class="flex items-center gap-1 justify-end">
+            <input type="hidden" name="leave_type_id" value="{{ b.leave_type.id }}">
+            <input type="hidden" name="year" value="{{ year }}">
+            <input type="number" step="0.25" min="0" required
+                   name="balance_days" placeholder="رصيد جديد"
+                   value="{{ '%.2f'|format(b.balance_days) }}"
+                   class="input text-xs w-24 font-mono" dir="ltr">
+            <button type="submit"
+                    class="text-xs text-emerald-700 hover:underline whitespace-nowrap">
+              حفظ
+            </button>
+          </form>
+        </td>
       </tr>
     {% else %}
-      <tr><td colspan="4" class="text-center text-slate-400 py-6">لم تنشأ بعد. ستظهر تلقائياً مع أول دورة تراكم.</td></tr>
+      <tr><td colspan="6" class="text-center text-slate-400 py-6">لم تنشأ بعد. ستظهر تلقائياً مع أول دورة تراكم.</td></tr>
     {% endfor %}
     </tbody>
   </table>

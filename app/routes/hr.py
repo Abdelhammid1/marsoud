@@ -238,6 +238,42 @@ def employee_balances(employee_id):
                            year=year, requests=requests_)
 
 
+@bp.route("/employees/<int:employee_id>/leave-balances/grant",
+          methods=["POST"])
+@login_required
+@hr_required
+def grant_leave_balance(employee_id):
+    """MARSOUD — manual balance adjustment (Abdelhamid's complaint:
+    'I raised the max but the balance is still 0'). Caps to max_balance."""
+    from app.services.leave import set_leave_balance
+    emp = db.session.get(Employee, employee_id)
+    if not emp or emp.company_id != g.active_company.id:
+        flash("الموظف غير موجود", "error")
+        return redirect(url_for("hr.index"))
+    try:
+        lt_id = int(request.form.get("leave_type_id"))
+        year = int(request.form.get("year") or date.today().year)
+        balance_raw = (request.form.get("balance_days") or "").strip()
+        balance = float(balance_raw)
+    except (TypeError, ValueError):
+        flash("القيم غير صالحة", "error")
+        return redirect(url_for("hr.employee_balances",
+                                 employee_id=emp.id))
+    lt = db.session.get(LeaveType, lt_id)
+    if not lt or lt.company_id != g.active_company.id:
+        flash("نوع الإجازة غير موجود", "error")
+        return redirect(url_for("hr.employee_balances",
+                                 employee_id=emp.id))
+    set_leave_balance(emp, lt, year, balance_days=balance,
+                       actor_id=current_user.id)
+    flash(
+        f"تم تحديث رصيد {lt.name} للموظف {emp.name} إلى {balance:.2f} يوم",
+        "success",
+    )
+    return redirect(url_for("hr.employee_balances",
+                             employee_id=emp.id, year=year))
+
+
 # ─── HR-05b: attendance exceptions ───────────────────────────────────────
 @bp.route("/attendance")
 @login_required

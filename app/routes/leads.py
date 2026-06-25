@@ -206,6 +206,64 @@ def index():
     )
 
 
+# ─── MARSOUD: Excel export of leads ──────────────────────────────────────
+@bp.route("/export/excel")
+@login_required
+@require_permission("leads.view")
+def export_excel():
+    """Download an Excel of leads — honours the same filters as /leads/
+    so the file mirrors what's on screen."""
+    from flask import send_file
+    from app.services.export import export_leads_excel
+    cid = g.active_company.id
+    q_str = (request.args.get("q") or "").strip()
+    status_filter = (request.args.get("status") or "").strip()
+    rep_filter = (request.args.get("rep") or "").strip()
+    date_from = (request.args.get("from") or "").strip()
+    date_to = (request.args.get("to") or "").strip()
+
+    query = Lead.query.filter_by(company_id=cid).filter(
+        Lead.deleted_at.is_(None))
+    if not _can_view_all_leads():
+        query = query.filter(Lead.assigned_to_id == current_user.id)
+    if q_str:
+        like = f"%{q_str}%"
+        query = query.filter(or_(
+            Lead.client_name.ilike(like),
+            Lead.phone.ilike(like),
+            Lead.service_needed.ilike(like),
+        ))
+    if status_filter:
+        try:
+            query = query.filter(Lead.status == LeadStatus[status_filter])
+        except KeyError:
+            pass
+    if rep_filter:
+        try:
+            query = query.filter(
+                Lead.assigned_to_id == int(rep_filter))
+        except (TypeError, ValueError):
+            pass
+    df = _parse_date(date_from)
+    if df:
+        query = query.filter(
+            Lead.created_at >= datetime.combine(df, datetime.min.time()))
+    dt = _parse_date(date_to)
+    if dt:
+        query = query.filter(
+            Lead.created_at < datetime.combine(
+                dt + timedelta(days=1), datetime.min.time()))
+
+    leads = query.order_by(Lead.created_at.desc()).all()
+    buf = export_leads_excel(g.active_company, leads)
+    fname = f"leads-{g.active_company.id}-{datetime.now():%Y%m%d-%H%M}.xlsx"
+    return send_file(
+        buf, as_attachment=True, download_name=fname,
+        mimetype=("application/vnd.openxmlformats-officedocument."
+                  "spreadsheetml.sheet"),
+    )
+
+
 @bp.route("/new", methods=["GET", "POST"])
 @login_required
 @require_permission("leads.manage")

@@ -60,11 +60,17 @@ def index():
         if role == "team_member":
             tq = tq.filter(Task.assigned_to_id == current_user.id)
         for t in tq.order_by(Task.deadline).all():
+            # MARSOUD bug-fix: standalone tasks (project_id=None) used
+            # to crash the calendar via `t.project.name` (AttributeError →
+            # 500 on /calendar/). Guard both the project name and the
+            # priority label (priority is nullable on legacy rows).
+            project_label = t.project.name if t.project else "مهمة مستقلة"
+            priority_label = t.priority.label_ar if t.priority else "—"
             tasks.append({
                 "when": datetime.combine(t.deadline, datetime.min.time()),
                 "kind": "task_deadline",
                 "title": f"Deadline: {t.title}",
-                "subtitle": f"{t.project.name} · {t.priority.label_ar}",
+                "subtitle": f"{project_label} · {priority_label}",
                 "link": f"/tasks/{t.id}",
             })
 

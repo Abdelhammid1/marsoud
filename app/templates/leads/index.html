@@ -6,7 +6,13 @@
     <h2 class="font-bold text-navy-900">العملاء المحتملون (Pipeline)</h2>
     <p class="text-xs text-slate-500">من أول تواصل حتى تحويلهم لمشروع.</p>
   </div>
-  <a href="{{ url_for('leads.new') }}" class="btn-primary text-sm">+ عميل محتمل جديد</a>
+  <div class="flex items-center gap-2">
+    <a href="{{ url_for('leads.export_excel', q=q, status=status_filter, rep=rep_filter, **{'from': date_from, 'to': date_to}) }}"
+       class="btn-secondary text-sm" title="تنزيل قائمة العملاء المحتملين كملف Excel">
+      ⬇ تصدير Excel
+    </a>
+    <a href="{{ url_for('leads.new') }}" class="btn-primary text-sm">+ عميل محتمل جديد</a>
+  </div>
 </div>
 
 <div class="grid grid-cols-7 gap-2 mb-5">

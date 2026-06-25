@@ -1743,3 +1743,85 @@ def export_stock_movements_pdf(company, start, end):
          "الكمية", "الرصيد بعد", "المنفّذ"],
         out, col_widths=[2.8, 2.0, 2.5, 1.5, 2.0, 2.5, 5.7],
     )
+
+
+# ─── MARSOUD: Excel export of all Leads ─────────────────────────────────
+def export_leads_excel(company, leads):
+    """Export every field of every lead to a single Excel sheet.
+
+    Abdelhamid's ask: 'I want to export Leads to Excel containing every
+    field that's filled in'. Mirrors the lead detail page columns + the
+    optional rich-text fields (request_description, sales_action_required,
+    notes, meeting_notes, expected_value).
+    """
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Leads"
+
+    _excel_styled_header(
+        ws, "تقرير العملاء المحتملين",
+        company.name, f"عدد السجلات: {len(leads)}",
+    )
+
+    headers = [
+        "#", "الاسم", "الهاتف", "البريد", "الخدمة المطلوبة",
+        "النوع", "المصدر", "الحالة", "المسؤول", "أنشأها",
+        "القيمة المتوقعة", "تاريخ الإنشاء", "اجتماع قادم",
+        "ملاحظات اجتماع", "وصف الطلب", "المطلوب من السيلز",
+        "ملاحظات عامة", "حالة التحويل", "سبب الخسارة",
+    ]
+    row = 5
+    for col, h in enumerate(headers, 1):
+        c = ws.cell(row=row, column=col, value=h)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="0A2540")
+        c.alignment = Alignment(horizontal="center", wrap_text=True)
+
+    # Column widths (tuned for Arabic content)
+    widths = [4, 22, 18, 26, 26, 12, 14, 14, 18, 18,
+              14, 18, 18, 30, 30, 30, 28, 14, 22]
+    for i, w in enumerate(widths, 1):
+        ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = w
+
+    row += 1
+    for i, L in enumerate(leads, 1):
+        rep_name = L.assigned_to.full_name if L.assigned_to else ""
+        creator_name = L.created_by.full_name if L.created_by else ""
+        status_label = L.status.label_ar if L.status else ""
+        type_label = L.lead_type or ""
+        source_label = L.source or ""
+        expected = float(L.expected_value) if L.expected_value else 0.0
+        meeting_str = (L.next_meeting.strftime("%Y-%m-%d %H:%M")
+                       if L.next_meeting else "")
+        created_str = (L.created_at.strftime("%Y-%m-%d %H:%M")
+                       if L.created_at else "")
+        converted = "نعم" if L.is_converted else ""
+
+        values = [
+            i, L.client_name or "", L.phone or "", L.email or "",
+            L.service_needed or "", type_label, source_label,
+            status_label, rep_name, creator_name,
+            expected, created_str, meeting_str,
+            L.meeting_notes or "", L.request_description or "",
+            L.sales_action_required or "", L.notes or "",
+            converted, L.lost_reason or "",
+        ]
+        for col, val in enumerate(values, 1):
+            cell = ws.cell(row=row, column=col, value=val)
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+            if col == 11:   # expected value column
+                cell.number_format = "#,##0.00"
+        row += 1
+
+    # Totals row for expected_value
+    if leads:
+        ws.cell(row=row, column=10, value="إجمالي القيمة المتوقعة:").font = Font(bold=True)
+        total_expected = sum(float(L.expected_value or 0) for L in leads)
+        c = ws.cell(row=row, column=11, value=total_expected)
+        c.number_format = "#,##0.00"
+        c.font = Font(bold=True)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf

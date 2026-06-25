@@ -93,6 +93,36 @@ def update_leave_type(lt, *, name=None, accrual_per_month=None,
     return lt
 
 
+def set_leave_balance(employee, leave_type, year, *, balance_days,
+                      actor_id=None):
+    """MARSOUD — admin override for an employee's leave balance.
+
+    Use case: Abdelhamid raised "مرضية" max from 3 to 30 but employees
+    still couldn't book one because the LEAVE TYPE cap is separate
+    from the per-employee BALANCE. This function lets an HR-permitted
+    user grant or correct a specific balance directly.
+
+    Caps the value at the leave type's max_balance so it can't exceed
+    the policy ceiling. Idempotent — safe to call repeatedly.
+    """
+    bal_dec = Decimal(str(max(0, float(balance_days))))
+    if leave_type.max_balance and bal_dec > leave_type.max_balance:
+        bal_dec = leave_type.max_balance
+    row = LeaveBalance.query.filter_by(
+        employee_id=employee.id, leave_type_id=leave_type.id, year=year,
+    ).first()
+    if not row:
+        row = LeaveBalance(
+            employee_id=employee.id, leave_type_id=leave_type.id,
+            year=year, balance_days=bal_dec, used_days=Decimal("0"),
+        )
+        db.session.add(row)
+    else:
+        row.balance_days = bal_dec
+    db.session.commit()
+    return row
+
+
 def ensure_employee_balances(employee, year=None):
     """Make sure a LeaveBalance row exists for (employee, each active type, year).
 
