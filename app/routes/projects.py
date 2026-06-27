@@ -65,11 +65,17 @@ def _project_managers():
 def _user_can_see_project(project):
     """MARSOUD-PERM-FIX (PM scope) — direct URL access (e.g. /projects/<id>)
     must enforce the same scope as the list page. Order:
-      1. projects.view_all → see anything.
-      2. Manager of this project → see it.
-      3. Member of this project → see it.
-      4. Sales user whose lead converted into this project → see it.
+      1. Soft-deleted projects → only super-admin (handled upstream); all
+         other readers get 404 even if they used to be allowed.
+      2. projects.view_all → see anything.
+      3. Manager of this project → see it.
+      4. Member of this project → see it.
+      5. Sales user whose lead converted into this project → see it.
     Anything else → 403 from the caller."""
+    if project.deleted_at is not None and not getattr(
+        current_user, "is_superadmin", False
+    ):
+        return False
     if has_permission("projects.view_all"):
         return True
     if _role() in FULL_VISIBILITY:
@@ -124,7 +130,9 @@ def index():
     # "see every project" gate (owner / admin / ceo by default). Everyone
     # else sees the union of: projects they manage, projects they're a
     # member of, and (for sales) projects converted from a lead they own.
-    query = Project.query.filter_by(company_id=cid)
+    # MARSOUD-L: soft-deleted projects always hidden from the list.
+    query = Project.query.filter_by(company_id=cid).filter(
+        Project.deleted_at.is_(None))
     role = _role()
     if not has_permission("projects.view_all"):
         member_pids = db.session.query(ProjectMember.project_id).filter(
@@ -337,3 +345,61 @@ def member_remove(project_id, member_id):
         db.session.commit()
         flash("تم إخراج العضو من الفريق", "success")
     return redirect(url_for("projects.detail", project_id=p.id))
+
+
+# ─── MARSOUD-L: owner-only project edit + soft-delete ──────────────────
+def _owner_only():
+    """Hard gate: even project managers can't bypass the role check."""
+    return _role() == "owner" or has_permission("projects.view_all") and _role() == "admin"
+
+
+@bp.route("/<int:project_id>/edit", methods=["GET", "POST"])
+@login_required
+@require_permission("projects.manage")
+def edit(project_id):
+    """Owner-only project metadata edit."""
+    p = _project_or_403(project_id)
+    if _role() not in ("owner", "admin"):
+        abort(403)
+    if request.method == "POST":
+        try:
+            name = (request.form.get("name") or "").strip()
+            if not name:
+                raise CRMError("اسم المشروع مطلوب")
+            p.name = name
+            p.type = (request.form.get("type") or "").strip() or p.type
+            new_manager = request.form.get("manager_id")
+            if new_manager:
+                p.manager_id = int(new_manager)
+            sd = _parse_date(request.form.get("start_date"))
+            ed = _parse_date(request.form.get("end_date"))
+            if sd: p.start_date = sd
+            if ed: p.end_date = ed
+            p.notes = (request.form.get("notes") or "").strip() or None
+            db.session.commit()
+            flash(f"تم حفظ تعديلات: {p.name}", "success")
+            return redirect(url_for("projects.detail", project_id=p.id))
+        except (CRMError, ValueError, TypeError) as e:
+            db.session.rollback()
+            flash(str(e), "error")
+    return render_template("projects/edit.html",
+                            project=p,
+                            managers=_project_managers())
+
+
+@bp.route("/<int:project_id>/delete", methods=["POST"])
+@login_required
+def delete(project_id):
+    """Owner-only soft delete with reason."""
+    from app.services.lifecycle import soft_delete_project
+    p = _project_or_403(project_id)
+    if _role() not in ("owner", "admin"):
+        flash("فقط المالك يقدر يحذف المشروع", "error")
+        return redirect(url_for("projects.detail", project_id=p.id))
+    reason = (request.form.get("reason") or "").strip()
+    if not reason:
+        flash("لازم تكتب سبب الحذف", "error")
+        return redirect(url_for("projects.detail", project_id=p.id))
+    soft_delete_project(p, actor_id=current_user.id, reason=reason)
+    flash(f"تم حذف المشروع '{p.name}' (قابل للاستعادة).", "success")
+    return redirect(url_for("projects.index"))

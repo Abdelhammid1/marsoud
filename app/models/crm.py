@@ -235,11 +235,17 @@ class Project(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.now,
                            onupdate=datetime.now, nullable=False)
+    # MARSOUD — soft-delete on projects (Ticket L). Owner-only delete.
+    deleted_at = db.Column(db.DateTime, index=True)
+    deleted_by_id = db.Column(db.Integer,
+                              db.ForeignKey("users.id"), nullable=True)
+    deletion_reason = db.Column(db.Text, nullable=True)
 
     company = db.relationship("Company")
     lead = db.relationship("Lead", foreign_keys=[lead_id])
     customer = db.relationship("Customer", foreign_keys=[customer_id])
     manager = db.relationship("User", foreign_keys=[manager_id])
+    deleted_by = db.relationship("User", foreign_keys=[deleted_by_id])
     members = db.relationship(
         "ProjectMember", back_populates="project",
         cascade="all, delete-orphan",

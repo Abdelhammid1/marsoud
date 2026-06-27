@@ -8,8 +8,13 @@
         <h2 class="text-2xl font-bold text-navy-900">{{ project.name }}</h2>
         <div class="text-sm text-slate-500 mt-1">{{ project.type }} · العميل: {{ project.customer.name if project.customer else '—' }}</div>
       </div>
-      <div class="text-left">
+      <div class="text-left flex items-center gap-2">
         <span class="badge {{ project.status.badge_class }} text-base px-3 py-1.5">{{ project.status.label_ar }}</span>
+        {# MARSOUD-L — owner-only edit + delete entry point. #}
+        {% if current_role in ('owner', 'admin') %}
+        <a href="{{ url_for('projects.edit', project_id=project.id) }}"
+           class="btn-secondary text-sm">✎ تعديل المشروع</a>
+        {% endif %}
       </div>
     </div>
 

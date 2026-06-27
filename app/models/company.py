@@ -44,6 +44,12 @@ class Company(db.Model):
     subscription_started_at = db.Column(db.DateTime)
     subscription_expires_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.now)
+    # MARSOUD — soft-delete. Owners may close their own company; super-
+    # admin can restore or wipe permanently from the admin panel.
+    deleted_at = db.Column(db.DateTime, index=True)
+    deleted_by_id = db.Column(db.Integer,
+                              db.ForeignKey("users.id"), nullable=True)
+    deletion_reason = db.Column(db.Text, nullable=True)
 
     # Named `subscription_plan` to avoid collision with the legacy `plan`
     # String column (kept for back-compat with the super-admin form).

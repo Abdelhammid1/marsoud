@@ -126,14 +126,36 @@ def company_edit(company_id):
 @login_required
 @superadmin_required
 def company_delete(company_id):
+    """MARSOUD-K — default is SOFT delete (reversible). Pass
+    confirm_permanent=1 with a reason to wipe instead."""
+    from app.services.lifecycle import (
+        soft_delete_company, hard_delete_company,
+    )
     company = db.session.get(Company, company_id) or _404()
-    name = company.name
-    log_platform_action("company_delete", target_company_id=company_id,
-                        details=name)
-    db.session.delete(company)
-    db.session.commit()
-    flash(f"تم حذف الشركة: {name}", "success")
+    reason = (request.form.get("reason") or "").strip() or "(super-admin action)"
+    if request.form.get("confirm_permanent") == "1":
+        name = hard_delete_company(company, actor_id=current_user.id,
+                                    reason=reason)
+        flash(f"تم الحذف النهائي للشركة: {name}", "success")
+        return redirect(url_for("superadmin.companies"))
+    soft_delete_company(company, actor_id=current_user.id, reason=reason)
+    flash(f"تم حذف الشركة '{company.name}' (قابلة للاستعادة).", "success")
     return redirect(url_for("superadmin.companies"))
+
+
+@bp.route("/companies/<int:company_id>/restore", methods=["POST"])
+@login_required
+@superadmin_required
+def company_restore(company_id):
+    """MARSOUD-K — reverse a soft delete."""
+    from app.services.lifecycle import restore_company
+    company = db.session.get(Company, company_id) or _404()
+    if restore_company(company, actor_id=current_user.id):
+        flash(f"تم استعادة الشركة: {company.name}", "success")
+    else:
+        flash("الشركة ليست محذوفة", "info")
+    return redirect(url_for("superadmin.company_detail",
+                             company_id=company.id))
 
 
 # ── Ticket 4: users management ───────────────────────────────────────────── #

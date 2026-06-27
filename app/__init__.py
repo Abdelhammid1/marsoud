@@ -150,8 +150,14 @@ def create_app(config_class=Config):
         g.user_companies = []
         g.impersonating = False
         if current_user.is_authenticated:
-            non_suspended = [c for c in current_user.companies
-                             if (c.status or "ACTIVE") != "SUSPENDED"]
+            # MARSOUD — skip soft-deleted companies for everyone except
+            # super-admin (who needs to see them to restore / wipe).
+            is_superadmin = getattr(current_user, "is_superadmin", False)
+            non_suspended = [
+                c for c in current_user.companies
+                if (c.status or "ACTIVE") != "SUSPENDED"
+                and (is_superadmin or c.deleted_at is None)
+            ]
             g.user_companies = non_suspended
             # Super-admin view-as: hijack active company to the impersonated one
             view_as_id = session.get(IMPERSONATION_SESSION_KEY)

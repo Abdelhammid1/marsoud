@@ -229,3 +229,47 @@ def edit(company_id):
         flash("تم الحفظ", "success")
         return redirect(url_for("companies.index"))
     return render_template("companies/form.html", company=company)
+
+
+# ─── MARSOUD-J: owner soft-deletes their own company ────────────────────
+@bp.route("/<int:company_id>/soft-delete", methods=["POST"])
+@login_required
+def soft_delete(company_id):
+    """Only the company's owner (per the membership row) can fire this.
+    Captures the reason text + redirects to a different company in the
+    user's switcher (or /companies/new if it was their only one)."""
+    from app.models.user import user_companies
+    from app.services.lifecycle import soft_delete_company
+    company = db.session.get(Company, company_id)
+    if not company:
+        flash("الشركة غير موجودة", "error")
+        return redirect(url_for("companies.index"))
+    # Ownership check — must be an owner row in user_companies.
+    row = db.session.execute(
+        user_companies.select().where(
+            (user_companies.c.user_id == current_user.id) &
+            (user_companies.c.company_id == company.id) &
+            (user_companies.c.role == "owner")
+        )
+    ).first()
+    if not row:
+        flash("فقط مالك الشركة يقدر يحذفها", "error")
+        return redirect(url_for("companies.index"))
+    reason = (request.form.get("reason") or "").strip()
+    if not reason:
+        flash("لازم تكتب سبب الحذف", "error")
+        return redirect(url_for("companies.edit", company_id=company.id))
+    soft_delete_company(company, actor_id=current_user.id, reason=reason)
+    # Drop the now-deleted company from session selection.
+    from flask import session as _s
+    _s.pop("active_company_id", None)
+    flash(f"تم حذف الشركة '{company.name}'. للاستعادة تواصل مع الإدارة.",
+          "success")
+    # Pick another active company (if any) or send to the create page.
+    other = [c for c in current_user.companies
+             if c.id != company.id and c.deleted_at is None
+             and (c.status or "ACTIVE") != "SUSPENDED"]
+    if other:
+        _s["active_company_id"] = other[0].id
+        return redirect(url_for("dashboard.index"))
+    return redirect(url_for("companies.new"))

@@ -83,6 +83,45 @@
     </table>
   </div>
 
+  {# MARSOUD-K — super-admin deletion controls. #}
+  <div class="card p-5 border-rose-500/30">
+    {% if company.deleted_at %}
+    <h3 class="font-bold text-amber-300 mb-3">🗂 شركة محذوفة</h3>
+    <div class="text-sm text-ink-200 space-y-1 mb-3">
+      <div>📅 محذوفة في:
+        <span class="font-mono">{{ company.deleted_at.strftime('%Y-%m-%d %H:%M') }}</span>
+      </div>
+      <div>💬 السبب: <span class="text-white">{{ company.deletion_reason or '—' }}</span></div>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <form method="POST" action="{{ url_for('superadmin.company_restore', company_id=company.id) }}"
+            onsubmit="return confirm('استعادة الشركة {{ company.name }}؟');">
+        <button type="submit" class="btn-secondary text-sm">↩ استعادة</button>
+      </form>
+      <form method="POST" action="{{ url_for('superadmin.company_delete', company_id=company.id) }}"
+            onsubmit="return confirm('حذف نهائي بدون استرجاع لـ {{ company.name }}!') && prompt('اكتب OK للتأكيد:') === 'OK';"
+            class="inline-flex items-center gap-2">
+        <input type="hidden" name="confirm_permanent" value="1">
+        <input type="text" name="reason" placeholder="سبب الحذف النهائي"
+               class="input text-xs w-48" required>
+        <button type="submit" class="btn-danger text-sm">⛔ حذف نهائي</button>
+      </form>
+    </div>
+    {% else %}
+    <h3 class="font-bold text-white mb-3">🗑 حذف الشركة</h3>
+    <p class="text-xs text-ink-200 mb-3">
+      الحذف الافتراضي soft delete — قابل للاستعادة. للحذف النهائي اكتب السبب وضغط على زر "حذف نهائي".
+    </p>
+    <form method="POST" action="{{ url_for('superadmin.company_delete', company_id=company.id) }}"
+          onsubmit="return confirm('حذف الشركة {{ company.name }}؟ (Soft delete — قابل للاستعادة)');"
+          class="flex gap-2">
+      <input type="text" name="reason" placeholder="سبب الحذف"
+             class="input text-xs flex-1" required>
+      <button type="submit" class="btn-danger text-sm">🗑 حذف (قابل للاستعادة)</button>
+    </form>
+    {% endif %}
+  </div>
+
   <div class="card p-5">
     <h3 class="font-bold text-white mb-3">📜 آخر النشاطات على هذه الشركة</h3>
     {% if recent_activity %}
