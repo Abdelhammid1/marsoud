@@ -48,17 +48,61 @@ def restore_company(company, *, actor_id):
 
 
 def hard_delete_company(company, *, actor_id, reason):
-    """Super-admin permanent wipe. Logs FIRST (so the audit row survives),
-    then drops the row. SQLAlchemy cascades to most related rows; any
-    foreign-key blockage bubbles back to the caller for handling."""
+    """Super-admin permanent wipe.
+
+    Naïve `db.session.delete(company)` fails on every NOT-NULL
+    `company_id` FK that lacks `ondelete=CASCADE` — Abdelhamid hit
+    `customers.company_id` first, but the same trap exists across
+    ~45 tables. We walk db.metadata.sorted_tables in REVERSE (children
+    before parents) and run a bulk `DELETE WHERE company_id = ?` on
+    every table that carries the column. Indirect children (e.g.
+    invoice_items → invoices) cascade-delete via their own FKs.
+
+    Logs the PlatformAuditLog row FIRST so the audit trace survives
+    even if a downstream cascade fails. Per-table failures are
+    collected into the PAL details for forensic value.
+    """
+    from sqlalchemy.exc import IntegrityError
     name = company.name
     cid = company.id
+
     db.session.add(PlatformAuditLog(
         actor_id=actor_id, action="company_hard_delete",
         target_company_id=cid,
         details=f"PERMANENT — {name} — reason: {(reason or '').strip() or '—'}",
     ))
     db.session.flush()
+
+    failures = []
+    rows_deleted = {}
+    # children-first: iterate sorted_tables in reverse so the FK
+    # parents (with company_id) come AFTER their dependent rows.
+    for table in reversed(list(db.metadata.sorted_tables)):
+        if table.name == "companies":
+            continue
+        if "company_id" not in {c.name for c in table.columns}:
+            continue
+        try:
+            r = db.session.execute(
+                table.delete().where(table.c.company_id == cid)
+            )
+            if r.rowcount:
+                rows_deleted[table.name] = r.rowcount
+        except IntegrityError as e:
+            failures.append(f"{table.name}: {str(e)[:120]}")
+            db.session.rollback()
+            # Re-emit the PAL row (rollback dropped it) so the trace
+            # of the attempted wipe + the table that blocked is kept.
+            db.session.add(PlatformAuditLog(
+                actor_id=actor_id, action="company_hard_delete_failed",
+                target_company_id=cid,
+                details=(f"PERMANENT — {name} — reason: "
+                          f"{(reason or '').strip() or '—'} — "
+                          f"blocked by {table.name}: {str(e)[:120]}"),
+            ))
+            db.session.commit()
+            raise
+    # All direct children purged; now drop the company row itself.
     db.session.delete(company)
     db.session.commit()
     return name

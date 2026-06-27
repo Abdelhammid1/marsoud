@@ -97,6 +97,53 @@ def _():
     return "soft → restore round-trip + audit log captured"
 
 
+@check("K1b. hard_delete_company cascades through customer + invoice + project + task")
+def _():
+    """Regression for the 'Internal Server Error' Abdelhamid hit on
+    /admin/companies/21/delete with confirm_permanent=1. The naive
+    db.session.delete used to crash on the first NOT-NULL
+    company_id FK (customers.company_id). The new implementation
+    walks db.metadata.sorted_tables in reverse and bulk-deletes
+    every table that carries company_id."""
+    from app.models import (
+        Company, User, Customer, Invoice, InvoiceStatus,
+        Project, ProjectStatus, Task, TaskStatus, TaskPriority,
+    )
+    from app.services.lifecycle import hard_delete_company
+    from datetime import date as _date
+    user = User.query.filter_by(email=DEMO_EMAIL).first()
+    co = Company(name="_AUDIT_K1B_CASCADE", is_active=True)
+    db.session.add(co); db.session.commit()
+    cust = Customer(company_id=co.id, name="x", phone="0",
+                     email="ccc@ccc.com")
+    db.session.add(cust); db.session.commit()
+    inv = Invoice(company_id=co.id, customer_id=cust.id,
+                   number="X-K1B", issue_date=_date.today(),
+                   due_date=_date.today(), subtotal=100, total=100,
+                   status=InvoiceStatus.DRAFT, currency="EGP")
+    db.session.add(inv); db.session.commit()
+    p = Project(company_id=co.id, name="p", type="t",
+                 customer_id=cust.id, manager_id=user.id,
+                 start_date=_date.today(), end_date=_date.today(),
+                 status=ProjectStatus.PLANNING)
+    db.session.add(p); db.session.commit()
+    t = Task(company_id=co.id, title="t", project_id=p.id,
+              assigned_to_id=user.id, created_by_id=user.id,
+              status=TaskStatus.TODO, priority=TaskPriority.LOW)
+    db.session.add(t); db.session.commit()
+    cid = co.id
+    name = hard_delete_company(co, actor_id=user.id,
+                                reason="cascade regression")
+    # Company is gone
+    assert db.session.get(Company, cid) is None, "company row still exists"
+    # Children are gone too
+    assert Customer.query.filter_by(company_id=cid).count() == 0
+    assert Invoice.query.filter_by(company_id=cid).count() == 0
+    assert Project.query.filter_by(company_id=cid).count() == 0
+    assert Task.query.filter_by(company_id=cid).count() == 0
+    return f"wiped '{name}' + 1 customer + 1 invoice + 1 project + 1 task"
+
+
 @check("K1. hard_delete_company removes row + logs PAL before drop")
 def _():
     from app.models import Company, User, PlatformAuditLog

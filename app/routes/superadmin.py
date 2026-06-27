@@ -134,8 +134,22 @@ def company_delete(company_id):
     company = db.session.get(Company, company_id) or _404()
     reason = (request.form.get("reason") or "").strip() or "(super-admin action)"
     if request.form.get("confirm_permanent") == "1":
-        name = hard_delete_company(company, actor_id=current_user.id,
-                                    reason=reason)
+        try:
+            name = hard_delete_company(company, actor_id=current_user.id,
+                                        reason=reason)
+        except Exception as e:
+            # Surface the cascade failure to the super-admin instead of a 500.
+            # The PAL row recording the attempt + the blocking table was
+            # already written by the service before the exception bubbled.
+            db.session.rollback()
+            flash(
+                f"تعذّر الحذف النهائي للشركة '{company.name}': "
+                f"{type(e).__name__}: {str(e)[:200]} — "
+                f"الشركة لسه soft-deleted (قابلة للاستعادة).",
+                "error",
+            )
+            return redirect(url_for("superadmin.company_detail",
+                                     company_id=company.id))
         flash(f"تم الحذف النهائي للشركة: {name}", "success")
         return redirect(url_for("superadmin.companies"))
     soft_delete_company(company, actor_id=current_user.id, reason=reason)
