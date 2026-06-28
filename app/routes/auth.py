@@ -33,8 +33,20 @@ def login():
             db.session.commit()
             log_platform_action("user_login", actor_id=user.id,
                                 target_user_id=user.id)
-            if active_companies:
-                session["active_company_id"] = active_companies[0].id
+            active_cid = active_companies[0].id if active_companies else None
+            if active_cid:
+                session["active_company_id"] = active_cid
+            # MARSOUD-ACTLOG-01 — start a session row + log LOGIN action.
+            try:
+                from app.services.activity import start_session, log_action
+                start_session(user, company_id=active_cid)
+                log_action(
+                    action_type="LOGIN", entity_type="user",
+                    entity_id=user.id,
+                    entity_label=user.full_name or user.email,
+                )
+            except Exception:
+                pass
             if user.is_superadmin:
                 return redirect(url_for("superadmin.dashboard"))
             return redirect(url_for("dashboard.index"))
@@ -93,9 +105,37 @@ def register():
 @login_required
 def logout():
     end_impersonation()
+    # MARSOUD-ACTLOG-01 — close the session row + log LOGOUT BEFORE
+    # logout_user() so we still have current_user for the action row.
+    try:
+        from app.services.activity import (
+            end_session_by_token, log_action, SESSION_KEY,
+        )
+        log_action(action_type="LOGOUT", entity_type="user",
+                   entity_id=current_user.id,
+                   entity_label=current_user.full_name or current_user.email)
+        end_session_by_token(session.get(SESSION_KEY))
+        session.pop(SESSION_KEY, None)
+    except Exception:
+        pass
     logout_user()
     session.pop("active_company_id", None)
     return redirect(url_for("auth.login"))
+
+
+# ─── MARSOUD-ACTLOG-01: heartbeat ───────────────────────────────────────
+@bp.route("/heartbeat", methods=["POST"])
+@login_required
+def heartbeat():
+    """Frontend pings every 5 min from base.html so we can tell the
+    difference between 'user closed the browser' and 'user is still
+    looking at the page'. Does NOT write to user_activity_log — too
+    chatty; it only bumps last_seen_at on the open UserSession row."""
+    from app.services.activity import heartbeat as _hb, SESSION_KEY
+    sid = session.get(SESSION_KEY)
+    if sid:
+        _hb(sid)
+    return ("", 204)
 
 
 @bp.route("/switch-company/<int:company_id>")

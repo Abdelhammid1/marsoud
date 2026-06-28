@@ -60,10 +60,12 @@ from app.models.agent_chat import AgentMessage
 from app.models.numbering import NumberSequence
 from app.models.platform_audit import PlatformAuditLog, SuperadminImpersonation, PlatformError
 from app.models.api_token import ApiToken
+from app.models.activity import UserSession, UserActivityLog, ACTION_TYPES, SESSION_STATUS
 
 __all__ = [
     "PlatformAuditLog", "SuperadminImpersonation", "PlatformError",
     "ApiToken",
+    "UserSession", "UserActivityLog", "ACTION_TYPES", "SESSION_STATUS",
     "User", "user_companies", "UserStatus", "Company",
     "Plan", "SubscriptionReminderSent", "PlatformSetting",
     "RecurringBill", "RecurringBillOverride",

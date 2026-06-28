@@ -75,6 +75,19 @@ def tick():
         logging.getLogger("ledgeros.cron").exception("auto-archive failed: %s", e)
         summary["task_auto_archive"] = {"error": str(e)[:200]}
 
+    # MARSOUD-ACTLOG-01 — flip idle / ended user sessions. Safe to run
+    # at any cadence; the 10-min wall-clock is enforced by the operator
+    # cron entry, not by this code.
+    try:
+        from app.services.activity import cleanup_idle_sessions
+        summary["session_cleanup"] = cleanup_idle_sessions(
+            idle_minutes=10, ended_minutes=30,
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception("session cleanup failed: %s", e)
+        summary["session_cleanup"] = {"error": str(e)[:200]}
+
     # HR-05: monthly leave accrual (only credits when the day is the 1st;
     # cron is meant to run daily but this work should fire once per month).
     from datetime import date as _date

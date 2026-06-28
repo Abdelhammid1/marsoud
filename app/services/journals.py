@@ -26,6 +26,15 @@ def pause_entry(entry, reason, user_id):
         action=JournalAction.PAUSED, reason=reason.strip(),
     ))
     db.session.commit()
+    try:
+        from app.services.activity import log_action
+        log_action(action_type="UPDATE", entity_type="journal",
+                   entity_id=entry.id,
+                   entity_label=f"إيقاف قيد {entry.number or entry.id}",
+                   company_id=entry.company_id,
+                   extra_data={"action": "PAUSED", "reason": reason})
+    except Exception:
+        pass
     return entry
 
 
@@ -44,6 +53,15 @@ def reactivate_entry(entry, reason, user_id):
         action=JournalAction.REACTIVATED, reason=reason.strip(),
     ))
     db.session.commit()
+    try:
+        from app.services.activity import log_action
+        log_action(action_type="UPDATE", entity_type="journal",
+                   entity_id=entry.id,
+                   entity_label=f"إعادة تنشيط قيد {entry.number or entry.id}",
+                   company_id=entry.company_id,
+                   extra_data={"action": "REACTIVATED", "reason": reason})
+    except Exception:
+        pass
     return entry
 
 

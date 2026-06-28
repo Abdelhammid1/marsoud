@@ -1,0 +1,171 @@
+{# Shared activity + sessions panel — used by both /admin/activity
+   and /settings/activity. Pass `scope_label` to label the page. #}
+
+{# Filters #}
+<form method="GET" class="card p-4 mb-4 flex flex-wrap items-end gap-3">
+  <div>
+    <label class="block text-xs font-semibold text-slate-700 mb-1">المستخدم</label>
+    <select name="user_id" class="select text-sm">
+      <option value="">الكل</option>
+      {% for u in users %}
+      <option value="{{ u.id }}" {% if filters.user_id == u.id %}selected{% endif %}>{{ u.full_name or u.email }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold text-slate-700 mb-1">العملية</label>
+    <select name="action" class="select text-sm">
+      <option value="">الكل</option>
+      {% for a in actions %}
+      <option value="{{ a }}" {% if filters.action == a %}selected{% endif %}>{{ a }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold text-slate-700 mb-1">نوع الكيان</label>
+    <select name="entity_type" class="select text-sm">
+      <option value="">الكل</option>
+      {% for e in entity_types %}
+      <option value="{{ e }}" {% if filters.entity_type == e %}selected{% endif %}>{{ e }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold text-slate-700 mb-1">الجهاز</label>
+    <select name="device_type" class="select text-sm">
+      <option value="">الكل</option>
+      {% for d in ['MOBILE','TABLET','DESKTOP'] %}
+      <option value="{{ d }}" {% if filters.device_type == d %}selected{% endif %}>{{ d }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold text-slate-700 mb-1">الفترة</label>
+    <select name="range" class="select text-sm">
+      {% for code,lab in [('today','اليوم'),('7d','آخر 7 أيام'),('30d','آخر 30 يوم'),('90d','آخر 3 أشهر')] %}
+      <option value="{{ code }}" {% if filters.range == code %}selected{% endif %}>{{ lab }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn-primary text-sm">تطبيق</button>
+</form>
+
+{# Sessions #}
+<div class="card p-6 mb-6">
+  <h3 class="font-bold text-navy-900 mb-3">🖥 الجلسات (آخر {{ sessions|length }})</h3>
+  {% if sessions %}
+  <div class="overflow-x-auto">
+  <table class="data-table text-xs">
+    <thead><tr>
+      <th>المستخدم</th>
+      <th>الدخول</th>
+      <th>آخر نشاط</th>
+      <th>الخروج</th>
+      <th>المدة</th>
+      <th>الجهاز</th>
+      <th>OS / Browser</th>
+      <th>IP</th>
+      <th>الحالة</th>
+    </tr></thead>
+    <tbody>
+    {% for s in sessions %}
+      {% set _icon = '📱' if s.device_type=='MOBILE' else ('📋' if s.device_type=='TABLET' else '💻') %}
+      <tr>
+        <td class="font-semibold">{{ s.user.full_name if s.user else '—' }}</td>
+        <td class="font-mono">{{ s.login_at.strftime('%Y-%m-%d %H:%M:%S') if s.login_at else '—' }}</td>
+        <td class="font-mono">{{ s.last_seen_at.strftime('%Y-%m-%d %H:%M:%S') if s.last_seen_at else '—' }}</td>
+        <td class="font-mono">
+          {% if s.logout_at %}{{ s.logout_at.strftime('%Y-%m-%d %H:%M:%S') }}
+          {% elif s.status=='ENDED' %}<span class="text-slate-500">سب البراوزر</span>
+          {% else %}—{% endif %}
+        </td>
+        <td class="font-mono">
+          {% set d = s.duration_seconds %}
+          {% if d >= 3600 %}{{ (d//3600) }}س {{ (d%3600)//60 }}د
+          {% elif d >= 60 %}{{ d//60 }}د {{ d%60 }}ث
+          {% else %}{{ d }}ث{% endif %}
+        </td>
+        <td>{{ _icon }} {{ s.device_type or '—' }}</td>
+        <td class="text-slate-500">{{ s.device_os or '—' }} / {{ s.browser or '—' }}</td>
+        <td class="font-mono">{{ s.ip_address or '—' }}</td>
+        <td>
+          {% if s.status == 'ACTIVE' %}<span class="badge badge-paid">نشطة</span>
+          {% elif s.status == 'IDLE' %}<span class="badge badge-partial">خاملة</span>
+          {% else %}<span class="badge badge-cancelled">منتهية</span>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="text-sm text-slate-400 text-center py-6">لا توجد جلسات في الفترة المحددة.</div>
+  {% endif %}
+</div>
+
+{# Activity log #}
+<div class="card p-6">
+  <h3 class="font-bold text-navy-900 mb-3">📜 سجل النشاط (آخر {{ activities|length }})</h3>
+  {% if activities %}
+  <div class="overflow-x-auto">
+  <table class="data-table text-xs">
+    <thead><tr>
+      <th>المستخدم</th>
+      <th>العملية</th>
+      <th>الكيان</th>
+      <th>التوقيت</th>
+      <th>الجهاز</th>
+      <th>IP</th>
+      <th>المسار</th>
+    </tr></thead>
+    <tbody>
+    {% for a in activities %}
+      {% set _color = {
+        'CREATE':'text-emerald-700','UPDATE':'text-sky-700',
+        'DELETE':'text-rose-700','VIEW':'text-slate-500',
+        'LOGIN':'text-violet-700','LOGOUT':'text-violet-700',
+        'EXPORT':'text-amber-700',
+      } %}
+      {% set _icon = '📱' if a.device_type=='MOBILE' else ('📋' if a.device_type=='TABLET' else '💻') %}
+      <tr class="hover:bg-slate-50 cursor-pointer"
+          onclick='this.nextElementSibling.classList.toggle("hidden")'>
+        <td class="font-semibold">{{ a.user.full_name if a.user else '—' }}</td>
+        <td class="font-bold {{ _color.get(a.action_type,'') }}">{{ a.action_type }}</td>
+        <td>{% if a.entity_label %}{{ a.entity_label }}
+            {% elif a.entity_type %}{{ a.entity_type }}{% if a.entity_id %} #{{ a.entity_id }}{% endif %}
+            {% else %}—{% endif %}</td>
+        <td class="font-mono">{{ a.created_at.strftime('%Y-%m-%d %H:%M:%S') if a.created_at else '—' }}</td>
+        <td>{{ _icon }} {{ a.device_type or '—' }}</td>
+        <td class="font-mono text-[10px]">{{ a.ip_address or '—' }}</td>
+        <td class="font-mono text-[10px] text-slate-500 truncate" style="max-width:280px">{{ a.route or '—' }}</td>
+      </tr>
+      <tr class="hidden bg-slate-50">
+        <td colspan="7" class="text-xs p-3">
+          <div class="grid grid-cols-2 gap-3">
+            <div><strong>OS:</strong> {{ a.device_os or '—' }}</div>
+            <div><strong>Browser:</strong> {{ a.browser or '—' }}</div>
+            <div><strong>Method:</strong> {{ a.method or '—' }}</div>
+            <div><strong>Session:</strong> #{{ a.session_id or '—' }}</div>
+            {% if a.extra_data %}
+            <div class="col-span-2">
+              <strong>Extra:</strong>
+              <pre dir="ltr" class="bg-white p-2 mt-1 rounded border text-[10px] overflow-x-auto">{{ a.extra_data }}</pre>
+            </div>
+            {% endif %}
+            {% if a.entity_type and a.entity_id %}
+            <div class="col-span-2">
+              <a href="/{{ a.entity_type }}s/{{ a.entity_id }}"
+                 class="text-emerald-700 hover:underline">↗ افتح الكيان</a>
+            </div>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="text-sm text-slate-400 text-center py-6">لا يوجد نشاط في الفترة المحددة.</div>
+  {% endif %}
+</div>

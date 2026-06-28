@@ -208,6 +208,19 @@ def post_vendor_bill(bill, created_by=None):
                             details=f"#{bill.number} total={bill.total}")
     except Exception:
         pass
+    # MARSOUD-ACTLOG-01
+    try:
+        from app.services.activity import log_action
+        log_action(
+            action_type="CREATE", entity_type="vendor_bill",
+            entity_id=bill.id,
+            entity_label=f"فاتورة مورد {bill.number}",
+            company_id=bill.company_id,
+            extra_data={"total": float(bill.total or 0),
+                        "currency": bill.currency},
+        )
+    except Exception:
+        pass
     return bill
 
 
@@ -268,6 +281,18 @@ def record_bill_payment(bill, amount, payment_method_id=None, created_by=None):
     bill.paid_amount = float(bill.paid_amount or 0) + amount
     bill.status = VendorBillStatus.PAID if bill.balance <= 0.01 else VendorBillStatus.PARTIALLY_PAID
     db.session.commit()
+    # MARSOUD-ACTLOG-01
+    try:
+        from app.services.activity import log_action
+        log_action(
+            action_type="CREATE", entity_type="vendor_bill_payment",
+            entity_id=payment.id if payment else None,
+            entity_label=f"دفعة لفاتورة مورد {bill.number} — {amount:.2f}",
+            company_id=bill.company_id,
+            extra_data={"vendor_bill_id": bill.id, "amount": float(amount)},
+        )
+    except Exception:
+        pass
     return payment
 
 

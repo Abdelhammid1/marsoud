@@ -57,6 +57,21 @@ def post_invoice_to_ledger(invoice, created_by=None):
     # error (e.g. overdraw) rolls both back together.
     _apply_inventory_side_for_invoice(invoice, entry, created_by)
 
+    # MARSOUD-ACTLOG-01 — record the invoice posting as a CREATE action.
+    try:
+        from app.services.activity import log_action
+        log_action(
+            action_type="CREATE", entity_type="invoice",
+            entity_id=invoice.id,
+            entity_label=f"فاتورة {invoice.number} — "
+                          f"{invoice.customer.name if invoice.customer else 'زبون'}",
+            company_id=invoice.company_id,
+            extra_data={"total": float(invoice.total or 0),
+                        "currency": invoice.currency},
+        )
+    except Exception:
+        pass
+
     return entry
 
 
@@ -214,6 +229,21 @@ def record_payment(invoice, amount, payment_date=None, method=None, payment_meth
         except Exception:
             import logging
             logging.getLogger("ledgeros.invoicing").exception("Failed to send payment email")
+
+    # MARSOUD-ACTLOG-01 — log the payment as a CREATE action.
+    try:
+        from app.services.activity import log_action
+        log_action(
+            action_type="CREATE", entity_type="payment",
+            entity_id=payment.id,
+            entity_label=f"دفعة على فاتورة {invoice.number} — "
+                          f"{float(payment.amount or 0):.2f} {invoice.currency}",
+            company_id=invoice.company_id,
+            extra_data={"invoice_id": invoice.id,
+                        "amount": float(payment.amount or 0)},
+        )
+    except Exception:
+        pass
 
     return payment
 
@@ -424,6 +454,20 @@ def issue_refund(invoice, refund_type, amount=None, reason=None, created_by=None
         except Exception:
             import logging
             logging.getLogger("ledgeros.invoicing").exception("refund email failed")
+    # MARSOUD-ACTLOG-01 — log the refund as a CREATE action.
+    try:
+        from app.services.activity import log_action
+        log_action(
+            action_type="CREATE", entity_type="refund",
+            entity_id=refund.id if refund else None,
+            entity_label=f"استرداد على فاتورة {invoice.number}",
+            company_id=invoice.company_id,
+            extra_data={"invoice_id": invoice.id,
+                        "type": str(refund_type),
+                        "amount": float(getattr(refund, 'amount', 0) or 0)},
+        )
+    except Exception:
+        pass
     return refund
 
 

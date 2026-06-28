@@ -1,0 +1,20 @@
+{% extends "admin/base.html" %}
+{% block page_title %}نشاط المستخدمين + الجلسات (كل الشركات){% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h2 class="font-bold text-white">👤 نشاط المستخدمين + الجلسات</h2>
+    <p class="text-xs text-ink-200">كل الشركات — رؤية كاملة للجلسات والأنشطة.</p>
+  </div>
+  <form method="POST" action="{{ url_for('admin_activity.toggle_view_logging') }}"
+        onsubmit="return confirm('تأكيد تبديل تسجيل صفحات VIEW؟');">
+    <button type="submit" class="btn-secondary text-sm">
+      🔘 تبديل تسجيل VIEW
+    </button>
+  </form>
+</div>
+
+{% include "_activity_page.html" %}
+
+{% endblock %}

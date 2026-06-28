@@ -79,6 +79,9 @@ def create_app(config_class=Config):
     from app.routes.pos import bp as pos_bp
     from app.routes.api_v1 import bp as api_v1_bp
     from app.routes.settings_api_tokens import bp as settings_api_tokens_bp
+    from app.routes.activity_views import (
+        admin_activity_bp, settings_activity_bp,
+    )
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -117,6 +120,8 @@ def create_app(config_class=Config):
     app.register_blueprint(pos_bp, url_prefix="/pos")
     app.register_blueprint(api_v1_bp, url_prefix="/api/v1")
     app.register_blueprint(settings_api_tokens_bp, url_prefix="/settings/api-tokens")
+    app.register_blueprint(admin_activity_bp, url_prefix="/admin/activity")
+    app.register_blueprint(settings_activity_bp, url_prefix="/settings/activity")
 
     # MARSOUD-API-V1 — make sure /api/v1/* abort(...) / unauthorized
     # responses come out as JSON instead of HTML / login redirects.
@@ -418,5 +423,44 @@ def create_app(config_class=Config):
     # fetch /static/ relative paths).
     from app.services.email import company_logo_email_uri
     app.jinja_env.globals["company_logo_email_uri"] = company_logo_email_uri
+
+    # MARSOUD-ACTLOG-01 — log every successful GET as a VIEW activity
+    # row. Wrapped in try/except so a logging hiccup never blocks the
+    # response. Heavy skip-list to keep the table from drowning.
+    _VIEW_SKIP_PREFIXES = (
+        "/static/", "/cron", "/agent", "/api/",
+        "/heartbeat", "/notifications",
+    )
+
+    @app.after_request
+    def _log_view_activity(response):
+        try:
+            from flask_login import current_user
+            if not current_user or not current_user.is_authenticated:
+                return response
+            if request.method != "GET":
+                return response
+            if response.status_code != 200:
+                return response
+            path = request.path or ""
+            for p in _VIEW_SKIP_PREFIXES:
+                if path.startswith(p):
+                    return response
+            from app.services.activity import (
+                log_action, extract_entity_from_route,
+                view_logging_enabled,
+            )
+            if not view_logging_enabled():
+                return response
+            ent = extract_entity_from_route(path)
+            log_action(
+                action_type="VIEW",
+                entity_type=ent.get("entity_type"),
+                entity_id=ent.get("entity_id"),
+                route=path, method="GET",
+            )
+        except Exception:
+            pass
+        return response
 
     return app

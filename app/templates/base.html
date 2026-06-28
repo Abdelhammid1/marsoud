@@ -300,6 +300,7 @@ tailwind.config = {
           ('الإعدادات والنظام', '⚙️', [
             ('settings_roles.index', 'المستخدمين والأدوار', '🔐'),
             ('settings_api_tokens.index', 'مفاتيح الـ API', '🔑'),
+            ('settings_activity.index', 'نشاط الموظفين', '👣'),
             ('payment_methods.index', 'طرق الدفع', '💳'),
             ('companies.edit', 'بيانات الشركة', '🏢',
              {'company_id': active_company.id} if active_company else {}),
@@ -350,6 +351,7 @@ tailwind.config = {
         'settings_roles.index': 'users.manage',
         'settings_api_tokens.index': 'users.manage',
         'tasks.archive_list': 'tasks.archive',
+        'settings_activity.index': 'users.manage',
       } %}
 
       {# Flat list for the non-owner roles. #}
@@ -715,6 +717,22 @@ function toggleSidebar(force) {
   localStorage.setItem('marsoud_sidebar_hidden', hidden ? '1' : '0');
 }
 </script>
+
+{# MARSOUD-ACTLOG-01 — keep the UserSession.last_seen_at warm. Only
+   runs when the user is authenticated; skipped on /login + /static. #}
+{% if current_user and current_user.is_authenticated %}
+<script>
+  (function(){
+    function _hb(){
+      try { fetch('/heartbeat', {method:'POST', credentials:'same-origin'}); }
+      catch(_){}
+    }
+    // Fire once on load (immediate signal of presence) then every 5 min.
+    setTimeout(_hb, 1500);
+    setInterval(_hb, 5 * 60 * 1000);
+  })();
+</script>
+{% endif %}
 
 </body>
 </html>

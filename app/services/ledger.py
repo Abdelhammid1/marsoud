@@ -86,6 +86,19 @@ def post_journal(
                             details=f"#{entry.number} — {description[:60]}")
     except Exception:
         pass
+    # MARSOUD-ACTLOG-01 — manual journal entries get logged as CREATE.
+    # Auto-generated entries from invoices/bills/payroll already log
+    # at their own service call sites (more meaningful entity_type).
+    if (source_type or "") in ("", "manual"):
+        try:
+            from app.services.activity import log_action
+            log_action(action_type="CREATE", entity_type="journal",
+                       entity_id=entry.id,
+                       entity_label=f"قيد يومي #{entry.number}",
+                       company_id=company_id,
+                       extra_data={"description": description[:120]})
+        except Exception:
+            pass
     return entry
 
 
@@ -152,6 +165,16 @@ def reverse_journal(entry_id, created_by=None):
         log_platform_action("journal_reversed", target_company_id=entry.company_id,
                             actor_id=created_by,
                             details=f"#{entry.number} reverses #{original.number}")
+    except Exception:
+        pass
+    try:
+        from app.services.activity import log_action
+        log_action(action_type="UPDATE", entity_type="journal",
+                   entity_id=original.id,
+                   entity_label=f"عكس قيد #{original.number}",
+                   company_id=entry.company_id,
+                   extra_data={"reversal_id": entry.id,
+                                "reversal_number": entry.number})
     except Exception:
         pass
     return entry

@@ -293,16 +293,40 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
             import logging
             logging.getLogger("ledgeros.payroll").exception("Failed to send payslips")
 
+    # MARSOUD-ACTLOG-01
+    try:
+        from app.services.activity import log_action
+        log_action(action_type="CREATE", entity_type="payroll_run",
+                   entity_id=run.id,
+                   entity_label=f"كشف رواتب {month}/{year}",
+                   company_id=company_id,
+                   extra_data={"total_net": float(run.total_net or 0),
+                                "year": year, "month": month})
+    except Exception:
+        pass
     return run
 
 
 def terminate_employee(employee, reason, termination_date=None, notes=None):
+    old_status = getattr(employee.status, "value", str(employee.status))
     employee.status = EmployeeStatus.TERMINATED
     employee.is_active = False
     employee.termination_date = termination_date or date.today()
     employee.termination_reason = reason
     employee.termination_notes = notes
     db.session.commit()
+    try:
+        from app.services.activity import log_action
+        log_action(action_type="UPDATE", entity_type="employee",
+                   entity_id=employee.id,
+                   entity_label=f"إنهاء عقد: {employee.name}",
+                   company_id=employee.company_id,
+                   extra_data={"old": {"status": old_status},
+                                "new": {"status": "TERMINATED",
+                                        "reason": str(reason),
+                                        "termination_date": str(employee.termination_date)}})
+    except Exception:
+        pass
     return employee
 
 

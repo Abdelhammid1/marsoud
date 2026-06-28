@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block page_title %}نشاط فريقك + الجلسات{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h2 class="font-bold text-navy-900">👤 نشاط فريقك + الجلسات</h2>
+    <p class="text-xs text-slate-500">شركة {{ active_company.name }} — جلسات وأنشطة كل الموظفين.</p>
+  </div>
+</div>
+
+{% include "_activity_page.html" %}
+
+{% endblock %}
