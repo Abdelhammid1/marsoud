@@ -123,6 +123,37 @@ def set_leave_balance(employee, leave_type, year, *, balance_days,
     return row
 
 
+def apply_max_balance_to_all(leave_type, year=None, *, actor_id=None):
+    """MARSOUD — bulk-grant the leave type's max_balance to every active
+    employee for `year`. Only RAISES existing balances, never lowers them
+    (so it can't accidentally erase manual grants higher than the cap).
+
+    Solves Abdelhamid's exact workflow: he bumped 'مرضية' max from 3→30
+    expecting employees to be able to book — but per-employee balances
+    don't move automatically. This is the one-click "yes, apply that
+    increase to everyone" button.
+    """
+    year = year or date.today().year
+    target = leave_type.max_balance or Decimal("0")
+    employees = Employee.query.filter_by(
+        company_id=leave_type.company_id,
+        status=EmployeeStatus.ACTIVE,
+    ).all()
+    bumped = 0
+    for emp in employees:
+        ensure_employee_balances(emp, year=year)
+        bal = LeaveBalance.query.filter_by(
+            employee_id=emp.id, leave_type_id=leave_type.id, year=year,
+        ).first()
+        if not bal:
+            continue
+        if (bal.balance_days or Decimal("0")) < target:
+            bal.balance_days = target
+            bumped += 1
+    db.session.commit()
+    return bumped
+
+
 def ensure_employee_balances(employee, year=None):
     """Make sure a LeaveBalance row exists for (employee, each active type, year).
 

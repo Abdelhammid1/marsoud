@@ -33,7 +33,17 @@
           {% else %}<span class="badge badge-cancelled">متوقف</span>{% endif %}
         </td>
         <td class="text-left">
-          <a href="{{ url_for('hr.leave_type_edit', lt_id=lt.id) }}" class="text-brand-600 hover:underline text-sm">تعديل</a>
+          <div class="flex items-center justify-end gap-3">
+            <a href="{{ url_for('hr.leave_type_edit', lt_id=lt.id) }}" class="text-brand-600 hover:underline text-sm">تعديل</a>
+            {% if lt.is_paid and lt.max_balance and lt.max_balance > 0 %}
+            <form method="POST" action="{{ url_for('hr.leave_type_apply_to_all', lt_id=lt.id) }}" class="inline"
+                  onsubmit="return confirm('تأكيد رفع رصيد جميع الموظفين النشطين على هذا النوع إلى {{ '%.2f'|format(lt.max_balance) }} يوم لسنة {{ current_year }}؟ (الأرصدة الأعلى من ذلك لن تتأثر.)');">
+              <button type="submit" class="text-emerald-700 hover:underline text-sm">
+                تطبيق على الجميع
+              </button>
+            </form>
+            {% endif %}
+          </div>
         </td>
       </tr>
     {% else %}

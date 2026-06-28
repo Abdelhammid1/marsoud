@@ -168,7 +168,8 @@ def leave_types():
     rows = LeaveType.query.filter_by(company_id=cid).order_by(
         LeaveType.is_active.desc(), LeaveType.name,
     ).all()
-    return render_template("hr/leave_types.html", leave_types=rows)
+    return render_template("hr/leave_types.html", leave_types=rows,
+                           current_year=date.today().year)
 
 
 @bp.route("/leave-types/new", methods=["GET", "POST"])
@@ -214,6 +215,34 @@ def leave_type_edit(lt_id):
         except (LeaveError, ValueError) as e:
             flash(str(e), "error")
     return render_template("hr/leave_type_form.html", leave_type=lt)
+
+
+@bp.route("/leave-types/<int:lt_id>/apply-to-all", methods=["POST"])
+@login_required
+@hr_required
+def leave_type_apply_to_all(lt_id):
+    """MARSOUD — bulk-grant the leave type's max_balance to every active
+    employee. Closes the loop on Abdelhamid's 'I bumped the max but
+    nobody can book' complaint."""
+    from app.services.leave import apply_max_balance_to_all
+    lt = db.session.get(LeaveType, lt_id)
+    if not lt or lt.company_id != g.active_company.id:
+        flash("غير موجود", "error")
+        return redirect(url_for("hr.leave_types"))
+    year = int(request.form.get("year") or date.today().year)
+    n = apply_max_balance_to_all(lt, year=year, actor_id=current_user.id)
+    if n:
+        flash(
+            f"تم تحديث رصيد {n} موظف على نوع \"{lt.name}\" إلى "
+            f"{float(lt.max_balance):.2f} يوم لسنة {year}",
+            "success",
+        )
+    else:
+        flash(
+            f"لا يوجد موظف نشط يحتاج تحديث — الرصيد الحالي ≥ {float(lt.max_balance):.2f}",
+            "info",
+        )
+    return redirect(url_for("hr.leave_types"))
 
 
 # ─── HR-05: per-employee balances ────────────────────────────────────────
@@ -402,7 +431,19 @@ def leave_request_new():
             flash("تم تقديم الطلب — يحتاج اعتماد", "success")
             return redirect(url_for("hr.leave_requests"))
         except (LeaveError, ValueError, TypeError) as e:
-            flash(str(e), "error")
+            msg = str(e)
+            # If the rejection is the "balance is zero/insufficient" one,
+            # point the user at the page where they can actually grant it.
+            # The flash macro auto-escapes, so we wrap the link with Markup.
+            if "الرصيد غير كافٍ" in msg and emp_id:
+                from markupsafe import Markup, escape
+                bal_url = url_for("hr.employee_balances", employee_id=emp_id)
+                msg = Markup(
+                    f'{escape(msg)} — '
+                    f'<a href="{escape(bal_url)}" class="underline font-bold">'
+                    f'اذهب لصفحة أرصدة الموظف لمنح الرصيد</a>'
+                )
+            flash(msg, "error")
     return render_template("hr/leave_request_form.html",
                            employees=employees, leave_types=types,
                            today=date.today().isoformat())
