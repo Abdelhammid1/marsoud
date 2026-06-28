@@ -486,9 +486,26 @@ def new():
             db.session.rollback()
             flash(str(e), "error")
     selected_project = request.args.get("project_id")
+    # Map every project → its milestones so the form's milestone <select>
+    # can swap options the instant the user picks a project. Without this
+    # the dropdown only shows "— بدون —" because at GET time we don't
+    # know which project they'll choose.
+    milestones_by_project = {
+        p.id: [{"id": m.id, "name": m.name} for m in p.milestones]
+        for p in projects
+    }
+    initial_milestones = []
+    if selected_project:
+        try:
+            initial_milestones = milestones_by_project.get(
+                int(selected_project), [])
+        except (TypeError, ValueError):
+            initial_milestones = []
     return render_template("tasks/form.html",
                            task=None, projects=projects, users=users,
-                           priorities=TaskPriority, milestones=[],
+                           priorities=TaskPriority,
+                           milestones=initial_milestones,
+                           milestones_by_project=milestones_by_project,
                            selected_project=selected_project,
                            selected_assignee_ids=[])
 

@@ -16,7 +16,7 @@
     <div class="grid grid-cols-2 gap-4">
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">المشروع (اختياري)</label>
-        <select name="project_id" class="select" {% if task %}disabled{% endif %}>
+        <select name="project_id" id="task-project-select" class="select" {% if task %}disabled{% endif %}>
           <option value="">— بدون مشروع (مهمة مستقلة) —</option>
           {% for p in projects %}
           <option value="{{ p.id }}" {% if (task and task.project_id == p.id) or (selected_project and selected_project == p.id|string) %}selected{% endif %}>{{ p.name }}</option>
@@ -47,7 +47,7 @@
       </div>
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">المرحلة (اختياري)</label>
-        <select name="milestone_id" class="select">
+        <select name="milestone_id" id="task-milestone-select" class="select">
           <option value="">— بدون —</option>
           {% for m in milestones %}<option value="{{ m.id }}" {% if task and task.milestone_id == m.id %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
         </select>
@@ -85,4 +85,32 @@
     </div>
   </form>
 </div>
+
+{# When the user changes the project select, swap the milestone options
+   to match. The map is server-rendered (one fetch, no AJAX). Edit-mode
+   doesn't pass a map → script no-ops safely. #}
+{% if milestones_by_project is defined and milestones_by_project %}
+<script id="task-milestones-data" type="application/json">{{ milestones_by_project|tojson }}</script>
+<script>
+(function(){
+  const dataEl = document.getElementById('task-milestones-data');
+  const projSel = document.getElementById('task-project-select');
+  const msSel = document.getElementById('task-milestone-select');
+  if (!dataEl || !projSel || !msSel) return;
+  let map = {};
+  try { map = JSON.parse(dataEl.textContent || '{}'); } catch(_) {}
+  projSel.addEventListener('change', function(){
+    const pid = projSel.value;
+    const list = (pid && map[pid]) ? map[pid] : [];
+    msSel.innerHTML = '<option value="">— بدون —</option>';
+    list.forEach(function(m){
+      const opt = document.createElement('option');
+      opt.value = m.id;
+      opt.textContent = m.name;
+      msSel.appendChild(opt);
+    });
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}
