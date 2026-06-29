@@ -207,9 +207,15 @@
   </div>
   {% endif %}
 
-  {# ─── Section 2: Operations ───────────────────────────────────── #}
+  {# ─── Section 2: Operations ─────────────────────────────────────
+     Each tile is gated by the same permission as its destination route,
+     so a project_manager (no inventory/leads/customers access) doesn't
+     see tiles that would just redirect with a "no permission" flash. #}
+  {% if has_permission('inventory.view') or has_permission('tasks.view')
+        or has_permission('leads.view') or has_permission('customers.view') %}
   <div class="section-label">⚡ نظرة على العمليات</div>
   <div class="ops">
+    {% if has_permission('inventory.view') %}
     <a class="op" href="{{ url_for('inventory.index') }}" title="المخزون">
       <div class="op-ico i-teal">📦</div>
       <div>
@@ -222,6 +228,8 @@
         {% endif %}
       </div>
     </a>
+    {% endif %}
+    {% if has_permission('tasks.view') %}
     <a class="op" href="{{ url_for('tasks.index') }}" title="المهام">
       <div class="op-ico i-violet">📋</div>
       <div>
@@ -234,6 +242,8 @@
         {% endif %}
       </div>
     </a>
+    {% endif %}
+    {% if has_permission('leads.view') %}
     <a class="op" href="{{ url_for('leads.index') }}" title="العملاء المحتملون">
       <div class="op-ico i-blue">🎯</div>
       <div>
@@ -246,6 +256,8 @@
         {% endif %}
       </div>
     </a>
+    {% endif %}
+    {% if has_permission('customers.view') %}
     <a class="op" href="{{ url_for('customers.index') }}" title="العملاء">
       <div class="op-ico i-green">👤</div>
       <div>
@@ -256,7 +268,9 @@
         </div>
       </div>
     </a>
+    {% endif %}
   </div>
+  {% endif %}
 
   {# ─── Section 3: Needs Attention ─────────────────────────────── #}
   {% if can_finance %}

@@ -256,6 +256,80 @@ def _():
     return "PM scope: locked out of view_all/delete/customers; keeps view/manage"
 
 
+# ─── 5. Dashboard tiles must be permission-gated ───────────────────────
+@check("14. /home dashboard hides inventory/leads/customers tiles for PM")
+def _():
+    """Abdelhamid's regression: PM dashboard rendered the ⚡ operations
+    tiles unconditionally, so the PM saw <a href='/customers/'> →
+    clicked → flashed 'no permission' redirect. Verify the tiles are
+    now gated by has_permission() at template render time."""
+    from werkzeug.security import generate_password_hash
+    from app.models import User, Company, Role
+    from app.models.user import user_companies
+    app = create_app()
+    with app.app_context():
+        company = Company.query.first()
+        u = User.query.filter_by(email="pm_tile_test@example.com").first()
+        if not u:
+            u = User(email="pm_tile_test@example.com",
+                     full_name="PM tile test",
+                     password_hash=generate_password_hash("p1234567",
+                                                          method="pbkdf2:sha256"),
+                     is_active=True)
+            db.session.add(u); db.session.flush()
+        else:
+            u.password_hash = generate_password_hash("p1234567",
+                                                      method="pbkdf2:sha256")
+        pm_role = Role.query.filter_by(company_id=company.id,
+                                        code="project_manager").first()
+        db.session.execute(user_companies.delete().where(
+            (user_companies.c.user_id == u.id) &
+            (user_companies.c.company_id == company.id)))
+        db.session.execute(user_companies.insert().values(
+            user_id=u.id, company_id=company.id,
+            role="project_manager", role_id=pm_role.id,
+        ))
+        db.session.commit()
+        try:
+            with app.test_client() as client:
+                _login(client, "pm_tile_test@example.com", "p1234567")
+                r = client.get("/home")
+                assert r.status_code == 200, \
+                    f"PM dashboard status={r.status_code}"
+                html = r.get_data(as_text=True)
+                # PM has tasks.view but NOT inventory/leads/customers.
+                # The /tasks/ link itself is OK; what we need to absent
+                # are the OTHER ops tiles.
+                assert 'href="/customers/"' not in html, \
+                    "customers tile leaked to PM dashboard"
+                assert 'href="/leads/"' not in html, \
+                    "leads tile leaked to PM dashboard"
+                assert 'href="/inventory/"' not in html, \
+                    "inventory tile leaked to PM dashboard"
+        finally:
+            db.session.execute(user_companies.delete().where(
+                (user_companies.c.user_id == u.id) &
+                (user_companies.c.company_id == company.id)))
+            User.query.filter_by(email="pm_tile_test@example.com").delete()
+            db.session.commit()
+    return "all 3 non-PM tiles hidden from PM dashboard"
+
+
+@check("15. /home dashboard still shows all 4 tiles for the owner")
+def _():
+    """Companion to #14 — make sure we didn't over-gate. Owner has
+    every permission, so they should see every ops tile."""
+    app = create_app()
+    with app.test_client() as client:
+        _login(client, DEMO_EMAIL, DEMO_PASS)
+        r = client.get("/home")
+        assert r.status_code == 200
+        html = r.get_data(as_text=True)
+        for href in ('/inventory/', '/tasks/', '/leads/', '/customers/'):
+            assert f'href="{href}"' in html, f"owner missing tile for {href}"
+    return "owner sees all 4 ops tiles"
+
+
 def main():
     app = create_app()
     with app.app_context():
