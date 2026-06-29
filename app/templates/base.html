@@ -301,6 +301,7 @@ tailwind.config = {
             ('settings_roles.index', 'المستخدمين والأدوار', '🔐'),
             ('settings_api_tokens.index', 'مفاتيح الـ API', '🔑'),
             ('settings_activity.index', 'نشاط الموظفين', '👣'),
+            ('settings_backup.index', 'نسخة احتياطية (Excel)', '📥'),
             ('payment_methods.index', 'طرق الدفع', '💳'),
             ('companies.edit', 'بيانات الشركة', '🏢',
              {'company_id': active_company.id} if active_company else {}),
@@ -352,6 +353,7 @@ tailwind.config = {
         'settings_api_tokens.index': 'users.manage',
         'tasks.archive_list': 'tasks.archive',
         'settings_activity.index': 'users.manage',
+        'settings_backup.index': 'users.manage',
       } %}
 
       {# Flat list for the non-owner roles. #}

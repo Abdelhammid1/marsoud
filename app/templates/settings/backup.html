@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block page_title %}نسخة احتياطية كاملة (Excel){% endblock %}
+{% block content %}
+
+<div class="max-w-3xl">
+  <div class="card p-6">
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <h2 class="font-bold text-navy-900 text-lg">📥 نسخة احتياطية كاملة لشركة {{ company.name }}</h2>
+        <p class="text-sm text-slate-500 mt-1">
+          ملف Excel واحد فيه كل بيانات الشركة موزّعة على شيتات منفصلة
+          (شجرة الحسابات، القيود، العملاء، الموردين، الفواتير، المنتجات،
+          المخزون، الموظفين، الرواتب، الإجازات، المشاريع، المهام، Leads…)
+        </p>
+      </div>
+      <span class="badge badge-paid">للمالك فقط</span>
+    </div>
+
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800 mb-4">
+      💡 <strong>متى تستخدمها؟</strong>
+      <ul class="list-disc pr-5 mt-2 space-y-1">
+        <li>قبل أي تعديل ضخم على شجرة الحسابات.</li>
+        <li>قبل ترحيل بيانات الشركة بين سنتين ماليتين.</li>
+        <li>للأرشفة الشهرية / الربع سنوية على جهاز خارجي.</li>
+        <li>لو محتاج تقدّم البيانات لمحاسب خارجي مؤقتاً.</li>
+      </ul>
+    </div>
+
+    <div class="bg-sky-50 border border-sky-200 rounded-lg p-4 text-sm text-sky-800 mb-4">
+      ℹ️ التصدير بيشتغل لحظياً — مفيش حد على الحجم ولا على عدد السطور.
+      الملف ممكن ياخد دقيقة لو الشركة فيها كم كبير من الفواتير والقيود،
+      فاستحمل شوية بعد ما تضغط على الزر.
+    </div>
+
+    <form method="POST" action="{{ url_for('settings_backup.download_excel') }}"
+          onsubmit="this.querySelector('button').disabled = true;
+                   this.querySelector('button').innerText = 'جاري التحضير…';">
+      <button type="submit" class="btn-primary">
+        ⬇ تنزيل النسخة كاملة (xlsx)
+      </button>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

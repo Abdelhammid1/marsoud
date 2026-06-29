@@ -82,6 +82,7 @@ def create_app(config_class=Config):
     from app.routes.activity_views import (
         admin_activity_bp, settings_activity_bp,
     )
+    from app.routes.settings_backup import bp as settings_backup_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -122,6 +123,7 @@ def create_app(config_class=Config):
     app.register_blueprint(settings_api_tokens_bp, url_prefix="/settings/api-tokens")
     app.register_blueprint(admin_activity_bp, url_prefix="/admin/activity")
     app.register_blueprint(settings_activity_bp, url_prefix="/settings/activity")
+    app.register_blueprint(settings_backup_bp, url_prefix="/settings/backup")
 
     # MARSOUD-API-V1 — make sure /api/v1/* abort(...) / unauthorized
     # responses come out as JSON instead of HTML / login redirects.
