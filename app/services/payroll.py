@@ -229,45 +229,78 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
         total_paid_cash += amount_paid
         total_accrued += accrued
 
-    # MARSOUD-COA-REBUILD — 2130 (Salaries Payable) is now a header.
-    # We credit each employee's own sub-account individually so the
-    # payable shows per-employee balances. Use salary_expense (5210)
-    # for the debit side as before.
+    # MARSOUD-PAYROLL-LEDGER-03 — every employee's full NET salary now
+    # credits his own sub-account (the accrual leg). For employees paid
+    # cash, a second "settlement" entry debits the same sub-account and
+    # credits cash. This way an employee's statement shows BOTH movements
+    # even when they're paid in full (net balance 0). Before this fix,
+    # paid-in-full employees had no entry on their ledger at all.
     from app.services.subsidiary import party_payroll_account
     salary_expense = get_account_by_code(company_id, "5210")
     cash_acc = get_account_by_code(company_id, "1110")
     if not salary_expense or not cash_acc:
         raise LedgerError("حسابات الرواتب أو النقدية غير موجودة")
 
-    journal_lines = [
-        {"account_id": salary_expense.id, "debit": round(total_net, 2), "credit": 0,
+    # ─── Entry 1: accrual ───────────────────────────────────────────
+    # Dr 5210 total_net (single aggregated expense line)
+    # Cr each employee's sub-account by their full NET (not just accrued)
+    accrual_lines = [
+        {"account_id": salary_expense.id,
+         "debit": round(total_net, 2), "credit": 0,
          "memo": f"مصروف رواتب {month}/{year}"},
     ]
-    if total_paid_cash > 0.005:
-        journal_lines.append({
-            "account_id": cash_acc.id, "debit": 0,
-            "credit": round(total_paid_cash, 2),
-            "memo": "صرف نقدي للموظفين",
-        })
-    # One credit line per accrued employee — each lands on the
-    # employee's sub-account under 2130.
-    for emp, _line, accrued in accruals_to_create:
+    # Track sub-accounts so the settlement entry can reuse them
+    emp_subaccounts = {}
+    for emp, line in lines_created:
+        if float(line.net or 0) < 0.005:
+            continue   # skip zero-net employees (e.g. all-deducted)
         emp_acct = party_payroll_account(emp)
-        journal_lines.append({
+        emp_subaccounts[emp.id] = emp_acct
+        accrual_lines.append({
             "account_id": emp_acct.id, "debit": 0,
-            "credit": round(accrued, 2),
-            "memo": f"راتب مستحق — {emp.name}",
+            "credit": round(float(line.net), 2),
+            "memo": f"استحقاق راتب — {emp.name}",
         })
 
     entry = post_journal(
         company_id=company_id,
-        description=f"رواتب شهر {month}/{year}",
-        lines=journal_lines,
+        description=f"رواتب شهر {month}/{year} — استحقاق",
+        lines=accrual_lines,
         reference=f"PAYROLL-{year}-{month:02d}",
         created_by=created_by,
         source_type="payroll",
         source_id=run.id,
     )
+
+    # ─── Entry 2: settlement (cash payout, if any) ──────────────────
+    # Dr each paid employee's sub-account by amount_paid
+    # Cr cash by total_paid_cash
+    if total_paid_cash > 0.005:
+        settle_lines = []
+        for emp, line in lines_created:
+            paid = float(line.amount_paid or 0)
+            if paid < 0.005:
+                continue
+            emp_acct = emp_subaccounts.get(emp.id) or party_payroll_account(emp)
+            settle_lines.append({
+                "account_id": emp_acct.id,
+                "debit": round(paid, 2), "credit": 0,
+                "memo": f"سداد راتب — {emp.name}",
+            })
+        settle_lines.append({
+            "account_id": cash_acc.id, "debit": 0,
+            "credit": round(total_paid_cash, 2),
+            "memo": f"صرف نقدي للموظفين — {month}/{year}",
+        })
+        post_journal(
+            company_id=company_id,
+            description=f"رواتب شهر {month}/{year} — سداد كاش",
+            lines=settle_lines,
+            reference=f"PAYROLL-PAY-{year}-{month:02d}",
+            created_by=created_by,
+            source_type="payroll_settlement",
+            source_id=run.id,
+        )
     run.total_gross = round(total_gross, 2)
     run.total_net = round(total_net, 2)
     run.journal_entry_id = entry.id

@@ -140,18 +140,191 @@ def _rewrite_legacy_cash_bills(company_id, dry_run=True):
     return rewritten
 
 
+def rewrite_legacy_payroll_journals(company_id, dry_run=True):
+    """MARSOUD-PAYROLL-LEDGER-03 — rewrite payroll runs posted before
+    the per-employee fix.
+
+    Legacy pattern (one journal): Dr 5210 total / Cr Cash <paid> /
+    Cr <emp sub> <accrued only>. Paid-in-full employees never appeared
+    on their ledger.
+
+    New pattern (two journals): accrual (per-employee Cr by NET) +
+    settlement (per-employee Dr by amount_paid + Cr Cash total_paid).
+
+    This function:
+      1. Finds every PayrollRun with a linked journal that ISN'T already
+         in the two-journal layout.
+      2. Adds the missing per-employee credits AND debits + cash credit
+         so the trail is complete. Net-balance impact on every account
+         is zero (we're only adding pass-through legs).
+    """
+    from app.models import (
+        PayrollRun, PayrollLine, Employee, JournalEntry, JournalLine,
+        Account,
+    )
+    from app.services.subsidiary import ensure_employee_account
+    from app.services.ledger import post_journal
+
+    rewritten = []
+    runs = PayrollRun.query.filter_by(company_id=company_id).all()
+    for run in runs:
+        if not run.journal_entry_id:
+            continue
+        # Already migrated? Look for a settlement entry for this run.
+        existing_settle = JournalEntry.query.filter_by(
+            company_id=company_id, source_type="payroll_settlement",
+            source_id=run.id,
+        ).first()
+        if existing_settle:
+            continue
+        # Look at the legacy journal — if it already has per-employee
+        # credits for ALL employees (not just accrued ones), we'd skip,
+        # but the legacy code only added credits for accrued employees,
+        # so we'll always need to top it up.
+        entry = db.session.get(JournalEntry, run.journal_entry_id)
+        if not entry or not entry.is_active:
+            continue
+
+        lines = run.lines
+        if not lines:
+            continue
+
+        # Figure out which employees were already credited (accrued only,
+        # under legacy) so we don't double-count them when patching.
+        existing_credits = {}   # employee_id → existing credit amount
+        for jl in JournalLine.query.filter_by(entry_id=entry.id).all():
+            acc = db.session.get(Account, jl.account_id)
+            if not acc or not acc.code.startswith("2130-"):
+                continue
+            # Look up which employee owns this sub-account
+            emp = Employee.query.filter_by(
+                company_id=company_id, account_id=acc.id,
+            ).first()
+            if emp:
+                existing_credits[emp.id] = existing_credits.get(emp.id, 0) + float(jl.credit or 0)
+
+        total_paid_cash = 0.0
+        missing_accrual_lines = []
+        settle_lines = []
+
+        for line in lines:
+            net = float(line.net or 0)
+            paid = float(line.amount_paid or 0)
+            if net < 0.005:
+                continue
+            emp = line.employee
+            if not emp:
+                continue
+            if not emp.account_id:
+                ensure_employee_account(emp)
+            emp_acct = emp.account
+            already_credited = existing_credits.get(emp.id, 0)
+            shortfall = round(net - already_credited, 2)
+            if shortfall > 0.005:
+                # Top-up accrual: bring legacy total up to NET.
+                # Offset goes against the same cash account that was
+                # incorrectly credited too early, so the new accrual leg
+                # nets to zero against the cash line we add below.
+                missing_accrual_lines.append((emp_acct, emp, shortfall))
+            if paid > 0.005:
+                settle_lines.append({
+                    "account_id": emp_acct.id,
+                    "debit": round(paid, 2), "credit": 0,
+                    "memo": f"سداد راتب (backfill) — {emp.name}",
+                })
+                total_paid_cash += paid
+
+        if not missing_accrual_lines and not settle_lines:
+            continue
+
+        rewritten.append({
+            "run_id": run.id,
+            "period": f"{run.period_month:02d}/{run.period_year}",
+            "missing_credits": len(missing_accrual_lines),
+            "settled_employees": len(settle_lines),
+            "total_paid_cash": round(total_paid_cash, 2),
+        })
+
+        if dry_run:
+            continue
+
+        # Apply: post a "fix-up accrual" entry to add the missing
+        # employee credits (offset = cash debit, since the legacy entry
+        # already credited cash for paid amount but never gave the
+        # employee a credit).
+        if missing_accrual_lines:
+            cash = get_account_for_code(company_id, "1110")
+            top_up_lines = []
+            total_shortfall = 0.0
+            for emp_acct, emp, amount in missing_accrual_lines:
+                top_up_lines.append({
+                    "account_id": emp_acct.id,
+                    "debit": 0, "credit": amount,
+                    "memo": f"استحقاق راتب (backfill) — {emp.name}",
+                })
+                total_shortfall += amount
+            top_up_lines.append({
+                "account_id": cash.id,
+                "debit": round(total_shortfall, 2), "credit": 0,
+                "memo": "إعادة قيد نقدية (backfill — لم تكن مرت على الموظف)",
+            })
+            post_journal(
+                company_id=company_id,
+                description=(f"إعادة قيد رواتب (backfill) — "
+                              f"{run.period_month:02d}/{run.period_year}"),
+                lines=top_up_lines,
+                reference=f"BF-PAYROLL-{run.period_year}-{run.period_month:02d}",
+                source_type="payroll",
+                source_id=run.id,
+            )
+
+        if settle_lines:
+            cash = get_account_for_code(company_id, "1110")
+            settle_lines.append({
+                "account_id": cash.id,
+                "debit": 0, "credit": round(total_paid_cash, 2),
+                "memo": (f"إعادة قيد سداد نقدي (backfill) — "
+                          f"{run.period_month:02d}/{run.period_year}"),
+            })
+            post_journal(
+                company_id=company_id,
+                description=(f"إعادة قيد سداد رواتب (backfill) — "
+                              f"{run.period_month:02d}/{run.period_year}"),
+                lines=settle_lines,
+                reference=(f"BF-PAYROLL-PAY-"
+                            f"{run.period_year}-{run.period_month:02d}"),
+                source_type="payroll_settlement",
+                source_id=run.id,
+            )
+
+    if not dry_run:
+        db.session.commit()
+    return rewritten
+
+
+def get_account_for_code(company_id, code):
+    """Small helper — same as services.ledger.get_account_by_code but
+    avoids the circular import inside this module."""
+    return Account.query.filter_by(company_id=company_id, code=code).first()
+
+
 def run(company_id, dry_run=True):
-    """Run both steps for one company. Returns a summary dict."""
+    """Run all three backfill steps for one company. Returns a summary."""
     opened = _open_subaccounts(company_id)
-    rewritten = _rewrite_legacy_cash_bills(company_id, dry_run=dry_run)
+    rewritten_bills = _rewrite_legacy_cash_bills(company_id, dry_run=dry_run)
+    rewritten_payroll = rewrite_legacy_payroll_journals(
+        company_id, dry_run=dry_run,
+    )
     if not dry_run:
         db.session.commit()
     return {
         "company_id": company_id,
         "dry_run": dry_run,
         "subaccounts_opened": opened,
-        "bills_rewritten": len(rewritten),
-        "bill_sample": rewritten[:5],
+        "bills_rewritten": len(rewritten_bills),
+        "bill_sample": rewritten_bills[:5],
+        "payroll_runs_rewritten": len(rewritten_payroll),
+        "payroll_sample": rewritten_payroll[:5],
     }
 
 
@@ -160,17 +333,27 @@ def run(company_id, dry_run=True):
 @click.option("--apply", is_flag=True, help="Actually rewrite (default = dry-run)")
 @with_appcontext
 def backfill_cli(company_id, apply):
-    """Open sub-accounts for every party + rewrite legacy cash vendor bills."""
+    """Open sub-accounts for every party + rewrite legacy cash vendor
+    bills + legacy payroll journals so every party transaction shows
+    on their statement."""
     result = run(company_id, dry_run=not apply)
     print(f"\nCompany {result['company_id']} ({'APPLIED' if apply else 'DRY-RUN'}):")
     print(f"  sub-accounts opened: {result['subaccounts_opened']}")
-    print(f"  bills to rewrite:    {result['bills_rewritten']}")
+    print(f"  cash vendor bills to rewrite: {result['bills_rewritten']}")
     if result["bill_sample"]:
-        print(f"  first 5 samples:")
+        print(f"    first 5 samples:")
         for s in result["bill_sample"]:
-            print(f"    - {s['bill_number']} → {s['vendor']} "
+            print(f"      - {s['bill_number']} → {s['vendor']} "
                   f"({s['amount']:.2f} from {s['cash_code']})")
+    print(f"  payroll runs to rewrite:      {result['payroll_runs_rewritten']}")
+    if result["payroll_sample"]:
+        print(f"    first 5 samples:")
+        for s in result["payroll_sample"]:
+            print(f"      - run #{s['run_id']} ({s['period']}) "
+                  f"add {s['missing_credits']} credits, "
+                  f"{s['settled_employees']} settlements, "
+                  f"cash {s['total_paid_cash']:.2f}")
     if apply:
-        print("\nDone — verify with `flask check-coa` then re-run the audit.")
+        print("\nDone — verify with `flask check-coa` then re-run the audits.")
     else:
         print("\nThis was a dry-run. Add --apply to write changes.")
