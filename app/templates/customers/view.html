@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block page_title %}{{ customer.name }}{% endblock %}
 {% block content %}
+
+{# MARSOUD-CONTACT-STRIP — top-of-page contact bar #}
+{% with name=customer.name, phone=customer.phone, email=customer.email %}
+  {% include "_contact_strip.html" %}
+{% endwith %}
+
 <div class="grid grid-cols-3 gap-4">
   <div class="card p-6 col-span-2">
     {% if customer_projects %}

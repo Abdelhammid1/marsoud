@@ -1,6 +1,14 @@
 {% extends "base.html" %}
 {% block page_title %}{% if vendor %}تعديل المورد: {{ vendor.name }}{% else %}مورد جديد{% endif %}{% endblock %}
 {% block content %}
+
+{# MARSOUD-CONTACT-STRIP — only on the edit page (existing vendor), not on /new #}
+{% if vendor %}
+{% with name=vendor.name, phone=vendor.phone, email=vendor.email %}
+  {% include "_contact_strip.html" %}
+{% endwith %}
+{% endif %}
+
 <div class="card p-6 max-w-2xl">
   <form method="POST" class="space-y-4">
     <div>

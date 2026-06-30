@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block page_title %}{{ lead.client_name }}{% endblock %}
 {% block content %}
+
+{# MARSOUD-CONTACT-STRIP — top-of-page contact bar #}
+{% with name=lead.client_name, phone=lead.phone, email=lead.email %}
+  {% include "_contact_strip.html" %}
+{% endwith %}
+
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
   <div class="card p-6 md:col-span-2">
     <div class="flex flex-wrap items-start justify-between gap-2 mb-4">

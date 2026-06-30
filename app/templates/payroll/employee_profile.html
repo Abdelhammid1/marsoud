@@ -7,6 +7,12 @@
 {% set can_view_payroll = has_permission('payroll.view') %}
 {% set can_manage_employees = has_permission('payroll.employees') %}
 {% set can_settle_accruals = has_permission('payroll.accruals') %}
+
+{# MARSOUD-CONTACT-STRIP — top-of-page contact bar #}
+{% with name=employee.name, phone=employee.phone, email=employee.email %}
+  {% include "_contact_strip.html" %}
+{% endwith %}
+
 <div class="grid grid-cols-3 gap-4">
   <div class="card p-6 {% if not can_view_payroll %}col-span-3{% else %}col-span-2{% endif %}">
     <div class="flex items-start justify-between mb-5">
