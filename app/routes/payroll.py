@@ -283,6 +283,8 @@ def run():
             line_inputs[emp.id] = {
                 "working_days": int(request.form.get(f"working_days_{emp.id}", 30) or 30),
                 "overtime": float(request.form.get(f"overtime_{emp.id}", 0) or 0),
+                "overtime_hours": float(request.form.get(f"overtime_hours_{emp.id}", 0) or 0),
+                "absence_days": int(float(request.form.get(f"absence_days_{emp.id}", 0) or 0)),
                 "bonus": float(request.form.get(f"bonus_{emp.id}", 0) or 0),
                 "absence": float(request.form.get(f"absence_{emp.id}", 0) or 0),
                 "late": float(request.form.get(f"late_{emp.id}", 0) or 0),

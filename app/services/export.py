@@ -501,6 +501,10 @@ def export_payslip_pdf(employee, line, run):
             "pdfs/payslip.html",
             employee=employee, line=line, run=run,
             company_logo_data_uri=_company_logo_data_uri(employee.company),
+            absences_count=int(line.absences_count or 0),
+            overtime_hours=float(line.overtime_hours or 0),
+            leaves_count=0,
+            late_hours=0,
         )
     except Exception as e:
         # MARSOUD-54.1 — loud warning so the silent regression is visible.

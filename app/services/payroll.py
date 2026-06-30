@@ -74,14 +74,14 @@ def auto_absence_late_for(employee, year, month):
     try:
         from app.services.leave import attendance_deductions
     except Exception:
-        return 0.0, 0.0, False
+        return 0.0, 0.0, False, 0
     info = attendance_deductions(employee.id, year, month)
     if not info.get("has_exceptions"):
-        return 0.0, 0.0, False
+        return 0.0, 0.0, False, 0
     daily_rate = float(employee.basic_salary or 0) / 30.0
     absence_amt = round(info["absence_days"] * daily_rate, 2)
     late_amt = round(info["late_days"] * daily_rate, 2)
-    return absence_amt, late_amt, True
+    return absence_amt, late_amt, True, int(info["absence_days"])
 
 
 def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send_emails=True):
@@ -142,10 +142,12 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
             emp, year, month, override=inputs.get("working_days"),
         )
         overtime = float(inputs.get("overtime", 0) or 0)
+        overtime_hours = float(inputs.get("overtime_hours", 0) or 0)
+        absence_days = int(inputs.get("absence_days", 0) or 0)
         bonus = float(inputs.get("bonus", 0) or 0)
 
         # HR-07 — auto-fill absence/late from attendance exceptions
-        auto_absence, auto_late, has_exceptions = auto_absence_late_for(emp, year, month)
+        auto_absence, auto_late, has_exceptions, auto_absence_count = auto_absence_late_for(emp, year, month)
         if "absence" in inputs and inputs["absence"] not in (None, ""):
             absence = float(inputs["absence"])
         else:
@@ -205,6 +207,7 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
             basic=round(prorated_basic, 2),
             allowances=allowances,
             overtime=overtime,
+            overtime_hours=overtime_hours,
             bonus=bonus,
             deductions=fixed_deductions,
             absence_deduction=absence,
@@ -213,6 +216,7 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
             net=net,
             amount_paid=amount_paid,
             attendance_auto_calculated=attendance_auto,
+            absences_count=absence_days if absence_days > 0 else auto_absence_count,
             # MARSOUD-COMM-01 Phase C — surface settled commissions
             # for the payslip + reporting.
             commissions=round(commissions_net, 2),

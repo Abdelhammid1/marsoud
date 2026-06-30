@@ -31,9 +31,9 @@
       <thead><tr>
         <th>الموظف</th>
         <th style="width:5rem">أيام</th>
-        <th style="width:6rem">أوفرتايم</th>
+        <th style="width:5rem">ساعات أوفر</th><th style="width:6rem">أوفرتايم (مبلغ)</th>
         <th style="width:6rem">بونص</th>
-        <th style="width:6rem">غياب</th>
+        <th style="width:5rem">أيام غياب</th><th style="width:6rem">غياب (مبلغ)</th>
         <th style="width:6rem">تأخير</th>
         <th style="width:6rem">سُلَف</th>
         <th style="width:7rem">المدفوع فعلياً</th>
@@ -41,7 +41,7 @@
       <tbody>
         {% for e in employees %}
         {% set default_days = billable_days(e, year, month) if billable_days else 30 %}
-        {% set auto_abs, auto_late_amt, has_ex = (auto_attendance(e, year, month) if auto_attendance else (0.0, 0.0, False)) %}
+        {% set auto_abs, auto_late_amt, has_ex, auto_abs_count = (auto_attendance(e, year, month) if auto_attendance else (0.0, 0.0, False, 0)) %}
         <tr>
           <td>
             <div class="font-semibold">{{ e.name }}</div>
@@ -54,8 +54,11 @@
             {% endif %}
           </td>
           <td><input type="number" name="working_days_{{ e.id }}" value="{{ default_days }}" min="0" max="31" class="input text-sm font-mono"></td>
-          <td><input type="number" name="overtime_{{ e.id }}" step="0.01" value="0" class="input text-sm font-mono"></td>
+          <td><input type="number" name="overtime_hours_{{ e.id }}" step="0.5" value="0" class="input text-sm font-mono"></td><td><input type="number" name="overtime_{{ e.id }}" step="0.01" value="0" class="input text-sm font-mono"></td>
           <td><input type="number" name="bonus_{{ e.id }}" step="0.01" value="0" class="input text-sm font-mono"></td>
+          <td>
+            <input type="number" name="absence_days_{{ e.id }}" step="1" value="0" class="input text-sm font-mono">
+          </td>
           <td>
             <input type="number" name="absence_{{ e.id }}" step="0.01" value="{{ "%.2f"|format(auto_abs) }}"
                    class="input text-sm font-mono {% if has_ex %}bg-emerald-50{% endif %}"
