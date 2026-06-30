@@ -100,10 +100,42 @@ def ensure_employee_account(employee):
     return acc
 
 
+WALK_IN_CUSTOMER_NAME = "زبون نقدي (Walk-in)"
+
+
+def ensure_walk_in_customer(company_id):
+    """Return the company's singleton 'walk-in' Customer record, creating
+    it (+ its sub-account) on first call. Used by POS for invoices
+    without a customer_id so every transaction still lands on a real
+    customer ledger."""
+    from app.models import Customer
+    walk = Customer.query.filter_by(
+        company_id=company_id, name=WALK_IN_CUSTOMER_NAME,
+    ).first()
+    if walk:
+        if not walk.account_id:
+            ensure_customer_account(walk)
+        return walk
+    walk = Customer(
+        company_id=company_id,
+        name=WALK_IN_CUSTOMER_NAME,
+        email=None, phone=None, is_active=True,
+    )
+    db.session.add(walk); db.session.flush()
+    ensure_customer_account(walk)
+    return walk
+
+
 # ─── Posting-side helpers ───────────────────────────────────────────────
 def party_ar_account(invoice):
-    """For invoicing — the AR sub-account for the invoice's customer."""
-    return ensure_customer_account(invoice.customer)
+    """For invoicing — the AR sub-account for the invoice's customer.
+    When the invoice has no customer (POS walk-in), the per-company
+    'زبون نقدي' Customer is used so the journal still has a real party."""
+    customer = invoice.customer
+    if customer is None:
+        customer = ensure_walk_in_customer(invoice.company_id)
+        invoice.customer_id = customer.id
+    return ensure_customer_account(customer)
 
 
 def party_ap_account(bill):

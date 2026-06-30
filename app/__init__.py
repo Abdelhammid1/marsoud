@@ -83,6 +83,7 @@ def create_app(config_class=Config):
         admin_activity_bp, settings_activity_bp,
     )
     from app.routes.settings_backup import bp as settings_backup_bp
+    from app.routes.party_ledger import bp as party_ledger_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -124,6 +125,7 @@ def create_app(config_class=Config):
     app.register_blueprint(admin_activity_bp, url_prefix="/admin/activity")
     app.register_blueprint(settings_activity_bp, url_prefix="/settings/activity")
     app.register_blueprint(settings_backup_bp, url_prefix="/settings/backup")
+    app.register_blueprint(party_ledger_bp, url_prefix="/reports/party-ledger")
 
     # MARSOUD-API-V1 — make sure /api/v1/* abort(...) / unauthorized
     # responses come out as JSON instead of HTML / login redirects.
@@ -464,6 +466,10 @@ def create_app(config_class=Config):
         except Exception:
             pass
         return response
+
+    # MARSOUD-PARTY-LEDGER-02 — CLI: backfill old data
+    from scripts.backfill_party_ledger import backfill_cli
+    app.cli.add_command(backfill_cli)
 
     # MARSOUD-COA-REBUILD — CLI: flask check-coa
     @app.cli.command("check-coa")

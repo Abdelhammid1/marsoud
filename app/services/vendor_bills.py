@@ -71,7 +71,21 @@ def _validate_line_account(line, company_id):
 
 
 def post_vendor_bill(bill, created_by=None):
-    """Post a vendor bill: validate, journal, create assets, set status."""
+    """Post a vendor bill: validate, journal, create assets, set status.
+
+    MARSOUD-PARTY-LEDGER-02 — when a vendor IS specified (regardless of
+    payment method) we always route through the vendor's sub-account
+    under 2110, then immediately settle with a second journal for
+    CASH/BANK. That way every transaction shows up on the vendor's
+    statement, and a cash bill's balance still nets to zero after the
+    settlement leg.
+
+    Journal pattern:
+      CREDIT (was, no change):    Dr Expense+VAT  / Cr Vendor sub
+      CASH/BANK WITH vendor:      Dr Expense+VAT  / Cr Vendor sub
+                                  + Dr Vendor sub / Cr Cash|Bank   (settled now)
+      CASH/BANK WITHOUT vendor:   Dr Expense+VAT  / Cr Cash|Bank   (legacy, vendor-less)
+    """
     if bill.status != VendorBillStatus.DRAFT:
         raise LedgerError("الفاتورة ليست مسودة")
     if not bill.items:
@@ -87,26 +101,44 @@ def post_vendor_bill(bill, created_by=None):
 
     bill.recalc()
 
-    # Resolve funding-source account.
-    # MARSOUD-COA-REBUILD — both 1120 (banks) and 2110 (AP) are now
-    # headers; we route to a real bank leaf for BANK, and to the
-    # vendor's own AP sub-account for ON_ACCOUNT.
-    if bill.payment_method == VendorBillPaymentMethod.CASH:
-        funding = get_account_by_code(bill.company_id, "1110")
-        funding_label = "نقدي"
-    elif bill.payment_method == VendorBillPaymentMethod.BANK:
-        funding = None
-        for code in ("1124", "1121", "1122", "1123", "1125"):
-            funding = get_account_by_code(bill.company_id, code)
-            if funding:
-                break
-        funding_label = "بنك"
-    else:
+    # MARSOUD-PARTY-LEDGER-02 — if a vendor is selected, the credit
+    # side of the bill always lands on the vendor's sub-account (so the
+    # vendor statement is complete). The settlement to cash/bank is
+    # posted as a SEPARATE journal afterwards. If there's no vendor
+    # (legacy "petty cash" bills), we fall back to direct-to-funding.
+    settle_to_funding = None  # set when we need a follow-up settlement leg
+    settle_funding_label = None
+    if bill.vendor_id:
         from app.services.subsidiary import party_ap_account
-        funding = party_ap_account(bill)
-        funding_label = f"حساب المورد {bill.vendor.name if bill.vendor else ''}"
-    if not funding:
-        raise LedgerError("حساب التمويل غير موجود في شجرة الحسابات")
+        credit_account = party_ap_account(bill)
+        credit_label = f"على حساب المورد {bill.vendor.name}"
+        # For CASH/BANK, prepare the settlement target
+        if bill.payment_method == VendorBillPaymentMethod.CASH:
+            settle_to_funding = get_account_by_code(bill.company_id, "1110")
+            settle_funding_label = "نقدي"
+        elif bill.payment_method == VendorBillPaymentMethod.BANK:
+            for code in ("1124", "1121", "1122", "1123", "1125"):
+                settle_to_funding = get_account_by_code(bill.company_id, code)
+                if settle_to_funding:
+                    break
+            settle_funding_label = "بنك"
+    else:
+        # Legacy: no vendor selected, post straight to cash/bank
+        if bill.payment_method == VendorBillPaymentMethod.CASH:
+            credit_account = get_account_by_code(bill.company_id, "1110")
+            credit_label = "نقدي (بدون مورد)"
+        elif bill.payment_method == VendorBillPaymentMethod.BANK:
+            credit_account = None
+            for code in ("1124", "1121", "1122", "1123", "1125"):
+                credit_account = get_account_by_code(bill.company_id, code)
+                if credit_account:
+                    break
+            credit_label = "بنك (بدون مورد)"
+        else:
+            # CREDIT without vendor was already blocked above
+            raise LedgerError("لا يوجد مورد لتسجيل الالتزام")
+    if not credit_account:
+        raise LedgerError("حساب الجهة المقابلة غير موجود في شجرة الحسابات")
 
     # Build journal lines: one debit per item + one credit for the total
     journal_lines = []
@@ -138,10 +170,10 @@ def post_vendor_bill(bill, created_by=None):
         })
 
     journal_lines.append({
-        "account_id": funding.id,
+        "account_id": credit_account.id,
         "debit": 0,
         "credit": float(bill.total),
-        "memo": f"دفع {funding_label} لفاتورة المورد {bill.number}",
+        "memo": f"إثبات الفاتورة {credit_label}",
     })
 
     vendor_desc = f" — {bill.vendor.name}" if bill.vendor else ""
@@ -158,6 +190,31 @@ def post_vendor_bill(bill, created_by=None):
     )
 
     bill.journal_entry_id = entry.id
+
+    # MARSOUD-PARTY-LEDGER-02 — settlement leg for CASH/BANK WITH vendor:
+    # the bill credited the vendor sub-account above; we now debit it and
+    # credit cash/bank, so the vendor's running balance nets to zero
+    # while keeping both transactions on his statement.
+    if settle_to_funding is not None:
+        post_journal(
+            company_id=bill.company_id,
+            description=(f"سداد فوري لفاتورة المورد {bill.number} "
+                          f"({settle_funding_label})"),
+            lines=[
+                {"account_id": credit_account.id,
+                 "debit": float(bill.total), "credit": 0,
+                 "memo": f"سداد فاتورة {bill.number}"},
+                {"account_id": settle_to_funding.id,
+                 "debit": 0, "credit": float(bill.total),
+                 "memo": f"دفع {settle_funding_label}"},
+            ],
+            entry_date=bill.issue_date,
+            reference=f"VB-PAY-{bill.number}",
+            currency=bill.currency,
+            created_by=created_by,
+            source_type="vendor_bill_payment",
+            source_id=bill.id,
+        )
 
     # ERP-01 — receive stock for every INVENTORY line. Runs inside the same
     # transaction as the journal so a failure rolls everything back together.

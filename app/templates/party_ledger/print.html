@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>كشف حساب — {{ statement.party.name }}</title>
+<style>
+  @page { size: A4; margin: 1.4cm 1cm 1.4cm 1cm; @bottom-center {
+    content: "كشف حساب  ·  " counter(page) " من " counter(pages);
+    font-family: sans-serif; font-size: 9pt; color: #5f7080;
+  } }
+  body { font-family: 'Cairo', sans-serif; color: #1a2540; font-size: 10pt; }
+  h1 { color: #0a2540; font-size: 18pt; margin: 0; }
+  .subtitle { color: #5f7080; font-size: 9pt; margin-top: 0.2em; }
+  .meta-bar { display: flex; gap: 1em; margin-top: 0.8em;
+              padding: 0.6em 0.8em; background: #f1f5f9; border-radius: 4px; }
+  .meta-bar > div { flex: 1; }
+  .meta-bar .lbl { font-size: 8.5pt; color: #5f7080; }
+  .meta-bar .val { font-weight: 700; font-family: monospace; direction: ltr;
+                   text-align: right; }
+  table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+  th, td { padding: 0.4em 0.5em; border-bottom: 1px solid #e2e8f0;
+           font-size: 9pt; text-align: right; vertical-align: top; }
+  th { background: #0a2540; color: white; font-weight: 700;
+       text-align: center; }
+  td.num { font-family: monospace; direction: ltr; text-align: left; }
+  td.dim { color: #5f7080; font-size: 8.5pt; }
+  tr.opening { background: #fef9c3; font-weight: 700; }
+  tr.closing { background: #f0f9ff; font-weight: 700; border-top: 2px solid #0a2540; }
+  .pos { color: #15803d; }
+  .neg { color: #b91c1c; }
+  .footer-note { margin-top: 2em; font-size: 8pt; color: #5f7080;
+                 text-align: center; border-top: 1px solid #e2e8f0;
+                 padding-top: 0.6em; }
+</style>
+</head>
+<body>
+
+<h1>كشف حساب — {{ statement.party.name }}</h1>
+<div class="subtitle">
+  {{ statement.party.kind_label }} ·
+  حساب رقم <span style="font-family:monospace;direction:ltr">{{ statement.party.account_code }}</span>
+  {% if company %} · {{ company.name }}{% endif %}
+</div>
+
+<div class="meta-bar">
+  <div>
+    <div class="lbl">من تاريخ</div>
+    <div class="val">{{ start_date.isoformat() if start_date else '—' }}</div>
+  </div>
+  <div>
+    <div class="lbl">إلى تاريخ</div>
+    <div class="val">{{ end_date.isoformat() if end_date else '—' }}</div>
+  </div>
+  <div>
+    <div class="lbl">الرصيد الافتتاحي</div>
+    <div class="val">{{ "%.2f"|format(statement.opening_balance) }}</div>
+  </div>
+  <div>
+    <div class="lbl">الرصيد النهائي</div>
+    <div class="val {% if statement.closing_balance > 0 %}pos{% elif statement.closing_balance < 0 %}neg{% endif %}">
+      {{ "%.2f"|format(statement.closing_balance) }}
+    </div>
+  </div>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width:9%">التاريخ</th>
+      <th style="width:9%">رقم القيد</th>
+      <th>البيان</th>
+      <th style="width:18%">الملاحظة</th>
+      <th style="width:10%">مدين</th>
+      <th style="width:10%">دائن</th>
+      <th style="width:11%">الرصيد</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr class="opening">
+      <td colspan="4">الرصيد الافتتاحي</td>
+      <td class="num">—</td>
+      <td class="num">—</td>
+      <td class="num">{{ "%.2f"|format(statement.opening_balance) }}</td>
+    </tr>
+    {% for r in statement.rows %}
+    <tr>
+      <td class="num">{{ r.date.isoformat() if r.date }}</td>
+      <td class="num">{{ r.entry_number }}</td>
+      <td>{{ r.description }}</td>
+      <td class="dim">{{ r.memo }}</td>
+      <td class="num">{% if r.debit %}{{ "%.2f"|format(r.debit) }}{% endif %}</td>
+      <td class="num">{% if r.credit %}{{ "%.2f"|format(r.credit) }}{% endif %}</td>
+      <td class="num">{{ "%.2f"|format(r.balance) }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:1em">لا توجد حركات في الفترة المحددة.</td></tr>
+    {% endfor %}
+    <tr class="closing">
+      <td colspan="4">الإجماليات</td>
+      <td class="num">{{ "%.2f"|format(statement.total_debit) }}</td>
+      <td class="num">{{ "%.2f"|format(statement.total_credit) }}</td>
+      <td class="num">{{ "%.2f"|format(statement.closing_balance) }}</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="footer-note">
+  هذا الكشف تم إنشاؤه آليّاً من نظام Marsoud المحاسبي.
+  جميع المبالغ بالعملة الأساسية للشركة.
+</div>
+
+</body>
+</html>
