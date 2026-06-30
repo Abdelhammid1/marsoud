@@ -73,8 +73,15 @@ def _spin_up_test_company():
 
 
 def _teardown_test_company(company_id):
+    """Cascade-delete every row, including children that don't have a
+    company_id of their own (journal_lines, invoice_items, payments,
+    vendor_bill_items). SQLite re-uses freed IDs so orphans WILL
+    re-attach to fresh rows on the next run if we don't kill them now."""
     from app import create_app, db
-    from app.models import Company, JournalEntry, JournalLine
+    from app.models import (
+        Company, JournalEntry, JournalLine, Invoice, InvoiceItem,
+        Payment, VendorBill, VendorBillItem,
+    )
     from sqlalchemy import inspect
     app = create_app()
     with app.app_context():
@@ -84,6 +91,21 @@ def _teardown_test_company(company_id):
         if entry_ids:
             JournalLine.query.filter(
                 JournalLine.entry_id.in_(entry_ids)
+            ).delete(synchronize_session=False)
+        inv_ids = [r.id for r in Invoice.query.filter_by(
+            company_id=company_id).all()]
+        if inv_ids:
+            InvoiceItem.query.filter(
+                InvoiceItem.invoice_id.in_(inv_ids)
+            ).delete(synchronize_session=False)
+            Payment.query.filter(
+                Payment.invoice_id.in_(inv_ids)
+            ).delete(synchronize_session=False)
+        bill_ids = [r.id for r in VendorBill.query.filter_by(
+            company_id=company_id).all()]
+        if bill_ids:
+            VendorBillItem.query.filter(
+                VendorBillItem.bill_id.in_(bill_ids)
             ).delete(synchronize_session=False)
         for table in reversed(db.metadata.sorted_tables):
             if "company_id" in {c["name"] for c in insp.get_columns(table.name)}:
@@ -323,19 +345,40 @@ def main():
             _shot(page, "00_logged_in")
 
             for label, fn in CHECKS:
+                # Map check number to its screenshot name (the _shot()
+                # calls in each test use these stems)
+                shot_map = {
+                    "1.": "01_home",
+                    "2.": "02_customer_created",
+                    "3.": "03_vendor_created",
+                    "5.": "05_accounts_tree",
+                    "6.": "06_invoice_created",
+                    "7.": "07_vat_report",
+                    "9.": "09_journals",
+                }
+                shot_name = None
+                for k, v in shot_map.items():
+                    if label.startswith(k):
+                        shot_name = v
+                        break
                 try:
                     result = fn(page, ctx)
                     print(f"PASS  {label}  ⇒ {result}")
+                    _record(label, "pass", result, shot_name)
                     passed += 1
                 except Exception as e:  # noqa: BLE001
                     print(f"FAIL  {label}  ⇒ {type(e).__name__}: {e}")
                     failed += 1
                     import traceback
                     traceback.print_exc()
+                    fail_shot = f"FAIL_{label[:20].replace(' ', '_')}"
                     try:
-                        _shot(page, f"FAIL_{label[:20]}")
+                        _shot(page, fail_shot)
+                        _record(label, "fail",
+                                 f"{type(e).__name__}: {e}", fail_shot)
                     except Exception:
-                        pass
+                        _record(label, "fail",
+                                 f"{type(e).__name__}: {e}", shot_name)
 
             browser.close()
     finally:
@@ -348,7 +391,132 @@ def main():
     print()
     print(f"────  {passed} passed, {failed} failed  ────")
     print(f"Screenshots: {SHOTS}")
+
+    # ─── HTML report with embedded screenshots ─────────────────────
+    _write_html_report(passed, failed)
+
     sys.exit(0 if failed == 0 else 1)
+
+
+# ─── HTML report generator ──────────────────────────────────────────────
+_RESULTS = []   # (label, status, message, shot_name)
+
+
+def _record(label, status, message, shot_name=None):
+    _RESULTS.append((label, status, message, shot_name))
+
+
+def _write_html_report(passed, failed):
+    """Render a self-contained HTML page (no external assets) showing
+    each check + its screenshot inline. Easy to email Abdelhamid or
+    attach to a PR."""
+    import base64
+    from html import escape
+
+    def _img_data_uri(path):
+        if not path or not path.exists():
+            return ""
+        return (
+            "data:image/png;base64,"
+            + base64.b64encode(path.read_bytes()).decode("ascii")
+        )
+
+    rows = []
+    for label, status, message, shot_name in _RESULTS:
+        badge = (
+            '<span class="pass">PASS</span>' if status == "pass"
+            else '<span class="fail">FAIL</span>'
+        )
+        shot_html = ""
+        if shot_name:
+            shot_path = SHOTS / f"{shot_name}.png"
+            uri = _img_data_uri(shot_path)
+            if uri:
+                shot_html = (
+                    f'<details><summary>📸 screenshot</summary>'
+                    f'<img src="{uri}" alt="{escape(shot_name)}"></details>'
+                )
+        rows.append(f"""
+          <tr class="{'pass-row' if status == 'pass' else 'fail-row'}">
+            <td>{badge}</td>
+            <td><strong>{escape(label)}</strong>
+                <div class="msg">{escape(message)}</div>
+                {shot_html}
+            </td>
+          </tr>
+        """)
+
+    html = f"""<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>MARSOUD-COA-REBUILD — Playwright audit report</title>
+<style>
+  body {{ font-family: 'Cairo', -apple-system, system-ui, sans-serif;
+          max-width: 1100px; margin: 2rem auto; padding: 0 1rem;
+          background: #f5f7fa; color: #1a2540; }}
+  h1 {{ color: #0a2540; margin-bottom: 0.5rem; }}
+  .meta {{ color: #5f7080; font-size: 0.9rem; margin-bottom: 1rem; }}
+  .summary {{ background: white; padding: 1rem 1.5rem;
+              border-radius: 12px; margin-bottom: 1.5rem;
+              border: 1px solid #e2e8f0;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.04); }}
+  .summary strong {{ font-size: 1.4rem; }}
+  .pass-banner {{ background: #d1fae5; color: #065f46;
+                  padding: 0.75rem 1rem; border-radius: 8px;
+                  margin-top: 0.5rem; }}
+  .fail-banner {{ background: #fee2e2; color: #991b1b;
+                  padding: 0.75rem 1rem; border-radius: 8px;
+                  margin-top: 0.5rem; }}
+  table {{ width: 100%; border-collapse: collapse; background: white;
+           border-radius: 12px; overflow: hidden;
+           box-shadow: 0 2px 4px rgba(0,0,0,0.04); }}
+  th, td {{ padding: 0.85rem 1rem; text-align: right;
+            border-bottom: 1px solid #e2e8f0; vertical-align: top; }}
+  th {{ background: #0a2540; color: white; }}
+  .pass-row {{ background: #f0fdf4; }}
+  .fail-row {{ background: #fef2f2; }}
+  .pass {{ background: #10b981; color: white; padding: 0.25rem 0.5rem;
+           border-radius: 6px; font-weight: 700; font-size: 0.8rem; }}
+  .fail {{ background: #ef4444; color: white; padding: 0.25rem 0.5rem;
+           border-radius: 6px; font-weight: 700; font-size: 0.8rem; }}
+  .msg {{ color: #475569; font-size: 0.85rem; margin-top: 0.25rem;
+          font-family: ui-monospace, 'SF Mono', monospace; direction: ltr;
+          text-align: left; padding: 0.4rem 0.6rem; background: #f8fafc;
+          border-radius: 4px; margin-top: 0.5rem; }}
+  details {{ margin-top: 0.5rem; }}
+  details summary {{ cursor: pointer; color: #0a2540; font-weight: 600;
+                     padding: 0.4rem 0; }}
+  img {{ max-width: 100%; border: 1px solid #cbd5e1; border-radius: 8px;
+         margin-top: 0.5rem; display: block; }}
+</style>
+</head>
+<body>
+  <h1>📋 MARSOUD-COA-REBUILD — تقرير اختبار Playwright</h1>
+  <p class="meta">
+    قاعدة الاختبار: {escape(BASE)} &middot;
+    شركة تجريبية: <code>{escape(TEST_COMPANY_NAME)}</code> &middot;
+    وقت التشغيل: {time.strftime('%Y-%m-%d %H:%M:%S')}
+  </p>
+
+  <div class="summary">
+    <div><strong>النتيجة: {passed}/{passed + failed} اختبار ناجح</strong></div>
+    <div class="{'pass-banner' if failed == 0 else 'fail-banner'}">
+      {('✅ كل الاختبارات نجحت — البنية المحاسبية صحيحة وشغّالة'
+        if failed == 0 else f'❌ {failed} اختبار(ات) لم تنجح — راجع التفاصيل')}
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th style="width:80px">الحالة</th><th>الاختبار</th></tr></thead>
+    <tbody>{''.join(rows)}</tbody>
+  </table>
+</body>
+</html>"""
+
+    out = SHOTS / "report.html"
+    out.write_text(html, encoding="utf-8")
+    print(f"\n📄 HTML report: file://{out}")
 
 
 if __name__ == "__main__":

@@ -65,20 +65,38 @@ def _setup():
 def _teardown_company(company_id):
     """Aggressively delete every company-scoped row + the company itself.
 
-    JournalLine has no company_id (it's linked via journal_entries) so
-    we delete its rows explicitly first — otherwise SQLite re-uses
-    journal_entries.id after the entries are deleted, and the orphan
-    lines appear to belong to a brand-new entry on the next test run."""
-    from app.models import Company, JournalEntry, JournalLine
+    Several "child" tables (journal_lines, invoice_items, vendor_bill_items,
+    payments) have NO company_id — they're linked through a parent. The
+    bulk reverse-walk skips them, so we MUST explicitly delete them
+    before the parent rows go away. Otherwise SQLite reuses the freed
+    IDs and orphan children attach to brand-new rows on the next run."""
+    from app.models import (
+        Company, JournalEntry, JournalLine, Invoice, InvoiceItem,
+        Payment, VendorBill, VendorBillItem,
+    )
     from sqlalchemy import inspect
     insp = inspect(db.engine)
-    # Step 1: nuke journal lines for every entry in this company,
-    # otherwise we leak orphans and entry-id reuse causes test bleed.
+    # Step 1: wipe child rows that depend on company-scoped parents.
     entry_ids = [r.id for r in JournalEntry.query.filter_by(
         company_id=company_id).all()]
     if entry_ids:
         JournalLine.query.filter(
             JournalLine.entry_id.in_(entry_ids)
+        ).delete(synchronize_session=False)
+    inv_ids = [r.id for r in Invoice.query.filter_by(
+        company_id=company_id).all()]
+    if inv_ids:
+        InvoiceItem.query.filter(
+            InvoiceItem.invoice_id.in_(inv_ids)
+        ).delete(synchronize_session=False)
+        Payment.query.filter(
+            Payment.invoice_id.in_(inv_ids)
+        ).delete(synchronize_session=False)
+    bill_ids = [r.id for r in VendorBill.query.filter_by(
+        company_id=company_id).all()]
+    if bill_ids:
+        VendorBillItem.query.filter(
+            VendorBillItem.bill_id.in_(bill_ids)
         ).delete(synchronize_session=False)
     # Step 2: walk every company-scoped table in reverse topological
     # order so FKs unwind cleanly.
