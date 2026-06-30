@@ -63,6 +63,14 @@ def post_journal(
         acc = db.session.get(Account, line["account_id"])
         if not acc or acc.company_id != company_id:
             raise LedgerError(f"الحساب غير موجود أو لا ينتمي للشركة")
+        # MARSOUD-COA-REBUILD — header accounts (is_postable=False) are
+        # for grouping/reporting only. Refuse any line that lands on one
+        # so we fail loud instead of corrupting reports silently.
+        if not getattr(acc, "is_postable", True):
+            raise LedgerError(
+                f"الحساب {acc.code} ({acc.name_ar or acc.name}) "
+                f"حساب رئيسي ولا يُسمح بالترحيل عليه مباشرة"
+            )
         debit = float(line.get("debit") or 0)
         credit = float(line.get("credit") or 0)
         if debit > 0 and credit > 0:

@@ -342,24 +342,44 @@ def ap_aging_report(company_id, as_of=None):
 
 def vat_report(company_id, start_date=None, end_date=None):
     """VAT report ready for government submission.
-    VAT Collected = activity in 2120 (VAT Payable from sales invoices) credits − debits
-    VAT Paid = activity in 5xxx tax-recoverable account (or via vendor bill taxes recorded on AP side)
 
-    For MVP simplicity we read the VAT Payable account (2120) movements:
-      - Credits = VAT collected from customers
-      - Debits = VAT paid to suppliers (when applicable) or refunded
-      Net = Credits − Debits
+    MARSOUD-COA-REBUILD — output and input VAT now live in separate
+    accounts, so the report adds:
+      - Output VAT (2120, liability)  — collected from customers
+      - Input VAT  (1280, asset)      — paid to suppliers, recoverable
+    and reports the net (output − input) which is what's owed to (or
+    refundable from) the tax authority.
+
+    Returns the same {collected, paid, net, …} shape as before so
+    existing templates + KPIs don't break, plus a few extra keys for
+    the new split.
     """
     end_date = end_date or date.today()
-    vat_account = Account.query.filter_by(company_id=company_id, code="2120").first()
-    if not vat_account:
-        return {"collected": 0, "paid": 0, "net": 0,
-                "start_date": start_date, "end_date": end_date}
-    d, c = _account_balance(vat_account.id, start_date=start_date, end_date=end_date)
+    output_acc = Account.query.filter_by(company_id=company_id, code="2120").first()
+    input_acc = Account.query.filter_by(company_id=company_id, code="1280").first()
+
+    # Output (liability, normal credit): credits − debits = net collected.
+    if output_acc:
+        od, oc = _account_balance(
+            output_acc.id, start_date=start_date, end_date=end_date)
+        output_net = oc - od
+    else:
+        output_net = 0.0
+
+    # Input (asset, normal debit): debits − credits = net recoverable.
+    if input_acc:
+        id_d, id_c = _account_balance(
+            input_acc.id, start_date=start_date, end_date=end_date)
+        input_net = id_d - id_c
+    else:
+        input_net = 0.0
+
     return {
-        "collected": c,
-        "paid": d,
-        "net": c - d,   # positive = owed to government; negative = refund due
+        "collected": output_net,   # kept for backward compatibility
+        "paid": input_net,         # kept for backward compatibility
+        "net": output_net - input_net,
+        "output_vat": output_net,
+        "input_vat": input_net,
         "start_date": start_date, "end_date": end_date,
     }
 
@@ -626,25 +646,33 @@ def dashboard_metrics(company_id):
     total_equity = bs["totals"]["equity"]
     total_liab = bs["totals"]["liabilities"]
     debt_to_equity = (total_liab / total_equity) if total_equity > 0.01 else 0.0
+    # MARSOUD-COA-REBUILD — 1120/1130/2110/2130 are now header accounts
+    # whose .balance walks their subtree, so adding more leaf codes here
+    # isn't needed. 1280 (input VAT) is added on the asset side; 2125
+    # (net VAT payable) is added on the liability side.
     current_assets = sum(
         float(a.balance) for a in Account.query.filter(
             Account.company_id == company_id,
-            Account.code.in_(["1110", "1120", "1130", "1300", "1150"]),
+            Account.code.in_(["1110", "1120", "1130", "1280", "1300", "1150"]),
         ).all()
     )
     current_liab = sum(
         float(a.balance) for a in Account.query.filter(
             Account.company_id == company_id,
-            Account.code.in_(["2110", "2120", "2130", "2140"]),
+            Account.code.in_(["2110", "2120", "2125", "2130", "2140"]),
         ).all()
     )
     current_ratio = (current_assets / current_liab) if current_liab > 0.01 else 0.0
 
     # ─── 8-month sparklines for the 4 main KPIs ──────────────────────
     spark_months = [_shift_month(start_month, -i) for i in range(7, -1, -1)]
+    # 1120 is now a header — its descendants are 1121-1125. Including
+    # them ensures the cash sparkline keeps reading bank balances.
     cash_spark = [
-        round(_account_balance_as_of(company_id, ["1110", "1120"],
-                                      _month_range(m.year, m.month)[1]), 2)
+        round(_account_balance_as_of(
+            company_id,
+            ["1110", "1121", "1122", "1123", "1124", "1125"],
+            _month_range(m.year, m.month)[1]), 2)
         for m in spark_months
     ]
     profit_spark = [

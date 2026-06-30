@@ -87,16 +87,24 @@ def post_vendor_bill(bill, created_by=None):
 
     bill.recalc()
 
-    # Resolve funding-source account
+    # Resolve funding-source account.
+    # MARSOUD-COA-REBUILD — both 1120 (banks) and 2110 (AP) are now
+    # headers; we route to a real bank leaf for BANK, and to the
+    # vendor's own AP sub-account for ON_ACCOUNT.
     if bill.payment_method == VendorBillPaymentMethod.CASH:
         funding = get_account_by_code(bill.company_id, "1110")
         funding_label = "نقدي"
     elif bill.payment_method == VendorBillPaymentMethod.BANK:
-        funding = get_account_by_code(bill.company_id, "1120")
+        funding = None
+        for code in ("1124", "1121", "1122", "1123", "1125"):
+            funding = get_account_by_code(bill.company_id, code)
+            if funding:
+                break
         funding_label = "بنك"
     else:
-        funding = get_account_by_code(bill.company_id, "2110")
-        funding_label = "موردون دائنون"
+        from app.services.subsidiary import party_ap_account
+        funding = party_ap_account(bill)
+        funding_label = f"حساب المورد {bill.vendor.name if bill.vendor else ''}"
     if not funding:
         raise LedgerError("حساب التمويل غير موجود في شجرة الحسابات")
 
@@ -110,18 +118,23 @@ def post_vendor_bill(bill, created_by=None):
             "memo": f"{item.line_type.value}: {item.description}",
         })
 
-    # Input VAT: debit 2120 (VAT Payable) so it nets against output VAT from sales.
-    # The VAT report reads 2120 debits as "VAT paid to suppliers".
+    # MARSOUD-COA-REBUILD — input VAT (purchases) now posts to 1280
+    # "Input VAT (Recoverable)", an asset. Used to mix into 2120 which
+    # is the OUTPUT VAT liability — accounting bug fixed by the
+    # rebuild. VAT settlement reads 2120 (output) − 1280 (input) =
+    # net payable.
     tax_amount = float(bill.tax_amount or 0)
     if tax_amount > 0.001:
-        vat = get_account_by_code(bill.company_id, "2120")
+        vat = get_account_by_code(bill.company_id, "1280")
         if not vat:
-            raise LedgerError("حساب ضريبة القيمة المضافة (2120) غير موجود")
+            raise LedgerError(
+                "حساب ضريبة المدخلات (1280) غير موجود — راجع شجرة الحسابات"
+            )
         journal_lines.append({
             "account_id": vat.id,
             "debit": tax_amount,
             "credit": 0,
-            "memo": f"ضريبة القيمة المضافة على المشتريات — فاتورة {bill.number}",
+            "memo": f"ضريبة المدخلات على المشتريات — فاتورة {bill.number}",
         })
 
     journal_lines.append({
@@ -249,7 +262,9 @@ def record_bill_payment(bill, amount, payment_method_id=None, created_by=None):
         receiving_account = get_account_by_code(bill.company_id, "1110")
         method_label = "نقدي"
 
-    ap = get_account_by_code(bill.company_id, "2110")
+    # MARSOUD-COA-REBUILD — AP debit hits the vendor's own sub-account.
+    from app.services.subsidiary import party_ap_account
+    ap = party_ap_account(bill)
     if not receiving_account or not ap:
         raise LedgerError("حسابات النقدية / الموردين غير موجودة")
 

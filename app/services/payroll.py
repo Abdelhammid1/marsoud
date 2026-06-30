@@ -229,10 +229,14 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
         total_paid_cash += amount_paid
         total_accrued += accrued
 
+    # MARSOUD-COA-REBUILD — 2130 (Salaries Payable) is now a header.
+    # We credit each employee's own sub-account individually so the
+    # payable shows per-employee balances. Use salary_expense (5210)
+    # for the debit side as before.
+    from app.services.subsidiary import party_payroll_account
     salary_expense = get_account_by_code(company_id, "5210")
-    salary_payable = get_account_by_code(company_id, "2130")
     cash_acc = get_account_by_code(company_id, "1110")
-    if not salary_expense or not salary_payable or not cash_acc:
+    if not salary_expense or not cash_acc:
         raise LedgerError("حسابات الرواتب أو النقدية غير موجودة")
 
     journal_lines = [
@@ -245,11 +249,14 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
             "credit": round(total_paid_cash, 2),
             "memo": "صرف نقدي للموظفين",
         })
-    if total_accrued > 0.005:
+    # One credit line per accrued employee — each lands on the
+    # employee's sub-account under 2130.
+    for emp, _line, accrued in accruals_to_create:
+        emp_acct = party_payroll_account(emp)
         journal_lines.append({
-            "account_id": salary_payable.id, "debit": 0,
-            "credit": round(total_accrued, 2),
-            "memo": "رواتب مستحقة (لم تُصرف بعد)",
+            "account_id": emp_acct.id, "debit": 0,
+            "credit": round(accrued, 2),
+            "memo": f"راتب مستحق — {emp.name}",
         })
 
     entry = post_journal(
@@ -333,13 +340,17 @@ def terminate_employee(employee, reason, termination_date=None, notes=None):
 def settle_accrual(accrual, payment_method_account_code="1110", created_by=None):
     """Pay out an outstanding accrual to the employee.
 
-    Posts: Dr 2130 (Salaries Payable) / Cr cash (1110) or bank (1120).
-    Marks the accrual as settled and links the settlement journal entry.
+    Posts: Dr <employee's sub-account under 2130> / Cr cash (1110) or
+    bank (1124). Marks the accrual as settled and links the
+    settlement journal entry.
     """
     if accrual.is_settled:
         raise LedgerError("هذا المبلغ تم سداده مسبقاً")
     company_id = accrual.company_id
-    salary_payable = get_account_by_code(company_id, "2130")
+    # MARSOUD-COA-REBUILD — debit the employee's own sub-account,
+    # not the parent 2130 header.
+    from app.services.subsidiary import party_payroll_account
+    salary_payable = party_payroll_account(accrual.employee)
     cash_acc = get_account_by_code(company_id, payment_method_account_code)
     if not salary_payable or not cash_acc:
         raise LedgerError("حسابات السداد غير موجودة")

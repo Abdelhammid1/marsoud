@@ -42,6 +42,16 @@ def new():
             flash("الاسم مطلوب", "error")
             return render_template("vendors/form.html")
         db.session.add(v)
+        db.session.flush()
+        # MARSOUD-COA-REBUILD — open a sub-account under 2110 at create
+        # time so AP postings have a real leaf to land on.
+        try:
+            from app.services.subsidiary import ensure_vendor_account
+            ensure_vendor_account(v)
+        except Exception as e:  # noqa: BLE001
+            db.session.rollback()
+            flash(f"تعذّر إنشاء الحساب الفرعي للمورد: {e}", "error")
+            return render_template("vendors/form.html")
         db.session.commit()
         flash("تم إضافة المورد", "success")
         return redirect(url_for("vendors.index"))

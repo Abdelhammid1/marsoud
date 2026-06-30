@@ -64,8 +64,11 @@ class Employee(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now)
     # MARSOUD-51 — last 4 digits of bank account, shown in payslip "paid" box
     bank_account_last4 = db.Column(db.String(4))
+    # MARSOUD-COA-REBUILD — employee sub-account under 2130 (Salaries Payable).
+    account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=True)
 
     company = db.relationship("Company", backref=db.backref("employees", lazy="dynamic"))
+    account = db.relationship("Account", foreign_keys=[account_id])
     department = db.relationship("Department", foreign_keys=[department_id],
                                  backref=db.backref("members", lazy="dynamic"))
     manager = db.relationship("Employee", remote_side=[id], foreign_keys=[manager_id])

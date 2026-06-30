@@ -121,6 +121,11 @@ def new_employee():
             if not emp.email:
                 raise ValueError("البريد الإلكتروني مطلوب")
             db.session.add(emp)
+            db.session.flush()
+            # MARSOUD-COA-REBUILD — open the employee's sub-account under
+            # 2130 so payroll postings land per-employee from day 1.
+            from app.services.subsidiary import ensure_employee_account
+            ensure_employee_account(emp)
             db.session.commit()
             # HR-05 — give the new employee an empty balance row for every active leave type
             try:

@@ -18,7 +18,12 @@ def send_invoice_notification(invoice):
 
 def post_invoice_to_ledger(invoice, created_by=None):
     """Dr Accounts Receivable / Cr Revenue + Cr VAT Payable."""
-    ar = get_account_by_code(invoice.company_id, "1130")
+    # MARSOUD-COA-REBUILD — AR debit lands on the customer's own
+    # sub-account (auto-created the first time we need it) rather than
+    # the parent header. Without this we'd trip post_journal's
+    # is_postable guard because 1130 is now a header.
+    from app.services.subsidiary import party_ar_account
+    ar = party_ar_account(invoice)
     revenue = get_account_by_code(invoice.company_id, "4100")
     vat_payable = get_account_by_code(invoice.company_id, "2120")
     if not ar or not revenue:
@@ -159,12 +164,21 @@ def record_payment(invoice, amount, payment_date=None, method=None, payment_meth
         receiving_account = pm.account
         method_label = pm.name_ar or pm.name
     else:
-        # Legacy fallback: 'cash' or 'bank'
-        code = "1110" if (method or "cash") == "cash" else "1120"
-        receiving_account = get_account_by_code(invoice.company_id, code)
+        # Legacy fallback. 1120 (banks) is now a header — fall back to
+        # the first configured bank leaf (1121-1125) when nobody picked
+        # a payment method explicitly.
+        if (method or "cash") == "cash":
+            receiving_account = get_account_by_code(invoice.company_id, "1110")
+        else:
+            for code in ("1124", "1121", "1122", "1123", "1125"):
+                receiving_account = get_account_by_code(invoice.company_id, code)
+                if receiving_account:
+                    break
         method_label = method or "cash"
 
-    ar = get_account_by_code(invoice.company_id, "1130")
+    # MARSOUD-COA-REBUILD — AR credit lands on the customer's sub-account.
+    from app.services.subsidiary import party_ar_account
+    ar = party_ar_account(invoice)
     if not receiving_account or not ar:
         raise LedgerError("حسابات النقدية / العملاء غير موجودة")
 
@@ -318,14 +332,26 @@ def issue_refund(invoice, refund_type, amount=None, reason=None, created_by=None
             raise LedgerError("حدد قيمة الـ Credit Note")
         amount = float(amount)
 
-    revenue = get_account_by_code(invoice.company_id, "4100")
+    # MARSOUD-COA-REBUILD — refunds debit "Sales Returns & Allowances"
+    # (4300, contra-revenue) instead of debiting the revenue account
+    # directly. Same net effect on the P&L (revenue still goes down)
+    # but the return is visible as a separate line for the accountant.
+    sales_returns = get_account_by_code(invoice.company_id, "4300")
+    if not sales_returns:
+        raise LedgerError(
+            "حساب مردودات المبيعات (4300) غير موجود — راجع شجرة الحسابات"
+        )
     vat_payable = get_account_by_code(invoice.company_id, "2120")
-    ar = get_account_by_code(invoice.company_id, "1130")
+    # MARSOUD-COA-REBUILD — AR side of the refund reversal lands on
+    # the customer's own sub-account (matches the original sale).
+    from app.services.subsidiary import party_ar_account
+    ar = party_ar_account(invoice)
     cash = get_account_by_code(invoice.company_id, "1110")
 
-    # Split the refund amount across Revenue (net) and VAT Payable (tax)
-    # using the same ratio as the original invoice. This mirrors the original
-    # posting (Cr Revenue=subtotal + Cr VAT=tax) so VAT is reclaimed correctly.
+    # Split the refund amount across Sales-Returns (net) and Output VAT
+    # (tax) using the same ratio as the original invoice — mirrors the
+    # original posting (Cr Revenue=subtotal + Cr VAT=tax) so VAT is
+    # reclaimed correctly.
     invoice_total = float(invoice.total or 0)
     invoice_tax = float(invoice.tax_amount or 0)
     if invoice_total > 0 and invoice_tax > 0 and vat_payable:
@@ -336,13 +362,16 @@ def issue_refund(invoice, refund_type, amount=None, reason=None, created_by=None
         refund_tax = 0.0
         refund_net = amount
 
-    debit_lines = [{"account_id": revenue.id, "debit": refund_net, "credit": 0, "memo": "عكس إيراد"}]
+    debit_lines = [{
+        "account_id": sales_returns.id, "debit": refund_net,
+        "credit": 0, "memo": "مردودات مبيعات",
+    }]
     if refund_tax > 0:
         debit_lines.append({
             "account_id": vat_payable.id,
             "debit": refund_tax,
             "credit": 0,
-            "memo": "عكس ضريبة قيمة مضافة",
+            "memo": "عكس ضريبة المخرجات",
         })
 
     if refund_type == RefundType.CREDIT_NOTE:

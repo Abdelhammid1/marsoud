@@ -11,22 +11,38 @@ from app.models import FixedAsset, DepreciationEntry
 from app.services.ledger import post_journal, get_account_by_code, LedgerError
 
 
-# Funding source code → CoA account code lookup
+# MARSOUD-COA-REBUILD — 1120 (banks) and 2110 (AP) are now headers and
+# refuse posting. We route to leaves the new tree guarantees exist:
+#   bank   → first available bank account (1124 default)
+#   credit → 2115 Notes Payable (a leaf — vendor sub-accounts are only
+#            wired into the AP flow because vendor identity is required
+#            and FixedAsset has no vendor concept)
 FUNDING_ACCOUNT_CODES = {
     "cash": "1110",
-    "bank": "1120",
-    "credit": "2110",  # Accounts Payable
+    "bank_fallback_chain": ("1124", "1121", "1122", "1123", "1125"),
+    "credit": "2115",
 }
 
 
 def post_asset_purchase(asset, funding="cash", created_by=None):
-    """Dr Fixed Asset / Cr Cash (or Bank, or Accounts Payable)."""
+    """Dr Fixed Asset / Cr Cash (or Bank, or Notes Payable)."""
     if float(asset.cost or 0) <= 0:
         return None
-    source_code = FUNDING_ACCOUNT_CODES.get(funding, "1110")
-    source = get_account_by_code(asset.company_id, source_code)
-    if not source:
-        raise LedgerError(f"حساب التمويل ({source_code}) غير موجود")
+    if funding == "bank":
+        source = None
+        for code in FUNDING_ACCOUNT_CODES["bank_fallback_chain"]:
+            source = get_account_by_code(asset.company_id, code)
+            if source:
+                break
+        if not source:
+            raise LedgerError(
+                "لا يوجد حساب بنك مفعّل — أضف بنكاً تحت 1120 أولاً"
+            )
+    else:
+        source_code = FUNDING_ACCOUNT_CODES.get(funding, "1110")
+        source = get_account_by_code(asset.company_id, source_code)
+        if not source:
+            raise LedgerError(f"حساب التمويل ({source_code}) غير موجود")
 
     return post_journal(
         company_id=asset.company_id,

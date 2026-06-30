@@ -71,6 +71,16 @@ def new():
             flash("الاسم مطلوب", "error")
             return render_template("customers/form.html", customer=None, reps=reps)
         db.session.add(c)
+        db.session.flush()
+        # MARSOUD-COA-REBUILD — open a sub-account under 1130 at create
+        # time so the customer is visible in the trial balance from day 1.
+        try:
+            from app.services.subsidiary import ensure_customer_account
+            ensure_customer_account(c)
+        except Exception as e:  # noqa: BLE001
+            db.session.rollback()
+            flash(f"تعذّر إنشاء الحساب الفرعي للعميل: {e}", "error")
+            return render_template("customers/form.html", customer=None, reps=reps)
         db.session.commit()
         flash("تم إضافة العميل", "success")
         return redirect(url_for("customers.index"))

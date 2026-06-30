@@ -465,4 +465,24 @@ def create_app(config_class=Config):
             pass
         return response
 
+    # MARSOUD-COA-REBUILD — CLI: flask check-coa
+    @app.cli.command("check-coa")
+    def _check_coa():
+        """Report missing required accounts across every company."""
+        from app.models import Company
+        from app.services.coa_guard import verify_coa
+        any_missing = False
+        for c in Company.query.order_by(Company.id).all():
+            missing = verify_coa(c.id)
+            if missing:
+                any_missing = True
+                print(
+                    f"  ❌ company #{c.id} {c.name!r}: missing "
+                    f"{', '.join(missing)}"
+                )
+            else:
+                print(f"  ✓ company #{c.id} {c.name!r}: all present")
+        if not any_missing:
+            print("All companies have a complete CoA.")
+
     return app
