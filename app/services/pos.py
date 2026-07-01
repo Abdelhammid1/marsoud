@@ -254,7 +254,7 @@ def void_pos_order(invoice, *, reason, actor_id):
             raise POSError(str(e))
 
     invoice.status = InvoiceStatus.VOIDED
-    invoice.voided_at = datetime.now()
+    invoice.voided_at = datetime.utcnow()
     invoice.voided_by_id = actor_id
     invoice.void_reason = reason.strip()
     invoice.paid_amount = 0

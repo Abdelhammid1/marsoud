@@ -775,7 +775,7 @@ def stats():
     days_map = {"7": 7, "30": 30, "90": 90}
     since = None
     if range_arg in days_map:
-        since = datetime.now() - timedelta(days=days_map[range_arg])
+        since = datetime.utcnow() - timedelta(days=days_map[range_arg])
 
     data = team_stats(cid, since=since)
     rows = data["rows"]

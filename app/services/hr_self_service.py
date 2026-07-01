@@ -125,7 +125,7 @@ def activate_user(user, *, company_id, actor_id=None):
                "role": "employee", "kind": "activation",
                "user_id": user.id}
     token = generate_invite_token(payload)
-    expires = datetime.now() + timedelta(days=14)
+    expires = datetime.utcnow() + timedelta(days=14)
     inv = Invitation(
         company_id=company_id, email=user.email,
         role="employee", token=token,

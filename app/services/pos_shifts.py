@@ -51,7 +51,7 @@ def close_shift(shift, *, closing_cash, notes=None):
     shift.variance = variance
     if notes:
         shift.notes = (shift.notes or "") + "\n" + notes
-    shift.closed_at = datetime.now()
+    shift.closed_at = datetime.utcnow()
     shift.status = CashierShiftStatus.CLOSED.value
     db.session.commit()
     return shift

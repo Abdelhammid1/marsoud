@@ -132,7 +132,7 @@ def post_transfer(transfer, *, posted_by_id=None):
         raise TransferError(str(e))
 
     transfer.status = StockTransferStatus.POSTED.value
-    transfer.posted_at = datetime.now()
+    transfer.posted_at = datetime.utcnow()
     transfer.posted_by_id = posted_by_id
     db.session.commit()
     return transfer
@@ -147,7 +147,7 @@ def cancel_transfer(transfer, *, cancelled_by_id=None, reason=None):
             "فقط المسودة قابلة للإلغاء. لتراجع تحويل منفّذ، أنشئ تحويل عكسي."
         )
     transfer.status = StockTransferStatus.CANCELLED.value
-    transfer.cancelled_at = datetime.now()
+    transfer.cancelled_at = datetime.utcnow()
     transfer.cancelled_by_id = cancelled_by_id
     transfer.cancel_reason = (reason or "").strip() or None
     db.session.commit()

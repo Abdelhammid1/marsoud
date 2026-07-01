@@ -323,7 +323,7 @@ def apply_inline_edit(task, *, title=None, description=None,
             old = task.status
             task.status = s_enum
             if s_enum == TaskStatus.DONE:
-                task.completed_at = datetime.now()
+                task.completed_at = datetime.utcnow()
             else:
                 task.completed_at = None
             # Notify assignees (except actor) about status changes.
@@ -452,7 +452,7 @@ def team_stats(company_id, since=None):
       }
     """
     today = date.today()
-    now = datetime.now()
+    now = datetime.utcnow()
     cutoff_30d = now - timedelta(days=30)
     members = db.session.execute(
         user_companies.select().where(user_companies.c.company_id == company_id)
@@ -633,7 +633,7 @@ def mark_all_read(user_id, company_id):
     Notification.query.filter_by(
         user_id=user_id, company_id=company_id
     ).filter(Notification.read_at.is_(None)).update(
-        {"read_at": datetime.now()}, synchronize_session=False
+        {"read_at": datetime.utcnow()}, synchronize_session=False
     )
     db.session.commit()
 
@@ -643,7 +643,7 @@ def mark_read(notification_id, user_id):
     if not n or n.user_id != user_id:
         return None
     if not n.read_at:
-        n.read_at = datetime.now()
+        n.read_at = datetime.utcnow()
         db.session.commit()
     return n
 

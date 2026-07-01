@@ -293,7 +293,7 @@ def delete(bill_id):
             "error",
         )
         return redirect(url_for("vendor_bills.view", bill_id=bill.id))
-    bill.deleted_at = datetime.now()
+    bill.deleted_at = datetime.utcnow()
     bill.deleted_by_id = current_user.id
     db.session.commit()
     flash(f"تم حذف الفاتورة {bill.number}", "success")

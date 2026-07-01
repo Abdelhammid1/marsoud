@@ -416,7 +416,7 @@ def delete(lead_id):
             "error",
         )
         return redirect(url_for("leads.detail", lead_id=lead.id))
-    lead.deleted_at = datetime.now()
+    lead.deleted_at = datetime.utcnow()
     lead.deleted_by_id = current_user.id
     db.session.commit()
     flash(f"تم حذف العميل المحتمل: {lead.client_name}", "success")
