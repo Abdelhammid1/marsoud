@@ -62,6 +62,22 @@ def post_invoice_to_ledger(invoice, created_by=None):
     # error (e.g. overdraw) rolls both back together.
     _apply_inventory_side_for_invoice(invoice, entry, created_by)
 
+    # MARSOUD-COMM-ACCRUAL — accrue the sales-rep commission the
+    # moment the invoice is posted (dated invoice.issue_date), so
+    # revenue + commission expense land in the same period. This
+    # replaces the old behaviour of accruing at payment time, which
+    # split them across months and broke monthly profit closes.
+    try:
+        from app.services.sales_commissions import (
+            record_commission_accrual_for_invoice,
+        )
+        record_commission_accrual_for_invoice(invoice, created_by=created_by)
+    except Exception:
+        import logging
+        logging.getLogger("ledgeros.invoicing").exception(
+            "Failed to accrue commission for invoice %s", invoice.number,
+        )
+
     # MARSOUD-ACTLOG-01 — record the invoice posting as a CREATE action.
     try:
         from app.services.activity import log_action

@@ -64,47 +64,75 @@ def compute_taxable_base(invoice, payment_amount):
     return float(payment_amount) * (subtotal / total)
 
 
-def record_commission_for_payment(invoice, payment, payment_amount,
-                                  *, payment_date=None, created_by=None):
-    """Hook called from record_payment(). Idempotent — does nothing
-    when the customer has no sales rep configured."""
+def record_commission_accrual_for_invoice(invoice, *, created_by=None):
+    """MARSOUD-COMM-ACCRUAL — accrue the commission the MOMENT the
+    invoice is posted, NOT when the customer pays. This aligns
+    revenue + commission expense in the same period so monthly profit
+    closes cleanly and the past never gets re-dated.
+
+    Journal:
+      Dr  5280 Sales Commissions Expense   full commission on subtotal
+      Cr  2150 Sales Commissions Payable   full commission on subtotal
+
+    Both lines dated invoice.issue_date; SalesCommission row's period
+    keyed to invoice's month; status = UNPAID (accrued, not yet paid to
+    the rep). The later settlement (via settle_commissions_for_employee
+    at payroll) just flips Dr 2150 / Cr Cash — a liability discharge,
+    not a new expense.
+
+    Idempotent — if a POSITIVE commission row already exists for this
+    invoice with a non-carry-forward status, this function is a no-op
+    so post_invoice_to_ledger being called twice (e.g. during backfill)
+    doesn't create duplicates.
+    """
     rep_id, rate = _commission_inputs(invoice)
     if not rep_id or not rate:
         return None
 
-    base = compute_taxable_base(invoice, payment_amount)
+    # Idempotency: skip if the invoice already has a positive accrual row.
+    existing_positive = SalesCommission.query.filter(
+        SalesCommission.invoice_id == invoice.id,
+        SalesCommission.is_carry_forward.is_(False),
+        SalesCommission.amount > 0,
+    ).first()
+    if existing_positive:
+        return existing_positive
+
+    # Base = full pre-tax subtotal (not payment-derived — this is
+    # accrual, not cash basis).
+    base = float(invoice.subtotal or 0)
     if base <= 0:
         return None
     commission_amount = round(base * rate / 100, 4)
     if commission_amount <= 0:
         return None
 
-    # Post Dr 5280 / Cr 2150 — wrapped so a missing account doesn't
-    # crash the payment flow (we log + skip).
     exp_acct = get_account_by_code(invoice.company_id, "5280")
     liab_acct = get_account_by_code(invoice.company_id, "2150")
     if not exp_acct or not liab_acct:
         logger.warning(
             "[COMMISSION-NO-ACCT] company=%s missing 5280/2150 — "
-            "commission row NOT created for invoice %s (rep=%s, base=%.2f). "
-            "Run the migration ab_2e7c4a9d5f1 to seed the accounts.",
+            "commission row NOT created for invoice %s (rep=%s, base=%.2f).",
             invoice.company_id, invoice.number, rep_id, base,
         )
         return None
 
-    pay_date = payment_date or date.today()
+    inv_date = invoice.issue_date or date.today()
     try:
         entry = post_journal(
             company_id=invoice.company_id,
             description=(
-                f"عمولة مبيعات — {invoice.customer.name if invoice.customer else 'زبون'} "
+                f"استحقاق عمولة مبيعات — "
+                f"{invoice.customer.name if invoice.customer else 'زبون'} "
                 f"— فاتورة #{invoice.number}"
             ),
             lines=[
-                {"account_id": exp_acct.id, "debit": commission_amount, "credit": 0},
-                {"account_id": liab_acct.id, "debit": 0, "credit": commission_amount},
+                {"account_id": exp_acct.id, "debit": commission_amount, "credit": 0,
+                 "memo": f"استحقاق عمولة على فاتورة {invoice.number}"},
+                {"account_id": liab_acct.id, "debit": 0, "credit": commission_amount,
+                 "memo": "التزام تجاه المندوب"},
             ],
-            entry_date=pay_date,
+            entry_date=inv_date,
             reference=f"COMM-{invoice.number}",
             currency=invoice.currency,
             created_by=created_by,
@@ -112,9 +140,6 @@ def record_commission_for_payment(invoice, payment, payment_amount,
             source_id=invoice.id,
         )
     except LedgerError as e:
-        # Don't propagate — payment must still succeed even if commission
-        # posting trips on something. The commission row simply doesn't
-        # get inserted.
         logger.exception(
             "[COMMISSION-POST-FAIL] %s — invoice=%s rep=%s", e,
             invoice.number, rep_id,
@@ -126,12 +151,12 @@ def record_commission_for_payment(invoice, payment, payment_amount,
         sales_rep_id=rep_id,
         customer_id=invoice.customer_id,
         invoice_id=invoice.id,
-        payment_id=payment.id if payment else None,
+        payment_id=None,   # accrual isn't tied to a specific payment
         taxable_base=base,
         amount=commission_amount,
         commission_rate=rate,
-        period_year=pay_date.year,
-        period_month=pay_date.month,
+        period_year=inv_date.year,
+        period_month=inv_date.month,
         status="UNPAID",
         journal_entry_id=entry.id,
         is_carry_forward=False,
@@ -139,6 +164,34 @@ def record_commission_for_payment(invoice, payment, payment_amount,
     db.session.add(row)
     db.session.flush()
     return row
+
+
+def record_commission_for_payment(invoice, payment, payment_amount,
+                                  *, payment_date=None, created_by=None):
+    """DEPRECATED (MARSOUD-COMM-ACCRUAL): commission is now accrued at
+    invoice posting time via record_commission_accrual_for_invoice.
+    This function is kept as a no-op so existing callers don't need to
+    be updated in a coordinated way, and so payment recording never
+    accidentally re-dates a commission to the payment date.
+
+    Any call that finds no accrual row (defensive path — e.g. an old
+    invoice posted before the ticket landed) will accrue it retroactively
+    at the invoice's date, NOT the payment date.
+    """
+    # Defensive: if the invoice has no positive accrual row yet (legacy
+    # data pre-ticket, or manual imports), backfill the accrual now at
+    # the INVOICE'S date so we never leak the payment date onto the
+    # commission's period.
+    existing = SalesCommission.query.filter(
+        SalesCommission.invoice_id == invoice.id,
+        SalesCommission.is_carry_forward.is_(False),
+        SalesCommission.amount > 0,
+    ).first()
+    if existing:
+        return existing
+    return record_commission_accrual_for_invoice(
+        invoice, created_by=created_by,
+    )
 
 
 # ─── Phase B: refund handling ──────────────────────────────────────

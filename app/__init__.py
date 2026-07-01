@@ -473,6 +473,12 @@ def create_app(config_class=Config):
     from scripts.backfill_party_ledger import backfill_cli
     app.cli.add_command(backfill_cli)
 
+    # MARSOUD-COMM-ACCRUAL — CLI: fix commission dates
+    from scripts.backfill_commission_accrual import (
+        backfill_cli as backfill_commission_cli,
+    )
+    app.cli.add_command(backfill_commission_cli)
+
     # MARSOUD-COA-REBUILD — CLI: flask check-coa
     @app.cli.command("check-coa")
     def _check_coa():
