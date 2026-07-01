@@ -46,15 +46,40 @@
     </div>
     <div class="space-y-2 mb-4">
     {% for m in project.milestones %}
-      <div class="flex items-center justify-between py-2 px-3 bg-slate-50 rounded-lg">
-        <div>
-          {% if m.is_done %}<span class="text-emerald-600">✓</span>{% else %}<span class="text-slate-400">○</span>{% endif %}
-          <span class="font-semibold {% if m.is_done %}line-through text-slate-400{% endif %}">{{ m.name }}</span>
-          {% if m.target_date %}<span class="text-xs text-slate-500 mr-2">— {{ m.target_date.isoformat() }}</span>{% endif %}
+      <div class="py-2 px-3 bg-slate-50 rounded-lg">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex-1 min-w-0">
+            {% if m.is_done %}<span class="text-emerald-600">✓</span>{% else %}<span class="text-slate-400">○</span>{% endif %}
+            <span class="font-semibold {% if m.is_done %}line-through text-slate-400{% endif %}">{{ m.name }}</span>
+            {% if m.target_date %}<span class="text-xs text-slate-500 mr-2">— {{ m.target_date.isoformat() }}</span>{% endif %}
+          </div>
+          {% if can_edit %}
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <form method="POST" action="{{ url_for('projects.milestone_toggle', project_id=project.id, m_id=m.id) }}">
+              <button type="submit" class="text-xs text-brand-600 hover:underline">{{ 'إلغاء الإكمال' if m.is_done else 'تأشير كمكتملة' }}</button>
+            </form>
+            <button type="button" onclick="_toggleMsEdit({{ m.id }})"
+                    class="text-xs text-slate-500 hover:text-navy-900 hover:underline">✎ تعديل</button>
+            <form method="POST" action="{{ url_for('projects.milestone_delete', project_id=project.id, m_id=m.id) }}"
+                  onsubmit="return confirm('حذف المرحلة \'{{ m.name|e }}\'؟ المهام المرتبطة بها هترجع بدون مرحلة.');">
+              <button type="submit" class="text-xs text-rose-600 hover:underline">🗑 حذف</button>
+            </form>
+          </div>
+          {% endif %}
         </div>
+        {# Inline edit form — hidden by default #}
         {% if can_edit %}
-        <form method="POST" action="{{ url_for('projects.milestone_toggle', project_id=project.id, m_id=m.id) }}">
-          <button type="submit" class="text-xs text-brand-600 hover:underline">{{ 'إلغاء الإكمال' if m.is_done else 'تأشير كمكتملة' }}</button>
+        <form method="POST" action="{{ url_for('projects.milestone_edit', project_id=project.id, m_id=m.id) }}"
+              id="ms-edit-{{ m.id }}" style="display:none"
+              class="mt-2 flex gap-2 items-center">
+          <input type="text" name="name" value="{{ m.name }}" required
+                  class="input text-sm flex-1">
+          <input type="date" name="target_date"
+                  value="{{ m.target_date.isoformat() if m.target_date else '' }}"
+                  class="input text-sm" style="width:11rem">
+          <button type="submit" class="btn-primary text-xs">حفظ</button>
+          <button type="button" onclick="_toggleMsEdit({{ m.id }})"
+                  class="text-xs text-slate-500 hover:underline">إلغاء</button>
         </form>
         {% endif %}
       </div>
@@ -62,6 +87,12 @@
       <div class="text-sm text-slate-400">لا توجد مراحل بعد.</div>
     {% endfor %}
     </div>
+    <script>
+    function _toggleMsEdit(id) {
+      const f = document.getElementById("ms-edit-" + id);
+      if (f) f.style.display = (f.style.display === "none") ? "" : "none";
+    }
+    </script>
     {% if can_edit %}
     <form method="POST" action="{{ url_for('projects.milestone_new', project_id=project.id) }}" class="flex gap-2">
       <input type="text" name="name" placeholder="اسم المرحلة" required class="input text-sm">

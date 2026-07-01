@@ -305,6 +305,54 @@ def milestone_toggle(project_id, m_id):
     return redirect(url_for("projects.detail", project_id=p.id))
 
 
+@bp.route("/<int:project_id>/milestones/<int:m_id>/edit", methods=["POST"])
+@login_required
+@require_permission("projects.manage")
+def milestone_edit(project_id, m_id):
+    """Edit an existing milestone's name and/or target date. Tasks linked
+    to this milestone stay linked (milestone_id doesn't change)."""
+    p = _project_or_403(project_id)
+    if not _user_can_edit_project(p):
+        abort(403)
+    m = db.session.get(Milestone, m_id)
+    if not m or m.project_id != p.id:
+        flash("المرحلة غير موجودة", "error")
+        return redirect(url_for("projects.detail", project_id=p.id))
+    new_name = (request.form.get("name") or "").strip()
+    if not new_name:
+        flash("اسم المرحلة مطلوب", "error")
+        return redirect(url_for("projects.detail", project_id=p.id))
+    m.name = new_name
+    m.target_date = _parse_date(request.form.get("target_date"))
+    db.session.commit()
+    flash(f"تم حفظ التعديلات على: {m.name}", "success")
+    return redirect(url_for("projects.detail", project_id=p.id))
+
+
+@bp.route("/<int:project_id>/milestones/<int:m_id>/delete", methods=["POST"])
+@login_required
+@require_permission("projects.manage")
+def milestone_delete(project_id, m_id):
+    """Delete a milestone. Any tasks linked to it are UN-linked
+    (milestone_id → NULL), NOT deleted — the tasks live on."""
+    p = _project_or_403(project_id)
+    if not _user_can_edit_project(p):
+        abort(403)
+    m = db.session.get(Milestone, m_id)
+    if not m or m.project_id != p.id:
+        flash("المرحلة غير موجودة", "error")
+        return redirect(url_for("projects.detail", project_id=p.id))
+    # Un-link tasks (Task has milestone_id nullable)
+    from app.models import Task
+    Task.query.filter_by(milestone_id=m.id).update({"milestone_id": None})
+    name = m.name
+    db.session.delete(m)
+    db.session.commit()
+    flash(f"تم حذف المرحلة: {name} — المهام المرتبطة بها بقيت من غير مرحلة.",
+          "success")
+    return redirect(url_for("projects.detail", project_id=p.id))
+
+
 # ─── Members ─────────────────────────────────────────────────────────────
 @bp.route("/<int:project_id>/members/add", methods=["POST"])
 @login_required
