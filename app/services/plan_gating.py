@@ -93,30 +93,46 @@ def plan_allows(action, company):
     return module in plan.modules
 
 
-# ─── MARSOUD-58 — per-section sub-item catalog ─────────────────────────
-# Section keys map to the 7 sidebar sections from MARSOUD-56. Each entry
-# lists the sub-items (endpoint, label, icon) the section can contain.
-# This is the source of truth for the /admin/plans nested-checkbox UI.
+# ─── MARSOUD-58 / MARSOUD-PERM-EXPAND — per-section sub-item catalog ───
+# Sections mirror the 9 sidebar sections currently rendered by base.html.
+# Each entry lists the sub-items (endpoint, label, icon) the section can
+# contain. This is the source of truth for the /admin/plans nested-
+# checkbox UI, so super-admin can toggle any item on/off per package.
 SUB_ITEM_CATALOG = {
     "main": [
         ("dashboard.index", "لوحة المعلومات", "📊"),
+    ],
+    "accounting": [
+        ("journals.index", "القيود اليومية", "📒"),
+        ("accounts.index", "دليل الحسابات", "🌳"),
+        ("assets.index", "الأصول الثابتة", "🏗️"),
+        ("reports.index", "التقارير المالية", "📑"),
+        ("party_ledger.index", "كشف حساب طرف", "📒"),
     ],
     "sales": [
         ("pos.index", "نقطة البيع", "🛒"),
         ("invoices.index", "الفواتير", "🧾"),
         ("customers.index", "العملاء", "👥"),
-        ("products.index", "المنتجات والخدمات", "📦"),
     ],
-    "inventory_purchases": [
-        ("inventory.index", "المخزون", "📊"),
-        ("inventory.warehouses", "المخازن", "🏬"),
+    "purchases": [
         ("vendor_bills.index", "فواتير الموردين", "📥"),
         ("recurring_bills.index", "الفواتير المتكررة", "🔁"),
         ("forecast.index", "الفواتير الجايّة", "📅"),
         ("vendors.index", "الموردين", "🏢"),
     ],
+    "inventory": [
+        ("inventory.index", "المخزون", "📊"),
+        ("inventory.warehouses", "المخازن", "🏬"),
+        ("products.index", "المنتجات والخدمات", "🏷️"),
+    ],
     "crm": [
         ("leads.index", "Leads", "🎯"),
+        ("crm.campaigns_index", "الحملات التسويقية", "🎯"),
+        ("crm.activities_index", "الأنشطة والمتابعات", "📅"),
+        ("crm.contacts_index", "جهات الاتصال", "👥"),
+        ("crm.analytics", "تحليلات CRM", "📈"),
+    ],
+    "workflow": [
         ("tasks.index", "المهام", "✅"),
         ("projects.index", "المشاريع", "📂"),
         ("calendar.index", "التقويم", "📅"),
@@ -127,14 +143,11 @@ SUB_ITEM_CATALOG = {
         ("hr.attendance", "الحضور والإجازات", "📅"),
         ("hr_ss.index", "حسابات الموظفين", "🔑"),
     ],
-    "accounting": [
-        ("journals.index", "القيود اليومية", "📒"),
-        ("accounts.index", "دليل الحسابات", "🌳"),
-        ("assets.index", "الأصول الثابتة", "🏗️"),
-        ("reports.index", "التقارير المالية", "📑"),
-    ],
     "settings": [
         ("settings_roles.index", "المستخدمين والأدوار", "🔐"),
+        ("settings_api_tokens.index", "مفاتيح الـ API", "🔑"),
+        ("settings_activity.index", "نشاط الموظفين", "👣"),
+        ("settings_backup.index", "نسخة احتياطية (Excel)", "📥"),
         ("payment_methods.index", "طرق الدفع", "💳"),
         ("companies.edit", "بيانات الشركة", "🏢"),
         ("audit_log.index", "سجل التدقيق", "🔍"),
@@ -143,11 +156,13 @@ SUB_ITEM_CATALOG = {
 
 SECTION_LABEL_AR = {
     "main": "الرئيسية",
+    "accounting": "المالية والمحاسبة",
     "sales": "المبيعات",
-    "inventory_purchases": "المخزون والمشتريات",
+    "purchases": "المشتريات",
+    "inventory": "المخزون",
     "crm": "العملاء المحتملين (CRM)",
+    "workflow": "إدارة العمل",
     "hr": "الموارد البشرية",
-    "accounting": "المحاسبة والتقارير",
     "settings": "الإعدادات والنظام",
 }
 
@@ -155,11 +170,13 @@ SECTION_LABEL_AR = {
 # means "section is always available regardless of plan".
 SECTION_REQUIRES_MODULES = {
     "main": [],
-    "sales": ["sales"],
-    "inventory_purchases": ["inventory", "purchases"],
-    "crm": ["crm"],
-    "hr": ["hr"],
     "accounting": ["accounting", "reports"],
+    "sales": ["sales"],
+    "purchases": ["purchases"],
+    "inventory": ["inventory"],
+    "crm": ["crm"],
+    "workflow": ["crm"],
+    "hr": ["hr"],
     "settings": [],
 }
 

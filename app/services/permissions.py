@@ -116,6 +116,27 @@ P = {
 
     "reports.view":         {"owner", "admin", "accountant", "ceo", "viewer"},
     "reports.export":       {"owner", "admin", "accountant", "ceo", "viewer"},
+
+    # ─── MARSOUD-PERM-EXPAND — per-endpoint permissions for new sidebar
+    # items. Defaults deliberately mirror the umbrella permission (whose
+    # grants stay unchanged), and each new code is IMPLIED by its
+    # umbrella below so existing roles keep working without a data
+    # migration. Owners who want fine-grained control can now toggle
+    # them individually from the Roles page.
+
+    # CRM sub-items (default = same roles as leads.view)
+    "crm.campaigns.view":   {"owner", "admin", "ceo", "sales_manager", "sales_rep"},
+    "crm.activities.view":  {"owner", "admin", "ceo", "sales_manager", "sales_rep"},
+    "crm.contacts.view":    {"owner", "admin", "ceo", "sales_manager", "sales_rep"},
+    "crm.analytics.view":   {"owner", "admin", "ceo", "sales_manager"},
+
+    # Party ledger (default = same roles as reports.view)
+    "party_ledger.view":    {"owner", "admin", "accountant", "ceo", "viewer"},
+
+    # Owner-level settings pages (default = same roles as users.manage)
+    "api_tokens.manage":    {"owner", "admin"},
+    "activity_log.view":    {"owner", "admin"},
+    "backup.download":      {"owner", "admin"},
 }
 
 ALL_ROLES = [
@@ -201,6 +222,17 @@ _IMPLIES = {
     # accountants editing customers don't need a second checkbox.
     "projects.view": "projects.view_all",
     "customers.view": "partners.manage",
+    # MARSOUD-PERM-EXPAND — new per-endpoint permissions inherit from
+    # their umbrella so existing roles keep working before any re-seed.
+    # e.g. anyone with leads.view automatically has crm.campaigns.view.
+    "crm.campaigns.view":  "leads.view",
+    "crm.activities.view": "leads.view",
+    "crm.contacts.view":   "leads.view",
+    "crm.analytics.view":  "leads.view",
+    "party_ledger.view":   "reports.view",
+    "api_tokens.manage":   "users.manage",
+    "activity_log.view":   "users.manage",
+    "backup.download":     "users.manage",
 }
 
 

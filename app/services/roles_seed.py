@@ -89,6 +89,20 @@ PERMISSION_CATALOG = {
     "company.edit":         ("النظام", "إعدادات الشركة", "edit"),
     "company.create":       ("النظام", "إنشاء شركة جديدة", "add"),
     "agent.use":            ("النظام", "المحاسب الذكي (AI)", "run"),
+
+    # ─── MARSOUD-PERM-EXPAND — new sidebar items (per-endpoint) ─────────
+    # These live on top of the umbrella permissions above and are IMPLIED
+    # by them (see _IMPLIES in permissions.py), so ticking the umbrella
+    # is enough — owners only need these entries when they want to
+    # RESTRICT a specific endpoint without touching the umbrella.
+    "crm.campaigns.view":   ("العمليات والمبيعات", "CRM: الحملات التسويقية", "view"),
+    "crm.activities.view":  ("العمليات والمبيعات", "CRM: الأنشطة والمتابعات", "view"),
+    "crm.contacts.view":    ("العمليات والمبيعات", "CRM: جهات الاتصال", "view"),
+    "crm.analytics.view":   ("العمليات والمبيعات", "CRM: تحليلات المسار البيعي", "view"),
+    "party_ledger.view":    ("المالية والمحاسبة", "كشف حساب طرف (عميل/مورد/موظف)", "view"),
+    "api_tokens.manage":    ("النظام", "مفاتيح الـ API: إدارة", "edit"),
+    "activity_log.view":    ("النظام", "سجل نشاط الموظفين", "view"),
+    "backup.download":      ("النظام", "نسخة احتياطية (Excel)", "run"),
 }
 
 
