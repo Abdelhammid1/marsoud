@@ -170,6 +170,11 @@ tailwind.config = {
     main .grid.grid-cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     main .grid.grid-cols-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     main .grid.grid-cols-5 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+    /* MARSOUD-MOBILE-FIX — grid-cols-6 and grid-cols-7 (used by the
+       leads Kanban stat row + admin audit form + companies plan
+       overview) were crushing to 40-50px columns on phone. */
+    main .grid.grid-cols-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    main .grid.grid-cols-7 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 </style>
 {% block head %}{% endblock %}

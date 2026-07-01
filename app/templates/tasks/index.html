@@ -188,9 +188,10 @@
   <button type="submit" class="btn-primary text-sm">تطبيق</button>
 </form>
 
-<div class="grid grid-cols-5 gap-3">
+{# MARSOUD-MOBILE-FIX — horizontal-scroll on mobile, grid on lg+ #}
+<div class="flex lg:grid lg:grid-cols-5 gap-3 overflow-x-auto lg:overflow-visible pb-2 snap-x snap-mandatory lg:snap-none -mx-3 px-3 lg:mx-0 lg:px-0">
   {% for s in kanban %}
-  <div class="bg-slate-50 rounded-lg p-3">
+  <div class="bg-slate-50 rounded-lg p-3 flex-shrink-0 w-[80vw] max-w-[280px] lg:w-auto lg:max-w-none snap-start">
     <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 gap-2">
       <span class="badge {{ s.badge_class }} text-xs">{{ s.label_ar }}</span>
       <div class="flex items-center gap-2">

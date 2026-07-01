@@ -10,7 +10,7 @@
 </div>
 
 {# ─── Headline KPIs ─── #}
-<div class="grid grid-cols-4 gap-3 mb-4">
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
   <div class="card p-4 text-center">
     <div class="text-xs text-slate-500">إجمالي Leads</div>
     <div class="text-3xl font-bold text-navy-900 font-mono">{{ total_leads }}</div>
@@ -60,7 +60,7 @@
 </div>
 
 {# ─── Campaign performance ─── #}
-<div class="grid grid-cols-2 gap-3 mb-4">
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
   <div class="card p-6">
     <h3 class="font-bold text-navy-900 mb-3">🎯 أداء الحملات</h3>
     {% if campaign_stats %}
