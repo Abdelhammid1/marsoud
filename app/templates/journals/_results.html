@@ -22,7 +22,7 @@
   <thead><tr>
     <th class="w-10"><input type="checkbox" id="select-all" onchange="toggleAllRows(this)" class="rounded text-brand-600"></th>
     <th>الرقم</th><th>التاريخ</th><th>الوصف</th><th>النوع</th><th>المرجع</th>
-    <th class="text-left">المدين</th><th class="text-left">الدائن</th><th></th>
+    <th class="text-right">المدين</th><th class="text-right">الدائن</th><th></th>
   </tr></thead>
   <tbody>
     {% for e in entries %}
@@ -52,8 +52,8 @@
         {% else %}<span class="badge bg-slate-50 text-slate-500 text-[10px]">يدوي</span>{% endif %}
       </td>
       <td class="text-xs text-slate-500 font-mono">{{ e.reference or '—' }}</td>
-      <td class="text-left font-mono">{{ "%.2f"|format(e.total_debit) }}</td>
-      <td class="text-left font-mono">{{ "%.2f"|format(e.total_credit) }}</td>
+      <td class="text-right font-mono">{{ "%.2f"|format(e.total_debit) }}</td>
+      <td class="text-right font-mono">{{ "%.2f"|format(e.total_credit) }}</td>
       <td><a href="{{ url_for('journals.view', entry_id=e.id) }}" class="text-brand-600 hover:underline text-sm">عرض</a></td>
     </tr>
     {% else %}

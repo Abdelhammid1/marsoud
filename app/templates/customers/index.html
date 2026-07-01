@@ -10,15 +10,15 @@
     </div>
   </div>
   <table class="data-table">
-    <thead><tr><th>الاسم</th><th>البريد</th><th>الهاتف</th><th class="text-left">الرصيد</th><th></th></tr></thead>
+    <thead><tr><th>الاسم</th><th>البريد</th><th>الهاتف</th><th class="text-right">الرصيد</th><th class="text-right">الإجراءات</th></tr></thead>
     <tbody>
       {% for c in customers %}
       <tr>
         <td class="font-semibold">{{ c.name }}</td>
         <td class="text-sm text-slate-500">{{ c.email or '—' }}</td>
         <td class="text-sm text-slate-500" dir="ltr">{{ c.phone or '—' }}</td>
-        <td class="text-left font-mono {% if c.balance > 0 %}text-amber-600 font-semibold{% endif %}">{{ "%.2f"|format(c.balance) }}</td>
-        <td><a href="{{ url_for('customers.view', customer_id=c.id) }}" class="text-brand-600 hover:underline text-sm">عرض</a></td>
+        <td class="text-right font-mono {% if c.balance > 0 %}text-amber-600 font-semibold{% endif %}">{{ "%.2f"|format(c.balance) }}</td>
+        <td class="text-right"><a href="{{ url_for('customers.view', customer_id=c.id) }}" class="text-brand-600 hover:underline text-sm">عرض</a></td>
       </tr>
       {% else %}
       <tr><td colspan="5" class="text-center text-slate-400 py-8">لا يوجد عملاء</td></tr>

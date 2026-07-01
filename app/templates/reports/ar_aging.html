@@ -10,29 +10,29 @@
     </div>
   </div>
   <table class="data-table">
-    <thead><tr><th>العميل</th><th class="text-left">جاري</th><th class="text-left">1-30</th><th class="text-left">31-60</th><th class="text-left">61-90</th><th class="text-left">90+</th><th class="text-left">الإجمالي</th></tr></thead>
+    <thead><tr><th>العميل</th><th class="text-right">جاري</th><th class="text-right">1-30</th><th class="text-right">31-60</th><th class="text-right">61-90</th><th class="text-right">90+</th><th class="text-right">الإجمالي</th></tr></thead>
     <tbody>
       {% for r in data.rows %}
       <tr>
         <td class="font-semibold">{{ r.customer }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(r.current) }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(r.d30) }}</td>
-        <td class="text-left font-mono text-amber-600">{{ "%.2f"|format(r.d60) }}</td>
-        <td class="text-left font-mono text-orange-600">{{ "%.2f"|format(r.d90) }}</td>
-        <td class="text-left font-mono text-red-600 font-bold">{{ "%.2f"|format(r.d90plus) }}</td>
-        <td class="text-left font-mono font-bold">{{ "%.2f"|format(r.total) }}</td>
+        <td class="text-right font-mono">{{ "%.2f"|format(r.current) }}</td>
+        <td class="text-right font-mono">{{ "%.2f"|format(r.d30) }}</td>
+        <td class="text-right font-mono text-amber-600">{{ "%.2f"|format(r.d60) }}</td>
+        <td class="text-right font-mono text-orange-600">{{ "%.2f"|format(r.d90) }}</td>
+        <td class="text-right font-mono text-red-600 font-bold">{{ "%.2f"|format(r.d90plus) }}</td>
+        <td class="text-right font-mono font-bold">{{ "%.2f"|format(r.total) }}</td>
       </tr>
       {% else %}
       <tr><td colspan="7" class="text-center text-slate-400 py-8">لا توجد ديون قائمة</td></tr>
       {% endfor %}
       <tr class="border-t-2 border-navy-900 font-bold bg-navy-50">
         <td class="py-3">الإجمالي</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(data.totals.current) }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(data.totals.d30) }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(data.totals.d60) }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(data.totals.d90) }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(data.totals.d90plus) }}</td>
-        <td class="text-left font-mono text-lg">{{ "%.2f"|format(data.totals.total) }}</td>
+        <td class="text-right font-mono">{{ "%.2f"|format(data.totals.current) }}</td>
+        <td class="text-right font-mono">{{ "%.2f"|format(data.totals.d30) }}</td>
+        <td class="text-right font-mono">{{ "%.2f"|format(data.totals.d60) }}</td>
+        <td class="text-right font-mono">{{ "%.2f"|format(data.totals.d90) }}</td>
+        <td class="text-right font-mono">{{ "%.2f"|format(data.totals.d90plus) }}</td>
+        <td class="text-right font-mono text-lg">{{ "%.2f"|format(data.totals.total) }}</td>
       </tr>
     </tbody>
   </table>

@@ -7,7 +7,7 @@
     <a href="{{ url_for('products.new') }}" class="btn-primary">+ منتج/خدمة</a>
   </div>
   <table class="data-table">
-    <thead><tr><th>الاسم</th><th>النوع</th><th>SKU</th><th class="text-left">السعر الافتراضي</th><th class="text-left">الضريبة %</th><th>الحالة</th><th></th></tr></thead>
+    <thead><tr><th>الاسم</th><th>النوع</th><th>SKU</th><th class="text-right">السعر الافتراضي</th><th class="text-right">الضريبة %</th><th>الحالة</th><th class="text-right">الإجراءات</th></tr></thead>
     <tbody>
     {% for p in products %}
       <tr>
@@ -17,8 +17,8 @@
         </td>
         <td class="text-xs">{% if p.is_tracked %}📦 بضاعة{% else %}💼 خدمة{% endif %}</td>
         <td class="text-xs font-mono text-slate-500">{{ p.sku or '—' }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(p.default_price) }}</td>
-        <td class="text-left">{% if p.default_tax_rate is not none %}{{ "%.2f"|format(p.default_tax_rate) }}%{% else %}—{% endif %}</td>
+        <td class="text-right font-mono">{{ "%.2f"|format(p.default_price) }}</td>
+        <td class="text-right">{% if p.default_tax_rate is not none %}{{ "%.2f"|format(p.default_tax_rate) }}%{% else %}—{% endif %}</td>
         <td>{% if p.is_active %}<span class="badge badge-paid">نشط</span>{% else %}<span class="badge badge-cancelled">موقوف</span>{% endif %}</td>
         <td class="text-xs">
           <a href="{{ url_for('products.edit', product_id=p.id) }}" class="text-emerald-700 hover:underline">✎ تعديل</a>

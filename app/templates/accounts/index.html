@@ -17,8 +17,8 @@
         <th>الاسم</th>
         <th>التصنيف</th>
         <th>الطبيعة</th>
-        <th class="text-left">الرصيد</th>
-        <th></th>
+        <th class="text-right">الرصيد</th>
+        <th class="text-right">الإجراءات</th>
       </tr>
     </thead>
     <tbody>
@@ -35,11 +35,11 @@
             <span class="badge {{ type_colors.get(acc.type.value, 'bg-slate-100') }}">{{ acc.type.value }}</span>
           </td>
           <td class="text-xs">{{ acc.normal_side.value }}</td>
-          <td class="text-left font-mono font-semibold">
+          <td class="text-right font-mono font-semibold">
             <a href="{{ url_for('accounts.ledger', account_id=acc.id) }}"
                class="hover:underline" title="عرض كشف الحركة">{{ "%.2f"|format(acc.balance) }}</a>
           </td>
-          <td class="text-left">
+          <td class="text-right">
             <a href="{{ url_for('accounts.ledger', account_id=acc.id) }}" class="text-xs text-emerald-700 hover:underline ml-3">📋 كشف</a>
             <a href="{{ url_for('accounts.edit', account_id=acc.id) }}" class="text-xs text-brand-600 hover:underline ml-3">تعديل</a>
             <form method="POST" action="{{ url_for('accounts.delete', account_id=acc.id) }}" class="inline" onsubmit="return confirm('تعطيل/حذف الحساب؟')">

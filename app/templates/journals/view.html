@@ -28,20 +28,20 @@
     </div>
 
     <table class="data-table">
-      <thead><tr><th>الحساب</th><th>المذكرة</th><th class="text-left">مدين</th><th class="text-left">دائن</th></tr></thead>
+      <thead><tr><th>الحساب</th><th>المذكرة</th><th class="text-right">مدين</th><th class="text-right">دائن</th></tr></thead>
       <tbody>
         {% for line in entry.lines %}
         <tr>
           <td><span class="font-mono text-xs text-slate-500">{{ line.account.code }}</span> · {{ line.account.name_ar or line.account.name }}</td>
           <td class="text-xs text-slate-500">{{ line.memo or '' }}</td>
-          <td class="text-left font-mono">{{ "%.2f"|format(line.debit) }}</td>
-          <td class="text-left font-mono">{{ "%.2f"|format(line.credit) }}</td>
+          <td class="text-right font-mono">{{ "%.2f"|format(line.debit) }}</td>
+          <td class="text-right font-mono">{{ "%.2f"|format(line.credit) }}</td>
         </tr>
         {% endfor %}
         <tr class="font-bold border-t-2 border-navy-900">
-          <td colspan="2" class="text-left py-3">الإجمالي</td>
-          <td class="text-left font-mono">{{ "%.2f"|format(entry.total_debit) }}</td>
-          <td class="text-left font-mono">{{ "%.2f"|format(entry.total_credit) }}</td>
+          <td colspan="2" class="text-right py-3">الإجمالي</td>
+          <td class="text-right font-mono">{{ "%.2f"|format(entry.total_debit) }}</td>
+          <td class="text-right font-mono">{{ "%.2f"|format(entry.total_credit) }}</td>
         </tr>
       </tbody>
     </table>

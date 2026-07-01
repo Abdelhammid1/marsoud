@@ -101,18 +101,18 @@
         <th>رقم القيد</th>
         <th>البيان</th>
         <th>الملاحظة</th>
-        <th class="text-left">مدين</th>
-        <th class="text-left">دائن</th>
-        <th class="text-left">الرصيد</th>
+        <th class="text-right">مدين</th>
+        <th class="text-right">دائن</th>
+        <th class="text-right">الرصيد</th>
       </tr>
     </thead>
     <tbody>
       {# Opening balance row #}
       <tr class="bg-slate-50 font-semibold">
         <td colspan="4">الرصيد الافتتاحي</td>
-        <td class="text-left font-mono">—</td>
-        <td class="text-left font-mono">—</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(statement.opening_balance) }}</td>
+        <td class="text-right font-mono">—</td>
+        <td class="text-right font-mono">—</td>
+        <td class="text-right font-mono">{{ "%.2f"|format(statement.opening_balance) }}</td>
       </tr>
       {% for row in statement.rows %}
       <tr class="hover:bg-slate-50">
@@ -120,21 +120,21 @@
         <td class="font-mono">{{ row.entry_number }}</td>
         <td>{{ row.description }}</td>
         <td class="text-slate-500 text-[11px]">{{ row.memo }}</td>
-        <td class="text-left font-mono">
+        <td class="text-right font-mono">
           {% if row.debit %}{{ "%.2f"|format(row.debit) }}{% endif %}
         </td>
-        <td class="text-left font-mono">
+        <td class="text-right font-mono">
           {% if row.credit %}{{ "%.2f"|format(row.credit) }}{% endif %}
         </td>
-        <td class="text-left font-mono font-semibold">{{ "%.2f"|format(row.balance) }}</td>
+        <td class="text-right font-mono font-semibold">{{ "%.2f"|format(row.balance) }}</td>
       </tr>
       {% endfor %}
       {# Closing totals row #}
       <tr class="bg-slate-100 font-bold border-t-2 border-slate-300">
         <td colspan="4">الإجماليات</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(statement.total_debit) }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(statement.total_credit) }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(statement.closing_balance) }}</td>
+        <td class="text-right font-mono">{{ "%.2f"|format(statement.total_debit) }}</td>
+        <td class="text-right font-mono">{{ "%.2f"|format(statement.total_credit) }}</td>
+        <td class="text-right font-mono">{{ "%.2f"|format(statement.closing_balance) }}</td>
       </tr>
     </tbody>
   </table>

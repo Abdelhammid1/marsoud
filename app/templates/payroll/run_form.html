@@ -30,13 +30,13 @@
     <table class="data-table">
       <thead><tr>
         <th>الموظف</th>
-        <th style="width:5rem">أيام</th>
-        <th style="width:5rem">ساعات أوفر</th><th style="width:6rem">أوفرتايم (مبلغ)</th>
+        <th style="width:6rem">أيام</th>
+        <th style="width:6rem">ساعات أوفر</th><th style="width:6rem">أوفرتايم (مبلغ)</th>
         <th style="width:6rem">بونص</th>
-        <th style="width:5rem">أيام غياب</th><th style="width:6rem">غياب (مبلغ)</th>
-        <th style="width:6rem">تأخير</th>
+        <th style="width:6rem">أيام غياب</th><th style="width:8rem">غياب (مبلغ)</th>
+        <th style="width:7rem">تأخير</th>
         <th style="width:6rem">سُلَف</th>
-        <th style="width:7rem">المدفوع فعلياً</th>
+        <th style="width:6rem">المدفوع فعلياً</th>
       </tr></thead>
       <tbody>
         {% for e in employees %}
@@ -53,24 +53,24 @@
             <div class="text-xs text-emerald-700 mt-1">✓ محسوب تلقائياً من سجل الحضور</div>
             {% endif %}
           </td>
-          <td><input type="number" name="working_days_{{ e.id }}" value="{{ default_days }}" min="0" max="31" class="input text-sm font-mono"></td>
-          <td><input type="number" name="overtime_hours_{{ e.id }}" step="0.5" value="0" class="input text-sm font-mono"></td><td><input type="number" name="overtime_{{ e.id }}" step="0.01" value="0" class="input text-sm font-mono"></td>
-          <td><input type="number" name="bonus_{{ e.id }}" step="0.01" value="0" class="input text-sm font-mono"></td>
+          <td><input type="number" name="working_days_{{ e.id }}" value="{{ default_days }}" min="0" max="31" class="input w-full text-sm font-mono"></td>
+          <td><input type="number" name="overtime_hours_{{ e.id }}" step="0.5" value="0" class="input w-full text-sm font-mono"></td><td><input type="number" name="overtime_{{ e.id }}" step="0.01" value="0" class="input w-full text-sm font-mono"></td>
+          <td><input type="number" name="bonus_{{ e.id }}" step="0.01" value="0" class="input w-full text-sm font-mono"></td>
           <td>
-            <input type="number" name="absence_days_{{ e.id }}" step="1" value="0" class="input text-sm font-mono">
+            <input type="number" name="absence_days_{{ e.id }}" step="1" value="0" class="input w-full text-sm font-mono">
           </td>
           <td>
             <input type="number" name="absence_{{ e.id }}" step="0.01" value="{{ "%.2f"|format(auto_abs) }}"
-                   class="input text-sm font-mono {% if has_ex %}bg-emerald-50{% endif %}"
+                   class="input w-full text-sm font-mono {% if has_ex %}bg-emerald-50{% endif %}"
                    {% if has_ex %}title="افتراضي محسوب من سجل الحضور — يمكنك تعديله للاستبدال اليدوي"{% endif %}>
           </td>
           <td>
             <input type="number" name="late_{{ e.id }}" step="0.01" value="{{ "%.2f"|format(auto_late_amt) }}"
-                   class="input text-sm font-mono {% if has_ex %}bg-emerald-50{% endif %}"
+                   class="input w-full text-sm font-mono {% if has_ex %}bg-emerald-50{% endif %}"
                    {% if has_ex %}title="افتراضي محسوب من سجل الحضور — يمكنك تعديله للاستبدال اليدوي"{% endif %}>
           </td>
-          <td><input type="number" name="advance_{{ e.id }}" step="0.01" value="0" class="input text-sm font-mono"></td>
-          <td><input type="number" name="amount_paid_{{ e.id }}" step="0.01" value="{{ e.net|default(0) }}" required class="input text-sm font-mono"></td>
+          <td><input type="number" name="advance_{{ e.id }}" step="0.01" value="0" class="input w-full text-sm font-mono"></td>
+          <td><input type="number" name="amount_paid_{{ e.id }}" step="0.01" value="{{ e.net|default(0) }}" required class="input w-full text-sm font-mono"></td>
         </tr>
         {% else %}
         <tr><td colspan="8" class="text-center text-slate-400 py-6">لا يوجد موظفون نشطون</td></tr>
