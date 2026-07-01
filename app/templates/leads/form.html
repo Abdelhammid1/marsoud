@@ -55,7 +55,54 @@
         <p class="text-xs text-amber-700 mt-1">القيمة الحالية ("{{ lead.source }}") من تسجيل قديم — اختر مصدر من القائمة لتحديثها.</p>
         {% endif %}
       </div>
+
+      {# MARSOUD-CRM-EXPANSION §2 — campaign dropdown + inline quick-add #}
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">
+          الحملة (Campaign)
+          <button type="button" onclick="_addCampaign()"
+                  class="text-xs text-brand-600 hover:underline ms-2">
+            + حملة جديدة
+          </button>
+        </label>
+        <select name="campaign_id" id="campaign_id" class="select">
+          <option value="">— بدون حملة —</option>
+          {% for c in campaigns %}
+          <option value="{{ c.id }}"
+                  {% if lead and lead.campaign_id == c.id %}selected{% endif %}>
+            {{ c.name }}
+          </option>
+          {% endfor %}
+        </select>
+        <p class="text-xs text-slate-500 mt-1">
+          الحملة اللي جه منها الـ lead ده — لتحليل أداء الحملات لاحقاً.
+        </p>
+      </div>
     </div>
+
+    <script>
+    async function _addCampaign() {
+      const name = prompt("اسم الحملة الجديدة:");
+      if (!name || !name.trim()) return;
+      try {
+        const r = await fetch("{{ url_for('crm.campaigns_quick_add') }}", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({name: name.trim()}),
+        });
+        if (!r.ok) { alert("فشل إنشاء الحملة"); return; }
+        const data = await r.json();
+        const sel = document.getElementById("campaign_id");
+        // Reuse if it already exists, otherwise add a new option.
+        let opt = Array.from(sel.options).find(o => Number(o.value) === data.id);
+        if (!opt) {
+          opt = new Option(data.name, data.id);
+          sel.appendChild(opt);
+        }
+        sel.value = data.id;
+      } catch(e) { alert("خطأ في الشبكة"); }
+    }
+    </script>
     <div>
       <label class="block text-sm font-semibold text-slate-700 mb-2">ملاحظات (اختياري)</label>
       <textarea name="notes" rows="2" placeholder="أي تفاصيل عن العميل أو مصدر الوصول…" class="textarea">{{ lead.notes if lead else '' }}</textarea>

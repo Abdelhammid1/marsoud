@@ -120,6 +120,10 @@ class Lead(db.Model):
     # MARSOUD-DASH-01 — expected deal size if the lead converts. Summed
     # across open leads on the owner dashboard's pipeline card.
     expected_value = db.Column(db.Numeric(15, 2), nullable=True)
+    # MARSOUD-CRM-EXPANSION §2 — which marketing campaign brought this
+    # lead in. Nullable so legacy leads + walk-ins don't break.
+    campaign_id = db.Column(db.Integer, db.ForeignKey("campaigns.id"),
+                             nullable=True, index=True)
 
     quotation_path = db.Column(db.Text)
     contract_path = db.Column(db.Text)
@@ -142,6 +146,7 @@ class Lead(db.Model):
     created_by = db.relationship("User", foreign_keys=[created_by_id])
     converted_customer = db.relationship("Customer", foreign_keys=[converted_customer_id])
     deleted_by = db.relationship("User", foreign_keys=[deleted_by_id])
+    campaign = db.relationship("Campaign", foreign_keys=[campaign_id])
     history = db.relationship(
         "LeadStatusEvent", back_populates="lead",
         cascade="all, delete-orphan", order_by="LeadStatusEvent.created_at",

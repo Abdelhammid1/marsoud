@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block page_title %}الحملات التسويقية{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h2 class="font-bold text-navy-900">🎯 الحملات التسويقية</h2>
+    <p class="text-xs text-slate-500">تتبع مصدر كل lead + قياس أداء كل حملة.</p>
+  </div>
+</div>
+
+{# ─── Quick-add form ─── #}
+<form method="POST" action="{{ url_for('crm.campaigns_create') }}"
+      class="card p-4 mb-4 flex items-end gap-3">
+  <div class="flex-1">
+    <label class="block text-xs font-semibold text-slate-700 mb-1">اسم الحملة</label>
+    <input type="text" name="name" required class="input text-sm"
+            placeholder="مثال: كامبين رفيدة يونيو، إعلان انستجرام رمضان">
+  </div>
+  <div class="flex-1">
+    <label class="block text-xs font-semibold text-slate-700 mb-1">ملاحظة (اختياري)</label>
+    <input type="text" name="notes" class="input text-sm"
+            placeholder="ميزانية / تاريخ البدء / أي تفاصيل">
+  </div>
+  <button type="submit" class="btn-primary text-sm">+ إضافة حملة</button>
+</form>
+
+{# ─── Campaigns list with stats ─── #}
+<div class="card p-6">
+  {% if campaigns %}
+  <table class="data-table text-sm">
+    <thead>
+      <tr>
+        <th>الحملة</th>
+        <th class="text-center">Leads</th>
+        <th class="text-center">WON</th>
+        <th class="text-center">LOST</th>
+        <th class="text-left">قيمة متوقعة</th>
+        <th class="text-center">الحالة</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for c in campaigns %}
+    {% set s = stats.get(c.id, {}) %}
+      <tr class="{% if not c.active %}opacity-50{% endif %}">
+        <td class="font-semibold">
+          {{ c.name }}
+          {% if c.notes %}<div class="text-xs text-slate-400 font-normal">{{ c.notes }}</div>{% endif %}
+        </td>
+        <td class="text-center font-mono">{{ s.get('leads', 0) }}</td>
+        <td class="text-center font-mono text-emerald-700">{{ s.get('won', 0) }}</td>
+        <td class="text-center font-mono text-rose-700">{{ s.get('lost', 0) }}</td>
+        <td class="text-left font-mono">{{ "{:,.0f}".format(s.get('expected', 0)) }}</td>
+        <td class="text-center">
+          {% if c.active %}<span class="badge badge-paid">مُفعّلة</span>
+          {% else %}<span class="badge badge-cancelled">معطّلة</span>{% endif %}
+        </td>
+        <td>
+          <form method="POST" action="{{ url_for('crm.campaigns_toggle', cid=c.id) }}">
+            <button type="submit" class="text-xs text-brand-600 hover:underline">
+              {% if c.active %}تعطيل{% else %}تفعيل{% endif %}
+            </button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-center text-slate-400 py-8">
+    مفيش حملات بعد. أضف أول حملة من الفورم فوق.
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

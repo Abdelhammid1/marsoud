@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block page_title %}تحليلات CRM{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h2 class="font-bold text-navy-900">📈 تحليلات CRM</h2>
+    <p class="text-xs text-slate-500">أرقام الـ pipeline في نظرة واحدة.</p>
+  </div>
+</div>
+
+{# ─── Headline KPIs ─── #}
+<div class="grid grid-cols-4 gap-3 mb-4">
+  <div class="card p-4 text-center">
+    <div class="text-xs text-slate-500">إجمالي Leads</div>
+    <div class="text-3xl font-bold text-navy-900 font-mono">{{ total_leads }}</div>
+  </div>
+  <div class="card p-4 text-center">
+    <div class="text-xs text-slate-500">معدل التحويل</div>
+    <div class="text-3xl font-bold text-emerald-700 font-mono">
+      {{ "%.1f"|format(conversion_rate) }}%
+    </div>
+    <div class="text-[10px] text-slate-400 mt-1">
+      {{ won_count }} فوز / {{ won_count + lost_count }} صفقة مغلقة
+    </div>
+  </div>
+  <div class="card p-4 text-center">
+    <div class="text-xs text-slate-500">قيمة متوقعة (مفتوحة)</div>
+    <div class="text-3xl font-bold text-brand-600 font-mono">
+      {{ "{:,.0f}".format(open_expected) }}
+    </div>
+  </div>
+  <div class="card p-4 text-center">
+    <div class="text-xs text-slate-500">متوسط وقت الإغلاق</div>
+    <div class="text-3xl font-bold text-navy-900 font-mono">
+      {{ "%.0f"|format(avg_close_days) }}
+    </div>
+    <div class="text-[10px] text-slate-400 mt-1">يوم من إنشاء الـ lead للتحويل</div>
+  </div>
+</div>
+
+{# ─── Stage funnel ─── #}
+<div class="card p-6 mb-4">
+  <h3 class="font-bold text-navy-900 mb-3">📊 التوزيع على المراحل</h3>
+  <div class="space-y-2">
+  {% for s in statuses %}
+    {% set cnt = stage_counts.get(s, 0) %}
+    {% set pct = (cnt / total_leads * 100) if total_leads else 0 %}
+    <div>
+      <div class="flex justify-between text-sm mb-1">
+        <span>{{ s.label_ar }}</span>
+        <span class="font-mono">{{ cnt }} ({{ "%.1f"|format(pct) }}%)</span>
+      </div>
+      <div class="bg-slate-100 rounded-full h-3 overflow-hidden">
+        <div class="bg-brand-500 h-full" style="width: {{ pct }}%"></div>
+      </div>
+    </div>
+  {% endfor %}
+  </div>
+</div>
+
+{# ─── Campaign performance ─── #}
+<div class="grid grid-cols-2 gap-3 mb-4">
+  <div class="card p-6">
+    <h3 class="font-bold text-navy-900 mb-3">🎯 أداء الحملات</h3>
+    {% if campaign_stats %}
+    <table class="data-table text-xs">
+      <thead>
+        <tr>
+          <th>الحملة</th>
+          <th class="text-center">Leads</th>
+          <th class="text-center">WON</th>
+          <th class="text-center">تحويل</th>
+          <th class="text-left">قيمة</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for c in campaign_stats %}
+        <tr>
+          <td class="font-semibold">{{ c.name }}</td>
+          <td class="text-center font-mono">{{ c.leads }}</td>
+          <td class="text-center font-mono text-emerald-700">{{ c.won }}</td>
+          <td class="text-center font-mono">{{ "%.0f"|format(c.conversion) }}%</td>
+          <td class="text-left font-mono">{{ "{:,.0f}".format(c.expected) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="text-center text-slate-400 py-6 text-sm">لا توجد حملات مسجلة.</div>
+    {% endif %}
+  </div>
+
+  <div class="card p-6">
+    <h3 class="font-bold text-navy-900 mb-3">🏆 أفضل المصادر والأنواع</h3>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <div class="text-xs font-semibold text-slate-500 mb-2">المصدر</div>
+        <ul class="text-sm space-y-1">
+          {% for src, cnt in source_stats.items() %}
+          <li class="flex justify-between">
+            <span>{{ src or '—' }}</span>
+            <span class="font-mono text-slate-500">{{ cnt }}</span>
+          </li>
+          {% else %}
+          <li class="text-slate-400">—</li>
+          {% endfor %}
+        </ul>
+      </div>
+      <div>
+        <div class="text-xs font-semibold text-slate-500 mb-2">النوع</div>
+        <ul class="text-sm space-y-1">
+          {% for t, cnt in type_stats.items() %}
+          <li class="flex justify-between">
+            <span>{{ t or '—' }}</span>
+            <span class="font-mono text-slate-500">{{ cnt }}</span>
+          </li>
+          {% else %}
+          <li class="text-slate-400">—</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

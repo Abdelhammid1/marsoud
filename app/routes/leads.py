@@ -13,6 +13,7 @@ from app import db
 from app.models import (
     Lead, LeadStatus, LeadType, LeadSource, LeadStatusEvent,
     LeadComment, User, Customer, Employee,
+    Campaign, LeadContact, LeadActivity, LeadActivityType,
 )
 from app.models.user import user_companies
 from app.services.crm import (
@@ -120,6 +121,28 @@ def _validate_enum_value(raw, enum_cls):
         return enum_cls[raw].value
     except KeyError:
         return None
+
+
+def _parse_campaign_id(raw):
+    """Empty/None → None; string → int if it maps to a real campaign
+    owned by the active company, else None. Safe against garbage input."""
+    if not raw:
+        return None
+    try:
+        cid = int(raw)
+    except (TypeError, ValueError):
+        return None
+    c = Campaign.query.filter_by(
+        id=cid, company_id=g.active_company.id
+    ).first()
+    return c.id if c else None
+
+
+def _active_campaigns():
+    """Every active campaign for the active company, ordered by name."""
+    return Campaign.query.filter_by(
+        company_id=g.active_company.id, active=True,
+    ).order_by(Campaign.name).all()
 
 
 def _parse_expected_value(raw):
@@ -300,6 +323,7 @@ def new():
                 request_description=(request.form.get("request_description") or "").strip() or None,
                 sales_action_required=(request.form.get("sales_action_required") or "").strip() or None,
                 expected_value=_parse_expected_value(request.form.get("expected_value")),
+                campaign_id=_parse_campaign_id(request.form.get("campaign_id")),
                 status=LeadStatus.NEW_LEAD,
             )
             if not lead.client_name or not lead.phone or not lead.service_needed:
@@ -319,7 +343,8 @@ def new():
             flash(str(e), "error")
     return render_template("leads/form.html", lead=None,
                            reps=_sales_reps(),
-                           lead_types=LeadType, lead_sources=LeadSource)
+                           lead_types=LeadType, lead_sources=LeadSource,
+                           campaigns=_active_campaigns())
 
 
 @bp.route("/<int:lead_id>")
@@ -328,10 +353,19 @@ def new():
 def detail(lead_id):
     lead = _lead_or_403(lead_id)
     can_manage_files = _can_view_all_leads() or lead.assigned_to_id == current_user.id
+    # MARSOUD-CRM-EXPANSION §4/5b/5c — surface activities + contacts on
+    # the lead detail page so the quick-action buttons work.
+    activities = LeadActivity.query.filter_by(
+        lead_id=lead.id).order_by(LeadActivity.activity_date.desc()).all()
+    contacts = LeadContact.query.filter_by(
+        lead_id=lead.id).order_by(LeadContact.is_primary.desc(),
+                                    LeadContact.name).all()
     return render_template("leads/detail.html",
                            lead=lead, statuses=LeadStatus,
                            lead_types=LeadType, lead_sources=LeadSource,
-                           can_manage_files=can_manage_files)
+                           can_manage_files=can_manage_files,
+                           activities=activities, contacts=contacts,
+                           activity_types=LeadActivityType)
 
 
 @bp.route("/<int:lead_id>/edit", methods=["GET", "POST"])
@@ -357,13 +391,15 @@ def edit(lead_id):
             lead.request_description = (request.form.get("request_description") or "").strip() or None
             lead.sales_action_required = (request.form.get("sales_action_required") or "").strip() or None
             lead.expected_value = _parse_expected_value(request.form.get("expected_value"))
+            lead.campaign_id = _parse_campaign_id(request.form.get("campaign_id"))
             db.session.commit()
             flash("تم حفظ التعديلات", "success")
             return redirect(url_for("leads.detail", lead_id=lead.id))
         except (CRMError, ValueError, TypeError) as e:
             flash(str(e), "error")
     return render_template("leads/form.html", lead=lead, reps=_sales_reps(),
-                           lead_types=LeadType, lead_sources=LeadSource)
+                           lead_types=LeadType, lead_sources=LeadSource,
+                           campaigns=_active_campaigns())
 
 
 @bp.route("/<int:lead_id>/delete", methods=["POST"])

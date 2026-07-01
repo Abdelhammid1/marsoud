@@ -42,6 +42,10 @@ from app.models.crm import (
     TaskComment, TaskActivityLog, task_assignees,
     LeadComment,
 )
+# MARSOUD-CRM-EXPANSION §2/5b/5c — new lightweight CRM tables.
+from app.models.crm_expansion import (
+    Campaign, LeadContact, LeadActivity, LeadActivityType,
+)
 from app.models.opsflow_extras import (
     Document, DocumentSourceType, DocumentVisibility,
     Notification, NotificationKind,
@@ -83,6 +87,7 @@ __all__ = [
     "AttendanceException", "AttendanceExceptionType",
     "LeaveRequest", "LeaveRequestStatus",
     "Lead", "LeadStatus", "LeadType", "LeadSource", "LeadStatusEvent",
+    "Campaign", "LeadContact", "LeadActivity", "LeadActivityType",
     "Project", "ProjectStatus", "ProjectMember", "Milestone", "ProjectStatusEvent",
     "PROJECT_TRANSITIONS",
     "Task", "TaskStatus", "TaskPriority", "KANBAN_ORDER",

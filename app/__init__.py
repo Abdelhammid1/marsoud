@@ -84,6 +84,7 @@ def create_app(config_class=Config):
     )
     from app.routes.settings_backup import bp as settings_backup_bp
     from app.routes.party_ledger import bp as party_ledger_bp
+    from app.routes.crm import bp as crm_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -126,6 +127,7 @@ def create_app(config_class=Config):
     app.register_blueprint(settings_activity_bp, url_prefix="/settings/activity")
     app.register_blueprint(settings_backup_bp, url_prefix="/settings/backup")
     app.register_blueprint(party_ledger_bp, url_prefix="/reports/party-ledger")
+    app.register_blueprint(crm_bp, url_prefix="/crm")
 
     # MARSOUD-API-V1 — make sure /api/v1/* abort(...) / unauthorized
     # responses come out as JSON instead of HTML / login redirects.

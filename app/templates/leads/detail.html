@@ -202,4 +202,94 @@
   </script>
   {% endif %}
 </div>
+
+{# ─── MARSOUD-CRM-EXPANSION §4/5b — Activities panel + quick log ─── #}
+{% if activity_types is defined %}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+  <div class="card p-6 md:col-span-2">
+    <h3 class="font-bold text-navy-900 mb-3">📅 الأنشطة والمتابعات</h3>
+    {% if has_permission('leads.manage') %}
+    <form method="POST" action="{{ url_for('crm.activity_create', lead_id=lead.id) }}"
+          class="bg-slate-50 rounded p-3 mb-3 space-y-2">
+      <div class="grid grid-cols-3 gap-2">
+        <select name="type" required class="select text-sm">
+          {% for t in activity_types %}
+          <option value="{{ t.name }}">{{ t.icon }} {{ t.label_ar }}</option>
+          {% endfor %}
+        </select>
+        <input type="text" name="subject" placeholder="عنوان (اختياري)"
+                class="input text-sm">
+        <input type="date" name="follow_up_date"
+                class="input text-sm" title="تاريخ متابعة (اختياري)">
+      </div>
+      <textarea name="body" rows="2" placeholder="التفاصيل…"
+                class="textarea text-sm"></textarea>
+      <button type="submit" class="btn-primary text-sm">+ سجّل نشاط</button>
+    </form>
+    {% endif %}
+    {% if activities %}
+    <div class="space-y-2 max-h-96 overflow-y-auto">
+    {% for a in activities %}
+      <div class="flex gap-2 pb-2 border-b border-slate-100 last:border-b-0">
+        <div class="text-xl">{{ a.type.icon }}</div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-baseline gap-2 flex-wrap text-xs">
+            <span class="badge badge-sent text-[10px]">{{ a.type.label_ar }}</span>
+            {% if a.subject %}<span class="font-semibold">{{ a.subject }}</span>{% endif %}
+            <span class="text-slate-400 font-mono">{{ a.activity_date.strftime('%Y-%m-%d %H:%M') }}</span>
+          </div>
+          {% if a.body %}<div class="text-sm text-slate-600 mt-1">{{ a.body }}</div>{% endif %}
+          {% if a.follow_up_date %}
+          <div class="text-[10px] text-brand-600 mt-1">🔔 متابعة: {{ a.follow_up_date.isoformat() }}</div>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-sm text-slate-400 text-center py-3">لا توجد أنشطة مسجلة بعد.</div>
+    {% endif %}
+  </div>
+
+  {# ─── MARSOUD-CRM-EXPANSION §5c — Contacts side panel ─── #}
+  <div class="card p-6">
+    <h3 class="font-bold text-navy-900 mb-3">👥 جهات الاتصال</h3>
+    {% if has_permission('leads.manage') %}
+    <form method="POST" action="{{ url_for('crm.contact_create', lead_id=lead.id) }}"
+          class="bg-slate-50 rounded p-3 mb-3 space-y-2">
+      <input type="text" name="name" required placeholder="الاسم *"
+              class="input text-sm">
+      <input type="text" name="role" placeholder="الدور (مدير، محاسب…)"
+              class="input text-sm">
+      <input type="email" name="email" placeholder="إيميل" dir="ltr"
+              class="input text-sm">
+      <input type="text" name="phone" placeholder="هاتف" dir="ltr"
+              class="input text-sm">
+      <label class="flex items-center gap-1 text-xs text-slate-600">
+        <input type="checkbox" name="is_primary" value="1"> جهة اتصال أساسية
+      </label>
+      <button type="submit" class="btn-primary text-sm w-full">+ إضافة</button>
+    </form>
+    {% endif %}
+    {% if contacts %}
+    <ul class="space-y-2 text-sm">
+    {% for c in contacts %}
+      <li class="border-r-3 border-slate-200 ps-2">
+        <div class="font-semibold">
+          {{ c.name }}
+          {% if c.is_primary %}<span class="badge badge-paid text-[10px] ms-1">أساسي</span>{% endif %}
+        </div>
+        {% if c.role %}<div class="text-xs text-slate-500">{{ c.role }}</div>{% endif %}
+        {% if c.email %}<div class="text-xs" dir="ltr"><a href="mailto:{{ c.email }}" class="text-brand-600 hover:underline">{{ c.email }}</a></div>{% endif %}
+        {% if c.phone %}<div class="text-xs" dir="ltr"><a href="tel:{{ c.phone }}" class="text-brand-600 hover:underline">{{ c.phone }}</a></div>{% endif %}
+      </li>
+    {% endfor %}
+    </ul>
+    {% else %}
+    <div class="text-xs text-slate-400 text-center py-3">لا توجد جهات اتصال بعد.</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 {% endblock %}
