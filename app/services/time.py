@@ -36,3 +36,17 @@ def now_in_company_tz(company):
         return datetime.now(ZoneInfo(tz_name)).replace(tzinfo=None)
     except Exception:
         return datetime.utcnow()
+
+
+def to_company_tz_str(dt_utc, company, fmt="%Y-%m-%d %H:%M:%S"):
+    """Format a stored UTC datetime as a string in the company's timezone."""
+    if dt_utc is None:
+        return None
+    tz_name = getattr(company, "timezone", None) or "Asia/Riyadh"
+    if ZoneInfo is None:
+        return dt_utc.strftime(fmt)
+    try:
+        local_dt = dt_utc.replace(tzinfo=ZoneInfo("UTC")).astimezone(ZoneInfo(tz_name))
+        return local_dt.strftime(fmt)
+    except Exception:
+        return dt_utc.strftime(fmt)

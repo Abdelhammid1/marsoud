@@ -424,6 +424,14 @@ def create_app(config_class=Config):
         except (TypeError, ValueError):
             return str(value)
 
+    @app.template_filter("company_dt")
+    def company_dt_filter(value, fmt="%Y-%m-%d %H:%M:%S"):
+        if value is None:
+            return "—"
+        from app.services.time import to_company_tz_str
+        company = g.get("active_company") if g else None
+        return to_company_tz_str(value, company, fmt)
+
     # MARSOUD-62 — Expose company_logo_email_uri so the email base
     # template can embed the logo as a data: URI (email clients can't
     # fetch /static/ relative paths).

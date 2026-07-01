@@ -72,8 +72,8 @@
       {% set _icon = '📱' if s.device_type=='MOBILE' else ('📋' if s.device_type=='TABLET' else '💻') %}
       <tr>
         <td class="font-semibold">{{ s.user.full_name if s.user else '—' }}</td>
-        <td class="font-mono">{{ s.login_at.strftime('%Y-%m-%d %H:%M:%S') if s.login_at else '—' }}</td>
-        <td class="font-mono">{{ s.last_seen_at.strftime('%Y-%m-%d %H:%M:%S') if s.last_seen_at else '—' }}</td>
+        <td class="font-mono">{{ s.login_at | company_dt }}</td>
+        <td class="font-mono">{{ s.last_seen_at | company_dt }}</td>
         <td class="font-mono">
           {% if s.logout_at %}{{ s.logout_at.strftime('%Y-%m-%d %H:%M:%S') }}
           {% elif s.status=='ENDED' %}<span class="text-slate-500">سب البراوزر</span>
@@ -134,7 +134,7 @@
         <td>{% if a.entity_label %}{{ a.entity_label }}
             {% elif a.entity_type %}{{ a.entity_type }}{% if a.entity_id %} #{{ a.entity_id }}{% endif %}
             {% else %}—{% endif %}</td>
-        <td class="font-mono">{{ a.created_at.strftime('%Y-%m-%d %H:%M:%S') if a.created_at else '—' }}</td>
+        <td class="font-mono">{{ a.created_at | company_dt }}</td>
         <td>{{ _icon }} {{ a.device_type or '—' }}</td>
         <td class="font-mono text-[10px]">{{ a.ip_address or '—' }}</td>
         <td class="font-mono text-[10px] text-slate-500 truncate" style="max-width:280px">{{ a.route or '—' }}</td>
