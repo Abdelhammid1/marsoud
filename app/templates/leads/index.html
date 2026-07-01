@@ -7,6 +7,17 @@
     <p class="text-xs text-slate-500">من أول تواصل حتى تحويلهم لمشروع.</p>
   </div>
   <div class="flex items-center gap-2">
+    {# MARSOUD-CRM-EXPANSION §1 — Kanban / list view toggle #}
+    <div class="inline-flex rounded-md border border-slate-200 overflow-hidden text-xs">
+      <a href="?{{ request.query_string.decode()|replace('view=list','')|replace('view=board','') }}&view=board"
+         class="px-3 py-1.5 {% if view == 'board' %}bg-brand-600 text-white{% else %}bg-white text-slate-600 hover:bg-slate-50{% endif %}">
+        📋 بورد
+      </a>
+      <a href="?{{ request.query_string.decode()|replace('view=list','')|replace('view=board','') }}&view=list"
+         class="px-3 py-1.5 border-r border-slate-200 {% if view == 'list' %}bg-brand-600 text-white{% else %}bg-white text-slate-600 hover:bg-slate-50{% endif %}">
+        📊 قائمة
+      </a>
+    </div>
     <a href="{{ url_for('leads.export_excel', q=q, status=status_filter, rep=rep_filter, **{'from': date_from, 'to': date_to}) }}"
        class="btn-secondary text-sm" title="تنزيل قائمة العملاء المحتملين كملف Excel">
       ⬇ تصدير Excel
@@ -56,6 +67,71 @@
   <button type="submit" class="btn-primary text-sm">تطبيق</button>
 </form>
 
+{% if view == 'board' %}
+{# MARSOUD-CRM-EXPANSION §1 — 7-column Kanban. Reuses the exact
+   pattern from tasks/index.html: column per LeadStatus, one card
+   per lead, dropdown for status change (POST /leads/<id>/status —
+   the existing endpoint that writes LeadStatusEvent). Any lead
+   can move to any stage — no transition restrictions per spec. #}
+<div class="grid grid-cols-7 gap-2 overflow-x-auto">
+  {% for s in statuses %}
+  <div class="bg-slate-50 rounded-lg p-3 min-w-[200px]">
+    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 gap-2">
+      <span class="badge {{ s.badge_class }} text-xs whitespace-nowrap">{{ s.label_ar }}</span>
+      <span class="text-xs font-mono text-slate-500">{{ columns.get(s, [])|length }}</span>
+    </div>
+    <div class="space-y-2">
+      {% for l in columns.get(s, []) %}
+      <div class="bg-white rounded-md border border-slate-200 p-3 hover:shadow-soft transition">
+        <a href="{{ url_for('leads.detail', lead_id=l.id) }}"
+           class="text-sm font-semibold text-navy-900 hover:text-brand-600 block break-words">
+          {{ l.client_name }}
+        </a>
+        <div class="text-xs text-slate-500 mt-1 break-words">{{ l.service_needed or '—' }}</div>
+        <div class="mt-2 flex items-center justify-between text-xs flex-wrap gap-1">
+          {% if l.expected_value %}
+          <span class="font-mono font-semibold text-emerald-700">
+            {{ "{:,.0f}".format(l.expected_value|float) }}
+          </span>
+          {% endif %}
+          {% if l.phone %}
+          <a href="tel:{{ l.phone }}" class="text-slate-400 hover:text-emerald-700"
+             dir="ltr" title="اتصال">📞</a>
+          {% endif %}
+        </div>
+        <div class="mt-1 text-xs text-slate-400">
+          {{ l.assigned_to.full_name if l.assigned_to else '— بدون مسؤول' }}
+        </div>
+        {% if l.next_meeting %}
+        <div class="mt-1 text-[10px] text-brand-600">
+          📅 {{ l.next_meeting.strftime('%Y-%m-%d %H:%M') }}
+        </div>
+        {% endif %}
+        {% if has_permission('leads.manage') %}
+        <form method="POST" action="{{ url_for('leads.status', lead_id=l.id) }}"
+              class="mt-2 flex gap-1">
+          <input type="hidden" name="return_to" value="board">
+          <select name="new_status" required class="select text-xs py-1">
+            <option value="" disabled selected>→ نقل إلى…</option>
+            {% for st in statuses %}
+              {% if st != l.status %}
+              <option value="{{ st.name }}">{{ st.label_ar }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+          <button type="submit" class="text-xs text-brand-600 hover:underline">حفظ</button>
+        </form>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="text-xs text-slate-400 text-center py-4">فارغ</div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
 <div class="card p-6">
   <table class="data-table">
     <thead>
@@ -89,4 +165,5 @@
     </tbody>
   </table>
 </div>
+{% endif %}
 {% endblock %}

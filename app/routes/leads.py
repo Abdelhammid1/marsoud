@@ -197,12 +197,23 @@ def index():
         base = base.filter(Lead.assigned_to_id == current_user.id)
     status_counts = {s: base.filter(Lead.status == s).count() for s in LeadStatus}
 
+    # MARSOUD-CRM-EXPANSION §1 — Kanban view: group the filtered leads
+    # into columns per LeadStatus so the template can render 7 columns
+    # in one loop.
+    view = (request.args.get("view") or "board").lower()
+    if view not in ("board", "list"):
+        view = "board"
+    columns = {s: [] for s in LeadStatus}
+    for l in leads:
+        columns[l.status].append(l)
+
     return render_template(
         "leads/index.html",
         leads=leads, statuses=LeadStatus, status_counts=status_counts,
         reps=_sales_reps() if _can_view_all_leads() else [],
         q=q, status_filter=status_filter, rep_filter=rep_filter,
         date_from=date_from, date_to=date_to,
+        view=view, columns=columns,
     )
 
 
@@ -398,6 +409,10 @@ def status(lead_id):
         flash(f"تم تغيير الحالة إلى: {lead.status.label_ar}", "success")
     except CRMError as e:
         flash(str(e), "error")
+    # MARSOUD-CRM-EXPANSION §1 — when the change came from the Kanban
+    # board, bounce back to the board instead of the detail page.
+    if request.form.get("return_to") == "board":
+        return redirect(url_for("leads.index", view="board"))
     return redirect(url_for("leads.detail", lead_id=lead.id))
 
 
