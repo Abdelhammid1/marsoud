@@ -88,9 +88,11 @@ class Employee(db.Model):
         reflected — see reverse_journal which now resets accrual.settled_at.
         """
         paid_at_run = sum(float(l.amount_paid or 0) for l in self.payroll_lines)
+        # MARSOUD-PARTIAL-SETTLE — sum EVERY paid_amount (including
+        # partial settlements that haven't fully closed yet). This
+        # replaces the old "only count fully-settled" logic.
         paid_later = sum(
-            float(a.amount or 0)
-            for a in self.accruals if a.settled_at is not None
+            float(a.paid_amount or 0) for a in self.accruals
         )
         return paid_at_run + paid_later
 
@@ -180,6 +182,12 @@ class EmployeeAccrual(db.Model):
     source_run_id = db.Column(db.Integer, db.ForeignKey("payroll_runs.id"))
     source_line_id = db.Column(db.Integer, db.ForeignKey("payroll_lines.id"))
     amount = db.Column(db.Numeric(15, 2), nullable=False)
+    # MARSOUD-PARTIAL-SETTLE — cumulative amount paid so far. When
+    # paid_amount ≥ amount we mark settled_at. Individual payments
+    # are audited via the journal entries themselves (source_type=
+    # 'accrual_settle', source_id=accrual.id).
+    paid_amount = db.Column(db.Numeric(15, 2), nullable=False,
+                             default=0, server_default="0")
     settled_at = db.Column(db.DateTime)
     settlement_journal_entry_id = db.Column(db.Integer, db.ForeignKey("journal_entries.id"))
     created_at = db.Column(db.DateTime, default=datetime.now)
@@ -193,6 +201,13 @@ class EmployeeAccrual(db.Model):
     @property
     def is_settled(self):
         return self.settled_at is not None
+
+    @property
+    def remaining(self):
+        """Balance still owed = original amount − cumulative paid.
+        Rounded to 2 decimals so tiny FP residues don't block full
+        settlement."""
+        return round(float(self.amount or 0) - float(self.paid_amount or 0), 2)
 
 
 # ─── HR-SS — EmployeeHistory ────────────────────────────────────────────

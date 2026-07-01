@@ -188,7 +188,10 @@ def employee_profile(employee_id):
         EmployeeAccrual.employee_id == emp.id,
         EmployeeAccrual.settled_at.isnot(None),
     ).order_by(EmployeeAccrual.settled_at.desc()).limit(20).all()
-    outstanding = sum(float(a.amount) for a in open_accruals)
+    # MARSOUD-PARTIAL-SETTLE — outstanding = sum of REMAINING (not
+    # original amount), so partial payments correctly reduce the
+    # displayed balance.
+    outstanding = sum(a.remaining for a in open_accruals)
     return render_template(
         "payroll/employee_profile.html",
         employee=emp, payslips=payslips,
@@ -230,12 +233,31 @@ def settle_accrual_route(accrual_id):
         flash("غير موجود", "error")
         return redirect(url_for("payroll.index"))
     if a.is_settled:
-        flash("تم سداد هذا المبلغ مسبقاً", "warning")
+        flash("تم سداد هذا المبلغ بالكامل مسبقاً", "warning")
         return redirect(url_for("payroll.employee_profile", employee_id=a.employee_id))
     try:
         pay_via = request.form.get("payment_account_code", "1110")
-        settle_accrual(a, payment_method_account_code=pay_via, created_by=current_user.id)
-        flash(f"تم سداد {float(a.amount):.2f}", "success")
+        # MARSOUD-PARTIAL-SETTLE — the form can pass an "amount" for a
+        # partial payment. Empty/missing means "pay the whole remainder"
+        # (unchanged legacy behaviour).
+        raw_amt = (request.form.get("amount") or "").strip()
+        amt = None
+        if raw_amt:
+            try:
+                amt = float(raw_amt)
+            except (TypeError, ValueError):
+                flash("قيمة السداد غير صالحة", "error")
+                return redirect(url_for("payroll.employee_profile",
+                                          employee_id=a.employee_id))
+        settle_accrual(a, payment_method_account_code=pay_via,
+                        amount=amt, created_by=current_user.id)
+        if a.is_settled:
+            flash(f"تم سداد المبلغ بالكامل ({float(a.amount):.2f})", "success")
+        else:
+            flash(
+                f"تم سداد {amt:.2f} — المتبقي {a.remaining:.2f}",
+                "success",
+            )
     except LedgerError as e:
         flash(str(e), "error")
     return redirect(url_for("payroll.employee_profile", employee_id=a.employee_id))

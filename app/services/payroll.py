@@ -374,41 +374,77 @@ def terminate_employee(employee, reason, termination_date=None, notes=None):
     return employee
 
 
-def settle_accrual(accrual, payment_method_account_code="1110", created_by=None):
-    """Pay out an outstanding accrual to the employee.
+def settle_accrual(accrual, payment_method_account_code="1110",
+                    amount=None, created_by=None):
+    """Pay part or all of an outstanding accrual to the employee.
 
-    Posts: Dr <employee's sub-account under 2130> / Cr cash (1110) or
-    bank (1124). Marks the accrual as settled and links the
-    settlement journal entry.
+    MARSOUD-PARTIAL-SETTLE — if `amount` is None (or omitted) the whole
+    remaining balance is paid, matching the old behaviour. If a
+    specific `amount` is passed, only that much is paid; the balance
+    accumulates in `accrual.paid_amount` and remains owed until fully
+    settled.
+
+    Every partial payment produces its own journal entry
+    (Dr employee sub-account / Cr cash) with source_type='accrual_settle'
+    so the audit trail is complete.
+
+    Raises LedgerError if the accrual is already fully paid or the
+    requested amount exceeds what's remaining.
     """
     if accrual.is_settled:
-        raise LedgerError("هذا المبلغ تم سداده مسبقاً")
+        raise LedgerError("هذا المبلغ تم سداده بالكامل مسبقاً")
+
+    remaining = accrual.remaining
+    if remaining <= 0.005:
+        raise LedgerError("لا يوجد رصيد متبقٍ لهذا المستحق")
+
+    # Default: pay the whole remainder (backwards-compatible).
+    pay_amt = float(remaining if amount is None else amount)
+    pay_amt = round(pay_amt, 2)
+    if pay_amt <= 0.005:
+        raise LedgerError("قيمة السداد يجب أن تكون أكبر من صفر")
+    # Allow a tiny FP tolerance so "pay the exact remaining" never fails
+    if pay_amt > remaining + 0.005:
+        raise LedgerError(
+            f"القيمة ({pay_amt:.2f}) أكبر من الرصيد المتبقي ({remaining:.2f})"
+        )
+    # Clamp to remaining so we never overpay by a fractional cent.
+    pay_amt = min(pay_amt, remaining)
+
     company_id = accrual.company_id
-    # MARSOUD-COA-REBUILD — debit the employee's own sub-account,
-    # not the parent 2130 header.
     from app.services.subsidiary import party_payroll_account
     salary_payable = party_payroll_account(accrual.employee)
     cash_acc = get_account_by_code(company_id, payment_method_account_code)
     if not salary_payable or not cash_acc:
         raise LedgerError("حسابات السداد غير موجودة")
 
-    amount = float(accrual.amount)
+    # For partial vs full, tag the journal so it's easy to spot in reports.
+    is_partial = pay_amt < remaining - 0.005
+    label = "سداد جزئي" if is_partial else "سداد كامل"
     entry = post_journal(
         company_id=company_id,
-        description=f"سداد راتب مستحق — {accrual.employee.name}",
+        description=(f"{label} لمستحق راتب — "
+                      f"{accrual.employee.name} ({pay_amt:.2f})"),
         lines=[
-            {"account_id": salary_payable.id, "debit": amount, "credit": 0,
-             "memo": f"تسوية مستحق راتب — {accrual.employee.name}"},
-            {"account_id": cash_acc.id, "debit": 0, "credit": amount,
-             "memo": f"صرف نقدي للموظف — {accrual.employee.name}"},
+            {"account_id": salary_payable.id, "debit": pay_amt, "credit": 0,
+             "memo": f"{label} — {accrual.employee.name}"},
+            {"account_id": cash_acc.id, "debit": 0, "credit": pay_amt,
+             "memo": f"صرف نقدي — {accrual.employee.name}"},
         ],
         reference=f"ACCR-{accrual.id}",
         created_by=created_by,
         source_type="accrual_settle",
         source_id=accrual.id,
     )
-    accrual.settled_at = datetime.utcnow()
-    accrual.settlement_journal_entry_id = entry.id
+
+    # Bump paid_amount + mark settled only when fully paid.
+    from decimal import Decimal
+    accrual.paid_amount = Decimal(str(
+        round(float(accrual.paid_amount or 0) + pay_amt, 2)
+    ))
+    if accrual.remaining <= 0.005:
+        accrual.settled_at = datetime.utcnow()
+        accrual.settlement_journal_entry_id = entry.id  # points to the LAST leg
     db.session.commit()
     return accrual
 

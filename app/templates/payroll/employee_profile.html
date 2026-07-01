@@ -117,26 +117,60 @@
       <div class="text-xs text-amber-700 mt-1">{{ active_company.base_currency }}</div>
       <hr class="my-3 border-amber-200">
       <div class="space-y-2 text-sm">
+        {# MARSOUD-PARTIAL-SETTLE — each row shows the remaining balance
+           + an input to pay a portion of it. Leave the input empty to
+           pay the whole remainder (matches the old one-click behaviour). #}
         {% for a in open_accruals %}
         <div class="bg-white rounded p-2 border border-amber-100">
-          <div class="flex items-center justify-between">
-            <div>
-              <span class="font-mono font-bold">{{ "%.2f"|format(a.amount) }}</span>
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+            <div class="min-w-0">
+              <span class="font-mono font-bold text-amber-800">{{ "%.2f"|format(a.remaining) }}</span>
               <span class="text-xs text-slate-500">من كشف {{ a.source_run.period_month }}/{{ a.source_run.period_year }}</span>
+              {% if a.paid_amount and a.paid_amount|float > 0 %}
+              <div class="text-[10px] text-slate-400 mt-0.5">
+                (اتسدد قبل كده: {{ "%.2f"|format(a.paid_amount) }} من {{ "%.2f"|format(a.amount) }})
+              </div>
+              {% endif %}
             </div>
-            {% if can_settle_accruals %}
-            <form method="POST" action="{{ url_for('payroll.settle_accrual_route', accrual_id=a.id) }}" class="inline" onsubmit="return confirm('سداد المبلغ من النقدية؟')">
-              <select name="payment_account_code" class="select text-xs inline-block w-auto">
-                <option value="1110">نقدي</option>
-                <option value="1120">بنك</option>
-              </select>
-              <button type="submit" class="text-emerald-700 text-xs hover:underline ms-1">سداد</button>
-            </form>
-            {% endif %}
           </div>
+          {% if can_settle_accruals %}
+          <form method="POST" action="{{ url_for('payroll.settle_accrual_route', accrual_id=a.id) }}"
+                class="flex flex-wrap items-center gap-1"
+                onsubmit="return _confirmPartialPay(this, {{ a.remaining }})">
+            <input type="number" name="amount" step="0.01" min="0.01"
+                    max="{{ a.remaining }}"
+                    placeholder="المبلغ (فاضي = الكل)"
+                    class="input text-xs flex-1 min-w-[100px]"
+                    dir="ltr">
+            <select name="payment_account_code" class="select text-xs w-auto">
+              <option value="1110">نقدي</option>
+              <option value="1124">بنك</option>
+            </select>
+            <button type="submit"
+                    class="text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1 rounded text-xs">
+              سداد
+            </button>
+          </form>
+          {% endif %}
         </div>
         {% endfor %}
       </div>
+      <script>
+        function _confirmPartialPay(f, remaining) {
+          const amtInput = f.querySelector('input[name="amount"]');
+          const raw = (amtInput.value || '').trim();
+          if (!raw) {
+            return confirm('سداد كامل المتبقي (' + remaining.toFixed(2) + ')؟');
+          }
+          const v = parseFloat(raw);
+          if (isNaN(v) || v <= 0) { alert('قيمة غير صالحة'); return false; }
+          if (v > remaining + 0.005) {
+            alert('المبلغ أكبر من المتبقي (' + remaining.toFixed(2) + ')');
+            return false;
+          }
+          return confirm('سداد ' + v.toFixed(2) + '؟ (المتبقي بعدها: ' + (remaining - v).toFixed(2) + ')');
+        }
+      </script>
     </div>
     {% endif %}
 
