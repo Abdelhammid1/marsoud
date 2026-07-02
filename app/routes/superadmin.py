@@ -517,7 +517,8 @@ def cron_tick_now():
 
 # ─── MARSOUD-57.2: Plans CRUD ────────────────────────────────────────────
 ALL_MODULES = ["accounting", "sales", "inventory", "purchases", "pos",
-               "crm", "hr", "reports", "agent"]
+               "crm", "hr", "reports", "agent",
+               "manufacturing", "employee_reports"]
 MODULE_LABELS_AR = {
     "accounting": "المحاسبة",
     "sales": "المبيعات",
@@ -528,6 +529,8 @@ MODULE_LABELS_AR = {
     "hr": "الموارد البشرية",
     "reports": "التقارير",
     "agent": "المحاسب الذكي",
+    "manufacturing": "التصنيع",
+    "employee_reports": "تقارير الموظفين اليومية",
 }
 
 
