@@ -516,6 +516,17 @@ def create_app(config_class=Config):
     from scripts.merge_duplicate_users import merge_cli
     app.cli.add_command(merge_cli)
 
+    # DUPE-EMPLOYEE FIX (Abdelhamid, 2026-07) — CLI:
+    #   flask merge-duplicate-employees              (dry-run)
+    #   flask merge-duplicate-employees --apply      (write)
+    # Finds Employee rows in the same company that share an email and
+    # merges them. Owner-created-himself-as-employee is the canonical
+    # case; every FK from child tables (payroll_lines, employee_history,
+    # accruals, leave, commissions, daily reports, etc.) is moved to
+    # the earliest Employee row before the duplicate is deleted.
+    from scripts.merge_duplicate_employees import merge_cli as _mde_cli
+    app.cli.add_command(_mde_cli)
+
     # MARSOUD-COA-REBUILD — CLI: flask check-coa
     @app.cli.command("check-coa")
     def _check_coa():

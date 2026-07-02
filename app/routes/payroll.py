@@ -120,6 +120,26 @@ def new_employee():
                 raise ValueError("اسم الموظف مطلوب")
             if not emp.email:
                 raise ValueError("البريد الإلكتروني مطلوب")
+
+            # DUPE-EMPLOYEE FIX (Abdelhamid) — refuse to create a second
+            # Employee row with an email that already exists in the same
+            # company. The owner registration flow auto-creates an
+            # Employee for the owner; if that owner then tries to "make
+            # himself an employee" via /payroll/employees/new, we'd end
+            # up with two Employee rows for the same person — the
+            # symptom he reported. Direct him at the existing row.
+            _email_norm = emp.email.strip().lower()
+            _existing_emp = Employee.query.filter(
+                Employee.company_id == g.active_company.id,
+                db.func.lower(Employee.email) == _email_norm,
+            ).first()
+            if _existing_emp:
+                raise ValueError(
+                    f"يوجد موظف بنفس الإيميل ({emp.email}) في هذه الشركة "
+                    f"— اسم الموظف الحالي: {_existing_emp.name}. "
+                    f"عدّل بياناته بدل إنشاء سجل تاني."
+                )
+
             db.session.add(emp)
             db.session.flush()
             # MARSOUD-COA-REBUILD — open the employee's sub-account under
