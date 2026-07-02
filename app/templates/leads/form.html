@@ -16,7 +16,15 @@
     <div class="grid grid-cols-2 gap-4">
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">البريد الإلكتروني (اختياري)</label>
-        <input type="email" name="email" dir="ltr" value="{{ lead.email if lead else '' }}" class="input">
+        {# MARSOUD-BUG (2026-07): Abdelhamid reported browser validation
+           refusing to save the edit form even though email is truly
+           optional server-side. Switching from type="email" to
+           type="text" (with inputmode=email for the on-screen keyboard)
+           kills the HTML5 auto-validation that trips when a pre-filled
+           value happens to fail Chrome's strictness. Server layer
+           still normalises + optional-checks. #}
+        <input type="text" inputmode="email" name="email" dir="ltr"
+                value="{{ lead.email if lead else '' }}" class="input">
       </div>
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">المسؤول (مندوب المبيعات)</label>

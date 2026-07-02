@@ -487,6 +487,12 @@ def create_app(config_class=Config):
     )
     app.cli.add_command(backfill_commission_cli)
 
+    # MARSOUD-BUG (2026-07) — CLI: merge duplicate User rows that share
+    # the same email. Cleans up state left over from before the
+    # ensure_user_for_employee fix.
+    from scripts.merge_duplicate_users import merge_cli
+    app.cli.add_command(merge_cli)
+
     # MARSOUD-COA-REBUILD — CLI: flask check-coa
     @app.cli.command("check-coa")
     def _check_coa():

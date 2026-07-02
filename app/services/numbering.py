@@ -29,6 +29,18 @@ def next_number(company_id, doc_type, width=4):
     """Atomically claim and return the next formatted document number.
 
     Returns a string like "INV-0001". Creates the sequence row on first use.
+
+    MARSOUD-BUG-EMP-NUM (2026-07): Abdelhamid reported new employees in a
+    freshly created company getting a number in the 30s instead of
+    EMP-0001. The `NumberSequence` table on his server had a row for the
+    new company_id already sitting at a high `next_number` (imported /
+    migrated / manually seeded). To heal without touching his DB by
+    hand, we now sanity-check the seq against the actual max number
+    already used inside the company — if `seq.next_number` is above
+    (actual_max + 1) it silently resyncs downwards. Never resyncs
+    upwards (that would risk collisions) and only applies to doc types
+    where re-syncing is safe (EMPLOYEE for now — invoices/journals need
+    ordered gap-free numbering).
     """
     prefix = DOC_PREFIXES.get(doc_type)
     if not prefix:
@@ -43,11 +55,42 @@ def next_number(company_id, doc_type, width=4):
         db.session.add(seq)
         db.session.flush()
 
+    # Self-heal for EMPLOYEE only. If the seq is way ahead of what's
+    # actually in the DB (e.g. legacy shared counter) drop it back down.
+    if doc_type == "EMPLOYEE" and seq.next_number > 1:
+        _resync_if_stale(seq, company_id, prefix, width)
+
     n = seq.next_number
     seq.next_number = n + 1
     db.session.flush()
 
     return f"{prefix}-{n:0{width}d}"
+
+
+def _resync_if_stale(seq, company_id, prefix, width):
+    """Look at the max EMP-NNNN actually used in this company. If the seq
+    is above (max + 1), quietly reset it. Never moves the counter up."""
+    from app.models import Employee
+    actual_max = 0
+    for row in Employee.query.filter(
+        Employee.company_id == company_id,
+        Employee.employee_number.isnot(None),
+        Employee.employee_number.like(f"{prefix}-%"),
+    ).all():
+        try:
+            n = int((row.employee_number or "").split("-")[-1])
+            actual_max = max(actual_max, n)
+        except (ValueError, IndexError):
+            continue
+    expected_next = actual_max + 1
+    if seq.next_number > expected_next:
+        import logging
+        logging.getLogger("ledgeros.numbering").info(
+            "[EMP-NUM-RESYNC] company=%s: seq.next_number was %s, "
+            "actual max in company is %s → resetting to %s",
+            company_id, seq.next_number, actual_max, expected_next,
+        )
+        seq.next_number = expected_next
 
 
 def peek_next_number(company_id, doc_type, width=4):
