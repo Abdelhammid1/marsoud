@@ -368,6 +368,257 @@ def record_bill_payment(bill, amount, payment_method_id=None, created_by=None):
     return payment
 
 
+def post_vendor_bill_refund(bill, refund_type, amount=None,
+                              reason=None, created_by=None):
+    """MARSOUD-REFUNDS-01 — mirror of issue_refund() on the purchase side.
+
+    Three shapes:
+      FULL       → return everything at bill total, unwind inventory + VAT
+      PARTIAL    → return a specified amount, requires bill was paid
+                    to at least that amount (otherwise it's just a
+                    vendor-balance reduction which the DEBIT_NOTE path
+                    already handles cleanly).
+      DEBIT_NOTE → open-ended balance the vendor owes us, applied against
+                    a future bill from the same vendor. No inventory move.
+
+    Journal (bill originally had CASH/BANK settlement — the settlement
+    leg already sent money out; now we're getting it back):
+      INVENTORY lines →  Cr 1300 (Inventory) at weighted-avg cost
+      EXPENSE lines   →  Cr 5105 (Purchase Returns & Allowances)
+      Input VAT       →  Cr 1280 (reverse the recoverable input VAT)
+      Contra-side     →  Dr vendor sub (2110) OR Dr cash/bank
+                          depending on whether it's a DEBIT_NOTE or
+                          actual money coming back.
+    """
+    from app.models import VendorBillRefund, VendorRefundType, DebitNote
+    from app.services.numbering import next_number
+    from app.services.subsidiary import party_ap_account
+    from app.services.inventory import record_purchase_return, InventoryError
+
+    if bill.status not in (VendorBillStatus.PAID,
+                            VendorBillStatus.POSTED,
+                            VendorBillStatus.PARTIALLY_PAID):
+        raise LedgerError(
+            f"لا يمكن عمل مرتجع لفاتورة بحالة {bill.status.value}"
+        )
+
+    total = float(bill.total or 0)
+    paid = float(bill.paid_amount or 0)
+
+    if refund_type == VendorRefundType.FULL:
+        amount = total
+    elif refund_type == VendorRefundType.PARTIAL:
+        if not amount or float(amount) <= 0:
+            raise LedgerError("حدد مبلغ المرتجع الجزئي")
+        amount = float(amount)
+        if amount > total + 0.01:
+            raise LedgerError(
+                "لا يمكن استرداد أكبر من قيمة الفاتورة الأصلية"
+            )
+    elif refund_type == VendorRefundType.DEBIT_NOTE:
+        if not amount or float(amount) <= 0:
+            raise LedgerError("حدد قيمة إشعار المدين")
+        amount = float(amount)
+    else:
+        raise LedgerError("نوع المرتجع غير معروف")
+
+    # Ratio the refund across VAT / net using the SAME ratio as the
+    # original bill — matches issue_refund()'s handling for sales.
+    tax_amount = float(bill.tax_amount or 0)
+    if total > 0 and tax_amount > 0:
+        tax_ratio = tax_amount / total
+        refund_tax = round(amount * tax_ratio, 2)
+        refund_net = round(amount - refund_tax, 2)
+    else:
+        refund_tax = 0.0
+        refund_net = amount
+
+    # Split refund_net across inventory-vs-expense in proportion to the
+    # bill's own line-type mix (INVENTORY vs EXPENSE). Fixed-asset lines
+    # are excluded per the ticket ("Not Included: Fixed asset refunds").
+    inv_lines_total = sum(
+        float(i.line_total or 0) for i in bill.items
+        if i.line_type == BillLineType.INVENTORY
+    )
+    exp_lines_total = sum(
+        float(i.line_total or 0) for i in bill.items
+        if i.line_type == BillLineType.EXPENSE
+    )
+    base = inv_lines_total + exp_lines_total
+    if base > 0:
+        inv_share = round(refund_net * inv_lines_total / base, 2)
+        exp_share = round(refund_net - inv_share, 2)
+    else:
+        inv_share = 0.0
+        exp_share = refund_net
+
+    # Build the CR (right) side of the journal.
+    credit_lines = []
+    if exp_share > 0.001:
+        purchase_returns = get_account_by_code(bill.company_id, "5105")
+        if not purchase_returns:
+            raise LedgerError(
+                "حساب مردودات المشتريات (5105) غير موجود — راجع شجرة الحسابات"
+            )
+        credit_lines.append({
+            "account_id": purchase_returns.id, "debit": 0,
+            "credit": exp_share, "memo": "مردودات مشتريات (مصروفات)",
+        })
+    inv_account = None
+    if inv_share > 0.001:
+        inv_account = get_account_by_code(bill.company_id, "1300")
+        if not inv_account:
+            raise LedgerError("حساب المخزون (1300) غير موجود")
+        credit_lines.append({
+            "account_id": inv_account.id, "debit": 0,
+            "credit": inv_share, "memo": "خفض قيمة المخزون",
+        })
+    if refund_tax > 0.001:
+        vat_input = get_account_by_code(bill.company_id, "1280")
+        if not vat_input:
+            raise LedgerError("حساب ضريبة المدخلات (1280) غير موجود")
+        credit_lines.append({
+            "account_id": vat_input.id, "debit": 0,
+            "credit": refund_tax, "memo": "عكس ضريبة المدخلات",
+        })
+
+    # Build the DR (left) side. For DEBIT_NOTE we always land on the
+    # vendor's AP sub-account (balance we can net against a future bill).
+    # For FULL/PARTIAL: if the bill was actually paid, we take the money
+    # back to cash/bank; otherwise we reduce the AP the same way as a
+    # DEBIT_NOTE.
+    ap = party_ap_account(bill) if bill.vendor_id else None
+    debit_line = None
+    receiving_account = None
+    if refund_type == VendorRefundType.DEBIT_NOTE or paid < 0.01:
+        if not ap:
+            raise LedgerError(
+                "المرتجع بدون سداد سابق يتطلب مورد مسجل"
+            )
+        debit_line = {
+            "account_id": ap.id, "debit": amount, "credit": 0,
+            "memo": (
+                "إشعار مدين على المورد"
+                if refund_type == VendorRefundType.DEBIT_NOTE
+                else "خفض ذمم دائنة للمورد"
+            ),
+        }
+    else:
+        # Actual money coming back — pick the same funding side the bill
+        # used (CASH → 1110; BANK → first bank account we find).
+        if bill.payment_method == VendorBillPaymentMethod.CASH:
+            receiving_account = get_account_by_code(bill.company_id, "1110")
+        else:
+            for code in ("1124", "1121", "1122", "1123", "1125"):
+                receiving_account = get_account_by_code(bill.company_id, code)
+                if receiving_account:
+                    break
+        if not receiving_account:
+            raise LedgerError("حساب النقدية/البنك غير موجود")
+        # Cap the cash return at what was actually paid so we don't
+        # invent money — the balance goes to AP if we still owe.
+        cash_return = min(amount, paid)
+        credit_owed = amount - cash_return
+        debit_line = {
+            "account_id": receiving_account.id, "debit": cash_return,
+            "credit": 0, "memo": "استرداد نقدي من المورد",
+        }
+        if credit_owed > 0.001 and ap:
+            # Append the AP portion as a second debit line.
+            journal_ap_leg = {
+                "account_id": ap.id, "debit": credit_owed, "credit": 0,
+                "memo": "خفض ذمم المورد بالمتبقي",
+            }
+        else:
+            journal_ap_leg = None
+
+    # Assemble the journal. Number the refund first so the reference
+    # matches what shows in the ledger.
+    ref_no = next_number(bill.company_id, "PURCHASE_REFUND")
+    lines = credit_lines + [debit_line]
+    if refund_type != VendorRefundType.DEBIT_NOTE and paid >= 0.01 \
+            and 'journal_ap_leg' in locals() and journal_ap_leg:
+        lines.append(journal_ap_leg)
+
+    vendor_name = bill.vendor.name if bill.vendor else "مورد"
+    entry = post_journal(
+        company_id=bill.company_id,
+        description=(f"مرتجع مشتريات {ref_no} — "
+                       f"فاتورة {bill.number} ({vendor_name})"),
+        lines=lines,
+        entry_date=date.today(),
+        reference=ref_no,
+        currency=bill.currency,
+        created_by=created_by,
+        source_type="vendor_bill_refund",
+        source_id=bill.id,
+    )
+
+    vbr = VendorBillRefund(
+        company_id=bill.company_id,
+        number=ref_no,
+        bill_id=bill.id,
+        type=refund_type,
+        amount=amount,
+        reason=reason,
+        journal_entry_id=entry.id,
+    )
+    db.session.add(vbr)
+    db.session.flush()
+
+    # Inventory unwind — only for FULL. A PARTIAL refund on an inventory
+    # bill is ambiguous about WHICH line to unwind, so we punt and only
+    # do the ledger side (the operator can adjust stock manually if
+    # needed). Same policy as sales-side issue_refund().
+    if refund_type == VendorRefundType.FULL and inv_account:
+        for item in bill.items:
+            if item.line_type != BillLineType.INVENTORY:
+                continue
+            if not item.variant_id or not item.warehouse_id:
+                continue
+            qty = float(item.quantity or 0)
+            if qty <= 0:
+                continue
+            try:
+                record_purchase_return(
+                    variant=item.variant, warehouse=item.warehouse,
+                    qty=qty, refund_id=vbr.id, line_id=item.id,
+                    actor_id=created_by,
+                    journal_entry_id=entry.id,
+                )
+            except InventoryError as e:
+                raise LedgerError(str(e))
+
+    # DEBIT_NOTE also opens a reusable balance against the vendor.
+    if refund_type == VendorRefundType.DEBIT_NOTE and bill.vendor_id:
+        dn = DebitNote(
+            company_id=bill.company_id,
+            vendor_id=bill.vendor_id,
+            bill_id=bill.id,
+            amount=amount,
+            reason=reason,
+        )
+        db.session.add(dn)
+
+    db.session.commit()
+    try:
+        from app.services.activity import log_action
+        log_action(
+            action_type="CREATE", entity_type="vendor_bill_refund",
+            entity_id=vbr.id,
+            entity_label=f"مرتجع مشتريات {ref_no}",
+            company_id=bill.company_id,
+            extra_data={
+                "vendor_bill_id": bill.id,
+                "amount": float(amount),
+                "type": refund_type.value,
+            },
+        )
+    except Exception:
+        pass
+    return vbr
+
+
 def update_overdue_vendor_bills(company_id):
     """Mark vendor bills as OVERDUE if past due_date and unpaid."""
     today = date.today()

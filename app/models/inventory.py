@@ -167,6 +167,13 @@ class StockMovementKind(str, enum.Enum):
     REVERSAL = "REVERSAL"        # Pure technical reversal (e.g. void POS)
     TRANSFER_OUT = "TRANSFER_OUT"  # ERP-03 — source side of a warehouse transfer
     TRANSFER_IN = "TRANSFER_IN"    # ERP-03 — destination side of a warehouse transfer
+    # MARSOUD-REFUNDS-01 — goods sent back to the vendor. Outflow at the
+    # cost the goods were received at (weighted average, same as SALE).
+    PURCHASE_RETURN = "PURCHASE_RETURN"
+    # MARSOUD-MANUFACTURING-01 — raw material pulled into a work order.
+    PRODUCTION_ISSUE = "PRODUCTION_ISSUE"
+    # MARSOUD-MANUFACTURING-01 — finished good yielded by a work order.
+    PRODUCTION_RECEIPT = "PRODUCTION_RECEIPT"
 
     @property
     def label_ar(self):
@@ -179,11 +186,17 @@ class StockMovementKind(str, enum.Enum):
             "REVERSAL": "إلغاء",
             "TRANSFER_OUT": "تحويل خارج",
             "TRANSFER_IN": "تحويل داخل",
+            "PURCHASE_RETURN": "مرتجع مشتريات",
+            "PRODUCTION_ISSUE": "صرف للإنتاج",
+            "PRODUCTION_RECEIPT": "استلام إنتاج تام",
         }[self.value]
 
     @property
     def is_inflow(self):
-        return self.value in ("OPENING", "RECEIPT", "RETURN", "TRANSFER_IN")
+        return self.value in (
+            "OPENING", "RECEIPT", "RETURN", "TRANSFER_IN",
+            "PRODUCTION_RECEIPT",
+        )
 
 
 class StockMovement(db.Model):

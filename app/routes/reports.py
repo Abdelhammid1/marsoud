@@ -162,12 +162,20 @@ def profitability():
     from app.services.permissions import has_permission
     if not has_permission("reports.profitability"):
         return redirect(url_for("reports.index"))
-    from app.models import InvoiceItem, Invoice, InvoiceStatus, ProductVariant
+    from app.models import (
+        InvoiceItem, Invoice, InvoiceStatus, ProductVariant,
+        Product, ProductGroup, ProductCategory,
+    )
     from app import db as _db
     today = date.today()
     start = _parse_date(request.args.get("start_date"), today.replace(day=1))
     end = _parse_date(request.args.get("end_date"), today)
     cid = g.active_company.id
+    # MARSOUD-PRODUCT-HIERARCHY-01 — optional group + category filter.
+    filter_group_id = request.args.get("group_id", type=int)
+    filter_category_id = request.args.get("category_id", type=int)
+    group_by = request.args.get("group_by", "product")   # "product" | "group" | "category"
+
     rows = (
         _db.session.query(InvoiceItem, Invoice)
         .join(Invoice, InvoiceItem.invoice_id == Invoice.id)
@@ -178,20 +186,49 @@ def profitability():
                 InvoiceItem.variant_id.isnot(None))
         .all()
     )
+
+    def _passes_filter(product):
+        if filter_category_id and (not product or product.category_id != filter_category_id):
+            return False
+        if filter_group_id and product:
+            cat = product.category
+            if not cat or cat.group_id != filter_group_id:
+                return False
+        return True
+
     agg = {}
     for item, inv in rows:
         v = item.variant
         if not v:
             continue
-        a = agg.setdefault(v.id, {
-            "sku": v.sku, "name": v.display_name,
+        product = v.product
+        if not _passes_filter(product):
+            continue
+        # Bucket key depends on group_by mode.
+        if group_by == "group":
+            grp = product.category.group if product and product.category else None
+            key = ("group", grp.id if grp else 0)
+            label_sku = grp.name if grp else "— بدون —"
+            label_name = grp.name if grp else "— بدون تصنيف —"
+        elif group_by == "category":
+            cat = product.category if product else None
+            key = ("category", cat.id if cat else 0)
+            label_sku = cat.name if cat else "— بدون —"
+            label_name = (f"{cat.group.name} / {cat.name}"
+                            if cat else "— بدون تصنيف —")
+        else:
+            key = ("variant", v.id)
+            label_sku = v.sku
+            label_name = v.display_name
+        a = agg.setdefault(key, {
+            "sku": label_sku, "name": label_name,
             "qty": 0, "revenue": 0, "cogs": 0,
         })
         a["qty"] += float(item.quantity or 0)
         a["revenue"] += float(item.line_total or 0)
         a["cogs"] += float(item.quantity or 0) * float(item.unit_cost_at_sale or 0)
     rows_out = []
-    for v_id, r in agg.items():
+    for _key, r in agg.items():
         gp = r["revenue"] - r["cogs"]
         gm = (gp / r["revenue"] * 100) if r["revenue"] > 0 else 0
         rows_out.append({**r, "gross_profit": gp, "gross_margin": gm})
@@ -206,9 +243,19 @@ def profitability():
         totals["gross_margin"] = totals["gross_profit"] / totals["revenue"] * 100
     else:
         totals["gross_margin"] = 0
+    groups = ProductGroup.query.filter_by(
+        company_id=cid, is_active=True,
+    ).order_by(ProductGroup.name).all()
+    categories = ProductCategory.query.filter_by(
+        company_id=cid, is_active=True,
+    ).order_by(ProductCategory.name).all()
     return render_template("reports/profitability.html",
                            rows=rows_out, totals=totals,
-                           start_date=start, end_date=end)
+                           start_date=start, end_date=end,
+                           groups=groups, categories=categories,
+                           filter_group_id=filter_group_id,
+                           filter_category_id=filter_category_id,
+                           group_by=group_by)
 
 
 @bp.route("/cashier-sales")
@@ -295,3 +342,66 @@ def sales_commissions():
         "reports/sales_commissions.html",
         rep_buckets=rows, start=start, end=end,
     )
+
+
+# ─── MARSOUD-EMPLOYEE-DAILY-REPORTS — owner-side viewing ────────────
+@bp.route("/employees")
+@login_required
+@require_permission("employee_reports.view")
+def employees_index():
+    """One card per employee this viewer is allowed to see."""
+    from flask_login import current_user
+    from app.services.daily_digest import visible_employees_for
+    from app.models import EmployeeDailyReport, DailyReportStatus
+    employees = visible_employees_for(current_user, g.active_company.id)
+    cards = []
+    for e in employees:
+        count = EmployeeDailyReport.query.filter_by(
+            employee_id=e.id, status=DailyReportStatus.SUBMITTED,
+        ).count()
+        cards.append({"employee": e, "count": count})
+    return render_template(
+        "reports/employees_index.html", cards=cards,
+    )
+
+
+@bp.route("/employees/<int:employee_id>")
+@login_required
+@require_permission("employee_reports.view")
+def employee_reports_list(employee_id):
+    from flask_login import current_user
+    from app.services.daily_digest import can_view_reports_for
+    from app.models import Employee, EmployeeDailyReport, DailyReportStatus
+    from flask import abort
+    if not can_view_reports_for(current_user, employee_id,
+                                  g.active_company.id):
+        abort(404)
+    emp = Employee.query.get_or_404(employee_id)
+    reports = EmployeeDailyReport.query.filter_by(
+        employee_id=emp.id, status=DailyReportStatus.SUBMITTED,
+    ).order_by(EmployeeDailyReport.report_date.desc()).all()
+    return render_template(
+        "reports/employee_reports_list.html", emp=emp, reports=reports,
+    )
+
+
+@bp.route("/employees/<int:employee_id>/<int:report_id>")
+@login_required
+@require_permission("employee_reports.view")
+def employee_report_detail(employee_id, report_id):
+    from flask_login import current_user
+    from app.services.daily_digest import can_view_reports_for
+    from app.models import EmployeeDailyReport, DailyReportStatus
+    from flask import abort
+    if not can_view_reports_for(current_user, employee_id,
+                                  g.active_company.id):
+        abort(404)
+    r = EmployeeDailyReport.query.get_or_404(report_id)
+    if r.employee_id != employee_id:
+        abort(404)
+    if r.status != DailyReportStatus.SUBMITTED:
+        abort(404)
+    return render_template(
+        "reports/employee_report_detail.html", report=r,
+    )
+

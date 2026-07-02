@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block page_title %}{{ bom.name }}{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <a href="{{ url_for('manufacturing.boms_index') }}" class="text-sm text-brand-600 hover:underline">← كل التركيبات</a>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <div class="lg:col-span-2 card p-6">
+    <h2 class="text-xl font-bold text-navy-900 mb-2">{{ bom.name }}</h2>
+    <div class="text-sm text-slate-500 mb-4">المنتج التام: {{ bom.product_variant.name or bom.product_variant.sku }}</div>
+    <table class="data-table">
+      <thead><tr><th>المكوّن</th><th class="text-left">الكمية / وحدة</th></tr></thead>
+      <tbody>
+      {% for l in bom.lines %}
+        <tr>
+          <td>{{ l.component_variant.name or l.component_variant.sku }} <span class="text-xs text-slate-400">({{ l.component_variant.sku }})</span></td>
+          <td class="text-left font-mono">{{ "%.4f"|format(l.qty_per_unit|float) }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="2" class="text-center text-slate-400 py-8">لا توجد مكونات.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card p-6">
+    <h3 class="font-bold text-navy-900 mb-3">معلومات</h3>
+    <div class="space-y-2 text-sm">
+      <div><span class="text-slate-500">تاريخ الإنشاء:</span> {{ bom.created_at | company_dt if bom.created_at else '' }}</div>
+      <div><span class="text-slate-500">الحالة:</span> {{ 'نشطة' if bom.is_active else 'متوقفة' }}</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

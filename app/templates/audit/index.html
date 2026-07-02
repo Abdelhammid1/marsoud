@@ -39,7 +39,7 @@
     <tbody>
     {% for e in entries %}
       <tr>
-        <td class="text-xs font-mono whitespace-nowrap">{{ e.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+        <td class="text-xs font-mono whitespace-nowrap">{{ e.created_at | company_dt('%Y-%m-%d %H:%M:%S') }}</td>
         <td><span class="badge badge-sent">{{ e.entity_type }}</span></td>
         <td class="font-mono text-xs">#{{ e.entity_id }}</td>
         <td>

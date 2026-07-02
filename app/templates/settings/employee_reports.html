@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block page_title %}صلاحيات تقارير الموظفين{% endblock %}
+{% block content %}
+
+<div class="card p-6 mb-4">
+  <h2 class="text-xl font-bold text-navy-900 mb-2">صلاحيات تقارير الموظفين</h2>
+  <p class="text-sm text-slate-500 mb-4">
+    المالك بيشوف كل الموظفين افتراضياً. أي أدمن/مدير عنده صلاحية "تقارير الموظفين"
+    مايشوفش حد إلا اللي هتحدد له هنا.
+  </p>
+  <form method="GET" class="flex items-end gap-3">
+    <div class="flex-1 max-w-md">
+      <label class="block text-sm font-semibold text-slate-700 mb-1">اختر المستخدم</label>
+      <select name="viewer_user_id" class="select" onchange="this.form.submit()">
+        <option value="">— اختر —</option>
+        {% for u in admins %}
+        <option value="{{ u.id }}" {% if selected_uid == u.id %}selected{% endif %}>
+          {{ u.full_name }} · {{ u.email }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+</div>
+
+{% if selected_uid %}
+<form method="POST" action="{{ url_for('settings_employee_reports.save') }}" class="card p-6">
+  <input type="hidden" name="viewer_user_id" value="{{ selected_uid }}">
+  <h3 class="font-bold text-navy-900 mb-3">الموظفون اللي يقدر يشوف تقاريرهم</h3>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+    {% for e in employees %}
+    <label class="flex items-center gap-2 border border-slate-200 rounded-lg p-3 hover:bg-slate-50 cursor-pointer">
+      <input type="checkbox" name="employee_ids" value="{{ e.id }}"
+              {% if e.id in granted_ids %}checked{% endif %}>
+      <span class="text-sm">{{ e.name }}</span>
+    </label>
+    {% else %}
+    <div class="col-span-full text-center text-slate-400 py-6">لا يوجد موظفون في الشركة.</div>
+    {% endfor %}
+  </div>
+  <div class="flex justify-end">
+    <button type="submit" class="btn-primary">💾 حفظ</button>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

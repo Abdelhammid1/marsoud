@@ -8,7 +8,7 @@
       <div>
         <h2 class="text-2xl font-bold text-navy-900">{{ transfer.number }}</h2>
         <div class="text-sm text-slate-500 mt-1">
-          {{ transfer.created_at.strftime('%Y-%m-%d %H:%M') }}
+          {{ transfer.created_at | company_dt('%Y-%m-%d %H:%M') }}
           · من <strong>{{ transfer.from_warehouse.code }}</strong>
           → إلى <strong>{{ transfer.to_warehouse.code }}</strong>
         </div>
@@ -71,7 +71,7 @@
     </form>
     {% elif transfer.status == 'POSTED' %}
     <p class="text-sm text-slate-500">
-      تم التنفيذ في {{ transfer.posted_at.strftime('%Y-%m-%d %H:%M') }}{% if transfer.posted_by %} بواسطة {{ transfer.posted_by.full_name }}{% endif %}.
+      تم التنفيذ في {{ transfer.posted_at | company_dt('%Y-%m-%d %H:%M') }}{% if transfer.posted_by %} بواسطة {{ transfer.posted_by.full_name }}{% endif %}.
     </p>
     <p class="text-xs text-slate-400 mt-2">
       للتراجع عن تحويل منفّذ، أنشئ تحويل عكسي.

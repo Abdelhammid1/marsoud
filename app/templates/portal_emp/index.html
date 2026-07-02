@@ -95,7 +95,7 @@
           <span class="text-slate-500">:</span>
           <span class="text-slate-600">من «{{ h.old_value or '—' }}» إلى «{{ h.new_value or '—' }}»</span>
         </div>
-        <div class="text-xs text-slate-400 font-mono">{{ h.changed_at.strftime('%Y-%m-%d %H:%M') }}{% if h.changed_by %} · بواسطة {{ h.changed_by.full_name }}{% endif %}</div>
+        <div class="text-xs text-slate-400 font-mono">{{ h.changed_at | company_dt('%Y-%m-%d %H:%M') }}{% if h.changed_by %} · بواسطة {{ h.changed_by.full_name }}{% endif %}</div>
       </div>
       {% endfor %}
     </div>
@@ -176,7 +176,7 @@
           {% elif r.status == statuses.REJECTED %}<span class="badge badge-overdue">مرفوضة</span>
           {% else %}<span class="badge badge-cancelled">ملغاة</span>{% endif %}
         </td>
-        <td class="text-xs font-mono">{{ r.created_at.strftime('%Y-%m-%d') }}</td>
+        <td class="text-xs font-mono">{{ r.created_at | company_dt('%Y-%m-%d') }}</td>
       </tr>
       {% endfor %}
     </tbody>

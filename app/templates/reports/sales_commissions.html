@@ -62,7 +62,7 @@
           <tbody>
             {% for r in b.rows %}
             <tr>
-              <td class="font-mono">{{ r.created_at.strftime('%Y-%m-%d') if r.created_at else '—' }}</td>
+              <td class="font-mono">{{ r.created_at | company_dt('%Y-%m-%d') if r.created_at else '—' }}</td>
               <td>{{ r.customer.name if r.customer else '—' }}</td>
               <td class="text-xs">
                 {% if r.invoice %}

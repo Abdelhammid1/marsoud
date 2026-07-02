@@ -49,7 +49,7 @@
     {% if company.tax_number %}<div class="muted">VAT: {{ company.tax_number }}</div>{% endif %}
     <div class="muted">────────────────</div>
     <div><strong>إيصال {{ invoice.number }}</strong></div>
-    <div class="muted mono">{{ invoice.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+    <div class="muted mono">{{ invoice.created_at | company_dt('%Y-%m-%d %H:%M') }}</div>
     {% if invoice.cashier %}<div class="muted">الكاشير: {{ invoice.cashier.full_name }}</div>{% endif %}
     {% if invoice.customer %}<div>العميل: {{ invoice.customer.name }}</div>
     {% else %}<div class="muted">— زبون نقدي —</div>{% endif %}
@@ -85,7 +85,7 @@
 
   {% if invoice.is_voided %}
   <div class="row" style="color:#dc2626; font-weight:bold; margin-top:8px;">
-    ⚠ ملغى — {{ invoice.voided_at.strftime('%Y-%m-%d %H:%M') }}
+    ⚠ ملغى — {{ invoice.voided_at | company_dt('%Y-%m-%d %H:%M') }}
   </div>
   <div class="muted">السبب: {{ invoice.void_reason }}</div>
   {% endif %}

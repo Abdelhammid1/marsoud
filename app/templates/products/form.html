@@ -48,6 +48,47 @@
       <label class="block text-sm font-semibold text-slate-700 mb-2">الوصف</label>
       <textarea name="description" rows="2" class="textarea"></textarea>
     </div>
+
+    {# MARSOUD-PRODUCT-HIERARCHY-01 — group + category (dependent). #}
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">المجموعة <span class="text-rose-500">*</span></label>
+        <select id="group-select" class="select" required>
+          <option value="">— اختر —</option>
+          {% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">الفئة <span class="text-rose-500">*</span></label>
+        <select id="category-select" name="category_id" class="select" required>
+          <option value="">— اختر المجموعة أولاً —</option>
+        </select>
+        <div class="text-xs text-slate-500 mt-1">
+          <a href="{{ url_for('products.hierarchy') }}" class="text-brand-600 hover:underline">إدارة المجموعات والفئات ↗</a>
+        </div>
+      </div>
+    </div>
+    <script>
+      (function() {
+        // Pre-hydrate categories by group_id so switching the group
+        // updates the category options without another round-trip.
+        var byGroup = {};
+        {% for c in categories %}
+        (byGroup[{{ c.group_id }}] = byGroup[{{ c.group_id }}] || []).push({id: {{ c.id }}, name: {{ c.name|tojson }}});
+        {% endfor %}
+        var g = document.getElementById('group-select');
+        var c = document.getElementById('category-select');
+        function refill() {
+          var gid = g.value;
+          var opts = ['<option value="">— اختر —</option>'];
+          (byGroup[gid] || []).forEach(function(o) {
+            opts.push('<option value="' + o.id + '">' + o.name + '</option>');
+          });
+          c.innerHTML = opts.join('');
+        }
+        g.addEventListener('change', refill);
+      })();
+    </script>
     <div class="grid grid-cols-2 gap-4">
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">السعر الافتراضي</label>

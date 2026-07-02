@@ -9,8 +9,9 @@ from app.models import (
 )
 from app.services.vendor_bills import (
     post_vendor_bill, record_bill_payment, update_overdue_vendor_bills,
-    get_allowed_accounts_for_line_type,
+    get_allowed_accounts_for_line_type, post_vendor_bill_refund,
 )
+from app.models.refund import VendorRefundType
 from app.services.ledger import LedgerError
 from app.services.numbering import next_number
 from app.services.permissions import require_permission
@@ -359,6 +360,29 @@ def post(bill_id):
         flash("تم تسجيل الفاتورة والقيد المحاسبي", "success")
     except LedgerError as e:
         flash(str(e), "error")
+    return redirect(url_for("vendor_bills.view", bill_id=bill_id))
+
+
+@bp.route("/<int:bill_id>/refund", methods=["POST"])
+@login_required
+@require_permission("vendor_bills.refund")
+def refund(bill_id):
+    """MARSOUD-REFUNDS-01 — issue a refund against a posted vendor bill."""
+    bill = db.session.get(VendorBill, bill_id)
+    if not bill or bill.company_id != g.active_company.id:
+        return redirect(url_for("vendor_bills.index"))
+    try:
+        rtype = VendorRefundType[request.form.get("type")]
+        raw_amount = request.form.get("amount")
+        amount = float(raw_amount) if raw_amount else None
+        reason = (request.form.get("reason") or "").strip() or None
+        vbr = post_vendor_bill_refund(
+            bill, rtype, amount=amount, reason=reason,
+            created_by=current_user.id,
+        )
+        flash(f"تم تسجيل المرتجع {vbr.number}", "success")
+    except (LedgerError, ValueError, KeyError) as e:
+        flash(str(e) or "طلب مرتجع غير صالح", "error")
     return redirect(url_for("vendor_bills.view", bill_id=bill_id))
 
 

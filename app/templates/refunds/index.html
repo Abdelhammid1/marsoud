@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block page_title %}المرتجعات{% endblock %}
+{% block content %}
+
+<div class="grid grid-cols-4 gap-3 mb-4">
+  <div class="card p-4">
+    <div class="text-xs text-slate-500 mb-1">مرتجعات مبيعات (عدد)</div>
+    <div class="text-2xl font-bold text-navy-900">{{ totals.sales_count }}</div>
+  </div>
+  <div class="card p-4 bg-emerald-50/50 border-emerald-100">
+    <div class="text-xs text-emerald-700 mb-1">مرتجعات مبيعات (قيمة)</div>
+    <div class="text-2xl font-bold text-emerald-700 font-mono">{{ "%.2f"|format(totals.sales_amount) }}</div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500 mb-1">مرتجعات مشتريات (عدد)</div>
+    <div class="text-2xl font-bold text-navy-900">{{ totals.purchases_count }}</div>
+  </div>
+  <div class="card p-4 bg-amber-50/50 border-amber-100">
+    <div class="text-xs text-amber-700 mb-1">مرتجعات مشتريات (قيمة)</div>
+    <div class="text-2xl font-bold text-amber-700 font-mono">{{ "%.2f"|format(totals.purchases_amount) }}</div>
+  </div>
+</div>
+
+<div class="card p-6">
+  <form method="GET" class="flex flex-wrap items-end gap-3 mb-5">
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">من تاريخ</label>
+      <input type="date" name="start_date" value="{{ start_date }}" class="input text-sm">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">إلى تاريخ</label>
+      <input type="date" name="end_date" value="{{ end_date }}" class="input text-sm">
+    </div>
+    <div class="flex-1 min-w-[180px]">
+      <label class="block text-xs font-semibold text-slate-700 mb-1">اسم الطرف</label>
+      <input type="text" name="party" value="{{ party }}" placeholder="عميل أو مورد" class="input text-sm">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">الجانب</label>
+      <select name="side" class="select text-sm">
+        <option value="">الاثنين</option>
+        <option value="SALES" {% if side == 'SALES' %}selected{% endif %}>مبيعات</option>
+        <option value="PURCHASES" {% if side == 'PURCHASES' %}selected{% endif %}>مشتريات</option>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">النوع</label>
+      <select name="type" class="select text-sm">
+        <option value="">الكل</option>
+        <option value="FULL" {% if rtype == 'FULL' %}selected{% endif %}>كامل</option>
+        <option value="PARTIAL" {% if rtype == 'PARTIAL' %}selected{% endif %}>جزئي</option>
+        <option value="CREDIT_NOTE" {% if rtype == 'CREDIT_NOTE' %}selected{% endif %}>إشعار دائن</option>
+        <option value="DEBIT_NOTE" {% if rtype == 'DEBIT_NOTE' %}selected{% endif %}>إشعار مدين</option>
+      </select>
+    </div>
+    <button type="submit" class="btn-primary text-sm">تطبيق</button>
+    {% if request.args %}<a href="{{ url_for('refunds.index') }}" class="text-sm text-slate-500 hover:text-red-600">مسح الفلاتر</a>{% endif %}
+    <div class="flex-grow"></div>
+    <a href="{{ url_for('refunds.report') }}" class="btn-secondary text-sm">📊 التقرير</a>
+  </form>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>الرقم</th>
+        <th>الجانب</th>
+        <th>الطرف</th>
+        <th>الفاتورة الأصلية</th>
+        <th>النوع</th>
+        <th class="text-left">القيمة</th>
+        <th>التاريخ</th>
+        <th>السبب</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="font-mono font-semibold text-navy-900">{{ r.number }}</td>
+        <td>
+          {% if r.side == 'SALES' %}
+            <span class="badge bg-emerald-100 text-emerald-700">{{ r.side_ar }}</span>
+          {% else %}
+            <span class="badge bg-amber-100 text-amber-700">{{ r.side_ar }}</span>
+          {% endif %}
+        </td>
+        <td>{{ r.party_name }}</td>
+        <td><a href="{{ r.source_url }}" class="text-brand-600 hover:underline font-mono">{{ r.source_ref }}</a></td>
+        <td class="text-sm">{{ r.type_ar }}</td>
+        <td class="text-left font-mono font-semibold">{{ "%.2f"|format(r.amount) }}</td>
+        <td class="text-sm text-slate-500">{{ r.created_at | company_dt if r.created_at else '' }}</td>
+        <td class="text-sm text-slate-500 truncate max-w-[220px]" title="{{ r.reason }}">{{ r.reason }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="text-center text-slate-400 py-8">لا توجد مرتجعات مطابقة للفلاتر</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

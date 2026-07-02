@@ -48,10 +48,10 @@
         <tr class="{% if t.revoked_at %}opacity-50{% endif %}">
           <td class="font-semibold">{{ t.name }}</td>
           <td class="font-mono text-xs text-slate-500" dir="ltr">{{ t.token_prefix }}</td>
-          <td class="text-xs">{{ t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else '—' }}</td>
+          <td class="text-xs">{{ t.created_at | company_dt('%Y-%m-%d %H:%M') if t.created_at else '—' }}</td>
           <td class="text-xs">
             {% if t.last_used_at %}
-              {{ t.last_used_at.strftime('%Y-%m-%d %H:%M') }}
+              {{ t.last_used_at | company_dt('%Y-%m-%d %H:%M') }}
             {% else %}
               <span class="text-slate-400">لم يُستخدم بعد</span>
             {% endif %}

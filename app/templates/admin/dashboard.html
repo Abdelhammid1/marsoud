@@ -45,7 +45,7 @@
         <tr>
           <td>{{ u.full_name }}</td>
           <td class="text-ink-200">{{ u.email }}</td>
-          <td class="font-mono text-xs">{{ u.last_login_at.strftime('%Y-%m-%d %H:%M') if u.last_login_at else '—' }}</td>
+          <td class="font-mono text-xs">{{ u.last_login_at | company_dt('%Y-%m-%d %H:%M') if u.last_login_at else '—' }}</td>
         </tr>
       {% endfor %}
       </tbody>
@@ -67,7 +67,7 @@
         <tr>
           <td><span class="badge badge-neutral">{{ r.action }}</span></td>
           <td class="text-ink-200">{{ r.actor.email if r.actor else '—' }}</td>
-          <td class="font-mono text-xs">{{ r.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td class="font-mono text-xs">{{ r.created_at | company_dt('%Y-%m-%d %H:%M') }}</td>
         </tr>
       {% endfor %}
       </tbody>

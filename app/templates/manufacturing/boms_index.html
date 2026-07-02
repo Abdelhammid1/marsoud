@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block page_title %}تركيبات المنتجات (BOM){% endblock %}
+{% block content %}
+<div class="card p-6">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-xl font-bold text-navy-900">تركيبات المنتجات</h2>
+    {% if has_permission('manufacturing.manage') %}
+    <a href="{{ url_for('manufacturing.bom_new') }}" class="btn-primary">+ تركيبة جديدة</a>
+    {% endif %}
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr><th>الاسم</th><th>المنتج التام</th><th>عدد المكونات</th><th>الحالة</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for b in boms %}
+      <tr>
+        <td class="font-semibold">{{ b.name }}</td>
+        <td>{{ b.product_variant.name or b.product_variant.sku }}</td>
+        <td class="font-mono">{{ b.lines|length }}</td>
+        <td>{% if b.is_active %}<span class="badge bg-emerald-100 text-emerald-700">نشطة</span>{% else %}<span class="badge">متوقفة</span>{% endif %}</td>
+        <td class="text-left">
+          <a href="{{ url_for('manufacturing.bom_detail', bom_id=b.id) }}" class="text-brand-600 hover:underline text-sm">عرض</a>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="text-center text-slate-400 py-8">لا توجد تركيبات بعد.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

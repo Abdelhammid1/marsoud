@@ -49,11 +49,36 @@ def index():
     customers = Customer.query.filter_by(
         company_id=cid, is_active=True,
     ).order_by(Customer.name).limit(200).all()
+    # MARSOUD-PRODUCT-HIERARCHY-01 — categories for the category-tabs
+    # picker. Each product's default variant carries the sellable SKU.
+    from app.models import ProductCategory, Product, ProductVariant
+    categories = ProductCategory.query.filter_by(
+        company_id=cid, is_active=True,
+    ).order_by(ProductCategory.name).all()
+    # Pre-compute per-category product cards so the picker renders
+    # without additional queries. Only tracked products with an active
+    # default variant show up (services can't be scanned).
+    products_by_cat = {}
+    tracked = Product.query.filter_by(
+        company_id=cid, is_active=True, is_tracked=True,
+    ).all()
+    for p in tracked:
+        v = p.default_variant
+        if not v or not v.is_active:
+            continue
+        products_by_cat.setdefault(p.category_id or 0, []).append({
+            "variant_id": v.id, "sku": v.sku,
+            "name": p.name,
+            "price": float(p.default_price or 0),
+            "tax_rate": float(p.default_tax_rate) if p.default_tax_rate is not None else 15.0,
+        })
     return render_template(
         "pos/register.html",
         payment_methods=pms,
         customers=customers,
         default_warehouse=default_warehouse(cid),
+        categories=categories,
+        products_by_cat=products_by_cat,
     )
 
 

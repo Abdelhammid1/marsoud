@@ -146,3 +146,179 @@ def party_ap_account(bill):
 def party_payroll_account(employee):
     """For payroll — the Salaries-Payable sub-account for one employee."""
     return ensure_employee_account(employee)
+
+
+# ─── MARSOUD-PARTY-OPENING-BALANCE-01 ──────────────────────────────────
+def _has_party_activity(party_type, party):
+    """True if this party already has posted transactions. Mirrors the
+    inventory record_opening_balance() rule: opening balance is one-shot
+    at coding time, refused if any real activity exists."""
+    from app.models import (
+        Invoice, InvoiceStatus, VendorBill, PartyOpeningBalance, PartyType,
+    )
+    if party_type == PartyType.CUSTOMER:
+        # ANY invoice (draft or posted) counts as activity — an accountant
+        # who's built a draft invoice implicitly says "this party has
+        # started transacting, opening balance no longer applies."
+        return Invoice.query.filter_by(customer_id=party.id).first() is not None
+    if party_type == PartyType.VENDOR:
+        return VendorBill.query.filter_by(vendor_id=party.id).first() is not None
+    return False
+
+
+def _existing_opening(company_id, party_type, party_id):
+    from app.models import PartyOpeningBalance
+    return PartyOpeningBalance.query.filter_by(
+        company_id=company_id, party_type=party_type,
+        party_id=party_id,
+    ).first()
+
+
+def record_customer_opening_balance(customer, amount, *,
+                                     entry_date=None, created_by=None):
+    """One-shot: record an opening receivable for `customer`.
+
+    Journal:  Dr customer-sub (under 1130)   / Cr 3900 (Opening Equity)
+    Negative amount reverses direction (customer sitting on an advance).
+
+    Refuses if:
+      - the customer already has any invoice
+      - an opening balance row already exists for this party
+    Silently no-ops when amount is exactly 0 (matches the ticket spec —
+    "لو اتسيب صفر، مفيش أي قيد بيتعمل خالص")."""
+    from datetime import date as _date
+    from app.models import PartyOpeningBalance, PartyType
+    from app.services.ledger import post_journal, get_account_by_code, LedgerError
+
+    if amount is None or abs(float(amount)) < 0.001:
+        return None
+    if _has_party_activity(PartyType.CUSTOMER, customer):
+        raise LedgerError(
+            "لا يمكن إدخال رصيد افتتاحي — العميل عنده فواتير بالفعل."
+        )
+    if _existing_opening(customer.company_id,
+                          PartyType.CUSTOMER, customer.id):
+        raise LedgerError(
+            "الرصيد الافتتاحي مسجل بالفعل لهذا العميل."
+        )
+    ar = ensure_customer_account(customer)
+    open_acc = get_account_by_code(customer.company_id, "3900")
+    if not open_acc:
+        raise LedgerError(
+            "حساب الافتتاح (3900) غير موجود — راجع شجرة الحسابات"
+        )
+    entry_date = entry_date or _date.today()
+    amt = float(amount)
+    if amt > 0:
+        # Customer owes us — Dr AR sub / Cr 3900
+        lines = [
+            {"account_id": ar.id, "debit": amt, "credit": 0,
+             "memo": f"رصيد افتتاحي — {customer.name}"},
+            {"account_id": open_acc.id, "debit": 0, "credit": amt,
+             "memo": "حساب الافتتاح"},
+        ]
+    else:
+        # Customer sitting on an advance — reverse both sides.
+        amt_abs = -amt
+        lines = [
+            {"account_id": open_acc.id, "debit": amt_abs, "credit": 0,
+             "memo": "حساب الافتتاح"},
+            {"account_id": ar.id, "debit": 0, "credit": amt_abs,
+             "memo": f"رصيد افتتاحي (مقدم) — {customer.name}"},
+        ]
+    entry = post_journal(
+        company_id=customer.company_id,
+        description=f"رصيد افتتاحي — العميل {customer.name}",
+        lines=lines,
+        entry_date=entry_date,
+        reference=f"OB-C-{customer.id}",
+        currency=customer.company.base_currency
+                    if customer.company else None,
+        created_by=created_by,
+        source_type="party_opening_balance",
+        source_id=customer.id,
+    )
+    ob = PartyOpeningBalance(
+        company_id=customer.company_id,
+        party_type=PartyType.CUSTOMER,
+        party_id=customer.id,
+        amount=amt,
+        entry_date=entry_date,
+        journal_entry_id=entry.id,
+        created_by=created_by,
+    )
+    db.session.add(ob)
+    db.session.flush()
+    return ob
+
+
+def record_vendor_opening_balance(vendor, amount, *,
+                                    entry_date=None, created_by=None):
+    """One-shot: record an opening payable to `vendor`.
+
+    Journal:  Dr 3900 (Opening Equity)         / Cr vendor-sub (under 2110)
+    Negative amount reverses direction (we prepaid the vendor)."""
+    from datetime import date as _date
+    from app.models import PartyOpeningBalance, PartyType
+    from app.services.ledger import post_journal, get_account_by_code, LedgerError
+
+    if amount is None or abs(float(amount)) < 0.001:
+        return None
+    if _has_party_activity(PartyType.VENDOR, vendor):
+        raise LedgerError(
+            "لا يمكن إدخال رصيد افتتاحي — المورد عنده فواتير بالفعل."
+        )
+    if _existing_opening(vendor.company_id,
+                          PartyType.VENDOR, vendor.id):
+        raise LedgerError(
+            "الرصيد الافتتاحي مسجل بالفعل لهذا المورد."
+        )
+    ap = ensure_vendor_account(vendor)
+    open_acc = get_account_by_code(vendor.company_id, "3900")
+    if not open_acc:
+        raise LedgerError(
+            "حساب الافتتاح (3900) غير موجود — راجع شجرة الحسابات"
+        )
+    entry_date = entry_date or _date.today()
+    amt = float(amount)
+    if amt > 0:
+        # We owe the vendor — Dr 3900 / Cr AP sub
+        lines = [
+            {"account_id": open_acc.id, "debit": amt, "credit": 0,
+             "memo": "حساب الافتتاح"},
+            {"account_id": ap.id, "debit": 0, "credit": amt,
+             "memo": f"رصيد افتتاحي — {vendor.name}"},
+        ]
+    else:
+        # We prepaid the vendor — reverse both sides.
+        amt_abs = -amt
+        lines = [
+            {"account_id": ap.id, "debit": amt_abs, "credit": 0,
+             "memo": f"رصيد افتتاحي (مقدم) — {vendor.name}"},
+            {"account_id": open_acc.id, "debit": 0, "credit": amt_abs,
+             "memo": "حساب الافتتاح"},
+        ]
+    entry = post_journal(
+        company_id=vendor.company_id,
+        description=f"رصيد افتتاحي — المورد {vendor.name}",
+        lines=lines,
+        entry_date=entry_date,
+        reference=f"OB-V-{vendor.id}",
+        currency=vendor.company.base_currency
+                    if vendor.company else None,
+        created_by=created_by,
+        source_type="party_opening_balance",
+        source_id=vendor.id,
+    )
+    ob = PartyOpeningBalance(
+        company_id=vendor.company_id,
+        party_type=PartyType.VENDOR,
+        party_id=vendor.id,
+        amount=amt,
+        entry_date=entry_date,
+        journal_entry_id=entry.id,
+        created_by=created_by,
+    )
+    db.session.add(ob)
+    db.session.flush()
+    return ob

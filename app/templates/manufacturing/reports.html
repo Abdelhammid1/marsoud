@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block page_title %}تقارير التكلفة الصناعية{% endblock %}
+{% block content %}
+<div class="card p-6">
+  <h2 class="text-xl font-bold text-navy-900 mb-4">تقارير التكلفة الصناعية</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>الأمر</th>
+        <th>المنتج</th>
+        <th>الكمية</th>
+        <th class="text-left">مواد</th>
+        <th class="text-left">أجور</th>
+        <th class="text-left">مصاريف</th>
+        <th class="text-left">الإجمالي</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td class="font-mono"><a href="{{ url_for('manufacturing.work_order_detail', work_order_id=r.wo.id) }}" class="text-brand-600 hover:underline">{{ r.wo.number }}</a></td>
+        <td>{{ r.wo.bom.product_variant.name or r.wo.bom.product_variant.sku }}</td>
+        <td class="font-mono">{{ "%.2f"|format(r.wo.quantity_to_produce|float) }}</td>
+        <td class="text-left font-mono">{{ "%.2f"|format(r.material) }}</td>
+        <td class="text-left font-mono">{{ "%.2f"|format(r.labor) }}</td>
+        <td class="text-left font-mono">{{ "%.2f"|format(r.overhead) }}</td>
+        <td class="text-left font-mono font-bold text-navy-900">{{ "%.2f"|format(r.total) }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="text-center text-slate-400 py-8">لا توجد أوامر إنتاج مكتملة.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

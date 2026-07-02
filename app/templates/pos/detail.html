@@ -8,7 +8,7 @@
       <div>
         <h2 class="text-2xl font-bold text-navy-900">{{ invoice.number }}</h2>
         <div class="text-sm text-slate-500 mt-1">
-          {{ invoice.created_at.strftime('%Y-%m-%d %H:%M') }}
+          {{ invoice.created_at | company_dt('%Y-%m-%d %H:%M') }}
           · الكاشير: {{ invoice.cashier.full_name if invoice.cashier else '—' }}
         </div>
       </div>
@@ -51,7 +51,7 @@
     <div class="bg-rose-50 border border-rose-200 rounded-lg p-3 text-sm mt-4">
       <div class="font-bold text-rose-700">⚠ ملغى</div>
       <div class="text-xs text-slate-600 mt-1">
-        {{ invoice.voided_at.strftime('%Y-%m-%d %H:%M') }}{% if invoice.voided_by %} بواسطة {{ invoice.voided_by.full_name }}{% endif %}
+        {{ invoice.voided_at | company_dt('%Y-%m-%d %H:%M') }}{% if invoice.voided_by %} بواسطة {{ invoice.voided_by.full_name }}{% endif %}
       </div>
       <div class="text-sm mt-1">السبب: {{ invoice.void_reason }}</div>
     </div>

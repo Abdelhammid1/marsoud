@@ -40,7 +40,7 @@
         <td><span class="badge {{ t.status.badge_class }} text-[10px]">{{ t.status.label_ar }}</span></td>
         <td class="text-xs">{{ t.created_by.full_name if t.created_by else '—' }}</td>
         <td class="text-xs font-mono text-slate-500">
-          {{ t.archived_at.strftime('%Y-%m-%d %H:%M') if t.archived_at else '—' }}
+          {{ t.archived_at | company_dt('%Y-%m-%d %H:%M') if t.archived_at else '—' }}
         </td>
         <td class="text-xs">
           {% if t.archived_by %}{{ t.archived_by.full_name }}

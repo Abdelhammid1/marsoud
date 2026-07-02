@@ -103,6 +103,19 @@ PERMISSION_CATALOG = {
     "api_tokens.manage":    ("النظام", "مفاتيح الـ API: إدارة", "edit"),
     "activity_log.view":    ("النظام", "سجل نشاط الموظفين", "view"),
     "backup.download":      ("النظام", "نسخة احتياطية (Excel)", "run"),
+
+    # ─── MARSOUD-REFUNDS-01 ─────────────────────────────────────────────
+    "refunds.view":         ("المالية والمحاسبة", "المرتجعات: عرض الصفحة والتقرير", "view"),
+    "refunds.manage":       ("المالية والمحاسبة", "المرتجعات: إنشاء (مبيعات + مشتريات)", "edit"),
+    "vendor_bills.refund":  ("المالية والمحاسبة", "فواتير الموردين: مرتجعات", "delete"),
+
+    # ─── MARSOUD-EMPLOYEE-DAILY-REPORTS ─────────────────────────────
+    "employee_reports.view": ("النظام", "تقارير الموظفين اليومية: عرض", "view"),
+
+    # ─── MARSOUD-MANUFACTURING-01 ───────────────────────────────────
+    "manufacturing.view":     ("العمليات والمبيعات", "التصنيع: عرض", "view"),
+    "manufacturing.manage":   ("العمليات والمبيعات", "التصنيع: إدارة BOM وأوامر الإنتاج", "edit"),
+    "manufacturing.complete": ("العمليات والمبيعات", "التصنيع: إكمال أمر إنتاج (سحب مواد + قيد)", "delete"),
 }
 
 

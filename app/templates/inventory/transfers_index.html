@@ -32,7 +32,7 @@
         <td class="font-mono font-semibold">
           <a href="{{ url_for('inventory.transfer_detail', transfer_id=t.id) }}" class="text-emerald-600 hover:underline">{{ t.number }}</a>
         </td>
-        <td class="text-xs font-mono">{{ t.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td class="text-xs font-mono">{{ t.created_at | company_dt('%Y-%m-%d %H:%M') }}</td>
         <td class="text-xs">{{ t.from_warehouse.code }}</td>
         <td class="text-xs">{{ t.to_warehouse.code }}</td>
         <td class="text-end font-mono">{{ '%.2f'|format(t.total_qty) }}</td>

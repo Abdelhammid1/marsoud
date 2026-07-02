@@ -33,12 +33,12 @@
         {% if u.is_superadmin %}<span class="badge badge-bad mr-2">ADMIN</span>{% endif %}
       </td>
       <td class="text-ink-200">{{ u.email }}</td>
-      <td class="font-mono text-xs">{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '—' }}</td>
+      <td class="font-mono text-xs">{{ u.created_at | company_dt('%Y-%m-%d') if u.created_at else '—' }}</td>
       <td>
         {% for c in u.companies %}<span class="badge badge-neutral">{{ c.name }}</span> {% endfor %}
         {% if not u.companies %}<span class="text-ink-200 text-xs">—</span>{% endif %}
       </td>
-      <td class="font-mono text-xs">{{ u.last_login_at.strftime('%Y-%m-%d %H:%M') if u.last_login_at else '—' }}</td>
+      <td class="font-mono text-xs">{{ u.last_login_at | company_dt('%Y-%m-%d %H:%M') if u.last_login_at else '—' }}</td>
       <td>
         {% if u.is_active %}<span class="badge badge-ok">نشط</span>
         {% else %}<span class="badge badge-bad">موقوف</span>{% endif %}

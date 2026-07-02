@@ -34,11 +34,11 @@
            class="text-white font-semibold hover:underline">{{ r.company.name }}</a>
         <div class="text-xs text-ink-200">{{ r.company.base_currency }} · ضريبة {{ r.company.vat_rate }}%</div>
       </td>
-      <td class="font-mono text-xs">{{ r.company.created_at.strftime('%Y-%m-%d') if r.company.created_at else '—' }}</td>
+      <td class="font-mono text-xs">{{ r.company.created_at | company_dt('%Y-%m-%d') if r.company.created_at else '—' }}</td>
       <td>{{ r.users }}</td>
       <td>{{ r.journals }}</td>
       <td>{{ r.invoices }}</td>
-      <td class="font-mono text-xs">{{ r.last_activity.strftime('%Y-%m-%d %H:%M') if r.last_activity else '—' }}</td>
+      <td class="font-mono text-xs">{{ r.last_activity | company_dt('%Y-%m-%d %H:%M') if r.last_activity else '—' }}</td>
       <td>
         {% set s = r.company.status or 'ACTIVE' %}
         {% if s == 'ACTIVE' %}<span class="badge badge-ok">نشطة</span>

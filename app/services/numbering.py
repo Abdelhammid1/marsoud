@@ -19,9 +19,16 @@ DOC_PREFIXES = {
     "PAYMENT": "PMT",
     "REFUND": "REF",
     "CREDIT_NOTE": "CN",
+    # MARSOUD-REFUNDS-01 — dedicated sequences for sales/purchase refunds.
+    # Distinct from legacy "REFUND" (payment-refund) so the audit trail
+    # for goods returns stays clean.
+    "SALES_REFUND": "SRET",
+    "PURCHASE_REFUND": "PRET",
+    "DEBIT_NOTE": "DN",
     "VENDOR_BILL": "VB",
     "POS": "POS",   # ERP-02 — POS orders
     "STOCK_TRANSFER": "TR",  # ERP-03 — warehouse transfers
+    "MANUFACTURING_ORDER": "MO",  # MARSOUD-MANUFACTURING-01
 }
 
 

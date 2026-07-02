@@ -33,12 +33,22 @@ def _mark_sent(invoice_id, kind, days):
 
 
 def process_invoice_reminders():
-    """Single pass — call from a cron tick. Returns a summary dict."""
-    today = date.today()
+    """Single pass — call from a cron tick. Returns a summary dict.
+
+    MARSOUD-TZ-01 — "today" is evaluated in each invoice's company
+    timezone, not the server's local timezone. Cron runs UTC on the
+    server, but a Cairo customer's Sep-30 invoice is due Sep-30 in
+    Cairo, not Sep-30 UTC. Skipping the correction can fire reminders
+    one day early or late for companies whose day-boundary hasn't
+    crossed UTC's yet.
+    """
+    from app.services.time import today_in_company_tz
     sent_counts = {"before": 0, "overdue": 0, "skipped": 0}
 
-    # Cache reminder configs per company to avoid N+1
+    # Cache reminder configs + today-per-company (both are per-company
+    # invariants inside a single tick).
     company_cfg = {}
+    company_today = {}
     candidates = Invoice.query.filter(
         Invoice.send_reminders.is_(True),
         Invoice.status.in_([
@@ -54,10 +64,13 @@ def process_invoice_reminders():
             continue
 
         cfg = company_cfg.get(inv.company_id)
-        if cfg is None:
+        today = company_today.get(inv.company_id)
+        if cfg is None or today is None:
             company = db.session.get(Company, inv.company_id)
             cfg = company.reminders if company else {}
+            today = today_in_company_tz(company) if company else date.today()
             company_cfg[inv.company_id] = cfg
+            company_today[inv.company_id] = today
 
         if not cfg.get("enabled", True):
             sent_counts["skipped"] += 1

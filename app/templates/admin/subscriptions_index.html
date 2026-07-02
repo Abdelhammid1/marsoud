@@ -42,7 +42,7 @@
           {% if r.plan %}<span class="badge badge-paid">{{ r.plan.name_ar }}</span>
           {% else %}<span class="badge badge-cancelled">—</span>{% endif %}
         </td>
-        <td class="text-xs font-mono">{{ r.expires.strftime('%Y-%m-%d') if r.expires else '—' }}</td>
+        <td class="text-xs font-mono">{{ r.expires | company_dt('%Y-%m-%d') if r.expires else '—' }}</td>
         <td class="text-center text-sm font-mono">
           {% if r.days_remaining is none %}
             —

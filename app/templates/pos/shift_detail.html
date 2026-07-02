@@ -16,11 +16,11 @@
     <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
       <div>
         <div class="text-xs text-slate-500">فتحت</div>
-        <div class="font-mono">{{ shift.opened_at.strftime('%Y-%m-%d %H:%M') }}</div>
+        <div class="font-mono">{{ shift.opened_at | company_dt('%Y-%m-%d %H:%M') }}</div>
       </div>
       <div>
         <div class="text-xs text-slate-500">أُغلقت</div>
-        <div class="font-mono">{{ shift.closed_at.strftime('%Y-%m-%d %H:%M') if shift.closed_at else '—' }}</div>
+        <div class="font-mono">{{ shift.closed_at | company_dt('%Y-%m-%d %H:%M') if shift.closed_at else '—' }}</div>
       </div>
       <div>
         <div class="text-xs text-slate-500">المدة</div>

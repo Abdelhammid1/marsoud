@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block page_title %}{{ report.title }}{% endblock %}
+{% block content %}
+
+<div class="mb-4">
+  <a href="{{ url_for('reports.employee_reports_list', employee_id=report.employee_id) }}"
+      class="text-sm text-brand-600 hover:underline">← كل تقارير {{ report.employee.name }}</a>
+</div>
+
+<div class="card p-6">
+  <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+    <div>
+      <h2 class="text-xl font-bold text-navy-900">{{ report.title }}</h2>
+      <div class="text-xs text-slate-500 mt-1">
+        {{ report.employee.name }}
+        {% if report.employee.status.value == 'TERMINATED' %}
+          <span class="badge bg-rose-100 text-rose-700 text-[10px] ml-1">غير نشط</span>
+        {% endif %}
+        · {{ report.report_date.isoformat() }}
+      </div>
+    </div>
+    <span class="badge bg-emerald-100 text-emerald-700">تم التوليد {{ report.submitted_at | company_dt if report.submitted_at else '' }}</span>
+  </div>
+
+  <div class="mb-6">
+    <h3 class="font-bold text-navy-900 mb-2 text-sm">النشاط التلقائي</h3>
+    <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm whitespace-pre-line" dir="rtl">
+      {{ report.body or 'لا يوجد نشاط.' }}
+    </div>
+  </div>
+
+  {% if report.employee_notes %}
+  <div class="mb-4">
+    <h3 class="font-bold text-navy-900 mb-2 text-sm">ملاحظات الموظف</h3>
+    <div class="bg-emerald-50/40 border border-emerald-100 rounded-lg p-4 text-sm whitespace-pre-line" dir="rtl">
+      {{ report.employee_notes }}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

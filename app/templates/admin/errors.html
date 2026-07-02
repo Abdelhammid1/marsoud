@@ -29,7 +29,7 @@
   <tbody>
     {% for r in rows %}
     <tr>
-      <td class="font-mono text-xs">{{ r.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+      <td class="font-mono text-xs">{{ r.created_at | company_dt('%Y-%m-%d %H:%M:%S') }}</td>
       <td class="font-mono text-xs">{{ r.route }}</td>
       <td><span class="badge badge-neutral">{{ r.method }}</span></td>
       <td><span class="badge badge-bad">{{ r.status_code }}</span></td>

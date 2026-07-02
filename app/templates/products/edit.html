@@ -35,6 +35,43 @@
                value="{{ product.default_tax_rate if product.default_tax_rate is not none else '' }}"
                placeholder="يستخدم الشركة الافتراضية" class="input font-mono">
       </div>
+      {# MARSOUD-PRODUCT-HIERARCHY-01 — reassignable category. #}
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">المجموعة</label>
+          <select id="edit-group" class="select">
+            {% for g in groups %}
+            <option value="{{ g.id }}" {% if product.category and product.category.group_id == g.id %}selected{% endif %}>{{ g.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">الفئة</label>
+          <select id="edit-category" name="category_id" class="select" required></select>
+        </div>
+      </div>
+      <script>
+        (function() {
+          var byGroup = {};
+          {% for c in categories %}
+          (byGroup[{{ c.group_id }}] = byGroup[{{ c.group_id }}] || []).push({id: {{ c.id }}, name: {{ c.name|tojson }}});
+          {% endfor %}
+          var g = document.getElementById('edit-group');
+          var c = document.getElementById('edit-category');
+          var currentCat = {{ product.category_id or 'null' }};
+          function refill() {
+            var opts = [];
+            (byGroup[g.value] || []).forEach(function(o) {
+              var sel = (o.id === currentCat) ? ' selected' : '';
+              opts.push('<option value="' + o.id + '"' + sel + '>' + o.name + '</option>');
+            });
+            c.innerHTML = opts.join('') || '<option value="">— لا توجد فئات في هذه المجموعة —</option>';
+          }
+          g.addEventListener('change', function() { currentCat = null; refill(); });
+          refill();
+        })();
+      </script>
+
       <label class="flex items-center gap-2">
         <input type="checkbox" name="is_active" {% if product.is_active %}checked{% endif %}>
         <span class="text-sm font-semibold">نشط (يظهر في القوائم)</span>

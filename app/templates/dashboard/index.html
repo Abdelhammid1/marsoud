@@ -141,12 +141,28 @@
 <div id="dash-root">
   <h1 class="sr-only">لوحة معلومات المالك</h1>
 
-  <!-- Period switcher — visual placeholder for v1 -->
+  {# MARSOUD-DASH-FILTER — buttons reload with ?period=X so KPIs +
+     expenses + new-customers count all shift together. Sparklines +
+     6-month trend stay month-scoped because they're time-series
+     visualisations that would collapse under a single-day view. #}
+  {% set _cur_period = metrics.period or 'month' %}
   <div class="period" role="tablist" aria-label="فترة التحليل">
-    <button type="button">اليوم</button>
-    <button type="button" class="on" aria-current="true">الشهر</button>
-    <button type="button">الربع</button>
-    <button type="button">السنة</button>
+    <a href="{{ url_for('dashboard.index', period='day') }}"
+        class="{% if _cur_period == 'day' %}on{% endif %}"
+        role="tab" aria-selected="{{ 'true' if _cur_period == 'day' else 'false' }}"
+        style="text-decoration:none;display:inline-block">اليوم</a>
+    <a href="{{ url_for('dashboard.index', period='month') }}"
+        class="{% if _cur_period == 'month' %}on{% endif %}"
+        role="tab" aria-selected="{{ 'true' if _cur_period == 'month' else 'false' }}"
+        style="text-decoration:none;display:inline-block">الشهر</a>
+    <a href="{{ url_for('dashboard.index', period='quarter') }}"
+        class="{% if _cur_period == 'quarter' %}on{% endif %}"
+        role="tab" aria-selected="{{ 'true' if _cur_period == 'quarter' else 'false' }}"
+        style="text-decoration:none;display:inline-block">الربع</a>
+    <a href="{{ url_for('dashboard.index', period='year') }}"
+        class="{% if _cur_period == 'year' %}on{% endif %}"
+        role="tab" aria-selected="{{ 'true' if _cur_period == 'year' else 'false' }}"
+        style="text-decoration:none;display:inline-block">السنة</a>
   </div>
 
   {# ─── Section 1: Financial Health ────────────────────────────── #}
@@ -174,7 +190,7 @@
           {% if k.change_pct > 0 %}↑{% elif k.change_pct < 0 %}↓{% else %}—{% endif %} {{ k.change_pct }}%
         </div>
       </div>
-      <div class="kpi-label">صافي الربح (الشهر)</div>
+      <div class="kpi-label">صافي الربح ({{ metrics.period_label or 'الشهر' }})</div>
       <div class="kpi-val"><span class="cur">{{ cur }}</span>{{ "{:,.0f}".format(k.value) }}</div>
       <div class="spark-wrap"><canvas class="spark" data-spark="{{ k.spark|join(',') }}" data-color="#2d6fb3"></canvas></div>
     </a>
@@ -262,9 +278,9 @@
       <div class="op-ico i-green">👤</div>
       <div>
         <div class="op-val">+{{ metrics.ops.customers_new_month }}</div>
-        <div class="op-label">عميل جديد (الشهر)</div>
+        <div class="op-label">عميل جديد ({{ metrics.period_label or 'الشهر' }})</div>
         <div class="op-extra {% if metrics.ops.customers_delta >= 0 %}tag-green{% else %}tag-red{% endif %}">
-          {% if metrics.ops.customers_delta >= 0 %}+{% endif %}{{ metrics.ops.customers_delta }} عن الشهر الماضي
+          {% if metrics.ops.customers_delta >= 0 %}+{% endif %}{{ metrics.ops.customers_delta }} عن الفترة السابقة
         </div>
       </div>
     </a>
@@ -379,7 +395,7 @@
       <div class="card-head">
         <div>
           <div class="card-title">توزيع المصروفات</div>
-          <div class="card-sub">هذا الشهر</div>
+          <div class="card-sub">هذا/هذه {{ metrics.period_label or 'الشهر' }}</div>
         </div>
       </div>
       {% if metrics.expense_breakdown %}
@@ -393,7 +409,7 @@
         </div>
         {% endfor %}
       {% else %}
-        <div style="padding:24px;text-align:center;color:var(--d-ink-3);font-size:13px">لا توجد مصروفات مسجّلة هذا الشهر</div>
+        <div style="padding:24px;text-align:center;color:var(--d-ink-3);font-size:13px">لا توجد مصروفات مسجّلة في هذه الفترة</div>
       {% endif %}
     </div>
   </div>
@@ -410,8 +426,8 @@
       <div class="tcard-head">
         <div class="tcard-ico i-green">💗</div>
         <div>
-          <div class="tcard-title" title="عدد القيود المحاسبية التي أنشأها كل مستخدم خلال هذا الشهر">الأكثر نشاطاً محاسبياً</div>
-          <div class="tcard-sub">عدد القيود المحاسبية التي أنشأها هذا الشهر</div>
+          <div class="tcard-title" title="عدد القيود المحاسبية التي أنشأها كل مستخدم خلال الفترة المختارة">الأكثر نشاطاً محاسبياً</div>
+          <div class="tcard-sub">عدد القيود المحاسبية التي أنشأها في هذه الفترة</div>
         </div>
       </div>
       {% if metrics.team_most_active %}

@@ -326,14 +326,36 @@ def auto_request_feedback_on_delivery(project):
 # ─── Deadline reminders (called from /cron/tick) ────────────────────────
 def remind_task_deadlines_24h():
     """Find tasks with deadline in (today, today+1] that aren't done/blocked
-    and haven't been reminded already today. Notifies the assignee."""
-    today = date.today()
-    horizon = today + timedelta(days=1)
-    candidates = Task.query.filter(
+    and haven't been reminded already today. Notifies the assignee.
+
+    MARSOUD-TZ-01 — 'today' is per-company because a Cairo customer's
+    "today" and the server's "today" can differ by up to 3 hours near
+    UTC midnight. Fetching wider (any deadline within 48h of UTC now)
+    then filtering in Python per company keeps the query cheap AND
+    correct regardless of where the company is on the globe."""
+    from app.services.time import today_in_company_tz
+    from datetime import date as _d
+    today_utc = _d.today()
+    horizon = today_utc + timedelta(days=2)   # widen so no tz boundary bites
+    raw_candidates = Task.query.filter(
         Task.deadline.isnot(None),
-        Task.deadline > today, Task.deadline <= horizon,
+        Task.deadline >= today_utc, Task.deadline <= horizon,
         Task.status.notin_([TaskStatus.DONE, TaskStatus.BLOCKED]),
     ).all()
+    # Filter per-company using its own today.
+    company_today = {}
+    candidates = []
+    for t in raw_candidates:
+        if t.company_id not in company_today:
+            from app.models import Company as _C
+            _c = _C.query.get(t.company_id)
+            company_today[t.company_id] = (
+                today_in_company_tz(_c) if _c else today_utc
+            )
+        today = company_today[t.company_id]
+        horiz = today + timedelta(days=1)
+        if today < t.deadline <= horiz:
+            candidates.append(t)
     sent = 0
     for t in candidates:
         # Dedup: did we already send a 24h reminder for this task today?

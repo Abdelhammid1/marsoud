@@ -510,10 +510,16 @@ def execute_tool(name, args, company_id, user_id):
             open_shifts = CashierShift.query.filter_by(
                 company_id=company_id, status="OPEN",
             ).all()
+            # MARSOUD-TZ-01 — render datetimes in the company's TZ so
+            # the AI never quotes raw UTC back to the user.
+            from app.services.time import to_company_tz_str
+            from app.models import Company as _Co
+            _company = _Co.query.get(company_id)
             return {"shifts": [{
                 "id": s.id,
                 "cashier": s.cashier.full_name if s.cashier else "—",
-                "opened_at": s.opened_at.isoformat(),
+                "opened_at": to_company_tz_str(
+                    s.opened_at, _company, "%Y-%m-%d %H:%M"),
                 "opening_cash": float(s.opening_cash or 0),
                 "expected_cash": _expected_cash_for(s),
             } for s in open_shifts]}
@@ -564,6 +570,9 @@ def execute_tool(name, args, company_id, user_id):
                 .order_by(StockTransfer.created_at.desc())
                 .limit(limit).all()
             )
+            from app.services.time import to_company_tz_str
+            from app.models import Company as _Co
+            _company = _Co.query.get(company_id)
             return {
                 "sku": v.sku, "name": v.display_name,
                 "transfers": [{
@@ -572,7 +581,8 @@ def execute_tool(name, args, company_id, user_id):
                     "to": t.to_warehouse.code,
                     "qty": float(it.qty or 0),
                     "status": t.status,
-                    "date": t.created_at.isoformat(),
+                    "date": to_company_tz_str(
+                        t.created_at, _company, "%Y-%m-%d %H:%M"),
                 } for t, it in rows],
             }
 

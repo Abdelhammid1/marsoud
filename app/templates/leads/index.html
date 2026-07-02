@@ -108,7 +108,7 @@
         </div>
         {% if l.next_meeting %}
         <div class="mt-1 text-[10px] text-brand-600">
-          📅 {{ l.next_meeting.strftime('%Y-%m-%d %H:%M') }}
+          📅 {{ l.next_meeting | company_dt('%Y-%m-%d %H:%M') }}
         </div>
         {% endif %}
         {% if has_permission('leads.manage') %}
@@ -160,8 +160,8 @@
         <td class="text-sm">{{ l.assigned_to.full_name if l.assigned_to else '—' }}</td>
         <td class="text-sm font-mono" dir="ltr">{{ l.phone }}</td>
         <td><span class="badge {{ l.status.badge_class }}">{{ l.status.label_ar }}</span></td>
-        <td class="text-xs font-mono">{{ l.next_meeting.strftime('%Y-%m-%d %H:%M') if l.next_meeting else '—' }}</td>
-        <td class="text-xs text-slate-500">{{ l.created_at.strftime('%Y-%m-%d') }}</td>
+        <td class="text-xs font-mono">{{ l.next_meeting | company_dt('%Y-%m-%d %H:%M') if l.next_meeting else '—' }}</td>
+        <td class="text-xs text-slate-500">{{ l.created_at | company_dt('%Y-%m-%d') }}</td>
       </tr>
     {% else %}
       <tr><td colspan="7" class="text-center text-slate-400 py-6">لا يوجد عملاء محتملون مطابقون.</td></tr>

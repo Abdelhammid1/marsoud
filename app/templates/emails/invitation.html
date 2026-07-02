@@ -11,7 +11,7 @@
 <table style="width:100%;border-collapse:collapse;margin:24px 0;background:#F8FAFC;border-radius:12px;overflow:hidden">
   <tr><td style="padding:12px 16px;color:#64748B">الشركة</td><td style="padding:12px 16px;text-align:left;font-weight:bold">{{ invitation.company.name }}</td></tr>
   <tr><td style="padding:12px 16px;color:#64748B">الدور</td><td style="padding:12px 16px;text-align:left">{{ role_label }}</td></tr>
-  <tr><td style="padding:12px 16px;color:#64748B">صلاحية الدعوة</td><td style="padding:12px 16px;text-align:left">حتى {{ invitation.expires_at.strftime('%Y-%m-%d') }}</td></tr>
+  <tr><td style="padding:12px 16px;color:#64748B">صلاحية الدعوة</td><td style="padding:12px 16px;text-align:left">حتى {{ invitation.expires_at | company_dt('%Y-%m-%d', company=invitation.company) }}</td></tr>
 </table>
 
 <div style="text-align:center;margin:32px 0">

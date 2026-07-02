@@ -180,7 +180,7 @@
       <div class="space-y-1 text-xs">
         {% for a in settled_accruals %}
         <div class="flex items-center justify-between text-slate-600">
-          <span>{{ a.settled_at.strftime('%Y-%m-%d') }}</span>
+          <span>{{ a.settled_at | company_dt('%Y-%m-%d') }}</span>
           <span class="font-mono">{{ "%.2f"|format(a.amount) }}</span>
         </div>
         {% endfor %}

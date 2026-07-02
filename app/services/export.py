@@ -1355,8 +1355,11 @@ def export_stock_movements_excel(company, start, end):
         c.fill = PatternFill("solid", fgColor="0A2540")
     row += 1
     kind_labels = {k.value: k.label_ar for k in StockMovementKind}
+    from app.services.time import to_company_tz_str
     for m in rows:
-        ws.cell(row=row, column=1, value=m.created_at.strftime("%Y-%m-%d %H:%M"))
+        ws.cell(row=row, column=1,
+                 value=to_company_tz_str(m.created_at, company,
+                                          "%Y-%m-%d %H:%M") or "")
         ws.cell(row=row, column=2, value=kind_labels.get(m.kind, m.kind))
         ws.cell(row=row, column=3, value=m.variant.sku if m.variant else "")
         ws.cell(row=row, column=4, value=m.warehouse.code if m.warehouse else "")
@@ -1730,9 +1733,11 @@ def export_stock_movements_pdf(company, start, end):
     ).order_by(StockMovement.created_at.asc()).all()
     kind_labels = {k.value: k.label_ar for k in StockMovementKind}
     out = []
+    from app.services.time import to_company_tz_str
     for m in rows:
         out.append([
-            m.created_at.strftime("%Y-%m-%d %H:%M"),
+            to_company_tz_str(m.created_at, company,
+                                 "%Y-%m-%d %H:%M") or "",
             kind_labels.get(m.kind, m.kind),
             m.variant.sku if m.variant else "",
             m.warehouse.code if m.warehouse else "",
@@ -1795,9 +1800,12 @@ def export_leads_excel(company, leads):
         type_label = L.lead_type or ""
         source_label = L.source or ""
         expected = float(L.expected_value) if L.expected_value else 0.0
-        meeting_str = (L.next_meeting.strftime("%Y-%m-%d %H:%M")
+        from app.services.time import to_company_tz_str
+        meeting_str = (to_company_tz_str(L.next_meeting, L.company,
+                                             "%Y-%m-%d %H:%M") or ""
                        if L.next_meeting else "")
-        created_str = (L.created_at.strftime("%Y-%m-%d %H:%M")
+        created_str = (to_company_tz_str(L.created_at, L.company,
+                                             "%Y-%m-%d %H:%M") or ""
                        if L.created_at else "")
         converted = "نعم" if L.is_converted else ""
 

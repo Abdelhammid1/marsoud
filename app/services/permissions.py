@@ -28,6 +28,25 @@ P = {
     "invoices.send":        {"owner", "admin", "accountant"},
     "invoices.refund":      {"owner", "admin", "accountant"},
 
+    # MARSOUD-REFUNDS-01 — refunds page + report (read-only view). Manage
+    # implies the ability to actually issue a refund on both sides
+    # (sales via invoices.refund, purchases via vendor_bills.refund).
+    "refunds.view":         {"owner", "admin", "accountant", "ceo", "viewer"},
+    "refunds.manage":       {"owner", "admin", "accountant"},
+    "vendor_bills.refund":  {"owner", "admin", "accountant"},
+
+    # MARSOUD-EMPLOYEE-DAILY-REPORTS — owner + any admin/manager can be
+    # granted view rights. Actual per-employee filtering is enforced by
+    # employee_report_access (checked in daily_digest.can_view_reports_for).
+    "employee_reports.view": {"owner", "admin", "hr_manager"},
+
+    # MARSOUD-MANUFACTURING-01 — new coarse module. .complete is
+    # separated from .manage because posting a work order (which pulls
+    # inventory + posts a journal) is more sensitive than editing a BOM.
+    "manufacturing.view":     {"owner", "admin", "accountant", "ceo", "viewer"},
+    "manufacturing.manage":   {"owner", "admin", "accountant"},
+    "manufacturing.complete": {"owner", "admin", "accountant"},
+
     "journals.create":      {"owner", "admin", "accountant"},
     "journals.pause":       {"owner", "admin", "accountant"},
     "journals.reverse":     {"owner", "admin", "accountant"},
@@ -233,6 +252,12 @@ _IMPLIES = {
     "api_tokens.manage":   "users.manage",
     "activity_log.view":   "users.manage",
     "backup.download":     "users.manage",
+    # MARSOUD-REFUNDS-01 — anyone who could already issue a sales refund
+    # can see the new /refunds page. Vendor-side refund (manage) inherits
+    # from the same gate so no re-seed of the roles table is needed.
+    "refunds.view":        "invoices.refund",
+    "refunds.manage":      "invoices.refund",
+    "vendor_bills.refund": "invoices.refund",
 }
 
 

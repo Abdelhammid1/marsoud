@@ -53,6 +53,29 @@
       </div>
     </div>
 
+    {# MARSOUD-PARTY-OPENING-BALANCE-01 — opening balance is captured
+       ONCE at customer creation. Editing an existing customer never
+       shows this field (the ticket calls this out explicitly). #}
+    {% if not customer %}
+    <div class="border border-amber-100 rounded-lg p-4 bg-amber-50/30">
+      <h3 class="font-bold text-navy-900 mb-1 text-sm">💰 رصيد افتتاحي (اختياري)</h3>
+      <p class="text-xs text-slate-500 mb-3">
+        لو العميل ده عليه فلوس من قبل ما تبدأ استخدام النظام، اكتب المبلغ هنا.
+        هيتسجل قيد افتتاحي مقابل حساب الافتتاح (3900) مرة واحدة بس. سيبه صفر
+        لو العميل جديد.
+      </p>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">المبلغ</label>
+          <input type="number" name="opening_balance" step="0.01"
+                  value="" placeholder="0.00"
+                  class="input text-sm font-mono">
+          <div class="text-[11px] text-slate-400 mt-1">موجب = عليه فلوس. سالب = دفع مقدم عندنا.</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <div class="flex justify-end gap-2 pt-2">
       <a href="{{ url_for('customers.index') }}" class="btn-secondary">إلغاء</a>
       <button type="submit" class="btn-primary">{% if customer %}💾 حفظ{% else %}+ إضافة{% endif %}</button>

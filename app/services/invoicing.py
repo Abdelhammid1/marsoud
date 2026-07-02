@@ -390,6 +390,16 @@ def issue_refund(invoice, refund_type, amount=None, reason=None, created_by=None
             "memo": "عكس ضريبة المخرجات",
         })
 
+    # MARSOUD-REFUNDS-01 — dedicated SRET-nnnn sequence per company for
+    # sales refunds. Falls back to REF-<invoice-number> if the sequence
+    # is unavailable for any reason (defensive; company_id must exist so
+    # the sequence has a shard key).
+    from app.services.numbering import next_number
+    try:
+        ref_no = next_number(invoice.company_id, "SALES_REFUND")
+    except Exception:
+        ref_no = f"REF-{invoice.number}"
+
     if refund_type == RefundType.CREDIT_NOTE:
         cn = CreditNote(
             company_id=invoice.company_id,
@@ -406,7 +416,7 @@ def issue_refund(invoice, refund_type, amount=None, reason=None, created_by=None
                 {"account_id": ar.id, "debit": 0, "credit": amount, "memo": "رصيد دائن للعميل"},
             ],
             entry_date=date.today(),
-            reference=f"CN-{invoice.number}",
+            reference=ref_no,
             currency=invoice.currency,
             created_by=created_by,
             source_type="credit_note",
@@ -422,7 +432,7 @@ def issue_refund(invoice, refund_type, amount=None, reason=None, created_by=None
                     {"account_id": cash.id, "debit": 0, "credit": amount, "memo": "صرف نقدي للعميل"},
                 ],
                 entry_date=date.today(),
-                reference=f"REF-{invoice.number}",
+                reference=ref_no,
                 currency=invoice.currency,
                 created_by=created_by,
                 source_type="refund",
@@ -438,7 +448,7 @@ def issue_refund(invoice, refund_type, amount=None, reason=None, created_by=None
                     {"account_id": ar.id, "debit": 0, "credit": amount, "memo": "إلغاء الذمم"},
                 ],
                 entry_date=date.today(),
-                reference=f"REF-{invoice.number}",
+                reference=ref_no,
                 currency=invoice.currency,
                 created_by=created_by,
                 source_type="refund",
@@ -446,6 +456,8 @@ def issue_refund(invoice, refund_type, amount=None, reason=None, created_by=None
             )
 
     refund = Refund(
+        company_id=invoice.company_id,
+        number=ref_no,
         invoice_id=invoice.id,
         type=refund_type,
         amount=amount,

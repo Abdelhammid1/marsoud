@@ -425,3 +425,61 @@ def leave_new():
     except (ValueError, TypeError, KeyError) as e:
         flash(str(e), "error")
     return redirect(url_for("portal_emp.index") + "#leaves")
+
+
+# ──────────────────────────────────────────────────────────────────────
+# MARSOUD-EMPLOYEE-DAILY-REPORTS — employee-side review + submit
+# ──────────────────────────────────────────────────────────────────────
+@portal_emp_bp.route("/daily-reports")
+@login_required
+def daily_reports_list():
+    """List every report row owned by the current employee (both DRAFT
+    and SUBMITTED). No permission gate — this is intrinsically your own
+    data."""
+    emp = _my_employee()
+    if not emp:
+        flash("هذه الصفحة للموظفين المرتبطين بسجل HR فقط.", "warning")
+        return redirect(url_for("dashboard.index"))
+    from app.models import EmployeeDailyReport
+    reports = EmployeeDailyReport.query.filter_by(
+        employee_id=emp.id,
+    ).order_by(EmployeeDailyReport.report_date.desc()).all()
+    return render_template("portal_emp/daily_reports_list.html",
+                             emp=emp, reports=reports)
+
+
+@portal_emp_bp.route("/daily-reports/<int:report_id>",
+                        methods=["GET", "POST"])
+@login_required
+def daily_report_detail(report_id):
+    emp = _my_employee()
+    if not emp:
+        abort(403)
+    from app.models import EmployeeDailyReport, DailyReportStatus
+    from app.services.daily_digest import submit_report
+    r = db.session.get(EmployeeDailyReport, report_id)
+    if not r or r.employee_id != emp.id:
+        abort(404)
+
+    if request.method == "POST":
+        # Ownership already enforced above. Refuse any edit on a
+        # SUBMITTED report.
+        if r.status == DailyReportStatus.SUBMITTED:
+            flash("لا يمكن تعديل تقرير تم توليده نهائياً.", "error")
+            return redirect(url_for(
+                "portal_emp.daily_report_detail", report_id=r.id,
+            ))
+        notes = (request.form.get("employee_notes") or "").strip() or None
+        r.employee_notes = notes
+        if request.form.get("submit_final") == "1":
+            submit_report(r.id, current_user.id)
+            db.session.commit()
+            flash("تم توليد التقرير وإخطار المسؤولين.", "success")
+            return redirect(url_for("portal_emp.daily_reports_list"))
+        db.session.commit()
+        flash("تم حفظ الملاحظات.", "success")
+        return redirect(url_for(
+            "portal_emp.daily_report_detail", report_id=r.id,
+        ))
+    return render_template("portal_emp/daily_report_detail.html",
+                             emp=emp, report=r)

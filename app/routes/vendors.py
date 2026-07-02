@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, g
-from flask_login import login_required
+from flask_login import login_required, current_user
 from app import db
-from app.models import Vendor, VendorBill
+from app.models import Vendor, VendorBill, VendorBillRefund, DebitNote
 from app.services.permissions import require_permission
 
 bp = Blueprint("vendors", __name__)
@@ -52,10 +52,69 @@ def new():
             db.session.rollback()
             flash(f"تعذّر إنشاء الحساب الفرعي للمورد: {e}", "error")
             return render_template("vendors/form.html")
+
+        # MARSOUD-PARTY-OPENING-BALANCE-01 — same one-shot pattern as
+        # the customer form. Only applied at create time.
+        ob_raw = request.form.get("opening_balance")
+        if ob_raw:
+            try:
+                ob_amount = float(ob_raw)
+            except ValueError:
+                ob_amount = 0.0
+            if abs(ob_amount) > 0.001:
+                from app.services.subsidiary import (
+                    record_vendor_opening_balance,
+                )
+                from app.services.ledger import LedgerError
+                try:
+                    record_vendor_opening_balance(
+                        v, ob_amount,
+                        created_by=current_user.id if current_user.is_authenticated else None,
+                    )
+                except LedgerError as e:
+                    db.session.rollback()
+                    flash(str(e), "error")
+                    return render_template("vendors/form.html")
+
         db.session.commit()
         flash("تم إضافة المورد", "success")
         return redirect(url_for("vendors.index"))
     return render_template("vendors/form.html")
+
+
+@bp.route("/<int:vendor_id>")
+@login_required
+def view(vendor_id):
+    """MARSOUD-REFUNDS-01 — minimal vendor detail page so refunds have
+    somewhere to live (customer side already had one). Shows the vendor
+    header, bills, and refunds/debit-notes."""
+    v = _vendor_or_404(vendor_id)
+    if not v:
+        return redirect(url_for("vendors.index"))
+    bills = VendorBill.query.filter_by(vendor_id=v.id).order_by(
+        VendorBill.issue_date.desc(),
+    ).all()
+    refunds = db.session.query(VendorBillRefund, VendorBill).join(
+        VendorBill, VendorBillRefund.bill_id == VendorBill.id,
+    ).filter(VendorBill.vendor_id == v.id).order_by(
+        VendorBillRefund.created_at.desc(),
+    ).all()
+    refunds_total = sum(float(r.amount or 0) for r, _ in refunds)
+    debit_notes = DebitNote.query.filter_by(vendor_id=v.id).order_by(
+        DebitNote.created_at.desc(),
+    ).all()
+    open_dn_balance = sum(dn.balance for dn in debit_notes)
+    from app.models import PartyOpeningBalance, PartyType
+    opening = PartyOpeningBalance.query.filter_by(
+        company_id=v.company_id,
+        party_type=PartyType.VENDOR, party_id=v.id,
+    ).first()
+    return render_template(
+        "vendors/view.html", vendor=v, bills=bills,
+        refunds=refunds, refunds_total=refunds_total,
+        debit_notes=debit_notes, open_dn_balance=open_dn_balance,
+        opening_balance=opening,
+    )
 
 
 # MARSOUD-29 — edit existing vendor

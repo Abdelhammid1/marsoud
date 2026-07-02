@@ -19,7 +19,7 @@
       </div>
       <div class="flex flex-col gap-1 text-xs text-left text-slate-500">
         {% if entry.creator %}<div>أنشأ بواسطة: <span class="text-navy-900 font-semibold">{{ entry.creator.full_name }}</span></div>{% endif %}
-        <div>{{ entry.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+        <div>{{ entry.created_at | company_dt('%Y-%m-%d %H:%M') }}</div>
         <div class="flex gap-1 mt-1">
           <a href="{{ url_for('journals.export_entry', entry_id=entry.id, fmt='pdf') }}" class="btn-secondary text-xs">📄 PDF</a>
           <a href="{{ url_for('journals.export_entry', entry_id=entry.id, fmt='excel') }}" class="btn-secondary text-xs">📊 Excel</a>
@@ -50,7 +50,7 @@
     <div class="mt-5 bg-red-50 border border-red-200 rounded-xl p-4">
       <div class="text-xs text-red-800 font-semibold mb-1">🔒 سبب الإيقاف</div>
       <div class="text-sm text-red-900">{{ entry.pause_reason }}</div>
-      <div class="text-xs text-red-700 mt-1">بواسطة: {{ entry.paused_by.full_name if entry.paused_by else '—' }} · {{ entry.paused_at.strftime('%Y-%m-%d %H:%M') if entry.paused_at else '' }}</div>
+      <div class="text-xs text-red-700 mt-1">بواسطة: {{ entry.paused_by.full_name if entry.paused_by else '—' }} · {{ entry.paused_at | company_dt('%Y-%m-%d %H:%M') if entry.paused_at else '' }}</div>
     </div>
     {% endif %}
 
@@ -58,7 +58,7 @@
     <div class="mt-5 bg-emerald-50 border border-emerald-200 rounded-xl p-4">
       <div class="text-xs text-emerald-800 font-semibold mb-1">↻ سبب إعادة التنشيط</div>
       <div class="text-sm text-emerald-900">{{ entry.reactivate_reason }}</div>
-      <div class="text-xs text-emerald-700 mt-1">بواسطة: {{ entry.reactivated_by.full_name if entry.reactivated_by else '—' }} · {{ entry.reactivated_at.strftime('%Y-%m-%d %H:%M') if entry.reactivated_at else '' }}</div>
+      <div class="text-xs text-emerald-700 mt-1">بواسطة: {{ entry.reactivated_by.full_name if entry.reactivated_by else '—' }} · {{ entry.reactivated_at | company_dt('%Y-%m-%d %H:%M') if entry.reactivated_at else '' }}</div>
     </div>
     {% endif %}
   </div>
@@ -93,7 +93,7 @@
         <div class="border-r-2 border-slate-200 pr-3">
           <div class="flex items-center justify-between">
             <span class="font-semibold text-navy-900">{{ a.action.value }}</span>
-            <span class="text-xs text-slate-500">{{ a.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+            <span class="text-xs text-slate-500">{{ a.created_at | company_dt('%Y-%m-%d %H:%M') }}</span>
           </div>
           {% if a.user %}<div class="text-xs text-slate-500">بواسطة: {{ a.user.full_name }}</div>{% endif %}
           {% if a.reason %}<div class="text-xs text-slate-600 mt-1">{{ a.reason }}</div>{% endif %}

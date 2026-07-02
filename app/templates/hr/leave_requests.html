@@ -54,7 +54,7 @@
           {% else %}<span class="badge badge-partial">قيد المراجعة</span>{% endif %}
         </td>
         <td class="text-xs text-slate-500">
-          {% if r.reviewer %}{{ r.reviewer.full_name }}<br>{{ r.reviewed_at.strftime('%Y-%m-%d') if r.reviewed_at else '' }}{% else %}—{% endif %}
+          {% if r.reviewer %}{{ r.reviewer.full_name }}<br>{{ r.reviewed_at | company_dt('%Y-%m-%d') if r.reviewed_at else '' }}{% else %}—{% endif %}
         </td>
         <td>
           {% if r.status.value == 'PENDING' %}

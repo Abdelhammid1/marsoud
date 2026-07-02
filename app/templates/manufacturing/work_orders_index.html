@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block page_title %}أوامر الإنتاج{% endblock %}
+{% block content %}
+<div class="card p-6">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-xl font-bold text-navy-900">أوامر الإنتاج</h2>
+    {% if has_permission('manufacturing.manage') %}
+    <a href="{{ url_for('manufacturing.work_order_new') }}" class="btn-primary">+ أمر إنتاج</a>
+    {% endif %}
+  </div>
+  <table class="data-table">
+    <thead><tr><th>الرقم</th><th>التركيبة</th><th>الكمية</th><th>المخزن</th><th>الحالة</th><th></th></tr></thead>
+    <tbody>
+    {% for o in orders %}
+      <tr>
+        <td class="font-mono">{{ o.number }}</td>
+        <td>{{ o.bom.name }}</td>
+        <td class="font-mono">{{ "%.2f"|format(o.quantity_to_produce|float) }}</td>
+        <td>{{ o.warehouse.name }}</td>
+        <td>
+          {% set colour = {
+            'DRAFT': 'bg-slate-100 text-slate-700',
+            'IN_PROGRESS': 'bg-amber-100 text-amber-700',
+            'COMPLETED': 'bg-emerald-100 text-emerald-700',
+            'CANCELLED': 'bg-rose-100 text-rose-700',
+          }[o.status.value] %}
+          <span class="badge {{ colour }}">{{ o.status.label_ar }}</span>
+        </td>
+        <td class="text-left"><a href="{{ url_for('manufacturing.work_order_detail', work_order_id=o.id) }}" class="text-brand-600 hover:underline text-sm">عرض</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="text-center text-slate-400 py-8">لا توجد أوامر إنتاج.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

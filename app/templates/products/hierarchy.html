@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block page_title %}تصنيف المنتجات{% endblock %}
+{% block content %}
+
+<div class="mb-4">
+  <a href="{{ url_for('products.index') }}" class="text-sm text-brand-600 hover:underline">← كل المنتجات</a>
+</div>
+
+<div class="card p-6 mb-4">
+  <h2 class="text-xl font-bold text-navy-900 mb-2">🧬 تصنيف المنتجات</h2>
+  <p class="text-sm text-slate-500">
+    مجموعة (مثال: "المشروبات") تحتها فئات (مثال: "ساخنة"، "باردة") — والمنتج تحت فئة معينة.
+  </p>
+</div>
+
+{# Add-group form #}
+<div class="card p-6 mb-4">
+  <h3 class="font-bold text-navy-900 mb-3">+ مجموعة جديدة</h3>
+  <form method="POST" action="{{ url_for('products.group_create') }}" class="flex gap-2">
+    <input type="text" name="name" placeholder="اسم المجموعة" required class="input flex-1">
+    <button type="submit" class="btn-primary">إضافة</button>
+  </form>
+</div>
+
+{% for g_row in groups %}
+<div class="card p-6 mb-4 border-slate-200">
+  <div class="flex items-center justify-between mb-3 pb-3 border-b border-slate-100">
+    <form method="POST" action="{{ url_for('products.group_edit', group_id=g_row.id) }}" class="flex items-center gap-2 flex-1">
+      <span class="text-2xl">📁</span>
+      <input type="text" name="name" value="{{ g_row.name }}" class="input text-lg font-bold text-navy-900 flex-1 max-w-xs">
+      <button type="submit" class="text-xs text-brand-600 hover:underline">💾 حفظ</button>
+    </form>
+    <form method="POST" action="{{ url_for('products.group_delete', group_id=g_row.id) }}"
+          onsubmit="return confirm('حذف المجموعة {{ g_row.name|e }}؟');">
+      <button type="submit" class="text-xs text-rose-600 hover:underline">🗑 حذف</button>
+    </form>
+  </div>
+
+  <div class="pl-8 space-y-2 mb-3">
+    {% for cat in g_row.categories %}
+    <div class="flex items-center gap-2 py-2 border-b border-slate-50">
+      <span>📎</span>
+      <form method="POST" action="{{ url_for('products.category_edit', cat_id=cat.id) }}" class="flex items-center gap-2 flex-1">
+        <input type="text" name="name" value="{{ cat.name }}" class="input text-sm flex-1 max-w-md">
+        <button type="submit" class="text-xs text-brand-600 hover:underline">💾</button>
+      </form>
+      <div class="text-xs text-slate-500">{{ counts.get(cat.id, 0) }} منتج</div>
+      <form method="POST" action="{{ url_for('products.category_delete', cat_id=cat.id) }}"
+            onsubmit="return confirm('حذف الفئة {{ cat.name|e }}؟');">
+        <button type="submit" class="text-xs text-rose-600 hover:underline">🗑</button>
+      </form>
+    </div>
+    {% else %}
+    <div class="text-xs text-slate-400 py-2">لا توجد فئات — أضف واحدة.</div>
+    {% endfor %}
+  </div>
+
+  <form method="POST" action="{{ url_for('products.category_create') }}" class="flex gap-2 pt-2">
+    <input type="hidden" name="group_id" value="{{ g_row.id }}">
+    <input type="text" name="name" placeholder="+ فئة جديدة تحت {{ g_row.name }}" required class="input text-sm flex-1">
+    <button type="submit" class="btn-secondary text-sm">إضافة فئة</button>
+  </form>
+</div>
+{% else %}
+<div class="card p-6 text-center text-slate-400">
+  لا توجد مجموعات بعد — أضف واحدة من الفورم أعلاه.
+</div>
+{% endfor %}
+{% endblock %}

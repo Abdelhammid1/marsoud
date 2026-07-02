@@ -50,6 +50,35 @@
       {% endfor %}
       </tbody>
     </table>
+
+    {# MARSOUD-REFUNDS-01 — customer refunds section #}
+    {% if customer_refunds %}
+    <div class="mt-8">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-navy-900">مرتجعات العميل ({{ customer_refunds|length }})</h2>
+        <div class="text-sm">
+          <span class="text-slate-500">الإجمالي:</span>
+          <span class="font-mono font-bold text-emerald-700">{{ "%.2f"|format(refunds_total) }}</span>
+        </div>
+      </div>
+      <table class="data-table">
+        <thead><tr><th>الرقم</th><th>الفاتورة</th><th>النوع</th><th class="text-left">القيمة</th><th>التاريخ</th><th>السبب</th></tr></thead>
+        <tbody>
+        {% for r, inv in customer_refunds %}
+          {% set type_ar = {'FULL':'كامل','PARTIAL':'جزئي','CREDIT_NOTE':'إشعار دائن'}[r.type.value] %}
+          <tr>
+            <td class="font-mono text-sm">{{ r.number or ('REF-' ~ inv.number) }}</td>
+            <td class="font-mono text-sm"><a href="{{ url_for('invoices.view', invoice_id=inv.id) }}" class="text-brand-600 hover:underline">{{ inv.number }}</a></td>
+            <td class="text-sm">{{ type_ar }}</td>
+            <td class="text-left font-mono">{{ "%.2f"|format(r.amount) }}</td>
+            <td class="text-sm text-slate-500">{{ r.created_at | company_dt if r.created_at else '' }}</td>
+            <td class="text-sm text-slate-500 truncate max-w-[220px]" title="{{ r.reason or '' }}">{{ r.reason or '—' }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
   </div>
   <div class="card p-6">
     <div class="flex items-center justify-between mb-3">
@@ -72,6 +101,17 @@
       <div><span class="text-slate-500">المندوب:</span> {{ customer.sales_rep.full_name if customer.sales_rep else '—' }}</div>
       <div><span class="text-slate-500">النسبة:</span>
         {% if customer.commission_rate is not none %}{{ "%g"|format(customer.commission_rate|float) }}%{% else %}—{% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if opening_balance %}
+    <hr class="my-4 border-slate-100">
+    <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm">
+      <div class="text-xs text-slate-500 font-semibold mb-1">💰 رصيد افتتاحي</div>
+      <div class="font-mono font-semibold text-slate-800">
+        {{ "%.2f"|format(opening_balance.amount|float) }}
+        <span class="text-xs text-slate-500">· {{ opening_balance.entry_date.isoformat() }}</span>
       </div>
     </div>
     {% endif %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block page_title %}تقارير — {{ emp.name }}{% endblock %}
+{% block content %}
+
+<div class="mb-4">
+  <a href="{{ url_for('reports.employees_index') }}" class="text-sm text-brand-600 hover:underline">← كل الموظفين</a>
+</div>
+
+<div class="card p-6">
+  <h2 class="text-xl font-bold text-navy-900 mb-4">
+    تقارير {{ emp.name }}
+    {% if emp.status.value == 'TERMINATED' %}
+      <span class="badge bg-rose-100 text-rose-700 text-sm ml-2">غير نشط</span>
+    {% endif %}
+  </h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>التاريخ</th>
+        <th>العنوان</th>
+        <th>تاريخ التوليد</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in reports %}
+      <tr>
+        <td class="font-mono text-sm">{{ r.report_date.isoformat() }}</td>
+        <td>{{ r.title }}</td>
+        <td class="text-sm text-slate-500">{{ r.submitted_at | company_dt if r.submitted_at else '' }}</td>
+        <td class="text-left">
+          <a href="{{ url_for('reports.employee_report_detail', employee_id=emp.id, report_id=r.id) }}"
+              class="text-brand-600 hover:underline text-sm">عرض</a>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="text-center text-slate-400 py-8">لا توجد تقارير مُرسلة بعد.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

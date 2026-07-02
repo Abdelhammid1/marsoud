@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block page_title %}تقارير الموظفين{% endblock %}
+{% block content %}
+
+<div class="card p-6">
+  <h2 class="text-xl font-bold text-navy-900 mb-4">تقارير الموظفين</h2>
+  <p class="text-sm text-slate-500 mb-6">
+    كل كارت بيمثّل موظف بيقدر تشوف تقاريره اليومية اللي اتولّدت (المسودّات مش ظاهرة هنا).
+  </p>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for c in cards %}
+    <a href="{{ url_for('reports.employee_reports_list', employee_id=c.employee.id) }}"
+        class="card p-5 hover:shadow-md transition group border-slate-200">
+      <div class="flex items-center justify-between mb-2">
+        <div class="font-bold text-navy-900 group-hover:text-brand-600">
+          {{ c.employee.name }}
+          {% if c.employee.status.value == 'TERMINATED' %}
+            <span class="badge bg-rose-100 text-rose-700 text-[10px] ml-1">غير نشط</span>
+          {% endif %}
+        </div>
+        <div class="badge bg-emerald-100 text-emerald-700">{{ c.count }}</div>
+      </div>
+      <div class="text-xs text-slate-500">{{ c.count }} تقرير مُرسل</div>
+    </a>
+    {% else %}
+    <div class="col-span-full text-center text-slate-400 py-12">
+      لا يوجد موظفين متاحين لك — راجع الأدمن.
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

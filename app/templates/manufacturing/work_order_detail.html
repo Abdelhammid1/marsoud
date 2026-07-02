@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block page_title %}أمر إنتاج {{ wo.number }}{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <a href="{{ url_for('manufacturing.work_orders_index') }}" class="text-sm text-brand-600 hover:underline">← كل أوامر الإنتاج</a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <div class="lg:col-span-2 card p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold text-navy-900">{{ wo.number }}</h2>
+      {% set colour = {
+        'DRAFT': 'bg-slate-100 text-slate-700',
+        'IN_PROGRESS': 'bg-amber-100 text-amber-700',
+        'COMPLETED': 'bg-emerald-100 text-emerald-700',
+        'CANCELLED': 'bg-rose-100 text-rose-700',
+      }[wo.status.value] %}
+      <span class="badge {{ colour }}">{{ wo.status.label_ar }}</span>
+    </div>
+
+    <table class="data-table mb-6">
+      <tbody>
+        <tr><td class="text-slate-500 text-sm">التركيبة</td><td>{{ wo.bom.name }}</td></tr>
+        <tr><td class="text-slate-500 text-sm">المنتج التام</td><td>{{ wo.bom.product_variant.name or wo.bom.product_variant.sku }}</td></tr>
+        <tr><td class="text-slate-500 text-sm">الكمية</td><td class="font-mono">{{ "%.2f"|format(wo.quantity_to_produce|float) }}</td></tr>
+        <tr><td class="text-slate-500 text-sm">المخزن</td><td>{{ wo.warehouse.name }}</td></tr>
+        <tr><td class="text-slate-500 text-sm">أجور مباشرة</td><td class="font-mono">{{ "%.2f"|format(wo.direct_labor_cost|float) }}</td></tr>
+        <tr><td class="text-slate-500 text-sm">مصاريف صناعية</td><td class="font-mono">{{ "%.2f"|format(wo.overhead_cost|float) }}</td></tr>
+      </tbody>
+    </table>
+
+    {% if wo.consumption %}
+    <h3 class="font-bold text-navy-900 mb-2 text-sm">المواد المستهلكة (فعلياً)</h3>
+    <table class="data-table">
+      <thead><tr><th>المكوّن</th><th class="text-left">الكمية</th><th class="text-left">تكلفة الوحدة</th><th class="text-left">الإجمالي</th></tr></thead>
+      <tbody>
+      {% for c in wo.consumption %}
+        <tr>
+          <td>{{ c.component_variant.name or c.component_variant.sku }}</td>
+          <td class="text-left font-mono">{{ "%.2f"|format(c.qty_consumed|float) }}</td>
+          <td class="text-left font-mono">{{ "%.2f"|format(c.unit_cost_at_time|float) }}</td>
+          <td class="text-left font-mono font-semibold">{{ "%.2f"|format(c.total_cost) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {% if wo.journal_entry_id %}
+    <div class="mt-4 text-sm">
+      <a href="{{ url_for('journals.view', entry_id=wo.journal_entry_id) }}" class="text-brand-600 hover:underline">📋 عرض القيد المحاسبي</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="card p-6 space-y-3">
+    <h3 class="font-bold text-navy-900 mb-2">إجراءات</h3>
+    {% if wo.status.value == 'DRAFT' and has_permission('manufacturing.manage') %}
+    <form method="POST" action="{{ url_for('manufacturing.work_order_start', work_order_id=wo.id) }}">
+      <button type="submit" class="btn-secondary w-full">▶️ بدء الإنتاج</button>
+    </form>
+    {% endif %}
+    {% if wo.status.value in ('DRAFT', 'IN_PROGRESS') and has_permission('manufacturing.complete') %}
+    <form method="POST" action="{{ url_for('manufacturing.work_order_complete', work_order_id=wo.id) }}"
+          onsubmit="return confirm('تأكيد إكمال أمر الإنتاج؟ سيتم سحب المواد وترحيل القيد.');">
+      <button type="submit" class="btn-primary w-full">✅ إكمال + ترحيل القيد</button>
+    </form>
+    {% endif %}
+    {% if wo.status.value in ('DRAFT', 'IN_PROGRESS') and has_permission('manufacturing.manage') %}
+    <form method="POST" action="{{ url_for('manufacturing.work_order_cancel', work_order_id=wo.id) }}"
+          onsubmit="return confirm('إلغاء أمر الإنتاج؟');">
+      <button type="submit" class="text-rose-600 hover:underline text-sm">✕ إلغاء الأمر</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

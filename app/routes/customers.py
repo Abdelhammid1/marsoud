@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, g, abort
-from flask_login import login_required
+from flask_login import login_required, current_user
 from app import db
 from app.models import Customer, User
 from app.models.user import user_companies
@@ -81,6 +81,31 @@ def new():
             db.session.rollback()
             flash(f"تعذّر إنشاء الحساب الفرعي للعميل: {e}", "error")
             return render_template("customers/form.html", customer=None, reps=reps)
+
+        # MARSOUD-PARTY-OPENING-BALANCE-01 — optional opening balance
+        # captured at create time only. Zero (default) means no journal.
+        ob_raw = request.form.get("opening_balance")
+        if ob_raw:
+            try:
+                ob_amount = float(ob_raw)
+            except ValueError:
+                ob_amount = 0.0
+            if abs(ob_amount) > 0.001:
+                from app.services.subsidiary import (
+                    record_customer_opening_balance,
+                )
+                from app.services.ledger import LedgerError
+                try:
+                    record_customer_opening_balance(
+                        c, ob_amount,
+                        created_by=current_user.id if current_user.is_authenticated else None,
+                    )
+                except LedgerError as e:
+                    db.session.rollback()
+                    flash(str(e), "error")
+                    return render_template("customers/form.html",
+                                             customer=None, reps=reps)
+
         db.session.commit()
         flash("تم إضافة العميل", "success")
         return redirect(url_for("customers.index"))
@@ -122,8 +147,31 @@ def view(customer_id):
     customer_projects = Project.query.filter_by(
         customer_id=c.id,
     ).order_by(Project.created_at.desc()).all()
-    return render_template("customers/view.html", customer=c,
-                           customer_projects=customer_projects)
+
+    # MARSOUD-REFUNDS-01 — show every refund we've issued against
+    # invoices for this customer, oldest-first with a total.
+    from app.models import Refund, Invoice
+    customer_refunds = db.session.query(Refund, Invoice).join(
+        Invoice, Refund.invoice_id == Invoice.id,
+    ).filter(Invoice.customer_id == c.id).order_by(
+        Refund.created_at.desc(),
+    ).all()
+    refunds_total = sum(float(r.amount or 0) for r, _ in customer_refunds)
+
+    # MARSOUD-PARTY-OPENING-BALANCE-01 — read-only display.
+    from app.models import PartyOpeningBalance, PartyType
+    opening = PartyOpeningBalance.query.filter_by(
+        company_id=c.company_id,
+        party_type=PartyType.CUSTOMER, party_id=c.id,
+    ).first()
+
+    return render_template(
+        "customers/view.html", customer=c,
+        customer_projects=customer_projects,
+        customer_refunds=customer_refunds,
+        refunds_total=refunds_total,
+        opening_balance=opening,
+    )
 
 
 @bp.route("/aging")

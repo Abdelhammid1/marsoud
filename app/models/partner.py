@@ -29,7 +29,15 @@ class Customer(db.Model):
 
     @property
     def balance(self):
-        return sum(inv.balance for inv in self.invoices if inv.status.value not in ("CANCELLED", "REFUNDED"))
+        """MARSOUD-PARTY-OPENING-BALANCE-01 — subsidiary sub-account
+        (under 1130) is now the single source of truth. Opening balances,
+        refunds, credit notes, and receipts all end up in one number.
+        Legacy customers without a sub-account fall back to the old
+        sum-of-invoices calc to preserve pre-rebuild behaviour."""
+        if self.account_id and self.account is not None:
+            return float(self.account.balance or 0)
+        return sum(inv.balance for inv in self.invoices
+                    if inv.status.value not in ("CANCELLED", "REFUNDED"))
 
 
 class Vendor(db.Model):
@@ -49,3 +57,13 @@ class Vendor(db.Model):
 
     company = db.relationship("Company", backref=db.backref("vendors", lazy="dynamic"))
     account = db.relationship("Account", foreign_keys=[account_id])
+
+    @property
+    def balance(self):
+        """MARSOUD-PARTY-OPENING-BALANCE-01 — new. Amount we owe the
+        vendor, taken directly from the sub-account under 2110. Positive
+        = we owe them; negative = we prepaid. Legacy vendors without a
+        sub-account fall back to 0 (there's no cross-check available)."""
+        if self.account_id and self.account is not None:
+            return float(self.account.balance or 0)
+        return 0.0

@@ -77,7 +77,7 @@
       <tbody>
         {% for m in movements %}
         <tr>
-          <td class="text-xs font-mono">{{ m.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td class="text-xs font-mono">{{ m.created_at | company_dt('%Y-%m-%d %H:%M') }}</td>
           <td>
             {% set k = m.kind_enum %}
             <span class="badge {% if k and k.is_inflow %}badge-paid{% else %}badge-overdue{% endif %} text-[10px]">

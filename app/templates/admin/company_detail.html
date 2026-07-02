@@ -21,7 +21,7 @@
       <span class="font-semibold text-white">{{ company.subscription_plan.name_ar if company.subscription_plan else (company.plan or 'FREE') }}</span>
     </div>
     {% if company.subscription_expires_at %}
-    <div class="text-xs text-ink-200 mt-1">ينتهي: <span class="font-mono">{{ company.subscription_expires_at.strftime('%Y-%m-%d') }}</span></div>
+    <div class="text-xs text-ink-200 mt-1">ينتهي: <span class="font-mono">{{ company.subscription_expires_at | company_dt('%Y-%m-%d') }}</span></div>
     {% endif %}
   </div>
 </div>
@@ -89,7 +89,7 @@
     <h3 class="font-bold text-amber-300 mb-3">🗂 شركة محذوفة</h3>
     <div class="text-sm text-ink-200 space-y-1 mb-3">
       <div>📅 محذوفة في:
-        <span class="font-mono">{{ company.deleted_at.strftime('%Y-%m-%d %H:%M') }}</span>
+        <span class="font-mono">{{ company.deleted_at | company_dt('%Y-%m-%d %H:%M') }}</span>
       </div>
       <div>💬 السبب: <span class="text-white">{{ company.deletion_reason or '—' }}</span></div>
     </div>
@@ -132,7 +132,7 @@
         <tr>
           <td><span class="badge badge-neutral">{{ r.action }}</span></td>
           <td class="text-ink-200">{{ r.actor.email if r.actor else '—' }}</td>
-          <td class="font-mono text-xs">{{ r.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td class="font-mono text-xs">{{ r.created_at | company_dt('%Y-%m-%d %H:%M') }}</td>
         </tr>
       {% endfor %}
       </tbody>

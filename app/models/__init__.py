@@ -14,7 +14,7 @@ from app.models.journal_extras import (
     RecurringJournal, RecurrenceFrequency,
     RecurringJournalLog, RecurringAction,
 )
-from app.models.product import Product
+from app.models.product import Product, ProductGroup, ProductCategory
 from app.models.payment_method import PaymentMethod
 from app.models.invoice import Invoice, InvoiceItem, InvoiceStatus, Payment, DiscountType, InvoiceReminderSent
 from app.models.partner import Customer, Vendor
@@ -58,7 +58,18 @@ from app.models.inventory import (
     StockTransfer, StockTransferItem, StockTransferStatus,
     StockLot, CashierShift, CashierShiftStatus,
 )
-from app.models.refund import Refund, RefundType, CreditNote
+from app.models.refund import (
+    Refund, RefundType, CreditNote,
+    VendorBillRefund, VendorRefundType, DebitNote,
+)
+from app.models.party_opening import PartyOpeningBalance, PartyType
+from app.models.employee_reports import (
+    EmployeeDailyReport, DailyReportStatus, EmployeeReportAccess,
+)
+from app.models.manufacturing import (
+    BillOfMaterial, BOMLine, WorkOrder, WorkOrderStatus,
+    WorkOrderConsumption,
+)
 from app.models.invitation import Invitation
 from app.models.agent_chat import AgentMessage
 from app.models.numbering import NumberSequence
@@ -102,10 +113,15 @@ __all__ = [
     "StockTransfer", "StockTransferItem", "StockTransferStatus",
     "StockLot", "CashierShift", "CashierShiftStatus",
     "Refund", "RefundType", "CreditNote",
+    "VendorBillRefund", "VendorRefundType", "DebitNote",
+    "PartyOpeningBalance", "PartyType",
+    "EmployeeDailyReport", "DailyReportStatus", "EmployeeReportAccess",
+    "BillOfMaterial", "BOMLine",
+    "WorkOrder", "WorkOrderStatus", "WorkOrderConsumption",
     "Invitation",
     "AgentMessage",
     "NumberSequence",
-    "Product",
+    "Product", "ProductGroup", "ProductCategory",
     "PaymentMethod",
     "DiscountType",
     "VendorBill", "VendorBillItem", "VendorBillPayment",

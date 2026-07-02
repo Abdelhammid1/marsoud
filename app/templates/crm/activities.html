@@ -76,7 +76,7 @@
              class="font-semibold text-navy-900 hover:text-brand-600">
             {{ a.lead.client_name if a.lead else '—' }}
           </a>
-          <span class="text-xs text-slate-400 font-mono">{{ a.activity_date.strftime('%Y-%m-%d %H:%M') }}</span>
+          <span class="text-xs text-slate-400 font-mono">{{ a.activity_date | company_dt('%Y-%m-%d %H:%M') }}</span>
         </div>
         {% if a.subject %}<div class="text-sm font-semibold mt-1">{{ a.subject }}</div>{% endif %}
         {% if a.body %}<div class="text-sm text-slate-600 mt-1">{{ a.body }}</div>{% endif %}

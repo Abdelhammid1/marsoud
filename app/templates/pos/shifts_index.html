@@ -37,8 +37,8 @@
       <tr>
         <td class="font-mono"><a href="{{ url_for('pos.shift_detail', shift_id=s.id) }}" class="text-emerald-600 hover:underline">{{ s.id }}</a></td>
         <td class="text-xs">{{ s.cashier.full_name if s.cashier else '—' }}</td>
-        <td class="text-xs font-mono">{{ s.opened_at.strftime('%Y-%m-%d %H:%M') }}</td>
-        <td class="text-xs font-mono">{{ s.closed_at.strftime('%Y-%m-%d %H:%M') if s.closed_at else '—' }}</td>
+        <td class="text-xs font-mono">{{ s.opened_at | company_dt('%Y-%m-%d %H:%M') }}</td>
+        <td class="text-xs font-mono">{{ s.closed_at | company_dt('%Y-%m-%d %H:%M') if s.closed_at else '—' }}</td>
         <td class="text-end font-mono">{{ '%.2f'|format(s.opening_cash) }}</td>
         <td class="text-end font-mono">{{ '%.2f'|format(s.expected_cash) if s.expected_cash is not none else '—' }}</td>
         <td class="text-end font-mono">{{ '%.2f'|format(s.closing_cash) if s.closing_cash is not none else '—' }}</td>

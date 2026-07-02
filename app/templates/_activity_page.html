@@ -75,7 +75,7 @@
         <td class="font-mono">{{ s.login_at | company_dt }}</td>
         <td class="font-mono">{{ s.last_seen_at | company_dt }}</td>
         <td class="font-mono">
-          {% if s.logout_at %}{{ s.logout_at.strftime('%Y-%m-%d %H:%M:%S') }}
+          {% if s.logout_at %}{{ s.logout_at | company_dt('%Y-%m-%d %H:%M:%S') }}
           {% elif s.status=='ENDED' %}<span class="text-slate-500">سب البراوزر</span>
           {% else %}—{% endif %}
         </td>

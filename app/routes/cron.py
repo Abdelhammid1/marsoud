@@ -102,4 +102,25 @@ def tick():
     else:
         summary["leave_accrual"] = {"skipped": "not the 1st of month"}
 
+    # MARSOUD-EMPLOYEE-DAILY-REPORTS — build DRAFT digests for yesterday.
+    # Runs on every tick; build_digest is idempotent (unique constraint
+    # per employee+day + skip-if-submitted logic guarantee no dupes).
+    try:
+        from app.services.daily_digest import run_daily_digest_for_company
+        rep_summary = {}
+        for c in Company.query.filter_by(is_active=True).all():
+            # Only companies whose plan includes the module. Cheap
+            # check: if plan_allows("employee_reports.view", c) is
+            # false, skip that company entirely.
+            from app.services.plan_gating import plan_allows
+            if not plan_allows("employee_reports.view", c):
+                continue
+            rep_summary[c.id] = run_daily_digest_for_company(c.id)
+        summary["daily_digests"] = rep_summary
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception(
+            "daily digest failed: %s", e)
+        summary["daily_digests"] = {"error": str(e)[:200]}
+
     return jsonify(summary)

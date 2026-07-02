@@ -581,13 +581,18 @@ def _pct_change(curr, prev):
     return int(round((curr - prev) / abs(prev) * 100))
 
 
-def dashboard_metrics(company_id):
+def dashboard_metrics(company_id, period="month"):
     """MARSOUD-DASH-01 — Owner Dashboard data.
 
     Returns a deeply-nested dict that feeds every section of the new
     dashboard: financial-health KPIs (with 8-month sparklines + % change),
     operations cards, needs-attention panels, financial trend (6-month
     bars + expense breakdown), team performance leaderboards.
+
+    `period` accepts "day" / "month" / "quarter" / "year" and shifts the
+    KPI window + prior-period comparison. The 8-month sparklines and
+    6-month trend bars stay month-scoped regardless — they're inherently
+    monthly time series and shouldn't collapse with the header switch.
 
     Backward-compat: every key from the original return shape is still
     present so older callers (agent tools, existing dashboard fragments
@@ -602,17 +607,49 @@ def dashboard_metrics(company_id):
     from app import db as _db
 
     today = date.today()
+    # start_month is kept because the sparklines/trend explicitly need
+    # a month-of-today floor. It is NOT the same as the KPI period start.
     start_month = today.replace(day=1)
-    prev_month_start = _shift_month(start_month, -1)
-    prev_month_end = start_month - timedelta(days=1)
+
+    # Compute the KPI period + prior-period range for percent-change.
+    period = period if period in ("day", "month", "quarter", "year") else "month"
+    if period == "day":
+        start_period = today
+        prev_start = today - timedelta(days=1)
+        prev_end = today - timedelta(days=1)
+        period_label = "اليوم"
+    elif period == "quarter":
+        # Q1: Jan-Mar, Q2: Apr-Jun, Q3: Jul-Sep, Q4: Oct-Dec.
+        q_first_month = ((today.month - 1) // 3) * 3 + 1
+        start_period = date(today.year, q_first_month, 1)
+        prev_start = _shift_month(start_period, -3)
+        prev_end = start_period - timedelta(days=1)
+        period_label = "الربع"
+    elif period == "year":
+        start_period = date(today.year, 1, 1)
+        prev_start = date(today.year - 1, 1, 1)
+        prev_end = date(today.year - 1, 12, 31)
+        period_label = "السنة"
+    else:  # "month"
+        start_period = start_month
+        prev_start = _shift_month(start_period, -1)
+        prev_end = start_period - timedelta(days=1)
+        period_label = "الشهر"
+
+    # Backwards-compat aliases: the rest of the function still references
+    # prev_month_start/prev_month_end — we now point them at the chosen
+    # period's previous-window bounds so the % change and new-customers
+    # comparison move together with the header selector.
+    prev_month_start = prev_start
+    prev_month_end = prev_end
 
     company = Company.query.get(company_id)
     currency = company.base_currency if company else "EGP"
 
-    # ─── Current-month income statement (backwards-compat fields) ────
-    inc = income_statement(company_id, start_date=start_month, end_date=today)
+    # ─── Current-period income statement (backwards-compat fields) ────
+    inc = income_statement(company_id, start_date=start_period, end_date=today)
     inc_prev = income_statement(
-        company_id, start_date=prev_month_start, end_date=prev_month_end,
+        company_id, start_date=prev_start, end_date=prev_end,
     )
 
     # ─── Cash position (current) ─────────────────────────────────────
@@ -704,8 +741,8 @@ def dashboard_metrics(company_id):
         trend_revenue.append(round(s["total_revenue"], 2))
         trend_expenses.append(round(s["total_expense"], 2))
 
-    # ─── Current-month expense breakdown by account ──────────────────
-    expense_rows = expenses_summary(company_id, start_date=start_month,
+    # ─── Current-period expense breakdown by account ──────────────────
+    expense_rows = expenses_summary(company_id, start_date=start_period,
                                      end_date=today)
     # expenses_summary returns {"rows": [{"name", "amount", ...}], "total": X}
     exp_total = float(expense_rows.get("total") or 0)
@@ -772,12 +809,12 @@ def dashboard_metrics(company_id):
 
     new_customers_count = Customer.query.filter(
         Customer.company_id == company_id,
-        Customer.created_at >= datetime.combine(start_month, time.min),
+        Customer.created_at >= datetime.combine(start_period, time.min),
     ).count()
     new_customers_prev = Customer.query.filter(
         Customer.company_id == company_id,
-        Customer.created_at >= datetime.combine(prev_month_start, time.min),
-        Customer.created_at < datetime.combine(start_month, time.min),
+        Customer.created_at >= datetime.combine(prev_start, time.min),
+        Customer.created_at < datetime.combine(start_period, time.min),
     ).count()
 
     # ─── Section 3: Needs Attention ─────────────────────────────────
@@ -831,12 +868,12 @@ def dashboard_metrics(company_id):
     role_by_user = {r.user_id: role_label_map.get(r.role, r.role or "—")
                     for r in team_member_rows}
 
-    # Most-active: count JournalAudit rows this month, per user.
+    # Most-active: count JournalAudit rows within the chosen period.
     audit_counts = dict(_db.session.query(
         JournalAudit.user_id, _db.func.count(JournalAudit.id),
     ).filter(
         JournalAudit.user_id.in_(user_ids),
-        JournalAudit.created_at >= datetime.combine(start_month, time.min),
+        JournalAudit.created_at >= datetime.combine(start_period, time.min),
     ).group_by(JournalAudit.user_id).all())
 
     def _make_team_row(uid, count_val, extra=None):
@@ -914,6 +951,8 @@ def dashboard_metrics(company_id):
 
         # ─── DASH-01 ─────────────────────────────────────────────────
         "currency": currency,
+        "period": period,
+        "period_label": period_label,
         "kpis": {
             "liquidity": {
                 "value": cash_position,

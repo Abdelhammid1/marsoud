@@ -95,6 +95,7 @@ DEFAULT_COA = [
     # ===== EXPENSES =====
     ("5000", "Expenses", "المصروفات", AccountType.EXPENSE, None, False),
     ("5100", "Cost of Sales", "تكلفة المبيعات", AccountType.EXPENSE, "5000", True),
+    ("5105", "Purchase Returns & Allowances", "مردودات ومسموحات المشتريات", AccountType.EXPENSE, "5000", True),
     ("5120", "Direct Labor", "أجور إنتاج مباشرة", AccountType.EXPENSE, "5000", True),
     ("5130", "Manufacturing Overhead", "مصروفات صناعية غير مباشرة", AccountType.EXPENSE, "5000", True),
     ("5140", "Manufacturing Variances", "انحرافات تكلفة التصنيع", AccountType.EXPENSE, "5000", True),

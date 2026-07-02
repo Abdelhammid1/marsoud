@@ -20,9 +20,9 @@
     <tr>
       <td class="text-ink-200">{{ r.superadmin.email if r.superadmin else '—' }}</td>
       <td>{{ r.company.name if r.company else '—' }}</td>
-      <td class="font-mono text-xs">{{ r.started_at.strftime('%Y-%m-%d %H:%M') }}</td>
+      <td class="font-mono text-xs">{{ r.started_at | company_dt('%Y-%m-%d %H:%M') }}</td>
       <td class="font-mono text-xs">
-        {% if r.ended_at %}{{ r.ended_at.strftime('%Y-%m-%d %H:%M') }}
+        {% if r.ended_at %}{{ r.ended_at | company_dt('%Y-%m-%d %H:%M') }}
         {% else %}<span class="badge badge-bad">نشطة</span>{% endif %}
       </td>
       <td class="text-xs">

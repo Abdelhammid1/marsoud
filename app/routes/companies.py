@@ -183,6 +183,13 @@ def edit(company_id):
         company.bank_account_number = (request.form.get("bank_account_number") or "").strip() or None
         company.iban = (request.form.get("iban") or "").strip() or None
 
+        # MARSOUD-TZ-01 — company-level timezone. Falls back to
+        # existing value (default "Asia/Riyadh") if the field is
+        # missing or blank.
+        tz_new = (request.form.get("timezone") or "").strip()
+        if tz_new:
+            company.timezone = tz_new
+
         # ERP-03 — inventory + POS toggles.
         company.stock_strict_mode = request.form.get("stock_strict_mode") == "on"
         company.shift_required_for_pos = (

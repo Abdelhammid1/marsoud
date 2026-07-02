@@ -1,11 +1,35 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, g, abort
 from flask_login import login_required, current_user
 from app import db
-from app.models import Product, ProductVariant, Warehouse, StockMovement, StockBalance
+from app.models import (
+    Product, ProductVariant, Warehouse, StockMovement, StockBalance,
+    ProductGroup, ProductCategory,
+)
 from app.services.inventory import record_opening_balance, default_warehouse
 from app.services.permissions import require_permission
 
 bp = Blueprint("products", __name__)
+
+
+def _ensure_default_hierarchy(company_id):
+    """MARSOUD-PRODUCT-HIERARCHY-01 — a company created AFTER the
+    migration still needs a default 'عام' group/category so its first
+    product save doesn't fail category-required validation. Idempotent."""
+    g_row = ProductGroup.query.filter_by(
+        company_id=company_id, name="عام",
+    ).first()
+    if not g_row:
+        g_row = ProductGroup(company_id=company_id, name="عام")
+        db.session.add(g_row); db.session.flush()
+    c_row = ProductCategory.query.filter_by(
+        company_id=company_id, group_id=g_row.id, name="عام",
+    ).first()
+    if not c_row:
+        c_row = ProductCategory(
+            company_id=company_id, group_id=g_row.id, name="عام",
+        )
+        db.session.add(c_row); db.session.flush()
+    return g_row, c_row
 
 
 def _product_or_404(product_id):
@@ -27,8 +51,34 @@ def _variant_or_404(product, variant_id):
 def index():
     if not g.active_company:
         return redirect(url_for("companies.new"))
-    products = Product.query.filter_by(company_id=g.active_company.id).order_by(Product.name).all()
-    return render_template("products/index.html", products=products)
+    cid = g.active_company.id
+    # MARSOUD-PRODUCT-HIERARCHY-01 — optional group / category filters.
+    q = Product.query.filter_by(company_id=cid)
+    group_id = request.args.get("group_id", type=int)
+    category_id = request.args.get("category_id", type=int)
+    if category_id:
+        q = q.filter(Product.category_id == category_id)
+    elif group_id:
+        # Filter by every category under the chosen group.
+        cat_ids = [c.id for c in ProductCategory.query.filter_by(
+            company_id=cid, group_id=group_id,
+        ).all()]
+        if cat_ids:
+            q = q.filter(Product.category_id.in_(cat_ids))
+        else:
+            q = q.filter(db.false())   # group has no categories
+    products = q.order_by(Product.name).all()
+    groups = ProductGroup.query.filter_by(
+        company_id=cid, is_active=True,
+    ).order_by(ProductGroup.name).all()
+    categories = ProductCategory.query.filter_by(
+        company_id=cid, is_active=True,
+    ).order_by(ProductCategory.name).all()
+    return render_template(
+        "products/index.html",
+        products=products, groups=groups, categories=categories,
+        selected_group_id=group_id, selected_category_id=category_id,
+    )
 
 
 def _generate_variant_sku(company_id, product_id):
@@ -54,6 +104,14 @@ def new():
             if not name:
                 raise ValueError("الاسم مطلوب")
 
+            # MARSOUD-PRODUCT-HIERARCHY-01 — category required.
+            category_id = request.form.get("category_id", type=int)
+            if not category_id:
+                raise ValueError("الفئة مطلوبة — كل منتج يجب أن يكون تحت فئة")
+            cat = ProductCategory.query.get(category_id)
+            if not cat or cat.company_id != cid:
+                raise ValueError("الفئة غير صحيحة")
+
             p = Product(
                 company_id=cid,
                 name=name,
@@ -62,6 +120,7 @@ def new():
                 default_tax_rate=float(request.form.get("default_tax_rate") or 0) or None,
                 sku=(request.form.get("sku") or "").strip() or None,
                 is_tracked=is_tracked,
+                category_id=category_id,
             )
             db.session.add(p)
             db.session.flush()  # need p.id for the variant SKU fallback
@@ -140,7 +199,19 @@ def new():
             db.session.rollback()
             flash(f"خطأ: {e}", "error")
 
-    return render_template("products/form.html", warehouses=warehouses)
+    # MARSOUD-PRODUCT-HIERARCHY-01 — self-heal missing default so the
+    # form always has a category the user can pick.
+    _ensure_default_hierarchy(cid)
+    groups = ProductGroup.query.filter_by(
+        company_id=cid, is_active=True,
+    ).order_by(ProductGroup.name).all()
+    categories = ProductCategory.query.filter_by(
+        company_id=cid, is_active=True,
+    ).order_by(ProductCategory.name).all()
+    return render_template(
+        "products/form.html",
+        warehouses=warehouses, groups=groups, categories=categories,
+    )
 
 
 # ─── MARSOUD-50.2: edit page + variant management ──────────────────
@@ -161,6 +232,14 @@ def edit(product_id):
             p.default_tax_rate = float(raw_tax) if raw_tax not in (None, "", "None") else None
             p.sku = (request.form.get("sku") or "").strip() or None
             p.is_active = (request.form.get("is_active") == "on")
+            # MARSOUD-PRODUCT-HIERARCHY-01 — allow reassigning category
+            # (historical invoices stay pointed at the product; the ticket
+            # says the old invoices don't get rewritten).
+            new_cat_id = request.form.get("category_id", type=int)
+            if new_cat_id:
+                cat = ProductCategory.query.get(new_cat_id)
+                if cat and cat.company_id == p.company_id:
+                    p.category_id = new_cat_id
             db.session.commit()
             flash("تم حفظ التعديلات", "success")
             return redirect(url_for("products.edit", product_id=p.id))
@@ -174,7 +253,16 @@ def edit(product_id):
         total = db.session.query(db.func.coalesce(db.func.sum(StockBalance.qty), 0)).filter_by(variant_id=v.id).scalar()
         variant_qtys[v.id] = float(total or 0)
 
-    return render_template("products/edit.html", product=p, variant_qtys=variant_qtys)
+    groups = ProductGroup.query.filter_by(
+        company_id=p.company_id, is_active=True,
+    ).order_by(ProductGroup.name).all()
+    categories = ProductCategory.query.filter_by(
+        company_id=p.company_id, is_active=True,
+    ).order_by(ProductCategory.name).all()
+    return render_template(
+        "products/edit.html", product=p, variant_qtys=variant_qtys,
+        groups=groups, categories=categories,
+    )
 
 
 @bp.route("/<int:product_id>/variants/new", methods=["POST"])
@@ -271,4 +359,170 @@ def api_list():
             "price": float(p.default_price or 0),
             "tax_rate": float(p.default_tax_rate) if p.default_tax_rate is not None else None,
         } for p in products
+    ])
+
+
+# ─── MARSOUD-PRODUCT-HIERARCHY-01 — Group/Category CRUD ─────────────────
+@bp.route("/hierarchy")
+@login_required
+@require_permission("products.manage")
+def hierarchy():
+    """Single-page tree of every group + its categories, with inline
+    forms for both. Simpler than two separate CRUD pages given the tiny
+    volume (a shop rarely has more than ~30 categories)."""
+    cid = g.active_company.id
+    _ensure_default_hierarchy(cid)
+    groups = ProductGroup.query.filter_by(company_id=cid).order_by(
+        ProductGroup.name,
+    ).all()
+    # Product counts per category for the delete-guard hint.
+    counts = dict(db.session.query(
+        Product.category_id, db.func.count(Product.id),
+    ).filter(Product.company_id == cid).group_by(
+        Product.category_id,
+    ).all())
+    return render_template(
+        "products/hierarchy.html", groups=groups, counts=counts,
+    )
+
+
+@bp.route("/hierarchy/groups", methods=["POST"])
+@login_required
+@require_permission("products.manage")
+def group_create():
+    cid = g.active_company.id
+    name = (request.form.get("name") or "").strip()
+    if not name:
+        flash("اسم المجموعة مطلوب", "error")
+        return redirect(url_for("products.hierarchy"))
+    if ProductGroup.query.filter_by(company_id=cid, name=name).first():
+        flash("مجموعة بنفس الاسم موجودة", "error")
+        return redirect(url_for("products.hierarchy"))
+    db.session.add(ProductGroup(company_id=cid, name=name))
+    db.session.commit()
+    flash("تم إنشاء المجموعة", "success")
+    return redirect(url_for("products.hierarchy"))
+
+
+@bp.route("/hierarchy/groups/<int:group_id>/edit", methods=["POST"])
+@login_required
+@require_permission("products.manage")
+def group_edit(group_id):
+    cid = g.active_company.id
+    g_row = ProductGroup.query.get_or_404(group_id)
+    if g_row.company_id != cid:
+        abort(404)
+    name = (request.form.get("name") or "").strip()
+    if not name:
+        flash("الاسم مطلوب", "error")
+        return redirect(url_for("products.hierarchy"))
+    g_row.name = name
+    db.session.commit()
+    flash("تم التحديث", "success")
+    return redirect(url_for("products.hierarchy"))
+
+
+@bp.route("/hierarchy/groups/<int:group_id>/delete", methods=["POST"])
+@login_required
+@require_permission("products.manage")
+def group_delete(group_id):
+    cid = g.active_company.id
+    g_row = ProductGroup.query.get_or_404(group_id)
+    if g_row.company_id != cid:
+        abort(404)
+    # Refuse if any category under this group has products.
+    total_products = Product.query.join(ProductCategory).filter(
+        ProductCategory.group_id == g_row.id,
+    ).count()
+    if total_products:
+        flash(
+            f"لا يمكن حذف المجموعة — يوجد {total_products} منتج تحتها. "
+            f"انقلهم أولاً.", "error",
+        )
+        return redirect(url_for("products.hierarchy"))
+    db.session.delete(g_row)
+    db.session.commit()
+    flash("تم حذف المجموعة", "success")
+    return redirect(url_for("products.hierarchy"))
+
+
+@bp.route("/hierarchy/categories", methods=["POST"])
+@login_required
+@require_permission("products.manage")
+def category_create():
+    cid = g.active_company.id
+    name = (request.form.get("name") or "").strip()
+    group_id = request.form.get("group_id", type=int)
+    if not (name and group_id):
+        flash("الاسم والمجموعة مطلوبان", "error")
+        return redirect(url_for("products.hierarchy"))
+    g_row = ProductGroup.query.get(group_id)
+    if not g_row or g_row.company_id != cid:
+        abort(404)
+    if ProductCategory.query.filter_by(
+        company_id=cid, group_id=group_id, name=name,
+    ).first():
+        flash("فئة بنفس الاسم موجودة تحت هذه المجموعة", "error")
+        return redirect(url_for("products.hierarchy"))
+    db.session.add(ProductCategory(
+        company_id=cid, group_id=group_id, name=name,
+    ))
+    db.session.commit()
+    flash("تم إنشاء الفئة", "success")
+    return redirect(url_for("products.hierarchy"))
+
+
+@bp.route("/hierarchy/categories/<int:cat_id>/edit", methods=["POST"])
+@login_required
+@require_permission("products.manage")
+def category_edit(cat_id):
+    cid = g.active_company.id
+    c = ProductCategory.query.get_or_404(cat_id)
+    if c.company_id != cid:
+        abort(404)
+    name = (request.form.get("name") or "").strip()
+    if not name:
+        flash("الاسم مطلوب", "error")
+        return redirect(url_for("products.hierarchy"))
+    c.name = name
+    db.session.commit()
+    flash("تم التحديث", "success")
+    return redirect(url_for("products.hierarchy"))
+
+
+@bp.route("/hierarchy/categories/<int:cat_id>/delete", methods=["POST"])
+@login_required
+@require_permission("products.manage")
+def category_delete(cat_id):
+    cid = g.active_company.id
+    c = ProductCategory.query.get_or_404(cat_id)
+    if c.company_id != cid:
+        abort(404)
+    n = Product.query.filter_by(category_id=c.id).count()
+    if n:
+        flash(
+            f"لا يمكن حذف الفئة — يوجد {n} منتج تحتها. انقلهم أولاً.",
+            "error",
+        )
+        return redirect(url_for("products.hierarchy"))
+    db.session.delete(c)
+    db.session.commit()
+    flash("تم حذف الفئة", "success")
+    return redirect(url_for("products.hierarchy"))
+
+
+# ─── API helper for the dependent dropdown on product form ──────────
+@bp.route("/api/categories")
+@login_required
+def api_categories():
+    """Return categories filtered by ?group_id=<id>. Used by product
+    form JS to populate the second dropdown when a group is picked."""
+    cid = g.active_company.id
+    group_id = request.args.get("group_id", type=int)
+    q = ProductCategory.query.filter_by(company_id=cid, is_active=True)
+    if group_id:
+        q = q.filter_by(group_id=group_id)
+    return jsonify([
+        {"id": c.id, "name": c.name, "group_id": c.group_id}
+        for c in q.order_by(ProductCategory.name).all()
     ])

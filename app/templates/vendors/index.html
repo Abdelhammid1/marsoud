@@ -20,7 +20,7 @@
     <tbody>
     {% for v in vendors %}
       <tr>
-        <td class="font-semibold">{{ v.name }}</td>
+        <td class="font-semibold"><a href="{{ url_for('vendors.view', vendor_id=v.id) }}" class="text-navy-900 hover:text-brand-600 hover:underline">{{ v.name }}</a></td>
         <td class="text-sm text-slate-500">{{ v.email or '—' }}</td>
         <td class="text-sm text-slate-500" dir="ltr">{{ v.phone or '—' }}</td>
         <td class="text-sm text-slate-500 font-mono" dir="ltr">{{ v.bank_account or '—' }}</td>

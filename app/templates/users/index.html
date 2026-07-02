@@ -54,7 +54,7 @@
         <tr>
           <td dir="ltr" class="text-sm">{{ inv.email }}</td>
           <td>{{ role_labels.get(inv.role, inv.role) }}</td>
-          <td class="text-xs">{{ inv.created_at.strftime('%Y-%m-%d') }}</td>
+          <td class="text-xs">{{ inv.created_at | company_dt('%Y-%m-%d') }}</td>
           <td>
             {% if inv.accepted_at %}<span class="badge badge-paid">مقبولة</span>
             {% elif inv.revoked_at %}<span class="badge badge-cancelled">مُلغاة</span>

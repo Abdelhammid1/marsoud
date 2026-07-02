@@ -31,6 +31,11 @@ _PREFIX_TO_MODULE = {
     # sales
     "invoices.": "sales",
     "products.": "sales",
+    # MARSOUD-REFUNDS-01 — refunds are gated on the sales module (any
+    # plan that has sales gets refund view + issue). Sales and purchase
+    # refunds live in one blueprint; the module lookup for both
+    # `refunds.view`/`refunds.manage` returns "sales".
+    "refunds.": "sales",
     # crm
     "leads.": "crm",
     "tasks.": "crm",
@@ -49,6 +54,11 @@ _PREFIX_TO_MODULE = {
     # hr
     "hr.": "hr",
     "payroll.": "hr",
+    # MARSOUD-EMPLOYEE-DAILY-REPORTS — own coarse module so plans can
+    # ship without it (the ticket wants Super Admin control per package).
+    "employee_reports.": "employee_reports",
+    # MARSOUD-MANUFACTURING-01 — own coarse module (BOM + work orders).
+    "manufacturing.": "manufacturing",
     # reports (catch-all after the pos-specific overrides above)
     "reports.": "reports",
     # agent
@@ -59,6 +69,15 @@ _PREFIX_TO_MODULE = {
 
 # Modules that are ALWAYS allowed regardless of plan (auth + basic admin).
 _ALWAYS_ALLOWED = {"settings"}
+
+# Specific ACTIONS that stay readable even after the module is disabled.
+# The rule: if a company had these features and its plan is later
+# downgraded, the OLD data must remain viewable (per ticket edge cases
+# like MARSOUD-REFUNDS-01: "شركة على باقة مفيهاش الميزة عندها مرتجعات
+# قديمة من قبل — تفضل تتعرض للقراءة بس مش تتعدل"). Read-only, no writes.
+_ALWAYS_READABLE = {
+    "refunds.view",
+}
 
 
 def action_module(action):
@@ -76,11 +95,15 @@ def plan_allows(action, company):
     """Return True if the company's plan allows this action's module.
 
     Returns True when:
+      - the action is in _ALWAYS_READABLE (legacy data stays viewable
+        even if the module is disabled)
       - the action doesn't map to a gated module (treated as ungated)
       - the module is in the always-allowed set
       - the company has no plan assigned (legacy / not yet backfilled)
       - the plan's allowed_modules list contains the module
     """
+    if action in _ALWAYS_READABLE:
+        return True
     module = action_module(action)
     if not module:
         return True
@@ -119,6 +142,18 @@ SUB_ITEM_CATALOG = {
         ("recurring_bills.index", "الفواتير المتكررة", "🔁"),
         ("forecast.index", "الفواتير الجايّة", "📅"),
         ("vendors.index", "الموردين", "🏢"),
+    ],
+    "refunds": [
+        ("refunds.index", "كل المرتجعات", "📋"),
+        ("refunds.report", "تقرير المرتجعات", "📊"),
+    ],
+    "employee_reports": [
+        ("reports.employees_index", "تقارير الموظفين اليومية", "📝"),
+    ],
+    "manufacturing": [
+        ("manufacturing.boms_index", "تركيبات المنتجات (BOM)", "🧬"),
+        ("manufacturing.work_orders_index", "أوامر الإنتاج", "⚙️"),
+        ("manufacturing.reports", "تقارير التكلفة الصناعية", "📊"),
     ],
     "inventory": [
         ("inventory.index", "المخزون", "📊"),
@@ -159,6 +194,9 @@ SECTION_LABEL_AR = {
     "accounting": "المالية والمحاسبة",
     "sales": "المبيعات",
     "purchases": "المشتريات",
+    "refunds": "المرتجعات",
+    "employee_reports": "تقارير الموظفين",
+    "manufacturing": "التصنيع",
     "inventory": "المخزون",
     "crm": "العملاء المحتملين (CRM)",
     "workflow": "إدارة العمل",
@@ -173,6 +211,10 @@ SECTION_REQUIRES_MODULES = {
     "accounting": ["accounting", "reports"],
     "sales": ["sales"],
     "purchases": ["purchases"],
+    # MARSOUD-REFUNDS-01 — refunds visible if either side is available.
+    "refunds": ["sales", "purchases"],
+    "employee_reports": ["employee_reports"],
+    "manufacturing": ["manufacturing"],
     "inventory": ["inventory"],
     "crm": ["crm"],
     "workflow": ["crm"],

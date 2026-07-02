@@ -129,6 +129,38 @@
     </div>
     {% endif %}
 
+    {# MARSOUD-REFUNDS-01 — issue a refund against a posted vendor bill. #}
+    {% if bill.status.value in ['POSTED', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'] and has_permission('vendor_bills.refund') %}
+    <div class="card p-5 border-amber-200 bg-amber-50/40">
+      <h3 class="font-bold text-navy-900 mb-3">↩️ مرتجع مشتريات</h3>
+      <form method="POST" action="{{ url_for('vendor_bills.refund', bill_id=bill.id) }}" class="space-y-3"
+            onsubmit="return confirm('تأكيد إنشاء مرتجع لهذه الفاتورة؟');">
+        <select name="type" required class="select text-sm">
+          <option value="FULL">مرتجع كامل ({{ "%.2f"|format(bill.total) }})</option>
+          <option value="PARTIAL">مرتجع جزئي</option>
+          <option value="DEBIT_NOTE">إشعار مدين</option>
+        </select>
+        <input type="number" name="amount" step="0.01" placeholder="المبلغ (للجزئي/الإشعار)" class="input text-sm">
+        <input type="text" name="reason" placeholder="السبب (اختياري)" class="input text-sm">
+        <button type="submit" class="btn-secondary w-full">تسجيل المرتجع</button>
+      </form>
+    </div>
+    {% endif %}
+
+    {% if bill.refunds %}
+    <div class="card p-5">
+      <h3 class="font-bold text-navy-900 mb-3">المرتجعات ({{ bill.refunds|length }})</h3>
+      <div class="space-y-2 text-sm">
+      {% for r in bill.refunds %}
+        <div class="flex justify-between py-2 border-b border-slate-100">
+          <span class="text-slate-600">{{ r.number or '—' }} · {{ r.type.label_ar }}</span>
+          <span class="font-mono font-semibold text-amber-600">{{ "%.2f"|format(r.amount) }}</span>
+        </div>
+      {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
     {% if bill.payments %}
     <div class="card p-5">
       <h3 class="font-bold text-navy-900 mb-3">الدفعات</h3>

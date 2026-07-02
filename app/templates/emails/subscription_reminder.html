@@ -63,7 +63,7 @@
     <tr>
       <td>
         <div style="font-size:11px;color:#94A3B8;letter-spacing:1px;margin-bottom:4px">تاريخ انتهاء الاشتراك</div>
-        <div style="font-size:22px;font-weight:bold;font-family:monospace;color:#fff">{{ expires_at.strftime('%Y-%m-%d') }}</div>
+        <div style="font-size:22px;font-weight:bold;font-family:monospace;color:#fff">{{ expires_at | company_dt('%Y-%m-%d', company=company) }}</div>
       </td>
       <td align="left" valign="middle">
         <div style="font-size:28px">{% if days_remaining < 0 %}⛔{% elif days_remaining == 0 %}⏰{% elif days_remaining <= 3 %}⚠️{% else %}📅{% endif %}</div>

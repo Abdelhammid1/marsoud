@@ -37,6 +37,26 @@
       <label class="block text-sm font-semibold text-slate-700 mb-2">الرقم الضريبي</label>
       <input type="text" name="tax_number" value="{{ vendor.tax_number if vendor else '' }}" class="input">
     </div>
+    {# MARSOUD-PARTY-OPENING-BALANCE-01 — captured ONCE at creation. #}
+    {% if not vendor %}
+    <div class="border border-amber-100 rounded-lg p-4 bg-amber-50/30">
+      <h3 class="font-bold text-navy-900 mb-1 text-sm">💰 رصيد افتتاحي (اختياري)</h3>
+      <p class="text-xs text-slate-500 mb-3">
+        لو المورد ده الشركة عليها له فلوس من قبل استخدام النظام، اكتب المبلغ.
+        هيتسجل قيد افتتاحي مقابل حساب الافتتاح (3900) مرة واحدة بس.
+      </p>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">المبلغ</label>
+          <input type="number" name="opening_balance" step="0.01"
+                  value="" placeholder="0.00"
+                  class="input text-sm font-mono">
+          <div class="text-[11px] text-slate-400 mt-1">موجب = الشركة عليها فلوس له. سالب = الشركة دفعت له مقدماً.</div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <div class="flex justify-end gap-2 pt-2">
       <a href="{{ url_for('vendors.index') }}" class="btn-secondary">إلغاء</a>
       <button type="submit" class="btn-primary">{% if vendor %}حفظ التعديلات{% else %}إضافة{% endif %}</button>

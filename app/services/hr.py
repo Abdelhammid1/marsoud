@@ -99,22 +99,40 @@ def check_expiring_contracts(today=None):
     and email the HR recipients of that company. Dedup'd per-day via
     employees.contract_alert_last_sent.
 
+    MARSOUD-TZ-01 — 'today' is per-company. Contract deadlines are
+    date-only, but "did the alert already fire today" is dedup'd
+    against a *date* value that we want to be the company's local day,
+    not the server's. Otherwise a Cairo company at 11 PM UTC would see
+    tomorrow's alert un-dedup'd because emp.contract_alert_last_sent
+    was written on the previous calendar day in Cairo but "today" in UTC.
+
     Returns a summary dict for the cron tick payload.
     """
-    today = today or date.today()
-    horizon = today + timedelta(days=60)
+    from app.services.time import today_in_company_tz
+    # Fetch wider than the widest company offset (~14h ≈ 1 day) so we
+    # don't miss anyone; per-company filtering happens in the loop.
+    server_today = today or date.today()
+    horizon = server_today + timedelta(days=61)
 
     employees = Employee.query.filter(
         Employee.status == EmployeeStatus.ACTIVE,
         Employee.contract_end_date.isnot(None),
-        Employee.contract_end_date >= today,
+        Employee.contract_end_date >= server_today - timedelta(days=1),
         Employee.contract_end_date <= horizon,
     ).all()
 
     sent = 0
     skipped = 0
     grouped = {}  # company_id -> [(employee, days_left, severity)]
+    company_today = {}
     for emp in employees:
+        if emp.company_id not in company_today:
+            company_today[emp.company_id] = (
+                today_in_company_tz(emp.company) if emp.company else server_today
+            )
+        today = company_today[emp.company_id]
+        if not (today <= emp.contract_end_date <= today + timedelta(days=60)):
+            continue
         if emp.contract_alert_last_sent == today:
             skipped += 1
             continue
@@ -132,7 +150,7 @@ def check_expiring_contracts(today=None):
             logger.info("Contract-expiry: no HR recipients for company %s", company_id)
             # Still mark sent so we don't loop tomorrow
             for emp, _days, _sev in items:
-                emp.contract_alert_last_sent = today
+                emp.contract_alert_last_sent = company_today[company_id]
             db.session.commit()
             continue
 
@@ -155,7 +173,7 @@ def check_expiring_contracts(today=None):
 
         # Dedup state — only after we successfully emitted the alerts
         for emp, _days, _sev in items:
-            emp.contract_alert_last_sent = today
+            emp.contract_alert_last_sent = company_today[company_id]
         db.session.commit()
 
     return {

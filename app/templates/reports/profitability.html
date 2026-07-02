@@ -5,7 +5,7 @@
 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
   <h2 class="font-bold text-navy-900">💹 ربحية المنتجات</h2>
   <div class="flex items-end gap-2 flex-wrap">
-    <form method="GET" class="flex items-end gap-2">
+    <form method="GET" class="flex items-end gap-2 flex-wrap">
       <div>
         <label class="block text-xs mb-1">من</label>
         <input type="date" name="start_date" value="{{ start_date.isoformat() }}" class="input text-sm">
@@ -13,6 +13,33 @@
       <div>
         <label class="block text-xs mb-1">إلى</label>
         <input type="date" name="end_date" value="{{ end_date.isoformat() }}" class="input text-sm">
+      </div>
+      {# MARSOUD-PRODUCT-HIERARCHY-01 — group + category filter + grouping. #}
+      <div>
+        <label class="block text-xs mb-1">المجموعة</label>
+        <select name="group_id" class="select text-sm">
+          <option value="">الكل</option>
+          {% for gr in groups %}
+          <option value="{{ gr.id }}" {% if filter_group_id == gr.id %}selected{% endif %}>{{ gr.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs mb-1">الفئة</label>
+        <select name="category_id" class="select text-sm">
+          <option value="">الكل</option>
+          {% for ct in categories %}
+          <option value="{{ ct.id }}" {% if filter_category_id == ct.id %}selected{% endif %}>{{ ct.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs mb-1">تجميع حسب</label>
+        <select name="group_by" class="select text-sm">
+          <option value="product" {% if group_by == 'product' %}selected{% endif %}>المنتج</option>
+          <option value="category" {% if group_by == 'category' %}selected{% endif %}>الفئة</option>
+          <option value="group" {% if group_by == 'group' %}selected{% endif %}>المجموعة</option>
+        </select>
       </div>
       <button type="submit" class="btn-primary text-sm">تطبيق</button>
     </form>

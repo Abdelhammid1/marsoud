@@ -287,6 +287,26 @@ def record_return(*, variant, warehouse, qty, unit_cost_at_sale,
     )
 
 
+def record_purchase_return(*, variant, warehouse, qty,
+                            refund_id=None, line_id=None, actor_id=None,
+                            journal_entry_id=None):
+    """MARSOUD-REFUNDS-01 — outbound stock, goods returned to a vendor.
+
+    Consumed at the current weighted-average cost (same as SALE). Returns
+    the unit cost that came out so the caller can build the balancing
+    journal (Dr 2110 vendor / Cr 1300 inventory at that cost)."""
+    if qty <= 0:
+        raise InventoryError("كمية مرتجع المشتريات يجب أن تكون أكبر من صفر")
+    mv = apply_stock_movement(
+        variant=variant, warehouse=warehouse,
+        qty_delta=-qty, kind=StockMovementKind.PURCHASE_RETURN,
+        source_type="vendor_bill_refund",
+        source_id=refund_id or line_id,
+        journal_entry_id=journal_entry_id, actor_id=actor_id,
+    )
+    return float(mv.unit_cost_at_time or 0)
+
+
 def record_adjustment(*, variant, warehouse, new_qty,
                       reason=None, actor_id=None, created_by=None):
     """Set the physical count to new_qty and post the variance journal.

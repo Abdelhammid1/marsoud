@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block page_title %}{{ report.title }}{% endblock %}
+{% block content %}
+
+<div class="mb-4">
+  <a href="{{ url_for('portal_emp.daily_reports_list') }}" class="text-sm text-brand-600 hover:underline">← كل تقاريري</a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <div class="lg:col-span-2 card p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold text-navy-900">{{ report.title }}</h2>
+      {% if report.status.value == 'DRAFT' %}
+        <span class="badge bg-amber-100 text-amber-700">مسودة — لسه ما اتولّدتش</span>
+      {% else %}
+        <span class="badge bg-emerald-100 text-emerald-700">تم التوليد بتاريخ {{ report.submitted_at | company_dt if report.submitted_at else '' }}</span>
+      {% endif %}
+    </div>
+
+    <div class="mb-6">
+      <h3 class="font-bold text-navy-900 mb-2 text-sm">النشاط التلقائي</h3>
+      <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm whitespace-pre-line" dir="rtl">
+        {{ report.body or 'لا يوجد نشاط مسجّل تلقائياً.' }}
+      </div>
+    </div>
+
+    {% if report.status.value == 'DRAFT' %}
+    <form method="POST" action="{{ url_for('portal_emp.daily_report_detail', report_id=report.id) }}">
+      <div class="mb-4">
+        <label class="block text-sm font-semibold text-slate-700 mb-2">ملاحظاتك (اختياري)</label>
+        <textarea name="employee_notes" rows="6" class="input w-full text-sm"
+                   placeholder="ضيف أي سياق أو تفاصيل مش موجودة في التلخيص أعلاه…">{{ report.employee_notes or '' }}</textarea>
+      </div>
+      <div class="flex justify-between items-center">
+        <button type="submit" class="btn-secondary text-sm">💾 حفظ الملاحظات</button>
+        <button type="submit" name="submit_final" value="1" class="btn-primary"
+                 onclick="return confirm('هل أنت متأكد؟ بعد التوليد لن تستطيع التعديل.');">
+          ✅ توليد التقرير النهائي
+        </button>
+      </div>
+    </form>
+    {% else %}
+      {% if report.employee_notes %}
+      <div class="mb-4 border-t border-slate-100 pt-4">
+        <h3 class="font-bold text-navy-900 mb-2 text-sm">ملاحظات الموظف</h3>
+        <div class="bg-emerald-50/40 border border-emerald-100 rounded-lg p-4 text-sm whitespace-pre-line" dir="rtl">
+          {{ report.employee_notes }}
+        </div>
+      </div>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  <div class="card p-6">
+    <h3 class="font-bold text-navy-900 mb-3 text-sm">معلومات</h3>
+    <div class="space-y-2 text-sm">
+      <div><span class="text-slate-500">التاريخ:</span> <span class="font-mono">{{ report.report_date.isoformat() }}</span></div>
+      <div><span class="text-slate-500">أُنشئت:</span> {{ report.created_at | company_dt if report.created_at else '' }}</div>
+      {% if report.submitted_at %}
+      <div><span class="text-slate-500">اتوَلّدت:</span> {{ report.submitted_at | company_dt }}</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

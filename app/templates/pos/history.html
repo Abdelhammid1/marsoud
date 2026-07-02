@@ -34,7 +34,7 @@
       {% for o in orders %}
       <tr>
         <td class="font-mono font-semibold">{{ o.number }}</td>
-        <td class="text-xs font-mono">{{ o.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+        <td class="text-xs font-mono">{{ o.created_at | company_dt('%Y-%m-%d %H:%M') }}</td>
         <td class="text-xs">{{ o.cashier.full_name if o.cashier else '—' }}</td>
         <td class="text-xs">{{ o.customer.name if o.customer else 'زبون نقدي' }}</td>
         <td class="text-end font-mono">{{ '%.2f'|format(o.total) }}</td>

@@ -85,6 +85,11 @@ def create_app(config_class=Config):
     from app.routes.settings_backup import bp as settings_backup_bp
     from app.routes.party_ledger import bp as party_ledger_bp
     from app.routes.crm import bp as crm_bp
+    from app.routes.refunds import bp as refunds_bp
+    from app.routes.settings_employee_reports import (
+        bp as settings_employee_reports_bp,
+    )
+    from app.routes.manufacturing import bp as manufacturing_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -128,6 +133,10 @@ def create_app(config_class=Config):
     app.register_blueprint(settings_backup_bp, url_prefix="/settings/backup")
     app.register_blueprint(party_ledger_bp, url_prefix="/reports/party-ledger")
     app.register_blueprint(crm_bp, url_prefix="/crm")
+    app.register_blueprint(refunds_bp, url_prefix="/refunds")
+    app.register_blueprint(settings_employee_reports_bp,
+                            url_prefix="/settings/employee-reports")
+    app.register_blueprint(manufacturing_bp, url_prefix="/manufacturing")
 
     # MARSOUD-API-V1 — make sure /api/v1/* abort(...) / unauthorized
     # responses come out as JSON instead of HTML / login redirects.
@@ -425,11 +434,25 @@ def create_app(config_class=Config):
             return str(value)
 
     @app.template_filter("company_dt")
-    def company_dt_filter(value, fmt="%Y-%m-%d %H:%M:%S"):
+    def company_dt_filter(value, fmt="%Y-%m-%d %H:%M:%S", company=None):
+        """MARSOUD-TZ-01 — format a stored UTC datetime in the company's
+        timezone. Two call shapes:
+
+           {{ x.created_at | company_dt }}
+              # picks up g.active_company (normal HTTP requests).
+
+           {{ x.created_at | company_dt(company=inv.company) }}
+              # explicit company — required for emails, PDFs, and cron
+              # callbacks where g.active_company isn't populated.
+
+        Falls back to the passed-in company, then g.active_company, then
+        server-local formatting so a missing company never blows up a
+        render."""
         if value is None:
             return "—"
         from app.services.time import to_company_tz_str
-        company = g.get("active_company") if g else None
+        if company is None:
+            company = g.get("active_company") if g else None
         return to_company_tz_str(value, company, fmt)
 
     # MARSOUD-62 — Expose company_logo_email_uri so the email base

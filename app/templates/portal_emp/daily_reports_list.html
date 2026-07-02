@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block page_title %}تقاريري اليومية{% endblock %}
+{% block content %}
+
+<div class="card p-6">
+  <h2 class="text-xl font-bold text-navy-900 mb-4">تقاريري اليومية</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>التاريخ</th>
+        <th>العنوان</th>
+        <th>الحالة</th>
+        <th class="text-left"></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in reports %}
+      <tr>
+        <td class="font-mono text-sm">{{ r.report_date.isoformat() }}</td>
+        <td>{{ r.title }}</td>
+        <td>
+          {% if r.status.value == 'DRAFT' %}
+            <span class="badge bg-amber-100 text-amber-700">مسودة</span>
+          {% else %}
+            <span class="badge bg-emerald-100 text-emerald-700">تم التوليد</span>
+          {% endif %}
+        </td>
+        <td class="text-left">
+          <a href="{{ url_for('portal_emp.daily_report_detail', report_id=r.id) }}"
+              class="text-brand-600 hover:underline text-sm">
+            {% if r.status.value == 'DRAFT' %}📝 مراجعة{% else %}عرض{% endif %}
+          </a>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="text-center text-slate-400 py-8">لا توجد تقارير بعد.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
