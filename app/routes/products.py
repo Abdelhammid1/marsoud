@@ -157,6 +157,12 @@ def new():
                 db.session.add(v)
                 db.session.flush()
 
+                # MARSOUD-UNIT-CONVERSION-01 — every tracked product
+                # gets a base unit at create time so POS + invoicing
+                # can pick it without a separate "define units" step.
+                from app.services.units import ensure_base_unit
+                ensure_base_unit(p)
+
                 # Opening balance is optional. > 0 → post Dr 1140 / Cr 3900.
                 opening_qty = float(request.form.get("opening_qty", 0) or 0)
                 if opening_qty > 0:
@@ -525,4 +531,87 @@ def api_categories():
     return jsonify([
         {"id": c.id, "name": c.name, "group_id": c.group_id}
         for c in q.order_by(ProductCategory.name).all()
+    ])
+
+
+# ─── MARSOUD-UNIT-CONVERSION-01 — Product units ─────────────────────
+@bp.route("/<int:product_id>/units", methods=["GET", "POST"])
+@login_required
+@require_permission("products.manage")
+def units(product_id):
+    from app.models import ProductUnit
+    from app.services.units import (
+        ensure_base_unit, create_unit, delete_unit, UnitError,
+    )
+    p = _product_or_404(product_id)
+    if not p.is_tracked:
+        flash("الوحدات متاحة للمنتجات المتتبَّعة فقط.", "warning")
+        return redirect(url_for("products.edit", product_id=p.id))
+    ensure_base_unit(p)   # idempotent — heals any product missing base
+
+    if request.method == "POST":
+        try:
+            create_unit(
+                p,
+                request.form.get("unit_name"),
+                request.form.get("conversion_factor"),
+            )
+            db.session.commit()
+            flash("تم إضافة الوحدة", "success")
+        except UnitError as e:
+            db.session.rollback()
+            flash(str(e), "error")
+        return redirect(url_for("products.units", product_id=p.id))
+
+    units_list = ProductUnit.query.filter_by(product_id=p.id).order_by(
+        ProductUnit.is_base.desc(),
+        ProductUnit.conversion_factor.asc(),
+    ).all()
+    return render_template(
+        "products/units.html", product=p, units=units_list,
+    )
+
+
+@bp.route("/<int:product_id>/units/<int:unit_id>/delete", methods=["POST"])
+@login_required
+@require_permission("products.manage")
+def unit_delete(product_id, unit_id):
+    from app.models import ProductUnit
+    from app.services.units import delete_unit, UnitError
+    p = _product_or_404(product_id)
+    u = db.session.get(ProductUnit, unit_id)
+    if not u or u.product_id != p.id:
+        abort(404)
+    try:
+        delete_unit(u)
+        db.session.commit()
+        flash("تم حذف الوحدة", "success")
+    except UnitError as e:
+        db.session.rollback()
+        flash(str(e), "error")
+    return redirect(url_for("products.units", product_id=p.id))
+
+
+@bp.route("/api/units")
+@login_required
+def api_units():
+    """MARSOUD-UNIT-CONVERSION-01 — units for a given product, used by
+    the invoice/vendor-bill/POS item rows to build the unit dropdown.
+    Query: ?product_id=<id>"""
+    from app.models import ProductUnit
+    cid = g.active_company.id
+    product_id = request.args.get("product_id", type=int)
+    if not product_id:
+        return jsonify([])
+    units_q = ProductUnit.query.filter_by(
+        company_id=cid, product_id=product_id,
+    ).order_by(ProductUnit.is_base.desc(),
+                 ProductUnit.conversion_factor.asc())
+    return jsonify([
+        {
+            "id": u.id, "name": u.unit_name,
+            "factor": float(u.conversion_factor or 1),
+            "is_base": bool(u.is_base),
+            "label": u.display_label,
+        } for u in units_q.all()
     ])

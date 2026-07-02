@@ -120,6 +120,14 @@ def create_pos_order(
                 ldt = DiscountType[ldt]
             except KeyError:
                 ldt = DiscountType.NONE
+        # MARSOUD-UNIT-CONVERSION-01 — cashier may have picked a
+        # non-base unit ("كرتونة"). Persist it on the item so
+        # post_invoice_to_ledger converts to base at posting time.
+        unit_id = line.get("unit_id")
+        try:
+            unit_id = int(unit_id) if unit_id else None
+        except (ValueError, TypeError):
+            unit_id = None
         item = InvoiceItem(
             invoice_id=invoice.id,
             product_id=variant.product_id,
@@ -130,6 +138,7 @@ def create_pos_order(
             unit_price=unit_price,
             discount_type=ldt,
             discount_value=float(line.get("discount_value") or 0),
+            unit_id=unit_id,
         )
         db.session.add(item)
     db.session.flush()

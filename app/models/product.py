@@ -89,6 +89,69 @@ class Product(db.Model):
         return self.category.group if self.category else None
 
     @property
+    def base_unit(self):
+        """MARSOUD-UNIT-CONVERSION-01 — the single is_base=True row for
+        this product. Falls back to None if the migration hasn't been
+        run yet (older data). Callers should treat None as "quantity is
+        already the base unit"."""
+        for u in self.units:
+            if u.is_base:
+                return u
+        return None
+
+
+class ProductUnit(db.Model):
+    """MARSOUD-UNIT-CONVERSION-01 — sellable/purchasable unit with a
+    conversion factor to the product's base unit.
+
+    Every tracked product has exactly ONE row with is_base=True and
+    conversion_factor=1. Any additional row represents a bigger or
+    smaller unit — e.g. base='حبة', extra='كرتونة' factor=30 (one
+    كرتونة = 30 حبة).
+
+    The inventory engine (record_sale, receive_stock, weighted-average
+    cost) still operates in base units only — the wiring layer at
+    posting time is responsible for calling convert_to_base() before
+    it touches the engine.
+    """
+    __tablename__ = "product_units"
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"),
+                             nullable=False, index=True)
+    product_id = db.Column(db.Integer,
+                              db.ForeignKey("products.id", ondelete="CASCADE"),
+                              nullable=False, index=True)
+    unit_name = db.Column(db.String(50), nullable=False)
+    conversion_factor = db.Column(db.Numeric(15, 6),
+                                     nullable=False, default=1)
+    is_base = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    product = db.relationship(
+        "Product",
+        backref=db.backref("units", cascade="all, delete-orphan",
+                             order_by="ProductUnit.is_base.desc(), "
+                                        "ProductUnit.conversion_factor.asc()"),
+    )
+    company = db.relationship("Company")
+
+    __table_args__ = (
+        db.UniqueConstraint("product_id", "unit_name",
+                              name="uq_product_unit_name"),
+    )
+
+    @property
+    def display_label(self):
+        """'كرتونة (30 حبة)' style — collapses to just 'حبة' for base."""
+        if self.is_base:
+            return self.unit_name
+        base = self.product.base_unit
+        base_name = base.unit_name if base else "أساسية"
+        # Trim trailing zeros on the factor for a clean label.
+        f = f"{float(self.conversion_factor):g}"
+        return f"{self.unit_name} ({f} {base_name})"
+
+    @property
     def default_variant(self):
         """First active variant — every product is migrated with one.
 

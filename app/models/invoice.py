@@ -144,9 +144,17 @@ class InvoiceItem(db.Model):
     warehouse_id = db.Column(db.Integer, db.ForeignKey("warehouses.id"))
     unit_cost_at_sale = db.Column(db.Numeric(15, 4), default=0, nullable=False)
 
+    # MARSOUD-UNIT-CONVERSION-01 — unit the cashier picked at sale time
+    # + the resulting quantity in base units. Both nullable for
+    # backward-compat: an item with unit_id=NULL is treated as already
+    # being in the base unit (base_quantity = quantity).
+    unit_id = db.Column(db.Integer, db.ForeignKey("product_units.id"))
+    base_quantity = db.Column(db.Numeric(15, 4))
+
     product = db.relationship("Product")
     variant = db.relationship("ProductVariant", foreign_keys=[variant_id])
     warehouse = db.relationship("Warehouse", foreign_keys=[warehouse_id])
+    unit = db.relationship("ProductUnit", foreign_keys=[unit_id])
 
     @property
     def gross(self):

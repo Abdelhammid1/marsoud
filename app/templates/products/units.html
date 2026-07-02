@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block page_title %}وحدات {{ product.name }}{% endblock %}
+{% block content %}
+
+<div class="mb-4">
+  <a href="{{ url_for('products.edit', product_id=product.id) }}" class="text-sm text-brand-600 hover:underline">← رجوع للمنتج</a>
+</div>
+
+<div class="card p-6 mb-4">
+  <h2 class="text-xl font-bold text-navy-900 mb-2">📏 وحدات المنتج — {{ product.name }}</h2>
+  <p class="text-sm text-slate-500">
+    وحدة الأساس هي اللي المخزون بيتحسب بيها. أي وحدة بيع/شراء تانية بتضاف بمعامل تحويل لوحدة الأساس.
+    مثال: لو الأساس "حبة" وضفت "كرتونة" بمعامل 30، بيع كرتونة بينقص من المخزون 30 حبة تلقائياً.
+  </p>
+</div>
+
+<div class="card p-6 mb-4">
+  <h3 class="font-bold text-navy-900 mb-3">الوحدات الحالية</h3>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>الاسم</th>
+        <th class="text-left">معامل التحويل</th>
+        <th>النوع</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for u in units %}
+      <tr>
+        <td class="font-semibold">
+          {{ u.unit_name }}
+          {% if u.is_base %}<span class="badge bg-emerald-100 text-emerald-700 mr-2">أساس</span>{% endif %}
+        </td>
+        <td class="text-left font-mono">{{ '%g'|format(u.conversion_factor|float) }}</td>
+        <td class="text-sm text-slate-500">
+          {% if u.is_base %}
+            المرجع (1 {{ u.unit_name }} = 1 {{ u.unit_name }})
+          {% else %}
+            1 {{ u.unit_name }} = {{ '%g'|format(u.conversion_factor|float) }} {{ product.base_unit.unit_name if product.base_unit else '' }}
+          {% endif %}
+        </td>
+        <td class="text-left">
+          {% if not u.is_base %}
+          <form method="POST" action="{{ url_for('products.unit_delete', product_id=product.id, unit_id=u.id) }}"
+                onsubmit="return confirm('حذف الوحدة {{ u.unit_name|e }}؟');" class="inline">
+            <button type="submit" class="text-xs text-rose-600 hover:underline">🗑 حذف</button>
+          </form>
+          {% else %}
+          <span class="text-xs text-slate-400">لا تُحذف</span>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card p-6">
+  <h3 class="font-bold text-navy-900 mb-3">+ وحدة جديدة</h3>
+  <form method="POST" action="{{ url_for('products.units', product_id=product.id) }}" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <div>
+      <label class="block text-xs font-semibold mb-1">اسم الوحدة</label>
+      <input type="text" name="unit_name" placeholder="كرتونة" required class="input">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold mb-1">معامل التحويل (لكل {{ product.base_unit.unit_name if product.base_unit else 'وحدة أساس' }})</label>
+      <input type="number" name="conversion_factor" step="0.0001" min="0.0001" placeholder="30" required class="input font-mono">
+    </div>
+    <div class="flex items-end">
+      <button type="submit" class="btn-primary">إضافة</button>
+    </div>
+  </form>
+  <p class="text-xs text-slate-400 mt-3">
+    ⚠ ملحوظة: لا يمكن تعديل معامل التحويل لوحدة عليها حركات مخزون سابقة — عشان الفواتير القديمة تفضل صحيحة.
+  </p>
+</div>
+{% endblock %}

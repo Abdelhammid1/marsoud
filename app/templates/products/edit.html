@@ -76,9 +76,14 @@
         <input type="checkbox" name="is_active" {% if product.is_active %}checked{% endif %}>
         <span class="text-sm font-semibold">نشط (يظهر في القوائم)</span>
       </label>
-      <div class="flex justify-between gap-2 pt-2">
+      <div class="flex justify-between items-center gap-2 pt-2">
         <a href="{{ url_for('products.index') }}" class="btn-secondary">← الرجوع</a>
-        <button type="submit" class="btn-primary">💾 حفظ</button>
+        <div class="flex gap-2">
+          {% if product.is_tracked %}
+          <a href="{{ url_for('products.units', product_id=product.id) }}" class="btn-secondary text-sm">📏 وحدات المنتج</a>
+          {% endif %}
+          <button type="submit" class="btn-primary">💾 حفظ</button>
+        </div>
       </div>
     </form>
   </div>

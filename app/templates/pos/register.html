@@ -149,7 +149,19 @@ function renderCart() {
     recalc();
     return;
   }
-  wrap.innerHTML = cart.map((r, i) => `
+  wrap.innerHTML = cart.map((r, i) => {
+    // MARSOUD-UNIT-CONVERSION-01 — unit picker per row. Hidden if the
+    // product only has a base unit (no reason to clutter the cashier's
+    // screen with a 1-option dropdown).
+    let unitPickerHtml = '';
+    if (r.units && r.units.length > 1) {
+      unitPickerHtml = '<select onchange="setUnit(' + i + ', this.value)" class="select text-xs w-24">' +
+        r.units.map(function(u) {
+          var sel = (u.id === r.unit_id) ? ' selected' : '';
+          return '<option value="' + u.id + '"' + sel + '>' + escapeHtml(u.name) + '</option>';
+        }).join('') + '</select>';
+    }
+    return `
     <div class="bg-slate-50 rounded-lg p-2">
       <div class="flex items-start justify-between gap-2">
         <div class="flex-1 min-w-0">
@@ -158,21 +170,29 @@ function renderCart() {
         </div>
         <button type="button" onclick="removeLine(${i})" class="text-rose-500 hover:underline text-xs">حذف</button>
       </div>
-      <div class="flex items-center gap-2 mt-1">
-        <input type="number" min="1" step="1" value="${r.qty}" onchange="setQty(${i}, this.value)" class="input text-sm w-20 text-center">
+      <div class="flex items-center gap-2 mt-1 flex-wrap">
+        <input type="number" min="0.01" step="0.01" value="${r.qty}" onchange="setQty(${i}, this.value)" class="input text-sm w-20 text-center">
+        ${unitPickerHtml}
         <span class="text-slate-400">×</span>
         <input type="number" min="0" step="0.01" value="${r.unit_price}" onchange="setPrice(${i}, this.value)" class="input text-sm w-24 text-center">
         <span class="ms-auto text-sm font-bold font-mono text-emerald-700">${(r.qty * r.unit_price).toFixed(2)}</span>
       </div>
     </div>
-  `).join('');
+  `;}).join('');
   recalc();
 }
 
 function addLine(v) {
-  // Merge if already in cart by variant_id.
+  // Merge if already in cart by (variant_id, unit_id) — different units
+  // of the same product stay as separate lines so the cashier sees each
+  // sub-total clearly.
+  var baseUnit = null;
+  if (v.units && v.units.length) {
+    baseUnit = v.units.find(function(u) { return u.is_base; }) || v.units[0];
+  }
+  var incomingUnitId = baseUnit ? baseUnit.id : null;
   for (const r of cart) {
-    if (r.variant_id === v.variant_id) {
+    if (r.variant_id === v.variant_id && r.unit_id === incomingUnitId) {
       r.qty = (parseFloat(r.qty) || 0) + 1;
       renderCart();
       return;
@@ -181,6 +201,8 @@ function addLine(v) {
   cart.push({
     variant_id: v.variant_id, sku: v.sku, name: v.name,
     qty: 1, unit_price: v.price,
+    units: v.units || [],
+    unit_id: incomingUnitId,
   });
   if (v.tax_rate) {
     taxRate = parseFloat(v.tax_rate);
@@ -191,6 +213,7 @@ function addLine(v) {
 }
 
 function setQty(i, v) { cart[i].qty = parseFloat(v) || 1; renderCart(); }
+function setUnit(i, id) { cart[i].unit_id = parseInt(id, 10) || null; renderCart(); }
 function setPrice(i, v) { cart[i].unit_price = parseFloat(v) || 0; renderCart(); }
 function removeLine(i) { cart.splice(i, 1); renderCart(); }
 function emptyCart() { if (cart.length && !confirm('تفريغ الكارت؟')) return; cart = []; renderCart(); }

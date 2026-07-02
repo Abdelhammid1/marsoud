@@ -219,6 +219,11 @@ def post_vendor_bill(bill, created_by=None):
     # ERP-01 — receive stock for every INVENTORY line. Runs inside the same
     # transaction as the journal so a failure rolls everything back together.
     from app.services.inventory import receive_stock, InventoryError
+    # MARSOUD-UNIT-CONVERSION-01 — the cashier enters كرتونة but the
+    # inventory engine tracks حبة. Convert BEFORE calling receive_stock,
+    # and divide line_total by BASE qty so unit_cost lands per حبة (which
+    # is what the moving-average expects going forward).
+    from app.services.units import convert_to_base, UnitError
     for item in bill.items:
         if item.line_type != BillLineType.INVENTORY:
             continue
@@ -226,22 +231,34 @@ def post_vendor_bill(bill, created_by=None):
             raise LedgerError(
                 f"سطر مخزون يحتاج اختيار صنف ومخزن: {item.description}"
             )
-        qty = float(item.quantity or 0)
-        if qty <= 0:
+        display_qty = float(item.quantity or 0)
+        if display_qty <= 0:
             raise LedgerError(f"كمية الاستلام غير صالحة: {item.description}")
-        # Unit cost = line_total / qty so VAT (which is posted separately)
-        # doesn't pollute the inventory valuation.
-        unit_cost = float(item.line_total or 0) / qty
+        # Look up the Product via the variant to resolve unit conversion.
+        product = item.variant.product if item.variant else None
+        try:
+            base_qty_dec = convert_to_base(
+                product, display_qty, unit_id=item.unit_id,
+            )
+        except UnitError as e:
+            raise LedgerError(str(e))
+        base_qty = float(base_qty_dec)
+        # Unit cost per BASE unit — line_total covers the whole
+        # purchase (however many كرتونة), divide by base_qty so
+        # weighted-average adds pieces at the right per-piece cost.
+        unit_cost = float(item.line_total or 0) / base_qty
         try:
             receive_stock(
                 variant=item.variant, warehouse=item.warehouse,
-                qty=qty, unit_cost=unit_cost,
+                qty=base_qty, unit_cost=unit_cost,
                 bill_id=bill.id, line_id=item.id,
                 actor_id=created_by,
                 journal_entry_id=entry.id,
             )
         except InventoryError as e:
             raise LedgerError(str(e))
+        # Freeze the base conversion on the line for future report reads.
+        item.base_quantity = base_qty
 
     # Create FixedAsset for each fixed-asset line
     for item in bill.items:
@@ -576,7 +593,13 @@ def post_vendor_bill_refund(bill, refund_type, amount=None,
                 continue
             if not item.variant_id or not item.warehouse_id:
                 continue
-            qty = float(item.quantity or 0)
+            # MARSOUD-UNIT-CONVERSION-01 — return the same base qty
+            # that was originally received. Fall back to display qty
+            # for legacy rows written before this ticket.
+            if item.base_quantity is not None:
+                qty = float(item.base_quantity or 0)
+            else:
+                qty = float(item.quantity or 0)
             if qty <= 0:
                 continue
             try:

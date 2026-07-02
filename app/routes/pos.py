@@ -66,11 +66,21 @@ def index():
         v = p.default_variant
         if not v or not v.is_active:
             continue
+        # MARSOUD-UNIT-CONVERSION-01 — bundle every unit the cashier
+        # can pick from. UI defaults to the base unit; picker dropdown
+        # exposes any extras (كرتونة, طبق, ...).
+        units = [
+            {"id": u.id, "name": u.unit_name,
+             "factor": float(u.conversion_factor or 1),
+             "is_base": bool(u.is_base)}
+            for u in p.units
+        ]
         products_by_cat.setdefault(p.category_id or 0, []).append({
             "variant_id": v.id, "sku": v.sku,
-            "name": p.name,
+            "product_id": p.id, "name": p.name,
             "price": float(p.default_price or 0),
             "tax_rate": float(p.default_tax_rate) if p.default_tax_rate is not None else 15.0,
+            "units": units,
         })
     return render_template(
         "pos/register.html",

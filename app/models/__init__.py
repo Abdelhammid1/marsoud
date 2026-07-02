@@ -14,7 +14,7 @@ from app.models.journal_extras import (
     RecurringJournal, RecurrenceFrequency,
     RecurringJournalLog, RecurringAction,
 )
-from app.models.product import Product, ProductGroup, ProductCategory
+from app.models.product import Product, ProductGroup, ProductCategory, ProductUnit
 from app.models.payment_method import PaymentMethod
 from app.models.invoice import Invoice, InvoiceItem, InvoiceStatus, Payment, DiscountType, InvoiceReminderSent
 from app.models.partner import Customer, Vendor
@@ -121,7 +121,7 @@ __all__ = [
     "Invitation",
     "AgentMessage",
     "NumberSequence",
-    "Product", "ProductGroup", "ProductCategory",
+    "Product", "ProductGroup", "ProductCategory", "ProductUnit",
     "PaymentMethod",
     "DiscountType",
     "VendorBill", "VendorBillItem", "VendorBillPayment",

@@ -125,14 +125,27 @@ def _apply_inventory_side_for_invoice(invoice, entry, created_by):
             raise LedgerError("لا يوجد مخزن افتراضي للشركة")
         tracked.append((item, variant, warehouse))
 
+    # MARSOUD-UNIT-CONVERSION-01 — translate the cashier-entered qty
+    # into the base unit BEFORE the inventory engine sees it. The
+    # engine (record_sale + weighted-average cost) is untouched — it
+    # still operates on a single unit dimension.
+    from app.services.units import convert_to_base, UnitError
+
     total_cogs = 0.0
     for item, variant, warehouse in tracked:
-        qty = float(item.quantity or 0)
-        if qty <= 0:
+        display_qty = float(item.quantity or 0)
+        if display_qty <= 0:
             continue
         try:
+            base_qty_dec = convert_to_base(
+                item.product, display_qty, unit_id=item.unit_id,
+            )
+        except UnitError as e:
+            raise LedgerError(str(e))
+        base_qty = float(base_qty_dec)
+        try:
             unit_cost = record_sale(
-                variant=variant, warehouse=warehouse, qty=qty,
+                variant=variant, warehouse=warehouse, qty=base_qty,
                 invoice_id=invoice.id, line_id=item.id,
                 actor_id=created_by,
             )
@@ -142,7 +155,12 @@ def _apply_inventory_side_for_invoice(invoice, entry, created_by):
         item.variant_id = variant.id
         item.warehouse_id = warehouse.id
         item.unit_cost_at_sale = unit_cost
-        total_cogs += unit_cost * qty
+        # Freeze the base-quantity conversion on the line — same
+        # philosophy as unit_cost_at_sale: an edit to the unit's
+        # conversion_factor tomorrow must not silently rewrite what
+        # was actually taken out of stock today.
+        item.base_quantity = base_qty
+        total_cogs += unit_cost * base_qty
 
     if total_cogs > 0.001:
         cogs_entry = post_sale_cogs_journal(
@@ -305,20 +323,27 @@ def _apply_inventory_side_for_refund(invoice, refund, created_by):
 
     total_restock_cost = 0.0
     for item, variant, warehouse in tracked:
-        qty = float(item.quantity or 0)
-        if qty <= 0:
+        # MARSOUD-UNIT-CONVERSION-01 — restock in BASE units to match
+        # what was originally consumed. Prefer the frozen base_quantity
+        # from the sale; fall back to display_qty for old rows that
+        # predate this ticket (unit_id + base_quantity = NULL).
+        if item.base_quantity is not None:
+            base_qty = float(item.base_quantity or 0)
+        else:
+            base_qty = float(item.quantity or 0)
+        if base_qty <= 0:
             continue
         cost = float(item.unit_cost_at_sale or 0)
         try:
             record_return(
-                variant=variant, warehouse=warehouse, qty=qty,
+                variant=variant, warehouse=warehouse, qty=base_qty,
                 unit_cost_at_sale=cost,
                 refund_id=refund.id, line_id=item.id,
                 actor_id=created_by,
             )
         except InventoryError as e:
             raise LedgerError(str(e))
-        total_restock_cost += cost * qty
+        total_restock_cost += cost * base_qty
 
     if total_restock_cost > 0.001:
         cogs_reversal = post_refund_cogs_reversal(
