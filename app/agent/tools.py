@@ -406,10 +406,17 @@ def execute_tool(name, args, company_id, user_id):
                 return {"error": f"لم يُعثر على صنف بـ '{q}'"}
             from app.models import StockBalance
             balances = StockBalance.query.filter_by(variant_id=v.id).all()
+            # MARSOUD-UNIT-CONVERSION-01 — stock levels are stored in
+            # the base unit; expose its name so the AI knows to say
+            # "150 حبة" not just "150".
+            base_unit_name = None
+            if v.product and v.product.base_unit:
+                base_unit_name = v.product.base_unit.unit_name
             return {
                 "sku": v.sku,
                 "name": v.display_name,
                 "total_qty": v.total_qty,
+                "qty_unit": base_unit_name,
                 "total_value": v.total_value,
                 "average_cost": v.average_cost,
                 "by_warehouse": [
@@ -465,16 +472,29 @@ def execute_tool(name, args, company_id, user_id):
                         Invoice.status != InvoiceStatus.DRAFT)
                 .all()
             )
-            qty_sold = sum(float(it.quantity or 0) for it, _ in rows)
+            # MARSOUD-UNIT-CONVERSION-01 — COGS is per BASE unit, so
+            # multiply by base_quantity (with legacy fallback). qty_sold
+            # is reported in the base unit so the AI never confuses
+            # "بعت 2 كرتونة" with "بعت 2 حبة".
+            def _base_qty(it):
+                if it.base_quantity is not None:
+                    return float(it.base_quantity or 0)
+                return float(it.quantity or 0)
+            qty_sold = sum(_base_qty(it) for it, _ in rows)
             revenue = sum(float(it.line_total or 0) for it, _ in rows)
-            cogs = sum(float(it.quantity or 0) * float(it.unit_cost_at_sale or 0)
+            cogs = sum(_base_qty(it) * float(it.unit_cost_at_sale or 0)
                        for it, _ in rows)
             profit = revenue - cogs
             margin = (profit / revenue * 100) if revenue > 0 else 0
+            base_unit_name = None
+            if v.product and v.product.base_unit:
+                base_unit_name = v.product.base_unit.unit_name
             return {
                 "sku": v.sku, "name": v.display_name,
                 "from": start.isoformat(), "to": end.isoformat(),
-                "qty_sold": qty_sold, "revenue": revenue,
+                "qty_sold": qty_sold,
+                "qty_unit": base_unit_name,
+                "revenue": revenue,
                 "cogs": cogs, "gross_profit": profit,
                 "gross_margin_pct": round(margin, 2),
             }
@@ -603,15 +623,25 @@ def execute_tool(name, args, company_id, user_id):
                         InvoiceItem.variant_id.isnot(None))
                 .all()
             )
+            # MARSOUD-UNIT-CONVERSION-01 — aggregate qty in the base
+            # unit so mixed كرتونة/حبة sales roll up correctly.
             agg = {}
             for item, inv in rows:
                 key = item.variant_id
+                base_unit_name = None
+                if item.variant and item.variant.product \
+                        and item.variant.product.base_unit:
+                    base_unit_name = item.variant.product.base_unit.unit_name
                 a = agg.setdefault(key, {
                     "sku": item.variant.sku if item.variant else "",
                     "name": item.variant.display_name if item.variant else "",
-                    "qty": 0, "revenue": 0,
+                    "qty": 0, "qty_unit": base_unit_name,
+                    "revenue": 0,
                 })
-                a["qty"] += float(item.quantity or 0)
+                if item.base_quantity is not None:
+                    a["qty"] += float(item.base_quantity or 0)
+                else:
+                    a["qty"] += float(item.quantity or 0)
                 a["revenue"] += float(item.line_total or 0)
             top = sorted(agg.values(), key=lambda r: -r["revenue"])[:limit]
             return {

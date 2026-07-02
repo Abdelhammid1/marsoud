@@ -52,7 +52,16 @@
             {{ item.description }}
             {% if item.product %}<span class="text-xs text-slate-400">({{ item.product.name }})</span>{% endif %}
           </td>
-          <td class="font-mono">{{ "%.2f"|format(item.quantity) }}</td>
+          <td class="font-mono">
+            {{ "%.2f"|format(item.quantity) }}
+            {# MARSOUD-UNIT-CONVERSION-01 — show unit + base equivalent. #}
+            {% if item.unit %}
+              <span class="text-xs text-slate-500">{{ item.unit.unit_name }}</span>
+              {% if not item.unit.is_base and item.base_quantity is not none %}
+                <div class="text-[10px] text-slate-400">= {{ "%.2f"|format(item.base_quantity|float) }} {{ item.product.base_unit.unit_name if item.product and item.product.base_unit else '' }}</div>
+              {% endif %}
+            {% endif %}
+          </td>
           <td class="font-mono">{{ "%.2f"|format(item.unit_price) }}</td>
           <td class="font-mono text-amber-600">
             {% if item.discount_type.value == 'PERCENT' %}{{ item.discount_value }}%

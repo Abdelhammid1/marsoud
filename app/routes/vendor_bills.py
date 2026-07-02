@@ -110,8 +110,18 @@ def api_inventory_targets():
         "variants": [
             {
                 "id": v.id, "sku": v.sku,
+                "product_id": p.id,
                 "label": f"{p.name} — {v.sku}" + (f" ({v.name})" if v.name else ""),
                 "unit_cost": float(v.unit_cost or 0),
+                # MARSOUD-UNIT-CONVERSION-01 — bundle units so the
+                # bill-item row can populate its unit dropdown when a
+                # variant is picked, without a follow-up API call.
+                "units": [
+                    {"id": u.id, "name": u.unit_name,
+                     "factor": float(u.conversion_factor or 1),
+                     "is_base": bool(u.is_base)}
+                    for u in p.units
+                ],
             }
             for v, p in variants
         ],
@@ -199,11 +209,18 @@ def _populate_from_form(bill, form):
     prices = form.getlist("item_unit_price[]")
     lives = form.getlist("item_useful_life_years[]")
     salvages = form.getlist("item_salvage_value[]")
+    # MARSOUD-UNIT-CONVERSION-01 — unit picker on INVENTORY rows.
+    unit_ids = form.getlist("item_unit_id[]")
 
     for i, desc in enumerate(descriptions):
         if not (desc or "").strip():
             continue
         lt = BillLineType[types[i] if i < len(types) else "EXPENSE"]
+        uid_raw = unit_ids[i] if i < len(unit_ids) else None
+        try:
+            uid = int(uid_raw) if uid_raw else None
+        except (TypeError, ValueError):
+            uid = None
         item = VendorBillItem(
             bill_id=bill.id,
             description=desc.strip(),
@@ -211,6 +228,7 @@ def _populate_from_form(bill, form):
             account_id=int(accounts[i]),
             quantity=float(quantities[i] or 1),
             unit_price=float(prices[i] or 0),
+            unit_id=uid,
         )
         if lt == BillLineType.FIXED_ASSET:
             item.useful_life_years = int(lives[i] or 0) if i < len(lives) and lives[i] else None

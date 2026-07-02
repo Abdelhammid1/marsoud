@@ -469,6 +469,8 @@ def main():
     app = create_app()
     passed = failed = 0
     with app.app_context():
+        from tests._orphan_sweep import preflight
+        preflight()
         try:
             _setup()
             for label, fn in CHECKS:

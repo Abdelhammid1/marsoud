@@ -85,7 +85,17 @@
             {% else %}<span class="badge bg-emerald-50 text-emerald-700">مخزون</span>{% endif %}
           </td>
           <td class="text-sm"><span class="font-mono text-xs text-slate-500">{{ item.account.code }}</span> · {{ item.account.name_ar or item.account.name }}</td>
-          <td class="font-mono">{{ "%.2f"|format(item.quantity) }}</td>
+          <td class="font-mono">
+            {{ "%.2f"|format(item.quantity) }}
+            {# MARSOUD-UNIT-CONVERSION-01 — show unit + base equivalent. #}
+            {% if item.unit %}
+              <span class="text-xs text-slate-500">{{ item.unit.unit_name }}</span>
+              {% if not item.unit.is_base and item.base_quantity is not none %}
+                {% set _prod = item.variant.product if item.variant else None %}
+                <div class="text-[10px] text-slate-400">= {{ "%.2f"|format(item.base_quantity|float) }} {{ _prod.base_unit.unit_name if _prod and _prod.base_unit else '' }}</div>
+              {% endif %}
+            {% endif %}
+          </td>
           <td class="font-mono">{{ "%.2f"|format(item.unit_price) }}</td>
           <td class="text-left font-mono">{{ "%.2f"|format(item.line_total) }}</td>
         </tr>

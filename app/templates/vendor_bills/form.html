@@ -122,11 +122,40 @@ async function refreshInventoryFields(tr) {
   const whSel = tr.querySelector('select[name="item_warehouse_id[]"]');
   if (variantSel.options.length > 1) return;  // already populated
   const data = await loadInventoryTargets();
+  // MARSOUD-UNIT-CONVERSION-01 — stash the units-per-variant map on
+  // the row's DOM node so onVariantPick can pull them without another
+  // API round-trip.
+  tr._unitsByVariant = {};
+  data.variants.forEach(v => { tr._unitsByVariant[v.id] = v.units || []; });
   variantSel.innerHTML = '<option value="">— اختر variant —</option>'
     + data.variants.map(v => `<option value="${v.id}" data-cost="${v.unit_cost}">${escapeHtml(v.label)}</option>`).join('');
+  variantSel.onchange = () => onVariantPick(tr);
   whSel.innerHTML = data.warehouses.map(w =>
     `<option value="${w.id}" ${w.is_default ? 'selected' : ''}>${escapeHtml(w.name)}${w.is_default?' (افتراضي)':''}</option>`
   ).join('');
+}
+
+// MARSOUD-UNIT-CONVERSION-01 — populate the row's unit picker when
+// the cashier picks a variant. Hidden if the product has just the
+// base unit; when hidden we still ship the (only) unit_id so backend
+// freezes base_quantity correctly.
+function onVariantPick(tr) {
+  const variantSel = tr.querySelector('select[name="item_variant_id[]"]');
+  const picker = tr.querySelector('.unit-picker');
+  if (!picker) return;
+  const units = (tr._unitsByVariant || {})[variantSel.value] || [];
+  if (units.length > 1) {
+    picker.innerHTML = units.map(u =>
+      `<option value="${u.id}"${u.is_base ? ' selected' : ''}>${escapeHtml(u.name)}</option>`
+    ).join('');
+    picker.style.display = '';
+  } else if (units.length === 1) {
+    picker.innerHTML = `<option value="${units[0].id}" selected>${escapeHtml(units[0].name)}</option>`;
+    picker.style.display = 'none';
+  } else {
+    picker.innerHTML = '<option value="">—</option>';
+    picker.style.display = 'none';
+  }
 }
 
 function toggleNewProduct(tr, on) {
@@ -184,7 +213,15 @@ function addItem() {
       </select>
     </td>
     <td><select name="item_account_id[]" required class="select text-sm" style="min-width:14rem"><option value="">— اختر —</option></select></td>
-    <td><input type="number" name="item_quantity[]" step="0.01" value="1" required class="input text-sm font-mono" oninput="calcTotals()" style="width:5rem"></td>
+    <td>
+      <div class="flex gap-1 items-center">
+        <input type="number" name="item_quantity[]" step="0.01" value="1" required class="input text-sm font-mono" oninput="calcTotals()" style="width:4.5rem">
+        {# MARSOUD-UNIT-CONVERSION-01 — populated when variant picked and its product has >1 unit. #}
+        <select name="item_unit_id[]" class="select text-xs unit-picker" style="width:5.5rem;display:none">
+          <option value="">—</option>
+        </select>
+      </div>
+    </td>
     <td><input type="number" name="item_unit_price[]" step="0.01" value="0" required class="input text-sm font-mono" oninput="calcTotals()" style="width:7rem"></td>
     <td class="text-left font-mono line-total">0.00</td>
     <td><button type="button" onclick="this.closest('tr').remove(); calcTotals()" class="text-red-500">×</button></td>

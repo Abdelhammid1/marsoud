@@ -102,6 +102,8 @@ def _populate_invoice_from_form(invoice, form):
     unit_prices = form.getlist("item_unit_price[]")
     disc_types = form.getlist("item_discount_type[]")
     disc_values = form.getlist("item_discount_value[]")
+    # MARSOUD-UNIT-CONVERSION-01 — unit picker on each row.
+    unit_ids = form.getlist("item_unit_id[]")
 
     for i, desc in enumerate(descriptions):
         if not (desc or "").strip():
@@ -111,6 +113,11 @@ def _populate_invoice_from_form(invoice, form):
             item_dt = DiscountType[(disc_types[i] if i < len(disc_types) else "NONE") or "NONE"]
         except KeyError:
             item_dt = DiscountType.NONE
+        uid_raw = unit_ids[i] if i < len(unit_ids) else None
+        try:
+            uid = int(uid_raw) if uid_raw else None
+        except (TypeError, ValueError):
+            uid = None
         item = InvoiceItem(
             invoice_id=invoice.id,
             product_id=int(pid) if pid else None,
@@ -119,6 +126,7 @@ def _populate_invoice_from_form(invoice, form):
             unit_price=float(unit_prices[i] or 0),
             discount_type=item_dt,
             discount_value=float((disc_values[i] if i < len(disc_values) else 0) or 0),
+            unit_id=uid,
         )
         db.session.add(item)
     db.session.flush()

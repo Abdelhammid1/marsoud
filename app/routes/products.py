@@ -364,6 +364,15 @@ def api_list():
             "id": p.id, "name": p.name, "description": p.description or "",
             "price": float(p.default_price or 0),
             "tax_rate": float(p.default_tax_rate) if p.default_tax_rate is not None else None,
+            # MARSOUD-UNIT-CONVERSION-01 — bundle each product's units
+            # so the invoice-item row can populate its unit dropdown
+            # without a follow-up API call.
+            "units": [
+                {"id": u.id, "name": u.unit_name,
+                 "factor": float(u.conversion_factor or 1),
+                 "is_base": bool(u.is_base)}
+                for u in p.units
+            ],
         } for p in products
     ])
 
@@ -589,6 +598,57 @@ def unit_delete(product_id, unit_id):
     except UnitError as e:
         db.session.rollback()
         flash(str(e), "error")
+    return redirect(url_for("products.units", product_id=p.id))
+
+
+@bp.route("/<int:product_id>/units/<int:unit_id>/edit", methods=["POST"])
+@login_required
+@require_permission("products.manage")
+def unit_edit(product_id, unit_id):
+    """MARSOUD-UNIT-CONVERSION-01 — edit the conversion factor.
+
+    Refuses if the unit is base OR has any historical movements
+    (via can_edit_factor). Editing a used unit would silently rewrite
+    the retroactive math on frozen base_quantity snapshots — never OK.
+    """
+    from decimal import Decimal
+    from app.models import ProductUnit
+    from app.services.units import can_edit_factor, UnitError
+    p = _product_or_404(product_id)
+    u = db.session.get(ProductUnit, unit_id)
+    if not u or u.product_id != p.id:
+        abort(404)
+    if u.is_base:
+        flash("لا يمكن تعديل معامل تحويل وحدة الأساس (دائماً = 1).", "error")
+        return redirect(url_for("products.units", product_id=p.id))
+    if not can_edit_factor(u):
+        flash(
+            "لا يمكن تعديل الوحدة — عليها حركات مخزون سابقة. "
+            "احذفها وأعد إنشاءها لو المطلوب تغيير المعامل.",
+            "error",
+        )
+        return redirect(url_for("products.units", product_id=p.id))
+    new_name = (request.form.get("unit_name") or "").strip()
+    raw_factor = request.form.get("conversion_factor")
+    try:
+        new_factor = Decimal(str(raw_factor)) if raw_factor else None
+    except Exception:
+        new_factor = None
+    if not new_name or new_factor is None or new_factor <= 0:
+        flash("اسم الوحدة ومعامل التحويل مطلوبان", "error")
+        return redirect(url_for("products.units", product_id=p.id))
+    dup = ProductUnit.query.filter(
+        ProductUnit.product_id == p.id,
+        db.func.lower(ProductUnit.unit_name) == new_name.lower(),
+        ProductUnit.id != u.id,
+    ).first()
+    if dup:
+        flash("وحدة بنفس الاسم موجودة على المنتج", "error")
+        return redirect(url_for("products.units", product_id=p.id))
+    u.unit_name = new_name
+    u.conversion_factor = new_factor
+    db.session.commit()
+    flash("تم تحديث الوحدة", "success")
     return redirect(url_for("products.units", product_id=p.id))
 
 
