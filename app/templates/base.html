@@ -587,6 +587,9 @@ tailwind.config = {
           <a href="{{ url_for('portal_emp.account') }}" class="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:border-emerald-500 hover:bg-emerald-50 transition" title="حسابي">
             👤
           </a>
+          <a href="{{ url_for('portal_emp.daily_reports_list') }}" class="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:border-emerald-500 hover:bg-emerald-50 transition" title="تقاريري اليومية">
+            📝
+          </a>
           {% endif %}
           <a href="{{ url_for('notifications.index') }}" class="relative inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:border-brand-500 transition" title="الإشعارات">
             🔔
