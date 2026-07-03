@@ -188,10 +188,18 @@
   <button type="submit" class="btn-primary text-sm">تطبيق</button>
 </form>
 
-{# MARSOUD-MOBILE-FIX — horizontal-scroll on mobile, grid on lg+ #}
+{# MARSOUD-MOBILE-FIX v2 (Ibrahim 2026-07-03) — one column per swipe
+   on phone. Previous 80vw / 280px cap left ~110px of the neighbour
+   visible, so titles got clipped. Now: each column fills the visible
+   content area (viewport minus the 0.75rem row padding on each side),
+   scroll-snap docks EXACTLY one column at a time. Tablet+ (≥sm)
+   goes back to a 320px cap so 2 columns fit; lg+ is the desktop grid. #}
+<div class="mobile-kanban-hint text-center text-xs text-slate-500 mb-2 sm:hidden">
+  ← اسحب يمين وشمال بين الأعمدة →
+</div>
 <div class="flex lg:grid lg:grid-cols-5 gap-3 overflow-x-auto lg:overflow-visible pb-2 snap-x snap-mandatory lg:snap-none -mx-3 px-3 lg:mx-0 lg:px-0">
   {% for s in kanban %}
-  <div class="bg-slate-50 rounded-lg p-3 flex-shrink-0 w-[80vw] max-w-[280px] lg:w-auto lg:max-w-none snap-start">
+  <div class="bg-slate-50 rounded-lg p-3 flex-shrink-0 w-[calc(100vw-1.5rem)] sm:w-[320px] lg:w-auto snap-start snap-always">
     <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 gap-2">
       <span class="badge {{ s.badge_class }} text-xs">{{ s.label_ar }}</span>
       <div class="flex items-center gap-2">
