@@ -8,19 +8,33 @@
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
   <div class="lg:col-span-2 card p-6">
-    <div class="flex items-center justify-between mb-4">
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
       <h2 class="text-xl font-bold text-navy-900">{{ report.title }}</h2>
       {% if report.status.value == 'DRAFT' %}
-        <span class="badge bg-amber-100 text-amber-700">مسودة — لسه ما اتولّدتش</span>
+        <span class="badge bg-amber-100 text-amber-700">مسودة — لسه ما اتبعتش للمالك</span>
       {% else %}
-        <span class="badge bg-emerald-100 text-emerald-700">تم التوليد بتاريخ {{ report.submitted_at | company_dt if report.submitted_at else '' }}</span>
+        <span class="badge bg-emerald-100 text-emerald-700">تم الإرسال بتاريخ {{ report.submitted_at | company_dt if report.submitted_at else '' }}</span>
       {% endif %}
     </div>
 
+    {# Asmaa 2026-07-03 — she said "مش فاهمة فيه حاجة" and "مش عارفة
+       ابعت التقرير". Add a plain-language explanation on top + rename
+       the button to match how she talks about it. #}
+    {% if report.status.value == 'DRAFT' %}
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-sm text-blue-900">
+      <div class="font-bold mb-1">📌 إزاي أتعامل مع التقرير ده؟</div>
+      <ol class="list-decimal list-inside space-y-1 text-xs">
+        <li>ده تقرير النشاط اليومي بتاعك — النظام لخّص المهام والليدز والمتابعات اللي اشتغلت عليها امبارح.</li>
+        <li>راجع التلخيص تحت + ضيف أي ملاحظات ناقصة في خانة الملاحظات.</li>
+        <li>لما تخلص، دوس <b>«📤 ابعت التقرير للمالك»</b> — بعد الإرسال، مش هيسمحلك تعدّل.</li>
+      </ol>
+    </div>
+    {% endif %}
+
     <div class="mb-6">
-      <h3 class="font-bold text-navy-900 mb-2 text-sm">النشاط التلقائي</h3>
+      <h3 class="font-bold text-navy-900 mb-2 text-sm">النشاط اللي اتلخّص تلقائياً</h3>
       <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm whitespace-pre-line" dir="rtl">
-        {{ report.body or 'لا يوجد نشاط مسجّل تلقائياً.' }}
+        {{ report.body or 'مفيش نشاط مسجّل امبارح.' }}
       </div>
     </div>
 
@@ -29,13 +43,13 @@
       <div class="mb-4">
         <label class="block text-sm font-semibold text-slate-700 mb-2">ملاحظاتك (اختياري)</label>
         <textarea name="employee_notes" rows="6" class="input w-full text-sm"
-                   placeholder="ضيف أي سياق أو تفاصيل مش موجودة في التلخيص أعلاه…">{{ report.employee_notes or '' }}</textarea>
+                   placeholder="لو فيه حاجة في يومك مش موجودة في التلخيص فوق، اكتبها هنا…">{{ report.employee_notes or '' }}</textarea>
       </div>
-      <div class="flex justify-between items-center">
+      <div class="flex justify-between items-center flex-wrap gap-2">
         <button type="submit" class="btn-secondary text-sm">💾 حفظ الملاحظات</button>
         <button type="submit" name="submit_final" value="1" class="btn-primary"
-                 onclick="return confirm('هل أنت متأكد؟ بعد التوليد لن تستطيع التعديل.');">
-          ✅ توليد التقرير النهائي
+                 onclick="return confirm('هل انت متأكد؟ التقرير هيتبعت للمالك ومش هتقدر تعدّله بعدها.');">
+          📤 ابعت التقرير للمالك
         </button>
       </div>
     </form>

@@ -20,15 +20,15 @@
         <td>{{ r.title }}</td>
         <td>
           {% if r.status.value == 'DRAFT' %}
-            <span class="badge bg-amber-100 text-amber-700">مسودة</span>
+            <span class="badge bg-amber-100 text-amber-700">مسودة — محتاج ترسله</span>
           {% else %}
-            <span class="badge bg-emerald-100 text-emerald-700">تم التوليد</span>
+            <span class="badge bg-emerald-100 text-emerald-700">اتبعت للمالك</span>
           {% endif %}
         </td>
         <td class="text-left">
           <a href="{{ url_for('portal_emp.daily_report_detail', report_id=r.id) }}"
               class="text-brand-600 hover:underline text-sm">
-            {% if r.status.value == 'DRAFT' %}📝 مراجعة{% else %}عرض{% endif %}
+            {% if r.status.value == 'DRAFT' %}📝 راجع وابعت{% else %}عرض{% endif %}
           </a>
         </td>
       </tr>

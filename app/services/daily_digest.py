@@ -100,6 +100,23 @@ _LEAD_ACTIVITY_TYPES_AR = {
     "SMS": "رسالة",
 }
 
+# Asmaa 2026-07-03 — she saw "STATUS_CHANGED ← مهمة #61" and couldn't
+# make sense of any of it. Translate every raw action code + resolve
+# every #id to a human name below.
+_TASK_ACTION_AR = {
+    "CREATED":            "أنشأت مهمة جديدة",
+    "STATUS_CHANGED":     "غيّرت حالة المهمة",
+    "COMMENT_ADDED":      "أضفت تعليق",
+    "ASSIGNEES_CHANGED":  "غيّرت المسؤولين عن المهمة",
+    "PRIORITY_CHANGED":   "غيّرت أولوية المهمة",
+    "DEADLINE_CHANGED":   "غيّرت الموعد النهائي",
+    "TITLE_CHANGED":      "عدّلت عنوان المهمة",
+    "DESCRIPTION_CHANGED": "عدّلت وصف المهمة",
+    "ARCHIVED":           "أرشفت المهمة",
+    "UNARCHIVED":         "استعادت المهمة من الأرشيف",
+    "DELETED":            "حذفت المهمة",
+}
+
 
 def _bullet(sec, items):
     if not items:
@@ -110,8 +127,32 @@ def _bullet(sec, items):
     return "\n".join(lines)
 
 
+def _task_title(task_id):
+    """Cheap lookup for the task title so the digest doesn't say '#61'
+    to a person who has no idea what task 61 is."""
+    from app.models import Task
+    t = db.session.get(Task, task_id)
+    if not t:
+        return f"مهمة #{task_id}"
+    # Keep it short so long titles don't blow the bullet layout.
+    title = (t.title or "").strip()
+    if len(title) > 60:
+        title = title[:60] + "…"
+    return title or f"مهمة #{task_id}"
+
+
+def _lead_name(lead_id):
+    from app.models import Lead
+    L = db.session.get(Lead, lead_id)
+    if not L:
+        return f"ليد #{lead_id}"
+    return (L.client_name or "").strip() or f"ليد #{lead_id}"
+
+
 def _summarise(user_logs, task_logs, lead_events, lead_acts):
-    """Turn the four raw lists into an Arabic markdown-ish block."""
+    """Turn the four raw lists into an Arabic block a normal user can
+    actually read. Every #id is resolved to a name/title; every raw
+    English action code is translated."""
     sections = []
 
     if user_logs:
@@ -120,23 +161,25 @@ def _summarise(user_logs, task_logs, lead_events, lead_acts):
             kind_ar = _ENTITY_AR.get(log.entity_type, log.entity_type or "؟")
             label = log.entity_label or f"#{log.entity_id}"
             entries.append(f"{kind_ar}: {label}")
-        sections.append(_bullet("سجل النشاط (إنشاء)", entries))
+        sections.append(_bullet("إنشاء وتعديلات في النظام", entries))
 
     if task_logs:
         entries = []
         for log in task_logs:
             action = log.action or ""
-            task_ref = f"مهمة #{log.task_id}"
-            entries.append(f"{action}  ← {task_ref}")
+            action_ar = _TASK_ACTION_AR.get(action, action or "تعديل")
+            entries.append(f"{action_ar} — {_task_title(log.task_id)}")
         sections.append(_bullet("المهام", entries))
 
     if lead_events:
         entries = []
         for ev in lead_events:
-            frm = ev.from_status.value if ev.from_status else "—"
-            to = ev.to_status.value
-            entries.append(f"ليد #{ev.lead_id}: {frm} ← {to}")
-        sections.append(_bullet("مراحل الليدز", entries))
+            frm = ev.from_status.label_ar if ev.from_status else "—"
+            to = ev.to_status.label_ar if ev.to_status else "—"
+            entries.append(
+                f"{_lead_name(ev.lead_id)}: {frm} ← {to}"
+            )
+        sections.append(_bullet("مراحل العملاء المحتملين", entries))
 
     if lead_acts:
         entries = []
@@ -145,8 +188,14 @@ def _summarise(user_logs, task_logs, lead_events, lead_acts):
                 act.type.value if hasattr(act.type, "value") else act.type,
                 str(act.type),
             )
-            subj = act.subject or "—"
-            entries.append(f"{type_ar}: {subj} (ليد #{act.lead_id})")
+            subj = (act.subject or "").strip()
+            name = _lead_name(act.lead_id)
+            # No colon-dash when subject is empty — reads cleanly as
+            # "مكالمة مع محمد فتحي" instead of "مكالمة: — (ليد #76)".
+            if subj:
+                entries.append(f"{type_ar}: {subj} — {name}")
+            else:
+                entries.append(f"{type_ar} مع {name}")
         sections.append(_bullet("متابعات العملاء المحتملين", entries))
 
     return "\n\n".join(s for s in sections if s)
@@ -257,7 +306,7 @@ def build_digest(company_id, employee_id, day=None):
                 kind=NotificationKind.DIGEST_DRAFT_READY,
                 title="تقرير يومي جاهز للمراجعة",
                 body=(f"تقرير نشاطك ليوم {day.isoformat()} جاهز — "
-                        f"راجعه وأضف ملاحظاتك ثم اعمل توليد نهائي."),
+                        f"راجعه، ضيف ملاحظاتك، وابعته للمالك."),
                 link_url="/my/daily-reports",
             )
             db.session.add(n)
@@ -312,8 +361,8 @@ def submit_report(report_id, employee_user_id):
                 user_id=uid,
                 kind=NotificationKind.EMPLOYEE_REPORT_SUBMITTED,
                 title=f"تقرير موظف جديد: {r.employee.name}",
-                body=(f"تم توليد تقرير يوم {r.report_date.isoformat()} "
-                        f"من {r.employee.name}."),
+                body=(f"تقرير يوم {r.report_date.isoformat()} "
+                        f"وصلك من {r.employee.name}."),
                 link_url=f"/reports/employees/{r.employee_id}/{r.id}",
             ))
         db.session.flush()
