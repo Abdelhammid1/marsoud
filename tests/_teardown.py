@@ -129,6 +129,34 @@ def _sweep_orphans(conn, live):
         conn.execute(text(
             "DELETE FROM stock_movements WHERE variant_id NOT IN (SELECT id FROM product_variants)"
         ))
+    # User-scoped activity/notification tables. These caused a false
+    # regression in audit_daily_reports where a fresh "empty" employee
+    # inherited leftover activity rows from a prior audit's actor user
+    # after SQLite recycled the user_id.
+    if "user_activity_log" in live:
+        conn.execute(text(
+            "DELETE FROM user_activity_log WHERE user_id NOT IN (SELECT id FROM users)"
+        ))
+    if "task_activity_logs" in live:
+        conn.execute(text(
+            "DELETE FROM task_activity_logs WHERE user_id NOT IN (SELECT id FROM users)"
+        ))
+    if "lead_activities" in live:
+        conn.execute(text(
+            "DELETE FROM lead_activities WHERE created_by_id NOT IN (SELECT id FROM users)"
+        ))
+    if "lead_status_events" in live:
+        conn.execute(text(
+            "DELETE FROM lead_status_events WHERE changed_by_id NOT IN (SELECT id FROM users)"
+        ))
+    if "notifications" in live:
+        conn.execute(text(
+            "DELETE FROM notifications WHERE user_id NOT IN (SELECT id FROM users)"
+        ))
+    if "employee_daily_reports" in live:
+        conn.execute(text(
+            "DELETE FROM employee_daily_reports WHERE employee_id NOT IN (SELECT id FROM employees)"
+        ))
     if "stock_lots" in live:
         conn.execute(text(
             "DELETE FROM stock_lots WHERE variant_id NOT IN (SELECT id FROM product_variants)"

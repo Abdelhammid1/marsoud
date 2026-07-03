@@ -149,54 +149,157 @@ def _lead_name(lead_id):
     return (L.client_name or "").strip() or f"ليد #{lead_id}"
 
 
+def _task_after_status_done(log):
+    """True if a STATUS_CHANGED log moved the task to DONE at the
+    moment it was written. Reads after_json (written by log_activity
+    in tasks_extras.py) as JSON and checks .status. Silent False on
+    malformed rows so a bad log never crashes the digest."""
+    if (log.action or "") != "STATUS_CHANGED":
+        return False
+    try:
+        import json as _json
+        after = _json.loads(log.after_json or "{}")
+    except (ValueError, TypeError):
+        return False
+    return (after.get("status") or "").upper() == "DONE"
+
+
 def _summarise(user_logs, task_logs, lead_events, lead_acts):
     """Turn the four raw lists into an Arabic block a normal user can
-    actually read. Every #id is resolved to a name/title; every raw
-    English action code is translated."""
+    actually read. Abdelhamid ticket 2026-07-03 §1–7 all implemented:
+
+      §1 — every raw action code translated
+      §2 — every #id resolved to a name/title
+      §3 — empty subject/body rendered clean (no dash lines)
+      §4 — sorted chronologically WITHIN each section
+      §5 — task section split into "خلّصها" vs "لسه شغال عليها"
+      §6 — LeadActivityType icons used instead of repeating type name
+      §7 — summary line at the top of each section
+
+    Data source is NOT touched — this is display-only formatting.
+    Event count in = event count out (verified in the audit).
+    """
+    from collections import defaultdict
     sections = []
 
+    # ─── §7 helper: build a "**title** (count …)" header line. ──────
+    def _header(title, count, sub=""):
+        core = f"**{title}** ({count})"
+        return f"{core} — {sub}" if sub else core
+
+    # ─── User activity (invoices, journals, ...) ────────────────────
     if user_logs:
         entries = []
-        for log in user_logs:
+        for log in sorted(user_logs, key=lambda x: x.created_at or 0):
             kind_ar = _ENTITY_AR.get(log.entity_type, log.entity_type or "؟")
-            label = log.entity_label or f"#{log.entity_id}"
+            label = (log.entity_label or "").strip() or f"#{log.entity_id}"
             entries.append(f"{kind_ar}: {label}")
-        sections.append(_bullet("إنشاء وتعديلات في النظام", entries))
+        sections.append(
+            _header("إنشاء وتعديلات في النظام", len(user_logs))
+            + "\n" + "\n".join(f"  • {e}" for e in entries)
+        )
 
+    # ─── Tasks: split into closed vs still-open. ────────────────────
     if task_logs:
-        entries = []
-        for log in task_logs:
-            action = log.action or ""
-            action_ar = _TASK_ACTION_AR.get(action, action or "تعديل")
-            entries.append(f"{action_ar} — {_task_title(log.task_id)}")
-        sections.append(_bullet("المهام", entries))
+        # Group every log by task_id, chronologically. §4.
+        by_task = defaultdict(list)
+        for log in sorted(task_logs, key=lambda x: x.created_at or 0):
+            by_task[log.task_id].append(log)
 
+        # A task is "closed today" iff any STATUS_CHANGED log in its
+        # log-stream ended at DONE. Reading after_json guarantees we
+        # answer the historical question ("did they close it during
+        # the report window?") not the current-state question.
+        closed_ids = {
+            tid for tid, logs in by_task.items()
+            if any(_task_after_status_done(l) for l in logs)
+        }
+        open_ids = set(by_task) - closed_ids
+
+        n_total = len(by_task)
+        n_closed = len(closed_ids)
+        n_open = n_total - n_closed
+
+        lines = [_header(
+            "المهام", n_total,
+            f"{n_closed} خلصوا، {n_open} لسه شغالين",
+        )]
+
+        # Order buckets by earliest activity so the timeline still
+        # reads top→bottom in time.
+        def _first_ts(tid):
+            return by_task[tid][0].created_at or 0
+
+        if closed_ids:
+            lines.append("  ✅ **خلّصها:**")
+            for tid in sorted(closed_ids, key=_first_ts):
+                actions = "، ".join(
+                    _TASK_ACTION_AR.get(l.action, l.action or "تعديل")
+                    for l in by_task[tid]
+                )
+                lines.append(f"    • **{_task_title(tid)}** — {actions}")
+        if open_ids:
+            lines.append("  🔄 **لسه شغال عليها:**")
+            for tid in sorted(open_ids, key=_first_ts):
+                actions = "، ".join(
+                    _TASK_ACTION_AR.get(l.action, l.action or "تعديل")
+                    for l in by_task[tid]
+                )
+                lines.append(f"    • **{_task_title(tid)}** — {actions}")
+
+        sections.append("\n".join(lines))
+
+    # ─── Lead status stage changes ──────────────────────────────────
     if lead_events:
         entries = []
-        for ev in lead_events:
+        for ev in sorted(lead_events, key=lambda e: e.created_at or 0):
             frm = ev.from_status.label_ar if ev.from_status else "—"
             to = ev.to_status.label_ar if ev.to_status else "—"
             entries.append(
                 f"{_lead_name(ev.lead_id)}: {frm} ← {to}"
             )
-        sections.append(_bullet("مراحل العملاء المحتملين", entries))
+        sections.append(
+            _header("مراحل العملاء المحتملين", len(lead_events))
+            + "\n" + "\n".join(f"  • {e}" for e in entries)
+        )
 
+    # ─── Lead activity touchpoints (calls, meetings, notes) ──────────
     if lead_acts:
-        entries = []
+        # §7 summary: count by type + emit compact "📞 مكالمة×2 + 🤝 اجتماع×1".
+        type_count = defaultdict(int)
         for act in lead_acts:
-            type_ar = _LEAD_ACTIVITY_TYPES_AR.get(
-                act.type.value if hasattr(act.type, "value") else act.type,
-                str(act.type),
-            )
+            key = act.type.value if hasattr(act.type, "value") else str(act.type)
+            type_count[key] += 1
+        # LeadActivityType enum has both .label_ar and .icon; use them
+        # so the summary line matches the bullet icons visually.
+        from app.models.crm_expansion import LeadActivityType as _LAT
+        summary_bits = []
+        for tkey, n in sorted(type_count.items(), key=lambda kv: -kv[1]):
+            try:
+                enum_val = _LAT(tkey)
+                summary_bits.append(f"{enum_val.icon} {enum_val.label_ar} × {n}")
+            except ValueError:
+                summary_bits.append(f"{tkey} × {n}")
+
+        entries = []
+        for act in sorted(lead_acts, key=lambda a: a.created_at or 0):
+            # Icon + label direct off the enum → §6.
+            type_ar = act.type.label_ar if hasattr(act.type, "label_ar") \
+                else _LEAD_ACTIVITY_TYPES_AR.get(str(act.type), str(act.type))
+            icon = act.type.icon if hasattr(act.type, "icon") else "•"
             subj = (act.subject or "").strip()
             name = _lead_name(act.lead_id)
-            # No colon-dash when subject is empty — reads cleanly as
-            # "مكالمة مع محمد فتحي" instead of "مكالمة: — (ليد #76)".
             if subj:
-                entries.append(f"{type_ar}: {subj} — {name}")
+                entries.append(f"{icon} {type_ar}: {subj} — {name}")
             else:
-                entries.append(f"{type_ar} مع {name}")
-        sections.append(_bullet("متابعات العملاء المحتملين", entries))
+                # §3 — no dash line when subject is blank.
+                entries.append(f"{icon} {type_ar} مع {name}")
+
+        sections.append(
+            _header("متابعات العملاء المحتملين", len(lead_acts),
+                     " + ".join(summary_bits))
+            + "\n" + "\n".join(f"  • {e}" for e in entries)
+        )
 
     return "\n\n".join(s for s in sections if s)
 
