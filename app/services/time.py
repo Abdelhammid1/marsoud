@@ -50,3 +50,35 @@ def to_company_tz_str(dt_utc, company, fmt="%Y-%m-%d %H:%M:%S"):
         return local_dt.strftime(fmt)
     except Exception:
         return dt_utc.strftime(fmt)
+
+
+def to_utc_from_company(dt_local, company):
+    """Inverse of to_company_tz_str: take a naive datetime the user
+    typed in the company's local timezone and return a naive UTC
+    datetime suitable for storage.
+
+    Bug context (Ibrahim 2026-07-03): datetime-local inputs on the
+    lead-activity form were being stored as-is (naive local), then
+    `company_dt` filter — which correctly assumes stored values are
+    UTC — added the company offset a second time on display. Result:
+    an 18:30 Riyadh input rendered as 21:30 Riyadh.
+
+    Callers should route every user-typed datetime through this
+    helper before writing to the DB.
+    """
+    if dt_local is None:
+        return None
+    tz_name = getattr(company, "timezone", None) or "Asia/Riyadh"
+    if ZoneInfo is None:
+        return dt_local
+    try:
+        # Tag the naive input as being in the company's zone, convert
+        # to UTC, then strip tzinfo so the shape matches every other
+        # datetime column in this codebase (all naive UTC).
+        return (
+            dt_local.replace(tzinfo=ZoneInfo(tz_name))
+            .astimezone(ZoneInfo("UTC"))
+            .replace(tzinfo=None)
+        )
+    except Exception:
+        return dt_local

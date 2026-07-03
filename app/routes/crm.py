@@ -179,20 +179,28 @@ def activity_create(lead_id):
     # Asmaa 2026-07-02 — activity_date + follow_up_date are now BOTH
     # datetime-local pickers so the user can backdate what happened and
     # schedule a follow-up at a specific hour ("الاجتماع الساعة 3").
+    #
+    # Ibrahim 2026-07-03 BUG-FIX — datetime-local inputs are naive
+    # LOCAL time (company timezone). We must convert to UTC before
+    # storage so the company_dt filter — which correctly assumes UTC
+    # for every stored datetime — doesn't add the company offset a
+    # second time on display. Without this, 18:30 typed by a Riyadh
+    # user rendered as 21:30 (bug reported on lead 81, activity id=9).
+    from app.services.time import to_utc_from_company
+
     def _parse_dt(s):
         if not s:
             return None
         s = s.strip()
         if not s:
             return None
-        # HTML datetime-local sends "YYYY-MM-DDTHH:MM"; tolerate a
-        # plain "YYYY-MM-DD" too (legacy form or partial input).
         for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S",
                      "%Y-%m-%d %H:%M", "%Y-%m-%d"):
             try:
-                return datetime.strptime(s, fmt)
+                local_dt = datetime.strptime(s, fmt)
             except ValueError:
                 continue
+            return to_utc_from_company(local_dt, g.active_company)
         return None
     posted_at = _parse_dt(request.form.get("activity_date")) or datetime.utcnow()
     a = LeadActivity(

@@ -567,6 +567,74 @@ def create_app(config_class=Config):
                       f"{type(e).__name__}: {e}")
         print(f"refreshed {touched} / {len(drafts)} DRAFT report(s)")
 
+    # Ibrahim 2026-07-03 TZ-BUG-FIX — one-shot data cleanup for lead
+    # activity rows written between TZ-01 deploy (2026-07-02) and the
+    # naive-local→UTC fix. Each row's activity_date + follow_up_date
+    # were stored in company-local time; this pulls each one back to
+    # UTC. Idempotent-ish: use --apply to write; without it does a
+    # dry run.
+    #   flask fix-crm-activity-tz               (dry-run)
+    #   flask fix-crm-activity-tz --apply       (write)
+    #   flask fix-crm-activity-tz --since 2026-07-02 --apply
+    import click as _click
+
+    @app.cli.command("fix-crm-activity-tz")
+    @_click.option("--apply", is_flag=True,
+                    help="Actually write; without this it dry-runs.")
+    @_click.option("--since", default="2026-07-02",
+                    help="Only rows with created_at >= this date "
+                          "(default 2026-07-02, the TZ-01 deploy).")
+    def _fix_crm_activity_tz(apply, since):
+        from datetime import datetime as _dt
+        from app.models.crm_expansion import LeadActivity
+        from app.models import Company
+        from app.services.time import to_utc_from_company
+        try:
+            since_dt = _dt.strptime(since, "%Y-%m-%d")
+        except ValueError:
+            print(f"bad --since format: {since!r} (use YYYY-MM-DD)")
+            return
+        rows = LeadActivity.query.filter(
+            LeadActivity.created_at >= since_dt,
+        ).order_by(LeadActivity.id).all()
+        # Cache company by id so we don't re-fetch per row.
+        co_cache = {}
+
+        def _co(cid):
+            if cid not in co_cache:
+                co_cache[cid] = db.session.get(Company, cid)
+            return co_cache[cid]
+
+        adjusted = 0
+        for r in rows:
+            co = _co(r.company_id)
+            if not co:
+                continue
+            # activity_date is required; follow_up_date optional.
+            new_act = to_utc_from_company(r.activity_date, co)
+            new_fup = (
+                to_utc_from_company(r.follow_up_date, co)
+                if r.follow_up_date else None
+            )
+            act_diff = new_act != r.activity_date
+            fup_diff = (new_fup != r.follow_up_date) if r.follow_up_date else False
+            if not (act_diff or fup_diff):
+                continue
+            print(f"  #{r.id} lead={r.lead_id}  "
+                    f"activity: {r.activity_date} → {new_act}"
+                    + (f"  follow_up: {r.follow_up_date} → {new_fup}"
+                        if fup_diff else ""))
+            if apply:
+                r.activity_date = new_act
+                if r.follow_up_date:
+                    r.follow_up_date = new_fup
+            adjusted += 1
+        if apply:
+            db.session.commit()
+        tag = "APPLIED" if apply else "DRY-RUN"
+        print(f"\n{tag}: {adjusted} row(s) needed the offset shift "
+                f"(of {len(rows)} rows since {since}).")
+
     # MARSOUD-COA-REBUILD — CLI: flask check-coa
     @app.cli.command("check-coa")
     def _check_coa():
