@@ -209,9 +209,12 @@
   <div class="card p-6 md:col-span-2">
     <h3 class="font-bold text-navy-900 mb-3">📅 الأنشطة والمتابعات</h3>
     {% if has_permission('leads.manage') %}
+    {# Asmaa 2026-07-02 — datetime-local pickers for both
+       when-it-happened and when-to-follow-up, so meetings carry an
+       actual time, not just a day. Grid collapses to 1 col on phone. #}
     <form method="POST" action="{{ url_for('crm.activity_create', lead_id=lead.id) }}"
           class="bg-slate-50 rounded p-3 mb-3 space-y-2">
-      <div class="grid grid-cols-3 gap-2">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <select name="type" required class="select text-sm">
           {% for t in activity_types %}
           <option value="{{ t.name }}">{{ t.icon }} {{ t.label_ar }}</option>
@@ -219,12 +222,22 @@
         </select>
         <input type="text" name="subject" placeholder="عنوان (اختياري)"
                 class="input text-sm">
-        <input type="date" name="follow_up_date"
-                class="input text-sm" title="تاريخ متابعة (اختياري)">
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div>
+          <label class="text-[10px] text-slate-500">وقت النشاط</label>
+          <input type="datetime-local" name="activity_date"
+                  class="input text-sm" title="اتركه فاضي = دلوقتي">
+        </div>
+        <div>
+          <label class="text-[10px] text-slate-500">متابعة (وقت الاجتماع الجاي)</label>
+          <input type="datetime-local" name="follow_up_date"
+                  class="input text-sm" title="تاريخ ووقت المتابعة (اختياري)">
+        </div>
       </div>
       <textarea name="body" rows="2" placeholder="التفاصيل…"
                 class="textarea text-sm"></textarea>
-      <button type="submit" class="btn-primary text-sm">+ سجّل نشاط</button>
+      <button type="submit" class="btn-primary text-sm w-full sm:w-auto">+ سجّل نشاط</button>
     </form>
     {% endif %}
     {% if activities %}
@@ -240,7 +253,17 @@
           </div>
           {% if a.body %}<div class="text-sm text-slate-600 mt-1">{{ a.body }}</div>{% endif %}
           {% if a.follow_up_date %}
-          <div class="text-[10px] text-brand-600 mt-1">🔔 متابعة: {{ a.follow_up_date.isoformat() }}</div>
+          {# Asmaa 2026-07-02 — follow_up_date is now DateTime. Show
+             only the date when time is midnight (legacy row / user
+             didn't set an hour); otherwise show date + time. #}
+          <div class="text-[10px] text-brand-600 mt-1">
+            🔔 متابعة:
+            {% if a.follow_up_date.hour == 0 and a.follow_up_date.minute == 0 %}
+              {{ a.follow_up_date.date().isoformat() }}
+            {% else %}
+              {{ a.follow_up_date | company_dt('%Y-%m-%d %H:%M') }}
+            {% endif %}
+          </div>
           {% endif %}
         </div>
       </div>

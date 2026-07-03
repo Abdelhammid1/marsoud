@@ -87,10 +87,18 @@ P = {
     "projects.manage": {"owner", "admin", "project_manager"},
 
     # ─── Tasks ─────────────────────────────────────────────────────────
-    "tasks.view":      {"owner", "admin", "ceo", "project_manager", "team_member"},
+    # ASMAA-FIX 2026-07-03 — broadened .view + .manage to every
+    # business-user role. Tasks aren't a financial action, and any
+    # user in the company should be able to log meetings/reminders/
+    # todos for themselves. Delete + archive stay owner/admin.
+    "tasks.view":      {"owner", "admin", "ceo", "project_manager",
+                        "team_member", "sales_manager", "sales_rep",
+                        "hr_manager", "accountant"},
     # MARSOUD-PERM-FIX-01 — see ALL tasks in the company (not just assigned).
     "tasks.view_all":  {"owner", "admin"},
-    "tasks.manage":    {"owner", "admin", "project_manager", "team_member"},
+    "tasks.manage":    {"owner", "admin", "project_manager",
+                        "team_member", "sales_manager", "sales_rep",
+                        "hr_manager", "accountant", "ceo"},
     # MARSOUD-PERM-FIX (PM scope) — hard delete is owner/admin only.
     # Project managers + team members can edit their assigned tasks via
     # tasks.manage, but cannot delete them.

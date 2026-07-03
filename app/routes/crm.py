@@ -138,19 +138,23 @@ def activities_index():
         q = q.filter(LeadActivity.lead_id == lead_id_f)
     activities = q.order_by(LeadActivity.activity_date.desc()).limit(200).all()
 
-    # Due follow-ups (today + past)
+    # Asmaa 2026-07-02 — follow_up_date is DateTime now; compare
+    # against end-of-today so a follow-up scheduled for today 3PM
+    # still shows up in "due" once it's past.
     today = date.today()
+    today_end = datetime.combine(today, datetime.max.time())
+    horizon = datetime.combine(today + timedelta(days=7),
+                                 datetime.max.time())
     due = LeadActivity.query.filter(
         LeadActivity.company_id == cid,
         LeadActivity.follow_up_date.isnot(None),
-        LeadActivity.follow_up_date <= today,
+        LeadActivity.follow_up_date <= today_end,
     ).order_by(LeadActivity.follow_up_date).all()
 
-    # Upcoming (next 7 days)
     upcoming = LeadActivity.query.filter(
         LeadActivity.company_id == cid,
-        LeadActivity.follow_up_date > today,
-        LeadActivity.follow_up_date <= today + timedelta(days=7),
+        LeadActivity.follow_up_date > today_end,
+        LeadActivity.follow_up_date <= horizon,
     ).order_by(LeadActivity.follow_up_date).all()
 
     return render_template(
@@ -172,14 +176,33 @@ def activity_create(lead_id):
         atype = LeadActivityType[request.form.get("type", "NOTE").upper()]
     except KeyError:
         atype = LeadActivityType.NOTE
+    # Asmaa 2026-07-02 — activity_date + follow_up_date are now BOTH
+    # datetime-local pickers so the user can backdate what happened and
+    # schedule a follow-up at a specific hour ("الاجتماع الساعة 3").
+    def _parse_dt(s):
+        if not s:
+            return None
+        s = s.strip()
+        if not s:
+            return None
+        # HTML datetime-local sends "YYYY-MM-DDTHH:MM"; tolerate a
+        # plain "YYYY-MM-DD" too (legacy form or partial input).
+        for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S",
+                     "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+            try:
+                return datetime.strptime(s, fmt)
+            except ValueError:
+                continue
+        return None
+    posted_at = _parse_dt(request.form.get("activity_date")) or datetime.utcnow()
     a = LeadActivity(
         company_id=g.active_company.id,
         lead_id=lead.id,
         type=atype,
         subject=(request.form.get("subject") or "").strip() or None,
         body=(request.form.get("body") or "").strip() or None,
-        activity_date=datetime.utcnow(),
-        follow_up_date=_parse_date(request.form.get("follow_up_date")),
+        activity_date=posted_at,
+        follow_up_date=_parse_dt(request.form.get("follow_up_date")),
         created_by_id=current_user.id,
     )
     db.session.add(a)

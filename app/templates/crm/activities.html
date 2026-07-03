@@ -11,7 +11,7 @@
 
 {# ─── Alerts strip: due + upcoming follow-ups ─── #}
 {% if due or upcoming %}
-<div class="grid grid-cols-2 gap-3 mb-4">
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
   {% if due %}
   <div class="card p-4 border-r-4 border-rose-500">
     <div class="text-sm font-bold text-rose-700 mb-2">⚠ متابعات مستحقة ({{ due|length }})</div>
@@ -19,7 +19,13 @@
     {% for a in due %}
       <li>
         <a href="{{ url_for('leads.detail', lead_id=a.lead_id) }}" class="hover:text-brand-600">
-          <span class="font-mono">{{ a.follow_up_date.isoformat() }}</span>
+          <span class="font-mono">
+            {% if a.follow_up_date.hour == 0 and a.follow_up_date.minute == 0 %}
+              {{ a.follow_up_date.date().isoformat() }}
+            {% else %}
+              {{ a.follow_up_date | company_dt('%Y-%m-%d %H:%M') }}
+            {% endif %}
+          </span>
           — {{ a.lead.client_name if a.lead else '—' }}
           <span class="text-slate-400">({{ a.type.label_ar }})</span>
         </a>
@@ -35,7 +41,13 @@
     {% for a in upcoming %}
       <li>
         <a href="{{ url_for('leads.detail', lead_id=a.lead_id) }}" class="hover:text-brand-600">
-          <span class="font-mono">{{ a.follow_up_date.isoformat() }}</span>
+          <span class="font-mono">
+            {% if a.follow_up_date.hour == 0 and a.follow_up_date.minute == 0 %}
+              {{ a.follow_up_date.date().isoformat() }}
+            {% else %}
+              {{ a.follow_up_date | company_dt('%Y-%m-%d %H:%M') }}
+            {% endif %}
+          </span>
           — {{ a.lead.client_name if a.lead else '—' }}
         </a>
       </li>
@@ -82,7 +94,12 @@
         {% if a.body %}<div class="text-sm text-slate-600 mt-1">{{ a.body }}</div>{% endif %}
         {% if a.follow_up_date %}
         <div class="text-xs mt-1 text-brand-600">
-          🔔 متابعة: {{ a.follow_up_date.isoformat() }}
+          🔔 متابعة:
+          {% if a.follow_up_date.hour == 0 and a.follow_up_date.minute == 0 %}
+            {{ a.follow_up_date.date().isoformat() }}
+          {% else %}
+            {{ a.follow_up_date | company_dt('%Y-%m-%d %H:%M') }}
+          {% endif %}
         </div>
         {% endif %}
         <div class="text-xs text-slate-400 mt-1">

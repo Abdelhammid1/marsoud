@@ -527,6 +527,22 @@ def create_app(config_class=Config):
     from scripts.merge_duplicate_employees import merge_cli as _mde_cli
     app.cli.add_command(_mde_cli)
 
+    # ASMAA-FIX 2026-07-03 — CLI: re-sync system role permissions.
+    # After the P dict is edited (e.g. broadening tasks.manage), run:
+    #   flask resync-system-roles
+    # to push the new grants into every company's Role rows so
+    # existing users get the change without re-invite.
+    @app.cli.command("resync-system-roles")
+    def _resync_system_roles():
+        """Re-sync system roles' permission grants across every company."""
+        from app.models import Company
+        from app.services.roles_seed import seed_system_roles_for_company
+        touched = 0
+        for c in Company.query.order_by(Company.id).all():
+            seed_system_roles_for_company(c.id)
+            touched += 1
+        print(f"re-synced {touched} companies")
+
     # MARSOUD-COA-REBUILD — CLI: flask check-coa
     @app.cli.command("check-coa")
     def _check_coa():

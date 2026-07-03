@@ -93,7 +93,11 @@ class LeadActivity(db.Model):
     subject = db.Column(db.String(255))
     body = db.Column(db.Text)
     activity_date = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    follow_up_date = db.Column(db.Date, nullable=True, index=True)
+    # Asmaa 2026-07-02 — was Date, now DateTime so activities can
+    # carry an actual meeting time ("الثلاثاء 3 عصراً"), not just the
+    # day. Migration d6_e3f9a2b7c8d handled the schema swap; legacy
+    # date-only rows read cleanly as YYYY-MM-DD 00:00:00.
+    follow_up_date = db.Column(db.DateTime, nullable=True, index=True)
     created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"),
                                 nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
