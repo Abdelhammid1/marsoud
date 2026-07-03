@@ -543,6 +543,30 @@ def create_app(config_class=Config):
             touched += 1
         print(f"re-synced {touched} companies")
 
+    # ASMAA-FIX 2026-07-03 (round 3) — one-shot refresh of every DRAFT
+    # digest so employees who opened a stale report before this deploy
+    # see the new format without waiting for the next cron tick.
+    #   flask refresh-draft-digests
+    @app.cli.command("refresh-draft-digests")
+    def _refresh_draft_digests():
+        """Re-run _summarise on every DRAFT report to pick up format changes."""
+        from app.models import EmployeeDailyReport, DailyReportStatus
+        from app.services.daily_digest import build_digest
+        drafts = EmployeeDailyReport.query.filter_by(
+            status=DailyReportStatus.DRAFT,
+        ).all()
+        touched = 0
+        for r in drafts:
+            try:
+                build_digest(r.company_id, r.employee_id, r.report_date)
+                db.session.commit()
+                touched += 1
+            except Exception as e:
+                db.session.rollback()
+                print(f"  #{r.id} ({r.employee.name if r.employee else '?'}): "
+                      f"{type(e).__name__}: {e}")
+        print(f"refreshed {touched} / {len(drafts)} DRAFT report(s)")
+
     # MARSOUD-COA-REBUILD — CLI: flask check-coa
     @app.cli.command("check-coa")
     def _check_coa():

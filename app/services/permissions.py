@@ -198,6 +198,20 @@ ROLE_LABELS_AR = {
 }
 
 
+def _is_company_member(user_id, company_id):
+    """True if there's an active user_companies row. Used by the
+    tasks bypass so any company member can view + create tasks."""
+    from app import db
+    from app.models.user import user_companies
+    row = db.session.execute(
+        user_companies.select().where(
+            (user_companies.c.user_id == user_id) &
+            (user_companies.c.company_id == company_id)
+        )
+    ).first()
+    return row is not None
+
+
 def get_user_role(user_id, company_id):
     """Look up a user's role code (string) for a specific company.
 
@@ -294,6 +308,25 @@ def has_permission(action, user=None, company=None):
     company = company or g.get("active_company")
     if not user or not getattr(user, "is_authenticated", False) or not company:
         return False
+
+    # ASMAA-FIX 2026-07-03 (round 2). Ibrahim's principle: "if she can
+    # be assigned a task, she must be able to see + create tasks."
+    # Every authenticated user with an active membership in the
+    # current company gets tasks.view + tasks.manage regardless of
+    # role or plan. The earlier P-dict + resync-system-roles fix
+    # missed her because:
+    #   1. plan_gating (below) runs before the role check — if her
+    #      company's plan doesn't include the "crm" module, no role
+    #      unlocks tasks.
+    #   2. resync-system-roles ONLY touches system roles by design.
+    #      If Asmaa is on a CUSTOM cloned role, her role_permissions
+    #      row is untouched.
+    # This bypass short-circuits both. tasks.delete / .archive /
+    # .view_all stay on the standard role check — destructive or
+    # cross-user actions still need explicit grant.
+    if action in ("tasks.view", "tasks.manage"):
+        if _is_company_member(user.id, company.id):
+            return True
 
     # MARSOUD-57.2 — plan gating runs BEFORE the role check. If the
     # company's plan doesn't include the action's module, no role can

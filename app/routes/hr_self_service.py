@@ -456,10 +456,24 @@ def daily_report_detail(report_id):
     if not emp:
         abort(403)
     from app.models import EmployeeDailyReport, DailyReportStatus
-    from app.services.daily_digest import submit_report
+    from app.services.daily_digest import submit_report, build_digest
     r = db.session.get(EmployeeDailyReport, report_id)
     if not r or r.employee_id != emp.id:
         abort(404)
+
+    # ASMAA-FIX 2026-07-03 (round 3) — DRAFT bodies are frozen at
+    # cron-time. A report built before the readability rewrite deployed
+    # still shows the raw "STATUS_CHANGED ← مهمة #61" dump the user
+    # can't read. Re-run build_digest on view for any DRAFT — it's
+    # cheap, deterministic, and idempotent (the same helper runs
+    # nightly). SUBMITTED reports are frozen forever, no refresh.
+    if r.status == DailyReportStatus.DRAFT and request.method == "GET":
+        try:
+            build_digest(r.company_id, r.employee_id, r.report_date)
+            db.session.commit()
+            db.session.refresh(r)
+        except Exception:
+            db.session.rollback()
 
     if request.method == "POST":
         # Ownership already enforced above. Refuse any edit on a
