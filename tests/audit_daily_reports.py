@@ -115,16 +115,18 @@ def _make_employee_and_user(name, email, role="employee"):
     from app.models import Employee, EmployeeStatus, User, UserStatus
     from app.models.user import user_companies
     cid = _STATE["company_id"]
+    u = User(email=email, full_name=name,
+              status=UserStatus.ACTIVE.value)
+    u.set_password("x")
+    db.session.add(u); db.session.flush()
+    # MARSOUD-MC-EMPLOYEE — FK lives on Employee.user_id now.
     emp = Employee(
         company_id=cid, name=name, email=email,
         status=EmployeeStatus.ACTIVE,
         basic_salary=Decimal("3000"), start_date=date.today(),
+        user_id=u.id,
     )
     db.session.add(emp); db.session.flush()
-    u = User(email=email, full_name=name,
-              status=UserStatus.ACTIVE.value, employee_id=emp.id)
-    u.set_password("x")
-    db.session.add(u); db.session.flush()
     db.session.execute(user_companies.insert().values(
         user_id=u.id, company_id=cid, role=role,
     ))

@@ -2689,7 +2689,8 @@ def run_checks(fx):
                 )
                 _dbH.session.add(emp); _dbH.session.commit()
                 user, created = _ehu(emp)
-                if not (created and user.status == 'PENDING' and user.employee_id == emp.id):
+                # MARSOUD-MC-EMPLOYEE — linkage is on Employee.user_id now.
+                if not (created and user.status == 'PENDING' and emp.user_id == user.id):
                     missing.append("crit1 auto-create PENDING failed")
 
                 # Crit 2: PENDING blocked at login — simulate the check the

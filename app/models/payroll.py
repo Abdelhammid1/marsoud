@@ -66,9 +66,20 @@ class Employee(db.Model):
     bank_account_last4 = db.Column(db.String(4))
     # MARSOUD-COA-REBUILD — employee sub-account under 2130 (Salaries Payable).
     account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=True)
+    # MARSOUD-MC-EMPLOYEE — per-company FK to the User account that owns
+    # this employee row. Nullable because an employee may exist before an
+    # account is provisioned. DB-level UNIQUE(company_id, user_id) makes
+    # sure a user can't be two employees in the same company.
+    user_id = db.Column(db.Integer,
+                        db.ForeignKey("users.id", ondelete="SET NULL"),
+                        nullable=True, index=True)
 
     company = db.relationship("Company", backref=db.backref("employees", lazy="dynamic"))
     account = db.relationship("Account", foreign_keys=[account_id])
+    user = db.relationship(
+        "User", foreign_keys=[user_id],
+        backref=db.backref("employees", lazy="dynamic"),
+    )
     department = db.relationship("Department", foreign_keys=[department_id],
                                  backref=db.backref("members", lazy="dynamic"))
     manager = db.relationship("Employee", remote_side=[id], foreign_keys=[manager_id])
@@ -101,6 +112,11 @@ class Employee(db.Model):
         return PayrollLine.query.filter_by(employee_id=self.id).join(PayrollRun).order_by(
             PayrollRun.period_year.desc(), PayrollRun.period_month.desc()
         ).first()
+
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "user_id",
+                            name="uq_employees_company_user"),
+    )
 
 
 class PayrollRun(db.Model):

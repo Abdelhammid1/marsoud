@@ -582,8 +582,11 @@ tailwind.config = {
         </div>
         <div class="flex items-center gap-3">
           {# MARSOUD-57.1 — حسابي icon visible to any employee with a
-             linked HR record. Outside the sidebar per spec. #}
-          {% if current_user.employee_id %}
+             linked HR record. Outside the sidebar per spec.
+             MARSOUD-MC-EMPLOYEE — my_employee_here is scoped to the
+             ACTIVE company; the old check followed a single scalar and
+             mis-rendered for multi-company owners. #}
+          {% if my_employee_here %}
           <a href="{{ url_for('portal_emp.account') }}" class="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:border-emerald-500 hover:bg-emerald-50 transition" title="حسابي">
             👤
           </a>

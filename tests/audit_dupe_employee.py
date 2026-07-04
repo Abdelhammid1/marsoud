@@ -89,13 +89,14 @@ def _():
         user_id=u.id, company_id=cid, role="owner",
     ))
     # Owner Employee auto-created at registration time (auth.py:87).
+    # MARSOUD-MC-EMPLOYEE — link on Employee.user_id (per-company FK).
     emp = Employee(
         company_id=cid, name=u.full_name, email=u.email,
+        user_id=u.id,
         status=EmployeeStatus.ACTIVE,
         basic_salary=Decimal("0"), start_date=date.today(),
     )
     db.session.add(emp); db.session.flush()
-    u.employee_id = emp.id
     db.session.commit()
     _STATE.update(owner_user_id=u.id, owner_emp_id=emp.id)
     n_emp = Employee.query.filter_by(company_id=cid).count()
@@ -164,9 +165,9 @@ def _():
     ).count()
     assert hist >= 1, "history row not reassigned"
 
-    # Owner's User.employee_id still points at the survivor.
-    u = db.session.get(User, _STATE["owner_user_id"])
-    assert u.employee_id == surviving.id
+    # MARSOUD-MC-EMPLOYEE — the survivor's user_id still points at the
+    # owner. (Before: we asserted the reverse on User.employee_id.)
+    assert surviving.user_id == _STATE["owner_user_id"]
     return f"merged loser #{loser.id} → primary #{surviving.id}"
 
 

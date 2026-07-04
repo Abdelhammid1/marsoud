@@ -6,9 +6,10 @@ PENDING accounts, and EmployeeHistory rows get written automatically.
 
 Conventions:
   - A User can exist independently (e.g. the OWNER). Linking the User
-    to an Employee is one-way — we set `User.employee_id`, but we don't
-    delete the User when the Employee is removed (FK is SET NULL via
-    the migration).
+    to an Employee is per-company — we set `Employee.user_id`
+    (MARSOUD-MC-EMPLOYEE). A single user who owns multiple companies
+    can therefore be linked to a distinct Employee row in each. The FK
+    is SET NULL on user delete so employees survive account removal.
   - On auto-provision the new User gets status=PENDING and a placeholder
     random password — they can't log in until OWNER activates them and
     they set their own password via the email link.
@@ -32,7 +33,7 @@ def ensure_user_for_employee(employee, *, actor_id=None, role_code="employee"):
 
     - If `employee.email` is empty: raise. Employee form requires email.
     - If a User with that email exists: link them by setting
-      `User.employee_id` and return the existing User (no status change).
+      `employee.user_id` and return the existing User (no status change).
       We DO NOT overwrite an existing user's role — the caller can change
       it explicitly through the users / settings_roles UI.
     - Otherwise: create a fresh User with status=PENDING and the given
@@ -51,12 +52,12 @@ def ensure_user_for_employee(employee, *, actor_id=None, role_code="employee"):
 
     existing = User.query.filter(db.func.lower(User.email) == email).first()
     if existing:
-        # Link the User → Employee (overwrite only if it's currently NULL or
-        # already pointing at this same employee). Role NOT changed on
-        # existing users to avoid downgrading an admin who happens to also
-        # be an employee.
-        if existing.employee_id in (None, employee.id):
-            existing.employee_id = employee.id
+        # MARSOUD-MC-EMPLOYEE — link goes on Employee.user_id (per-company).
+        # UNIQUE(company_id, user_id) means a user is at most one employee
+        # per company; overwrite only if this row isn't already linked to
+        # someone else.
+        if employee.user_id in (None, existing.id):
+            employee.user_id = existing.id
         _ensure_membership(existing.id, employee.company_id, role_code=role_code)
         db.session.commit()
         return existing, False
@@ -67,12 +68,12 @@ def ensure_user_for_employee(employee, *, actor_id=None, role_code="employee"):
         full_name=employee.name or email.split("@", 1)[0],
         is_active=False,
         status=UserStatus.PENDING.value,
-        employee_id=employee.id,
     )
     # Placeholder password the user will never know.
     user.set_password(secrets.token_urlsafe(24))
     db.session.add(user)
     db.session.flush()
+    employee.user_id = user.id
     _ensure_membership(user.id, employee.company_id, role_code=role_code)
     db.session.commit()
     return user, True

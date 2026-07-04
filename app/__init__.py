@@ -356,6 +356,18 @@ def create_app(config_class=Config):
         from app.services.plan_gating import subitem_allowed
         def _subitem_allowed_template(endpoint):
             return subitem_allowed(endpoint, active_company)
+        # MARSOUD-MC-EMPLOYEE — the sidebar 👤 icon must reflect whether
+        # the CURRENT user has an Employee row in the ACTIVE company,
+        # not whether users.employee_id is set globally (which broke for
+        # anyone owning >1 company).
+        my_employee_here = None
+        if active_company:
+            from flask_login import current_user as _cu
+            if _cu.is_authenticated:
+                from app.models import Employee
+                my_employee_here = Employee.query.filter_by(
+                    company_id=active_company.id, user_id=_cu.id,
+                ).first()
         return {
             "active_company": active_company,
             "user_companies": g.get("user_companies", []),
@@ -365,6 +377,7 @@ def create_app(config_class=Config):
             "impersonating": g.get("impersonating", False),
             "subscription": sub_state,
             "subitem_allowed": _subitem_allowed_template,
+            "my_employee_here": my_employee_here,
         }
 
     @app.errorhandler(500)

@@ -118,14 +118,19 @@ def new():
         db.session.execute(user_companies.insert().values(
             user_id=current_user.id, company_id=company.id, role="owner",
         ))
+        # MARSOUD-MC-EMPLOYEE — link the owner's Employee row directly
+        # to their User via Employee.user_id. The old code overwrote the
+        # single users.employee_id scalar every time a new company was
+        # created, breaking /my/ access in all previously-created
+        # companies (last-write-wins). Now the FK lives on Employee
+        # where it's naturally per-company.
         owner_emp = Employee(
             company_id=company.id,
             name=current_user.full_name,
             email=current_user.email,
+            user_id=current_user.id,
         )
         db.session.add(owner_emp)
-        db.session.flush()
-        current_user.employee_id = owner_emp.id
         db.session.commit()
         seed_default_coa(company.id)
         # MARSOUD-32 — system roles + backfill the owner's user_companies row

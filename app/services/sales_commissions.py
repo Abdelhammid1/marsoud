@@ -338,11 +338,12 @@ def settle_commissions_for_employee(employee, run, *, period_year, period_month)
     """MARSOUD-COMM-01 Phase C — fold the employee's outstanding sales
     commissions into a payroll run.
 
-    Finds the User linked to this Employee (via User.employee_id), sums
-    every UNPAID SalesCommission row keyed to that user where the row's
-    (period_year, period_month) is <= the run's period (so carry-forward
-    rows from prior months are settled here too), and returns the net
-    amount. The rows are flipped to PAID + linked to the run.
+    Finds the User linked to this Employee (Employee.user_id after
+    MARSOUD-MC-EMPLOYEE), sums every UNPAID SalesCommission row keyed
+    to that user where the row's (period_year, period_month) is <= the
+    run's period (so carry-forward rows from prior months are settled
+    here too), and returns the net amount. The rows are flipped to
+    PAID + linked to the run.
 
     Returns 0 when:
       - employee has no linked user
@@ -353,7 +354,9 @@ def settle_commissions_for_employee(employee, run, *, period_year, period_month)
     just adds this to the line.commissions field; payroll math handles
     the negative naturally."""
     from app.models import User
-    user = User.query.filter_by(employee_id=employee.id).first()
+    if not employee.user_id:
+        return 0.0, []
+    user = db.session.get(User, employee.user_id)
     if not user:
         return 0.0, []
 

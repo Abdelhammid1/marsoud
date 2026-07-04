@@ -40,8 +40,9 @@ def _fixture():
     """Returns (company, sales_rep_user, employee, customer, invoice)
     cleaned for the test year.
 
-    The employee is linked to a User (sales_rep) via User.employee_id —
-    that's the link settle_commissions_for_employee follows.
+    The employee is linked to a User (sales_rep) via Employee.user_id
+    (MARSOUD-MC-EMPLOYEE) — the link settle_commissions_for_employee
+    follows.
     """
     from app.models import (
         Company, User, Employee, EmployeeStatus, ContractType,
@@ -83,8 +84,9 @@ def _fixture():
         )
         db.session.add(emp)
         db.session.flush()
-    # Link the rep User to the Employee (required by settle_commissions)
-    rep.employee_id = emp.id
+    # MARSOUD-MC-EMPLOYEE — link the rep User ↔ Employee via
+    # Employee.user_id (per-company FK now).
+    emp.user_id = rep.id
 
     # Dedicated test customer w/ this rep + 10% rate
     cust = Customer.query.filter_by(

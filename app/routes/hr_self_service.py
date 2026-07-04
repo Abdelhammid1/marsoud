@@ -66,23 +66,31 @@ def index():
         User.status == "DISABLED",
     ).order_by(User.created_at.desc()).all()
 
-    # Bucket 3: ACTIVE accounts linked to an employee
+    # MARSOUD-MC-EMPLOYEE — bucketing is per-company now. An owner who
+    # has three companies must show as "linked" inside each of them (not
+    # only the last one they created). We resolve linkage through
+    # Employee.user_id scoped to the active company.
+    linked_users_here = {
+        e.user_id for e in Employee.query.filter(
+            Employee.company_id == cid,
+            Employee.user_id.isnot(None),
+        ).all() if e.user_id is not None
+    }
+
+    # Bucket 3: ACTIVE accounts that have an Employee row IN THIS COMPANY.
     active_emps = User.query.filter(
         User.id.in_(user_ids),
         User.is_active == True,
         User.status != "DISABLED",
-        User.employee_id.isnot(None),
+        User.id.in_(linked_users_here) if linked_users_here else False,
     ).order_by(User.full_name).all()
 
-    # Bucket 1: employees without any User account at all (or with an
-    # email that exists but is not linked to them).
-    linked_emp_ids = {u.employee_id for u in
-                     User.query.filter(User.employee_id.isnot(None)).all()}
+    # Bucket 1: employees in THIS company without a linked User account.
     unlinked_employees = (
         Employee.query.filter(
             Employee.company_id == cid,
             Employee.status == EmployeeStatus.ACTIVE,
-            ~Employee.id.in_(linked_emp_ids) if linked_emp_ids else True,
+            Employee.user_id.is_(None),
         ).order_by(Employee.name).all()
     )
 
@@ -243,13 +251,17 @@ portal_emp_bp = Blueprint("portal_emp", __name__)
 
 
 def _my_employee():
-    """Resolve the current user's Employee row (raises 404 if not linked)."""
-    if not current_user.employee_id:
-        return None
-    emp = db.session.get(Employee, current_user.employee_id)
-    if not emp or emp.company_id != g.active_company.id:
-        return None
-    return emp
+    """Resolve the current user's Employee row for the *active* company.
+
+    MARSOUD-MC-EMPLOYEE — a user may own several companies each with its
+    own Employee row. The linkage is on Employee.user_id (per-company by
+    construction) so we scope by (company_id, user_id) rather than
+    following a single scalar column on User.
+    """
+    return Employee.query.filter_by(
+        company_id=g.active_company.id,
+        user_id=current_user.id,
+    ).first()
 
 
 @portal_emp_bp.route("/")
@@ -357,12 +369,14 @@ def change_password():
 @portal_emp_bp.route("/payslip/<int:line_id>.pdf")
 @login_required
 def payslip_pdf(line_id):
-    """Render the payslip PDF — strict scope to current user's employee_id."""
+    """Render the payslip PDF — strict scope to the current user's
+    Employee row IN THE ACTIVE COMPANY (MARSOUD-MC-EMPLOYEE)."""
     from flask import send_file
-    if not current_user.employee_id:
+    emp = _my_employee()
+    if not emp:
         abort(403)
     line = db.session.get(PayrollLine, line_id)
-    if not line or line.employee_id != current_user.employee_id:
+    if not line or line.employee_id != emp.id:
         abort(404)
     run = db.session.get(PayrollRun, line.run_id)
     from app.services.export import export_payslip_pdf

@@ -87,9 +87,17 @@ def _merge_pair(primary, loser):
             except Exception as e:
                 print(f"    (skipped {table_name}.{col}: {e})")
 
-    # 3. Repoint any User whose employee_id was the loser's.
-    for u in User.query.filter_by(employee_id=loser.id).all():
-        u.employee_id = primary.id
+    # 3. Transfer the loser's linked User onto the primary (if any).
+    #    After MARSOUD-MC-EMPLOYEE the FK lives on Employee.user_id, so
+    #    there's no User row to repoint — we just carry the linkage from
+    #    loser → primary. If the primary is already linked to a
+    #    different user we leave it alone (that's a distinct account
+    #    we can't merge automatically).
+    if loser.user_id and primary.user_id is None:
+        primary.user_id = loser.user_id
+    # Null out loser.user_id first so the UNIQUE(company_id, user_id)
+    # constraint doesn't fire between the swap and the delete.
+    loser.user_id = None
     db.session.flush()
 
     # 4. Delete the loser Employee row.

@@ -84,14 +84,14 @@ def register():
         user.companies.append(company)
         db.session.add(user)
         db.session.flush()
+        # MARSOUD-MC-EMPLOYEE — link on Employee.user_id (per-company).
         owner_emp = Employee(
             company_id=company.id,
             name=user.full_name,
             email=user.email,
+            user_id=user.id,
         )
         db.session.add(owner_emp)
-        db.session.flush()
-        user.employee_id = owner_emp.id
         db.session.commit()
         seed_default_coa(company.id)
         login_user(user)

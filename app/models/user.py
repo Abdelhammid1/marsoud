@@ -53,12 +53,8 @@ class User(UserMixin, db.Model):
     # in some company. Their role per-company will be "client".
     linked_customer_id = db.Column(db.Integer, db.ForeignKey("customers.id"), nullable=True)
 
-    # HR-SS: lifecycle state + link to the employee record (if any).
-    # Column exists in DB from migration l9f7d3a5b2c8.
+    # HR-SS: lifecycle state.
     status = db.Column(db.String(20), default="ACTIVE", nullable=False)
-    employee_id = db.Column(db.Integer,
-                            db.ForeignKey("employees.id", ondelete="SET NULL"),
-                            nullable=True)
 
     created_at = db.Column(db.DateTime, default=datetime.now)
 
