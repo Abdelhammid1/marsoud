@@ -260,7 +260,12 @@ table.items tbody tr:last-child td { border-bottom: none; }
       مستحقة الدفع بتاريخ {{ ar_date(invoice.due_date) }}
     </div>
 
-    {# ── BANK / PAYMENT ADDRESS ─────────────────────────────── #}
+    {# ── BANK ACCOUNT DETAILS ────────────────────────────────
+       Abdelhamid's marker-edit on the target PDF crossed out the
+       Anthropic "online payment link + عنوان الدفع (mailing address)"
+       block and hand-wrote "بيانات حسابي البنكي" in its place. So
+       here we surface bank fields only — no online-pay link, no
+       postal address — under exactly that header. ── #}
     {% if invoice.company.bank_name or invoice.company.iban
           or invoice.company.bank_account_number %}
     <div class="pay-note">
@@ -268,7 +273,7 @@ table.items tbody tr:last-child td { border-bottom: none; }
       يُرجى ذكر رقم الفاتورة عند التحويل.
     </div>
     <div class="pay-address">
-      <div class="lbl">عنوان الدفع:</div>
+      <div class="lbl">بيانات حسابي البنكي:</div>
       <div class="line">
         {% if invoice.company.bank_account_holder %}{{ invoice.company.bank_account_holder }}<br>{% endif %}
         {% if invoice.company.bank_name %}{{ invoice.company.bank_name }}<br>{% endif %}
