@@ -192,8 +192,13 @@ def new():
                 raise CRMError("تواريخ البداية والنهاية مطلوبة")
             if ed <= sd:
                 raise CRMError("تاريخ النهاية يجب أن يكون بعد البداية")
+            # PER-CO-NUMBERING (Abdelhamid 2026-07-04) — assign a
+            # per-company display number ("PRJ-0001").
+            from app.services.numbering import next_number
+            _proj_number = next_number(cid, "PROJECT")
             p = Project(
                 company_id=cid,
+                number=_proj_number,
                 name=request.form.get("name", "").strip(),
                 customer_id=customer_id,
                 type=request.form.get("type", "").strip(),

@@ -112,8 +112,11 @@ def convert_lead_to_project(lead, *, project_name, project_type, manager_id,
             if not customer.sales_rep_id and lead.assigned_to_id:
                 customer.sales_rep_id = lead.assigned_to_id
 
+    # PER-CO-NUMBERING (Abdelhamid 2026-07-04).
+    from app.services.numbering import next_number
     project = Project(
         company_id=lead.company_id,
+        number=next_number(lead.company_id, "PROJECT"),
         name=project_name.strip(),
         lead_id=lead.id,
         customer_id=customer.id,

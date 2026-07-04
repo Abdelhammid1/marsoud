@@ -307,8 +307,15 @@ def new():
             assigned_id = int(request.form.get("assigned_to_id"))
             if assigned_id not in _company_user_ids():
                 raise CRMError("المسؤول يجب أن يكون من فريق هذه الشركة")
+            # PER-CO-NUMBERING (Abdelhamid 2026-07-04) — assign a
+            # per-company display number ("L-0001") so a fresh company
+            # sees "عميل محتمل #L-0001" not #92 leaked from the global
+            # PK. Uses the same next_number() infra as invoices etc.
+            from app.services.numbering import next_number
+            _lead_number = next_number(g.active_company.id, "LEAD")
             lead = Lead(
                 company_id=g.active_company.id,
+                number=_lead_number,
                 client_name=request.form.get("client_name", "").strip(),
                 phone=request.form.get("phone", "").strip(),
                 email=(request.form.get("email") or "").strip().lower() or None,

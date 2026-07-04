@@ -5,7 +5,10 @@
   <div class="card p-6 col-span-2">
     <div class="flex items-start justify-between mb-4">
       <div>
-        <h2 class="text-2xl font-bold text-navy-900">{{ project.name }}</h2>
+        <div class="flex items-center gap-2 flex-wrap">
+          {% if project.number %}<span class="text-sm font-mono text-slate-500">{{ project.number }}</span>{% endif %}
+          <h2 class="text-2xl font-bold text-navy-900">{{ project.name }}</h2>
+        </div>
         <div class="text-sm text-slate-500 mt-1">{{ project.type }} · العميل: {{ project.customer.name if project.customer else '—' }}</div>
       </div>
       <div class="text-left flex items-center gap-2">
@@ -33,7 +36,7 @@
       <div><span class="text-slate-500">مدير المشروع:</span> {{ project.manager.full_name if project.manager else '—' }}</div>
       <div><span class="text-slate-500">تاريخ البداية:</span> <span class="font-mono">{{ project.start_date.isoformat() }}</span></div>
       <div><span class="text-slate-500">تاريخ النهاية:</span> <span class="font-mono">{{ project.end_date.isoformat() }}</span></div>
-      {% if project.lead %}<div><span class="text-slate-500">جاء من:</span> <a href="{{ url_for('leads.detail', lead_id=project.lead.id) }}" class="text-brand-600 hover:underline">عميل محتمل #{{ project.lead.id }}</a></div>{% endif %}
+      {% if project.lead %}<div><span class="text-slate-500">جاء من:</span> <a href="{{ url_for('leads.detail', lead_id=project.lead.id) }}" class="text-brand-600 hover:underline">عميل محتمل {{ project.lead.number or ('#' ~ project.lead.id) }}</a></div>{% endif %}
     </div>
 
     {% if project.notes %}

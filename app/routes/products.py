@@ -82,8 +82,18 @@ def index():
 
 
 def _generate_variant_sku(company_id, product_id):
-    """Build a fallback SKU when the user leaves it blank. Format: PRD-<id>."""
-    return f"PRD-{product_id:05d}"
+    """Build a fallback SKU when the user leaves it blank.
+
+    PER-CO-NUMBERING (Abdelhamid 2026-07-04) — uses the shared
+    next_number() infra so each company's SKUs count from PRD-0001,
+    not from PRD-<global product_id> which leaks the global PK.
+    Falls back to PRD-<id> only if next_number fails for any reason
+    (defensive; shouldn't happen in production)."""
+    from app.services.numbering import next_number
+    try:
+        return next_number(company_id, "PRODUCT")
+    except Exception:
+        return f"PRD-{product_id:05d}"
 
 
 @bp.route("/new", methods=["GET", "POST"])

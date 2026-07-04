@@ -11,7 +11,10 @@
   <div class="card p-6 md:col-span-2">
     <div class="flex flex-wrap items-start justify-between gap-2 mb-4">
       <div class="flex-1 min-w-0">
-        <h2 class="text-2xl font-bold text-navy-900 break-words">{{ lead.client_name }}</h2>
+        <div class="flex items-center gap-2 flex-wrap">
+          {% if lead.number %}<span class="text-sm font-mono text-slate-500">{{ lead.number }}</span>{% endif %}
+          <h2 class="text-2xl font-bold text-navy-900 break-words">{{ lead.client_name }}</h2>
+        </div>
         <div class="text-sm text-slate-500 mt-1">{{ lead.service_needed }}</div>
       </div>
       <div class="flex items-center gap-2 flex-wrap shrink-0">

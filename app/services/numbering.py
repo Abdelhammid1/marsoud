@@ -29,6 +29,13 @@ DOC_PREFIXES = {
     "POS": "POS",   # ERP-02 — POS orders
     "STOCK_TRANSFER": "TR",  # ERP-03 — warehouse transfers
     "MANUFACTURING_ORDER": "MO",  # MARSOUD-MANUFACTURING-01
+    # PER-CO-NUMBERING (Abdelhamid 2026-07-04) — every company counts
+    # its own leads / projects / product SKUs from 1. Previously the
+    # UI leaked the global DB id (e.g. "عميل محتمل #92" on a fresh
+    # company where the user expected #1).
+    "LEAD": "L",
+    "PROJECT": "PRJ",
+    "PRODUCT": "PRD",
 }
 
 

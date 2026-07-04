@@ -95,6 +95,9 @@ class Lead(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     company_id = db.Column(db.Integer, db.ForeignKey("companies.id"),
                            nullable=False, index=True)
+    # PER-CO-NUMBERING (Abdelhamid 2026-07-04) — per-company display
+    # sequence like "L-0001". Nullable until backfill runs.
+    number = db.Column(db.String(30), nullable=True, index=True)
     client_name = db.Column(db.String(150), nullable=False)
     email = db.Column(db.String(200))
     phone = db.Column(db.String(30), nullable=False)
@@ -224,6 +227,9 @@ class Project(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     company_id = db.Column(db.Integer, db.ForeignKey("companies.id"),
                            nullable=False, index=True)
+    # PER-CO-NUMBERING (Abdelhamid 2026-07-04) — per-company display
+    # sequence like "PRJ-0001". Nullable until backfill runs.
+    number = db.Column(db.String(30), nullable=True, index=True)
     name = db.Column(db.String(200), nullable=False)
     lead_id = db.Column(db.Integer, db.ForeignKey("leads.id"))
     customer_id = db.Column(db.Integer, db.ForeignKey("customers.id"),
