@@ -99,6 +99,18 @@ class Product(db.Model):
                 return u
         return None
 
+    @property
+    def default_variant(self):
+        """First active variant — every product is migrated with one.
+
+        Defined as a property (not a relationship) so callers don't have
+        to remember to filter by is_active.
+        """
+        from app.models.inventory import ProductVariant
+        return ProductVariant.query.filter_by(
+            product_id=self.id, is_active=True,
+        ).order_by(ProductVariant.id.asc()).first()
+
 
 class ProductUnit(db.Model):
     """MARSOUD-UNIT-CONVERSION-01 — sellable/purchasable unit with a
@@ -150,15 +162,3 @@ class ProductUnit(db.Model):
         # Trim trailing zeros on the factor for a clean label.
         f = f"{float(self.conversion_factor):g}"
         return f"{self.unit_name} ({f} {base_name})"
-
-    @property
-    def default_variant(self):
-        """First active variant — every product is migrated with one.
-
-        Defined as a property (not a relationship) so callers don't have
-        to remember to filter by is_active.
-        """
-        from app.models.inventory import ProductVariant
-        return ProductVariant.query.filter_by(
-            product_id=self.id, is_active=True,
-        ).order_by(ProductVariant.id.asc()).first()
