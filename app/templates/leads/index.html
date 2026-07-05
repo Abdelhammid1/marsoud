@@ -26,7 +26,9 @@
   </div>
 </div>
 
-<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-5">
+{# Stats — on mobile these collapse to a horizontal-scroll pill strip
+   (single row) via `.mobile-pill-strip`. Desktop keeps the 7-col grid. #}
+<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-5 mobile-pill-strip">
   {% for s in statuses %}
   <a href="?status={{ s.name }}" class="card p-3 text-center hover:border-brand-500 {% if status_filter == s.name %}border-brand-500{% endif %}">
     <div class="text-xs text-slate-500">{{ s.label_ar }}</div>
@@ -35,37 +37,45 @@
   {% endfor %}
 </div>
 
-<form method="GET" class="flex flex-wrap items-end gap-3 mb-4 card p-4">
-  <div class="flex-1 min-w-[200px]">
-    <label class="block text-xs font-semibold text-slate-700 mb-1">بحث</label>
-    <input type="text" name="q" value="{{ q }}" placeholder="اسم / هاتف / خدمة" class="input text-sm">
-  </div>
-  <div>
-    <label class="block text-xs font-semibold text-slate-700 mb-1">الحالة</label>
-    <select name="status" class="select text-sm">
-      <option value="">الكل</option>
-      {% for s in statuses %}<option value="{{ s.name }}" {% if status_filter == s.name %}selected{% endif %}>{{ s.label_ar }}</option>{% endfor %}
-    </select>
-  </div>
-  {% if reps %}
-  <div>
-    <label class="block text-xs font-semibold text-slate-700 mb-1">المسؤول</label>
-    <select name="rep" class="select text-sm">
-      <option value="">الكل</option>
-      {% for r in reps %}<option value="{{ r.id }}" {% if rep_filter == r.id|string %}selected{% endif %}>{{ r.full_name }}</option>{% endfor %}
-    </select>
-  </div>
-  {% endif %}
-  <div>
-    <label class="block text-xs font-semibold text-slate-700 mb-1">من تاريخ</label>
-    <input type="date" name="from" value="{{ date_from }}" class="input text-sm">
-  </div>
-  <div>
-    <label class="block text-xs font-semibold text-slate-700 mb-1">إلى تاريخ</label>
-    <input type="date" name="to" value="{{ date_to }}" class="input text-sm">
-  </div>
-  <button type="submit" class="btn-primary text-sm">تطبيق</button>
-</form>
+{# Filter form — wrapped in a <details> so mobile users can collapse it
+   and get back precious vertical space above the Kanban. Desktop hides
+   the summary + always renders open. #}
+<details class="card mb-4 mobile-collapsible" id="filter-panel">
+  <summary>
+    <span>🔍 بحث / فلترة</span>
+  </summary>
+  <form method="GET" class="flex flex-wrap items-end gap-3">
+    <div class="flex-1 min-w-[200px]">
+      <label class="block text-xs font-semibold text-slate-700 mb-1">بحث</label>
+      <input type="text" name="q" value="{{ q }}" placeholder="اسم / هاتف / خدمة" class="input text-sm">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">الحالة</label>
+      <select name="status" class="select text-sm">
+        <option value="">الكل</option>
+        {% for s in statuses %}<option value="{{ s.name }}" {% if status_filter == s.name %}selected{% endif %}>{{ s.label_ar }}</option>{% endfor %}
+      </select>
+    </div>
+    {% if reps %}
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">المسؤول</label>
+      <select name="rep" class="select text-sm">
+        <option value="">الكل</option>
+        {% for r in reps %}<option value="{{ r.id }}" {% if rep_filter == r.id|string %}selected{% endif %}>{{ r.full_name }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">من تاريخ</label>
+      <input type="date" name="from" value="{{ date_from }}" class="input text-sm">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">إلى تاريخ</label>
+      <input type="date" name="to" value="{{ date_to }}" class="input text-sm">
+    </div>
+    <button type="submit" class="btn-primary text-sm">تطبيق</button>
+  </form>
+</details>
 
 {% if view == 'board' %}
 {# MARSOUD-CRM-EXPANSION §1 — 7-column Kanban. Reuses the exact
@@ -78,7 +88,10 @@
 <div class="mobile-kanban-hint text-center text-xs text-slate-500 mb-2 sm:hidden">
   ← اسحب يمين وشمال بين الأعمدة →
 </div>
-<div class="flex lg:grid lg:grid-cols-7 gap-3 overflow-x-auto lg:overflow-visible pb-2 snap-x snap-mandatory lg:snap-none -mx-3 px-3 lg:mx-0 lg:px-0">
+{# Position dots — JS builds one dot per Kanban column at page load
+   and highlights the active one during scroll. Hidden ≥md. #}
+<div class="kanban-dots" data-for="leads-kanban"></div>
+<div class="kanban-scroll flex lg:grid lg:grid-cols-7 gap-3 overflow-x-auto lg:overflow-visible pb-2 snap-x snap-mandatory lg:snap-none -mx-3 px-3 lg:mx-0 lg:px-0">
   {% for s in statuses %}
   <div class="bg-slate-50 rounded-lg p-3 flex-shrink-0 w-[calc(100vw-1.5rem)] sm:w-[320px] lg:w-auto snap-start snap-always">
     <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 gap-2">
@@ -171,4 +184,9 @@
   </table>
 </div>
 {% endif %}
+
+{# Floating filter FAB — opens the collapsed filter panel from anywhere
+   on the page. Only visible on mobile once user scrolls past ~300px. #}
+<button type="button" class="filter-fab" data-target="#filter-panel"
+        aria-label="بحث / فلترة">🔍</button>
 {% endblock %}

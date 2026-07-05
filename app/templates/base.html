@@ -259,6 +259,93 @@ tailwind.config = {
        flex-grow child at 260px+ min-width. Cap it at 100% so it
        doesn't force horizontal overflow inside the card. */
     form.flex-wrap > * { max-width: 100%; }
+
+    /* MARSOUD-MOBILE-LEADS-POLISH (Ibrahim 2026-07-05)
+       Phase 3 UX helpers, reusable across pages.
+
+       1. Pill-strip — turn a wide grid of stat cards into a single
+       horizontal-scrolling row of pills. Applied on mobile only. The
+       desktop grid classes (grid-cols-*) still hold above 768px. */
+    .mobile-pill-strip {
+      display: flex !important;
+      grid-template-columns: none !important;
+      overflow-x: auto; gap: 0.5rem !important;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 0.25rem;
+      margin-inline: -0.75rem; padding-inline: 0.75rem;
+    }
+    .mobile-pill-strip > * {
+      flex: 0 0 auto;
+      min-width: 130px;
+      scroll-snap-align: start;
+      padding: 0.625rem 0.75rem !important;
+    }
+
+    /* 2. Collapsible filter panel — <details class="mobile-collapsible">
+       renders as a normal card on desktop (JS forces open); on mobile
+       it starts collapsed with a "🔍 بحث / فلترة" summary. */
+    details.mobile-collapsible { padding: 0 !important; }
+    details.mobile-collapsible > summary {
+      list-style: none; cursor: pointer;
+      padding: 0.85rem 1rem;
+      font-weight: 600; font-size: 0.9rem;
+      display: flex; align-items: center; justify-content: space-between;
+      color: #0F172A;
+    }
+    details.mobile-collapsible > summary::-webkit-details-marker { display: none; }
+    details.mobile-collapsible > summary::after {
+      content: "▾"; font-size: 0.8em; color: #64748B;
+      transition: transform 200ms;
+    }
+    details.mobile-collapsible[open] > summary::after { transform: rotate(180deg); }
+    details.mobile-collapsible > *:not(summary) { padding: 0 1rem 1rem; }
+
+    /* 3. Kanban position dots — small row of indicator dots above a
+       horizontal-scrolling Kanban board. Highlights the column
+       currently in view. */
+    .kanban-dots {
+      display: flex; justify-content: center; align-items: center;
+      gap: 6px; margin: 4px 0 8px;
+    }
+    .kanban-dots .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #CBD5E1;
+      transition: background 180ms, transform 180ms;
+    }
+    .kanban-dots .dot.active {
+      background: #059669;
+      transform: scale(1.7);
+    }
+
+    /* 4. Floating filter FAB — fixed bottom-left (RTL: opposite of
+       "back to top") that scrolls to the filter panel + opens it. */
+    .filter-fab {
+      position: fixed;
+      bottom: 20px; left: 16px;
+      z-index: 35;
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      background: #059669; color: #fff;
+      border: none;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.22);
+      font-size: 1.2rem;
+      opacity: 0; pointer-events: none;
+      transform: translateY(8px);
+      transition: opacity 200ms, transform 200ms;
+    }
+    .filter-fab.visible {
+      opacity: 1; pointer-events: auto;
+      transform: translateY(0);
+    }
+  }
+  /* Desktop overrides — collapsible always renders open, summary hidden. */
+  @media (min-width: 768px) {
+    details.mobile-collapsible > summary { display: none; }
+    details.mobile-collapsible > *:not(summary) { padding: 0; }
+    .filter-fab { display: none; }
+    .kanban-dots { display: none; }
   }
 </style>
 {% block head %}{% endblock %}
@@ -900,6 +987,116 @@ function toggleSidebar(force) {
       document.addEventListener('DOMContentLoaded', wrapTables);
     } else {
       wrapTables();
+    }
+  })();
+</script>
+
+<script>
+  /* MARSOUD-MOBILE-LEADS-POLISH — phase-3 UX helpers.
+     - Kanban position dots (auto-generated from .snap-start columns).
+     - Filter FAB visibility toggle based on scroll position.
+     - Collapsible <details.mobile-collapsible> starts open on desktop,
+       remembers its last state on mobile via localStorage. */
+  (function() {
+    function isMobile() {
+      return window.matchMedia('(max-width: 767px)').matches;
+    }
+
+    function setupKanbanDots() {
+      document.querySelectorAll('.kanban-scroll').forEach(function(kb) {
+        var sel = kb.getAttribute('data-dots') || '.kanban-dots';
+        var dotsEl = document.querySelector(sel);
+        if (!dotsEl || dotsEl.dataset.wired) return;
+        var cols = kb.querySelectorAll('.snap-start');
+        if (!cols.length) return;
+        dotsEl.innerHTML = '';
+        cols.forEach(function(_, i) {
+          var d = document.createElement('div');
+          d.className = 'dot' + (i === 0 ? ' active' : '');
+          dotsEl.appendChild(d);
+        });
+        dotsEl.dataset.wired = '1';
+        kb.addEventListener('scroll', function() {
+          var idx = Math.round(Math.abs(kb.scrollLeft) / kb.clientWidth);
+          idx = Math.max(0, Math.min(cols.length - 1, idx));
+          dotsEl.querySelectorAll('.dot').forEach(function(d, i) {
+            d.classList.toggle('active', i === idx);
+          });
+        }, { passive: true });
+      });
+    }
+
+    function setupFilterFab() {
+      var fab = document.querySelector('.filter-fab');
+      if (!fab) return;
+      var targetSel = fab.getAttribute('data-target') || 'details.mobile-collapsible';
+      var target = document.querySelector(targetSel);
+      fab.addEventListener('click', function() {
+        if (target) {
+          target.setAttribute('open', 'open');
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          try { localStorage.setItem('mrs_filter_open', '1'); } catch (_) {}
+        }
+      });
+      // Show the FAB whenever the filter target is NOT in view — that
+      // covers both the "user scrolled past it" case AND the "target
+      // is closed / offscreen because the page is short" case.
+      if (target && 'IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function(entries) {
+          entries.forEach(function(e) {
+            if (e.isIntersecting && target.open) {
+              fab.classList.remove('visible');
+            } else {
+              fab.classList.add('visible');
+            }
+          });
+        }, { threshold: 0.15 });
+        io.observe(target);
+        // Also re-evaluate on toggle so the FAB hides right when the
+        // user opens the panel via the summary tap.
+        target.addEventListener('toggle', function() {
+          if (target.open) fab.classList.remove('visible');
+          else fab.classList.add('visible');
+        });
+      } else {
+        // Legacy fallback — scroll based.
+        window.addEventListener('scroll', function() {
+          if (window.scrollY > 200) fab.classList.add('visible');
+          else fab.classList.remove('visible');
+        }, { passive: true });
+      }
+    }
+
+    function setupCollapsible() {
+      document.querySelectorAll('details.mobile-collapsible').forEach(function(d) {
+        if (!isMobile()) {
+          d.setAttribute('open', 'open');
+          return;
+        }
+        try {
+          if (localStorage.getItem('mrs_filter_open') === '1') {
+            d.setAttribute('open', 'open');
+          } else {
+            d.removeAttribute('open');
+          }
+        } catch (_) {}
+        d.addEventListener('toggle', function() {
+          try {
+            localStorage.setItem('mrs_filter_open', d.open ? '1' : '0');
+          } catch (_) {}
+        });
+      });
+    }
+
+    function boot() {
+      setupCollapsible();
+      setupKanbanDots();
+      setupFilterFab();
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', boot);
+    } else {
+      boot();
     }
   })();
 </script>
