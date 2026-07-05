@@ -161,15 +161,29 @@ def _parse_expected_value(raw):
 
 
 def _parse_datetime_local(s):
+    """Parse a <input type="datetime-local"> value and convert to UTC.
+
+    MARSOUD-TZ-BUG (Abdelhamid 2026-07-04) — the browser sends the value
+    the user typed, in the user's local timezone (naive). If we store
+    that string as-is, `company_dt` (which correctly assumes stored
+    values are UTC) will add the company offset a second time on
+    display — Abdelhamid saw an 18:44 input come back as 19:10+ on
+    the task page (Egypt DST + Riyadh conversion stacking).
+
+    Every user-typed datetime must go through `to_utc_from_company`
+    before landing in the DB — same pattern the activity form already
+    uses (MARSOUD-TZ-01, commit d012cb4).
+    """
     if not s:
         return None
-    try:
-        return datetime.strptime(s, "%Y-%m-%dT%H:%M")
-    except (TypeError, ValueError):
+    from app.services.time import to_utc_from_company
+    for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M"):
         try:
-            return datetime.strptime(s, "%Y-%m-%d %H:%M")
+            local = datetime.strptime(s, fmt)
         except (TypeError, ValueError):
-            return None
+            continue
+        return to_utc_from_company(local, g.active_company)
+    return None
 
 
 # ─── List + filters ──────────────────────────────────────────────────────

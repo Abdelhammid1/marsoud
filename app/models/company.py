@@ -43,7 +43,7 @@ class Company(db.Model):
     plan_id = db.Column(db.Integer, db.ForeignKey("plans.id"))
     subscription_started_at = db.Column(db.DateTime)
     subscription_expires_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     # MARSOUD — soft-delete. Owners may close their own company; super-
     # admin can restore or wipe permanently from the admin panel.
     deleted_at = db.Column(db.DateTime, index=True)
@@ -54,7 +54,7 @@ class Company(db.Model):
     # Named `subscription_plan` to avoid collision with the legacy `plan`
     # String column (kept for back-compat with the super-admin form).
     subscription_plan = db.relationship("Plan", foreign_keys=[plan_id])
-    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     @property
     def is_fifo(self):

@@ -61,7 +61,7 @@ class Employee(db.Model):
     notes = db.Column(db.Text)
 
     is_active = db.Column(db.Boolean, default=True)  # legacy mirror — kept in sync with status
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     # MARSOUD-51 — last 4 digits of bank account, shown in payslip "paid" box
     bank_account_last4 = db.Column(db.String(4))
     # MARSOUD-COA-REBUILD — employee sub-account under 2130 (Salaries Payable).
@@ -129,7 +129,7 @@ class PayrollRun(db.Model):
     total_gross = db.Column(db.Numeric(15, 2), default=0)
     total_net = db.Column(db.Numeric(15, 2), default=0)
     journal_entry_id = db.Column(db.Integer, db.ForeignKey("journal_entries.id"))
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     lines = db.relationship("PayrollLine", backref="run", cascade="all, delete-orphan")
     company = db.relationship("Company")
@@ -206,7 +206,7 @@ class EmployeeAccrual(db.Model):
                              default=0, server_default="0")
     settled_at = db.Column(db.DateTime)
     settlement_journal_entry_id = db.Column(db.Integer, db.ForeignKey("journal_entries.id"))
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     employee = db.relationship("Employee", backref=db.backref("accruals", lazy="dynamic"))
     company = db.relationship("Company")
@@ -263,7 +263,7 @@ class EmployeeHistory(db.Model):
     old_value = db.Column(db.String(255))
     new_value = db.Column(db.String(255))
     changed_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
-    changed_at = db.Column(db.DateTime, default=datetime.now, nullable=False, index=True)
+    changed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
     notes = db.Column(db.String(255))
 
     employee = db.relationship(

@@ -33,7 +33,7 @@ class Document(db.Model):
     size_bytes = db.Column(db.Integer)
     visibility = db.Column(db.String(20), nullable=False, default="INTERNAL")
     uploaded_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
-    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_id])
 
@@ -67,7 +67,7 @@ class Notification(db.Model):
     body = db.Column(db.Text)
     link_url = db.Column(db.String(300))
     read_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.now,
+    created_at = db.Column(db.DateTime, default=datetime.utcnow,
                            nullable=False, index=True)
 
     user = db.relationship("User", foreign_keys=[user_id])
@@ -90,7 +90,7 @@ class ClientFeedback(db.Model):
     rating = db.Column(db.Integer, nullable=False)    # 1-5
     comment = db.Column(db.Text)
     approved = db.Column(db.Boolean, default=False, nullable=False)
-    submitted_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    submitted_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     project = db.relationship("Project", foreign_keys=[project_id],
                               backref=db.backref("feedback", cascade="all, delete-orphan"))
@@ -109,7 +109,7 @@ class AuditEntry(db.Model):
     action = db.Column(db.String(20), nullable=False)                   # CREATE / UPDATE / DELETE
     changed_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     changes_json = db.Column(db.Text)                                   # JSON {"field": ["old", "new"]}
-    created_at = db.Column(db.DateTime, default=datetime.now,
+    created_at = db.Column(db.DateTime, default=datetime.utcnow,
                            nullable=False, index=True)
 
     changed_by = db.relationship("User", foreign_keys=[changed_by_id])

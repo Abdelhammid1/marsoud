@@ -136,9 +136,9 @@ class Lead(db.Model):
     # On conversion, link to the Customer we auto-created (Marsoud's model).
     converted_customer_id = db.Column(db.Integer, db.ForeignKey("customers.id"))
 
-    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.now,
-                           onupdate=datetime.now, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow,
+                           onupdate=datetime.utcnow, nullable=False)
     # MARSOUD-47 — soft delete (OWNER + admin only)
     deleted_at = db.Column(db.DateTime, nullable=True)
     deleted_by_id = db.Column(db.Integer, db.ForeignKey("users.id"),
@@ -173,7 +173,7 @@ class LeadStatusEvent(db.Model):
     to_status = db.Column(db.Enum(LeadStatus), nullable=False)
     changed_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     note = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     lead = db.relationship("Lead", back_populates="history")
     changed_by = db.relationship("User", foreign_keys=[changed_by_id])
@@ -243,9 +243,9 @@ class Project(db.Model):
     progress_pct = db.Column(db.Numeric(5, 2), default=Decimal("0.00"), nullable=False)
     notes = db.Column(db.Text)
 
-    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.now,
-                           onupdate=datetime.now, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow,
+                           onupdate=datetime.utcnow, nullable=False)
     # MARSOUD — soft-delete on projects (Ticket L). Owner-only delete.
     deleted_at = db.Column(db.DateTime, index=True)
     deleted_by_id = db.Column(db.Integer,
@@ -292,7 +292,7 @@ class ProjectMember(db.Model):
                            db.ForeignKey("projects.id", ondelete="CASCADE"),
                            nullable=False, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    added_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    added_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     project = db.relationship("Project", back_populates="members")
     user = db.relationship("User", foreign_keys=[user_id])
@@ -312,7 +312,7 @@ class Milestone(db.Model):
     target_date = db.Column(db.Date)
     order = db.Column(db.Integer, default=0, nullable=False)
     completed_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     project = db.relationship("Project", back_populates="milestones")
 
@@ -331,7 +331,7 @@ class ProjectStatusEvent(db.Model):
     to_status = db.Column(db.Enum(ProjectStatus), nullable=False)
     changed_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     note = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     project = db.relationship("Project", back_populates="status_events")
     changed_by = db.relationship("User", foreign_keys=[changed_by_id])
@@ -422,9 +422,9 @@ class Task(db.Model):
     deadline = db.Column(db.Date)
     notes = db.Column(db.Text)
 
-    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.now,
-                           onupdate=datetime.now, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow,
+                           onupdate=datetime.utcnow, nullable=False)
     completed_at = db.Column(db.DateTime)
     # MARSOUD-TASK-ARCHIVE-01 — soft archive. When set, the task is
     # hidden from every Kanban / dashboard / stats view but preserved
@@ -478,7 +478,7 @@ task_assignees = db.Table(
     db.Column("user_id", db.Integer,
               db.ForeignKey("users.id"), primary_key=True),
     db.Column("assigned_by_id", db.Integer, db.ForeignKey("users.id")),
-    db.Column("assigned_at", db.DateTime, default=datetime.now, nullable=False),
+    db.Column("assigned_at", db.DateTime, default=datetime.utcnow, nullable=False),
 )
 
 Task.assignees = db.relationship(
@@ -501,7 +501,7 @@ class LeadComment(db.Model):
     content = db.Column(db.Text, nullable=False)
     attachment_url = db.Column(db.String(400))
     attachment_name = db.Column(db.String(200))
-    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     lead = db.relationship(
         "Lead", foreign_keys=[lead_id],
@@ -523,7 +523,7 @@ class TaskComment(db.Model):
     content = db.Column(db.Text, nullable=False)
     attachment_url = db.Column(db.String(400))
     attachment_name = db.Column(db.String(200))
-    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     task = db.relationship(
         "Task", foreign_keys=[task_id],
@@ -545,7 +545,7 @@ class TaskActivityLog(db.Model):
     action = db.Column(db.String(60), nullable=False)
     before_json = db.Column(db.Text)
     after_json = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     task = db.relationship(
         "Task", foreign_keys=[task_id],

@@ -75,11 +75,18 @@ def index():
              "is_base": bool(u.is_base)}
             for u in p.units
         ]
+        # Fallback tax rate: use the company's configured VAT (0 if
+        # unset) — NOT a hardcoded 15. Some tenants are in Egypt (14),
+        # some in KSA (15), some VAT-exempt (0).
+        company_vat_rate = float(g.active_company.vat_rate or 0)
         products_by_cat.setdefault(p.category_id or 0, []).append({
             "variant_id": v.id, "sku": v.sku,
             "product_id": p.id, "name": p.name,
             "price": float(p.default_price or 0),
-            "tax_rate": float(p.default_tax_rate) if p.default_tax_rate is not None else 15.0,
+            "tax_rate": (
+                float(p.default_tax_rate)
+                if p.default_tax_rate is not None else company_vat_rate
+            ),
             "units": units,
         })
     return render_template(
@@ -89,6 +96,7 @@ def index():
         default_warehouse=default_warehouse(cid),
         categories=categories,
         products_by_cat=products_by_cat,
+        company_vat_rate=float(g.active_company.vat_rate or 0),
     )
 
 
@@ -206,7 +214,11 @@ def lookup():
         "name": v.display_name,
         "price": float(v.product.default_price or 0),
         "stock": v.total_qty,
-        "tax_rate": float(v.product.default_tax_rate or 15.0),
+        "tax_rate": float(
+            v.product.default_tax_rate
+            if v.product.default_tax_rate is not None
+            else (g.active_company.vat_rate or 0)
+        ),
     })
 
 

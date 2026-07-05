@@ -21,7 +21,7 @@
     <div id="cart-rows" class="cart-rows flex-1 space-y-2 mb-2"></div>
     <div class="border-t pt-3 space-y-1 text-sm">
       <div class="flex justify-between"><span>الإجمالي قبل الضريبة</span><span id="sub-total" class="font-mono">0.00</span></div>
-      <div class="flex justify-between text-slate-500"><span>الضريبة <span id="tax-rate-lbl">15</span>%</span><span id="tax-total" class="font-mono">0.00</span></div>
+      <div class="flex justify-between text-slate-500"><span>الضريبة <span id="tax-rate-lbl">{{ company_vat_rate|int }}</span>%</span><span id="tax-total" class="font-mono">0.00</span></div>
       <div class="flex justify-between text-lg font-bold text-emerald-700"><span>الإجمالي</span><span id="grand-total" class="font-mono">0.00</span></div>
     </div>
   </div>
@@ -106,7 +106,7 @@
       </div>
       <div>
         <label class="block text-xs font-semibold mb-1">نسبة الضريبة %</label>
-        <input type="number" name="tax_rate" step="0.01" min="0" max="100" value="15" id="tax-rate-input" class="input text-sm">
+        <input type="number" name="tax_rate" step="0.01" min="0" max="100" value="{{ company_vat_rate }}" id="tax-rate-input" class="input text-sm">
       </div>
       <div>
         <label class="block text-xs font-semibold mb-1">المبلغ المستلم</label>
@@ -124,7 +124,7 @@
 <script>
 const lookupUrl = "{{ url_for('pos.lookup') }}";
 let cart = [];
-let taxRate = 15.0;
+let taxRate = {{ company_vat_rate }};
 
 function recalc() {
   let sub = 0;

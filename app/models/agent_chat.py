@@ -9,4 +9,4 @@ class AgentMessage(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     role = db.Column(db.String(20), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.now, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)

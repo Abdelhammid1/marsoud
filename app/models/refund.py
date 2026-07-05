@@ -38,7 +38,7 @@ class Refund(db.Model):
     amount = db.Column(db.Numeric(15, 4), nullable=False)
     reason = db.Column(db.Text)
     journal_entry_id = db.Column(db.Integer, db.ForeignKey("journal_entries.id"))
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     invoice = db.relationship("Invoice", backref="refunds")
     company = db.relationship("Company")
@@ -53,7 +53,7 @@ class CreditNote(db.Model):
     amount = db.Column(db.Numeric(15, 4), nullable=False)
     used_amount = db.Column(db.Numeric(15, 4), default=0)
     reason = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     company = db.relationship("Company")
     customer = db.relationship("Customer", backref="credit_notes")
@@ -83,7 +83,7 @@ class VendorBillRefund(db.Model):
     reason = db.Column(db.Text)
     journal_entry_id = db.Column(db.Integer,
                                     db.ForeignKey("journal_entries.id"))
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     bill = db.relationship("VendorBill", backref="refunds")
     company = db.relationship("Company")
@@ -105,7 +105,7 @@ class DebitNote(db.Model):
     amount = db.Column(db.Numeric(15, 4), nullable=False)
     used_amount = db.Column(db.Numeric(15, 4), default=0)
     reason = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     company = db.relationship("Company")
     vendor = db.relationship("Vendor", backref="debit_notes")

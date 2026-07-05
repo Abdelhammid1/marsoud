@@ -56,7 +56,7 @@ class User(UserMixin, db.Model):
     # HR-SS: lifecycle state.
     status = db.Column(db.String(20), default="ACTIVE", nullable=False)
 
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     companies = db.relationship(
         "Company",

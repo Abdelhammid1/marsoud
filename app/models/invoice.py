@@ -59,7 +59,7 @@ class Invoice(db.Model):
     sales_rep_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     payment_terms_days = db.Column(db.Integer)
 
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     cashier = db.relationship("User", foreign_keys=[cashier_id])
     voided_by = db.relationship("User", foreign_keys=[voided_by_id])
@@ -178,7 +178,7 @@ class InvoiceReminderSent(db.Model):
     invoice_id = db.Column(db.Integer, db.ForeignKey("invoices.id"), nullable=False, index=True)
     threshold_kind = db.Column(db.String(10), nullable=False)
     threshold_days = db.Column(db.Integer, nullable=False)
-    sent_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    sent_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     invoice = db.relationship("Invoice", backref=db.backref("reminders_sent", cascade="all, delete-orphan"))
 
@@ -198,6 +198,6 @@ class Payment(db.Model):
     method = db.Column(db.String(30), default="cash")  # historical fallback
     notes = db.Column(db.Text)
     journal_entry_id = db.Column(db.Integer, db.ForeignKey("journal_entries.id"))
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     payment_method = db.relationship("PaymentMethod")

@@ -16,7 +16,7 @@ class FixedAsset(db.Model):
     source_bill_id = db.Column(db.Integer, db.ForeignKey("vendor_bills.id"))
     accumulated_depreciation = db.Column(db.Numeric(15, 4), default=0)
     is_disposed = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     company = db.relationship("Company", backref=db.backref("assets", lazy="dynamic"))
     account = db.relationship("Account")
@@ -52,7 +52,7 @@ class DepreciationEntry(db.Model):
     amount = db.Column(db.Numeric(15, 4), nullable=False)
     journal_entry_id = db.Column(db.Integer, db.ForeignKey("journal_entries.id"))
     book_value_after = db.Column(db.Numeric(15, 4))
-    created_at = db.Column(db.DateTime, default=datetime.now, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
     asset = db.relationship("FixedAsset", backref="depreciation_history")
 

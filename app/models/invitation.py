@@ -22,7 +22,7 @@ class Invitation(db.Model):
     expires_at = db.Column(db.DateTime, default=_default_expiry, nullable=False)
     accepted_at = db.Column(db.DateTime)
     revoked_at = db.Column(db.DateTime)
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     company = db.relationship("Company")
     invited_by = db.relationship("User")

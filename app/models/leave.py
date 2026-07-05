@@ -30,7 +30,7 @@ class LeaveType(db.Model):
     max_balance = db.Column(db.Numeric(6, 2), default=0, nullable=False)
     is_paid = db.Column(db.Boolean, default=True, nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     company = db.relationship("Company", backref=db.backref("leave_types", lazy="dynamic"))
 
@@ -52,7 +52,7 @@ class LeaveBalance(db.Model):
     year = db.Column(db.Integer, nullable=False)
     balance_days = db.Column(db.Numeric(7, 2), default=0, nullable=False)
     used_days = db.Column(db.Numeric(7, 2), default=0, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     employee = db.relationship("Employee", backref=db.backref("leave_balances", lazy="dynamic"))
     leave_type = db.relationship("LeaveType", backref=db.backref("balances", lazy="dynamic"))
@@ -88,7 +88,7 @@ class AttendanceException(db.Model):
     note = db.Column(db.Text)
     leave_request_id = db.Column(db.Integer, db.ForeignKey("leave_requests.id"), nullable=True)
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     company = db.relationship("Company")
     employee = db.relationship("Employee", backref=db.backref("attendance_exceptions", lazy="dynamic"))
@@ -142,7 +142,7 @@ class LeaveRequest(db.Model):
     reviewed_by = db.Column(db.Integer, db.ForeignKey("users.id"))
     reviewed_at = db.Column(db.DateTime)
     review_note = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
 
     company = db.relationship("Company")

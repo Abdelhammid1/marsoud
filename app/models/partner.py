@@ -12,7 +12,7 @@ class Customer(db.Model):
     address = db.Column(db.Text)
     tax_number = db.Column(db.String(50))
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     # MARSOUD-COMM-01 — sales rep + commission rate per customer.
     # Both nullable: a customer without a sales_rep generates no
     # commission rows on payments.
@@ -51,7 +51,7 @@ class Vendor(db.Model):
     bank_account = db.Column(db.String(100))
     tax_number = db.Column(db.String(50))
     is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     # MARSOUD-COA-REBUILD — vendor sub-account under 2110 (AP).
     account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=True)
 

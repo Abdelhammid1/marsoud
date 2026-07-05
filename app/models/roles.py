@@ -27,7 +27,7 @@ class Permission(db.Model):
     action = db.Column(db.String(50), nullable=False)
     group_ar = db.Column(db.String(80), nullable=False)
     label_ar = db.Column(db.String(120), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     def __repr__(self):
         return f"<Permission {self.code}>"
@@ -48,7 +48,7 @@ class Role(db.Model):
     name_ar = db.Column(db.String(120), nullable=False)
     type = db.Column(db.String(20), nullable=False, default="CUSTOM")
     description = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     company = db.relationship("Company", backref=db.backref("roles", lazy="dynamic"))
     permissions = db.relationship(

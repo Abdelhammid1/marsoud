@@ -31,9 +31,28 @@ from app.models.crm_expansion import LeadActivity
 
 
 # ─── Aggregation helpers (all four sources) ────────────────────────────
+#
+# MARSOUD-TZ-BUG (Abdelhamid 2026-07-04) — since every DateTime column
+# now stores UTC-naive values, the daily window `[day 00:00, day+1 00:00)`
+# has to be constructed in UTC too — otherwise events near midnight local
+# time silently vanish. `_day_window_utc(day, company_id)` returns the
+# right (start_utc, end_utc) pair for the company's local day.
+def _day_window_utc(day, company_id):
+    from app.models import Company
+    from app.services.time import to_utc_from_company
+    company = db.session.get(Company, company_id)
+    start_local = datetime.combine(day, time.min)
+    end_local = datetime.combine(day + timedelta(days=1), time.min)
+    if company is None:
+        return start_local, end_local
+    return (
+        to_utc_from_company(start_local, company),
+        to_utc_from_company(end_local, company),
+    )
+
+
 def _fetch_user_activity(company_id, user_id, day):
-    start = datetime.combine(day, time.min)
-    end = datetime.combine(day + timedelta(days=1), time.min)
+    start, end = _day_window_utc(day, company_id)
     return UserActivityLog.query.filter(
         UserActivityLog.company_id == company_id,
         UserActivityLog.user_id == user_id,
@@ -44,8 +63,7 @@ def _fetch_user_activity(company_id, user_id, day):
 
 
 def _fetch_task_activity(company_id, user_id, day):
-    start = datetime.combine(day, time.min)
-    end = datetime.combine(day + timedelta(days=1), time.min)
+    start, end = _day_window_utc(day, company_id)
     return TaskActivityLog.query.filter(
         TaskActivityLog.company_id == company_id,
         TaskActivityLog.user_id == user_id,
@@ -54,9 +72,15 @@ def _fetch_task_activity(company_id, user_id, day):
     ).order_by(TaskActivityLog.created_at.asc()).all()
 
 
-def _fetch_lead_status_events(user_id, day):
-    start = datetime.combine(day, time.min)
-    end = datetime.combine(day + timedelta(days=1), time.min)
+def _fetch_lead_status_events(user_id, day, company_id=None):
+    # company_id is optional for backward compat — the tests call this
+    # without one. Fall back to a naive-local window when it isn't
+    # provided (only correct when server tz == company tz).
+    if company_id is not None:
+        start, end = _day_window_utc(day, company_id)
+    else:
+        start = datetime.combine(day, time.min)
+        end = datetime.combine(day + timedelta(days=1), time.min)
     return LeadStatusEvent.query.filter(
         LeadStatusEvent.changed_by_id == user_id,
         LeadStatusEvent.created_at >= start,
@@ -65,8 +89,7 @@ def _fetch_lead_status_events(user_id, day):
 
 
 def _fetch_lead_activities(company_id, user_id, day):
-    start = datetime.combine(day, time.min)
-    end = datetime.combine(day + timedelta(days=1), time.min)
+    start, end = _day_window_utc(day, company_id)
     return LeadActivity.query.filter(
         LeadActivity.company_id == company_id,
         LeadActivity.created_by_id == user_id,
@@ -357,7 +380,7 @@ def build_digest(company_id, employee_id, day=None):
         # after the first run (edge case if cron ran mid-day).
         user_logs = _fetch_user_activity(company_id, user.id, day)
         task_logs = _fetch_task_activity(company_id, user.id, day)
-        lead_events = _fetch_lead_status_events(user.id, day)
+        lead_events = _fetch_lead_status_events(user.id, day, company_id=company_id)
         lead_acts = _fetch_lead_activities(company_id, user.id, day)
         body = _summarise(user_logs, task_logs, lead_events, lead_acts)
         counts = {
@@ -376,7 +399,7 @@ def build_digest(company_id, employee_id, day=None):
     # Fresh build.
     user_logs = _fetch_user_activity(company_id, user.id, day)
     task_logs = _fetch_task_activity(company_id, user.id, day)
-    lead_events = _fetch_lead_status_events(user.id, day)
+    lead_events = _fetch_lead_status_events(user.id, day, company_id=company_id)
     lead_acts = _fetch_lead_activities(company_id, user.id, day)
     counts = {
         "user": len(user_logs), "task": len(task_logs),

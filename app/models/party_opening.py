@@ -32,7 +32,7 @@ class PartyOpeningBalance(db.Model):
                                     db.ForeignKey("journal_entries.id"),
                                     nullable=False)
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (
         db.UniqueConstraint(

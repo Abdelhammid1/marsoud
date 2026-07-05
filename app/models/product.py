@@ -79,7 +79,7 @@ class Product(db.Model):
     category_id = db.Column(db.Integer,
                               db.ForeignKey("product_categories.id"),
                               nullable=True, index=True)
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     company = db.relationship("Company", backref=db.backref("products", lazy="dynamic"))
     category = db.relationship("ProductCategory", back_populates="products")

@@ -26,7 +26,7 @@ class Warehouse(db.Model):
     name = db.Column(db.String(150), nullable=False)
     is_default = db.Column(db.Boolean, default=False, nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     __table_args__ = (
         db.UniqueConstraint("company_id", "code",
@@ -58,7 +58,7 @@ class ProductVariant(db.Model):
     unit_cost = db.Column(db.Numeric(15, 4), default=0, nullable=False)
     reorder_level = db.Column(db.Numeric(15, 2), default=0, nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     __table_args__ = (
         db.UniqueConstraint("company_id", "sku",
@@ -146,8 +146,8 @@ class StockBalance(db.Model):
                              primary_key=True)
     qty = db.Column(db.Numeric(15, 2), default=0, nullable=False)
     value = db.Column(db.Numeric(15, 4), default=0, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.now,
-                           onupdate=datetime.now, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow,
+                           onupdate=datetime.utcnow, nullable=False)
 
     variant = db.relationship("ProductVariant", foreign_keys=[variant_id])
     warehouse = db.relationship("Warehouse", foreign_keys=[warehouse_id])
@@ -234,7 +234,7 @@ class StockMovement(db.Model):
     reason = db.Column(db.Text)
     balance_qty_after = db.Column(db.Numeric(15, 2), default=0, nullable=False)
     balance_value_after = db.Column(db.Numeric(15, 4), default=0, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.now,
+    created_at = db.Column(db.DateTime, default=datetime.utcnow,
                            nullable=False, index=True)
 
     variant = db.relationship("ProductVariant", foreign_keys=[variant_id])
@@ -287,7 +287,7 @@ class StockTransfer(db.Model):
                        nullable=False, index=True)
     notes = db.Column(db.Text)
     created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
-    created_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     posted_at = db.Column(db.DateTime)
     posted_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     cancelled_at = db.Column(db.DateTime)
@@ -365,7 +365,7 @@ class StockLot(db.Model):
                            nullable=False, index=True)
     warehouse_id = db.Column(db.Integer, db.ForeignKey("warehouses.id"),
                              nullable=False, index=True)
-    received_at = db.Column(db.DateTime, default=datetime.now,
+    received_at = db.Column(db.DateTime, default=datetime.utcnow,
                             nullable=False, index=True)
     qty_remaining = db.Column(db.Numeric(15, 2), default=0, nullable=False)
     unit_cost = db.Column(db.Numeric(15, 4), default=0, nullable=False)
@@ -400,7 +400,7 @@ class CashierShift(db.Model):
                            nullable=False, index=True)
     cashier_id = db.Column(db.Integer, db.ForeignKey("users.id"),
                            nullable=False, index=True)
-    opened_at = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    opened_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     closed_at = db.Column(db.DateTime)
     opening_cash = db.Column(db.Numeric(15, 2), default=0, nullable=False)
     closing_cash = db.Column(db.Numeric(15, 2))

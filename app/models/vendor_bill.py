@@ -46,7 +46,7 @@ class VendorBill(db.Model):
 
     notes = db.Column(db.Text)
     journal_entry_id = db.Column(db.Integer, db.ForeignKey("journal_entries.id"))
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     # MARSOUD-52 — soft delete, DRAFT only
     deleted_at = db.Column(db.DateTime, nullable=True)
     deleted_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
@@ -113,6 +113,6 @@ class VendorBillPayment(db.Model):
     method = db.Column(db.String(30), default="cash")
     notes = db.Column(db.Text)
     journal_entry_id = db.Column(db.Integer, db.ForeignKey("journal_entries.id"))
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     payment_method = db.relationship("PaymentMethod")
