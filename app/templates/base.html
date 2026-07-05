@@ -168,13 +168,80 @@ tailwind.config = {
        3. Header padding shrinks so the page title doesn't wrap.
        4. Card padding shrinks so content gets more horizontal room. */
     html, body { overflow-x: hidden; max-width: 100vw; }
-    .card { padding: 1rem !important; max-width: 100%; overflow-x: auto;
-            -webkit-overflow-scrolling: touch; }
-    table.data-table { display: block; overflow-x: auto; max-width: 100%;
-                       white-space: nowrap; -webkit-overflow-scrolling: touch; }
+    .card { padding: 1rem !important; max-width: 100%; overflow-x: hidden;
+            position: relative; }
+
+    /* MARSOUD-MOBILE-SWIPE-TABLES (Ibrahim 2026-07-05)
+       Phase 2 — tables horizontal-scroll on mobile with the identifier
+       column pinned to the visual start (right in RTL). The scroll
+       container is a `.table-scroll` div wrapping ONLY the table (auto-
+       inserted at page load by JS below) so the filter form above the
+       table doesn't drift off when the user swipes. */
+    .table-scroll {
+      max-width: 100%; overflow-x: auto; overflow-y: hidden;
+      position: relative;
+      -webkit-overflow-scrolling: touch;
+    }
+    .table-scroll table.data-table {
+      display: table; width: max-content; min-width: 100%;
+      white-space: nowrap;
+    }
     table.data-table thead th,
     table.data-table tbody td {
-      padding: 0.625rem 0.75rem; font-size: 0.8rem;
+      padding: 0.75rem 0.75rem; font-size: 0.8rem;
+    }
+    /* Sticky identifier columns — RTL: pin the first TWO columns to
+       the RIGHT edge (visual start). Some tables have a checkbox in
+       col 1 (journals bulk-select); the identifier is then in col 2.
+       Others have the identifier in col 1. Pinning both covers both
+       cases. `--sticky-c1-w` is set by JS at wrap time to the exact
+       measured width of column 1 so col 2 pins right against it. */
+    .table-scroll { --sticky-c1-w: 0px; }
+    .table-scroll table.data-table thead th:first-child,
+    .table-scroll table.data-table tbody td:first-child {
+      position: sticky; right: 0; z-index: 2;
+      background: #fff;
+    }
+    .table-scroll table.data-table thead th:nth-child(2),
+    .table-scroll table.data-table tbody td:nth-child(2) {
+      position: sticky; right: var(--sticky-c1-w); z-index: 2;
+      background: #fff;
+      box-shadow: -6px 0 8px -6px rgba(15, 23, 42, 0.12);
+      font-weight: 600;
+    }
+    .table-scroll table.data-table thead th:first-child,
+    .table-scroll table.data-table thead th:nth-child(2) { background: #F8FAFC; }
+    .table-scroll table.data-table tbody tr:hover td:first-child,
+    .table-scroll table.data-table tbody tr:hover td:nth-child(2) { background: #F8FAFC; }
+
+    /* Swipe hint — fading gradient on the LEFT (RTL: away) edge tells
+       the user there's more off-screen. Fades to nothing once they've
+       actually scrolled (see JS below sets .swiped). */
+    .table-scroll::after {
+      content: "";
+      position: absolute; top: 0; bottom: 0; left: 0; width: 24px;
+      background: linear-gradient(to left, transparent, rgba(248,250,252,0.95));
+      pointer-events: none;
+      z-index: 3;
+      transition: opacity 200ms ease;
+    }
+    .table-scroll.swiped::after { opacity: 0; }
+
+    /* Small "← اسحب" pill fades away after 4s or on first scroll. */
+    .table-scroll::before {
+      content: "← اسحب لباقي الأعمدة";
+      position: absolute; bottom: 8px; left: 12px;
+      font-size: 10px; color: #64748B; opacity: 0.85;
+      background: rgba(241, 245, 249, 0.95);
+      padding: 3px 8px; border-radius: 999px;
+      pointer-events: none;
+      z-index: 4;
+      animation: mrs-fade-hint 4s ease-in-out forwards;
+    }
+    .table-scroll.swiped::before { opacity: 0 !important; }
+    @keyframes mrs-fade-hint {
+      0%, 60% { opacity: 0.85; }
+      100% { opacity: 0; }
     }
     /* Make the topbar fit smaller screens */
     header > div { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
@@ -795,6 +862,47 @@ function toggleSidebar(force) {
   })();
 </script>
 {% endif %}
+
+<script>
+  /* MARSOUD-MOBILE-SWIPE-TABLES — wrap every .data-table in a
+     .table-scroll scroll container so the table can scroll horizontally
+     WITHOUT dragging the filter form above it along. Also fade the
+     "← اسحب" hint on first scroll. Only active at ≤767px. */
+  (function() {
+    function measureStickyC1(wrap) {
+      // Measure column 1's rendered width and set it as a CSS var so
+      // the sticky col-2 rule can pin against it exactly. Runs on
+      // wrap + on resize.
+      var th1 = wrap.querySelector('table.data-table thead th:first-child');
+      if (!th1) return;
+      var w = Math.ceil(th1.getBoundingClientRect().width);
+      wrap.style.setProperty('--sticky-c1-w', w + 'px');
+    }
+    function wrapTables() {
+      document.querySelectorAll('table.data-table').forEach(function(t) {
+        if (t.parentElement && t.parentElement.classList.contains('table-scroll')) return;
+        var wrap = document.createElement('div');
+        wrap.className = 'table-scroll';
+        t.parentNode.insertBefore(wrap, t);
+        wrap.appendChild(t);
+        measureStickyC1(wrap);
+        // Re-measure after any layout shift (fonts loaded, etc.)
+        setTimeout(function() { measureStickyC1(wrap); }, 100);
+        window.addEventListener('resize', function() { measureStickyC1(wrap); });
+        // Fade the hint on the first user swipe.
+        wrap.addEventListener('scroll', function once() {
+          wrap.classList.add('swiped');
+          wrap.removeEventListener('scroll', once);
+        }, { passive: true });
+      });
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', wrapTables);
+    } else {
+      wrapTables();
+    }
+  })();
+</script>
 
 </body>
 </html>
