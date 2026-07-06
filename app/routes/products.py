@@ -574,6 +574,7 @@ def units(product_id):
                 p,
                 request.form.get("unit_name"),
                 request.form.get("conversion_factor"),
+                sale_price=request.form.get("sale_price"),
             )
             db.session.commit()
             flash("تم إضافة الوحدة", "success")
@@ -623,20 +624,43 @@ def unit_edit(product_id, unit_id):
     """
     from decimal import Decimal
     from app.models import ProductUnit
-    from app.services.units import can_edit_factor, UnitError
+    from app.services.units import (
+        can_edit_factor, set_unit_sale_price, UnitError,
+    )
     p = _product_or_404(product_id)
     u = db.session.get(ProductUnit, unit_id)
     if not u or u.product_id != p.id:
         abort(404)
+    # MARSOUD-UOM-PRICE — the price field is editable on every unit,
+    # base or not; only the name+factor mutation is locked once the
+    # unit has movements.
+    raw_price = request.form.get("sale_price")
     if u.is_base:
-        flash("لا يمكن تعديل معامل تحويل وحدة الأساس (دائماً = 1).", "error")
+        # Base unit: only price is editable (name + factor=1 are fixed).
+        try:
+            set_unit_sale_price(u, raw_price)
+            # Keep Product.default_price mirrored for legacy readers
+            # (backward compat: convert_to_base uses default_price when
+            # the unit has no explicit sale_price).
+            if u.sale_price is not None:
+                p.default_price = u.sale_price
+            db.session.commit()
+            flash("تم تحديث سعر الوحدة الأساس", "success")
+        except UnitError as e:
+            db.session.rollback()
+            flash(str(e), "error")
         return redirect(url_for("products.units", product_id=p.id))
     if not can_edit_factor(u):
-        flash(
-            "لا يمكن تعديل الوحدة — عليها حركات مخزون سابقة. "
-            "احذفها وأعد إنشاءها لو المطلوب تغيير المعامل.",
-            "error",
-        )
+        # Even for a used unit we still allow sale_price mutation —
+        # it doesn't rewrite any historical base_quantity snapshots.
+        try:
+            set_unit_sale_price(u, raw_price)
+            db.session.commit()
+            flash("تم تحديث السعر (الاسم والمعامل مقفولين لوجود حركات).",
+                  "success")
+        except UnitError as e:
+            db.session.rollback()
+            flash(str(e), "error")
         return redirect(url_for("products.units", product_id=p.id))
     new_name = (request.form.get("unit_name") or "").strip()
     raw_factor = request.form.get("conversion_factor")
@@ -657,6 +681,12 @@ def unit_edit(product_id, unit_id):
         return redirect(url_for("products.units", product_id=p.id))
     u.unit_name = new_name
     u.conversion_factor = new_factor
+    try:
+        set_unit_sale_price(u, raw_price)
+    except UnitError as e:
+        db.session.rollback()
+        flash(str(e), "error")
+        return redirect(url_for("products.units", product_id=p.id))
     db.session.commit()
     flash("تم تحديث الوحدة", "success")
     return redirect(url_for("products.units", product_id=p.id))

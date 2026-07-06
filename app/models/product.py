@@ -137,6 +137,7 @@ class ProductUnit(db.Model):
     conversion_factor = db.Column(db.Numeric(15, 6),
                                      nullable=False, default=1)
     is_base = db.Column(db.Boolean, default=False, nullable=False)
+    sale_price = db.Column(db.Numeric(15, 4), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     product = db.relationship(
@@ -162,3 +163,14 @@ class ProductUnit(db.Model):
         # Trim trailing zeros on the factor for a clean label.
         f = f"{float(self.conversion_factor):g}"
         return f"{self.unit_name} ({f} {base_name})"
+
+    @property
+    def effective_sale_price(self):
+        """MARSOUD-UOM-PRICE — the price the POS/invoice must use for
+        THIS unit. Falls back to Product.default_price × factor so
+        products created before this column existed still price
+        correctly for their base row (base factor=1 → default_price)."""
+        if self.sale_price is not None:
+            return float(self.sale_price)
+        base_price = float(self.product.default_price or 0)
+        return base_price * float(self.conversion_factor or 1)

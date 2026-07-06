@@ -69,10 +69,13 @@ def index():
         # MARSOUD-UNIT-CONVERSION-01 — bundle every unit the cashier
         # can pick from. UI defaults to the base unit; picker dropdown
         # exposes any extras (كرتونة, طبق, ...).
+        # MARSOUD-UOM-PRICE — each unit carries its own sale_price so
+        # switching the unit in the cart auto-updates the line price.
         units = [
             {"id": u.id, "name": u.unit_name,
              "factor": float(u.conversion_factor or 1),
-             "is_base": bool(u.is_base)}
+             "is_base": bool(u.is_base),
+             "sale_price": float(u.effective_sale_price)}
             for u in p.units
         ]
         # Fallback tax rate: use the company's configured VAT (0 if

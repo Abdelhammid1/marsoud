@@ -12,6 +12,11 @@
     وحدة الأساس هي اللي المخزون بيتحسب بيها. أي وحدة بيع/شراء تانية بتضاف بمعامل تحويل لوحدة الأساس.
     مثال: لو الأساس "حبة" وضفت "كرتونة" بمعامل 30، بيع كرتونة بينقص من المخزون 30 حبة تلقائياً.
   </p>
+  <p class="text-sm text-slate-500 mt-2">
+    ⚙ <b>سعر البيع لكل وحدة</b> — كل وحدة ليها سعر مستقل. لو الحبة بـ 10 والكرتونة (10 حبات) بـ 100،
+    اكتب لكل واحدة السعر الصحيح في عمود "سعر البيع" وهيتطبق تلقائياً في نقطة البيع/الفواتير.
+    لو سبتِيه فاضي، البرنامج بيحسبه = <span dir="ltr">default_price × factor</span>.
+  </p>
 </div>
 
 <div class="card p-6 mb-4">
@@ -21,6 +26,7 @@
       <tr>
         <th>الاسم</th>
         <th class="text-left">معامل التحويل</th>
+        <th class="text-left">سعر البيع</th>
         <th>النوع</th>
         <th></th>
       </tr>
@@ -29,10 +35,25 @@
     {% for u in units %}
       <tr>
         {% if u.is_base %}
-        <td class="font-semibold">{{ u.unit_name }} <span class="badge bg-emerald-100 text-emerald-700 mr-2">أساس</span></td>
-        <td class="text-left font-mono">1</td>
-        <td class="text-sm text-slate-500">المرجع</td>
-        <td class="text-left"><span class="text-xs text-slate-400">لا يعدَّل</span></td>
+        {# MARSOUD-UOM-PRICE — base unit is still name+factor-locked
+           but its sale_price IS editable (and mirrors default_price
+           for backward compatibility). #}
+        <form method="POST" action="{{ url_for('products.unit_edit', product_id=product.id, unit_id=u.id) }}" class="contents">
+          <td class="font-semibold">
+            {{ u.unit_name }}
+            <span class="badge bg-emerald-100 text-emerald-700 mr-2">أساس</span>
+          </td>
+          <td class="text-left font-mono">1</td>
+          <td class="text-left">
+            <input type="number" name="sale_price" step="0.0001" min="0"
+                   value="{% if u.sale_price is not none %}{{ '%g'|format(u.sale_price|float) }}{% else %}{{ '%g'|format(product.default_price|float) }}{% endif %}"
+                   class="input text-sm font-mono" style="width:6rem">
+          </td>
+          <td class="text-sm text-slate-500">المرجع</td>
+          <td class="text-left whitespace-nowrap">
+            <button type="submit" class="text-xs text-brand-600 hover:underline">💾 حفظ السعر</button>
+          </td>
+        </form>
         {% else %}
         {# MARSOUD-UNIT-CONVERSION-01 — inline edit form. The delete
            button uses formaction to submit the same row to a
@@ -44,6 +65,13 @@
           </td>
           <td class="text-left">
             <input type="number" name="conversion_factor" step="0.0001" min="0.0001" value="{{ '%g'|format(u.conversion_factor|float) }}" class="input text-sm font-mono" style="width:6rem">
+          </td>
+          <td class="text-left">
+            <input type="number" name="sale_price" step="0.0001" min="0"
+                   value="{% if u.sale_price is not none %}{{ '%g'|format(u.sale_price|float) }}{% endif %}"
+                   placeholder="{{ '%g'|format((product.default_price|float) * (u.conversion_factor|float)) }}"
+                   class="input text-sm font-mono" style="width:6rem"
+                   title="اتركه فاضي عشان يتحسب تلقائياً">
           </td>
           <td class="text-sm text-slate-500">
             1 {{ u.unit_name }} = {{ '%g'|format(u.conversion_factor|float) }} {{ product.base_unit.unit_name if product.base_unit else '' }}
@@ -67,7 +95,7 @@
 
 <div class="card p-6">
   <h3 class="font-bold text-navy-900 mb-3">+ وحدة جديدة</h3>
-  <form method="POST" action="{{ url_for('products.units', product_id=product.id) }}" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+  <form method="POST" action="{{ url_for('products.units', product_id=product.id) }}" class="grid grid-cols-1 md:grid-cols-4 gap-3">
     <div>
       <label class="block text-xs font-semibold mb-1">اسم الوحدة</label>
       <input type="text" name="unit_name" placeholder="كرتونة" required class="input">
@@ -76,12 +104,17 @@
       <label class="block text-xs font-semibold mb-1">معامل التحويل (لكل {{ product.base_unit.unit_name if product.base_unit else 'وحدة أساس' }})</label>
       <input type="number" name="conversion_factor" step="0.0001" min="0.0001" placeholder="30" required class="input font-mono">
     </div>
+    <div>
+      <label class="block text-xs font-semibold mb-1">سعر البيع (اختياري)</label>
+      <input type="number" name="sale_price" step="0.0001" min="0" placeholder="مثلاً 100" class="input font-mono">
+    </div>
     <div class="flex items-end">
       <button type="submit" class="btn-primary">إضافة</button>
     </div>
   </form>
   <p class="text-xs text-slate-400 mt-3">
     ⚠ ملحوظة: لا يمكن تعديل معامل التحويل لوحدة عليها حركات مخزون سابقة — عشان الفواتير القديمة تفضل صحيحة.
+    السعر ممكن يتعدل في أي وقت.
   </p>
 </div>
 {% endblock %}

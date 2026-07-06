@@ -76,7 +76,24 @@ def convert_to_base(product, qty, unit_id=None):
 
 
 # ─── Write-side (used by /products/<id>/units) ─────────────────────────
-def create_unit(product, unit_name, conversion_factor):
+def _parse_optional_price(raw):
+    """Return Decimal(raw) or None. Raises UnitError if raw is
+    provided but not a non-negative number."""
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    try:
+        val = Decimal(s)
+    except Exception:
+        raise UnitError("سعر البيع غير صحيح")
+    if val < 0:
+        raise UnitError("سعر البيع يجب أن يكون رقم غير سالب")
+    return val
+
+
+def create_unit(product, unit_name, conversion_factor, sale_price=None):
     """Add a non-base unit to `product`."""
     name = (unit_name or "").strip()
     if not name:
@@ -96,9 +113,19 @@ def create_unit(product, unit_name, conversion_factor):
     row = ProductUnit(
         company_id=product.company_id, product_id=product.id,
         unit_name=name, conversion_factor=factor, is_base=False,
+        sale_price=_parse_optional_price(sale_price),
     )
     db.session.add(row); db.session.flush()
     return row
+
+
+def set_unit_sale_price(unit, raw_price):
+    """MARSOUD-UOM-PRICE — inline setter used by the units-management
+    page. Passing an empty string clears the override (falls back to
+    default_price × factor)."""
+    unit.sale_price = _parse_optional_price(raw_price)
+    db.session.flush()
+    return unit
 
 
 def _unit_has_movements(unit):

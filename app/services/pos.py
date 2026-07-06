@@ -215,7 +215,15 @@ def void_pos_order(invoice, *, reason, actor_id):
     total_restock_cost = 0.0
     from app.services.inventory import apply_stock_movement
     for item in tracked:
-        qty = float(item.quantity or 0)
+        # MARSOUD-UOM-PRICE — restock in BASE units to match what the
+        # sale actually consumed. Previously used item.quantity (=1
+        # carton) which restocked only 1 base-unit while the sale had
+        # decremented 10 (item.base_quantity). Refund path already does
+        # this — mirror it here for parity.
+        if item.base_quantity is not None:
+            qty = float(item.base_quantity or 0)
+        else:
+            qty = float(item.quantity or 0)
         cost = float(item.unit_cost_at_sale or 0)
         try:
             # Use REVERSAL kind so the movement log labels it as

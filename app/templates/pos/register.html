@@ -191,6 +191,11 @@ function addLine(v) {
     baseUnit = v.units.find(function(u) { return u.is_base; }) || v.units[0];
   }
   var incomingUnitId = baseUnit ? baseUnit.id : null;
+  // MARSOUD-UOM-PRICE — the line price follows the picked unit's own
+  // sale_price (backend fills it, derived if not explicitly set).
+  var incomingPrice = baseUnit && baseUnit.sale_price != null
+    ? baseUnit.sale_price
+    : v.price;
   for (const r of cart) {
     if (r.variant_id === v.variant_id && r.unit_id === incomingUnitId) {
       r.qty = (parseFloat(r.qty) || 0) + 1;
@@ -200,7 +205,7 @@ function addLine(v) {
   }
   cart.push({
     variant_id: v.variant_id, sku: v.sku, name: v.name,
-    qty: 1, unit_price: v.price,
+    qty: 1, unit_price: incomingPrice,
     units: v.units || [],
     unit_id: incomingUnitId,
   });
@@ -213,7 +218,18 @@ function addLine(v) {
 }
 
 function setQty(i, v) { cart[i].qty = parseFloat(v) || 1; renderCart(); }
-function setUnit(i, id) { cart[i].unit_id = parseInt(id, 10) || null; renderCart(); }
+function setUnit(i, id) {
+  var newId = parseInt(id, 10) || null;
+  cart[i].unit_id = newId;
+  // MARSOUD-UOM-PRICE — snap the line price to the newly-picked unit's
+  // sale_price so switching piece↔carton reflects the correct amount
+  // instead of carrying the previous unit's price forward.
+  if (cart[i].units && newId != null) {
+    var u = cart[i].units.find(function(x) { return x.id === newId; });
+    if (u && u.sale_price != null) cart[i].unit_price = u.sale_price;
+  }
+  renderCart();
+}
 function setPrice(i, v) { cart[i].unit_price = parseFloat(v) || 0; renderCart(); }
 function removeLine(i) { cart.splice(i, 1); renderCart(); }
 function emptyCart() { if (cart.length && !confirm('تفريغ الكارت؟')) return; cart = []; renderCart(); }
