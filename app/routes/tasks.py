@@ -124,6 +124,41 @@ def _parse_assignee_ids(form):
     return out
 
 
+def _safe_next(default):
+    """MARSOUD-TASK-CONTEXT — preserve the caller's viewport across a
+    CRUD round-trip.
+
+    Reads a `return_to` field from POST form → query args → referrer,
+    in that order. Only returns it when it's a same-origin path
+    (leading '/', no protocol, no CRLF injection). Otherwise falls
+    back to `default`.
+
+    Used by new()/edit()/delete()/status() so that a task created
+    from /tasks/?scope=employees&user_id=15 lands the user back
+    inside that view, not on the default 'mine' Kanban.
+    """
+    from urllib.parse import urlparse
+    candidate = (request.form.get("return_to")
+                 or request.args.get("return_to")
+                 or "")
+    candidate = candidate.strip()
+    if not candidate:
+        return default
+    # Reject anything that isn't a local path — the leading `/` alone
+    # isn't enough because `//attacker.com/x` is protocol-relative and
+    # would let a phisher hijack the redirect.
+    if not candidate.startswith("/") or candidate.startswith("//"):
+        return default
+    if "\r" in candidate or "\n" in candidate:
+        return default
+    # Bounce parsed check as a belt-and-braces guard: netloc must be
+    # empty for a path-only URL.
+    parsed = urlparse(candidate)
+    if parsed.scheme or parsed.netloc:
+        return default
+    return candidate
+
+
 # ─── Kanban + filters ────────────────────────────────────────────────────
 # MARSOUD-TASK-SCOPE-01 — 4 tabs over the Kanban board, visible to
 # owner/manager (anyone with tasks.view_all). Regular employees still
@@ -481,7 +516,8 @@ def new():
             flash(msg, "success")
             for f in failed:
                 flash(f"⚠ تعذّر رفع: {f}", "warning")
-            return redirect(url_for("tasks.detail", task_id=t.id))
+            return redirect(_safe_next(
+                url_for("tasks.detail", task_id=t.id)))
         except (CRMError, TaskError, ValueError, TypeError, KeyError) as e:
             db.session.rollback()
             flash(str(e), "error")
@@ -585,7 +621,8 @@ def edit(task_id):
             db.session.commit()
 
             flash("تم حفظ التعديلات", "success")
-            return redirect(url_for("tasks.detail", task_id=t.id))
+            return redirect(_safe_next(
+                url_for("tasks.detail", task_id=t.id)))
         except (TaskError, ValueError, TypeError, KeyError) as e:
             db.session.rollback()
             flash(str(e), "error")
@@ -616,9 +653,15 @@ def status(task_id):
         flash(f"تم تحديث الحالة إلى: {t.status.label_ar}", "success")
     except CRMError as e:
         flash(str(e), "error")
-    if request.form.get("return_to") == "kanban":
+    # MARSOUD-TASK-CONTEXT — the legacy `return_to=kanban` sentinel
+    # kept meaning "go back to /tasks/". _safe_next() now also
+    # accepts a full URL path so the Kanban card status form can
+    # send the exact scoped URL (e.g. /tasks/?scope=employees&user_id=15)
+    # and land the user back inside the same drill-down.
+    rt = request.form.get("return_to", "")
+    if rt == "kanban":
         return redirect(url_for("tasks.index"))
-    return redirect(url_for("tasks.detail", task_id=t.id))
+    return redirect(_safe_next(url_for("tasks.detail", task_id=t.id)))
 
 
 # ─── MARSOUD-67 + PERM-FIX (PM scope): full task delete (owner/admin) ──
@@ -640,7 +683,10 @@ def delete(task_id):
         current_app.logger.exception("delete_task_fully failed for %s", task_id)
         flash(f"تعذّر حذف المهمة: {e}", "error")
         return redirect(url_for("tasks.detail", task_id=task_id))
-    return redirect(url_for("tasks.index"))
+    # MARSOUD-TASK-CONTEXT — return_to lands the user back on whichever
+    # list they came from (employee drill-down, project detail, etc)
+    # instead of forcing them to the default 'mine' Kanban.
+    return redirect(_safe_next(url_for("tasks.index")))
 
 
 # ─── MARSOUD-TASK-ARCHIVE-01: archive lifecycle ──────────────────────────

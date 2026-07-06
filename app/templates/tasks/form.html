@@ -3,8 +3,15 @@
 {% block content %}
 <div class="card p-6 max-w-3xl">
   {# MARSOUD — multi-file upload at task creation. The form submits as
-     multipart so the route can read request.files.getlist('attachments'). #}
+     multipart so the route can read request.files.getlist('attachments').
+
+     MARSOUD-TASK-CONTEXT — carry the origin URL forward via a hidden
+     `return_to` field so /new and /edit land back on whatever list the
+     user came from (employee drill-down, project detail, etc). Read
+     from ?return_to=... first; fall back to the referrer. #}
+  {% set _return_to = request.args.get('return_to') or request.referrer or '' %}
   <form method="POST" class="space-y-4" enctype="multipart/form-data">
+    {% if _return_to %}<input type="hidden" name="return_to" value="{{ _return_to }}">{% endif %}
     <div>
       <label class="block text-sm font-semibold text-slate-700 mb-2">العنوان</label>
       <input type="text" name="title" required value="{{ task.title if task else '' }}" class="input">
@@ -80,7 +87,10 @@
     {% endif %}
 
     <div class="flex justify-end gap-2">
-      <a href="{{ url_for('tasks.index') }}" class="btn-secondary">إلغاء</a>
+      {# MARSOUD-TASK-CONTEXT — Cancel returns to the origin list too,
+         not just the default /tasks/. #}
+      <a href="{{ _return_to if _return_to else url_for('tasks.index') }}"
+         class="btn-secondary">إلغاء</a>
       <button type="submit" class="btn-primary">{% if task %}حفظ التعديلات{% else %}إنشاء{% endif %}</button>
     </div>
   </form>

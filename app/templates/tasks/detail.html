@@ -17,8 +17,15 @@
         <span class="badge {{ task.status.badge_class }} text-base px-3 py-1.5">{{ task.status.label_ar }}</span>
         {% if task.is_overdue %}<span class="badge badge-overdue">⚠ متأخرة</span>
         {% elif task.deadline_soon %}<span class="badge badge-partial">⏰ خلال 24 ساعة</span>{% endif %}
+        {# MARSOUD-TASK-CONTEXT — pass the origin list URL forward on
+           every write action from this page (edit → route reads it
+           back on POST success; delete → hidden field carried in the
+           form). Keeps the user inside whatever drill-down they
+           reached this task from. #}
+        {% set _rt = request.args.get('return_to') or '' %}
         {% if has_permission('tasks.manage') %}
-        <a href="{{ url_for('tasks.edit', task_id=task.id) }}" class="btn-secondary text-sm">✎ تعديل كامل</a>
+        <a href="{{ url_for('tasks.edit', task_id=task.id, return_to=_rt) if _rt else url_for('tasks.edit', task_id=task.id) }}"
+           class="btn-secondary text-sm">✎ تعديل كامل</a>
         {% endif %}
         {# MARSOUD-PERM-FIX (PM scope) — delete is owner/admin only via the
            dedicated tasks.delete permission, so a project manager who can
@@ -27,6 +34,7 @@
         <form method="POST" action="{{ url_for('tasks.delete', task_id=task.id) }}"
               onsubmit="return confirm('حذف المهمة نهائياً مع كل مرفقاتها وتعليقاتها وسجل نشاطها؟ لا يمكن التراجع.');"
               class="inline">
+          {% if _rt %}<input type="hidden" name="return_to" value="{{ _rt }}">{% endif %}
           <button type="submit" class="btn-secondary text-sm text-rose-600 border-rose-200 hover:bg-rose-50">🗑 حذف المهمة</button>
         </form>
         {% endif %}

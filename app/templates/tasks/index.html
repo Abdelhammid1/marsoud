@@ -12,7 +12,12 @@
     <a href="{{ url_for('tasks.archive_list') }}" class="btn-secondary text-sm">🗂 الأرشيف</a>
     {% endif %}
     {% if has_permission('tasks.manage') %}
-    <a href="{{ url_for('tasks.new') }}" class="btn-primary text-sm">+ مهمة جديدة</a>
+    {# MARSOUD-TASK-CONTEXT — pass the current URL forward so that
+       after creating the task the user lands back on the same
+       Kanban view (e.g. employee drill-down) instead of the default
+       /tasks/. #}
+    <a href="{{ url_for('tasks.new', return_to=request.full_path) }}"
+       class="btn-primary text-sm">+ مهمة جديدة</a>
     {% endif %}
   </div>
 </div>
@@ -216,7 +221,9 @@
     <div class="space-y-2">
       {% for t in columns.get(s, []) %}
       <div class="bg-white rounded-md border border-slate-200 p-3 hover:shadow-soft transition">
-        <a href="{{ url_for('tasks.detail', task_id=t.id) }}" class="text-sm font-semibold text-navy-900 hover:text-brand-600 block">{{ t.title }}</a>
+        {# MARSOUD-TASK-CONTEXT — carry the origin URL through the
+           detail page so Edit / Delete land back on the same list. #}
+        <a href="{{ url_for('tasks.detail', task_id=t.id, return_to=request.full_path) }}" class="text-sm font-semibold text-navy-900 hover:text-brand-600 block">{{ t.title }}</a>
         <div class="text-xs text-slate-500 mt-1">{% if t.project %}{{ t.project.name }}{% else %}<em class="text-slate-400">مهمة مستقلة</em>{% endif %}</div>
         <div class="mt-2 flex items-center justify-between text-xs flex-wrap gap-1">
           <span class="badge {{ t.priority.badge_class }} text-[10px]">{{ t.priority.label_ar }}</span>
@@ -240,8 +247,12 @@
         <div class="mt-0.5 text-[10px] text-slate-400">أنشأها: {{ t.created_by.full_name }}</div>
         {% endif %}
         {% if has_permission('tasks.manage') %}
+        {# MARSOUD-TASK-CONTEXT — send the full current URL as return_to
+           so the status flip lands the user back on the same drill-down
+           (employee, project, scope). The legacy `return_to=kanban`
+           sentinel is still honoured by the route as "go to /tasks/". #}
         <form method="POST" action="{{ url_for('tasks.status', task_id=t.id) }}" class="mt-2 flex gap-1">
-          <input type="hidden" name="return_to" value="kanban">
+          <input type="hidden" name="return_to" value="{{ request.full_path }}">
           <select name="new_status" class="select text-xs py-1">
             {% for st in kanban %}{% if st != t.status %}<option value="{{ st.name }}">→ {{ st.label_ar }}</option>{% endif %}{% endfor %}
           </select>
