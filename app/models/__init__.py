@@ -76,10 +76,12 @@ from app.models.numbering import NumberSequence
 from app.models.platform_audit import PlatformAuditLog, SuperadminImpersonation, PlatformError
 from app.models.api_token import ApiToken
 from app.models.activity import UserSession, UserActivityLog, ACTION_TYPES, SESSION_STATUS
+from app.models.user_file import UserFile
 
 __all__ = [
     "PlatformAuditLog", "SuperadminImpersonation", "PlatformError",
     "ApiToken",
+    "UserFile",
     "UserSession", "UserActivityLog", "ACTION_TYPES", "SESSION_STATUS",
     "User", "user_companies", "UserStatus", "Company",
     "Plan", "SubscriptionReminderSent", "PlatformSetting",
