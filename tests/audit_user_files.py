@@ -368,7 +368,7 @@ def _():
     return f"quota gate refused upload at {MAX_USER_QUOTA_BYTES // (1024*1024)} MB cap"
 
 
-@check("12. /files/<id>/raw carries the nosniff + CSP:sandbox headers")
+@check("12. /files/<id>/raw carries the nosniff header")
 def _():
     # Upload a fresh file (previous owner_a_file was deleted in check 10)
     from app.services.user_files import save_user_file
@@ -382,13 +382,20 @@ def _():
     client = _client_as(_STATE["owner_a_id"], _STATE["company_a_id"])
     r = client.get(f"/files/{row.id}/raw")
     assert r.status_code == 200
-    # X-Content-Type-Options blocks the "renamed HTML as PDF" attack.
+    # X-Content-Type-Options is the actual defense against the "renamed
+    # HTML as PDF" attack — it stops the browser from re-interpreting
+    # the mimetype we declared.
+    #
+    # NOTE (server hotfix d57b181, 2026-07-06): CSP:sandbox and
+    # X-Frame-Options + the iframe sandbox attribute were removed
+    # because Chrome's built-in PDF viewer (PDFium) refuses to render
+    # inside any sandboxed iframe regardless of the tokens allowed.
+    # The remaining defense is nosniff + mimetype-from-extension at
+    # upload time + the ALLOWED_EXTS whitelist. This audit no longer
+    # asserts on the sandbox directive.
     assert r.headers.get("X-Content-Type-Options") == "nosniff", \
         f"missing/wrong X-Content-Type-Options: {r.headers.get('X-Content-Type-Options')!r}"
-    # CSP: sandbox blocks scripts even if a file *were* rendered.
-    csp = (r.headers.get("Content-Security-Policy") or "").lower()
-    assert "sandbox" in csp, f"missing sandbox directive: {csp!r}"
-    return "nosniff + CSP:sandbox both present"
+    return "nosniff header present"
 
 
 @check("13. revoking membership sweeps user_files (rows + disk)")
