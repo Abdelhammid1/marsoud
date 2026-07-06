@@ -20,6 +20,10 @@ app/static/logos/
 # MARSOUD-68 — uploaded company attachments (invoices, contracts, task
 # files). These are tenant data — must NEVER be committed to the repo.
 app/static/docs/
+# MARSOUD-USER-FILES — per-user private uploads. Same rule as above:
+# tenant data, kept outside the repo (and outside static/ so Flask
+# won't serve them publicly).
+app/private_uploads/
 # Database files & backups
 instance/
 *.db

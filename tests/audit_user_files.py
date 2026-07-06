@@ -325,6 +325,110 @@ def _():
     return "row + disk file both removed"
 
 
+# ─── Follow-up gaps identified during first audit ─────────────────────
+@check("11. per-user aggregate quota rejects uploads over the cap")
+def _():
+    from app.services.user_files import (
+        save_user_file, used_quota_bytes, UserFileError,
+        MAX_USER_QUOTA_BYTES,
+    )
+    # Insert a synthetic UserFile row that fills 99% of the quota,
+    # then attempt one more upload — should be refused before any
+    # disk write happens.
+    from app.models import UserFile
+    dummy = UserFile(
+        company_id=_STATE["company_a_id"],
+        user_id=_STATE["owner_a_id"],
+        name="filler.pdf",
+        storage_key=f"{_STATE['company_a_id']}/{_STATE['owner_a_id']}/quota-filler",
+        mimetype="application/pdf",
+        size_bytes=MAX_USER_QUOTA_BYTES - 1024,   # 1 KB short of full
+    )
+    db.session.add(dummy); db.session.commit()
+    used_now = used_quota_bytes(
+        company_id=_STATE["company_a_id"], user_id=_STATE["owner_a_id"],
+    )
+    assert used_now == MAX_USER_QUOTA_BYTES - 1024
+    # An upload larger than the remaining 1 KB should be rejected.
+    fs = _FakeUpload(b"X" * 4096, "over.pdf", "application/pdf")
+    raised = False
+    try:
+        save_user_file(
+            company_id=_STATE["company_a_id"],
+            user_id=_STATE["owner_a_id"],
+            file_storage=fs,
+        )
+    except UserFileError as e:
+        raised = True
+        msg = str(e)
+    assert raised, "expected UserFileError for quota-overflowing upload"
+    assert "حصة" in msg, f"expected quota message, got {msg!r}"
+    # Cleanup the filler so downstream checks aren't affected.
+    db.session.delete(dummy); db.session.commit()
+    return f"quota gate refused upload at {MAX_USER_QUOTA_BYTES // (1024*1024)} MB cap"
+
+
+@check("12. /files/<id>/raw carries the nosniff + CSP:sandbox headers")
+def _():
+    # Upload a fresh file (previous owner_a_file was deleted in check 10)
+    from app.services.user_files import save_user_file
+    fs = _FakeUpload(b"%PDF-1.4\ntest", "sec-check.pdf", "application/pdf")
+    row = save_user_file(
+        company_id=_STATE["company_a_id"],
+        user_id=_STATE["owner_a_id"],
+        file_storage=fs,
+    )
+    _STATE["sec_file_id"] = row.id
+    client = _client_as(_STATE["owner_a_id"], _STATE["company_a_id"])
+    r = client.get(f"/files/{row.id}/raw")
+    assert r.status_code == 200
+    # X-Content-Type-Options blocks the "renamed HTML as PDF" attack.
+    assert r.headers.get("X-Content-Type-Options") == "nosniff", \
+        f"missing/wrong X-Content-Type-Options: {r.headers.get('X-Content-Type-Options')!r}"
+    # CSP: sandbox blocks scripts even if a file *were* rendered.
+    csp = (r.headers.get("Content-Security-Policy") or "").lower()
+    assert "sandbox" in csp, f"missing sandbox directive: {csp!r}"
+    return "nosniff + CSP:sandbox both present"
+
+
+@check("13. revoking membership sweeps user_files (rows + disk)")
+def _():
+    from app.services.user_files import (
+        delete_all_for_user_in_company, resolve_disk_path, save_user_file,
+    )
+    from app.models import UserFile
+    # Upload two files for peer_a
+    row1 = save_user_file(
+        company_id=_STATE["company_a_id"],
+        user_id=_STATE["peer_a_id"],
+        file_storage=_FakeUpload(b"pdf1", "one.pdf", "application/pdf"),
+    )
+    row2 = save_user_file(
+        company_id=_STATE["company_a_id"],
+        user_id=_STATE["peer_a_id"],
+        file_storage=_FakeUpload(b"pdf2", "two.pdf", "application/pdf"),
+    )
+    d1 = resolve_disk_path(row1)
+    d2 = resolve_disk_path(row2)
+    assert d1.exists() and d2.exists()
+
+    # Trigger the cascade sweep directly (route-level integration is
+    # exercised by /users/<id>/revoke — we test the helper here so a
+    # failure narrows to the sweep, not the wider revoke pipeline).
+    deleted = delete_all_for_user_in_company(
+        company_id=_STATE["company_a_id"], user_id=_STATE["peer_a_id"],
+    )
+    assert deleted == 2, f"expected 2 rows removed, got {deleted}"
+    assert not d1.exists() and not d2.exists(), \
+        "disk files remain after cascade sweep"
+    # And no DB rows remain
+    remaining = UserFile.query.filter_by(
+        user_id=_STATE["peer_a_id"], company_id=_STATE["company_a_id"],
+    ).count()
+    assert remaining == 0
+    return "cascade sweep removed 2 rows + both disk files"
+
+
 def main():
     app = create_app()
     passed = failed = 0

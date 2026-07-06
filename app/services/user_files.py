@@ -27,6 +27,10 @@ class UserFileError(Exception):
 
 
 MAX_BYTES = 10 * 1024 * 1024   # 10 MB per the ticket scope answer
+# Aggregate per-user cap: enough for a professional's document set
+# without letting one employee fill the Railway volume. 500 MB
+# equals ~50 max-sized uploads.
+MAX_USER_QUOTA_BYTES = 500 * 1024 * 1024
 # Anything the browser can render inline or reasonably wrap in a
 # download link. Executables are refused so the folder can't be
 # repurposed as a distribution channel for scripts/binaries.
@@ -78,6 +82,16 @@ def save_user_file(*, company_id: int, user_id: int, file_storage) -> UserFile:
         )
     if size <= 0:
         raise UserFileError("الملف فارغ")
+
+    # Aggregate-quota check — one employee shouldn't be able to fill
+    # the volume by uploading many small files under the per-file cap.
+    used = used_quota_bytes(company_id=company_id, user_id=user_id)
+    if used + size > MAX_USER_QUOTA_BYTES:
+        remaining_mb = max(0, MAX_USER_QUOTA_BYTES - used) // (1024*1024)
+        raise UserFileError(
+            f"تجاوزت حصة المجلد ({MAX_USER_QUOTA_BYTES // (1024*1024)} ميجا). "
+            f"المتبقي {remaining_mb} ميجا — احذف ملفات قديمة قبل الرفع."
+        )
 
     dest_dir = _root() / str(company_id) / str(user_id)
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -134,3 +148,45 @@ def files_for_user(*, company_id: int, user_id: int):
              .filter_by(company_id=company_id, user_id=user_id)
              .order_by(UserFile.created_at.desc())
              .all())
+
+
+def used_quota_bytes(*, company_id: int, user_id: int) -> int:
+    """Sum of size_bytes for one user's files in one company. Used by
+    the quota gate + surfaced in the UI so users see 'X of 500 MB'."""
+    from sqlalchemy import func
+    total = db.session.query(func.coalesce(func.sum(UserFile.size_bytes), 0)) \
+        .filter(UserFile.company_id == company_id,
+                UserFile.user_id == user_id) \
+        .scalar()
+    return int(total or 0)
+
+
+def delete_all_for_user_in_company(*, company_id: int, user_id: int) -> int:
+    """Cascade sweep called when a user is removed from a company —
+    drop every DB row + disk file so we don't leave orphaned bytes
+    under private_uploads/user_files/<company>/<user>/. Returns the
+    number of rows deleted (for the caller's audit log)."""
+    rows = UserFile.query.filter_by(
+        company_id=company_id, user_id=user_id,
+    ).all()
+    deleted = 0
+    for r in rows:
+        disk = resolve_disk_path(r)
+        if disk.exists():
+            try:
+                disk.unlink()
+            except OSError:
+                pass
+        db.session.delete(r)
+        deleted += 1
+    # Also try to remove the now-empty user directory. Silent on
+    # failure — the sweep is idempotent and the next run will pick
+    # up anything we missed.
+    user_dir = _root() / str(company_id) / str(user_id)
+    if user_dir.exists():
+        try:
+            user_dir.rmdir()
+        except OSError:
+            pass
+    db.session.commit()
+    return deleted

@@ -217,6 +217,25 @@ def revoke(user_id):
     if user_id == current_user.id:
         flash("لا يمكنك إزالة نفسك", "error")
         return redirect(url_for("users.index"))
+    # MARSOUD-USER-FILES-CASCADE — wipe the ex-member's uploaded
+    # files (DB rows + on-disk bytes) BEFORE severing membership,
+    # so we don't leave orphaned files under
+    # private_uploads/user_files/<co>/<user_id>/ that no route can
+    # reach anymore.
+    from app.services.user_files import delete_all_for_user_in_company
+    try:
+        delete_all_for_user_in_company(
+            company_id=g.active_company.id, user_id=user_id,
+        )
+    except Exception:
+        # A cascade failure must not block the revoke itself — the
+        # membership removal is the security-critical step. Any left
+        # bytes can be swept by the periodic cleanup.
+        import logging
+        logging.getLogger("marsoud.user_files").exception(
+            "cascade sweep failed on revoke user=%s co=%s",
+            user_id, g.active_company.id,
+        )
     db.session.execute(
         user_companies.delete().where(
             (user_companies.c.user_id == user_id) &

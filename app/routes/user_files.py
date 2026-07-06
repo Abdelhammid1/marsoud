@@ -26,7 +26,8 @@ from app.models import UserFile, User, Employee
 from app.services.permissions import has_permission
 from app.services.user_files import (
     save_user_file, delete_user_file, resolve_disk_path,
-    files_for_user, UserFileError, MAX_BYTES,
+    files_for_user, used_quota_bytes,
+    UserFileError, MAX_BYTES, MAX_USER_QUOTA_BYTES,
 )
 
 bp = Blueprint("user_files", __name__)
@@ -68,12 +69,20 @@ def _list_context_for(target_user: User):
     ).first()
     header_name = (emp.full_name if emp else target_user.full_name) \
         or target_user.email
+    used = used_quota_bytes(company_id=cid, user_id=target_user.id)
     return {
         "files": files,
         "target_user": target_user,
         "header_name": header_name,
         "is_own_folder": target_user.id == current_user.id,
         "max_bytes": MAX_BYTES,
+        # MARSOUD-USER-FILES-QUOTA — surface consumption so the user
+        # sees "X of 500 MB" and knows when they're about to hit the
+        # aggregate cap.
+        "quota_used_bytes": used,
+        "quota_max_bytes": MAX_USER_QUOTA_BYTES,
+        "quota_pct": min(100, int(used * 100 / MAX_USER_QUOTA_BYTES))
+                     if MAX_USER_QUOTA_BYTES else 0,
     }
 
 
@@ -111,6 +120,26 @@ def detail(file_id):
                              is_owner=(f.user_id == current_user.id))
 
 
+def _harden(resp):
+    """MARSOUD-USER-FILES-SEC — attach the security headers we want
+    on any user-uploaded byte stream:
+      · X-Content-Type-Options: nosniff — forbid browsers from
+        overriding the mimetype we declared (defends against an
+        HTML file uploaded as .pdf being sniffed + rendered as
+        HTML inside our iframe, where JS would have same-origin
+        access).
+      · Content-Security-Policy: sandbox — belt-and-braces on top
+        of the iframe sandbox in the detail template. If the file
+        is ever fetched via a route that bypasses that iframe,
+        scripts/forms/plugins are still disabled at the response
+        layer.
+    """
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["Content-Security-Policy"] = "sandbox"
+    resp.headers["X-Frame-Options"] = "SAMEORIGIN"
+    return resp
+
+
 @bp.route("/<int:file_id>/raw")
 @login_required
 def raw(file_id):
@@ -121,8 +150,10 @@ def raw(file_id):
     disk = resolve_disk_path(f)
     if not disk.exists():
         abort(404)
-    return send_file(str(disk), mimetype=f.mimetype or "application/octet-stream",
-                       as_attachment=False, download_name=f.name)
+    resp = send_file(str(disk),
+                      mimetype=f.mimetype or "application/octet-stream",
+                      as_attachment=False, download_name=f.name)
+    return _harden(resp)
 
 
 @bp.route("/<int:file_id>/download")
@@ -135,8 +166,10 @@ def download(file_id):
     disk = resolve_disk_path(f)
     if not disk.exists():
         abort(404)
-    return send_file(str(disk), mimetype=f.mimetype or "application/octet-stream",
-                       as_attachment=True, download_name=f.name)
+    resp = send_file(str(disk),
+                      mimetype=f.mimetype or "application/octet-stream",
+                      as_attachment=True, download_name=f.name)
+    return _harden(resp)
 
 
 @bp.route("/<int:file_id>/delete", methods=["POST"])

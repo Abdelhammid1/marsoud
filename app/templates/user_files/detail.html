@@ -39,8 +39,17 @@
   {% if mt == 'application/pdf' %}
     {# PDF preview — iframe with the raw stream URL. Height clamps to
        viewport so mobile users see something usable without infinite
-       scroll. #}
+       scroll.
+       MARSOUD-USER-FILES-SEC — the response also carries CSP:sandbox
+       + X-Content-Type-Options:nosniff, so even if a malicious upload
+       were sniffed as HTML the frame can't run scripts or steal the
+       parent's session. The iframe `sandbox` attribute is
+       belt-and-braces: `allow-same-origin` lets the browser's built-in
+       PDF viewer fetch its own binary, but scripts / plugins / forms
+       stay off. #}
     <iframe src="{{ url_for('user_files.raw', file_id=f.id) }}"
+            sandbox="allow-same-origin"
+            referrerpolicy="no-referrer"
             style="width:100%;height:min(80vh, 900px);border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc"
             title="{{ f.name }}"></iframe>
   {% elif mt.startswith('image/') %}

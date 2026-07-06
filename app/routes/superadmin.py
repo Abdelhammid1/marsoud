@@ -236,6 +236,21 @@ def user_unlink(user_id, company_id):
     user = db.session.get(User, user_id) or _404()
     company = db.session.get(Company, company_id) or _404()
     if company in user.companies:
+        # MARSOUD-USER-FILES-CASCADE — same rationale as in
+        # users.revoke: wipe the user's uploads for THIS company
+        # before we sever the membership, so no orphan bytes stay
+        # under private_uploads/user_files/<co>/<user_id>/.
+        from app.services.user_files import delete_all_for_user_in_company
+        try:
+            delete_all_for_user_in_company(
+                company_id=company_id, user_id=user_id,
+            )
+        except Exception:
+            import logging
+            logging.getLogger("marsoud.user_files").exception(
+                "cascade sweep failed on unlink user=%s co=%s",
+                user_id, company_id,
+            )
         user.companies.remove(company)
         db.session.commit()
         log_platform_action("user_unlink_from_company",

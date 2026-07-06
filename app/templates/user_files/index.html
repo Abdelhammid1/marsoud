@@ -24,9 +24,20 @@
         {% endif %}
       </p>
     </div>
-    <div class="text-sm text-slate-500">
+    <div class="text-sm text-slate-500 text-end">
       {{ files|length }} ملف
+      {# MARSOUD-USER-FILES-QUOTA — show consumption so the user
+         sees exactly how close they are to the 500 MB cap. #}
+      <div class="text-xs mt-1 font-mono" dir="ltr">
+        {{ '%.1f'|format(quota_used_bytes / (1024*1024)) }} /
+        {{ (quota_max_bytes // (1024*1024)) }} MB
+      </div>
     </div>
+  </div>
+  <div class="mt-3 h-2 rounded bg-slate-100 overflow-hidden">
+    <div class="h-full transition-all"
+         style="width: {{ quota_pct }}%;
+                background: {% if quota_pct > 90 %}#dc2626{% elif quota_pct > 70 %}#f59e0b{% else %}#059669{% endif %};"></div>
   </div>
 </div>
 
