@@ -67,7 +67,7 @@ def _list_context_for(target_user: User):
     emp = Employee.query.filter_by(
         company_id=cid, user_id=target_user.id,
     ).first()
-    header_name = (emp.full_name if emp else target_user.full_name) \
+    header_name = (emp.name if emp else target_user.full_name) \
         or target_user.email
     used = used_quota_bytes(company_id=cid, user_id=target_user.id)
     return {
