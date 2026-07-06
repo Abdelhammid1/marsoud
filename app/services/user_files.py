@@ -26,7 +26,7 @@ class UserFileError(Exception):
     """Raised for user-facing upload/delete failures."""
 
 
-MAX_BYTES = 10 * 1024 * 1024   # 10 MB per the ticket scope answer
+MAX_BYTES = 50 * 1024 * 1024   # 50 MB (raised from 10 MB per Abdelhamid 2026-07-06)
 # Aggregate per-user cap: enough for a professional's document set
 # without letting one employee fill the Railway volume. 500 MB
 # equals ~50 max-sized uploads.
