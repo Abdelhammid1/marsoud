@@ -48,7 +48,6 @@
        PDF viewer fetch its own binary, but scripts / plugins / forms
        stay off. #}
     <iframe src="{{ url_for('user_files.raw', file_id=f.id) }}"
-            sandbox="allow-same-origin"
             referrerpolicy="no-referrer"
             style="width:100%;height:min(80vh, 900px);border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc"
             title="{{ f.name }}"></iframe>

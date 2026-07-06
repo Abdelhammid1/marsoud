@@ -128,15 +128,14 @@ def _harden(resp):
         HTML file uploaded as .pdf being sniffed + rendered as
         HTML inside our iframe, where JS would have same-origin
         access).
-      · Content-Security-Policy: sandbox — belt-and-braces on top
-        of the iframe sandbox in the detail template. If the file
-        is ever fetched via a route that bypasses that iframe,
-        scripts/forms/plugins are still disabled at the response
-        layer.
+
+    NOTE (2026-07-06): CSP:sandbox and X-Frame-Options were removed —
+    they broke Chrome's built-in PDF viewer inside the iframe (PDFium
+    refuses to run under sandbox regardless of tokens). nosniff +
+    extension-derived mimetype at upload time remain the actual
+    defense against a disguised HTML file.
     """
     resp.headers["X-Content-Type-Options"] = "nosniff"
-    resp.headers["Content-Security-Policy"] = "sandbox"
-    resp.headers["X-Frame-Options"] = "SAMEORIGIN"
     return resp
 
 
