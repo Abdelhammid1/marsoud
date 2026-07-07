@@ -1,6 +1,20 @@
 {% extends "base.html" %}
 {% block page_title %}{% if bill %}تعديل فاتورة {{ bill.number }}{% else %}فاتورة مورد جديدة{% endif %}{% endblock %}
 {% block content %}
+
+{% if prefill %}
+{# MARSOUD-RECURRING-PAY — banner + inline JSON payload the init
+   script below reads to prefill vendor / payment / items from the
+   source recurring bill. The user still submits the form manually;
+   nothing is written until they do. #}
+<div class="mb-4 rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-900">
+  💰 <strong>فاتورة جديدة من قالب متكرر:</strong>
+  {{ prefill.recurring_label }} — البيانات منسوخة أوتوماتيك، عدّل اللي عايز
+  تعدله ثم اضغط <b>حفظ + تسجيل القيد</b>. الفاتورة المتكررة نفسها هتفضل زي ما هي.
+</div>
+<script id="recurring-prefill" type="application/json">{{ prefill|tojson }}</script>
+{% endif %}
+
 <form method="POST" class="space-y-4">
   <div class="card p-6">
     <div class="grid grid-cols-3 gap-4">
@@ -272,7 +286,68 @@ function escapeHtml(s) { return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','
 const today = new Date(); document.getElementById('issue_date').value = today.toISOString().split('T')[0];
 const due = new Date(today); due.setDate(due.getDate() + 30);
 document.getElementById('due_date').value = due.toISOString().split('T')[0];
-addItem();
+
+// MARSOUD-RECURRING-PAY — hydrate the form from a recurring-bill
+// template when the server rendered a `prefill` payload. The account /
+// variant / warehouse dropdowns are lazy-loaded async so we await
+// each row's population before assigning the incoming value.
+async function applyRecurringPrefill() {
+  const el = document.getElementById('recurring-prefill');
+  if (!el) { addItem(); return; }
+  let data = null;
+  try { data = JSON.parse(el.textContent || 'null'); }
+  catch(_) { addItem(); return; }
+  if (!data) { addItem(); return; }
+  // Header fields — vendor / payment_method / tax_rate / notes.
+  if (data.vendor_id) document.getElementById('vendor_id').value = String(data.vendor_id);
+  if (data.payment_method) document.getElementById('payment_method').value = data.payment_method;
+  if (data.tax_rate !== undefined) document.getElementById('tax_rate').value = data.tax_rate;
+  const notesEl = document.querySelector('textarea[name="notes"]');
+  if (notesEl && data.notes) notesEl.value = data.notes;
+  onPaymentMethodChange();
+
+  // Items — build one row at a time so async loaders finish before
+  // the next row's setup fires.
+  const items = data.items || [];
+  if (!items.length) { addItem(); return; }
+  const tbody = document.getElementById('items-body');
+  for (const it of items) {
+    addItem();
+    const tr = tbody.lastElementChild;
+    tr.querySelector('input[name="item_description[]"]').value = it.description || '';
+    // Change line_type first so refreshAccountDropdown loads the right
+    // account set + so inventory-fields render if needed.
+    const typeSel = tr.querySelector('select[name="item_line_type[]"]');
+    typeSel.value = it.line_type || 'EXPENSE';
+    await onLineTypeChange(tr);
+    // Account
+    if (it.account_id) {
+      tr.querySelector('select[name="item_account_id[]"]').value = String(it.account_id);
+    }
+    tr.querySelector('input[name="item_quantity[]"]').value = it.quantity || 1;
+    tr.querySelector('input[name="item_unit_price[]"]').value = it.unit_price || 0;
+    // INVENTORY extras (variant + warehouse + unit)
+    if (it.line_type === 'INVENTORY' && it.variant_id) {
+      const variantSel = tr.querySelector('select[name="item_variant_id[]"]');
+      variantSel.value = String(it.variant_id);
+      onVariantPick(tr);
+      if (it.unit_id) {
+        const picker = tr.querySelector('.unit-picker');
+        if (picker) picker.value = String(it.unit_id);
+      }
+      if (it.warehouse_id) {
+        tr.querySelector('select[name="item_warehouse_id[]"]').value = String(it.warehouse_id);
+      }
+    }
+  }
+  calcTotals();
+}
+applyRecurringPrefill().catch(err => {
+  console.error('prefill failed', err);
+  // Fallback: keep the default single-empty-row behavior if anything
+  // goes wrong so the user isn't stuck with a blank form.
+  if (!document.getElementById('items-body').children.length) addItem();
+});
 onPaymentMethodChange();
 </script>
 {% endblock %}

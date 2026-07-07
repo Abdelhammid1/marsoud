@@ -281,7 +281,56 @@ def new():
             db.session.rollback()
             flash(f"خطأ: {e}", "error")
 
-    return render_template("vendor_bills/form.html", bill=None, vendors=vendors)
+    # MARSOUD-RECURRING-PAY — support ?from_recurring=<id> to prefill the
+    # form from a recurring-bill template. The user still has to click
+    # save; nothing is written until they do. Date defaults to today
+    # (the JS init at the bottom of the template) so the new occurrence
+    # is dated correctly out of the box.
+    prefill = _prefill_from_recurring(
+        request.args.get("from_recurring", type=int))
+    return render_template(
+        "vendor_bills/form.html", bill=None, vendors=vendors,
+        prefill=prefill,
+    )
+
+
+def _prefill_from_recurring(recurring_id):
+    """Return a dict the form template's JS can consume to populate
+    the vendor / payment method / tax / notes header and the item
+    rows from a RecurringBill's source vendor_bill. Returns None
+    when the id is missing, unknown, or points to another company."""
+    if not recurring_id:
+        return None
+    from app.models import RecurringBill
+    rb = db.session.get(RecurringBill, recurring_id)
+    if not rb or rb.company_id != g.active_company.id:
+        return None
+    src = rb.source_bill
+    if not src:
+        return None
+    return {
+        "recurring_id": rb.id,
+        "recurring_label": rb.label_ar,
+        "vendor_id": src.vendor_id,
+        "payment_method": (src.payment_method.value
+                            if src.payment_method else "CASH"),
+        "tax_rate": float(src.tax_rate or 0),
+        "notes": src.notes or "",
+        "items": [
+            {
+                "description": it.description or "",
+                "line_type": (it.line_type.value
+                               if it.line_type else "EXPENSE"),
+                "account_id": it.account_id,
+                "quantity": float(it.quantity or 0),
+                "unit_price": float(it.unit_price or 0),
+                "unit_id": it.unit_id,
+                "variant_id": it.variant_id,
+                "warehouse_id": it.warehouse_id,
+            }
+            for it in src.items
+        ],
+    }
 
 
 @bp.route("/<int:bill_id>")

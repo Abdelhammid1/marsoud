@@ -50,6 +50,16 @@
           </td>
           <td>
             {% if rb.active %}
+            {# MARSOUD-RECURRING-PAY — one-click open of a new vendor
+               bill pre-filled from this template. The recurring row
+               itself is untouched; the new bill goes through the
+               standard save/post pipeline. #}
+            <a href="{{ url_for('vendor_bills.new', from_recurring=rb.id) }}"
+               class="text-xs text-emerald-700 hover:underline font-semibold"
+               title="افتح فاتورة جديدة منسوخة من دي، عدّل، احفظ.">
+              💰 ادفع
+            </a>
+            <span class="mx-1 text-slate-300">|</span>
             <form method="POST" action="{{ url_for('recurring_bills.deactivate', rb_id=rb.id) }}"
                   onsubmit="return confirm('إيقاف التكرار؟ التوقّعات الجايّة هتختفي، اللي اتنفّذ كما هو.');"
                   class="inline">
