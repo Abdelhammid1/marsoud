@@ -225,6 +225,167 @@ def _():
     return "bystander got 0 notifications"
 
 
+# ─── Gap-closing checks ───────────────────────────────────────────────
+@check("6. creator IS assignee — no duplicate notifications on self-edit")
+def _():
+    """Sanity check: if the creator is ALSO one of the assignees and
+    they act on their own task, we shouldn't spam them. watchers_for()
+    excludes the actor so this holds as a degenerate case."""
+    from app.models import Task, TaskStatus, task_assignees
+    from app.services.tasks_extras import apply_inline_edit
+    _clear_notifications()
+    # Add creator to the assignee set alongside the existing assignee.
+    t = db.session.get(Task, _STATE["task_id"])
+    db.session.execute(task_assignees.insert().values(
+        task_id=t.id, user_id=_STATE["creator_id"],
+        assigned_by_id=_STATE["creator_id"],
+    ))
+    db.session.commit()
+    # Creator edits priority — should NOT self-ping.
+    apply_inline_edit(t, priority="LOW",
+                       user_id=_STATE["creator_id"])
+    creator_notes = _notifications_for(_STATE["creator_id"])
+    assert len(creator_notes) == 0, \
+        f"creator-as-assignee still self-notified: {len(creator_notes)}"
+    # Assignee should still get their update ping.
+    assignee_notes = _notifications_for(_STATE["assignee_id"],
+                                            kind="TASK_UPDATED")
+    assert len(assignee_notes) == 1
+    # Clean the extra assignee row for downstream checks.
+    from sqlalchemy import text as _text
+    with db.engine.begin() as conn:
+        conn.execute(_text(
+            "DELETE FROM task_assignees WHERE task_id = :t AND user_id = :u"
+        ), {"t": t.id, "u": _STATE["creator_id"]})
+    return "no self-ping even when creator is also an assignee"
+
+
+@check("7. multi-field edit in one call fires exactly one TASK_UPDATED")
+def _():
+    """apply_inline_edit takes title/description/priority/deadline
+    in one shot. The creator should get ONE consolidated
+    TASK_UPDATED, not four (one per field)."""
+    from app.models import Task
+    from app.services.tasks_extras import apply_inline_edit
+    _clear_notifications()
+    t = db.session.get(Task, _STATE["task_id"])
+    apply_inline_edit(
+        t, title="عنوان جديد بعد التعديل",
+        priority="MEDIUM", deadline="2026-08-31",
+        user_id=_STATE["assignee_id"],
+    )
+    creator_notes = _notifications_for(_STATE["creator_id"],
+                                          kind="TASK_UPDATED")
+    assert len(creator_notes) == 1, \
+        f"expected exactly 1 TASK_UPDATED, got {len(creator_notes)}"
+    return "one consolidated notification per multi-field edit"
+
+
+@check("8. status branch does NOT double-fire TASK_UPDATED")
+def _():
+    """When status is included among the changed fields, the status
+    branch already sends TASK_STATUS_CHANGED. The tail block that
+    emits TASK_UPDATED for other-field edits must NOT fire — otherwise
+    the creator gets both."""
+    from app.models import Task
+    from app.services.tasks_extras import apply_inline_edit
+    _clear_notifications()
+    t = db.session.get(Task, _STATE["task_id"])
+    apply_inline_edit(
+        t, priority="HIGH", status="DONE",
+        user_id=_STATE["assignee_id"],
+    )
+    status_notes = _notifications_for(
+        _STATE["creator_id"], kind="TASK_STATUS_CHANGED")
+    updated_notes = _notifications_for(
+        _STATE["creator_id"], kind="TASK_UPDATED")
+    assert len(status_notes) == 1, \
+        f"expected 1 status note, got {len(status_notes)}"
+    assert len(updated_notes) == 0, (
+        f"status+priority combo emitted a redundant TASK_UPDATED "
+        f"({len(updated_notes)})"
+    )
+    return "status flip + priority = 1 status note, 0 update notes"
+
+
+@check("9. Notification row carries the right link_url")
+def _():
+    """The bell icon links back to the task. If link_url is wrong,
+    the notification is useless."""
+    from app.models import Task
+    from app.services.tasks_extras import add_comment
+    _clear_notifications()
+    t = db.session.get(Task, _STATE["task_id"])
+    add_comment(t, "تحقق من link_url",
+                 user_id=_STATE["assignee_id"])
+    creator_notes = _notifications_for(_STATE["creator_id"],
+                                          kind="TASK_COMMENT")
+    assert len(creator_notes) == 1
+    expected = f"/tasks/{_STATE['task_id']}"
+    assert creator_notes[0].link_url == expected, (
+        f"link_url = {creator_notes[0].link_url!r}, expected {expected!r}"
+    )
+    return f"link_url points at {expected}"
+
+
+@check("10. full /tasks/<id>/edit POST notifies watchers too")
+def _():
+    """apply_inline_edit is one code path; the "full edit" form
+    (routes/tasks.py::edit) is a separate one that recomputes the
+    task by hand. It emits its own TASK_UPDATED notification — this
+    check exercises the whole POST round-trip so a future refactor
+    can't silently drop the fan-out on this path."""
+    from flask import current_app
+    from app.models import Task
+    from werkzeug.security import generate_password_hash
+    _clear_notifications()
+    # Give the assignee a real login so the route accepts them.
+    from app.models import User
+    assignee = db.session.get(User, _STATE["assignee_id"])
+    assignee.password_hash = generate_password_hash(
+        "x", method="pbkdf2:sha256")
+    db.session.commit()
+
+    _reset_g()
+    client = current_app.test_client()
+    with client.session_transaction() as sess:
+        sess["_user_id"] = str(_STATE["assignee_id"])
+        sess["_fresh"] = True
+        sess["active_company_id"] = _STATE["company_id"]
+    r = client.post(
+        f"/tasks/{_STATE['task_id']}/edit",
+        data={
+            "title": "عنوان جديد من full edit",
+            "description": "وصف مُحدَّث",
+            "priority": "HIGH",
+            "deadline": "",
+            "assignee_ids": str(_STATE["assignee_id"]),
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code in (200, 302), f"status={r.status_code}"
+    creator_notes = _notifications_for(
+        _STATE["creator_id"], kind="TASK_UPDATED")
+    assert len(creator_notes) == 1, (
+        f"creator should get 1 TASK_UPDATED from full-edit route, "
+        f"got {len(creator_notes)}"
+    )
+    return f"full-edit POST fired 1 TASK_UPDATED to creator"
+
+
+def _reset_g():
+    """Clear g values Flask-Login caches on the app-context g. Without
+    this the first check's identity bleeds into any later test_client
+    call — same trick as audit_user_files."""
+    from flask import g
+    for key in ("_login_user", "active_company", "user_companies",
+                 "impersonating"):
+        try:
+            g.pop(key, None)
+        except Exception:
+            pass
+
+
 def main():
     app = create_app()
     passed = failed = 0

@@ -362,11 +362,14 @@ def apply_inline_edit(task, *, title=None, description=None,
     if changed:
         # MARSOUD-TASK-NOTIFY-CREATOR — for non-status inline edits
         # (title/description/priority/deadline) the status branch
-        # above didn't fire, so the creator still wouldn't hear.
-        # Send a single TASK_UPDATED note in that case, to whoever
-        # watches the task minus the actor. Skip if status changed
-        # (already covered) or actor IS the creator.
-        if status is None and uid != task.created_by_id:
+        # above didn't fire, so watchers wouldn't hear. Send a
+        # single TASK_UPDATED note in that case, excluding the
+        # actor themselves (watchers_for handles the exclude —
+        # so we don't double-guard on "actor is creator" here;
+        # doing so would silently drop the assignee's ping when
+        # the creator edits the task).
+        # Skip only when a status flip already covered the fan-out.
+        if status is None:
             for rid in watchers_for(task, exclude={uid}):
                 _notify(rid, company_id=task.company_id,
                         kind=NotificationKind.TASK_UPDATED,

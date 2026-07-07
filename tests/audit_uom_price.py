@@ -90,6 +90,9 @@ def _teardown_company(company_id):
         conn.execute(text("DELETE FROM stock_balances WHERE variant_id NOT IN (SELECT id FROM product_variants)"))
         conn.execute(text("DELETE FROM stock_movements WHERE variant_id NOT IN (SELECT id FROM product_variants)"))
         conn.execute(text("DELETE FROM stock_lots WHERE variant_id NOT IN (SELECT id FROM product_variants)"))
+        # Fixture user (created directly, not via company scope) — the
+        # loop above misses it and re-runs collide on the unique email.
+        conn.execute(text("DELETE FROM users WHERE email = 'pos.cashier@audit.test'"))
 
 
 @check("1. effective_sale_price: explicit override wins")
