@@ -19,6 +19,12 @@
       </div>
     </div>
     <div class="flex items-center gap-2 flex-wrap">
+      {# MARSOUD-USER-FILES-TAB — open the raw file inline in a fresh
+         tab. Useful when the embed preview below isn't ideal (mobile
+         PDF viewers especially). #}
+      <a href="{{ url_for('user_files.raw', file_id=f.id) }}"
+         target="_blank" rel="noopener noreferrer"
+         class="btn-secondary text-sm">↗ فتح في تاب جديد</a>
       <a href="{{ url_for('user_files.download', file_id=f.id) }}"
          class="btn-secondary text-sm">⬇ تنزيل</a>
       {% if is_owner %}
@@ -37,20 +43,45 @@
   <h3 class="font-bold text-navy-900 mb-3">👁 معاينة</h3>
   {% set mt = (f.mimetype or '')|lower %}
   {% if mt == 'application/pdf' %}
-    {# PDF preview — iframe with the raw stream URL. Height clamps to
-       viewport so mobile users see something usable without infinite
-       scroll.
-       MARSOUD-USER-FILES-SEC — the response also carries CSP:sandbox
-       + X-Content-Type-Options:nosniff, so even if a malicious upload
-       were sniffed as HTML the frame can't run scripts or steal the
-       parent's session. The iframe `sandbox` attribute is
-       belt-and-braces: `allow-same-origin` lets the browser's built-in
-       PDF viewer fetch its own binary, but scripts / plugins / forms
-       stay off. #}
-    <iframe src="{{ url_for('user_files.raw', file_id=f.id) }}"
-            referrerpolicy="no-referrer"
-            style="width:100%;height:min(80vh, 900px);border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc"
-            title="{{ f.name }}"></iframe>
+    {# PDF preview — iframe on desktop, big "open in new tab" CTA on
+       mobile. Rationale (MARSOUD-USER-FILES-MOBILE-PDF, 2026-07-07):
+       iOS Safari and Chrome mobile both render PDFs inside iframes
+       but their touch-scroll on the embedded PDF viewer is broken —
+       users can't reach page 2. The native browser PDF viewer in a
+       fresh tab handles scroll correctly on every platform, so on
+       phones we send the user straight there instead of showing a
+       viewer that only lets them read page 1. #}
+    <div class="pdf-preview-desktop"
+         style="width:100%;height:min(80vh, 900px);border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;overflow:hidden">
+      <iframe src="{{ url_for('user_files.raw', file_id=f.id) }}"
+              referrerpolicy="no-referrer"
+              style="width:100%;height:100%;border:0"
+              title="{{ f.name }}"></iframe>
+    </div>
+    <div class="pdf-preview-mobile">
+      <a href="{{ url_for('user_files.raw', file_id=f.id) }}"
+         target="_blank" rel="noopener noreferrer"
+         class="block bg-slate-50 rounded-lg p-6 text-center hover:bg-slate-100 transition"
+         style="border:1px solid #e2e8f0">
+        <div class="text-4xl mb-2">📄</div>
+        <div class="font-semibold text-navy-900 mb-1">افتح الـ PDF لعرضه</div>
+        <div class="text-xs text-slate-500">
+          العرض داخل الصفحة على الموبايل ما بيسمحش بالتمرير للصفحات
+          التانية — دوس هنا يفتح في تاب جديد وتقدر تقرأ كل الصفحات
+          بسهولة.
+        </div>
+        <div class="mt-3 inline-block btn-primary text-sm">↗ فتح PDF</div>
+      </a>
+    </div>
+    <style>
+      /* Show iframe on ≥md (768px+), swap to the CTA on phones. */
+      .pdf-preview-desktop { display: none; }
+      .pdf-preview-mobile { display: block; }
+      @media (min-width: 768px) {
+        .pdf-preview-desktop { display: block; }
+        .pdf-preview-mobile { display: none; }
+      }
+    </style>
   {% elif mt.startswith('image/') %}
     <div class="bg-slate-50 rounded-lg p-4 text-center">
       <img src="{{ url_for('user_files.raw', file_id=f.id) }}"

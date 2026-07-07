@@ -81,9 +81,16 @@
       <div class="text-xs text-slate-400 mt-1">
         {{ f.created_at | company_dt('%Y-%m-%d %H:%M') }}
       </div>
-      <div class="flex items-center gap-2 mt-3">
+      <div class="flex items-center gap-2 mt-3 flex-wrap">
         <a href="{{ url_for('user_files.detail', file_id=f.id) }}"
            class="text-xs text-brand-600 hover:underline">👁 عرض</a>
+        {# MARSOUD-USER-FILES-TAB — open the raw file inline in a
+           fresh tab. rel=noopener stops the new tab from touching
+           window.opener (defense-in-depth alongside the auth gate
+           on /raw itself). #}
+        <a href="{{ url_for('user_files.raw', file_id=f.id) }}"
+           target="_blank" rel="noopener noreferrer"
+           class="text-xs text-brand-600 hover:underline">↗ فتح في تاب جديد</a>
         <a href="{{ url_for('user_files.download', file_id=f.id) }}"
            class="text-xs text-slate-500 hover:underline">⬇ تنزيل</a>
         {% if is_own_folder %}
