@@ -620,6 +620,30 @@ def edit(task_id):
             set_assignees(t, ids, actor_id=current_user.id)
             db.session.commit()
 
+            # MARSOUD-TASK-NOTIFY-CREATOR — full edit doesn't route
+            # through apply_inline_edit, so ping every watcher
+            # (assignees + creator, minus the actor) once here so the
+            # creator hears about title/description/priority/deadline
+            # changes made from the edit form too.
+            if current_user.id != t.created_by_id:
+                try:
+                    from app.services.tasks_extras import (
+                        _notify, watchers_for,
+                    )
+                    from app.models import NotificationKind
+                    for rid in watchers_for(t, exclude={current_user.id}):
+                        _notify(rid, company_id=t.company_id,
+                                 kind=NotificationKind.TASK_UPDATED,
+                                 title=f"✏️ تحديث على مهمة: {t.title}",
+                                 body=None,
+                                 link_url=f"/tasks/{t.id}",
+                                 task=t)
+                    db.session.commit()
+                except Exception:
+                    import logging
+                    logging.getLogger("ledgeros.tasks").exception(
+                        "watcher notify on full edit failed")
+
             flash("تم حفظ التعديلات", "success")
             return redirect(_safe_next(
                 url_for("tasks.detail", task_id=t.id)))

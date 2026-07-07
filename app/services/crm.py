@@ -200,18 +200,22 @@ def set_task_status(task, new_status, *, by_user_id=None):
         project.recompute_progress()
     db.session.commit()
 
-    # Notify assignee (if someone else moved it) + project manager
+    # Notify every watcher (assignees + creator) + project manager,
+    # skipping the actor. MARSOUD-TASK-NOTIFY-CREATOR: the creator
+    # used to be missing from this set — the ticket calls this out
+    # explicitly ("عاوز لما اعمل مهمة لحد ويعمل عليها اي ابديت
+    # يجيلي نوتفكيشن داخل السيستم"). watchers_for() handles the
+    # assignees + creator union in one place.
     try:
         from app.services.opsflow_extras import notify_users
+        from app.services.tasks_extras import watchers_for
         from app.models import NotificationKind
-        recipients = set()
-        if by_user_id != task.assigned_to_id:
-            recipients.add(task.assigned_to_id)
+        recipients = watchers_for(task, exclude={by_user_id})
         if project and project.manager_id and by_user_id != project.manager_id:
             recipients.add(project.manager_id)
         if recipients:
             notify_users(
-                recipients, company_id=task.company_id,
+                list(recipients), company_id=task.company_id,
                 kind=NotificationKind.TASK_STATUS_CHANGED,
                 title=f"تغيرت حالة مهمة: {task.title}",
                 body=f"{old.label_ar} → {new_status.label_ar}",

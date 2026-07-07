@@ -98,6 +98,26 @@ def assignee_ids_for(task):
     return ids
 
 
+def watchers_for(task, *, exclude=None):
+    """MARSOUD-TASK-NOTIFY-CREATOR — one central function that returns
+    every user who should be pinged when a task changes: the current
+    assignee set PLUS the person who created the task, minus any
+    ids the caller wants filtered out (typically the actor
+    themselves).
+
+    Motivation: previously updates only pinged assignees, so a
+    project manager who created a task and handed it off never
+    heard back when the assignee moved it forward. Every notify
+    site in this module (status flip, inline edit, comment, full
+    edit) now routes through this helper.
+    """
+    exclude = set(exclude or [])
+    recipients = assignee_ids_for(task)
+    if task.created_by_id:
+        recipients.add(task.created_by_id)
+    return recipients - exclude
+
+
 def set_assignees(task, user_ids, *, actor_id=None):
     """Replace the assignee set, sync primary, log, and notify new members."""
     new_ids = {int(x) for x in user_ids if x}
@@ -244,8 +264,10 @@ def add_comment(task, content, *, user_id=None,
     log_activity(task, "COMMENT_ADDED",
                  after={"preview": text[:100]}, user_id=uid)
 
-    # Notify everyone watching the task except the commenter.
-    recipients = assignee_ids_for(task) - {uid}
+    # Notify everyone watching the task except the commenter — this
+    # now includes the CREATOR so a PM who opened the task hears back
+    # every time the assignee posts an update.
+    recipients = watchers_for(task, exclude={uid})
     for rid in recipients:
         _notify(rid, company_id=task.company_id,
                 kind=NotificationKind.TASK_COMMENT,
@@ -326,8 +348,9 @@ def apply_inline_edit(task, *, title=None, description=None,
                 task.completed_at = datetime.utcnow()
             else:
                 task.completed_at = None
-            # Notify assignees (except actor) about status changes.
-            for rid in assignee_ids_for(task) - {uid}:
+            # Notify every watcher (assignees + creator) except the
+            # actor — the creator now hears about status flips too.
+            for rid in watchers_for(task, exclude={uid}):
                 _notify(rid, company_id=task.company_id,
                         kind=NotificationKind.TASK_STATUS_CHANGED,
                         title=f"📊 تحديث حالة: {task.title}",
@@ -337,6 +360,20 @@ def apply_inline_edit(task, *, title=None, description=None,
             changed = True
 
     if changed:
+        # MARSOUD-TASK-NOTIFY-CREATOR — for non-status inline edits
+        # (title/description/priority/deadline) the status branch
+        # above didn't fire, so the creator still wouldn't hear.
+        # Send a single TASK_UPDATED note in that case, to whoever
+        # watches the task minus the actor. Skip if status changed
+        # (already covered) or actor IS the creator.
+        if status is None and uid != task.created_by_id:
+            for rid in watchers_for(task, exclude={uid}):
+                _notify(rid, company_id=task.company_id,
+                        kind=NotificationKind.TASK_UPDATED,
+                        title=f"✏️ تحديث على مهمة: {task.title}",
+                        body=None,
+                        link_url=f"/tasks/{task.id}",
+                        task=task)
         db.session.commit()
     return changed
 
