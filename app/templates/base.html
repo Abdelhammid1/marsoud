@@ -123,12 +123,56 @@ tailwind.config = {
   table.data-table { width: 100%; border-collapse: collapse; }
   table.data-table thead th {
     background: #F8FAFC; color: #475569; font-weight: 600; font-size: 0.875rem;
-    padding: 0.75rem 1rem; text-align: right; border-bottom: 1px solid #E2E8F0;
+    padding: 0.75rem 1rem;
+    /* MARSOUD-TABLE-ALIGN — was `text-align: right` (physical). Body
+       cells default to `text-align: start` (logical). In RTL both
+       resolve to "right", so visually they matched — but the
+       computed values differed, which meant explicit `.text-*`
+       overrides on tbody cells didn't cascade the same way as on
+       th cells. `start` here makes header + body cascade identically
+       so the source-level `.text-end` / `.text-center` overrides
+       below always apply symmetrically. */
+    text-align: start;
+    border-bottom: 1px solid #E2E8F0;
   }
   table.data-table tbody td {
     padding: 0.875rem 1rem; border-bottom: 1px solid #F1F5F9; font-size: 0.9rem;
   }
   table.data-table tbody tr:hover { background: #F8FAFC; }
+
+  /* MARSOUD-TABLE-ALIGN (2026-07-08) — headers and body cells were
+     visibly out of alignment in numeric columns. Root cause:
+     Tailwind's `.text-end` maps to `text-align: end`, which is a
+     LOGICAL property — in RTL it resolves to left. That flipped
+     the Arabic header text to end at the LEFT edge of the column,
+     while the LTR numeric value still ended at the RIGHT edge of
+     its own glyph run — so the header's visual end and the
+     value's visual end never coincided.
+
+     Fix at the source, not per page: within `.data-table`, force
+     both `.text-end` and `.text-start` to their PHYSICAL twins
+     (right / left). Now header text and body values share the
+     same right edge, so column labels sit directly above their
+     data. Also flip numeric-body cells to `direction: ltr` so
+     the sign (`+` / `-`) always renders on the right of the
+     digits regardless of the surrounding RTL context. */
+  table.data-table thead th.text-end,
+  table.data-table tbody td.text-end {
+    text-align: right !important;
+  }
+  table.data-table thead th.text-start,
+  table.data-table tbody td.text-start {
+    text-align: left !important;
+  }
+  table.data-table thead th.text-center,
+  table.data-table tbody td.text-center {
+    text-align: center !important;
+  }
+  table.data-table tbody td.font-mono.text-end,
+  table.data-table tbody td.font-mono.text-right {
+    direction: ltr;
+    unicode-bidi: embed;
+  }
 
   /* MARSOUD-42 — full sidebar hide/show toggle.
      - On desktop: when body has .sidebar-hidden, slide the sidebar off-
