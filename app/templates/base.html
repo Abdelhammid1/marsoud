@@ -173,6 +173,15 @@ tailwind.config = {
     direction: ltr;
     unicode-bidi: embed;
   }
+  /* MARSOUD-TABLE-ALIGN follow-up (2026-07-08 evening) — cells with
+     an inline dir="ltr" (emails, phone numbers, foreign codes,
+     SKUs) sit at the LEFT of their column in LTR flow, but their
+     Arabic headers stay on the RIGHT. Pull the LTR content back
+     to physical right so both share the same edge.  Reported on
+     /crm/contacts/. */
+  table.data-table tbody td[dir="ltr"] {
+    text-align: right;
+  }
 
   /* MARSOUD-42 — full sidebar hide/show toggle.
      - On desktop: when body has .sidebar-hidden, slide the sidebar off-

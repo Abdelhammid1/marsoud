@@ -105,7 +105,19 @@ def _():
     return f"default = {align}"
 
 
-@check("6. base.html renders through a real page (smoke test)")
+@check("6. td[dir=\"ltr\"] cells (emails, phones) are right-aligned")
+def _():
+    """Follow-up fix reported on /crm/contacts/: cells that opt into
+    dir=\"ltr\" (email addresses, phone numbers, foreign codes) were
+    getting `text-align: start` = LEFT in LTR, while their RTL Arabic
+    headers stayed on the RIGHT — same class of misalignment as the
+    text-end case but through a different route."""
+    assert 'table.data-table tbody td[dir="ltr"]' in _BASE_HTML, \
+        "td[dir=ltr] override missing"
+    return "dir=ltr cells forced right"
+
+
+@check("7. base.html renders through a real page (smoke test)")
 def _():
     """A follow-on paranoia check: after tweaking base.html CSS,
     a page that actually inherits base.html renders without a
