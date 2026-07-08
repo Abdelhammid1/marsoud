@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+{% block page_title %}📊 {{ cycle.name }}{% endblock %}
+{% block content %}
+
+{# ─── Header + state transitions ───────────────────────────────── #}
+<div class="mb-4">
+  <a href="{{ url_for('evaluations.index') }}"
+     class="text-sm text-brand-600 hover:underline">← رجوع للدورات</a>
+</div>
+
+<div class="card p-6 mb-4">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h2 class="text-xl font-bold text-navy-900">📊 {{ cycle.name }}</h2>
+      <div class="text-xs text-slate-500 mt-1 font-mono" dir="ltr">
+        {{ cycle.start_date.isoformat() }} → {{ cycle.end_date.isoformat() }}
+      </div>
+      <div class="mt-2">
+        {% if cycle.status == 'OPEN' %}
+          <span class="badge badge-partial">مفتوحة</span>
+        {% elif cycle.status == 'SUBMITTED' %}
+          <span class="badge">مقدَّمة للمراجعة</span>
+        {% elif cycle.status == 'LOCKED' %}
+          <span class="badge badge-paid">مقفلة</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      {% if cycle.status == 'OPEN' %}
+      <form method="POST" action="{{ url_for('evaluations.status', cid=cycle.id) }}"
+            onsubmit="return confirm('تقديم الدورة للمراجعة؟ بعد كده مايبقاش فيه إدخال جديد.');"
+            class="inline">
+        <input type="hidden" name="new_status" value="SUBMITTED">
+        <button type="submit" class="btn-secondary text-sm">↑ تقديم للمراجعة</button>
+      </form>
+      {% elif cycle.status == 'SUBMITTED' %}
+      <form method="POST" action="{{ url_for('evaluations.status', cid=cycle.id) }}"
+            onsubmit="return confirm('قفل الدورة نهائياً؟ السكور بيثبت مالوش تعديل.');"
+            class="inline">
+        <input type="hidden" name="new_status" value="LOCKED">
+        <button type="submit" class="btn-primary text-sm">🔒 قفل نهائي</button>
+      </form>
+      <form method="POST" action="{{ url_for('evaluations.status', cid=cycle.id) }}"
+            class="inline">
+        <input type="hidden" name="new_status" value="OPEN">
+        <button type="submit" class="btn-secondary text-sm">↩ فتح مجدداً</button>
+      </form>
+      {% elif cycle.status == 'LOCKED' %}
+      <form method="POST" action="{{ url_for('evaluations.status', cid=cycle.id) }}"
+            onsubmit="return confirm('فتح دورة مقفلة؟ استخدم للتصحيح الاستثنائي فقط.');"
+            class="inline">
+        <input type="hidden" name="new_status" value="OPEN">
+        <button type="submit" class="btn-secondary text-sm">🔓 فتح مجدداً (إستثناء)</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if not cycle.is_editable %}
+<div class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800 mb-4">
+  ⚠ الدورة {{ cycle.status_label_ar }}. الإضافات والتعديلات مقفولة.
+  السكور المحسوب ثابت.
+</div>
+{% endif %}
+
+{# ─── One card per employee ────────────────────────────────────── #}
+{% for bucket in buckets %}
+{% set emp = bucket.employee %}
+{% set ev = bucket.evaluation %}
+<div class="card p-5 mb-3">
+  <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
+    <h3 class="font-bold text-navy-900">
+      👤 {{ emp.name }}
+      {% if emp.job_title %}
+      <span class="text-xs text-slate-500">— {{ emp.job_title }}</span>
+      {% endif %}
+    </h3>
+    {% if ev %}
+    <div class="flex items-center gap-2 flex-wrap text-sm">
+      <span class="text-slate-500">السكور:</span>
+      <span class="font-mono font-bold text-xl text-navy-900">
+        {{ '%.1f'|format(ev.final_score|float) }}<span class="text-xs text-slate-400">/100</span>
+      </span>
+      <span class="badge {{ ev.bonus_tier_badge_class }}">
+        {{ ev.bonus_tier_label_ar }}
+      </span>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if ev %}
+  {# Category breakdown #}
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 text-xs">
+    <div class="bg-slate-50 rounded p-2">
+      <div class="text-slate-500">🎯 تحقيق الأهداف (60%)</div>
+      <div class="font-mono font-bold text-navy-900 text-base">
+        {{ '%.1f'|format(ev.target_score|float) }}
+      </div>
+    </div>
+    <div class="bg-slate-50 rounded p-2">
+      <div class="text-slate-500">⚙ جودة التنفيذ (25%)</div>
+      <div class="font-mono font-bold text-navy-900 text-base">
+        {{ '%.1f'|format(ev.execution_score|float) }}
+      </div>
+    </div>
+    <div class="bg-slate-50 rounded p-2">
+      <div class="text-slate-500">📈 النمو (15%)</div>
+      <div class="font-mono font-bold text-navy-900 text-base">
+        {{ '%.1f'|format(ev.growth_score|float) }}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ─── Targets table ─────────────────────────────────────────── #}
+  <details class="mb-2" {% if bucket.targets or cycle.is_editable %}open{% endif %}>
+    <summary class="cursor-pointer font-semibold text-navy-900 text-sm py-2">
+      🎯 أهداف الدورة ({{ bucket.targets|length }})
+    </summary>
+    <table class="data-table mt-2">
+      <thead>
+        <tr>
+          <th>المتريك (metric_key)</th>
+          <th>الفئة</th>
+          <th class="text-end">الهدف</th>
+          <th class="text-end">الوزن %</th>
+          <th>ملاحظات</th>
+          {% if cycle.is_editable %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in bucket.targets %}
+        <tr>
+          <td class="font-mono">{{ t.metric_key }}</td>
+          <td class="text-xs">
+            {% if t.category == 'TARGET_ACHIEVEMENT' %}🎯 تحقيق أهداف
+            {% elif t.category == 'EXECUTION_QUALITY' %}⚙ جودة تنفيذ
+            {% elif t.category == 'GROWTH' %}📈 نمو
+            {% else %}{{ t.category }}{% endif %}
+          </td>
+          <td class="text-end font-mono">{{ '%g'|format(t.target_value|float) }}</td>
+          <td class="text-end font-mono">{{ '%g'|format(t.weight_pct|float) }}</td>
+          <td class="text-xs text-slate-500">{{ t.notes or '—' }}</td>
+          {% if cycle.is_editable %}
+          <td class="text-end">
+            <form method="POST"
+                  action="{{ url_for('evaluations.target_delete', cid=cycle.id, tid=t.id) }}"
+                  onsubmit="return confirm('حذف هذا الهدف؟');"
+                  class="inline">
+              <button type="submit" class="text-xs text-rose-600 hover:underline">🗑</button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-slate-400 py-3">لا يوجد أهداف مسجلة بعد.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if cycle.is_editable %}
+    <form method="POST"
+          action="{{ url_for('evaluations.target_upsert', cid=cycle.id) }}"
+          class="grid grid-cols-1 md:grid-cols-6 gap-2 mt-3 items-end text-xs bg-slate-50 rounded p-3">
+      <input type="hidden" name="employee_id" value="{{ emp.id }}">
+      <div>
+        <label class="block font-semibold mb-1">المتريك</label>
+        <input type="text" name="metric_key" required placeholder="نص حر (مثلاً leads_won)" class="input text-xs">
+      </div>
+      <div>
+        <label class="block font-semibold mb-1">الفئة</label>
+        <select name="category" class="select text-xs">
+          <option value="TARGET_ACHIEVEMENT">تحقيق أهداف</option>
+          <option value="EXECUTION_QUALITY">جودة تنفيذ</option>
+          <option value="GROWTH">نمو</option>
+        </select>
+      </div>
+      <div>
+        <label class="block font-semibold mb-1">الهدف</label>
+        <input type="number" step="0.01" name="target_value" required class="input text-xs font-mono">
+      </div>
+      <div>
+        <label class="block font-semibold mb-1">الوزن %</label>
+        <input type="number" step="0.01" name="weight_pct" required class="input text-xs font-mono">
+      </div>
+      <div class="md:col-span-1">
+        <label class="block font-semibold mb-1">ملاحظات</label>
+        <input type="text" name="notes" class="input text-xs">
+      </div>
+      <button type="submit" class="btn-primary text-xs">+ حفظ</button>
+    </form>
+    {% endif %}
+  </details>
+
+  {# ─── Actuals table ─────────────────────────────────────────── #}
+  <details class="mb-2" {% if bucket.actuals or cycle.is_editable %}open{% endif %}>
+    <summary class="cursor-pointer font-semibold text-navy-900 text-sm py-2">
+      📥 الأرقام الفعلية ({{ bucket.actuals|length }})
+    </summary>
+    <table class="data-table mt-2">
+      <thead>
+        <tr>
+          <th>المتريك</th>
+          <th class="text-end">القيمة</th>
+          <th>المصدر</th>
+          <th>ملاحظة الإثبات</th>
+          <th>أُدخل بواسطة</th>
+          {% if cycle.is_editable %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in bucket.actuals %}
+        <tr>
+          <td class="font-mono">{{ a.metric_key }}</td>
+          <td class="text-end font-mono">{{ '%g'|format(a.actual_value|float) }}</td>
+          <td class="text-xs">
+            {% if a.source == 'MANUAL' %}يدوي{% else %}آلي{% endif %}
+          </td>
+          <td class="text-xs text-slate-500">{{ a.evidence_note or '—' }}</td>
+          <td class="text-xs">
+            {{ a.entered_by.full_name if a.entered_by else '—' }}
+          </td>
+          {% if cycle.is_editable %}
+          <td class="text-end">
+            <form method="POST"
+                  action="{{ url_for('evaluations.actual_delete', cid=cycle.id, aid=a.id) }}"
+                  onsubmit="return confirm('حذف هذا الرقم الفعلي؟');"
+                  class="inline">
+              <button type="submit" class="text-xs text-rose-600 hover:underline">🗑</button>
+            </form>
+          </td>
+          {% endif %}
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-slate-400 py-3">لا يوجد أرقام فعلية بعد.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if cycle.is_editable %}
+    <form method="POST"
+          action="{{ url_for('evaluations.actual_upsert', cid=cycle.id) }}"
+          class="grid grid-cols-1 md:grid-cols-5 gap-2 mt-3 items-end text-xs bg-slate-50 rounded p-3">
+      <input type="hidden" name="employee_id" value="{{ emp.id }}">
+      <div>
+        <label class="block font-semibold mb-1">المتريك</label>
+        <input type="text" name="metric_key" required class="input text-xs">
+      </div>
+      <div>
+        <label class="block font-semibold mb-1">القيمة</label>
+        <input type="number" step="0.01" name="actual_value" required class="input text-xs font-mono">
+      </div>
+      <div>
+        <label class="block font-semibold mb-1">المصدر</label>
+        <select name="source" class="select text-xs">
+          <option value="MANUAL">يدوي</option>
+          <option value="AUTO">آلي</option>
+        </select>
+      </div>
+      <div>
+        <label class="block font-semibold mb-1">ملاحظة الإثبات</label>
+        <input type="text" name="evidence_note" placeholder="مصدر التأكد" class="input text-xs">
+      </div>
+      <button type="submit" class="btn-primary text-xs">+ حفظ</button>
+    </form>
+    {% endif %}
+  </details>
+
+  {# ─── Compute + review ─────────────────────────────────────── #}
+  <div class="flex items-center gap-2 mt-3 flex-wrap">
+    {% if cycle.status != 'LOCKED' %}
+    <form method="POST"
+          action="{{ url_for('evaluations.score', cid=cycle.id, eid=emp.id) }}"
+          class="inline">
+      <button type="submit" class="btn-primary text-sm">
+        🧮 {% if ev %}إعادة حساب السكور{% else %}احسب السكور{% endif %}
+      </button>
+    </form>
+    {% endif %}
+  </div>
+
+  {% if ev %}
+  <details class="mt-3" {% if ev.review_notes %}open{% endif %}>
+    <summary class="cursor-pointer font-semibold text-navy-900 text-sm py-2">
+      📝 ملاحظات المراجعة
+      {% if ev.reviewed_at %}
+        <span class="text-xs text-slate-500">
+          — {{ ev.reviewed_by.full_name if ev.reviewed_by else '' }}،
+          {{ ev.reviewed_at | company_dt('%Y-%m-%d %H:%M') }}
+        </span>
+      {% endif %}
+    </summary>
+    {% if cycle.status != 'LOCKED' %}
+    <form method="POST"
+          action="{{ url_for('evaluations.review', cid=cycle.id, eid=emp.id) }}"
+          class="mt-2">
+      <textarea name="review_notes" rows="2" placeholder="ملاحظات المسؤول (اختياري)…"
+                class="textarea text-sm w-full">{{ ev.review_notes or '' }}</textarea>
+      <div class="text-end mt-2">
+        <button type="submit" class="btn-secondary text-sm">💾 حفظ الملاحظات</button>
+      </div>
+    </form>
+    {% else %}
+    <div class="text-sm text-slate-700 bg-slate-50 rounded p-3 mt-2 whitespace-pre-line">
+      {{ ev.review_notes or 'لا توجد ملاحظات.' }}
+    </div>
+    {% endif %}
+  </details>
+  {% endif %}
+</div>
+{% else %}
+<div class="card p-8 text-center text-sm text-slate-400">
+  مافيش موظفين نشطين في هذه الشركة بعد.
+</div>
+{% endfor %}
+
+{% endblock %}

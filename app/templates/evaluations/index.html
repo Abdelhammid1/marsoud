@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block page_title %}📊 تقييم الأداء الشهري{% endblock %}
+{% block content %}
+
+<div class="card p-6 mb-4">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <h2 class="font-bold text-navy-900">📊 دورات تقييم الأداء</h2>
+      <p class="text-xs text-slate-500 mt-1">
+        كل دورة تقييم = فترة زمنية (شهر عادةً) بيتم فيها إدخال أهداف
+        وأرقام فعلية لكل موظف، والسيستم بيحسب سكور شهري (0-100)
+        ومستوى بونص أوتوماتيك. الدورة عندها 3 حالات:
+        <b>مفتوحة</b> (بيتم فيها إدخال)، <b>مقدَّمة للمراجعة</b> (خلاص إدخال)،
+        و<b>مقفلة</b> (سكور نهائي مالوش تعديل).
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="card p-6 mb-4">
+  <h3 class="font-bold text-navy-900 mb-3">+ دورة تقييم جديدة</h3>
+  <form method="POST" action="{{ url_for('evaluations.new') }}"
+        class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+    <div class="md:col-span-2">
+      <label class="block text-xs font-semibold mb-1">اسم الدورة</label>
+      <input type="text" name="name" required
+             placeholder="مثلاً: دورة يوليو 2026" class="input text-sm">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold mb-1">النوع</label>
+      <select name="period_type" class="select text-sm">
+        <option value="MONTHLY">شهرية</option>
+        <option value="TRIAL">تجريبية</option>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold mb-1">من تاريخ</label>
+      <input type="date" name="start_date" required class="input text-sm">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold mb-1">إلى تاريخ</label>
+      <input type="date" name="end_date" required class="input text-sm">
+    </div>
+    <div class="md:col-span-5 text-end">
+      <button type="submit" class="btn-primary">إنشاء</button>
+    </div>
+  </form>
+</div>
+
+<div class="card p-6">
+  <h3 class="font-bold text-navy-900 mb-3">الدورات الحالية</h3>
+  {% if cycles %}
+  <div class="overflow-x-auto">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>الاسم</th>
+          <th>النوع</th>
+          <th>الفترة</th>
+          <th>الحالة</th>
+          <th>أُنشئت</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in cycles %}
+        <tr>
+          <td class="font-semibold">
+            <a href="{{ url_for('evaluations.detail', cid=c.id) }}"
+               class="hover:text-brand-600">{{ c.name }}</a>
+          </td>
+          <td class="text-xs">
+            {% if c.period_type == 'MONTHLY' %}شهرية
+            {% elif c.period_type == 'TRIAL' %}تجريبية
+            {% else %}{{ c.period_type }}{% endif %}
+          </td>
+          <td class="text-xs font-mono" dir="ltr">
+            {{ c.start_date.isoformat() }} → {{ c.end_date.isoformat() }}
+          </td>
+          <td>
+            {% if c.status == 'OPEN' %}
+              <span class="badge badge-partial">مفتوحة</span>
+            {% elif c.status == 'SUBMITTED' %}
+              <span class="badge">مقدَّمة للمراجعة</span>
+            {% elif c.status == 'LOCKED' %}
+              <span class="badge badge-paid">مقفلة</span>
+            {% endif %}
+          </td>
+          <td class="text-xs text-slate-500">
+            {{ c.created_at | company_dt('%Y-%m-%d') }}
+          </td>
+          <td class="text-end whitespace-nowrap">
+            <a href="{{ url_for('evaluations.detail', cid=c.id) }}"
+               class="text-xs text-brand-600 hover:underline">
+              👁 عرض
+            </a>
+            {% if c.status == 'OPEN' %}
+            <span class="mx-1 text-slate-300">|</span>
+            <form method="POST"
+                  action="{{ url_for('evaluations.delete', cid=c.id) }}"
+                  onsubmit="return confirm('حذف الدورة {{ c.name|e }}؟ لا يمكن التراجع.');"
+                  class="inline">
+              <button type="submit"
+                       class="text-xs text-rose-600 hover:underline">
+                🗑 حذف
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center text-sm text-slate-400 py-8">
+    مافيش دورات تقييم لسه — ابدأ بإنشاء أول دورة من الأعلى.
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

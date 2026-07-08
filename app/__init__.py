@@ -91,6 +91,7 @@ def create_app(config_class=Config):
     )
     from app.routes.manufacturing import bp as manufacturing_bp
     from app.routes.user_files import bp as user_files_bp
+    from app.routes.evaluations import bp as evaluations_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -139,6 +140,7 @@ def create_app(config_class=Config):
                             url_prefix="/settings/employee-reports")
     app.register_blueprint(manufacturing_bp, url_prefix="/manufacturing")
     app.register_blueprint(user_files_bp, url_prefix="/files")
+    app.register_blueprint(evaluations_bp, url_prefix="/evaluations")
 
     # MARSOUD-API-V1 — make sure /api/v1/* abort(...) / unauthorized
     # responses come out as JSON instead of HTML / login redirects.

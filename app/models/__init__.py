@@ -77,11 +77,19 @@ from app.models.platform_audit import PlatformAuditLog, SuperadminImpersonation,
 from app.models.api_token import ApiToken
 from app.models.activity import UserSession, UserActivityLog, ACTION_TYPES, SESSION_STATUS
 from app.models.user_file import UserFile
+from app.models.evaluation import (
+    EvaluationCycle, EvaluationCyclePeriod, EvaluationCycleStatus,
+    EvaluationCategory, ActualSource, BonusTier,
+    EmployeeTarget, EmployeeMetricActual, EmployeeEvaluation,
+)
 
 __all__ = [
     "PlatformAuditLog", "SuperadminImpersonation", "PlatformError",
     "ApiToken",
     "UserFile",
+    "EvaluationCycle", "EvaluationCyclePeriod", "EvaluationCycleStatus",
+    "EvaluationCategory", "ActualSource", "BonusTier",
+    "EmployeeTarget", "EmployeeMetricActual", "EmployeeEvaluation",
     "UserSession", "UserActivityLog", "ACTION_TYPES", "SESSION_STATUS",
     "User", "user_companies", "UserStatus", "Company",
     "Plan", "SubscriptionReminderSent", "PlatformSetting",
