@@ -533,8 +533,14 @@ def visible_employees_for(user, company_id):
             user_companies.c.role == "owner",
         ),
     ).first() is not None
+    # MARSOUD-EMPLOYEE-ARCHIVE — hide TERMINATED/SUSPENDED employees
+    # from the daily-reports page. Their historical reports are still
+    # readable via /reports/employees/<id> if the URL is known — the
+    # ticket's "hide" scope covers the index/dropdown surface only.
     if is_owner:
-        return Employee.query.filter_by(company_id=company_id).all()
+        return Employee.query.filter_by(
+            company_id=company_id, status=EmployeeStatus.ACTIVE,
+        ).all()
     employee_ids = [r.employee_id for r in EmployeeReportAccess.query.filter_by(
         company_id=company_id, viewer_user_id=user.id,
     ).all()]
@@ -542,6 +548,7 @@ def visible_employees_for(user, company_id):
         return []
     return Employee.query.filter(
         Employee.company_id == company_id,
+        Employee.status == EmployeeStatus.ACTIVE,
         Employee.id.in_(employee_ids),
     ).all()
 

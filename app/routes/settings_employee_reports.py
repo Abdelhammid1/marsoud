@@ -42,8 +42,13 @@ def _company_admins_and_managers(company_id):
 def index():
     company_id = g.active_company.id
     admins = _company_admins_and_managers(company_id)
+    # MARSOUD-EMPLOYEE-ARCHIVE — the permission-grant screen only
+    # offers ACTIVE employees. Granting access on a resigned employee
+    # is nonsense; their old reports remain readable via URL if
+    # someone had them before termination.
+    from app.models import EmployeeStatus
     employees = Employee.query.filter_by(
-        company_id=company_id,
+        company_id=company_id, status=EmployeeStatus.ACTIVE,
     ).order_by(Employee.name).all()
 
     selected_uid = request.args.get("viewer_user_id", type=int)

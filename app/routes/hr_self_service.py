@@ -70,9 +70,13 @@ def index():
     # has three companies must show as "linked" inside each of them (not
     # only the last one they created). We resolve linkage through
     # Employee.user_id scoped to the active company.
+    # MARSOUD-EMPLOYEE-ARCHIVE — restrict linkage to ACTIVE employees
+    # so users whose Employee row is TERMINATED disappear from the
+    # active-accounts bucket on this page.
     linked_users_here = {
         e.user_id for e in Employee.query.filter(
             Employee.company_id == cid,
+            Employee.status == EmployeeStatus.ACTIVE,
             Employee.user_id.isnot(None),
         ).all() if e.user_id is not None
     }

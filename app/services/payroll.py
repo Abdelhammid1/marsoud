@@ -374,6 +374,35 @@ def terminate_employee(employee, reason, termination_date=None, notes=None):
     return employee
 
 
+def reactivate_employee(employee):
+    """MARSOUD-EMPLOYEE-ARCHIVE — flip a TERMINATED/SUSPENDED employee
+    back to ACTIVE without touching any historical data.
+
+    Clears the termination metadata (date/reason/notes) so a future
+    re-termination doesn't inherit stale text — but the payroll runs,
+    accruals, leave balances, and history rows all stay put. This is
+    the "إعادة إلى العمل" action from the archive page.
+    """
+    old_status = getattr(employee.status, "value", str(employee.status))
+    employee.status = EmployeeStatus.ACTIVE
+    employee.is_active = True
+    employee.termination_date = None
+    employee.termination_reason = None
+    employee.termination_notes = None
+    db.session.commit()
+    try:
+        from app.services.activity import log_action
+        log_action(action_type="UPDATE", entity_type="employee",
+                    entity_id=employee.id,
+                    entity_label=f"إعادة تفعيل: {employee.name}",
+                    company_id=employee.company_id,
+                    extra_data={"old": {"status": old_status},
+                                 "new": {"status": "ACTIVE"}})
+    except Exception:
+        pass
+    return employee
+
+
 def settle_accrual(accrual, payment_method_account_code="1110",
                     amount=None, created_by=None):
     """Pay part or all of an outstanding accrual to the employee.

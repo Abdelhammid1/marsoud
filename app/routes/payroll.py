@@ -7,7 +7,8 @@ from app.models import (
     PayrollRun, PayrollLine, EmployeeAccrual, Department,
 )
 from app.services.payroll import (
-    run_payroll, terminate_employee, settle_accrual, update_employee,
+    run_payroll, terminate_employee, reactivate_employee,
+    settle_accrual, update_employee,
     billable_days_in_period, auto_absence_late_for,
 )
 from app.services.ledger import LedgerError
@@ -300,6 +301,45 @@ def terminate(employee_id):
     except (KeyError, ValueError) as e:
         flash(str(e), "error")
     return redirect(url_for("payroll.employee_profile", employee_id=emp.id))
+
+
+# MARSOUD-EMPLOYEE-ARCHIVE — archive page + one-click reactivate.
+@bp.route("/archive")
+@login_required
+@require_permission("employees.view")
+def archive():
+    """Directory of non-ACTIVE employees (TERMINATED + SUSPENDED).
+    They're invisible in the main HR pages so they don't clutter the
+    active-flow dropdowns; this page is the only surface where they
+    show up, so the user can inspect history or reactivate them."""
+    cid = g.active_company.id
+    rows = (Employee.query
+             .filter(Employee.company_id == cid,
+                     Employee.status != EmployeeStatus.ACTIVE)
+             .order_by(Employee.termination_date.desc().nullslast(),
+                        Employee.name)
+             .all())
+    return render_template("payroll/archive.html",
+                             employees=rows, statuses=EmployeeStatus)
+
+
+@bp.route("/employees/<int:employee_id>/reactivate", methods=["POST"])
+@login_required
+@require_permission("payroll.employees")
+def reactivate(employee_id):
+    """Flip a TERMINATED / SUSPENDED employee back to ACTIVE. All
+    historical rows (payroll runs, accruals, leave balances) stay
+    put — only the status + termination metadata change."""
+    emp = db.session.get(Employee, employee_id)
+    if not emp or emp.company_id != g.active_company.id:
+        return redirect(url_for("payroll.archive"))
+    if emp.status == EmployeeStatus.ACTIVE:
+        flash("الموظف نشط بالفعل.", "info")
+        return redirect(url_for("payroll.archive"))
+    reactivate_employee(emp)
+    flash(f"تم إرجاع {emp.name} للعمل — سيظهر في جميع الشاشات مجدداً.",
+           "success")
+    return redirect(url_for("payroll.archive"))
 
 
 @bp.route("/run", methods=["GET", "POST"])
