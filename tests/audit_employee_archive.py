@@ -92,6 +92,20 @@ def _teardown(company_id):
     db.session.close()
     insp = inspect(db.engine)
     with db.engine.begin() as conn:
+        # Tables that reference employees but have NO company_id
+        # column — the company_id sweep below skips them, so wipe
+        # them here via the employee FK BEFORE we delete the
+        # employees themselves. Otherwise a re-run trips the
+        # (employee_id, leave_type_id, year) unique constraint.
+        emp_ids_sql = (
+            "SELECT id FROM employees WHERE company_id = :c"
+        )
+        conn.execute(text(
+            f"DELETE FROM leave_balances WHERE employee_id IN ({emp_ids_sql})"
+        ), {"c": company_id})
+        conn.execute(text(
+            f"DELETE FROM employee_accruals WHERE employee_id IN ({emp_ids_sql})"
+        ), {"c": company_id})
         conn.execute(text("DELETE FROM user_companies WHERE company_id = :c"),
                      {"c": company_id})
         for tbl in reversed(db.metadata.sorted_tables):
