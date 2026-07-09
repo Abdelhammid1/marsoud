@@ -79,8 +79,9 @@ from app.models.activity import UserSession, UserActivityLog, ACTION_TYPES, SESS
 from app.models.user_file import UserFile
 from app.models.evaluation import (
     EvaluationCycle, EvaluationCyclePeriod, EvaluationCycleStatus,
-    EvaluationCategory, ActualSource, BonusTier,
+    EvaluationCategory, ActualSource, BonusTier, AggregationMethod,
     EmployeeTarget, EmployeeMetricActual, EmployeeEvaluation,
+    MetricLogEntry,
 )
 
 __all__ = [
@@ -88,8 +89,9 @@ __all__ = [
     "ApiToken",
     "UserFile",
     "EvaluationCycle", "EvaluationCyclePeriod", "EvaluationCycleStatus",
-    "EvaluationCategory", "ActualSource", "BonusTier",
+    "EvaluationCategory", "ActualSource", "BonusTier", "AggregationMethod",
     "EmployeeTarget", "EmployeeMetricActual", "EmployeeEvaluation",
+    "MetricLogEntry",
     "UserSession", "UserActivityLog", "ACTION_TYPES", "SESSION_STATUS",
     "User", "user_companies", "UserStatus", "Company",
     "Plan", "SubscriptionReminderSent", "PlatformSetting",

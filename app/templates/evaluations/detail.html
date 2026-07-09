@@ -27,8 +27,18 @@
     </div>
     <div class="flex items-center gap-2 flex-wrap">
       {% if cycle.status == 'OPEN' %}
+      {# MARSOUD-EVAL-METRIC-LOG — manual roll-up in case you want
+         to spot-check the auto-aggregate before تقديم للمراجعة.
+         The same aggregate runs automatically on the SUBMITTED
+         transition; this button is just a preview. #}
+      <a href="{{ url_for('evaluations.logs_index') }}"
+         class="btn-secondary text-sm">📥 قيود المتريك</a>
+      <form method="POST" action="{{ url_for('evaluations.aggregate', cid=cycle.id) }}"
+            class="inline">
+        <button type="submit" class="btn-secondary text-sm">🧮 جمّع الفعلي الآن</button>
+      </form>
       <form method="POST" action="{{ url_for('evaluations.status', cid=cycle.id) }}"
-            onsubmit="return confirm('تقديم الدورة للمراجعة؟ بعد كده مايبقاش فيه إدخال جديد.');"
+            onsubmit="return confirm('تقديم الدورة للمراجعة؟ بعد كده مايبقاش فيه إدخال جديد، وهيتم تجميع كل قيود المتريك تلقائيًا للأرقام الفعلية.');"
             class="inline">
         <input type="hidden" name="new_status" value="SUBMITTED">
         <button type="submit" class="btn-secondary text-sm">↑ تقديم للمراجعة</button>
@@ -125,6 +135,7 @@
           <th>الفئة</th>
           <th class="text-end">الهدف</th>
           <th class="text-end">الوزن %</th>
+          <th>التجميع</th>
           <th>ملاحظات</th>
           {% if cycle.is_editable %}<th></th>{% endif %}
         </tr>
@@ -141,6 +152,12 @@
           </td>
           <td class="text-end font-mono">{{ '%g'|format(t.target_value|float) }}</td>
           <td class="text-end font-mono">{{ '%g'|format(t.weight_pct|float) }}</td>
+          <td class="text-xs">
+            {% if t.aggregation_method == 'SUM' %}مجموع
+            {% elif t.aggregation_method == 'AVERAGE' %}متوسط
+            {% elif t.aggregation_method == 'LATEST' %}آخر قيمة
+            {% else %}{{ t.aggregation_method }}{% endif %}
+          </td>
           <td class="text-xs text-slate-500">{{ t.notes or '—' }}</td>
           {% if cycle.is_editable %}
           <td class="text-end">
@@ -154,7 +171,7 @@
           {% endif %}
         </tr>
         {% else %}
-        <tr><td colspan="6" class="text-center text-slate-400 py-3">لا يوجد أهداف مسجلة بعد.</td></tr>
+        <tr><td colspan="7" class="text-center text-slate-400 py-3">لا يوجد أهداف مسجلة بعد.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -162,7 +179,7 @@
     {% if cycle.is_editable %}
     <form method="POST"
           action="{{ url_for('evaluations.target_upsert', cid=cycle.id) }}"
-          class="grid grid-cols-1 md:grid-cols-6 gap-2 mt-3 items-end text-xs bg-slate-50 rounded p-3">
+          class="grid grid-cols-1 md:grid-cols-7 gap-2 mt-3 items-end text-xs bg-slate-50 rounded p-3">
       <input type="hidden" name="employee_id" value="{{ emp.id }}">
       <div>
         <label class="block font-semibold mb-1">المتريك</label>
@@ -183,6 +200,16 @@
       <div>
         <label class="block font-semibold mb-1">الوزن %</label>
         <input type="number" step="0.01" name="weight_pct" required class="input text-xs font-mono">
+      </div>
+      <div>
+        {# MARSOUD-EVAL-METRIC-LOG — how the raw log rows collapse
+           into actual_value at cycle-close time. Default SUM. #}
+        <label class="block font-semibold mb-1">التجميع</label>
+        <select name="aggregation_method" class="select text-xs">
+          <option value="SUM">مجموع</option>
+          <option value="AVERAGE">متوسط</option>
+          <option value="LATEST">آخر قيمة</option>
+        </select>
       </div>
       <div class="md:col-span-1">
         <label class="block font-semibold mb-1">ملاحظات</label>

@@ -35,8 +35,9 @@ from datetime import datetime
 from app import db
 from app.models import (
     EvaluationCycle, EvaluationCyclePeriod, EvaluationCycleStatus,
-    EvaluationCategory, ActualSource, BonusTier,
+    EvaluationCategory, ActualSource, BonusTier, AggregationMethod,
     EmployeeTarget, EmployeeMetricActual, EmployeeEvaluation,
+    MetricLogEntry,
 )
 
 
@@ -104,15 +105,36 @@ def transition_status(cycle, new_status):
         )
     cycle.status = target.value
     db.session.commit()
+    # MARSOUD-EVAL-METRIC-LOG — when the cycle moves from OPEN to
+    # SUBMITTED, roll up every metric-log into EmployeeMetricActual
+    # automatically. Khadeeja never has to click a "compute" button;
+    # the ticket's whole point is that once she stops logging, the
+    # numbers are already there. Errors are logged, not raised —
+    # a stale roll-up shouldn't block the transition itself.
+    if current == "OPEN" and target == EvaluationCycleStatus.SUBMITTED:
+        try:
+            aggregate_actuals_for_cycle(cycle)
+        except Exception:
+            import logging
+            logging.getLogger("marsoud.evaluation").exception(
+                "auto-aggregate on SUBMITTED failed for cycle %s",
+                cycle.id,
+            )
     return cycle
 
 
 # ─── Target CRUD ────────────────────────────────────────────────────────
 def upsert_target(*, cycle, employee_id, metric_key,
-                     target_value, weight_pct, category, notes=None):
+                     target_value, weight_pct, category, notes=None,
+                     aggregation_method=None):
     """Insert or update the (cycle, employee, metric) row. The unique
     constraint at the DB layer catches the duplicate case too, but
-    calling upsert lets the route pass the same form for both."""
+    calling upsert lets the route pass the same form for both.
+
+    MARSOUD-EVAL-METRIC-LOG — `aggregation_method` determines how
+    the raw MetricLogEntry rows collapse into the target's
+    actual_value at cycle-close time. Default = SUM.
+    """
     if not cycle.is_editable:
         raise EvaluationError(
             "لا يمكن تعديل الأهداف بعد قفل/تقديم الدورة"
@@ -131,6 +153,12 @@ def upsert_target(*, cycle, employee_id, metric_key,
         raise EvaluationError("قيمة أو وزن غير صحيح")
     if tv < 0 or wp < 0:
         raise EvaluationError("القيم يجب أن تكون غير سالبة")
+    # Aggregation method: default to SUM if the caller didn't pass one.
+    try:
+        agg = (AggregationMethod(aggregation_method)
+                if aggregation_method else AggregationMethod.SUM)
+    except (ValueError, TypeError):
+        raise EvaluationError("طريقة التجميع غير صالحة")
 
     row = EmployeeTarget.query.filter_by(
         cycle_id=cycle.id, employee_id=employee_id, metric_key=key,
@@ -145,6 +173,7 @@ def upsert_target(*, cycle, employee_id, metric_key,
     row.weight_pct = wp
     row.category = cat.value
     row.notes = (notes or "").strip() or None
+    row.aggregation_method = agg.value
     db.session.commit()
     return row
 
@@ -321,6 +350,145 @@ def compute_score(cycle, employee_id):
     row.bonus_tier = tier.value
     db.session.commit()
     return row
+
+
+# ─── Raw metric-log entries + aggregation ─────────────────────────────
+def targets_for(cycle, employee_id):
+    """Return the list of EmployeeTarget rows for (cycle, employee).
+
+    Used by the metric-log form's dependent dropdown so Khadeeja can
+    only pick a metric_key that was actually agreed on for this
+    (cycle, employee) — no free-form typos, no orphan logs."""
+    return (EmployeeTarget.query
+             .filter_by(cycle_id=cycle.id, employee_id=employee_id)
+             .order_by(EmployeeTarget.metric_key)
+             .all())
+
+
+def log_metric_entry(*, company_id, cycle, employee_id, metric_key,
+                        entry_date, value, entered_by_id):
+    """Record one raw datapoint. Legal at any point while the cycle
+    is not LOCKED — SUBMITTED cycles still accept logs so a manager
+    can correct an entry before final sign-off. LOCKED is the only
+    frozen state.
+
+    Validates that a matching target exists for (cycle, employee,
+    metric) so orphan entries can't accumulate.
+    """
+    if cycle.status == EvaluationCycleStatus.LOCKED.value:
+        raise EvaluationError(
+            "الدورة مقفلة — لا يمكن إضافة قيود جديدة."
+        )
+    key = (metric_key or "").strip()
+    if not key:
+        raise EvaluationError("المؤشر مطلوب")
+    # Enforce dependent-dropdown contract at the service layer too.
+    target = EmployeeTarget.query.filter_by(
+        cycle_id=cycle.id, employee_id=employee_id, metric_key=key,
+    ).first()
+    if not target:
+        raise EvaluationError(
+            "المؤشر ده مش موجود كهدف للموظف في هذه الدورة — "
+            "أضفه من صفحة الأهداف أولاً."
+        )
+    if entry_date is None:
+        raise EvaluationError("التاريخ مطلوب")
+    try:
+        val = Decimal(str(value))
+    except Exception:
+        raise EvaluationError("القيمة غير صحيحة")
+
+    row = MetricLogEntry(
+        company_id=company_id,
+        cycle_id=cycle.id,
+        employee_id=employee_id,
+        metric_key=key,
+        entry_date=entry_date,
+        value=val,
+        entered_by_id=entered_by_id,
+    )
+    db.session.add(row)
+    db.session.commit()
+    return row
+
+
+def delete_log_entry(entry):
+    if entry.cycle.status == EvaluationCycleStatus.LOCKED.value:
+        raise EvaluationError(
+            "الدورة مقفلة — لا يمكن حذف قيود منها."
+        )
+    db.session.delete(entry)
+    db.session.commit()
+
+
+def _collapse(entries, method):
+    """Reduce a list of MetricLogEntry to a single Decimal per the
+    target's aggregation method. Empty input → 0."""
+    if not entries:
+        return Decimal("0")
+    vals = [Decimal(str(e.value or 0)) for e in entries]
+    if method == AggregationMethod.SUM.value:
+        return sum(vals, Decimal("0"))
+    if method == AggregationMethod.AVERAGE.value:
+        total = sum(vals, Decimal("0"))
+        return (total / Decimal(len(vals))).quantize(Decimal("0.0001"))
+    if method == AggregationMethod.LATEST.value:
+        # Take the entry with the max entry_date; ties broken by created_at.
+        latest = max(
+            entries,
+            key=lambda e: (e.entry_date, e.created_at or e.entry_date),
+        )
+        return Decimal(str(latest.value or 0))
+    # Unknown method → fall back to SUM (defensive).
+    return sum(vals, Decimal("0"))
+
+
+def aggregate_actuals_for_cycle(cycle):
+    """MARSOUD-EVAL-METRIC-LOG — for every EmployeeTarget in the
+    cycle, look up the raw log entries for that (employee, metric),
+    collapse them per the target's aggregation_method, and upsert
+    the result into EmployeeMetricActual with source=AUTO_AGGREGATED.
+
+    Idempotent: re-running overwrites the same actual rows.
+
+    Skips targets with zero log entries — leaves any manual actual
+    already present alone (so a mixed workflow where SOME metrics
+    are entered manually and OTHERS aggregated still works).
+    """
+    from datetime import datetime as _dt
+    touched = 0
+    for target in EmployeeTarget.query.filter_by(cycle_id=cycle.id).all():
+        logs = MetricLogEntry.query.filter_by(
+            cycle_id=cycle.id,
+            employee_id=target.employee_id,
+            metric_key=target.metric_key,
+        ).all()
+        if not logs:
+            continue   # leave any existing manual actual alone
+        rolled = _collapse(logs, target.aggregation_method)
+
+        row = EmployeeMetricActual.query.filter_by(
+            cycle_id=cycle.id,
+            employee_id=target.employee_id,
+            metric_key=target.metric_key,
+        ).first()
+        if row is None:
+            row = EmployeeMetricActual(
+                cycle_id=cycle.id,
+                employee_id=target.employee_id,
+                metric_key=target.metric_key,
+            )
+            db.session.add(row)
+        row.actual_value = rolled
+        row.source = ActualSource.AUTO_AGGREGATED.value
+        row.entered_at = _dt.utcnow()
+        row.evidence_note = (
+            f"جُمعت من {len(logs)} قيد "
+            f"({target.aggregation_method})"
+        )
+        touched += 1
+    db.session.commit()
+    return touched
 
 
 def update_review(evaluation, notes, by_user_id):

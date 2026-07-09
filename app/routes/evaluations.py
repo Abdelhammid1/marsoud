@@ -20,16 +20,16 @@ users.manage). Sub-flows:
 from datetime import datetime
 from flask import (
     Blueprint, render_template, request, redirect, url_for, flash,
-    g, abort,
+    g, abort, jsonify,
 )
 from flask_login import login_required, current_user
 
 from app import db
 from app.models import (
     EvaluationCycle, EvaluationCyclePeriod, EvaluationCycleStatus,
-    EvaluationCategory, ActualSource,
+    EvaluationCategory, ActualSource, AggregationMethod,
     EmployeeTarget, EmployeeMetricActual, EmployeeEvaluation,
-    Employee, EmployeeStatus,
+    MetricLogEntry, Employee, EmployeeStatus,
 )
 from app.services.permissions import require_permission
 from app.services.evaluation import (
@@ -37,6 +37,8 @@ from app.services.evaluation import (
     upsert_target, delete_target,
     upsert_actual, delete_actual,
     compute_score, update_review,
+    log_metric_entry, delete_log_entry, targets_for,
+    aggregate_actuals_for_cycle,
     EvaluationError,
 )
 
@@ -196,6 +198,8 @@ def target_upsert(cid):
             weight_pct=request.form.get("weight_pct", "0"),
             category=request.form.get("category", ""),
             notes=request.form.get("notes"),
+            aggregation_method=request.form.get(
+                "aggregation_method", "SUM"),
         )
         flash("تم حفظ الهدف", "success")
     except (EvaluationError, ValueError, TypeError) as e:
@@ -294,6 +298,121 @@ def review(cid, eid):
         update_review(ev, request.form.get("review_notes", ""),
                        by_user_id=current_user.id)
         flash("تم حفظ الملاحظات", "success")
+    except EvaluationError as e:
+        flash(str(e), "error")
+    return redirect(url_for("evaluations.detail", cid=c.id))
+
+
+# ─── MARSOUD-EVAL-METRIC-LOG — raw entry form + aggregation ───────────
+@bp.route("/logs/", methods=["GET"])
+@login_required
+@require_permission("users.manage")
+def logs_index():
+    """Simple entry form + list of the most recent logs. Cycles list
+    filters to non-LOCKED so خديجة can't waste time entering into a
+    frozen cycle."""
+    cid = g.active_company.id
+    cycles = (EvaluationCycle.query
+                .filter(EvaluationCycle.company_id == cid,
+                        EvaluationCycle.status != EvaluationCycleStatus.LOCKED.value)
+                .order_by(EvaluationCycle.start_date.desc())
+                .all())
+    employees = (Employee.query
+                    .filter_by(company_id=cid,
+                                 status=EmployeeStatus.ACTIVE)
+                    .order_by(Employee.name).all())
+    # Last 30 entries in this company
+    recent = (MetricLogEntry.query
+                .filter_by(company_id=cid)
+                .order_by(MetricLogEntry.created_at.desc())
+                .limit(30).all())
+    from datetime import date as _d
+    return render_template(
+        "evaluations/logs.html",
+        cycles=cycles, employees=employees,
+        recent=recent,
+        today=_d.today(),
+    )
+
+
+@bp.route("/logs/", methods=["POST"])
+@login_required
+@require_permission("users.manage")
+def logs_create():
+    from datetime import datetime as _dt
+    try:
+        cycle_id = int(request.form.get("cycle_id"))
+        emp_id = int(request.form.get("employee_id"))
+        c = _cycle_or_404(cycle_id)
+        entry_date = _dt.strptime(
+            request.form.get("entry_date", ""), "%Y-%m-%d").date()
+        log_metric_entry(
+            company_id=g.active_company.id,
+            cycle=c, employee_id=emp_id,
+            metric_key=request.form.get("metric_key", ""),
+            entry_date=entry_date,
+            value=request.form.get("value", "0"),
+            entered_by_id=current_user.id,
+        )
+        flash("تم تسجيل القيد", "success")
+    except (EvaluationError, ValueError, TypeError) as e:
+        flash(str(e), "error")
+    return redirect(url_for("evaluations.logs_index"))
+
+
+@bp.route("/logs/<int:log_id>/delete", methods=["POST"])
+@login_required
+@require_permission("users.manage")
+def logs_delete(log_id):
+    row = db.session.get(MetricLogEntry, log_id)
+    if not row or row.company_id != g.active_company.id:
+        abort(404)
+    try:
+        delete_log_entry(row)
+        flash("تم حذف القيد", "success")
+    except EvaluationError as e:
+        flash(str(e), "error")
+    return redirect(url_for("evaluations.logs_index"))
+
+
+@bp.route("/api/targets")
+@login_required
+@require_permission("users.manage")
+def api_targets():
+    """Dependent-dropdown API for the log form. Given cycle_id +
+    employee_id, returns the metric_keys agreed for that pair. The
+    UI hides the metric picker until both are chosen and then fills
+    it from this response."""
+    cid = g.active_company.id
+    cycle_id = request.args.get("cycle_id", type=int)
+    emp_id = request.args.get("employee_id", type=int)
+    if not cycle_id or not emp_id:
+        return jsonify([])
+    c = db.session.get(EvaluationCycle, cycle_id)
+    if not c or c.company_id != cid:
+        return jsonify([])
+    rows = targets_for(c, emp_id)
+    return jsonify([
+        {"metric_key": t.metric_key,
+          "aggregation_method": t.aggregation_method,
+          "category": t.category,
+          "target_value": float(t.target_value or 0)}
+        for t in rows
+    ])
+
+
+@bp.route("/<int:cid>/aggregate", methods=["POST"])
+@login_required
+@require_permission("users.manage")
+def aggregate(cid):
+    """Manual "compute now" button — runs the log-roll-up without
+    moving the cycle status. Handy for spot-checks while the cycle
+    is still OPEN."""
+    c = _cycle_or_404(cid)
+    try:
+        n = aggregate_actuals_for_cycle(c)
+        flash(f"تم تحديث الأرقام الفعلية لـ {n} مؤشر من قيود المتريك",
+               "success")
     except EvaluationError as e:
         flash(str(e), "error")
     return redirect(url_for("evaluations.detail", cid=c.id))

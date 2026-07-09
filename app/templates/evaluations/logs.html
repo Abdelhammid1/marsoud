@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block page_title %}📥 تسجيل قيود المتريك{% endblock %}
+{% block content %}
+
+<div class="mb-4">
+  <a href="{{ url_for('evaluations.index') }}"
+     class="text-sm text-brand-600 hover:underline">← رجوع لدورات التقييم</a>
+</div>
+
+<div class="card p-6 mb-4">
+  <h2 class="font-bold text-navy-900 mb-2">📥 تسجيل نتيجة مؤشر</h2>
+  <p class="text-xs text-slate-500">
+    سجّل أي قيمة لأي موظف في أي تاريخ. النظام هو اللي هيجمّع القيم
+    دي تلقائيًا في نهاية الدورة ويحطها في "الفعلي" حسب طريقة التجميع
+    اللي حددتها على الهدف (مجموع / متوسط / آخر قيمة).
+  </p>
+</div>
+
+<div class="card p-6 mb-4">
+  <h3 class="font-bold text-navy-900 mb-3">+ قيد جديد</h3>
+  <form method="POST" action="{{ url_for('evaluations.logs_create') }}"
+        id="log-form"
+        class="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+    <div>
+      <label class="block text-xs font-semibold mb-1">الموظف</label>
+      <select name="employee_id" id="log-employee" required class="select text-sm">
+        <option value="">— اختر —</option>
+        {% for e in employees %}
+        <option value="{{ e.id }}">{{ e.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold mb-1">الدورة</label>
+      <select name="cycle_id" id="log-cycle" required class="select text-sm">
+        <option value="">— اختر —</option>
+        {% for c in cycles %}
+        <option value="{{ c.id }}">{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="md:col-span-2">
+      <label class="block text-xs font-semibold mb-1">المؤشر</label>
+      <select name="metric_key" id="log-metric" required class="select text-sm" disabled>
+        <option value="">— اختر الموظف والدورة أولاً —</option>
+      </select>
+      <p id="log-metric-hint" class="text-xs text-amber-700 mt-1" style="display:none"></p>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold mb-1">التاريخ</label>
+      <input type="date" name="entry_date" required
+             value="{{ today.isoformat() }}"
+             class="input text-sm">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold mb-1">القيمة</label>
+      <input type="number" name="value" step="0.01" required
+             class="input text-sm font-mono">
+    </div>
+    <div class="md:col-span-6 text-end">
+      <button type="submit" class="btn-primary">💾 حفظ القيد</button>
+    </div>
+  </form>
+</div>
+
+<div class="card p-6">
+  <h3 class="font-bold text-navy-900 mb-3">آخر ٣٠ قيد</h3>
+  {% if recent %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>تاريخ القيد</th>
+        <th>الموظف</th>
+        <th>الدورة</th>
+        <th>المؤشر</th>
+        <th class="text-end">القيمة</th>
+        <th>مُدخِل</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in recent %}
+      <tr>
+        <td class="text-xs font-mono" dir="ltr">{{ r.entry_date.isoformat() }}</td>
+        <td class="text-sm">{{ r.employee.name if r.employee else '—' }}</td>
+        <td class="text-sm">{{ r.cycle.name if r.cycle else '—' }}</td>
+        <td class="text-xs font-mono">{{ r.metric_key }}</td>
+        <td class="text-end font-mono">{{ '%g'|format(r.value|float) }}</td>
+        <td class="text-xs">{{ r.entered_by.full_name if r.entered_by else '—' }}</td>
+        <td class="text-end">
+          {% if r.cycle and r.cycle.status != 'LOCKED' %}
+          <form method="POST"
+                action="{{ url_for('evaluations.logs_delete', log_id=r.id) }}"
+                onsubmit="return confirm('حذف هذا القيد؟');"
+                class="inline">
+            <button type="submit" class="text-xs text-rose-600 hover:underline">🗑</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-center text-sm text-slate-400 py-8">
+    لسه مافيش قيود مسجلة.
+  </div>
+  {% endif %}
+</div>
+
+<script>
+(function() {
+  // MARSOUD-EVAL-METRIC-LOG — dependent metric dropdown.
+  // Only fills the metric list AFTER both employee + cycle are
+  // picked. Shows a friendly hint if no targets exist for the pair.
+  const empSel = document.getElementById('log-employee');
+  const cycSel = document.getElementById('log-cycle');
+  const metSel = document.getElementById('log-metric');
+  const hint = document.getElementById('log-metric-hint');
+
+  async function refresh() {
+    const empId = empSel.value;
+    const cycId = cycSel.value;
+    metSel.innerHTML = '<option value="">— اختر الموظف والدورة أولاً —</option>';
+    metSel.disabled = true;
+    hint.style.display = 'none';
+    hint.textContent = '';
+    if (!empId || !cycId) return;
+    const url = `{{ url_for('evaluations.api_targets') }}?cycle_id=${cycId}&employee_id=${empId}`;
+    const r = await fetch(url);
+    const data = await r.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      metSel.innerHTML = '<option value="">— لا يوجد —</option>';
+      hint.style.display = 'block';
+      hint.textContent = 'مفيش أهداف مسجلة لهذا الموظف في هذه الدورة — راجع الأهداف أولاً.';
+      return;
+    }
+    metSel.innerHTML = '<option value="">— اختر المؤشر —</option>' +
+      data.map(t => {
+        const method = ({SUM: 'مجموع', AVERAGE: 'متوسط', LATEST: 'آخر قيمة'})[t.aggregation_method] || t.aggregation_method;
+        return `<option value="${t.metric_key}">${t.metric_key} · ${method}</option>`;
+      }).join('');
+    metSel.disabled = false;
+  }
+  empSel.addEventListener('change', refresh);
+  cycSel.addEventListener('change', refresh);
+})();
+</script>
+
+{% endblock %}

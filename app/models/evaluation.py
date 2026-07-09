@@ -38,8 +38,19 @@ class EvaluationCategory(str, enum.Enum):
 
 
 class ActualSource(str, enum.Enum):
-    MANUAL = "MANUAL"   # human entered — v1 default
-    AUTO = "AUTO"       # scraped from operational tables (future)
+    MANUAL = "MANUAL"                 # human entered — v1 default
+    AUTO = "AUTO"                     # scraped from operational tables (future)
+    AUTO_AGGREGATED = "AUTO_AGGREGATED"  # rolled up from MetricLogEntry
+
+
+class AggregationMethod(str, enum.Enum):
+    """MARSOUD-EVAL-METRIC-LOG — how the raw log entries for one
+    (employee, metric) are collapsed into a single actual_value
+    at cycle-close time. Set per EmployeeTarget so different
+    metrics under the same cycle can use different math."""
+    AVERAGE = "AVERAGE"   # mean of every logged value
+    SUM = "SUM"           # sum of every logged value
+    LATEST = "LATEST"     # value of the most recent entry_date
 
 
 class BonusTier(str, enum.Enum):
@@ -118,6 +129,15 @@ class EmployeeTarget(db.Model):
     weight_pct = db.Column(db.Numeric(6, 2), nullable=False, default=0)
     category = db.Column(db.String(30), nullable=False)
     notes = db.Column(db.Text, nullable=True)
+    # MARSOUD-EVAL-METRIC-LOG — how the raw log entries for this
+    # (employee, metric) collapse into a single actual_value at
+    # cycle-close time. Default SUM matches the most common intuition
+    # ("total done in the period"); AVERAGE and LATEST cover weekly
+    # rates and single-datapoint indicators respectively.
+    aggregation_method = db.Column(
+        db.String(20), nullable=False,
+        default=AggregationMethod.SUM.value,
+    )
 
     employee = db.relationship("Employee")
 
@@ -216,3 +236,52 @@ class EmployeeEvaluation(db.Model):
             "FULL": "badge-paid",
             "EXCEEDED": "badge-paid",
         }.get(self.bonus_tier, "badge")
+
+
+class MetricLogEntry(db.Model):
+    """MARSOUD-EVAL-METRIC-LOG — one raw datapoint Khadeeja logged
+    for (cycle, employee, metric) on a specific date. The
+    aggregate_actuals service collapses every log for a (metric,
+    employee) into one EmployeeMetricActual row at cycle-close
+    time using the target's aggregation_method (SUM / AVERAGE /
+    LATEST).
+
+    Design constraints from Abdelhamid's spec (2026-07-09):
+      · No week_number, no bucketing — just a free-form date.
+      · Multiple entries per date + metric are legal (the aggregator
+        handles them). The UI form is deliberately minimal — pick
+        employee/cycle/metric/date/value + save.
+    """
+    __tablename__ = "metric_log_entries"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer,
+                             db.ForeignKey("companies.id"),
+                             nullable=False, index=True)
+    cycle_id = db.Column(
+        db.Integer,
+        db.ForeignKey("evaluation_cycles.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    employee_id = db.Column(
+        db.Integer,
+        db.ForeignKey("employees.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    metric_key = db.Column(db.String(120), nullable=False)
+    entry_date = db.Column(db.Date, nullable=False)
+    value = db.Column(db.Numeric(15, 4), nullable=False, default=0)
+    entered_by_id = db.Column(db.Integer, db.ForeignKey("users.id"),
+                                nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow,
+                             nullable=False)
+
+    company = db.relationship("Company")
+    cycle = db.relationship(
+        "EvaluationCycle",
+        backref=db.backref("metric_logs",
+                             cascade="all, delete-orphan",
+                             lazy="dynamic"),
+    )
+    employee = db.relationship("Employee")
+    entered_by = db.relationship("User", foreign_keys=[entered_by_id])
