@@ -88,17 +88,29 @@ def _teardown(company_id):
     db.session.close()
     insp = inspect(db.engine)
     with db.engine.begin() as conn:
-        for tbl in (
-            "metric_log_entries", "employee_evaluations",
-            "employee_metric_actuals", "employee_targets",
-            "evaluation_cycles",
-        ):
+        # employee_targets / employee_metric_actuals /
+        # employee_evaluations don't have their own company_id column
+        # (they scope by cycle_id → cycle.company_id). Sweep them
+        # via that FK BEFORE we delete the cycles, otherwise the
+        # rows survive and pollute the next audit run.
+        cycles_sql = (
+            "SELECT id FROM evaluation_cycles WHERE company_id = :c"
+        )
+        for tbl in ("employee_evaluations", "employee_metric_actuals",
+                     "employee_targets", "metric_log_entries"):
             try:
                 conn.execute(text(
-                    f"DELETE FROM {tbl} WHERE company_id = :c"),
-                    {"c": company_id})
+                    f"DELETE FROM {tbl} WHERE cycle_id IN ({cycles_sql})"
+                ), {"c": company_id})
             except Exception:
                 pass
+        # Now safe to drop the parent rows.
+        try:
+            conn.execute(text(
+                "DELETE FROM evaluation_cycles WHERE company_id = :c"),
+                {"c": company_id})
+        except Exception:
+            pass
         conn.execute(text("DELETE FROM user_companies WHERE company_id = :c"),
                      {"c": company_id})
         for tbl in reversed(db.metadata.sorted_tables):
