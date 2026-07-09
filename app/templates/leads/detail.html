@@ -150,7 +150,9 @@
       <div class="text-sm text-slate-400">لا توجد تعليقات بعد. ابدأ الحوار 👇</div>
     {% endfor %}
     </div>
-    <form method="POST" action="{{ url_for('leads.comment_add', lead_id=lead.id) }}" class="flex gap-2">
+    {# MARSOUD-FORM-ONCE — one-shot submit guard, see base.html. #}
+    <form method="POST" action="{{ url_for('leads.comment_add', lead_id=lead.id) }}"
+          data-once class="flex gap-2">
       <textarea name="content" rows="2" required placeholder="اكتب تعليقك…" class="textarea text-sm flex-1"></textarea>
       <button type="submit" class="btn-primary text-sm self-start">إرسال</button>
     </form>

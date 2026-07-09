@@ -944,6 +944,36 @@ function toggleSection(btn) {
   state[name] = collapsed ? 'collapsed' : 'open';
   localStorage.setItem('marsoud_sidebar', JSON.stringify(state));
 }
+// MARSOUD-FORM-ONCE (2026-07-09) — one-shot submit guard for any form
+// that carries `data-once`. On first submit we disable every submit
+// button, swap in a "جاري الإرسال..." label, and reject any further
+// submits until the response reloads the page. Fixes double-comment
+// bugs where clicking twice creates duplicate posts.
+document.addEventListener('submit', function(ev) {
+  const form = ev.target;
+  if (!form.matches || !form.matches('form[data-once]')) return;
+  if (form.dataset._submitted === '1') {
+    ev.preventDefault();
+    return;
+  }
+  form.dataset._submitted = '1';
+  form.querySelectorAll('button[type="submit"], input[type="submit"]')
+    .forEach(function(btn) {
+      btn.disabled = true;
+      // Preserve the original label so a JS-driven back-nav or
+      // validation-fail flow can restore it if needed.
+      if (btn.dataset._origLabel === undefined) {
+        btn.dataset._origLabel = btn.textContent;
+      }
+      // If the submit is <input>, use .value; otherwise .textContent.
+      if (btn.tagName === 'INPUT') {
+        btn.dataset._origValue = btn.value;
+        btn.value = 'جاري الإرسال...';
+      } else {
+        btn.textContent = 'جاري الإرسال...';
+      }
+    });
+}, true);
 document.addEventListener('DOMContentLoaded', function() {
   const state = JSON.parse(localStorage.getItem('marsoud_sidebar') || '{}');
   document.querySelectorAll('.sidebar-section').forEach(function(section) {
