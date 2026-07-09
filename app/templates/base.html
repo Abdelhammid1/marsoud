@@ -168,6 +168,24 @@ tailwind.config = {
   table.data-table tbody td.text-center {
     text-align: center !important;
   }
+  /* MARSOUD-TABLE-ALIGN follow-up 2 (2026-07-09) — some templates
+     use the older Tailwind physical classes .text-left / .text-right
+     directly. Without an explicit override here, my `thead th
+     text-align: start` default has higher specificity (element +
+     class beats class alone) and silently reverts the intent, so
+     the header ends up at RIGHT in RTL while the body cell sits
+     at LEFT — a giant visual gap. Reported on /crm/campaigns
+     "قيمة متوقعة" column. Force both to their physical twins
+     symmetrically like we already do for logical .text-end /
+     .text-start. */
+  table.data-table thead th.text-left,
+  table.data-table tbody td.text-left {
+    text-align: left !important;
+  }
+  table.data-table thead th.text-right,
+  table.data-table tbody td.text-right {
+    text-align: right !important;
+  }
   table.data-table tbody td.font-mono.text-end,
   table.data-table tbody td.font-mono.text-right {
     direction: ltr;

@@ -105,7 +105,24 @@ def _():
     return f"default = {align}"
 
 
-@check("6. td[dir=\"ltr\"] cells (emails, phones) are right-aligned")
+@check("6. .text-left and .text-right (physical) are also forced")
+def _():
+    """Follow-up fix on /crm/campaigns: some templates use the older
+    physical Tailwind classes .text-left / .text-right on the th (not
+    the logical .text-start / .text-end). Without an explicit
+    override here, the base `thead th { text-align: start }` rule
+    silently wins by specificity — headers snap back to the right
+    while body cells sit at the left. Force both symmetrically."""
+    assert 'table.data-table thead th.text-left' in _BASE_HTML
+    assert 'table.data-table tbody td.text-left' in _BASE_HTML
+    assert 'text-align: left !important' in _BASE_HTML
+    assert 'table.data-table thead th.text-right' in _BASE_HTML
+    assert 'table.data-table tbody td.text-right' in _BASE_HTML
+    assert 'text-align: right !important' in _BASE_HTML
+    return "physical .text-left/.text-right overrides present"
+
+
+@check("7. td[dir=\"ltr\"] cells (emails, phones) are right-aligned")
 def _():
     """Follow-up fix reported on /crm/contacts/: cells that opt into
     dir=\"ltr\" (email addresses, phone numbers, foreign codes) were
@@ -117,7 +134,7 @@ def _():
     return "dir=ltr cells forced right"
 
 
-@check("7. base.html renders through a real page (smoke test)")
+@check("8. base.html renders through a real page (smoke test)")
 def _():
     """A follow-on paranoia check: after tweaking base.html CSS,
     a page that actually inherits base.html renders without a
