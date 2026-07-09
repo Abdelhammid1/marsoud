@@ -163,10 +163,20 @@
     <div class="card p-5">
       <h3 class="font-bold text-navy-900 mb-3">👥 المكلَّفون</h3>
       <div class="space-y-1 mb-3">
+        {# MARSOUD-TASK-ASSIGNEE-LINK — each assignee's name is a
+           direct link to /tasks/?scope=employees&user_id=<uid> so
+           the reader can jump to that person's board without
+           bouncing through the Employees index. Same pattern the
+           rest of the app uses for entity → detail navigation. #}
         {% for u in task.all_assignees %}
         <div class="flex items-center gap-2 text-sm">
           <span class="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-xs">{{ u.full_name[:1] }}</span>
-          <span>{{ u.full_name }}{% if u.id == task.assigned_to_id %} <span class="text-xs text-slate-400">(الأساسي)</span>{% endif %}</span>
+          <a href="{{ url_for('tasks.index', scope='employees', user_id=u.id) }}"
+             class="text-navy-900 hover:text-brand-600 hover:underline"
+             title="افتح كل مهام {{ u.full_name|e }}">{{ u.full_name }}</a>
+          {% if u.id == task.assigned_to_id %}
+          <span class="text-xs text-slate-400">(الأساسي)</span>
+          {% endif %}
         </div>
         {% endfor %}
       </div>
