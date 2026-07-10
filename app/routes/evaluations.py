@@ -39,6 +39,7 @@ from app.services.evaluation import (
     compute_score, update_review,
     log_metric_entry, delete_log_entry, targets_for,
     aggregate_actuals_for_cycle,
+    get_category_weights, set_category_weights,
     EvaluationError,
 )
 
@@ -159,6 +160,14 @@ def detail(cid):
         )
         bucket["evaluation"] = ev
 
+    # MARSOUD-EVAL-CATEGORY-WEIGHT — attach the resolved category
+    # weights per employee so the template can render the correct
+    # % under each score card (defaults 60/25/15 when no override,
+    # otherwise the user's saved values).
+    for bucket in by_emp.values():
+        bucket["weights"] = get_category_weights(
+            c.id, bucket["employee"].id)
+
     return render_template(
         "evaluations/detail.html",
         cycle=c,
@@ -277,6 +286,40 @@ def score(cid, eid):
             f"({ev.bonus_tier_label_ar})",
             "success",
         )
+    except EvaluationError as e:
+        flash(str(e), "error")
+    return redirect(url_for("evaluations.detail", cid=c.id))
+
+
+@bp.route("/<int:cid>/employees/<int:eid>/weights", methods=["POST"])
+@login_required
+@require_permission("users.manage")
+def weights(cid, eid):
+    """MARSOUD-EVAL-CATEGORY-WEIGHT — save per-employee category
+    weights for the cycle. Requires the three inputs to sum to 100;
+    the service raises EvaluationError otherwise, which we flash.
+    Recomputes the score right after so the numbers stay coherent."""
+    c = _cycle_or_404(cid)
+    emp = db.session.get(Employee, eid)
+    if not emp or emp.company_id != g.active_company.id:
+        abort(404)
+    try:
+        payload = {
+            "TARGET_ACHIEVEMENT": request.form.get(
+                "w_target", "0"),
+            "EXECUTION_QUALITY": request.form.get(
+                "w_execution", "0"),
+            "GROWTH": request.form.get("w_growth", "0"),
+        }
+        set_category_weights(c, eid, payload)
+        # If a score was already computed, refresh it with the new
+        # weights so the user sees the impact immediately.
+        existing = EmployeeEvaluation.query.filter_by(
+            cycle_id=c.id, employee_id=eid,
+        ).first()
+        if existing:
+            compute_score(c, eid)
+        flash(f"تم حفظ أوزان {emp.name}", "success")
     except EvaluationError as e:
         flash(str(e), "error")
     return redirect(url_for("evaluations.detail", cid=c.id))

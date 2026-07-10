@@ -99,29 +99,82 @@
     {% endif %}
   </div>
 
+  {# MARSOUD-EVAL-CATEGORY-WEIGHT — the percentages shown next to
+     each category come from the resolved bucket.weights (either the
+     saved per-employee override or 60/25/15 default). #}
+  {% set w = bucket.weights %}
   {% if ev %}
-  {# Category breakdown #}
   <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 text-xs">
     <div class="bg-slate-50 rounded p-2">
-      <div class="text-slate-500">🎯 تحقيق الأهداف (60%)</div>
+      <div class="text-slate-500">🎯 تحقيق الأهداف ({{ '%g'|format(w['TARGET_ACHIEVEMENT']|float) }}%)</div>
       <div class="font-mono font-bold text-navy-900 text-base">
         {{ '%.1f'|format(ev.target_score|float) }}
       </div>
     </div>
     <div class="bg-slate-50 rounded p-2">
-      <div class="text-slate-500">⚙ جودة التنفيذ (25%)</div>
+      <div class="text-slate-500">⚙ جودة التنفيذ ({{ '%g'|format(w['EXECUTION_QUALITY']|float) }}%)</div>
       <div class="font-mono font-bold text-navy-900 text-base">
         {{ '%.1f'|format(ev.execution_score|float) }}
       </div>
     </div>
     <div class="bg-slate-50 rounded p-2">
-      <div class="text-slate-500">📈 النمو (15%)</div>
+      <div class="text-slate-500">📈 النمو ({{ '%g'|format(w['GROWTH']|float) }}%)</div>
       <div class="font-mono font-bold text-navy-900 text-base">
         {{ '%.1f'|format(ev.growth_score|float) }}
       </div>
     </div>
   </div>
   {% endif %}
+
+  {# Weight-override form — folded into a <details> so it's only in the
+     way when the manager actively wants to tweak the blend. When the
+     cycle is not editable, the fields are just read-only text. #}
+  <details class="mb-2 bg-slate-50 rounded p-2"
+           {% if not w or (w['TARGET_ACHIEVEMENT']|float == 60 and w['EXECUTION_QUALITY']|float == 25 and w['GROWTH']|float == 15) %}
+           {# default weights → keep folded so the UI stays tidy #}
+           {% else %}open{% endif %}>
+    <summary class="cursor-pointer text-xs text-navy-900 font-semibold">
+      ⚖ أوزان الفئات (المجموع = 100)
+    </summary>
+    {% if cycle.is_editable %}
+    <form method="POST"
+          action="{{ url_for('evaluations.weights', cid=cycle.id, eid=emp.id) }}"
+          class="grid grid-cols-1 md:grid-cols-4 gap-2 mt-2 items-end text-xs">
+      <div>
+        <label class="block text-slate-500 mb-1">🎯 تحقيق الأهداف %</label>
+        <input type="number" step="0.01" min="0" max="100"
+               name="w_target" required
+               value="{{ '%g'|format(w['TARGET_ACHIEVEMENT']|float) }}"
+               class="input text-xs font-mono">
+      </div>
+      <div>
+        <label class="block text-slate-500 mb-1">⚙ جودة التنفيذ %</label>
+        <input type="number" step="0.01" min="0" max="100"
+               name="w_execution" required
+               value="{{ '%g'|format(w['EXECUTION_QUALITY']|float) }}"
+               class="input text-xs font-mono">
+      </div>
+      <div>
+        <label class="block text-slate-500 mb-1">📈 النمو %</label>
+        <input type="number" step="0.01" min="0" max="100"
+               name="w_growth" required
+               value="{{ '%g'|format(w['GROWTH']|float) }}"
+               class="input text-xs font-mono">
+      </div>
+      <button type="submit" class="btn-primary text-xs">💾 حفظ الأوزان</button>
+    </form>
+    <p class="text-xs text-slate-500 mt-2">
+      الافتراضي 60 / 25 / 15. عدّل الأوزان لو الموظف بيتقاس
+      بمعادلة مختلفة — لازم المجموع = 100.
+    </p>
+    {% else %}
+    <div class="text-xs text-slate-600 mt-2 font-mono">
+      🎯 {{ '%g'|format(w['TARGET_ACHIEVEMENT']|float) }}% ·
+      ⚙ {{ '%g'|format(w['EXECUTION_QUALITY']|float) }}% ·
+      📈 {{ '%g'|format(w['GROWTH']|float) }}%
+    </div>
+    {% endif %}
+  </details>
 
   {# ─── Targets table ─────────────────────────────────────────── #}
   <details class="mb-2" {% if bucket.targets or cycle.is_editable %}open{% endif %}>

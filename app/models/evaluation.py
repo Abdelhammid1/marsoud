@@ -238,6 +238,50 @@ class EmployeeEvaluation(db.Model):
         }.get(self.bonus_tier, "badge")
 
 
+class EmployeeCategoryWeight(db.Model):
+    """MARSOUD-EVAL-CATEGORY-WEIGHT — per-(cycle, employee, category)
+    override for the final-score blend. When no row exists for a
+    (cycle, employee, category) triple, compute_score falls back to
+    the class-level defaults DEFAULT_CATEGORY_WEIGHTS. When rows do
+    exist, they must sum to 100% across the three categories —
+    validated at the service layer.
+    """
+    __tablename__ = "employee_category_weights"
+
+    id = db.Column(db.Integer, primary_key=True)
+    cycle_id = db.Column(
+        db.Integer,
+        db.ForeignKey("evaluation_cycles.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    employee_id = db.Column(
+        db.Integer,
+        db.ForeignKey("employees.id", ondelete="CASCADE"),
+        nullable=False, index=True,
+    )
+    category = db.Column(db.String(30), nullable=False)
+    weight_pct = db.Column(db.Numeric(6, 2), nullable=False, default=0)
+
+    cycle = db.relationship("EvaluationCycle")
+    employee = db.relationship("Employee")
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "cycle_id", "employee_id", "category",
+            name="uq_ecw_cycle_employee_category",
+        ),
+    )
+
+
+# The blend the spec called out — used when an employee has NO
+# per-category override rows for the cycle. Sum = 100.
+DEFAULT_CATEGORY_WEIGHTS = {
+    EvaluationCategory.TARGET_ACHIEVEMENT.value: 60,
+    EvaluationCategory.EXECUTION_QUALITY.value: 25,
+    EvaluationCategory.GROWTH.value: 15,
+}
+
+
 class MetricLogEntry(db.Model):
     """MARSOUD-EVAL-METRIC-LOG — one raw datapoint Khadeeja logged
     for (cycle, employee, metric) on a specific date. The

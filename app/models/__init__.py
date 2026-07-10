@@ -81,7 +81,7 @@ from app.models.evaluation import (
     EvaluationCycle, EvaluationCyclePeriod, EvaluationCycleStatus,
     EvaluationCategory, ActualSource, BonusTier, AggregationMethod,
     EmployeeTarget, EmployeeMetricActual, EmployeeEvaluation,
-    MetricLogEntry,
+    MetricLogEntry, EmployeeCategoryWeight, DEFAULT_CATEGORY_WEIGHTS,
 )
 
 __all__ = [
@@ -91,7 +91,7 @@ __all__ = [
     "EvaluationCycle", "EvaluationCyclePeriod", "EvaluationCycleStatus",
     "EvaluationCategory", "ActualSource", "BonusTier", "AggregationMethod",
     "EmployeeTarget", "EmployeeMetricActual", "EmployeeEvaluation",
-    "MetricLogEntry",
+    "MetricLogEntry", "EmployeeCategoryWeight", "DEFAULT_CATEGORY_WEIGHTS",
     "UserSession", "UserActivityLog", "ACTION_TYPES", "SESSION_STATUS",
     "User", "user_companies", "UserStatus", "Company",
     "Plan", "SubscriptionReminderSent", "PlatformSetting",

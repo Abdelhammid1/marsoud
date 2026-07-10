@@ -37,7 +37,7 @@ from app.models import (
     EvaluationCycle, EvaluationCyclePeriod, EvaluationCycleStatus,
     EvaluationCategory, ActualSource, BonusTier, AggregationMethod,
     EmployeeTarget, EmployeeMetricActual, EmployeeEvaluation,
-    MetricLogEntry,
+    MetricLogEntry, EmployeeCategoryWeight, DEFAULT_CATEGORY_WEIGHTS,
 )
 
 
@@ -285,11 +285,88 @@ def _bonus_tier_for(final_score):
     return BonusTier.EXCEEDED
 
 
+def get_category_weights(cycle_id, employee_id):
+    """MARSOUD-EVAL-CATEGORY-WEIGHT — resolve the three category
+    weights for a (cycle, employee) tuple.
+
+    Precedence:
+      1. If any EmployeeCategoryWeight override exists for this
+         (cycle, employee), use ALL THREE overrides (with 0 as the
+         default for any category the user forgot to enter).
+      2. Otherwise fall back to DEFAULT_CATEGORY_WEIGHTS (60/25/15).
+
+    Returns a dict {TARGET_ACHIEVEMENT: 60, EXECUTION_QUALITY: 25,
+    GROWTH: 15} — same shape as DEFAULT_CATEGORY_WEIGHTS, ready to
+    plug into compute_score."""
+    rows = EmployeeCategoryWeight.query.filter_by(
+        cycle_id=cycle_id, employee_id=employee_id,
+    ).all()
+    if not rows:
+        return dict(DEFAULT_CATEGORY_WEIGHTS)
+    # Override mode: start with 0 for every category, fill in what
+    # the user actually saved. This means a stored (0, 40, 60) row
+    # set applies correctly — the missing category becomes 0, not
+    # the default 60.
+    out = {c.value: 0 for c in EvaluationCategory}
+    for r in rows:
+        out[r.category] = float(r.weight_pct or 0)
+    return out
+
+
+def set_category_weights(cycle, employee_id, weights):
+    """Upsert all three category weight rows for a (cycle, employee).
+
+    `weights` is a dict {TARGET_ACHIEVEMENT: 60, EXECUTION_QUALITY: 25,
+    GROWTH: 15}. Enforces the sum-to-100 invariant so a garbled form
+    submit can't produce a nonsensical blend downstream. Leaving out
+    a category is treated as 0."""
+    if not cycle.is_editable:
+        raise EvaluationError(
+            "لا يمكن تعديل الأوزان بعد قفل/تقديم الدورة"
+        )
+    # Normalise: every category must exist as a key (0 if omitted).
+    normalised = {}
+    for cat in EvaluationCategory:
+        try:
+            v = Decimal(str(weights.get(cat.value, 0)))
+        except Exception:
+            raise EvaluationError(
+                f"وزن غير صحيح للفئة {cat.value}"
+            )
+        if v < 0:
+            raise EvaluationError("الأوزان يجب أن تكون غير سالبة")
+        normalised[cat.value] = v
+    total = sum(normalised.values(), Decimal("0"))
+    if abs(total - Decimal("100")) > Decimal("0.01"):
+        raise EvaluationError(
+            f"مجموع أوزان الفئات يجب أن يكون 100 (الحالي {total:g})"
+        )
+    # Upsert each row.
+    for cat, w in normalised.items():
+        row = EmployeeCategoryWeight.query.filter_by(
+            cycle_id=cycle.id, employee_id=employee_id, category=cat,
+        ).first()
+        if row is None:
+            row = EmployeeCategoryWeight(
+                cycle_id=cycle.id, employee_id=employee_id,
+                category=cat,
+            )
+            db.session.add(row)
+        row.weight_pct = w
+    db.session.commit()
+    return normalised
+
+
 def compute_score(cycle, employee_id):
     """Read every target + actual for (cycle, employee_id), collapse
     to the three category scores + final_score + bonus_tier, and
     persist an EmployeeEvaluation row. Idempotent — re-running with
     updated actuals overwrites the previous row.
+
+    Category-level blend uses per-(cycle, employee) overrides when
+    they exist (see get_category_weights). Otherwise the class-level
+    60/25/15 defaults apply — so nothing changes for existing
+    employees who never set custom weights.
 
     Returns the persisted EmployeeEvaluation.
     """
@@ -327,10 +404,20 @@ def compute_score(cycle, employee_id):
         actuals_by_key,
     )
 
+    # MARSOUD-EVAL-CATEGORY-WEIGHT — pull the per-employee blend if
+    # set, else fall back to the 60/25/15 defaults.
+    weights = get_category_weights(cycle.id, employee_id)
+    w_target = Decimal(str(weights[
+        EvaluationCategory.TARGET_ACHIEVEMENT.value])) / Decimal("100")
+    w_exec = Decimal(str(weights[
+        EvaluationCategory.EXECUTION_QUALITY.value])) / Decimal("100")
+    w_growth = Decimal(str(weights[
+        EvaluationCategory.GROWTH.value])) / Decimal("100")
+
     final_score = (
-        target_score * Decimal("0.60")
-        + execution_score * Decimal("0.25")
-        + growth_score * Decimal("0.15")
+        target_score * w_target
+        + execution_score * w_exec
+        + growth_score * w_growth
     ).quantize(Decimal("0.01"))
 
     tier = _bonus_tier_for(final_score)
