@@ -401,9 +401,15 @@ def visible_tasks_query(company_id, user_id, full_visibility,
         task_assignees.c.user_id == user_id
     )
 
+    # MARSOUD-TASK-CREATOR-VIEW (Abdelhamid 2026-07-11) — the person
+    # who CREATED the task can always open + follow it, even when
+    # they're not one of the assignees. Rofida's ticket: "we need
+    # whoever created the task to be able to open it normally even
+    # if they're not assigned to it."
     visibility_clauses = [
         Task.assigned_to_id == user_id,
         Task.id.in_(user_task_ids),
+        Task.created_by_id == user_id,
     ]
     if pm_project_ids is not None:
         pm_pids = list(pm_project_ids)
@@ -418,6 +424,9 @@ def is_visible_to(task, user_id, full_visibility, pm_project_ids=None):
     if task.assigned_to_id == user_id:
         return True
     if user_id in assignee_ids_for(task):
+        return True
+    # MARSOUD-TASK-CREATOR-VIEW — creator keeps read access.
+    if task.created_by_id == user_id:
         return True
     if pm_project_ids and task.project_id in set(pm_project_ids):
         return True

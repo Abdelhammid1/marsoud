@@ -52,14 +52,29 @@ def _company_users():
 
 
 def _project_managers():
+    """MARSOUD-PM-DROPDOWN-FIX (Abdelhamid 2026-07-11) — the "Project
+    Manager" picker used to filter by role name only, which meant
+    that granting a custom role all the same permissions as
+    project_manager still didn't unlock the dropdown. Rofida's ticket:
+    "I gave her the same permissions as PM but she still doesn't show —
+    she only shows when I make her a Project Manager role explicitly."
+
+    Fix: enumerate every company member and keep whoever actually
+    has `projects.manage`. This honours DB-backed permissions on
+    custom cloned roles, not just the built-in role name."""
     cid = g.active_company.id
+    company = g.active_company
     rows = db.session.execute(
-        user_companies.select().where(
-            (user_companies.c.company_id == cid) &
-            (user_companies.c.role.in_(["project_manager", "admin", "owner"]))
-        )
+        user_companies.select().where(user_companies.c.company_id == cid)
     ).fetchall()
-    return [db.session.get(User, r.user_id) for r in rows]
+    out = []
+    for r in rows:
+        u = db.session.get(User, r.user_id)
+        if not u:
+            continue
+        if has_permission("projects.manage", user=u, company=company):
+            out.append(u)
+    return out
 
 
 def _user_can_see_project(project):

@@ -93,7 +93,13 @@ def _lead_or_403(lead_id):
         # Soft-deleted leads are 404 to everyone in the company panel.
         # Super-admin can still find them via the admin tools.
         abort(404)
-    if not _can_view_all_leads() and lead.assigned_to_id != current_user.id:
+    # MARSOUD-LEAD-CREATOR-VIEW (Abdelhamid 2026-07-11) — the creator
+    # of the lead can always open it, even when it was later reassigned
+    # away. Same rule as tasks: whoever authored the record keeps
+    # read access.
+    if (not _can_view_all_leads()
+            and lead.assigned_to_id != current_user.id
+            and lead.created_by_id != current_user.id):
         abort(403)
     return lead
 
@@ -200,7 +206,11 @@ def index():
 
     query = Lead.query.filter_by(company_id=cid).filter(Lead.deleted_at.is_(None))
     if not _can_view_all_leads():
-        query = query.filter(Lead.assigned_to_id == current_user.id)
+        # MARSOUD-LEAD-CREATOR-VIEW — list includes leads I own OR created.
+        query = query.filter(or_(
+            Lead.assigned_to_id == current_user.id,
+            Lead.created_by_id == current_user.id,
+        ))
 
     if q:
         like = f"%{q}%"
@@ -231,7 +241,10 @@ def index():
     # Status counts within current visibility scope
     base = Lead.query.filter_by(company_id=cid).filter(Lead.deleted_at.is_(None))
     if not _can_view_all_leads():
-        base = base.filter(Lead.assigned_to_id == current_user.id)
+        base = base.filter(or_(
+            Lead.assigned_to_id == current_user.id,
+            Lead.created_by_id == current_user.id,
+        ))
     status_counts = {s: base.filter(Lead.status == s).count() for s in LeadStatus}
 
     # MARSOUD-CRM-EXPANSION §1 — Kanban view: group the filtered leads
@@ -273,7 +286,10 @@ def export_excel():
     query = Lead.query.filter_by(company_id=cid).filter(
         Lead.deleted_at.is_(None))
     if not _can_view_all_leads():
-        query = query.filter(Lead.assigned_to_id == current_user.id)
+        query = query.filter(or_(
+            Lead.assigned_to_id == current_user.id,
+            Lead.created_by_id == current_user.id,
+        ))
     if q_str:
         like = f"%{q_str}%"
         query = query.filter(or_(
