@@ -423,20 +423,52 @@ def build_digest(company_id, employee_id, day=None):
 
     # Best-effort notify the employee. Failure to notify must not block
     # the digest itself — the report is still there in /my/ for them.
+    # MARSOUD-DIGEST-NOTIFY-DEDUPE (2026-07-11) — Rofida and Abdelhamid
+    # both reported 4 identical "تقرير يومي جاهز" bell entries at
+    # 09:00 for the same 2026-07-10 report. Root cause: they own
+    # employee records in multiple companies (multi-tenant users);
+    # each company's cron fired a notification for the same user_id
+    # + same day. Two guards:
+    #   1. Skip the insert if a DIGEST_DRAFT_READY row already exists
+    #      for THIS (user, company, day) — defensive against a cron
+    #      being re-hit within the same day.
+    #   2. Include the company's name in the notification body so a
+    #      multi-company user can actually tell which company's
+    #      report each notification is about.
     try:
-        from app.models import Notification, NotificationKind
+        from app.models import (
+            Notification, NotificationKind, Company as _Company,
+        )
         if user:
-            n = Notification(
-                company_id=company_id,
-                user_id=user.id,
-                kind=NotificationKind.DIGEST_DRAFT_READY,
-                title="تقرير يومي جاهز للمراجعة",
-                body=(f"تقرير نشاطك ليوم {day.isoformat()} جاهز — "
-                        f"راجعه، ضيف ملاحظاتك، وابعته للمالك."),
-                link_url="/my/daily-reports",
-            )
-            db.session.add(n)
-            db.session.flush()
+            # Guard 1: dedupe by looking for an existing notification
+            # for this exact (user, company, kind) whose body already
+            # mentions today's date. Cheap check; no schema change.
+            day_marker = day.isoformat()
+            already = Notification.query.filter(
+                Notification.user_id == user.id,
+                Notification.company_id == company_id,
+                Notification.kind == NotificationKind.DIGEST_DRAFT_READY.value,
+                Notification.body.like(f"%{day_marker}%"),
+            ).first()
+            if not already:
+                # Guard 2: prefix the company's name so multi-company
+                # users can tell four bell entries apart.
+                company = db.session.get(_Company, company_id)
+                co_name = (company.name if company else "").strip()
+                title = "تقرير يومي جاهز للمراجعة"
+                if co_name:
+                    title = f"تقرير يومي جاهز للمراجعة — {co_name}"
+                n = Notification(
+                    company_id=company_id,
+                    user_id=user.id,
+                    kind=NotificationKind.DIGEST_DRAFT_READY,
+                    title=title,
+                    body=(f"تقرير نشاطك ليوم {day_marker} جاهز — "
+                            f"راجعه، ضيف ملاحظاتك، وابعته للمالك."),
+                    link_url="/my/daily-reports",
+                )
+                db.session.add(n)
+                db.session.flush()
     except Exception:
         pass
 

@@ -182,6 +182,15 @@ def edit(company_id):
         company.tax_number = request.form.get("tax_number", company.tax_number)
         company.vat_rate = float(request.form.get("vat_rate", company.vat_rate))
         company.address = request.form.get("address", company.address)
+        # MARSOUD-COMPANY-LEGAL — three optional legal fields. Any
+        # empty submission becomes NULL so the display fallback chain
+        # (brand → legal → name) kicks in cleanly.
+        company.legal_name = (
+            request.form.get("legal_name") or "").strip() or None
+        company.brand_name = (
+            request.form.get("brand_name") or "").strip() or None
+        company.commercial_register_no = (
+            request.form.get("commercial_register_no") or "").strip() or None
         # MARSOUD-51 — bank info for invoice PDF (all optional)
         company.bank_name = (request.form.get("bank_name") or "").strip() or None
         company.bank_account_holder = (request.form.get("bank_account_holder") or "").strip() or None

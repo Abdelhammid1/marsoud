@@ -19,6 +19,15 @@ class Company(db.Model):
     logo_path = db.Column(db.String(300))   # uploaded logo on disk, served from /static/logos/
     address = db.Column(db.Text)
     tax_number = db.Column(db.String(50))
+    # MARSOUD-COMPANY-LEGAL — official metadata surfaced on every
+    # invoice / quotation / receipt / email / PDF. All three nullable
+    # so an existing tenant keeps working with just `name` until they
+    # bother to fill them in. Templates read via the helper properties
+    # (display_name / etc) so a missing value gracefully falls back
+    # to `name`.
+    legal_name = db.Column(db.String(200))
+    brand_name = db.Column(db.String(150))
+    commercial_register_no = db.Column(db.String(50))
     vat_rate = db.Column(db.Numeric(5, 2), default=15.00)
     reminder_config = db.Column(db.Text)  # JSON: {enabled, days_before:[int], overdue_days:[int]}
     weekend_days = db.Column(db.String(20))  # CSV of Python weekday ints, "4,5" = Fri,Sat
@@ -97,6 +106,51 @@ class Company(db.Model):
         return out or {4, 5}
 
     parent = db.relationship("Company", remote_side=[id], backref="children")
+
+    # ─── MARSOUD-COMPANY-LEGAL — official metadata helpers ────────────
+    @property
+    def display_name(self):
+        """The name to show on customer-facing documents. Preference:
+        brand_name (marketing identity) → legal_name (official) →
+        the tenancy's built-in `name` field. Never returns None."""
+        for candidate in (self.brand_name, self.legal_name, self.name):
+            v = (candidate or "").strip()
+            if v:
+                return v
+        return ""
+
+    @property
+    def official_name(self):
+        """The name for signature blocks + tax filings. Preference:
+        legal_name → name."""
+        for candidate in (self.legal_name, self.name):
+            v = (candidate or "").strip()
+            if v:
+                return v
+        return ""
+
+    def document_context(self):
+        """One-shot dict of every company field a template might want
+        to embed in an invoice / quotation / receipt / email / PDF.
+        Keeps callers from re-copying the same 10 lines everywhere and
+        gives us a single point to add new fields (e.g. license number)
+        without editing every consumer."""
+        return {
+            "id": self.id,
+            "name": (self.name or "").strip(),
+            "display_name": self.display_name,
+            "official_name": self.official_name,
+            "legal_name": (self.legal_name or "").strip(),
+            "brand_name": (self.brand_name or "").strip(),
+            "commercial_register_no":
+                (self.commercial_register_no or "").strip(),
+            "tax_number": (self.tax_number or "").strip(),
+            "address": (self.address or "").strip(),
+            "base_currency": self.base_currency,
+            "vat_rate": float(self.vat_rate or 0),
+            "logo_url": self.logo_url,
+            "logo_path": self.logo_path,
+        }
 
     def __repr__(self):
         return f"<Company {self.name}>"

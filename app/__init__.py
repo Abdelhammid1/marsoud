@@ -441,6 +441,16 @@ def create_app(config_class=Config):
             pass
         return {"notif_unread_count": 0}
 
+    @app.context_processor
+    def inject_today_date():
+        """MARSOUD-OVERDUE-REMINDER — expose today's date to any
+        template that needs to compare against a due_date (e.g. the
+        overdue-reminder button on the invoice view). Returned as a
+        callable so `today_date()` in the template stays consistent
+        with how the timezone helpers are shaped."""
+        from datetime import date as _date
+        return {"today_date": _date.today}
+
     @app.template_filter("money")
     def money_filter(value, currency=None):
         if value is None:

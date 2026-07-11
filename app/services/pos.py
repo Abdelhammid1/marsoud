@@ -77,6 +77,14 @@ def create_pos_order(
     open_shift = current_open_shift_for(cashier_id, company_id)
 
     # Build the Invoice + items in memory.
+    # MARSOUD-CURRENCY-DEFAULT (2026-07-11) — was hardcoded "SAR" so
+    # POS orders in an EGP/AED/USD tenant all persisted as SAR and
+    # broke totals in reports. Read from the company's base_currency
+    # instead; falls back to "SAR" only when the company row itself
+    # is somehow missing (defence-in-depth).
+    from app.models import Company as _Company
+    _company = db.session.get(_Company, company_id)
+    _cur = ((_company.base_currency if _company else None) or "SAR").strip() or "SAR"
     invoice = Invoice(
         company_id=company_id,
         number=next_number(company_id, "POS"),
@@ -86,7 +94,7 @@ def create_pos_order(
         source="POS",
         issue_date=date.today(),
         due_date=date.today(),
-        currency="SAR",
+        currency=_cur,
         status=InvoiceStatus.DRAFT,
         invoice_discount_type=(
             DiscountType[invoice_discount_type]

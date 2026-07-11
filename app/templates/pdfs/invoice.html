@@ -200,13 +200,15 @@ table.items tbody tr:last-child td { border-bottom: none; }
     {# ── HEADER — title + logo. Prefer the data-URI passed in by
          export.py (which reads the file from disk) over the DB path
          so WeasyPrint embeds the image without a file-lookup. ── #}
+    {# MARSOUD-COMPANY-LEGAL — prefer display_name (brand → legal → name)
+       for the customer-facing title/logo alt-text. #}
     <div class="header">
       <div><div class="title">فاتورة</div></div>
       <div class="logo-box">
         {% if company_logo_data_uri %}
-          <img src="{{ company_logo_data_uri }}" alt="{{ invoice.company.name }}">
+          <img src="{{ company_logo_data_uri }}" alt="{{ invoice.company.display_name }}">
         {% else %}
-          <div class="logo-text">{{ invoice.company.name }}</div>
+          <div class="logo-text">{{ invoice.company.display_name }}</div>
         {% endif %}
       </div>
     </div>
@@ -231,13 +233,31 @@ table.items tbody tr:last-child td { border-bottom: none; }
         <span class="val mono">{{ invoice.company.tax_number }}</span>
       </div>
       {% endif %}
+      {# MARSOUD-COMPANY-LEGAL — surface the commercial register No.
+         only when the tenant actually filled it in. #}
+      {% if invoice.company.commercial_register_no %}
+      <div class="meta-row">
+        <span class="lbl">السجل التجاري</span>
+        <span class="val mono">{{ invoice.company.commercial_register_no }}</span>
+      </div>
+      {% endif %}
     </div>
 
     {# ── FROM / TO ───────────────────────────────────────────── #}
     <div class="parties">
       <div class="party">
         <div class="lbl">من</div>
-        <div class="name">{{ invoice.company.name }}</div>
+        {# MARSOUD-COMPANY-LEGAL — official_name is the tax/signature
+           name (legal → name fallback). The brand name renders below
+           it in smaller type when the tenant set BOTH so a customer
+           who knows the brand still recognises the sender. #}
+        <div class="name">{{ invoice.company.official_name }}</div>
+        {% if invoice.company.brand_name
+              and invoice.company.brand_name != invoice.company.official_name %}
+        <div class="line" style="font-size: 0.9em; color: #64748B;">
+          {{ invoice.company.brand_name }}
+        </div>
+        {% endif %}
         <div class="line">
           {% if invoice.company.address %}{{ invoice.company.address|replace('\n', '<br>')|safe }}{% endif %}
         </div>

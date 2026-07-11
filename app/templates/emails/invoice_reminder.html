@@ -16,8 +16,9 @@
 </div>
 
 <h2 style="color:#0A2540;margin:0 0 8px;font-size:20px">مرحباً {{ invoice.customer.name }}</h2>
+{# MARSOUD-COMPANY-LEGAL — display_name = brand → legal → name. #}
 <p style="line-height:1.7;color:#475569;margin:0 0 20px;font-size:14px">
-  هذا تذكير ودي بخصوص فاتورتك مع <strong>{{ invoice.company.name }}</strong>.
+  هذا تذكير ودي بخصوص فاتورتك مع <strong>{{ invoice.company.display_name }}</strong>.
 </p>
 
 <div style="background:linear-gradient(135deg,#0A2540 0%,#1B3A5C 100%);color:#fff;border-radius:14px;padding:20px;margin:0 0 16px;text-align:center">
@@ -25,13 +26,44 @@
   <div style="font-size:32px;font-weight:bold;font-family:monospace;margin-top:4px">{{ "%.2f"|format(invoice.balance) }} <span style="font-size:16px;color:#94A3B8">{{ invoice.currency }}</span></div>
 </div>
 
+{# MARSOUD-OVERDUE-REMINDER — every field the ticket listed:
+   customer name (above), invoice #, dates, days late (from
+   days_label when overdue), total, paid, remaining, status. #}
 <table style="width:100%;border-collapse:collapse;font-size:13px">
   <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">رقم الفاتورة</td><td style="padding:8px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace;font-weight:bold">{{ invoice.number }}</td></tr>
   <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">تاريخ الإصدار</td><td style="padding:8px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace">{{ invoice.issue_date.isoformat() }}</td></tr>
-  <tr><td style="padding:8px 12px;color:#94A3B8">تاريخ الاستحقاق</td><td style="padding:8px 12px;text-align:left;font-family:monospace;color:{{ accent_text }};font-weight:bold">{{ invoice.due_date.isoformat() }}</td></tr>
+  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">تاريخ الاستحقاق</td><td style="padding:8px 12px;text-align:left;font-family:monospace;color:{{ accent_text }};font-weight:bold;border-bottom:1px solid #F1F5F9">{{ invoice.due_date.isoformat() }}</td></tr>
+  {% if is_overdue and '_' in days_label %}
+    {% set _n = days_label.split('_',1)[1] %}
+    <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">أيام التأخير</td><td style="padding:8px 12px;text-align:left;font-family:monospace;color:#B91C1C;font-weight:bold;border-bottom:1px solid #F1F5F9">{{ _n }} يوم</td></tr>
+  {% endif %}
+  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">إجمالي الفاتورة</td><td style="padding:8px 12px;text-align:left;font-family:monospace;border-bottom:1px solid #F1F5F9">{{ "%.2f"|format(invoice.total|float) }} {{ invoice.currency }}</td></tr>
+  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">المبلغ المدفوع</td><td style="padding:8px 12px;text-align:left;font-family:monospace;border-bottom:1px solid #F1F5F9">{{ "%.2f"|format(invoice.paid_amount|float) }} {{ invoice.currency }}</td></tr>
+  <tr><td style="padding:8px 12px;color:#94A3B8">الحالة</td><td style="padding:8px 12px;text-align:left">{{ invoice.status.value }}</td></tr>
 </table>
 
-<p style="color:#475569;font-size:13px;margin-top:24px;border-top:1px solid #F1F5F9;padding-top:16px">
+{# MARSOUD-COMPANY-LEGAL — signature block. Legal + brand + CR when
+   set; silently drops fields the tenant hasn't filled in. #}
+<div style="color:#64748B;font-size:12px;margin-top:20px;padding-top:16px;border-top:1px solid #F1F5F9;line-height:1.7">
+  {% if invoice.company.official_name %}
+  <div><strong style="color:#0A2540">{{ invoice.company.official_name }}</strong>
+    {% if invoice.company.brand_name and invoice.company.brand_name != invoice.company.official_name %}
+    · {{ invoice.company.brand_name }}
+    {% endif %}
+  </div>
+  {% endif %}
+  {% if invoice.company.commercial_register_no %}
+  <div>س.ت: <span dir="ltr" style="font-family:monospace">{{ invoice.company.commercial_register_no }}</span></div>
+  {% endif %}
+  {% if invoice.company.tax_number %}
+  <div>الرقم الضريبي: <span dir="ltr" style="font-family:monospace">{{ invoice.company.tax_number }}</span></div>
+  {% endif %}
+  {% if invoice.company.address %}
+  <div style="margin-top:4px">{{ invoice.company.address }}</div>
+  {% endif %}
+</div>
+
+<p style="color:#475569;font-size:13px;margin-top:24px">
   إذا تم السداد مؤخراً، تجاوز هذه الرسالة. للاستفسار، الرد على هذا الإيميل مباشرة.
 </p>
 {% endblock %}

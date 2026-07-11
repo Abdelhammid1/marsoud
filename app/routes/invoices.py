@@ -275,6 +275,60 @@ def resend(invoice_id):
     return redirect(url_for("invoices.view", invoice_id=invoice_id))
 
 
+@bp.route("/<int:invoice_id>/send-overdue-reminder", methods=["POST"])
+@login_required
+@require_permission("invoices.send")
+def send_overdue_reminder_route(invoice_id):
+    """MARSOUD-OVERDUE-REMINDER — one-click "إرسال تذكير" button for
+    overdue invoices. The email template already reads every field the
+    ticket listed (customer, invoice #, dates, amounts, days late,
+    company data via Company.document_context) — this just wraps the
+    existing send_overdue_reminder() service in an HTTP endpoint and
+    logs the send in InvoiceReminderSent so the user can see a
+    timestamp on the invoice view."""
+    from datetime import date
+    from app.models import InvoiceReminderSent
+    from app.services.email import send_overdue_reminder
+    invoice = db.session.get(Invoice, invoice_id)
+    if not invoice or invoice.company_id != g.active_company.id:
+        flash("غير موجود", "error")
+        return redirect(url_for("invoices.index"))
+    if invoice.status not in (InvoiceStatus.SENT, InvoiceStatus.OVERDUE):
+        flash("التذكير متاح فقط للفواتير المرسلة/المتأخرة", "warning")
+        return redirect(url_for("invoices.view", invoice_id=invoice_id))
+    if not invoice.customer or not (invoice.customer.email or "").strip():
+        flash("العميل مالوش إيميل — عدّل بياناته الأول.", "error")
+        return redirect(url_for("invoices.view", invoice_id=invoice_id))
+    days_late = (date.today() - invoice.due_date).days
+    if days_late <= 0:
+        flash("الفاتورة لسه مش متأخرة — استخدم زرار إعادة الإرسال العادي.",
+               "warning")
+        return redirect(url_for("invoices.view", invoice_id=invoice_id))
+    ok = send_overdue_reminder(invoice, f"overdue_{days_late}")
+    if ok:
+        # Record the send so the invoice view can render a
+        # "آخر تذكير بتاريخ ..." line. Use a manual threshold
+        # (999) for manual sends so it doesn't collide with the
+        # cron-driven thresholds (7, 15, 30).
+        try:
+            db.session.add(InvoiceReminderSent(
+                invoice_id=invoice.id,
+                threshold_kind="overdue",
+                threshold_days=days_late,
+            ))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+        flash(
+            f"تم إرسال تذكير للعميل {invoice.customer.name} "
+            f"(متأخرة {days_late} يوم)",
+            "success",
+        )
+    else:
+        flash("تعذّر الإرسال — راجع سجلات SMTP", "error")
+    return redirect(url_for("invoices.view", invoice_id=invoice_id))
+
+
 @bp.route("/<int:invoice_id>/pay", methods=["POST"])
 @login_required
 @require_permission("invoices.create")

@@ -112,6 +112,46 @@
     </div>
     {% endif %}
 
+    {# MARSOUD-OVERDUE-REMINDER — one-click reminder for overdue
+       invoices. Button only renders when today > due_date AND the
+       invoice still has a balance AND the customer has an email.
+       The route re-validates all three before actually sending. #}
+    {% set _today = today_date() %}
+    {% if invoice.due_date and _today > invoice.due_date
+          and invoice.balance > 0.01
+          and invoice.status.value in ['SENT', 'PARTIALLY_PAID', 'OVERDUE'] %}
+    {% set _days_late = (_today - invoice.due_date).days %}
+    <div class="card p-5 border-rose-200 bg-rose-50/30">
+      <h3 class="font-bold text-rose-700 mb-1">⏰ تذكير — فاتورة متأخرة</h3>
+      <p class="text-xs text-slate-600 mb-3">
+        متأخرة <b class="font-mono">{{ _days_late }}</b> يوم من تاريخ الاستحقاق
+        ({{ invoice.due_date.isoformat() }}).
+      </p>
+      {% set last_manual = invoice.reminders_sent
+              |selectattr('threshold_kind', 'equalto', 'overdue')
+              |list|last %}
+      {% if last_manual %}
+      <div class="text-xs text-slate-500 mb-2">
+        آخر تذكير:
+        <span class="font-mono">{{ last_manual.sent_at | company_dt('%Y-%m-%d %H:%M') }}</span>
+      </div>
+      {% endif %}
+      <form method="POST"
+            action="{{ url_for('invoices.send_overdue_reminder_route', invoice_id=invoice.id) }}"
+            data-once>
+        <button type="submit" class="btn-primary w-full text-sm"
+                {% if not invoice.customer or not invoice.customer.email %}disabled title="العميل ما عندوش إيميل"{% endif %}>
+          📮 إرسال تذكير للعميل
+        </button>
+      </form>
+      {% if not invoice.customer or not invoice.customer.email %}
+      <p class="text-xs text-rose-700 mt-2">
+        العميل ما عندوش إيميل مسجّل. عدّل بياناته أولاً.
+      </p>
+      {% endif %}
+    </div>
+    {% endif %}
+
     {% if invoice.balance > 0.01 and invoice.status.value in ['SENT', 'PARTIALLY_PAID', 'OVERDUE'] %}
     <div class="card p-5">
       <h3 class="font-bold text-navy-900 mb-3">تسجيل دفعة</h3>
