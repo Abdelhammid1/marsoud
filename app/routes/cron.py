@@ -66,6 +66,19 @@ def tick():
         logging.getLogger("ledgeros.cron").exception("task deadlines failed: %s", e)
         summary["task_deadlines"] = {"error": str(e)[:200]}
 
+    # MARSOUD-TASK-SCHEDULE — spawn Task rows from any TaskSchedule
+    # whose window includes today. Idempotent — last_generated_date
+    # is checked inside the service so double-firing this route is
+    # safe.
+    try:
+        from app.services.task_schedules import materialize_due_schedules
+        summary["task_schedules"] = materialize_due_schedules()
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception(
+            "task schedule materialization failed: %s", e)
+        summary["task_schedules"] = {"error": str(e)[:200]}
+
     # MARSOUD-TASK-ARCHIVE-01 — auto-archive DONE tasks > 30 days old
     try:
         from app.services.task_archive import auto_archive_old_done

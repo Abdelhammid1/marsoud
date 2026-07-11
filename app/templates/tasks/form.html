@@ -69,6 +69,69 @@
       <textarea name="notes" rows="2" class="textarea">{{ task.notes if task else '' }}</textarea>
     </div>
 
+    {# MARSOUD-TASK-SCHEDULE (Abdelhamid 2026-07-11) — schedule/recurrence
+       block. Only shown on CREATE (schedule editing lives in a separate
+       page in a future ticket). Three modes:
+         · NONE     — normal task, created immediately (default)
+         · ONCE     — task appears on the chosen future date
+         · DAILY    — task recreated every day between start and end date
+       JS below hides/shows the date inputs based on the radio choice. #}
+    {% if not task %}
+    <div class="rounded-lg border border-slate-200 bg-slate-50 p-4"
+         id="schedule-block">
+      <label class="block text-sm font-semibold text-slate-700 mb-3">
+        🗓️ جدولة أو تكرار (اختياري)
+      </label>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="radio" name="schedule_mode" value="NONE" checked
+                 onchange="_toggleScheduleFields(this.value)">
+          <span>الآن (بدون جدولة)</span>
+        </label>
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="radio" name="schedule_mode" value="ONCE"
+                 onchange="_toggleScheduleFields(this.value)">
+          <span>جدولة لتاريخ لاحق</span>
+        </label>
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="radio" name="schedule_mode" value="DAILY"
+                 onchange="_toggleScheduleFields(this.value)">
+          <span>تكرار يومي حتى تاريخ</span>
+        </label>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3"
+           id="schedule-fields" style="display:none">
+        <div>
+          <label class="block text-xs text-slate-600 mb-1">تاريخ البدء</label>
+          <input type="date" name="schedule_start_date" class="input">
+        </div>
+        <div id="schedule-end-wrap" style="display:none">
+          <label class="block text-xs text-slate-600 mb-1">
+            تاريخ الانتهاء (شامل)
+          </label>
+          <input type="date" name="schedule_end_date" class="input">
+        </div>
+      </div>
+      <p class="text-xs text-slate-500 mt-2">
+        عند الجدولة، لا تُنشأ المهمة الآن — تُنشأ آليًا في التاريخ المحدد
+        (وكل يوم داخل الفترة إذا اخترت التكرار اليومي).
+      </p>
+    </div>
+    <script>
+    function _toggleScheduleFields(mode) {
+      const wrap = document.getElementById("schedule-fields");
+      const endWrap = document.getElementById("schedule-end-wrap");
+      if (mode === "NONE") {
+        wrap.style.display = "none";
+        endWrap.style.display = "none";
+      } else {
+        wrap.style.display = "grid";
+        endWrap.style.display = (mode === "DAILY") ? "block" : "none";
+      }
+    }
+    </script>
+    {% endif %}
+
     {# MARSOUD — multi-attachment input. Hidden on edit because the
        detail page already has a per-attachment uploader; we only want
        this on the create form. #}

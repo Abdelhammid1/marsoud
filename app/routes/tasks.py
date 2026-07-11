@@ -457,6 +457,56 @@ def new():
                     raise CRMError("المرحلة لا تنتمي لهذا المشروع")
             priority_str = request.form.get("priority", "MEDIUM")
 
+            # MARSOUD-TASK-SCHEDULE (Abdelhamid 2026-07-11) — if the
+            # user picked ONCE or DAILY, we DON'T create a Task now;
+            # we insert a TaskSchedule row and let the daily cron
+            # materialize it. Falls through to the normal Task-create
+            # path for `NONE`.
+            mode = (request.form.get("schedule_mode") or "NONE").upper()
+            if mode in ("ONCE", "DAILY"):
+                title = (request.form.get("title") or "").strip()
+                if not title:
+                    raise CRMError("عنوان المهمة مطلوب")
+                start_d = _parse_date(
+                    request.form.get("schedule_start_date"))
+                end_d = _parse_date(
+                    request.form.get("schedule_end_date")) \
+                        if mode == "DAILY" else None
+                if not start_d:
+                    raise CRMError("تاريخ البدء مطلوب للجدولة")
+                if mode == "DAILY" and not end_d:
+                    raise CRMError("تاريخ الانتهاء مطلوب للتكرار اليومي")
+                from app.services.task_schedules import (
+                    create_schedule, ScheduleError,
+                )
+                try:
+                    s = create_schedule(
+                        company_id=cid,
+                        created_by_id=current_user.id,
+                        title=title,
+                        description=(request.form.get("description")
+                                     or "").strip() or None,
+                        priority=priority_str,
+                        project_id=pid,
+                        milestone_id=milestone_id,
+                        notes=(request.form.get("notes") or "").strip()
+                              or None,
+                        assignee_ids=assignee_ids,
+                        recurrence=mode,
+                        start_date=start_d,
+                        end_date=end_d,
+                    )
+                except ScheduleError as e:
+                    raise CRMError(str(e))
+                if mode == "ONCE":
+                    flash(f"تمت جدولة المهمة «{s.title}» "
+                          f"لتاريخ {start_d.isoformat()}", "success")
+                else:
+                    flash(f"تم إنشاء تكرار يومي للمهمة «{s.title}» "
+                          f"من {start_d.isoformat()} إلى "
+                          f"{end_d.isoformat()}", "success")
+                return redirect(_safe_next(url_for("tasks.index")))
+
             t = Task(
                 company_id=cid,
                 title=(request.form.get("title") or "").strip(),

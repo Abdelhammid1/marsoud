@@ -344,7 +344,11 @@ def create_app(config_class=Config):
         current_role = None
         if active_company:
             from flask_login import current_user as _cu
-            if _cu.is_authenticated:
+            # `current_user` resolves to None outside a request context
+            # (e.g. when the cron pipeline renders a task-notification
+            # email from an app-context-only worker). Guard both the
+            # None case and the AnonymousUserMixin case.
+            if _cu is not None and getattr(_cu, "is_authenticated", False):
                 current_role = get_user_role(_cu.id, active_company.id)
         # TICKET 1 — surface subscription state to every template so the
         # banner in base.html knows what (if anything) to display.
@@ -367,7 +371,9 @@ def create_app(config_class=Config):
         my_employee_here = None
         if active_company:
             from flask_login import current_user as _cu
-            if _cu.is_authenticated:
+            # Same guard as inject_globals above — the template may be
+            # rendered from a cron worker with no request context.
+            if _cu is not None and getattr(_cu, "is_authenticated", False):
                 from app.models import Employee
                 my_employee_here = Employee.query.filter_by(
                     company_id=active_company.id, user_id=_cu.id,

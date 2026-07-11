@@ -12,16 +12,33 @@
   السلام عليكم {{ recipient_name }} 👋
 </p>
 
-<div style="background:linear-gradient(135deg,#0A2540 0%,#1B3A5C 100%);
-            color:#fff;border-radius:14px;padding:24px;margin:18px 0">
-  <div style="font-size:11px;color:#94A3B8;letter-spacing:1px">المهمة</div>
-  <div style="font-size:20px;font-weight:bold;margin-top:6px">{{ task.title }}</div>
-  {% if task.project %}
-  <div style="font-size:12px;color:#94A3B8;margin-top:6px">
-    📂 مشروع: {{ task.project.name }}
-  </div>
-  {% endif %}
-</div>
+{# MARSOUD-EMAIL-CONTRAST-FIX (Abdelhamid 2026-07-11) — Gmail (web +
+   iOS + Android) silently strips `background: linear-gradient(...)`
+   from div styles, which used to leave the task title white-on-white
+   and effectively invisible. Rebuilt as a `<table bgcolor="#0A2540">`
+   with matching `background-color` inline style — every major client
+   (Gmail, Outlook, Apple Mail, Yahoo) honours the bgcolor attribute
+   even when they drop the CSS, so the dark card + white text always
+   render together. #}
+<table role="presentation" cellpadding="0" cellspacing="0" width="100%"
+       bgcolor="#0A2540"
+       style="background-color:#0A2540;border-radius:14px;margin:18px 0">
+  <tr>
+    <td bgcolor="#0A2540"
+        style="background-color:#0A2540;padding:24px;border-radius:14px;
+               color:#ffffff;font-family:Arial,sans-serif">
+      <div style="font-size:11px;color:#94A3B8;letter-spacing:1px">المهمة</div>
+      <div style="font-size:20px;font-weight:bold;margin-top:6px;color:#ffffff">
+        {{ task.title }}
+      </div>
+      {% if task.project %}
+      <div style="font-size:12px;color:#94A3B8;margin-top:6px">
+        📂 مشروع: {{ task.project.name }}
+      </div>
+      {% endif %}
+    </td>
+  </tr>
+</table>
 
 {% if body_text %}
 <div style="background:#F8FAFC;border-right:3px solid #1D9E75;

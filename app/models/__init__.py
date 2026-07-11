@@ -42,6 +42,10 @@ from app.models.crm import (
     TaskComment, TaskActivityLog, task_assignees,
     LeadComment,
 )
+from app.models.task_schedule import (
+    TaskSchedule, task_schedule_assignees,
+    RECURRENCE_ONCE, RECURRENCE_DAILY, RECURRENCE_KINDS,
+)
 # MARSOUD-CRM-EXPANSION §2/5b/5c — new lightweight CRM tables.
 from app.models.crm_expansion import (
     Campaign, LeadContact, LeadActivity, LeadActivityType,
@@ -115,6 +119,8 @@ __all__ = [
     "PROJECT_TRANSITIONS",
     "Task", "TaskStatus", "TaskPriority", "KANBAN_ORDER",
     "TaskComment", "TaskActivityLog", "task_assignees",
+    "TaskSchedule", "task_schedule_assignees",
+    "RECURRENCE_ONCE", "RECURRENCE_DAILY", "RECURRENCE_KINDS",
     "LeadComment",
     "Document", "DocumentSourceType", "DocumentVisibility",
     "Notification", "NotificationKind",
