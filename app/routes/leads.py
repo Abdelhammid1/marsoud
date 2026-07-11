@@ -525,6 +525,27 @@ def comment_add(lead_id):
     )
     db.session.add(c)
     db.session.commit()
+    # MARSOUD-MENTIONS — same fan-out pattern as task comments.
+    try:
+        from app.services.mentions import parse_mention_ids, notify_mentions
+        ids = parse_mention_ids(content)
+        if ids:
+            notify_mentions(
+                actor_user_id=current_user.id,
+                mentioned_user_ids=ids,
+                company_id=lead.company_id,
+                entity_kind="lead",
+                entity_label=f"عميل محتمل: {lead.client_name}",
+                link_url=(
+                    url_for("leads.detail", lead_id=lead.id) + "#comments"
+                ),
+                snippet=content,
+            )
+    except Exception:
+        import logging
+        logging.getLogger("marsoud.mentions").exception(
+            "mention fan-out failed on lead %s", lead.id,
+        )
     flash("تم إضافة التعليق", "success")
     return redirect(url_for("leads.detail", lead_id=lead.id) + "#comments")
 

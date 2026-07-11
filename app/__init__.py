@@ -460,6 +460,14 @@ def create_app(config_class=Config):
         except (TypeError, ValueError):
             return str(value)
 
+    @app.template_filter("mentions")
+    def _mentions_filter(text):
+        """MARSOUD-MENTIONS — replace `@[Name](user:ID)` tokens with
+        styled anchor tags. Registered as a Jinja filter so any
+        comment template can render with `{{ c.content|mentions }}`."""
+        from app.services.mentions import render_mentions
+        return render_mentions(text)
+
     @app.template_filter("company_dt")
     def company_dt_filter(value, fmt="%Y-%m-%d %H:%M:%S", company=None):
         """MARSOUD-TZ-01 — format a stored UTC datetime in the company's

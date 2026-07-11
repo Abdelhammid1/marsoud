@@ -992,6 +992,185 @@ document.addEventListener('submit', function(ev) {
       }
     });
 }, true);
+
+// MARSOUD-MENTIONS (2026-07-11) — @-autocomplete on any textarea
+// tagged with `data-mention`. Watches for the `@` trigger, opens a
+// floating dropdown next to the caret, fetches matching users from
+// /users/api/search, and on selection inserts `@[Name](user:ID)`
+// as a Markdown-style token so the backend can parse referenced
+// user_ids without relying on display-name matching (which breaks
+// when a user changes their name later).
+(function() {
+  const _state = {
+    activeTA: null,   // the textarea we're currently working on
+    box: null,        // the floating dropdown element
+    triggerPos: -1,   // caret index where the last `@` was typed
+    items: [],
+    focused: 0,
+  };
+
+  function ensureBox() {
+    if (_state.box) return _state.box;
+    const el = document.createElement('div');
+    el.className = 'mention-box';
+    el.style.cssText = (
+      'position:absolute;z-index:99999;background:#fff;' +
+      'border:1px solid #E2E8F0;border-radius:8px;' +
+      'box-shadow:0 4px 16px -4px rgba(10, 37, 64, 0.15);' +
+      'max-height:240px;overflow:auto;min-width:220px;display:none;' +
+      'font-family:inherit;'
+    );
+    document.body.appendChild(el);
+    _state.box = el;
+    return el;
+  }
+
+  function positionBox(ta) {
+    // Naive but reliable: put the dropdown right below the textarea.
+    const rect = ta.getBoundingClientRect();
+    const box = ensureBox();
+    box.style.top = (window.scrollY + rect.bottom + 4) + 'px';
+    box.style.left = (window.scrollX + rect.left) + 'px';
+  }
+
+  function hideBox() {
+    if (_state.box) _state.box.style.display = 'none';
+    _state.activeTA = null;
+    _state.triggerPos = -1;
+    _state.items = [];
+    _state.focused = 0;
+  }
+
+  function renderItems() {
+    const box = ensureBox();
+    if (!_state.items.length) {
+      box.innerHTML = '<div style="padding:12px;color:#94A3B8;font-size:0.85rem">لا يوجد مستخدمين مطابقين</div>';
+      return;
+    }
+    box.innerHTML = _state.items.map(function(u, i) {
+      const active = (i === _state.focused);
+      return (
+        '<div class="mention-item" data-idx="' + i + '" style="' +
+          'display:flex;align-items:center;gap:8px;padding:8px 12px;' +
+          'cursor:pointer;font-size:0.9rem;' +
+          (active ? 'background:#ECFDF5;' : '') +
+        '">' +
+          '<span style="display:inline-flex;width:28px;height:28px;' +
+            'border-radius:50%;background:#ECFDF5;color:#059669;' +
+            'align-items:center;justify-content:center;font-weight:700;' +
+            'font-size:0.75rem">' + escapeHTML(u.initial || '?') + '</span>' +
+          '<div>' +
+            '<div style="color:#0A2540;font-weight:600">' + escapeHTML(u.name) + '</div>' +
+            (u.email ? '<div style="color:#94A3B8;font-size:0.75rem" dir="ltr">' + escapeHTML(u.email) + '</div>' : '') +
+          '</div>' +
+        '</div>'
+      );
+    }).join('');
+    box.querySelectorAll('.mention-item').forEach(function(el) {
+      el.addEventListener('mousedown', function(ev) {
+        ev.preventDefault();   // don't blur the textarea
+        pickItem(parseInt(el.getAttribute('data-idx'), 10));
+      });
+    });
+  }
+
+  function escapeHTML(s) {
+    return String(s).replace(/[&<>"']/g, function(c) {
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+    });
+  }
+
+  function pickItem(idx) {
+    const u = _state.items[idx];
+    if (!u || !_state.activeTA || _state.triggerPos < 0) {
+      hideBox();
+      return;
+    }
+    const ta = _state.activeTA;
+    const before = ta.value.slice(0, _state.triggerPos);
+    // Skip the `@` + whatever the user typed after it as the query;
+    // caret currently sits at the end of that query.
+    const after = ta.value.slice(ta.selectionStart);
+    const token = '@[' + u.name + '](user:' + u.id + ')';
+    ta.value = before + token + ' ' + after;
+    // Move caret past the inserted token + trailing space.
+    const newPos = (before + token + ' ').length;
+    ta.setSelectionRange(newPos, newPos);
+    hideBox();
+    ta.focus();
+  }
+
+  async function fetchSuggestions(q) {
+    try {
+      const r = await fetch('/users/api/search?q=' + encodeURIComponent(q));
+      if (!r.ok) return [];
+      return await r.json();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  async function refreshFor(ta) {
+    const caret = ta.selectionStart;
+    // Walk backwards from the caret to find the most recent `@`.
+    // Bail if we hit whitespace / newline first — the user isn't in
+    // an active @-context.
+    let i = caret - 1;
+    while (i >= 0) {
+      const ch = ta.value[i];
+      if (ch === '@') break;
+      if (ch === ' ' || ch === '\n' || ch === '\t') { i = -1; break; }
+      i--;
+    }
+    if (i < 0) {
+      hideBox();
+      return;
+    }
+    _state.triggerPos = i;
+    _state.activeTA = ta;
+    const q = ta.value.slice(i + 1, caret);
+    _state.items = await fetchSuggestions(q);
+    _state.focused = 0;
+    positionBox(ta);
+    renderItems();
+    ensureBox().style.display = _state.items.length ? 'block' : 'block';
+  }
+
+  document.addEventListener('input', function(ev) {
+    const t = ev.target;
+    if (!t.matches || !t.matches('textarea[data-mention]')) return;
+    refreshFor(t);
+  });
+
+  document.addEventListener('keydown', function(ev) {
+    if (!_state.activeTA || !_state.box || _state.box.style.display === 'none') return;
+    if (ev.key === 'ArrowDown') {
+      ev.preventDefault();
+      _state.focused = Math.min(_state.focused + 1, _state.items.length - 1);
+      renderItems();
+    } else if (ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      _state.focused = Math.max(_state.focused - 1, 0);
+      renderItems();
+    } else if (ev.key === 'Enter' || ev.key === 'Tab') {
+      if (_state.items.length) {
+        ev.preventDefault();
+        pickItem(_state.focused);
+      }
+    } else if (ev.key === 'Escape') {
+      ev.preventDefault();
+      hideBox();
+    }
+  });
+
+  document.addEventListener('click', function(ev) {
+    if (!_state.box || _state.box.style.display === 'none') return;
+    if (_state.box.contains(ev.target)) return;
+    if (ev.target === _state.activeTA) return;
+    hideBox();
+  });
+})();
+
 document.addEventListener('DOMContentLoaded', function() {
   const state = JSON.parse(localStorage.getItem('marsoud_sidebar') || '{}');
   document.querySelectorAll('.sidebar-section').forEach(function(section) {

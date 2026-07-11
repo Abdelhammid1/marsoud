@@ -4,7 +4,10 @@ Listing, inviting, role changes, and revocation. All routes require the
 `users.manage` permission (owner only) except viewing the member list (admin+).
 """
 from datetime import datetime
-from flask import Blueprint, render_template, redirect, url_for, flash, request, g
+from flask import (
+    Blueprint, render_template, redirect, url_for, flash, request, g,
+    jsonify,
+)
 from flask_login import login_required, current_user
 from app import db
 from app.models import User, Company, Invitation
@@ -259,3 +262,50 @@ def revoke_invitation(inv_id):
         db.session.commit()
         flash("تم إلغاء الدعوة", "success")
     return redirect(url_for("users.index"))
+
+
+@bp.route("/api/search")
+@login_required
+def api_search():
+    """MARSOUD-MENTIONS — JSON endpoint the mention dropdown calls
+    when the user types `@`. Returns members of the current company
+    whose name/email fuzzy-matches the query. Rate is naturally
+    limited by the min_query gate + the tiny result cap.
+
+    No permission gate beyond login: any logged-in member can @-mention
+    a coworker (mentions are a communication channel, not a data leak
+    — the recipient must already be a company member).
+    """
+    q = (request.args.get("q") or "").strip()
+    limit = min(int(request.args.get("limit", 10) or 10), 20)
+    if not g.active_company:
+        return jsonify([])
+    if len(q) < 1:
+        return jsonify([])
+    # Scope to users who are members of the current company AND active.
+    like = f"%{q}%"
+    rows = (
+        db.session.query(User)
+        .join(user_companies, user_companies.c.user_id == User.id)
+        .filter(
+            user_companies.c.company_id == g.active_company.id,
+            User.is_active == True,  # noqa: E712
+            db.or_(
+                User.full_name.ilike(like),
+                User.email.ilike(like),
+            ),
+        )
+        .order_by(User.full_name.asc())
+        .limit(limit)
+        .all()
+    )
+    return jsonify([
+        {
+            "id": u.id,
+            "name": u.full_name or u.email,
+            "email": u.email,
+            # First letter for the avatar circle in the dropdown.
+            "initial": (u.full_name or u.email or "?").strip()[:1].upper(),
+        }
+        for u in rows
+    ])

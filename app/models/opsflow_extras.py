@@ -53,6 +53,8 @@ class NotificationKind(str, enum.Enum):
     # MARSOUD-EMPLOYEE-DAILY-REPORTS
     DIGEST_DRAFT_READY = "DIGEST_DRAFT_READY"
     EMPLOYEE_REPORT_SUBMITTED = "EMPLOYEE_REPORT_SUBMITTED"
+    # MARSOUD-MENTIONS — user @-mentioned inside a comment
+    MENTION = "MENTION"
 
 
 class Notification(db.Model):

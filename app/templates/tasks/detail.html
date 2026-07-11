@@ -122,7 +122,9 @@
           <div class="font-semibold text-slate-700">{{ c.user.full_name if c.user else '—' }}</div>
           <div class="font-mono">{{ c.created_at | company_dt('%Y-%m-%d %H:%M') }}</div>
         </div>
-        <div class="text-sm whitespace-pre-wrap">{{ c.content }}</div>
+        {# MARSOUD-MENTIONS — render `@[Name](user:ID)` tokens as
+           styled clickable badges via the `mentions` Jinja filter. #}
+        <div class="text-sm whitespace-pre-wrap">{{ c.content|mentions }}</div>
       </div>
       {% else %}
       <div class="text-sm text-slate-400">لا توجد تعليقات بعد.</div>
@@ -130,10 +132,14 @@
     </div>
     {# MARSOUD-FORM-ONCE — data-once + global handler in base.html
        disables the button after the first click so a slow network
-       + a second click won't post the comment twice. #}
+       + a second click won't post the comment twice.
+       MARSOUD-MENTIONS — data-mention flips on the @-autocomplete
+       widget so typing `@` opens a user picker. #}
     <form method="POST" action="{{ url_for('tasks.comment_add', task_id=task.id) }}"
           data-once class="flex gap-2">
-      <textarea name="content" rows="2" required placeholder="أضف تعليقاً…" class="input text-sm flex-1"></textarea>
+      <textarea name="content" rows="2" required data-mention
+                placeholder="أضف تعليقاً… استخدم @ لعمل mention لزميل"
+                class="input text-sm flex-1"></textarea>
       <button type="submit" class="btn-primary text-sm self-end">إرسال</button>
     </form>
 

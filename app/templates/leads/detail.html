@@ -143,17 +143,21 @@
             <div class="text-sm font-semibold text-navy-900">{{ c.user.full_name if c.user else '—' }}</div>
             <div class="text-xs text-slate-400 font-mono">{{ c.created_at | company_dt('%Y-%m-%d %H:%M') }}</div>
           </div>
-          <div class="text-sm text-slate-700 whitespace-pre-wrap mt-1">{{ c.content }}</div>
+          {# MARSOUD-MENTIONS — render @[Name](user:ID) as anchor tags. #}
+          <div class="text-sm text-slate-700 whitespace-pre-wrap mt-1">{{ c.content|mentions }}</div>
         </div>
       </div>
     {% else %}
       <div class="text-sm text-slate-400">لا توجد تعليقات بعد. ابدأ الحوار 👇</div>
     {% endfor %}
     </div>
-    {# MARSOUD-FORM-ONCE — one-shot submit guard, see base.html. #}
+    {# MARSOUD-FORM-ONCE — one-shot submit guard, see base.html.
+       MARSOUD-MENTIONS — data-mention enables the @-autocomplete. #}
     <form method="POST" action="{{ url_for('leads.comment_add', lead_id=lead.id) }}"
           data-once class="flex gap-2">
-      <textarea name="content" rows="2" required placeholder="اكتب تعليقك…" class="textarea text-sm flex-1"></textarea>
+      <textarea name="content" rows="2" required data-mention
+                placeholder="اكتب تعليقك… استخدم @ لعمل mention لزميل"
+                class="textarea text-sm flex-1"></textarea>
       <button type="submit" class="btn-primary text-sm self-start">إرسال</button>
     </form>
 

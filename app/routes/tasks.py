@@ -819,8 +819,35 @@ def update_assignees(task_id):
 @require_permission("tasks.view")
 def comment_add(task_id):
     t = _task_or_403(task_id)
+    content = request.form.get("content", "")
     try:
-        add_comment(t, request.form.get("content"), user_id=current_user.id)
+        add_comment(t, content, user_id=current_user.id)
+        # MARSOUD-MENTIONS — parse @-tokens and notify. Errors are
+        # logged but not raised so a broken email delivery can't
+        # roll back the comment insert.
+        try:
+            from app.services.mentions import (
+                parse_mention_ids, notify_mentions,
+            )
+            ids = parse_mention_ids(content)
+            if ids:
+                notify_mentions(
+                    actor_user_id=current_user.id,
+                    mentioned_user_ids=ids,
+                    company_id=t.company_id,
+                    entity_kind="task",
+                    entity_label=f"مهمة: {t.title}",
+                    link_url=(
+                        url_for("tasks.detail", task_id=t.id)
+                        + "#comments"
+                    ),
+                    snippet=content,
+                )
+        except Exception:
+            import logging
+            logging.getLogger("marsoud.mentions").exception(
+                "mention fan-out failed on task %s", t.id,
+            )
         flash("تم إضافة التعليق", "success")
     except TaskError as e:
         flash(str(e), "error")
