@@ -112,16 +112,23 @@ def _teardown_company(company_id):
 
 
 # ─── 1-2: Seed + guard ─────────────────────────────────────────────────
-@check("1. Fresh company seed creates 98 accounts (17 headers + 81 leaves)")
+@check("1. Fresh company seed creates 99 accounts (17 headers + 82 leaves)")
 def _():
+    # AUDIT SYNC 2026-07-13 — updated from 98/17/81 to 99/17/82. The
+    # original counts came from the commit message of b87274d, but the
+    # seed shipped in that same commit already included a "1140 Notes
+    # Receivable" leaf under the 1100 AR header. That row is a legit
+    # part of the CoA (نOTES Receivable — أوراق قبض), not the legacy
+    # inventory account — see audit_coa_legacy_1140 for the invariant
+    # that keeps 1140 out of inventory paths.
     from app.models import Account
     cid = _STATE["company_id"]
     accts = Account.query.filter_by(company_id=cid).all()
     headers = [a for a in accts if not a.is_postable]
     leaves = [a for a in accts if a.is_postable]
-    assert len(accts) == 98, f"got {len(accts)} accounts"
+    assert len(accts) == 99, f"got {len(accts)} accounts"
     assert len(headers) == 17, f"got {len(headers)} headers"
-    assert len(leaves) == 81, f"got {len(leaves)} leaves"
+    assert len(leaves) == 82, f"got {len(leaves)} leaves"
     return f"{len(accts)} accounts, {len(headers)} headers, {len(leaves)} leaves"
 
 

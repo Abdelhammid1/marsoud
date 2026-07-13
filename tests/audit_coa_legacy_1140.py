@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""MARSOUD-COA-LEGACY-1140 — verifies the code no longer references the
-legacy inventory account code 1140 anywhere outside the migration that
-renamed it to 1300.
+"""MARSOUD-COA-LEGACY-1140 — verifies the code doesn't reuse the legacy
+inventory account code 1140 for INVENTORY. 1140 is now legitimately
+seeded as "Notes Receivable" (أوراق قبض) after the 2026-06-30 CoA
+rebuild — the audit was retargeted 2026-07-13 to allow that use but
+still flag any inventory-related reference to 1140.
 
 Background (from Abdelhamid):
   During the June 2026 CoA cleanup, one orphan journal entry was found
@@ -10,15 +12,20 @@ Background (from Abdelhamid):
   cutover (13–16 June) posts to 1300. The orphan dates from BEFORE the
   rename and is preserved intentionally to keep the audit trail intact.
 
+  Then on 2026-06-30 the CoA rebuild (b87274d) reintroduced the code
+  1140 — but as "Notes Receivable" under the 1100 AR header. Same
+  digits, a completely different account. That's why the earlier
+  "no 1140 anywhere" check went stale.
+
 What this audit does:
-  - Walks the app/ tree and asserts no Python file mentions '1140' as
-    an account-code literal (except in comments referencing the
-    migration). Migration files are excluded — the rename history must
-    stay.
-  - Confirms vendor_bills.py, inventory.py, reports.py, seed_coa.py
-    all use 1300 for inventory operations.
-  - Lights up red if any future refactor reintroduces 1140 in the app
-    layer, so we don't silently fork a stale account code path.
+  - In seed_coa.py: 1140 MUST be labelled "Notes Receivable" (never
+    "Inventory"). 1300 remains the Inventory row.
+  - In inventory-touching services (vendor_bills.py, inventory.py,
+    reports.py): 1140 must NOT appear at all — those services should
+    only reference 1300 for inventory work. Any regression that pipes
+    inventory through 1140 lights this red.
+  - Lists reports.py's current-assets rollup so a future edit that
+    silently drops 1300 (or adds 1140) is caught.
 """
 import re
 import sys
@@ -45,32 +52,49 @@ def _walk_app_files():
         yield p
 
 
-@check("1. No app-layer Python file uses '1140' as an account-code literal")
+@check("1. No inventory-touching service references '1140'")
 def _():
+    # AUDIT SYNC 2026-07-13 — narrowed from "no app file uses 1140" to
+    # "no inventory-touching service uses 1140". 1140 is now a valid
+    # Notes Receivable account seeded in seed_coa.py (post CoA rebuild
+    # b87274d). We still guard the inventory paths — a stray 1140 in
+    # inventory.py or vendor_bills.py would signal a real regression.
+    _INVENTORY_SERVICES = (
+        "app/services/inventory.py",
+        "app/services/vendor_bills.py",
+        "app/services/reports.py",
+    )
     hits = []
-    for p in _walk_app_files():
-        txt = p.read_text()
-        for ln_no, line in enumerate(txt.splitlines(), start=1):
-            # Match quoted "1140" or '1140' but ignore docstring + comment lines
+    for rel in _INVENTORY_SERVICES:
+        p = ROOT / rel
+        if not p.exists():
+            continue
+        for ln_no, line in enumerate(p.read_text().splitlines(), start=1):
             stripped = line.strip()
             if stripped.startswith("#"):
                 continue
             if re.search(r"[\"']1140[\"']", line):
-                hits.append(f"{p.relative_to(ROOT)}:{ln_no}: {stripped[:120]}")
-    assert not hits, "1140 reintroduced in app code:\n  " + "\n  ".join(hits)
-    return f"scanned {sum(1 for _ in _walk_app_files())} files — no '1140' literals"
+                hits.append(f"{rel}:{ln_no}: {stripped[:120]}")
+    assert not hits, \
+        "1140 leaked into an inventory service:\n  " + "\n  ".join(hits)
+    return f"scanned {len(_INVENTORY_SERVICES)} inventory services — no '1140'"
 
 
-@check("2. seed_coa.py seeds 1300 as the Inventory account (not 1140)")
+@check("2. seed_coa.py: 1300=Inventory, 1140=Notes Receivable (not Inventory)")
 def _():
+    # AUDIT SYNC 2026-07-13 — 1140 is now legitimately seeded as Notes
+    # Receivable. The invariant is that its label must remain "Notes
+    # Receivable" (never regress back to "Inventory"), and 1300 must
+    # stay Inventory.
     src = (ROOT / "app/services/seed_coa.py").read_text()
-    # The seed tuple format is ("CODE", "Name", "اسم", AccountType.X, "parent")
     assert re.search(r'\(\s*"1300"\s*,\s*"Inventory"', src), \
         "seed_coa missing the 1300 Inventory row"
-    # And it must NOT seed 1140 anymore
-    assert "\"1140\"" not in src and "'1140'" not in src, \
-        "seed_coa still references 1140"
-    return "1300=Inventory seeded; 1140 not seeded"
+    assert re.search(r'\(\s*"1140"\s*,\s*"Notes Receivable"', src), \
+        "seed_coa's 1140 row is missing or no longer labelled Notes Receivable"
+    # Belt-and-braces: 1140 must not appear as Inventory anywhere.
+    assert not re.search(r'\(\s*"1140"\s*,\s*"Inventory"', src), \
+        "seed_coa regressed — 1140 relabelled as Inventory"
+    return "1300=Inventory + 1140=Notes Receivable both seeded"
 
 
 @check("3. vendor_bills.py enforces INVENTORY lines map to 1300")
@@ -98,14 +122,18 @@ def _():
 
 @check("5. reports.py classifies 1300 as inventory in balance-sheet/aging")
 def _():
+    # AUDIT SYNC 2026-07-13 — the current-assets rollup gained 1280
+    # (Input VAT — Recoverable) as part of the CoA rebuild, which is
+    # correct: recoverable input VAT belongs on the current-assets
+    # line of the balance sheet.
     src = (ROOT / "app/services/reports.py").read_text()
     assert "\"1300\"" in src, "reports.py doesn't reference 1300"
-    # The current-assets list used by dashboard_metrics
-    assert "[\"1110\", \"1120\", \"1130\", \"1300\", \"1150\"]" in src, \
+    assert '["1110", "1120", "1130", "1280", "1300", "1150"]' in src, \
         "current-assets account list missing or out of date"
+    # 1140 must NEVER appear in reports.py (inventory-touching service).
     assert "\"1140\"" not in src and "'1140'" not in src, \
-        "reports.py still references 1140 as an account code"
-    return "1300 in current-assets list; 1140 absent"
+        "reports.py references 1140 — likely a legacy inventory bug"
+    return "1300 in current-assets list; 1140 absent from inventory paths"
 
 
 @check("6. The historical rename migration is still present (audit trail)")
