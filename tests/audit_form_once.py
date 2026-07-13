@@ -94,6 +94,36 @@ def _():
     return "lead comment form guarded"
 
 
+# MARSOUD-FORM-ONCE extension (Abdelhamid 2026-07-13) — the new-task
+# form gets the same duplicate-submit guard as the comment button,
+# but with a customised in-flight label ("جاري الإنشاء...") that
+# fits the create action semantically. Verify both the form
+# annotation and the handler's support for per-form labels.
+_TASK_FORM = (ROOT / "app" / "templates" / "tasks" / "form.html").read_text(
+    encoding="utf-8")
+
+
+@check("7. handler supports per-form data-once-label override")
+def _():
+    assert "data-once-label" in _BASE or "dataset.onceLabel" in _BASE, (
+        "handler must read a per-form label attribute so create forms "
+        "can show 'جاري الإنشاء...' instead of the default"
+    )
+    assert "جاري الإنشاء" in _BASE, \
+        "handler docstring should mention the create-label example"
+    return "custom label mechanism present"
+
+
+@check("8. new-task form carries data-once + 'جاري الإنشاء...' label")
+def _():
+    assert "data-once" in _TASK_FORM, \
+        "tasks/form.html must carry data-once to guard fast double-clicks"
+    assert 'data-once-label="جاري الإنشاء' in _TASK_FORM, (
+        "tasks/form.html should override the busy label to 'جاري الإنشاء...'"
+    )
+    return "new-task form guarded with create-label"
+
+
 def main():
     passed = failed = 0
     for label, fn in CHECKS:

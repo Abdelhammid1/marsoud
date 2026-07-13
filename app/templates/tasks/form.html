@@ -10,7 +10,12 @@
      user came from (employee drill-down, project detail, etc). Read
      from ?return_to=... first; fall back to the referrer. #}
   {% set _return_to = request.args.get('return_to') or request.referrer or '' %}
-  <form method="POST" class="space-y-4" enctype="multipart/form-data">
+  {# MARSOUD-FORM-ONCE (Abdelhamid 2026-07-13) — same duplicate-submit
+     guard the comment button uses. First click disables the button
+     and swaps the label to "جاري الإنشاء..." so a fast double-click
+     can't create two tasks. #}
+  <form method="POST" class="space-y-4" enctype="multipart/form-data"
+        data-once data-once-label="جاري الإنشاء...">
     {% if _return_to %}<input type="hidden" name="return_to" value="{{ _return_to }}">{% endif %}
     <div>
       <label class="block text-sm font-semibold text-slate-700 mb-2">العنوان</label>

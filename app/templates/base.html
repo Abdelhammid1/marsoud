@@ -977,6 +977,11 @@ document.addEventListener('submit', function(ev) {
     return;
   }
   form.dataset._submitted = '1';
+  // Allow forms to customise the "in-flight" label via
+  // `data-once-label`. Defaults to "جاري الإرسال..." which fits
+  // comment submissions; a create-task form overrides it to
+  // "جاري الإنشاء..." so the message matches the action.
+  const busyLabel = form.dataset.onceLabel || 'جاري الإرسال...';
   form.querySelectorAll('button[type="submit"], input[type="submit"]')
     .forEach(function(btn) {
       btn.disabled = true;
@@ -988,9 +993,9 @@ document.addEventListener('submit', function(ev) {
       // If the submit is <input>, use .value; otherwise .textContent.
       if (btn.tagName === 'INPUT') {
         btn.dataset._origValue = btn.value;
-        btn.value = 'جاري الإرسال...';
+        btn.value = busyLabel;
       } else {
-        btn.textContent = 'جاري الإرسال...';
+        btn.textContent = busyLabel;
       }
     });
 }, true);
