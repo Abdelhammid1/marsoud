@@ -47,6 +47,11 @@ def campaigns_index():
             "leads": len(leads),
             "won": sum(1 for l in leads if l.status == LeadStatus.WON),
             "lost": sum(1 for l in leads if l.status == LeadStatus.LOST),
+            # MARSOUD-CRM-NO-RESPONSE — separate counter that must
+            # NOT roll up into WON or LOST anywhere.
+            "no_response": sum(
+                1 for l in leads
+                if l.status == LeadStatus.NO_RESPONSE),
             "expected": sum(float(l.expected_value or 0) for l in leads),
         }
     return render_template("crm/campaigns.html",
@@ -286,17 +291,23 @@ def analytics():
     cid = g.active_company.id
     base = Lead.query.filter_by(company_id=cid).filter(Lead.deleted_at.is_(None))
 
-    # Stage counts
+    # Stage counts — keep NO_RESPONSE as its own bucket. Business
+    # rules from the ticket: it must NOT be folded into WON or LOST
+    # anywhere, and it must NOT count towards the "open pipeline"
+    # expected total (the lead is parked, not being worked).
     stage_counts = {s: base.filter(Lead.status == s).count() for s in LeadStatus}
     total_leads = base.count()
     won_count = stage_counts.get(LeadStatus.WON, 0)
     lost_count = stage_counts.get(LeadStatus.LOST, 0)
+    no_response_count = stage_counts.get(LeadStatus.NO_RESPONSE, 0)
     closed = won_count + lost_count
     conversion_rate = (won_count / closed * 100) if closed else 0.0
 
-    # Open leads (not WON/LOST) expected pipeline value
+    # Open leads (not WON, LOST, or NO_RESPONSE) expected pipeline value.
     open_expected = base.filter(
-        Lead.status.notin_((LeadStatus.WON, LeadStatus.LOST))
+        Lead.status.notin_((
+            LeadStatus.WON, LeadStatus.LOST, LeadStatus.NO_RESPONSE,
+        ))
     ).with_entities(func.coalesce(func.sum(Lead.expected_value), 0)).scalar()
 
     # Best source, best type
@@ -316,6 +327,8 @@ def analytics():
             "name": c.name,
             "leads": len(cl),
             "won": w,
+            "no_response": sum(
+                1 for l in cl if l.status == LeadStatus.NO_RESPONSE),
             "conversion": (w / len(cl) * 100) if cl else 0.0,
             "expected": sum(float(l.expected_value or 0) for l in cl),
         })
@@ -336,6 +349,7 @@ def analytics():
         "crm/analytics.html",
         stage_counts=stage_counts, total_leads=total_leads,
         won_count=won_count, lost_count=lost_count,
+        no_response_count=no_response_count,
         conversion_rate=conversion_rate,
         open_expected=float(open_expected or 0),
         source_stats=source_stats, type_stats=type_stats,

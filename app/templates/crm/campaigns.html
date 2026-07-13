@@ -35,6 +35,9 @@
         <th class="text-center">Leads</th>
         <th class="text-center">WON</th>
         <th class="text-center">LOST</th>
+        {# MARSOUD-CRM-NO-RESPONSE — separate column, sits between LOST
+           and the value column per the ticket. #}
+        <th class="text-center">No Response<div class="text-[10px] text-slate-400 font-normal">لا يوجد استجابة</div></th>
         <th class="text-left">قيمة متوقعة</th>
         <th class="text-center">الحالة</th>
         <th></th>
@@ -51,6 +54,7 @@
         <td class="text-center font-mono">{{ s.get('leads', 0) }}</td>
         <td class="text-center font-mono text-emerald-700">{{ s.get('won', 0) }}</td>
         <td class="text-center font-mono text-rose-700">{{ s.get('lost', 0) }}</td>
+        <td class="text-center font-mono text-amber-700">{{ s.get('no_response', 0) }}</td>
         <td class="text-left font-mono">{{ "{:,.0f}".format(s.get('expected', 0)) }}</td>
         <td class="text-center">
           {% if c.active %}<span class="badge badge-paid">مُفعّلة</span>

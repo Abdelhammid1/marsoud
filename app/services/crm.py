@@ -20,6 +20,39 @@ class CRMError(Exception):
     """Domain error raised by the CRM/Projects/Tasks services."""
 
 
+# ─── MARSOUD-LEAD-AUTOCONTACT (Abdelhamid 2026-07-13) ────────────────────
+def ensure_primary_contact(lead):
+    """Idempotent — insert a LeadContact row cloning the lead's
+    name + phone if the lead has NO contacts yet. Reused by:
+
+      · /leads/new  — auto-create a contact on lead insert.
+      · Backfill migration — one-shot pass for pre-existing leads.
+      · Future importers.
+
+    Business rules from the ticket:
+      · One-per-lead: skip if any LeadContact exists.
+      · Deleting a contact must NOT cascade to the lead (already
+        the FK behaviour — nullable lead_id and no ondelete cascade).
+      · Users can freely edit, delete, or add contacts later; this
+        helper never overwrites an existing row."""
+    from app.models import LeadContact
+    if not lead or not lead.id:
+        return None
+    already = LeadContact.query.filter_by(lead_id=lead.id).first()
+    if already:
+        return already
+    contact = LeadContact(
+        company_id=lead.company_id,
+        lead_id=lead.id,
+        name=lead.client_name,
+        phone=lead.phone,
+        is_primary=True,
+    )
+    db.session.add(contact)
+    db.session.flush()
+    return contact
+
+
 # ─── Leads ───────────────────────────────────────────────────────────────
 def change_lead_status(lead, new_status, *, changed_by_id, note=None,
                        lost_reason=None):

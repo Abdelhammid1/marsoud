@@ -798,8 +798,13 @@ def dashboard_metrics(company_id, period="month"):
         ).all()
         if t.is_overdue
     )
-    open_lead_statuses = [s for s in LeadStatus
-                          if s not in (LeadStatus.WON, LeadStatus.LOST)]
+    # MARSOUD-CRM-NO-RESPONSE — parked leads aren't part of the
+    # active pipeline either. Exclude them from the "open leads"
+    # rollup that feeds owner-dashboard expected-value totals.
+    open_lead_statuses = [
+        s for s in LeadStatus
+        if s not in (LeadStatus.WON, LeadStatus.LOST, LeadStatus.NO_RESPONSE)
+    ]
     open_leads = Lead.query.filter(
         Lead.company_id == company_id,
         Lead.deleted_at.is_(None),

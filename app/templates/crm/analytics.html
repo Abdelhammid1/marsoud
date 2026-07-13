@@ -39,6 +39,22 @@
   </div>
 </div>
 
+{# MARSOUD-CRM-NO-RESPONSE — surfaced as its own KPI so nobody
+   mistakes parked leads for lost deals. Not counted in WON, LOST,
+   or open expected value; clicking the card jumps to the folder. #}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
+  <a href="{{ url_for('leads.no_response_index') }}"
+     class="card p-4 text-center hover:border-amber-500">
+    <div class="text-xs text-slate-500">📂 لا يوجد استجابة</div>
+    <div class="text-3xl font-bold text-amber-600 font-mono">
+      {{ no_response_count }}
+    </div>
+    <div class="text-[10px] text-slate-400 mt-1">
+      عملاء موقوفون — ليسوا WON ولا LOST
+    </div>
+  </a>
+</div>
+
 {# ─── Stage funnel ─── #}
 <div class="card p-6 mb-4">
   <h3 class="font-bold text-navy-900 mb-3">📊 التوزيع على المراحل</h3>
@@ -70,6 +86,9 @@
           <th>الحملة</th>
           <th class="text-center">Leads</th>
           <th class="text-center">WON</th>
+          {# MARSOUD-CRM-NO-RESPONSE — parked leads column mirrors the
+             one on the Marketing Campaigns page. #}
+          <th class="text-center">No Response</th>
           <th class="text-center">تحويل</th>
           <th class="text-left">قيمة</th>
         </tr>
@@ -80,6 +99,7 @@
           <td class="font-semibold">{{ c.name }}</td>
           <td class="text-center font-mono">{{ c.leads }}</td>
           <td class="text-center font-mono text-emerald-700">{{ c.won }}</td>
+          <td class="text-center font-mono text-amber-700">{{ c.get('no_response', 0) }}</td>
           <td class="text-center font-mono">{{ "%.0f"|format(c.conversion) }}%</td>
           <td class="text-left font-mono">{{ "{:,.0f}".format(c.expected) }}</td>
         </tr>

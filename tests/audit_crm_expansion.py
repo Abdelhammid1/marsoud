@@ -97,7 +97,7 @@ def _():
             expected_value=Decimal("1000"),
         ))
     db.session.commit()
-    _STATE["seeded_leads"] = 7
+    _STATE["seeded_leads"] = len(list(LeadStatus))
     # Render the board via the test_client
     app = create_app()
     with app.test_client() as c:
@@ -107,10 +107,23 @@ def _():
         c.get(f"/switch-company/{cid}")
         r = c.get("/leads/?view=board")
         html = r.get_data(as_text=True)
+        # MARSOUD-CRM-NO-RESPONSE (2026-07-13) — parked leads live
+        # in their own folder page at /leads/no-response and are
+        # intentionally excluded from the pipeline board. Assert
+        # every OTHER status still shows up on the board, and the
+        # parked card is hidden here + visible on the folder.
         for st in LeadStatus:
+            if st == LeadStatus.NO_RESPONSE:
+                assert f"AUD-KB-{st.name}" not in html, \
+                    "NO_RESPONSE leaked into the pipeline board"
+                continue
             assert st.label_ar in html, f"column {st.label_ar} missing"
             assert f"AUD-KB-{st.name}" in html, f"card {st.name} missing"
-    return f"all 7 columns + 7 cards rendered"
+        # Folder page owns the parked cards.
+        folder = c.get("/leads/no-response").get_data(as_text=True)
+        assert "AUD-KB-NO_RESPONSE" in folder, \
+            "NO_RESPONSE card missing from folder"
+    return f"{_STATE['seeded_leads']-1} pipeline cards + 1 parked card in folder"
 
 
 @check("2. Board status change reuses /leads/<id>/status + logs LeadStatusEvent")
@@ -390,8 +403,8 @@ def _():
     return f"conversion {expected_pct:.1f}% = {won}/{won + lost} correct"
 
 
-# ─── Sidebar exposes all 5 CRM entries ─────────────────────────────────
-@check("14. Sidebar shows all 5 CRM section links to owner")
+# ─── Sidebar exposes all CRM entries ───────────────────────────────────
+@check("14. Sidebar shows every CRM section link to owner")
 def _():
     cid = _STATE["company_id"]
     app = create_app()
@@ -403,16 +416,18 @@ def _():
         html = r.get_data(as_text=True)
         # Templates render the URLs, not endpoint names; look for the
         # actual paths + the Arabic labels.
+        # MARSOUD-CRM-NO-RESPONSE (2026-07-13) — 6th link added.
         for url, label in (
             ("/leads/", "Leads"),
             ("/crm/campaigns/", "الحملات"),
+            ("/leads/no-response", "لا يوجد استجابة"),
             ("/crm/activities/", "الأنشطة والمتابعات"),
             ("/crm/contacts/", "جهات الاتصال"),
             ("/crm/analytics/", "تحليلات CRM"),
         ):
             assert f'href="{url}"' in html, f'sidebar missing href="{url}"'
             assert label in html, f"sidebar missing label {label!r}"
-    return "all 5 CRM sidebar entries + labels present"
+    return "all 6 CRM sidebar entries + labels present"
 
 
 # ─── Run ───────────────────────────────────────────────────────────────

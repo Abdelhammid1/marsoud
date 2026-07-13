@@ -21,6 +21,12 @@ class LeadStatus(enum.Enum):
     PROPOSAL_SENT = "PROPOSAL_SENT"
     WON = "WON"
     LOST = "LOST"
+    # MARSOUD-CRM-NO-RESPONSE (Abdelhamid 2026-07-13) — a parking
+    # stage for leads that never replied after multiple attempts.
+    # Deliberately NOT collapsed into LOST: business-wise these
+    # are neither won nor lost, and can be revived onto any
+    # pipeline stage at any time.
+    NO_RESPONSE = "NO_RESPONSE"
 
     @property
     def label_ar(self):
@@ -32,6 +38,7 @@ class LeadStatus(enum.Enum):
             "PROPOSAL_SENT":     "أُرسل العرض",
             "WON":               "ربحناها",
             "LOST":              "خسرناها",
+            "NO_RESPONSE":       "لا يوجد استجابة",
         }[self.value]
 
     @property
@@ -45,6 +52,10 @@ class LeadStatus(enum.Enum):
             "PROPOSAL_SENT":     "badge-partial",
             "WON":               "badge-paid",
             "LOST":              "badge-cancelled",
+            # Distinct from LOST — muted amber/gray parking badge,
+            # so the pipeline still visually separates "no reply"
+            # from "we lost the deal".
+            "NO_RESPONSE":       "badge-draft",
         }[self.value]
 
 
@@ -161,7 +172,16 @@ class Lead(db.Model):
 
     @property
     def is_open(self):
-        return self.status not in (LeadStatus.WON, LeadStatus.LOST)
+        # MARSOUD-CRM-NO-RESPONSE — parked leads are neither open
+        # pipeline nor closed deals. They count towards NOTHING in
+        # the pipeline stats until the owner revives them.
+        return self.status not in (
+            LeadStatus.WON, LeadStatus.LOST, LeadStatus.NO_RESPONSE,
+        )
+
+    @property
+    def is_parked(self):
+        return self.status == LeadStatus.NO_RESPONSE
 
 
 class LeadStatusEvent(db.Model):

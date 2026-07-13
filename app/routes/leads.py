@@ -236,7 +236,13 @@ def index():
     if dt:
         query = query.filter(Lead.created_at < datetime.combine(dt + timedelta(days=1), datetime.min.time()))
 
+    # MARSOUD-CRM-NO-RESPONSE — parked leads live in their own folder
+    # page (/leads/no-response). They MUST NOT appear on the main
+    # pipeline board or in the pipeline stats strip. Filter them out
+    # here rather than at query time so the exact same query still
+    # feeds the /no-response route below (deduped code path).
     leads = query.order_by(Lead.created_at.desc()).all()
+    pipeline_leads = [l for l in leads if l.status != LeadStatus.NO_RESPONSE]
 
     # Status counts within current visibility scope
     base = Lead.query.filter_by(company_id=cid).filter(Lead.deleted_at.is_(None))
@@ -246,24 +252,112 @@ def index():
             Lead.created_by_id == current_user.id,
         ))
     status_counts = {s: base.filter(Lead.status == s).count() for s in LeadStatus}
+    # Separate metric for the parked count — surfaces the folder in
+    # the top strip without dropping it into the Kanban columns.
+    no_response_count = status_counts.get(LeadStatus.NO_RESPONSE, 0)
 
     # MARSOUD-CRM-EXPANSION §1 — Kanban view: group the filtered leads
-    # into columns per LeadStatus so the template can render 7 columns
+    # into columns per LeadStatus so the template can render N columns
     # in one loop.
     view = (request.args.get("view") or "board").lower()
     if view not in ("board", "list"):
         view = "board"
-    columns = {s: [] for s in LeadStatus}
-    for l in leads:
+    pipeline_statuses = [s for s in LeadStatus if s != LeadStatus.NO_RESPONSE]
+    columns = {s: [] for s in pipeline_statuses}
+    for l in pipeline_leads:
         columns[l.status].append(l)
 
     return render_template(
         "leads/index.html",
-        leads=leads, statuses=LeadStatus, status_counts=status_counts,
+        leads=pipeline_leads,
+        statuses=LeadStatus,               # for the filter dropdown
+        pipeline_statuses=pipeline_statuses,  # for the Kanban columns
+        status_counts=status_counts,
+        no_response_count=no_response_count,
         reps=_sales_reps() if _can_view_all_leads() else [],
         q=q, status_filter=status_filter, rep_filter=rep_filter,
         date_from=date_from, date_to=date_to,
         view=view, columns=columns,
+    )
+
+
+# ─── MARSOUD-CRM-NO-RESPONSE (Abdelhamid 2026-07-13) ────────────────────
+# Standalone folder page for leads parked at "لا يوجد استجابة". They're
+# filtered out of /leads/ entirely so the pipeline board stays clean.
+# Restore = post to the existing /leads/<id>/status endpoint with any
+# target LeadStatus name; nothing new is needed on the backend for the
+# restore action itself.
+@bp.route("/no-response")
+@login_required
+@require_permission("leads.view")
+def no_response_index():
+    cid = g.active_company.id
+    q = (request.args.get("q") or "").strip()
+    rep_filter = (request.args.get("rep") or "").strip()
+    campaign_filter = (request.args.get("campaign") or "").strip()
+    date_from = (request.args.get("from") or "").strip()
+    date_to = (request.args.get("to") or "").strip()
+
+    query = (Lead.query.filter_by(company_id=cid)
+             .filter(Lead.deleted_at.is_(None))
+             .filter(Lead.status == LeadStatus.NO_RESPONSE))
+    if not _can_view_all_leads():
+        query = query.filter(or_(
+            Lead.assigned_to_id == current_user.id,
+            Lead.created_by_id == current_user.id,
+        ))
+
+    if q:
+        like = f"%{q}%"
+        query = query.filter(or_(
+            Lead.client_name.ilike(like),
+            Lead.phone.ilike(like),
+        ))
+    if rep_filter:
+        try:
+            query = query.filter(Lead.assigned_to_id == int(rep_filter))
+        except (TypeError, ValueError):
+            pass
+    if campaign_filter:
+        try:
+            query = query.filter(Lead.campaign_id == int(campaign_filter))
+        except (TypeError, ValueError):
+            pass
+    df = _parse_date(date_from)
+    if df:
+        query = query.filter(
+            Lead.updated_at >= datetime.combine(df, datetime.min.time()))
+    dt = _parse_date(date_to)
+    if dt:
+        query = query.filter(
+            Lead.updated_at < datetime.combine(
+                dt + timedelta(days=1), datetime.min.time()))
+
+    leads = query.order_by(Lead.updated_at.desc()).all()
+
+    # `moved_to_no_response_at` per lead: read the latest
+    # LeadStatusEvent whose to_status is NO_RESPONSE. Cheap because
+    # the parked folder is by definition a small subset.
+    move_dates = {}
+    for l in leads:
+        ev = (LeadStatusEvent.query
+              .filter(LeadStatusEvent.lead_id == l.id,
+                      LeadStatusEvent.to_status == LeadStatus.NO_RESPONSE)
+              .order_by(LeadStatusEvent.created_at.desc())
+              .first())
+        move_dates[l.id] = ev.created_at if ev else l.updated_at
+
+    return render_template(
+        "leads/no_response.html",
+        leads=leads,
+        statuses=LeadStatus,
+        pipeline_statuses=[s for s in LeadStatus
+                            if s != LeadStatus.NO_RESPONSE],
+        move_dates=move_dates,
+        reps=_sales_reps() if _can_view_all_leads() else [],
+        campaigns=_active_campaigns(),
+        q=q, rep_filter=rep_filter, campaign_filter=campaign_filter,
+        date_from=date_from, date_to=date_to,
     )
 
 
@@ -373,6 +467,13 @@ def new():
                 changed_by_id=current_user.id,
                 note="إنشاء العميل المحتمل",
             ))
+            # MARSOUD-LEAD-AUTOCONTACT (Abdelhamid 2026-07-13) —
+            # every new lead gets a primary Contact automatically,
+            # cloning the name + phone from the lead itself. The
+            # helper is idempotent so it's also safe to call from
+            # the backfill migration + future imports.
+            from app.services.crm import ensure_primary_contact
+            ensure_primary_contact(lead)
             db.session.commit()
             flash(f"تم إنشاء عميل محتمل: {lead.client_name}", "success")
             return redirect(url_for("leads.detail", lead_id=lead.id))
@@ -484,8 +585,15 @@ def status(lead_id):
         flash(str(e), "error")
     # MARSOUD-CRM-EXPANSION §1 — when the change came from the Kanban
     # board, bounce back to the board instead of the detail page.
-    if request.form.get("return_to") == "board":
+    # MARSOUD-CRM-NO-RESPONSE — the parked-folder restore action
+    # posts return_to=/leads/no-response so the user lands back on
+    # the folder (with the restored lead now missing from it).
+    return_to = request.form.get("return_to") or ""
+    if return_to == "board":
         return redirect(url_for("leads.index", view="board"))
+    if return_to.startswith("/") and not return_to.startswith("//") \
+            and "\r" not in return_to and "\n" not in return_to:
+        return redirect(return_to)
     return redirect(url_for("leads.detail", lead_id=lead.id))
 
 

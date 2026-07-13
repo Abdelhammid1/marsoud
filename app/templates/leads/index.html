@@ -27,14 +27,27 @@
 </div>
 
 {# Stats — on mobile these collapse to a horizontal-scroll pill strip
-   (single row) via `.mobile-pill-strip`. Desktop keeps the 7-col grid. #}
-<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-5 mobile-pill-strip">
-  {% for s in statuses %}
+   (single row) via `.mobile-pill-strip`. Desktop keeps the 7-col grid.
+   MARSOUD-CRM-NO-RESPONSE — pipeline chips loop over `pipeline_statuses`
+   (excludes NO_RESPONSE); the parked bucket gets its own separate chip
+   that links to the /leads/no-response folder page. #}
+<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 mb-3 mobile-pill-strip">
+  {% for s in pipeline_statuses %}
   <a href="?status={{ s.name }}" class="card p-3 text-center hover:border-brand-500 {% if status_filter == s.name %}border-brand-500{% endif %}">
     <div class="text-xs text-slate-500">{{ s.label_ar }}</div>
     <div class="text-2xl font-bold text-navy-900 font-mono">{{ status_counts.get(s, 0) }}</div>
   </a>
   {% endfor %}
+</div>
+{# Parked leads — separate pill so they're findable but visually detached
+   from the pipeline flow. #}
+<div class="mb-5">
+  <a href="{{ url_for('leads.no_response_index') }}"
+     class="inline-flex items-center gap-2 card p-2 px-4 hover:border-amber-500 text-sm">
+    <span class="text-amber-600">📂</span>
+    <span class="text-slate-600">لا يوجد استجابة</span>
+    <span class="font-mono font-bold text-navy-900">{{ no_response_count }}</span>
+  </a>
 </div>
 
 {# Filter form — wrapped in a <details> so mobile users can collapse it
@@ -92,7 +105,7 @@
    and highlights the active one during scroll. Hidden ≥md. #}
 <div class="kanban-dots" data-for="leads-kanban"></div>
 <div class="kanban-scroll flex lg:grid lg:grid-cols-7 gap-3 overflow-x-auto lg:overflow-visible pb-2 snap-x snap-mandatory lg:snap-none -mx-3 px-3 lg:mx-0 lg:px-0">
-  {% for s in statuses %}
+  {% for s in pipeline_statuses %}
   <div class="bg-slate-50 rounded-lg p-3 flex-shrink-0 w-[calc(100vw-1.5rem)] sm:w-[320px] lg:w-auto snap-start snap-always">
     <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 gap-2">
       <span class="badge {{ s.badge_class }} text-xs whitespace-nowrap">{{ s.label_ar }}</span>
