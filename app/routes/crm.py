@@ -270,6 +270,32 @@ def contact_create(lead_id):
     return redirect(request.referrer or url_for("leads.detail", lead_id=lead.id))
 
 
+@bp.route("/contacts/<int:contact_id>/edit", methods=["POST"])
+@login_required
+@require_permission("leads.manage")
+def contact_edit(contact_id):
+    """MARSOUD-LEAD-AUTOCONTACT (Abdelhamid 2026-07-13) — the ticket
+    requires that a user can EDIT a contact after creation (not just
+    delete + recreate). Inline POST from the lead detail page — a
+    dedicated GET form was overkill given the 5-field surface."""
+    c = LeadContact.query.filter_by(
+        id=contact_id, company_id=g.active_company.id
+    ).first_or_404()
+    name = (request.form.get("name") or "").strip()
+    if not name:
+        flash("اسم جهة الاتصال مطلوب", "error")
+        return redirect(request.referrer or url_for("crm.contacts_index"))
+    c.name = name
+    c.role = (request.form.get("role") or "").strip() or None
+    c.email = (request.form.get("email") or "").strip() or None
+    c.phone = (request.form.get("phone") or "").strip() or None
+    # is_primary is a checkbox — absence in the form means "off".
+    c.is_primary = bool(request.form.get("is_primary"))
+    db.session.commit()
+    flash("تم تحديث جهة الاتصال", "success")
+    return redirect(request.referrer or url_for("crm.contacts_index"))
+
+
 @bp.route("/contacts/<int:contact_id>/delete", methods=["POST"])
 @login_required
 @require_permission("leads.manage")
