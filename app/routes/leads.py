@@ -201,6 +201,10 @@ def index():
     q = (request.args.get("q") or "").strip()
     status_filter = (request.args.get("status") or "").strip()
     rep_filter = (request.args.get("rep") or "").strip()
+    # MARSOUD-LEADS-CAMPAIGN-FILTER (Abdelhamid 2026-07-13) — filter
+    # the pipeline by campaign name. Same pattern already lives on
+    # /leads/no-response; ported here per the ticket.
+    campaign_filter = (request.args.get("campaign") or "").strip()
     date_from = (request.args.get("from") or "").strip()
     date_to = (request.args.get("to") or "").strip()
 
@@ -227,6 +231,11 @@ def index():
     if rep_filter:
         try:
             query = query.filter(Lead.assigned_to_id == int(rep_filter))
+        except (TypeError, ValueError):
+            pass
+    if campaign_filter:
+        try:
+            query = query.filter(Lead.campaign_id == int(campaign_filter))
         except (TypeError, ValueError):
             pass
     df = _parse_date(date_from)
@@ -275,7 +284,9 @@ def index():
         status_counts=status_counts,
         no_response_count=no_response_count,
         reps=_sales_reps() if _can_view_all_leads() else [],
+        campaigns=_active_campaigns(),
         q=q, status_filter=status_filter, rep_filter=rep_filter,
+        campaign_filter=campaign_filter,
         date_from=date_from, date_to=date_to,
         view=view, columns=columns,
     )
@@ -374,6 +385,9 @@ def export_excel():
     q_str = (request.args.get("q") or "").strip()
     status_filter = (request.args.get("status") or "").strip()
     rep_filter = (request.args.get("rep") or "").strip()
+    # MARSOUD-LEADS-CAMPAIGN-FILTER (2026-07-13) — export honours the
+    # same campaign filter as the screen, so the file matches the view.
+    campaign_filter = (request.args.get("campaign") or "").strip()
     date_from = (request.args.get("from") or "").strip()
     date_to = (request.args.get("to") or "").strip()
 
@@ -395,6 +409,12 @@ def export_excel():
         try:
             query = query.filter(Lead.status == LeadStatus[status_filter])
         except KeyError:
+            pass
+    if campaign_filter:
+        try:
+            query = query.filter(
+                Lead.campaign_id == int(campaign_filter))
+        except (TypeError, ValueError):
             pass
     if rep_filter:
         try:
