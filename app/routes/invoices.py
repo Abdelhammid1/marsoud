@@ -152,6 +152,8 @@ def new():
                 currency=g.active_company.base_currency,
                 tax_rate=g.active_company.vat_rate or 15,
                 status=InvoiceStatus.DRAFT,
+                # MARSOUD-INVOICE-CREATOR — record who authored it.
+                created_by_id=current_user.id,
             )
             db.session.add(invoice)
             db.session.flush()
@@ -358,6 +360,69 @@ def pay(invoice_id):
     except LedgerError as e:
         flash(str(e), "error")
     return redirect(url_for("invoices.view", invoice_id=invoice_id))
+
+
+# MARSOUD-INVOICE-DELETE (Abdelhamid 2026-07-13) — the ticket asks for
+# a "delete anywhere" action. Chose the void-with-reversing-entry
+# variant (Option 1) because hard-deleting an issued invoice destroys
+# the audit trail + can violate KSA/Egypt VAT law. Behaviour:
+#   · DRAFT invoice (never posted a journal) → hard delete, safe.
+#   · Any other status → issue a FULL refund which reverses AR/VAT/
+#     revenue/cash, restocks inventory, claws back commission — then
+#     mark voided_at + set status to VOIDED. Net accounting impact = 0,
+#     audit trail preserved.
+@bp.route("/<int:invoice_id>/delete", methods=["POST"])
+@login_required
+@require_permission("invoices.refund")
+def delete(invoice_id):
+    invoice = db.session.get(Invoice, invoice_id)
+    if not invoice or invoice.company_id != g.active_company.id:
+        flash("غير موجود", "error")
+        return redirect(url_for("invoices.index"))
+    reason = (request.form.get("reason") or "").strip() or "حذف الفاتورة"
+    try:
+        if invoice.status == InvoiceStatus.DRAFT:
+            # Never posted anywhere — items cascade via
+            # cascade="all, delete-orphan" on the Invoice model.
+            invoice_number = invoice.number
+            db.session.delete(invoice)
+            db.session.commit()
+            flash(f"تم حذف الفاتورة {invoice_number}", "success")
+            return redirect(url_for("invoices.index"))
+        # Posted invoice — reverse via FULL refund, then void.
+        if invoice.status in (InvoiceStatus.REFUNDED,
+                              InvoiceStatus.VOIDED):
+            flash("الفاتورة معكوسة/ملغاة بالفعل", "warning")
+            return redirect(url_for("invoices.view",
+                                     invoice_id=invoice_id))
+        from app.models.refund import RefundType
+        issue_refund(
+            invoice, RefundType.FULL, reason=reason,
+            created_by=current_user.id, notify=False,
+        )
+        # issue_refund() sets status=REFUNDED; we relabel to VOIDED
+        # because the user's intent was "delete" not "customer wanted
+        # a refund." The reversing entry stays either way.
+        from datetime import datetime as _dt
+        invoice.status = InvoiceStatus.VOIDED
+        invoice.voided_at = _dt.utcnow()
+        invoice.voided_by_id = current_user.id
+        invoice.void_reason = reason
+        db.session.commit()
+        try:
+            from app.services.superadmin import log_platform_action
+            log_platform_action(
+                "invoice_deleted",
+                target_company_id=invoice.company_id,
+                actor_id=current_user.id,
+                details=f"#{invoice.number} reason={reason[:60]}")
+        except Exception:
+            pass
+        flash(f"تم حذف الفاتورة {invoice.number} وعكس القيود المرتبطة بها",
+              "success")
+    except (LedgerError, KeyError) as e:
+        flash(str(e), "error")
+    return redirect(url_for("invoices.index"))
 
 
 @bp.route("/<int:invoice_id>/refund", methods=["POST"])

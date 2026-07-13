@@ -40,6 +40,20 @@
         <div class="text-xs text-slate-500 mb-1">التواريخ</div>
         <div class="text-sm">إصدار: {{ invoice.issue_date.isoformat() }}</div>
         <div class="text-sm">استحقاق: {{ invoice.due_date.isoformat() }}</div>
+        {# MARSOUD-INVOICE-CREATOR (Abdelhamid 2026-07-13) — surface the
+           full creation timestamp + author. Falls back to the cashier
+           for POS invoices that predate the created_by_id column, and
+           to "غير معروف" for legacy manual invoices with no recorded
+           creator. #}
+        {% set _creator = invoice.created_by or invoice.cashier %}
+        {% if invoice.created_at %}
+        <div class="text-sm text-slate-500 mt-1 pt-1 border-t border-slate-100">
+          أُنشئت: {{ invoice.created_at | company_dt('%Y-%m-%d %H:%M') }}
+        </div>
+        {% endif %}
+        <div class="text-sm text-slate-500">
+          بواسطة: {% if _creator %}<span class="text-navy-900 font-semibold">{{ _creator.full_name }}</span>{% else %}<span class="text-slate-400">غير معروف</span>{% endif %}
+        </div>
       </div>
     </div>
 
@@ -176,6 +190,36 @@
         <button type="submit" class="btn-accent w-full">تسجيل الدفعة</button>
       </form>
       {% endif %}
+    </div>
+    {% endif %}
+
+    {# MARSOUD-INVOICE-DELETE (Abdelhamid 2026-07-13) — delete/void
+       button. DRAFT hard-deletes (never posted anywhere), any other
+       status reverses via a FULL refund + marks the invoice VOIDED.
+       Restricted to `invoices.refund` permission because the action
+       touches the ledger. #}
+    {% if invoice.status.value not in ['REFUNDED', 'VOIDED']
+          and has_permission('invoices.refund') %}
+    <div class="card p-5 border-rose-200 bg-rose-50/40">
+      <h3 class="font-bold text-rose-700 mb-2">🗑 حذف الفاتورة</h3>
+      <p class="text-xs text-slate-600 mb-3">
+        {% if invoice.status.value == 'DRAFT' %}
+        فاتورة مسودّة لم تُقيَّد بعد — سيتم حذفها تمامًا من النظام.
+        {% else %}
+        سيتم عكس القيود المرتبطة تلقائيًا (المبيعات، الضريبة، الذمم،
+        النقدية إن دُفعت) وتعليم الفاتورة كملغاة مع الحفاظ على أثر التدقيق.
+        {% endif %}
+      </p>
+      <form method="POST"
+            action="{{ url_for('invoices.delete', invoice_id=invoice.id) }}"
+            onsubmit="return confirm('تأكيد حذف الفاتورة {{ invoice.number }}؟')"
+            data-once data-once-label="جاري الحذف...">
+        <input type="text" name="reason" placeholder="سبب الحذف (اختياري)"
+               class="input text-sm mb-2">
+        <button type="submit" class="btn-danger w-full">
+          🗑 حذف الفاتورة
+        </button>
+      </form>
     </div>
     {% endif %}
 

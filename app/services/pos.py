@@ -90,6 +90,8 @@ def create_pos_order(
         number=next_number(company_id, "POS"),
         customer_id=customer_id,
         cashier_id=cashier_id,
+        # MARSOUD-INVOICE-CREATOR — for POS the cashier IS the creator.
+        created_by_id=cashier_id,
         shift_id=open_shift.id if open_shift else None,
         source="POS",
         issue_date=date.today(),

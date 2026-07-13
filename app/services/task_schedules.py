@@ -80,6 +80,26 @@ def create_schedule(*, company_id, created_by_id, title, description,
             schedule_id=s.id, user_id=int(uid),
         ))
     db.session.commit()
+
+    # MARSOUD-TASK-SCHEDULE-IMMEDIATE (Abdelhamid 2026-07-13) — Rofida
+    # reported that a DAILY schedule starting today didn't produce a
+    # task because the cron hadn't ticked yet. When the caller picks a
+    # start_date of today (or the past), fire the schedule right now
+    # so the first task is visible on the board immediately. The
+    # underlying helper is the same one the cron uses, so we get
+    # notifications, activity log, and dedupe consistency for free.
+    today = date.today()
+    if s.start_date <= today:
+        try:
+            _fire_schedule_if_due(s, today)
+        except Exception:
+            # Fire-and-continue: a failure here shouldn't roll back the
+            # schedule row itself. The cron will retry tomorrow.
+            db.session.rollback()
+            import logging
+            logging.getLogger("marsoud.schedules").exception(
+                "immediate fire failed for schedule %s", s.id,
+            )
     return s
 
 
@@ -102,33 +122,11 @@ def materialize_due_schedules(today=None):
     schedules = TaskSchedule.query.filter_by(active=True).all()
     for s in schedules:
         try:
-            # Window check — anything BEFORE start_date is waiting.
-            if s.start_date > today:
-                continue
-            # DAILY schedules past their end date deactivate; ONCE
-            # schedules deactivate the moment they fire (below).
-            if (s.recurrence == RECURRENCE_DAILY
-                    and s.end_date is not None
-                    and today > s.end_date):
-                s.active = False
+            outcome = _fire_schedule_if_due(s, today)
+            if outcome == "fired":
+                fired += 1
+            elif outcome == "deactivated":
                 deactivated += 1
-                continue
-            # Dedupe — don't regenerate on repeat cron ticks the
-            # same day.
-            if (s.last_generated_date is not None
-                    and s.last_generated_date >= today):
-                continue
-
-            _spawn_task_from_schedule(s)
-            s.last_generated_date = today
-            s.generated_count += 1
-            fired += 1
-
-            # ONCE schedules retire immediately.
-            if s.recurrence == RECURRENCE_ONCE:
-                s.active = False
-                deactivated += 1
-            db.session.commit()
         except (CRMError, Exception) as e:  # noqa: BLE001
             db.session.rollback()
             errors.append(f"schedule {s.id}: {type(e).__name__}: {e}")
@@ -136,6 +134,38 @@ def materialize_due_schedules(today=None):
     return {"fired": fired,
             "deactivated": deactivated,
             "errors": errors}
+
+
+def _fire_schedule_if_due(s, today):
+    """Fire a single schedule if today falls inside its window and it
+    hasn't already fired today. Returns one of:
+      · "waiting"     — start_date is still in the future
+      · "already"     — already fired today (dedupe)
+      · "fired"       — a new Task was spawned + bookkeeping saved
+      · "deactivated" — DAILY past its end_date; schedule retired
+
+    Shared by the cron loop AND by create_schedule() so a schedule
+    with start_date=today materialises immediately at save time
+    (MARSOUD-TASK-SCHEDULE-IMMEDIATE — Rofida 2026-07-13)."""
+    if s.start_date > today:
+        return "waiting"
+    if (s.recurrence == RECURRENCE_DAILY
+            and s.end_date is not None
+            and today > s.end_date):
+        s.active = False
+        db.session.commit()
+        return "deactivated"
+    if (s.last_generated_date is not None
+            and s.last_generated_date >= today):
+        return "already"
+
+    _spawn_task_from_schedule(s)
+    s.last_generated_date = today
+    s.generated_count += 1
+    if s.recurrence == RECURRENCE_ONCE:
+        s.active = False
+    db.session.commit()
+    return "fired"
 
 
 def _spawn_task_from_schedule(s):

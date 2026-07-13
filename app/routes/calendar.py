@@ -10,7 +10,10 @@ from flask import Blueprint, render_template, g, request
 from flask_login import login_required, current_user
 
 from app import db
-from app.models import Lead, Task, Project, TaskStatus, ProjectStatus
+from app.models import (
+    Lead, Task, Project, TaskStatus, ProjectStatus,
+    LeadActivity, LeadActivityType,
+)
 from app.services.permissions import get_user_role
 
 
@@ -47,6 +50,58 @@ def index():
                 "subtitle": lead.service_needed,
                 "link": f"/leads/{lead.id}",
             })
+
+        # MARSOUD-CRM-CALENDAR (Abdelhamid 2026-07-13) — meetings + any
+        # activity with a future follow_up_date logged via the CRM
+        # activities panel were invisible here because they didn't
+        # touch Lead.next_meeting. Read them directly from
+        # LeadActivity so every upcoming touchpoint shows up. A MEETING
+        # activity uses its own activity_date (that IS the meeting
+        # time); other activity types surface via follow_up_date
+        # (the "call me back on X" flag).
+        _seen = {(m["when"], m["link"]) for m in meetings}
+        start = datetime.combine(today, datetime.min.time())
+        end = datetime.combine(horizon, datetime.min.time())
+        aq = LeadActivity.query.join(Lead).filter(
+            LeadActivity.company_id == cid,
+            Lead.deleted_at.is_(None),
+        )
+        if role == "sales_rep":
+            aq = aq.filter(Lead.assigned_to_id == current_user.id)
+
+        for act in aq.all():
+            # A MEETING activity's own activity_date is the event time.
+            if (act.type == LeadActivityType.MEETING
+                    and act.activity_date is not None
+                    and start <= act.activity_date < end):
+                key = (act.activity_date, f"/leads/{act.lead_id}")
+                if key not in _seen:
+                    _seen.add(key)
+                    meetings.append({
+                        "when": act.activity_date,
+                        "kind": "meeting",
+                        "title": (act.subject
+                                    or f"اجتماع مع {act.lead.client_name}"),
+                        "subtitle": act.lead.client_name,
+                        "link": f"/leads/{act.lead_id}",
+                    })
+            # Any activity type: an explicit follow_up_date is a
+            # follow-up event on the timeline.
+            if (act.follow_up_date is not None
+                    and start <= act.follow_up_date < end):
+                key = (act.follow_up_date,
+                       f"/leads/{act.lead_id}#activity-{act.id}")
+                if key in _seen:
+                    continue
+                _seen.add(key)
+                meetings.append({
+                    "when": act.follow_up_date,
+                    "kind": "follow_up",
+                    "title": (f"{act.type.icon} متابعة: "
+                                f"{act.subject or act.type.label_ar}"),
+                    "subtitle": act.lead.client_name,
+                    "link": f"/leads/{act.lead_id}",
+                })
 
     # Task deadlines
     tasks = []

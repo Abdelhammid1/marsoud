@@ -60,10 +60,16 @@ class Invoice(db.Model):
     payment_terms_days = db.Column(db.Integer)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # MARSOUD-INVOICE-CREATOR (Abdelhamid 2026-07-13) — the user who
+    # authored this invoice. Backfilled from cashier_id for POS rows;
+    # NULL for legacy manual invoices where no creator was recorded.
+    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"),
+                              nullable=True)
 
     cashier = db.relationship("User", foreign_keys=[cashier_id])
     voided_by = db.relationship("User", foreign_keys=[voided_by_id])
     sales_rep = db.relationship("User", foreign_keys=[sales_rep_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_id])
 
     company = db.relationship("Company", backref=db.backref("invoices", lazy="dynamic"))
     customer = db.relationship("Customer", backref=db.backref("invoices", lazy="dynamic"))

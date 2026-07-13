@@ -302,6 +302,9 @@ def execute_tool(name, args, company_id, user_id):
                 currency=company.base_currency,
                 tax_rate=tax_rate,
                 status=InvoiceStatus.DRAFT,
+                # MARSOUD-INVOICE-CREATOR — the operator running the
+                # agent is recorded as the creator.
+                created_by_id=user_id,
             )
             db.session.add(invoice)
             db.session.flush()

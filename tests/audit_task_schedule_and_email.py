@@ -255,13 +255,19 @@ def _():
     return "second call was a no-op"
 
 
-@check("8. DAILY schedule fires once per day and deactivates after end_date")
+@check("8. DAILY schedule fires today (immediate) + next day + retires past end")
 def _():
+    # AUDIT SYNC 2026-07-13 — after MARSOUD-TASK-SCHEDULE-IMMEDIATE,
+    # a DAILY schedule with start_date == today fires ONE task at
+    # save time so the user doesn't have to wait for the cron.
+    # This test walks the timeline: today (immediate) → day 2 (cron
+    # tick simulated) → day past end_date (deactivate).
     from app.services.task_schedules import (
         create_schedule, materialize_due_schedules,
     )
     from app.models import Task, TaskSchedule
     today = date.today()
+    before = Task.query.filter_by(company_id=_STATE["a_id"]).count()
     s = create_schedule(
         company_id=_STATE["a_id"],
         created_by_id=_STATE["owner_id"],
@@ -270,30 +276,33 @@ def _():
         project_id=None, milestone_id=None, notes=None,
         assignee_ids=[_STATE["assignee_id"]],
         recurrence="DAILY",
-        start_date=today - timedelta(days=1),
+        start_date=today,
         end_date=today + timedelta(days=1),
     )
-    # Day 1 (today − 1): fire.
-    before = Task.query.filter_by(company_id=_STATE["a_id"]).count()
-    materialize_due_schedules(today=today - timedelta(days=1))
+    # Day 0 (today): immediate fire happened at save time.
+    d0 = Task.query.filter_by(company_id=_STATE["a_id"]).count()
+    assert d0 == before + 1, \
+        f"immediate fire didn't spawn (delta={d0 - before})"
+    # Day 1 (tomorrow): cron tick → fires again.
+    materialize_due_schedules(today=today + timedelta(days=1))
     d1 = Task.query.filter_by(company_id=_STATE["a_id"]).count()
-    assert d1 == before + 1, "day 1 didn't spawn"
-    # Day 2 (today): fire again.
-    materialize_due_schedules(today=today)
-    d2 = Task.query.filter_by(company_id=_STATE["a_id"]).count()
-    assert d2 == d1 + 1, f"day 2 didn't spawn (delta={d2 - d1})"
+    assert d1 == d0 + 1, f"day 1 didn't spawn (delta={d1 - d0})"
     # Day 4 (past end_date): don't fire; deactivate.
     materialize_due_schedules(today=today + timedelta(days=4))
-    d3 = Task.query.filter_by(company_id=_STATE["a_id"]).count()
-    assert d3 == d2, "post-end-date fire leaked a task"
+    d2 = Task.query.filter_by(company_id=_STATE["a_id"]).count()
+    assert d2 == d1, "post-end-date fire leaked a task"
     s = db.session.get(TaskSchedule, s.id)
     assert s.active is False, "past-end DAILY schedule stayed active"
-    return "day 1 + day 2 spawned; day 4 deactivated"
+    return "immediate + day 1 fired; day 4 deactivated"
 
 
 # ─── HTTP round-trip ─────────────────────────────────────────────────
-@check("9. POST /tasks/new with DAILY schedule creates TaskSchedule (not Task)")
+@check("9. POST /tasks/new with DAILY schedule (start=today) creates schedule + task")
 def _():
+    # AUDIT SYNC 2026-07-13 — after MARSOUD-TASK-SCHEDULE-IMMEDIATE,
+    # a schedule whose start_date == today now materialises a Task
+    # right away at save time. The Task row is real and visible in
+    # the assignee's board immediately — no waiting for cron.
     from flask import current_app
     from app.models import Task, TaskSchedule
     _reset_g()
@@ -320,31 +329,66 @@ def _():
     tasks_after = Task.query.filter_by(company_id=_STATE["a_id"]).count()
     scheds_after = TaskSchedule.query.filter_by(
         company_id=_STATE["a_id"]).count()
-    assert tasks_after == tasks_before, \
-        "task was created immediately — should have deferred to cron"
     assert scheds_after == scheds_before + 1, \
         "no new TaskSchedule row was inserted"
+    assert tasks_after == tasks_before + 1, \
+        f"expected 1 new task from immediate fire, got {tasks_after - tasks_before}"
     _STATE["http_sched_id"] = TaskSchedule.query.filter_by(
         company_id=_STATE["a_id"]).order_by(
             TaskSchedule.id.desc()).first().id
-    return f"schedule {_STATE['http_sched_id']} created, 0 tasks"
+    return f"schedule {_STATE['http_sched_id']} + 1 task from immediate fire"
 
 
-@check("10. materialize fires the HTTP-created schedule + notification")
+@check("9b. Rofida's ticket: DAILY schedule with start_date=today spawns a task immediately")
 def _():
+    # MARSOUD-TASK-SCHEDULE-IMMEDIATE (Abdelhamid 2026-07-13). Rofida
+    # created a DAILY schedule that morning and the task never showed
+    # because the cron hadn't ticked. This check reproduces that
+    # scenario at the service layer.
+    from app.services.task_schedules import create_schedule
+    from app.models import Task
+    before = Task.query.filter_by(
+        company_id=_STATE["a_id"], title="ticket-repro-task").count()
+    s = create_schedule(
+        company_id=_STATE["a_id"],
+        created_by_id=_STATE["owner_id"],
+        title="ticket-repro-task",
+        description=None, priority="MEDIUM",
+        project_id=None, milestone_id=None, notes=None,
+        assignee_ids=[_STATE["assignee_id"]],
+        recurrence="DAILY",
+        start_date=date.today(),
+        end_date=date.today() + timedelta(days=30),
+    )
+    after = Task.query.filter_by(
+        company_id=_STATE["a_id"], title="ticket-repro-task").count()
+    assert after == before + 1, \
+        "schedule with start_date=today didn't spawn a task at save time"
+    assert s.generated_count == 1
+    assert s.last_generated_date == date.today()
+    assert s.active is True, "DAILY schedule should stay active after first fire"
+    return "task materialised at save; schedule still active for tomorrow"
+
+
+@check("10. HTTP-created schedule fired TASK_ASSIGNED notification + is idempotent")
+def _():
+    # AUDIT SYNC 2026-07-13 — the previous check already spawned the
+    # first task via the immediate fire. This check verifies (a) the
+    # notification landed, and (b) a follow-up materialize call is a
+    # no-op (dedupe still works — the same schedule can't spawn a
+    # second task today).
     from app.services.task_schedules import materialize_due_schedules
-    from app.models import Task, TaskSchedule, Notification
-    before = Task.query.filter_by(company_id=_STATE["a_id"]).count()
-    summary = materialize_due_schedules(today=date.today())
-    after = Task.query.filter_by(company_id=_STATE["a_id"]).count()
-    assert after >= before + 1, \
-        f"expected at least 1 new task, got {after - before}"
-    # The assignee should have received a TASK_ASSIGNED notification.
+    from app.models import Task, Notification
     n = Notification.query.filter_by(
         user_id=_STATE["assignee_id"], kind="TASK_ASSIGNED",
     ).first()
     assert n is not None, "assignee didn't get TASK_ASSIGNED"
-    return f"{after - before} task(s) spawned + notification fired"
+    before = Task.query.filter_by(company_id=_STATE["a_id"]).count()
+    materialize_due_schedules(today=date.today())
+    after = Task.query.filter_by(company_id=_STATE["a_id"]).count()
+    assert after == before, \
+        f"materialize double-fired same-day (delta={after - before})"
+    return "notification fired + second materialize is a no-op"
 
 
 def main():
