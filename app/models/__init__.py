@@ -23,6 +23,7 @@ from app.models.vendor_bill import (
     VendorBill, VendorBillItem, VendorBillPayment,
     VendorBillStatus, VendorBillPaymentMethod, BillLineType,
 )
+from app.models.vendor_sub_category import VendorSubCategory
 from app.models.payroll import (
     Employee, PayrollRun, PayrollLine, EmployeeAccrual,
     ContractType, EmployeeStatus, TerminationReason, Gender,
@@ -144,5 +145,6 @@ __all__ = [
     "DiscountType",
     "VendorBill", "VendorBillItem", "VendorBillPayment",
     "VendorBillStatus", "VendorBillPaymentMethod", "BillLineType",
+    "VendorSubCategory",
     "DepreciationEntry",
 ]

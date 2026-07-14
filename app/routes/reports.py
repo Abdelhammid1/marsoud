@@ -405,3 +405,49 @@ def employee_report_detail(employee_id, report_id):
         "reports/employee_report_detail.html", report=r,
     )
 
+
+# ─── MARSOUD-VENDOR-SUBCAT (Abdelhamid 2026-07-14) ──────────────────────
+# Report: totals per vendor + sub-category. Optional vendor filter +
+# date range. Zero-spend combinations are hidden. Uncategorized lines
+# roll up under a "بدون تصنيف" bucket per vendor so legacy spend
+# isn't invisible.
+@bp.route("/vendor-sub-categories")
+@login_required
+@require_permission("vendor_bills.create")
+def vendor_sub_categories():
+    from app.services.vendor_sub_categories import report_totals_by_vendor
+    from app.models import Vendor
+    cid = g.active_company.id
+    vendor_filter = request.args.get("vendor") or ""
+    date_from = _parse_date(request.args.get("from"))
+    date_to = _parse_date(request.args.get("to"))
+    vendor_id = None
+    if vendor_filter:
+        try:
+            vendor_id = int(vendor_filter)
+        except (TypeError, ValueError):
+            vendor_id = None
+    rows = report_totals_by_vendor(
+        cid, vendor_id=vendor_id,
+        date_from=date_from, date_to=date_to,
+    )
+    # Roll rows into a {vendor_name → {sub_name → subtotal, ...}}
+    # dict so the template can render one section per vendor with
+    # its own subtotal line.
+    grouped = {}
+    for r in rows:
+        bucket = grouped.setdefault(
+            r["vendor_name"],
+            {"vendor_id": r["vendor_id"], "rows": [], "total": 0.0})
+        bucket["rows"].append(r)
+        bucket["total"] += r["total"]
+    grand_total = sum(b["total"] for b in grouped.values())
+    vendors = Vendor.query.filter_by(company_id=cid).order_by(Vendor.name).all()
+    return render_template(
+        "reports/vendor_sub_categories.html",
+        grouped=grouped, grand_total=grand_total,
+        vendors=vendors, vendor_filter=vendor_filter,
+        date_from=request.args.get("from") or "",
+        date_to=request.args.get("to") or "",
+    )
+

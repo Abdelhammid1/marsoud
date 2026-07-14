@@ -1,8 +1,18 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, g
+from flask import (
+    Blueprint, render_template, redirect, url_for, flash, request, g,
+    jsonify,
+)
 from flask_login import login_required, current_user
 from app import db
-from app.models import Vendor, VendorBill, VendorBillRefund, DebitNote
+from app.models import (
+    Vendor, VendorBill, VendorBillRefund, DebitNote, VendorSubCategory,
+)
 from app.services.permissions import require_permission
+from app.services.vendor_sub_categories import (
+    SubCategoryError,
+    create_sub_category, rename_sub_category, set_active,
+    delete_sub_category, list_for_vendor, is_in_use,
+)
 
 bp = Blueprint("vendors", __name__)
 
@@ -166,3 +176,126 @@ def delete(vendor_id):
         db.session.commit()
         flash("تم حذف المورد", "success")
     return redirect(url_for("vendors.index"))
+
+
+# ─── MARSOUD-VENDOR-SUBCAT (Abdelhamid 2026-07-14) ──────────────────────
+# Per-vendor sub-category management. Lives under the vendor detail
+# URL so the taxonomy is visibly nested inside the vendor it belongs
+# to. All mutations go through the service layer to keep the
+# uniqueness + delete-guard rules in one place.
+@bp.route("/<int:vendor_id>/sub-categories")
+@login_required
+@require_permission("partners.manage")
+def sub_categories_index(vendor_id):
+    v = _vendor_or_404(vendor_id)
+    if not v:
+        return redirect(url_for("vendors.index"))
+    rows = list_for_vendor(v.id, active_only=False)
+    # Tag each row with `is_used` so the template can show "in use →
+    # deactivate only" hints without an extra service call.
+    for r in rows:
+        r._is_used = is_in_use(r)
+    return render_template(
+        "vendors/sub_categories.html", vendor=v, sub_categories=rows,
+    )
+
+
+@bp.route("/<int:vendor_id>/sub-categories/new", methods=["POST"])
+@login_required
+@require_permission("partners.manage")
+def sub_categories_create(vendor_id):
+    v = _vendor_or_404(vendor_id)
+    if not v:
+        return redirect(url_for("vendors.index"))
+    try:
+        create_sub_category(
+            company_id=v.company_id, vendor_id=v.id,
+            name=request.form.get("name"),
+            created_by_id=current_user.id,
+        )
+        flash("تم إضافة التصنيف", "success")
+    except SubCategoryError as e:
+        flash(str(e), "error")
+    return redirect(url_for(
+        "vendors.sub_categories_index", vendor_id=v.id))
+
+
+@bp.route("/<int:vendor_id>/sub-categories/<int:sc_id>/edit",
+           methods=["POST"])
+@login_required
+@require_permission("partners.manage")
+def sub_categories_edit(vendor_id, sc_id):
+    v = _vendor_or_404(vendor_id)
+    if not v:
+        return redirect(url_for("vendors.index"))
+    sc = VendorSubCategory.query.filter_by(
+        id=sc_id, vendor_id=v.id, company_id=v.company_id,
+    ).first()
+    if not sc:
+        flash("التصنيف غير موجود", "error")
+        return redirect(url_for(
+            "vendors.sub_categories_index", vendor_id=v.id))
+    try:
+        rename_sub_category(sc, name=request.form.get("name"))
+        flash("تم تحديث التصنيف", "success")
+    except SubCategoryError as e:
+        flash(str(e), "error")
+    return redirect(url_for(
+        "vendors.sub_categories_index", vendor_id=v.id))
+
+
+@bp.route("/<int:vendor_id>/sub-categories/<int:sc_id>/toggle",
+           methods=["POST"])
+@login_required
+@require_permission("partners.manage")
+def sub_categories_toggle(vendor_id, sc_id):
+    v = _vendor_or_404(vendor_id)
+    if not v:
+        return redirect(url_for("vendors.index"))
+    sc = VendorSubCategory.query.filter_by(
+        id=sc_id, vendor_id=v.id, company_id=v.company_id,
+    ).first()
+    if sc:
+        set_active(sc, not sc.is_active)
+        flash("تم تحديث حالة التصنيف", "success")
+    return redirect(url_for(
+        "vendors.sub_categories_index", vendor_id=v.id))
+
+
+@bp.route("/<int:vendor_id>/sub-categories/<int:sc_id>/delete",
+           methods=["POST"])
+@login_required
+@require_permission("partners.manage")
+def sub_categories_delete(vendor_id, sc_id):
+    v = _vendor_or_404(vendor_id)
+    if not v:
+        return redirect(url_for("vendors.index"))
+    sc = VendorSubCategory.query.filter_by(
+        id=sc_id, vendor_id=v.id, company_id=v.company_id,
+    ).first()
+    if not sc:
+        flash("التصنيف غير موجود", "error")
+        return redirect(url_for(
+            "vendors.sub_categories_index", vendor_id=v.id))
+    try:
+        delete_sub_category(sc)
+        flash("تم حذف التصنيف", "success")
+    except SubCategoryError as e:
+        flash(str(e), "error")
+    return redirect(url_for(
+        "vendors.sub_categories_index", vendor_id=v.id))
+
+
+@bp.route("/<int:vendor_id>/sub-categories.json")
+@login_required
+def sub_categories_api(vendor_id):
+    """JSON feed for the bill-form dropdown — active categories only.
+    Scoped to the current company at the query level so a hand-crafted
+    vendor_id from a different company returns an empty list."""
+    v = db.session.get(Vendor, vendor_id)
+    if not v or v.company_id != g.active_company.id:
+        return jsonify([])
+    rows = list_for_vendor(v.id, active_only=True)
+    return jsonify([
+        {"id": r.id, "name": r.name} for r in rows
+    ])

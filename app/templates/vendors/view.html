@@ -89,7 +89,11 @@
     <div class="flex items-center justify-between mb-3">
       <h3 class="font-bold text-navy-900">بيانات المورد</h3>
       {% if has_permission('partners.manage') %}
-      <a href="{{ url_for('vendors.edit', vendor_id=vendor.id) }}" class="text-xs text-emerald-700 hover:underline">✎ تعديل</a>
+      <div class="flex items-center gap-3">
+        <a href="{{ url_for('vendors.sub_categories_index', vendor_id=vendor.id) }}"
+           class="text-xs text-brand-600 hover:underline">🏷 التصنيفات الفرعية</a>
+        <a href="{{ url_for('vendors.edit', vendor_id=vendor.id) }}" class="text-xs text-emerald-700 hover:underline">✎ تعديل</a>
+      </div>
       {% endif %}
     </div>
     <div class="space-y-2 text-sm">

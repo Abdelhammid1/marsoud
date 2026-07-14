@@ -211,6 +211,11 @@ def _populate_from_form(bill, form):
     salvages = form.getlist("item_salvage_value[]")
     # MARSOUD-UNIT-CONVERSION-01 — unit picker on INVENTORY rows.
     unit_ids = form.getlist("item_unit_id[]")
+    # MARSOUD-VENDOR-SUBCAT (Abdelhamid 2026-07-14) — per-vendor
+    # sub-category on each line. Nullable so old form-posts keep
+    # working; validated against the current bill's vendor_id below
+    # so a cross-vendor id can't slip in via a hand-crafted POST.
+    sub_cat_ids = form.getlist("item_sub_category_id[]")
 
     for i, desc in enumerate(descriptions):
         if not (desc or "").strip():
@@ -221,6 +226,21 @@ def _populate_from_form(bill, form):
             uid = int(uid_raw) if uid_raw else None
         except (TypeError, ValueError):
             uid = None
+        # Sub-category id must belong to the same vendor as the bill.
+        sc_raw = sub_cat_ids[i] if i < len(sub_cat_ids) else None
+        sc_id = None
+        try:
+            sc_candidate = int(sc_raw) if sc_raw else None
+        except (TypeError, ValueError):
+            sc_candidate = None
+        if sc_candidate and bill.vendor_id:
+            from app.models import VendorSubCategory
+            row = VendorSubCategory.query.filter_by(
+                id=sc_candidate, vendor_id=bill.vendor_id,
+                company_id=bill.company_id,
+            ).first()
+            if row:
+                sc_id = row.id
         item = VendorBillItem(
             bill_id=bill.id,
             description=desc.strip(),
@@ -229,6 +249,7 @@ def _populate_from_form(bill, form):
             quantity=float(quantities[i] or 1),
             unit_price=float(prices[i] or 0),
             unit_id=uid,
+            sub_category_id=sc_id,
         )
         if lt == BillLineType.FIXED_ASSET:
             item.useful_life_years = int(lives[i] or 0) if i < len(lives) and lives[i] else None

@@ -53,6 +53,7 @@
     ('payroll', 'تقرير الرواتب', 'Payroll Report', 'كل موظف بالتفصيل + إجماليات', '💼'),
     ('fixed_assets', 'تقرير الأصول الثابتة', 'Fixed Assets', 'تكلفة + إهلاك + قيمة دفترية', '🏗️'),
     ('sales_commissions', 'عمولات المندوبين', 'Sales Commissions', 'مستحق + مدفوع + ترحيلات لكل مندوب', '💼'),
+    ('vendor_sub_categories', 'مصروفات الموردين حسب التصنيف', 'Vendor Sub-Categories', 'إجمالي المصروف على كل مورد مقسّم على تصنيفاته الفرعية', '🏷'),
   ] %}
   {% for endpoint, title_ar, title_en, desc, icon in modules %}
   <a href="{{ url_for('reports.' + endpoint) }}" class="card p-6 hover:shadow-soft hover:-translate-y-0.5 transition-all border-2 border-transparent hover:border-brand-500">

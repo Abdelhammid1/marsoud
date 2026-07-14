@@ -96,11 +96,20 @@ class VendorBillItem(db.Model):
     unit_id = db.Column(db.Integer, db.ForeignKey("product_units.id"))
     base_quantity = db.Column(db.Numeric(15, 4))
 
+    # MARSOUD-VENDOR-SUBCAT (Abdelhamid 2026-07-14) — per-vendor
+    # sub-category. Nullable so legacy bill lines keep working; also
+    # nullable when the vendor has no sub-categories defined yet.
+    sub_category_id = db.Column(db.Integer,
+                                 db.ForeignKey("vendor_sub_categories.id"),
+                                 nullable=True, index=True)
+
     account = db.relationship("Account")
     created_asset = db.relationship("FixedAsset")
     variant = db.relationship("ProductVariant", foreign_keys=[variant_id])
     warehouse = db.relationship("Warehouse", foreign_keys=[warehouse_id])
     unit = db.relationship("ProductUnit", foreign_keys=[unit_id])
+    sub_category = db.relationship("VendorSubCategory",
+                                    foreign_keys=[sub_category_id])
 
 
 class VendorBillPayment(db.Model):

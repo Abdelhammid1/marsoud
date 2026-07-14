@@ -20,7 +20,8 @@
     <div class="grid grid-cols-3 gap-4">
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">المورد</label>
-        <select name="vendor_id" id="vendor_id" class="select">
+        <select name="vendor_id" id="vendor_id" class="select"
+                onchange="onVendorChange()">
           <option value="">— بدون (للنقدي والبنك) —</option>
           {% for v in vendors %}<option value="{{ v.id }}">{{ v.name }}</option>{% endfor %}
         </select>
@@ -187,6 +188,21 @@ function addItem() {
   tr.innerHTML = `
     <td>
       <input type="text" name="item_description[]" required class="input text-sm" placeholder="مثلاً: إيجار / لاب توب / بضاعة">
+      {# MARSOUD-VENDOR-SUBCAT (Abdelhamid 2026-07-14) — per-vendor
+         sub-category picker. Populated from
+         /vendors/<id>/sub-categories.json whenever the header
+         vendor selector changes. Description stays as free text
+         next to it; the sub-category is the fixed taxonomy value
+         that reports group by. #}
+      <div class="mt-2 sub-cat-block" style="display:none">
+        <label class="block text-xs text-slate-500 mb-1">
+          🏷 التصنيف الفرعي (اختياري)
+        </label>
+        <select name="item_sub_category_id[]"
+                class="select text-xs sub-cat-picker">
+          <option value="">— بدون تصنيف —</option>
+        </select>
+      </div>
       <p class="text-xs text-slate-500 mt-1">لو بتضيف صنف/بضاعة موجودة عندك بالفعل، اختار النوع «مخزون» جنب عشان يظهرلك اختيار الصنف من قائمتك.</p>
       <div class="asset-fields mt-2 flex gap-2" style="display:none">
         <div>
@@ -244,6 +260,9 @@ function addItem() {
   // For empty rows, mirror the placeholder slots so getlist() arrays stay
   // index-aligned across rows.
   refreshAccountDropdown(tr);
+  // MARSOUD-VENDOR-SUBCAT — paint the sub-category dropdown so the
+  // new row shows whatever the current vendor has.
+  _paintSubCategoryPicker(tr);
 }
 
 async function onLineTypeChange(tr) {
@@ -265,6 +284,46 @@ function calcTotals() {
   document.getElementById('subtotal').textContent = sub.toFixed(2);
   document.getElementById('tax').textContent = tax.toFixed(2);
   document.getElementById('total').textContent = (sub + tax).toFixed(2);
+}
+
+// MARSOUD-VENDOR-SUBCAT (Abdelhamid 2026-07-14) — sub-category picker.
+// The vendor drop-down feeds the picker; we cache the fetched list so
+// adding a new row doesn't re-fetch.
+let _subCatCache = [];   // list of {id,name} for the current vendor
+
+async function _fetchSubCategoriesForCurrentVendor() {
+  const vid = document.getElementById('vendor_id').value;
+  if (!vid) { _subCatCache = []; return; }
+  try {
+    const res = await fetch(`/vendors/${vid}/sub-categories.json`);
+    _subCatCache = await res.json();
+  } catch (_) { _subCatCache = []; }
+}
+
+function _paintSubCategoryPicker(tr) {
+  const sel = tr.querySelector('select[name="item_sub_category_id[]"]');
+  if (!sel) return;
+  const wrap = tr.querySelector('.sub-cat-block');
+  const previous = sel.value;
+  // Always keep the "— none —" option so the user can clear a
+  // stale value when they switch vendors.
+  sel.innerHTML =
+    '<option value="">— بدون تصنيف —</option>' +
+    _subCatCache
+      .map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`)
+      .join('');
+  if (previous && _subCatCache.some(c => String(c.id) === previous)) {
+    sel.value = previous;
+  }
+  // Show the block only when the vendor has at least one sub-category
+  // defined — otherwise it's noise on the row.
+  if (wrap) wrap.style.display = _subCatCache.length > 0 ? 'block' : 'none';
+}
+
+async function onVendorChange() {
+  onPaymentMethodChange();
+  await _fetchSubCategoriesForCurrentVendor();
+  document.querySelectorAll('#items-body tr').forEach(_paintSubCategoryPicker);
 }
 
 function onPaymentMethodChange() {
@@ -347,6 +406,13 @@ applyRecurringPrefill().catch(err => {
   // Fallback: keep the default single-empty-row behavior if anything
   // goes wrong so the user isn't stuck with a blank form.
   if (!document.getElementById('items-body').children.length) addItem();
+}).finally(() => {
+  // MARSOUD-VENDOR-SUBCAT — if a vendor is pre-selected (edit mode or
+  // recurring prefill), populate the sub-category cache once so every
+  // row's dropdown shows the correct options on first paint.
+  if (document.getElementById('vendor_id').value) {
+    onVendorChange();
+  }
 });
 onPaymentMethodChange();
 </script>
