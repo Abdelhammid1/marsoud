@@ -589,8 +589,23 @@ def run_daily_digest_for_company(company_id, day=None):
     """Fan-out: build a digest for every active employee in the
     company. Cron-callable; safe to run multiple times per day (the
     unique constraint + idempotence in build_digest guarantees no
-    duplicate rows)."""
-    day = day or date.today() - timedelta(days=1)  # digest = yesterday
+    duplicate rows).
+
+    MARSOUD-DIGEST-TZ-FIX (Abdelhamid 2026-07-14) — "yesterday" used
+    to be computed from server-local date.today(), which is UTC on
+    the production host. Cron running at 00:15 Cairo time (= 22:15
+    UTC previous day) would compute the wrong "yesterday" and build
+    the digest for two days ago in the company's calendar. Now we
+    compute "yesterday" in the company's own timezone so the report
+    day always matches what the owner sees on their local clock.
+    """
+    if day is None:
+        from app.models import Company
+        from app.services.time import today_in_company_tz
+        company = db.session.get(Company, company_id)
+        base_today = (today_in_company_tz(company) if company
+                       else date.today())
+        day = base_today - timedelta(days=1)
     employees = Employee.query.filter_by(
         company_id=company_id, status=EmployeeStatus.ACTIVE,
     ).all()
