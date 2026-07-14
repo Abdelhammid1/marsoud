@@ -103,14 +103,19 @@ def create_schedule(*, company_id, created_by_id, title, description,
     return s
 
 
-def materialize_due_schedules(today=None):
+def materialize_due_schedules(today=None, company_id=None):
     """Create Task rows for every schedule whose window includes
     today and that hasn't already fired today. Returns a small
     summary dict for the cron log.
 
     Idempotent: safe to call multiple times per day. The
     `last_generated_date == today` guard prevents duplicate
-    generation if the cron double-fires."""
+    generation if the cron double-fires.
+
+    company_id (optional) — scope the sweep to a single company.
+    Used by the lazy-fire request hook (MARSOUD-SCHEDULE-LAZY-FIRE)
+    so a page load for company A doesn't scan every other company's
+    schedules unnecessarily."""
     from app.services.tasks_extras import set_assignees, log_activity
     from app.services.crm import CRMError
 
@@ -119,7 +124,10 @@ def materialize_due_schedules(today=None):
     deactivated = 0
     errors = []
 
-    schedules = TaskSchedule.query.filter_by(active=True).all()
+    q = TaskSchedule.query.filter_by(active=True)
+    if company_id is not None:
+        q = q.filter_by(company_id=company_id)
+    schedules = q.all()
     for s in schedules:
         try:
             outcome = _fire_schedule_if_due(s, today)

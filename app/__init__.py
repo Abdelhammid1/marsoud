@@ -336,6 +336,48 @@ def create_app(config_class=Config):
                 return redirect(url_for("portal_emp.index"))
             abort(403)
 
+    # MARSOUD-SCHEDULE-LAZY-FIRE (Abdelhamid 2026-07-14) — self-heal
+    # recurring tasks WITHOUT depending on an external cron scheduler.
+    # First authenticated request per company per 15-min window kicks
+    # the materializer so any daily schedule whose window includes
+    # today gets its task spawned. materialize_due_schedules is
+    # idempotent (checks last_generated_date), so a race between
+    # multiple workers or a real cron tick can't create duplicates.
+    _LAZY_FIRE_THROTTLE_SECS = 900   # 15 minutes
+    _LAZY_FIRE_LAST = {}             # {company_id: datetime}
+
+    @app.before_request
+    def lazy_fire_schedules():
+        from flask_login import current_user
+        # Skip static + auth + cron endpoints — they'd add noise
+        # without user value.
+        endpoint = (request.endpoint or "")
+        if (endpoint.startswith(("static", "auth.", "cron."))
+                or request.method != "GET"):
+            return
+        if not (current_user and getattr(
+                current_user, "is_authenticated", False)):
+            return
+        company = g.get("active_company")
+        if not company:
+            return
+        from datetime import datetime, timedelta
+        now = datetime.utcnow()
+        last = _LAZY_FIRE_LAST.get(company.id)
+        if last and (now - last).total_seconds() < _LAZY_FIRE_THROTTLE_SECS:
+            return
+        # Update the throttle timestamp BEFORE running so a slow fire
+        # doesn't get re-triggered by concurrent requests.
+        _LAZY_FIRE_LAST[company.id] = now
+        try:
+            from app.services.task_schedules import materialize_due_schedules
+            materialize_due_schedules(company_id=company.id)
+        except Exception:
+            import logging
+            logging.getLogger("marsoud.lazy_fire").exception(
+                "lazy schedule fire failed for company %s", company.id,
+            )
+
     @app.context_processor
     def inject_globals():
         from datetime import datetime
