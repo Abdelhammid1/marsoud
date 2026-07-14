@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block page_title %}تقرير قيود المتريك للموظفين{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h2 class="font-bold text-navy-900">📊 قيود المتريك لكل موظف</h2>
+    <p class="text-xs text-slate-500">
+      كل ما اتسجّل في نظام تقييم الأداء (Metric Logs) مجمَّع لكل موظف
+      حسب الدورة والمتريك، مع مجموع + متوسط + آخر قيمة.
+    </p>
+  </div>
+</div>
+
+<details class="card mb-4 mobile-collapsible" open>
+  <summary><span>🔍 فلترة</span></summary>
+  <form method="GET" class="flex flex-wrap items-end gap-3">
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">الموظف</label>
+      <select name="employee" class="select text-sm">
+        <option value="">كل الموظفين</option>
+        {% for e in employees %}
+        <option value="{{ e.id }}" {% if employee_filter == e.id|string %}selected{% endif %}>{{ e.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">الدورة</label>
+      <select name="cycle" class="select text-sm">
+        <option value="">كل الدورات</option>
+        {% for c in cycles %}
+        <option value="{{ c.id }}" {% if cycle_filter == c.id|string %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if metrics %}
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">المتريك</label>
+      <select name="metric" class="select text-sm">
+        <option value="">كل المتريكس</option>
+        {% for m in metrics %}
+        <option value="{{ m }}" {% if metric_filter == m %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">من تاريخ</label>
+      <input type="date" name="from" value="{{ date_from }}" class="input text-sm">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">إلى تاريخ</label>
+      <input type="date" name="to" value="{{ date_to }}" class="input text-sm">
+    </div>
+    <button type="submit" class="btn-primary text-sm">تطبيق</button>
+  </form>
+</details>
+
+{% if grouped %}
+{% for emp_row in grouped %}
+<div class="card p-5 mb-4">
+  <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+    <h3 class="font-bold text-navy-900">
+      👤 {{ emp_row.employee.name }}
+      {% if emp_row.employee.job_title %}
+      <span class="text-xs text-slate-500 font-normal">— {{ emp_row.employee.job_title }}</span>
+      {% endif %}
+    </h3>
+    <div class="text-xs text-slate-500">
+      إجمالي القيود: <span class="font-mono font-bold text-navy-900">{{ emp_row.total_entries }}</span>
+    </div>
+  </div>
+
+  <table class="data-table text-sm">
+    <thead>
+      <tr>
+        <th>المتريك</th>
+        <th>الدورة</th>
+        <th class="text-center">عدد القيود</th>
+        <th class="text-left">المجموع</th>
+        <th class="text-left">المتوسط</th>
+        <th class="text-left">أقل / أعلى</th>
+        <th class="text-center">آخر قيمة (تاريخ)</th>
+        <th class="text-center">التفاصيل</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for m in emp_row.metrics %}
+      <tr>
+        <td class="font-semibold">{{ m.metric_key }}</td>
+        <td class="text-xs text-slate-500">{{ m.cycle_name }}</td>
+        <td class="text-center font-mono">{{ m.count }}</td>
+        <td class="text-left font-mono">{{ "{:,.2f}".format(m.sum) }}</td>
+        <td class="text-left font-mono">{{ "{:,.2f}".format(m.avg) }}</td>
+        <td class="text-left font-mono text-xs">
+          {{ "{:,.2f}".format(m.min) }} / {{ "{:,.2f}".format(m.max) }}
+        </td>
+        <td class="text-center font-mono text-xs">
+          {{ "{:,.2f}".format(m.latest_value) }}
+          <div class="text-slate-400">{{ m.latest_date.isoformat() }}</div>
+        </td>
+        <td class="text-center">
+          <button type="button" class="text-xs text-brand-600 hover:underline"
+                  onclick="this.closest('tr').nextElementSibling.style.display = this.closest('tr').nextElementSibling.style.display === 'table-row' ? 'none' : 'table-row'">
+            👁 عرض
+          </button>
+        </td>
+      </tr>
+      <tr style="display:none">
+        <td colspan="8" class="bg-slate-50 p-3">
+          <table class="w-full text-xs">
+            <thead>
+              <tr class="text-slate-500">
+                <th class="text-right py-1">التاريخ</th>
+                <th class="text-left py-1">القيمة</th>
+                <th class="text-left py-1">سجّلها</th>
+                <th class="text-left py-1">وقت الإدخال</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for e in m.entries %}
+              <tr>
+                <td class="text-right font-mono py-1">{{ e.entry_date.isoformat() }}</td>
+                <td class="text-left font-mono py-1">{{ "{:,.2f}".format(e.value|float) }}</td>
+                <td class="text-left py-1">
+                  {{ e.entered_by.full_name if e.entered_by else '—' }}
+                </td>
+                <td class="text-left text-slate-400 font-mono py-1">
+                  {{ e.created_at.strftime('%Y-%m-%d %H:%M') if e.created_at else '—' }}
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
+
+<div class="card p-4 border-brand-500 bg-brand-50/30">
+  <div class="flex items-center justify-between">
+    <span class="font-bold text-navy-900">🧮 الإجمالي الشامل</span>
+    <span class="text-sm">
+      {{ grouped|length }} موظف /
+      <span class="font-mono font-bold">{{ total_entries }}</span> قيد
+    </span>
+  </div>
+</div>
+{% else %}
+<div class="card p-8 text-center text-slate-500 text-sm">
+  لا يوجد قيود متريك مسجّلة داخل هذه الفلترة.
+</div>
+{% endif %}
+{% endblock %}

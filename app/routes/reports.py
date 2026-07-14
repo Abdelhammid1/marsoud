@@ -406,6 +406,65 @@ def employee_report_detail(employee_id, report_id):
     )
 
 
+# ─── MARSOUD-METRIC-LOG-REPORT (Abdelhamid 2026-07-14) ──────────────────
+# Per-employee report over MetricLogEntry rows. Different from the
+# raw /evaluations/logs/ list (last 30 entries in insertion order):
+# this groups by (employee, cycle, metric_key) and shows sum + avg
+# + latest per bucket. Filters: employee, cycle, metric_key, date range.
+@bp.route("/metric-logs")
+@login_required
+@require_permission("users.manage")
+def metric_logs():
+    from app.services.metric_log_report import (
+        collect_per_employee, available_metric_keys,
+    )
+    from app.models import (
+        Employee, EmployeeStatus, EvaluationCycle,
+    )
+    cid = g.active_company.id
+    employee_filter = request.args.get("employee") or ""
+    cycle_filter = request.args.get("cycle") or ""
+    metric_filter = request.args.get("metric") or ""
+    date_from = _parse_date(request.args.get("from"))
+    date_to = _parse_date(request.args.get("to"))
+    emp_id = None
+    if employee_filter:
+        try:
+            emp_id = int(employee_filter)
+        except (TypeError, ValueError):
+            emp_id = None
+    cyc_id = None
+    if cycle_filter:
+        try:
+            cyc_id = int(cycle_filter)
+        except (TypeError, ValueError):
+            cyc_id = None
+    grouped = collect_per_employee(
+        cid, employee_id=emp_id, cycle_id=cyc_id,
+        metric_key=(metric_filter or None),
+        date_from=date_from, date_to=date_to,
+    )
+    employees = (Employee.query
+                    .filter_by(company_id=cid,
+                                status=EmployeeStatus.ACTIVE)
+                    .order_by(Employee.name).all())
+    cycles = (EvaluationCycle.query
+                 .filter_by(company_id=cid)
+                 .order_by(EvaluationCycle.start_date.desc()).all())
+    metrics = available_metric_keys(cid)
+    total_entries = sum(g_row["total_entries"] for g_row in grouped)
+    return render_template(
+        "reports/metric_logs.html",
+        grouped=grouped, total_entries=total_entries,
+        employees=employees, cycles=cycles, metrics=metrics,
+        employee_filter=employee_filter,
+        cycle_filter=cycle_filter,
+        metric_filter=metric_filter,
+        date_from=request.args.get("from") or "",
+        date_to=request.args.get("to") or "",
+    )
+
+
 # ─── MARSOUD-VENDOR-SUBCAT (Abdelhamid 2026-07-14) ──────────────────────
 # Report: totals per vendor + sub-category. Optional vendor filter +
 # date range. Zero-spend combinations are hidden. Uncategorized lines
