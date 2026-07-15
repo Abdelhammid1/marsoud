@@ -286,6 +286,111 @@ def sub_categories_delete(vendor_id, sc_id):
         "vendors.sub_categories_index", vendor_id=v.id))
 
 
+# MARSOUD-VENDOR-SUBCAT-BACKFILL (Abdelhamid 2026-07-15) — bulk
+# categorize page for OLD vendor-bill lines. Shows every line for
+# this vendor (across every bill) grouped by bill number, with a
+# sub-category dropdown per row + a save-all button. Sub-category
+# is a taxonomy tag — no ledger impact — so we allow editing even
+# for lines on POSTED bills.
+@bp.route("/<int:vendor_id>/bill-items/categorize", methods=["GET", "POST"])
+@login_required
+@require_permission("partners.manage")
+def bill_items_categorize(vendor_id):
+    v = _vendor_or_404(vendor_id)
+    if not v:
+        return redirect(url_for("vendors.index"))
+    from app.models import (
+        VendorBill, VendorBillItem, VendorBillStatus,
+        VendorSubCategory,
+    )
+    if request.method == "POST":
+        # Save all: for each item_subcat_<id> in the form, look up
+        # the line, validate the sub-category belongs to this vendor,
+        # and update. Zero validation errors ever roll back — we
+        # apply what we can, log what we can't.
+        changed = 0
+        skipped = 0
+        active_subcats = {
+            r.id: r for r in VendorSubCategory.query.filter_by(
+                company_id=v.company_id, vendor_id=v.id,
+            ).all()
+        }
+        active_subcats[0] = None   # sentinel: "clear the category"
+        # Only items whose bill belongs to this company + vendor.
+        items = (
+            VendorBillItem.query
+            .join(VendorBill, VendorBillItem.bill_id == VendorBill.id)
+            .filter(
+                VendorBill.company_id == v.company_id,
+                VendorBill.vendor_id == v.id,
+                VendorBill.deleted_at.is_(None),
+            ).all()
+        )
+        by_id = {i.id: i for i in items}
+        for key, raw in request.form.items():
+            if not key.startswith("item_subcat_"):
+                continue
+            try:
+                item_id = int(key.split("_")[-1])
+            except (ValueError, IndexError):
+                continue
+            item = by_id.get(item_id)
+            if item is None:
+                skipped += 1
+                continue
+            raw = (raw or "").strip()
+            if not raw:
+                # empty select = clear the category
+                if item.sub_category_id is not None:
+                    item.sub_category_id = None
+                    changed += 1
+                continue
+            try:
+                sc_id = int(raw)
+            except ValueError:
+                skipped += 1
+                continue
+            if sc_id not in active_subcats:
+                skipped += 1
+                continue
+            if item.sub_category_id != sc_id:
+                item.sub_category_id = sc_id
+                changed += 1
+        db.session.commit()
+        flash(f"تم تحديث {changed} بند" + (
+            f" (تم تجاهل {skipped} بسبب قيم غير صالحة)" if skipped else ""),
+              "success")
+        return redirect(url_for(
+            "vendors.bill_items_categorize", vendor_id=v.id))
+
+    # GET — render the page.
+    show_only = (request.args.get("filter") or "").lower()
+    q = (
+        db.session.query(VendorBillItem, VendorBill)
+        .join(VendorBill, VendorBillItem.bill_id == VendorBill.id)
+        .filter(
+            VendorBill.company_id == v.company_id,
+            VendorBill.vendor_id == v.id,
+            VendorBill.deleted_at.is_(None),
+        )
+    )
+    if show_only == "uncategorized":
+        q = q.filter(VendorBillItem.sub_category_id.is_(None))
+    rows = q.order_by(
+        VendorBill.issue_date.desc(),
+        VendorBill.number.desc(),
+        VendorBillItem.id,
+    ).all()
+    sub_cats = list_for_vendor(v.id, active_only=True)
+    total = len(rows)
+    uncat = sum(1 for it, _ in rows if it.sub_category_id is None)
+    return render_template(
+        "vendors/bill_items_categorize.html",
+        vendor=v, rows=rows, sub_cats=sub_cats,
+        total=total, uncat=uncat, show_only=show_only,
+    )
+
+
 @bp.route("/<int:vendor_id>/sub-categories.json")
 @login_required
 def sub_categories_api(vendor_id):

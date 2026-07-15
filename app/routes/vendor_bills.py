@@ -418,11 +418,29 @@ def edit(bill_id):
                     request.form.get("supplier_invoice_number") or ""
                 ).strip()
                 bill.notes = (request.form.get("notes") or "").strip()
-                # Per-item description edits (keyed by item id)
+                # MARSOUD-VENDOR-SUBCAT-BACKFILL (Abdelhamid 2026-07-15) —
+                # per-item description + sub-category are safe to edit
+                # even on a posted bill: neither touches the ledger.
+                # Sub-category is validated against the bill's vendor
+                # so a hand-crafted POST can't attach a foreign
+                # vendor's taxonomy value.
+                from app.models import VendorSubCategory
                 for item in bill.items:
                     new_desc = request.form.get(f"item_desc_{item.id}")
                     if new_desc is not None:
                         item.description = new_desc.strip()
+                    new_sc = request.form.get(f"item_subcat_{item.id}")
+                    if new_sc is not None:
+                        raw = new_sc.strip()
+                        if not raw:
+                            item.sub_category_id = None
+                        elif bill.vendor_id:
+                            row = VendorSubCategory.query.filter_by(
+                                id=int(raw) if raw.isdigit() else -1,
+                                vendor_id=bill.vendor_id,
+                                company_id=bill.company_id,
+                            ).first()
+                            item.sub_category_id = row.id if row else None
                 db.session.commit()
             flash("تم حفظ التعديلات", "success")
             return redirect(url_for("vendor_bills.view", bill_id=bill.id))

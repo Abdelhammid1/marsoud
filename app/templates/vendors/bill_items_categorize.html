@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block page_title %}تصنيف بنود {{ vendor.name }}{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h2 class="font-bold text-navy-900">
+      🏷 تصنيف بنود الفواتير القديمة — {{ vendor.name }}
+    </h2>
+    <p class="text-xs text-slate-500">
+      اختر التصنيف الفرعي لكل بند ثم اضغط "حفظ الكل" مرة واحدة.
+      التصنيف طبقة تحليل فقط — لا يمس أي قيد محاسبي.
+    </p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('vendors.sub_categories_index', vendor_id=vendor.id) }}"
+       class="btn-secondary text-sm">
+      ⚙ إدارة التصنيفات
+    </a>
+    <a href="{{ url_for('vendors.view', vendor_id=vendor.id) }}"
+       class="btn-secondary text-sm">← رجوع للمورد</a>
+  </div>
+</div>
+
+{# Filter strip #}
+<div class="card p-3 mb-4 flex items-center gap-3 text-sm">
+  <span class="text-slate-500">إجمالي البنود:</span>
+  <span class="font-bold font-mono">{{ total }}</span>
+  <span class="text-slate-300">|</span>
+  <span class="text-slate-500">بدون تصنيف:</span>
+  <span class="font-bold font-mono text-amber-700">{{ uncat }}</span>
+  <span class="text-slate-300 mx-2">|</span>
+  <a href="?"
+     class="text-xs px-3 py-1 rounded-md {% if show_only != 'uncategorized' %}bg-brand-600 text-white{% else %}bg-slate-100 text-slate-600{% endif %}">
+    الكل
+  </a>
+  <a href="?filter=uncategorized"
+     class="text-xs px-3 py-1 rounded-md {% if show_only == 'uncategorized' %}bg-brand-600 text-white{% else %}bg-slate-100 text-slate-600{% endif %}">
+    بدون تصنيف فقط
+  </a>
+</div>
+
+{% if not sub_cats %}
+<div class="card p-6 text-center bg-amber-50 border-amber-200 mb-4">
+  <p class="text-sm text-amber-800 mb-2">
+    ⚠ ما فيش تصنيفات فرعية لهذا المورد لسّه.
+  </p>
+  <a href="{{ url_for('vendors.sub_categories_index', vendor_id=vendor.id) }}"
+     class="btn-primary text-sm">
+    ➕ أضف التصنيفات الأولى
+  </a>
+</div>
+{% elif rows %}
+<form method="POST" data-once data-once-label="جاري الحفظ...">
+  <div class="card p-0 overflow-x-auto">
+    <table class="data-table text-sm">
+      <thead>
+        <tr>
+          <th>الفاتورة</th>
+          <th>التاريخ</th>
+          <th>الوصف</th>
+          <th class="text-left">القيمة</th>
+          <th>الحالة الحالية</th>
+          <th style="min-width:14rem">التصنيف الفرعي</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for item, bill in rows %}
+        <tr>
+          <td class="text-xs">
+            <a href="{{ url_for('vendor_bills.view', bill_id=bill.id) }}"
+               class="text-brand-600 hover:underline">{{ bill.number }}</a>
+          </td>
+          <td class="text-xs">{{ bill.issue_date.isoformat() }}</td>
+          <td>{{ item.description }}</td>
+          <td class="text-left font-mono text-xs">
+            {{ "{:,.2f}".format(item.line_total|float) }}
+          </td>
+          <td>
+            {% if item.sub_category %}
+            <span class="badge badge-sent text-[10px]">{{ item.sub_category.name }}</span>
+            {% else %}
+            <span class="text-xs text-amber-600">بدون تصنيف</span>
+            {% endif %}
+          </td>
+          <td>
+            <select name="item_subcat_{{ item.id }}"
+                    class="select text-sm">
+              <option value="">— بدون تصنيف —</option>
+              {% for sc in sub_cats %}
+              <option value="{{ sc.id }}"
+                      {% if item.sub_category_id == sc.id %}selected{% endif %}>
+                {{ sc.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="flex justify-end mt-4 gap-2">
+    <button type="submit" class="btn-primary">
+      💾 حفظ الكل
+    </button>
+  </div>
+</form>
+{% else %}
+<div class="card p-8 text-center text-slate-500 text-sm">
+  {% if show_only == 'uncategorized' %}
+  🎉 كل البنود مصنَّفة! لا يوجد بند بدون تصنيف.
+  {% else %}
+  لا يوجد بنود فواتير لهذا المورد بعد.
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
