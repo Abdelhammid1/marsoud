@@ -60,23 +60,43 @@ class LeadContact(db.Model):
 
 
 class LeadActivityType(enum.Enum):
+    """MARSOUD-CRM-STATUS-ACTIVITY-SPLIT (Abdelhamid 2026-07-15) —
+    activity taxonomy now includes WhatsApp, Visit, File-sent,
+    Quote-sent, and Contract-signed to cover the full sales
+    workflow. Activities are the RECORD OF WORK DONE; the Lead
+    Status stays the PIPELINE MILESTONE and is only changed via
+    a suggestion prompt (not auto-flipped by an activity)."""
     CALL = "CALL"
     EMAIL = "EMAIL"
     MEETING = "MEETING"
     NOTE = "NOTE"
+    WHATSAPP = "WHATSAPP"
+    VISIT = "VISIT"
+    FILE_SENT = "FILE_SENT"
+    QUOTE_SENT = "QUOTE_SENT"
+    CONTRACT_SIGNED = "CONTRACT_SIGNED"
 
     @property
     def label_ar(self):
         return {
-            "CALL":    "مكالمة",
-            "EMAIL":   "إيميل",
-            "MEETING": "اجتماع",
-            "NOTE":    "ملاحظة",
+            "CALL":             "مكالمة",
+            "EMAIL":            "إيميل",
+            "MEETING":          "اجتماع",
+            "NOTE":             "ملاحظة",
+            "WHATSAPP":         "واتساب",
+            "VISIT":            "زيارة",
+            "FILE_SENT":        "إرسال ملف",
+            "QUOTE_SENT":       "إرسال عرض سعر",
+            "CONTRACT_SIGNED":  "توقيع عقد",
         }[self.value]
 
     @property
     def icon(self):
-        return {"CALL": "📞", "EMAIL": "✉️", "MEETING": "🤝", "NOTE": "📝"}[self.value]
+        return {
+            "CALL": "📞", "EMAIL": "✉️", "MEETING": "🤝", "NOTE": "📝",
+            "WHATSAPP": "💬", "VISIT": "🚶", "FILE_SENT": "📎",
+            "QUOTE_SENT": "📄", "CONTRACT_SIGNED": "✍",
+        }[self.value]
 
 
 class LeadActivity(db.Model):
@@ -98,6 +118,13 @@ class LeadActivity(db.Model):
     # day. Migration d6_e3f9a2b7c8d handled the schema swap; legacy
     # date-only rows read cleanly as YYYY-MM-DD 00:00:00.
     follow_up_date = db.Column(db.DateTime, nullable=True, index=True)
+    # MARSOUD-CRM-STATUS-ACTIVITY-SPLIT (Abdelhamid 2026-07-15) —
+    # per-activity outcome. Free-text but the picker in the UI is
+    # driven by OUTCOMES_BY_TYPE below so reporting stays consistent
+    # (لم يرد, تم الرد, تم التأجيل, …). Nullable so legacy activities
+    # + activity types that don't have outcomes (NOTE) work
+    # unchanged.
+    outcome = db.Column(db.String(60), nullable=True, index=True)
     created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"),
                                 nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

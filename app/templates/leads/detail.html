@@ -222,15 +222,30 @@
        when-it-happened and when-to-follow-up, so meetings carry an
        actual time, not just a day. Grid collapses to 1 col on phone. #}
     <form method="POST" action="{{ url_for('crm.activity_create', lead_id=lead.id) }}"
-          class="bg-slate-50 rounded p-3 mb-3 space-y-2">
+          class="bg-slate-50 rounded p-3 mb-3 space-y-2"
+          data-once data-once-label="جاري الحفظ...">
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <select name="type" required class="select text-sm">
+        <select name="type" required class="select text-sm"
+                id="activity-type-select" onchange="_refreshOutcomes()">
           {% for t in activity_types %}
           <option value="{{ t.name }}">{{ t.icon }} {{ t.label_ar }}</option>
           {% endfor %}
         </select>
         <input type="text" name="subject" placeholder="عنوان (اختياري)"
                 class="input text-sm">
+      </div>
+      {# MARSOUD-CRM-STATUS-ACTIVITY-SPLIT (Abdelhamid 2026-07-15) —
+         per-type Outcome dropdown. Populated from a global JSON
+         payload rendered below; JS swaps options when the type
+         changes. Hidden for NOTE (empty outcome list). #}
+      <div id="activity-outcome-wrap" style="display:none">
+        <label class="block text-[10px] text-slate-500 mb-1">
+          🎯 نتيجة النشاط
+        </label>
+        <select name="outcome" class="select text-sm"
+                id="activity-outcome-select">
+          <option value="">— اختر النتيجة —</option>
+        </select>
       </div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
@@ -248,6 +263,54 @@
                 class="textarea text-sm"></textarea>
       <button type="submit" class="btn-primary text-sm w-full sm:w-auto">+ سجّل نشاط</button>
     </form>
+    {# Outcome catalogue for the JS dropdown swap. #}
+    <script id="activity-outcomes-json" type="application/json">
+      {{ activity_outcomes_json | tojson | safe }}
+    </script>
+    <script>
+    function _refreshOutcomes() {
+      const typeSel = document.getElementById("activity-type-select");
+      const outSel = document.getElementById("activity-outcome-select");
+      const wrap = document.getElementById("activity-outcome-wrap");
+      const catalogue = JSON.parse(
+        document.getElementById("activity-outcomes-json").textContent);
+      const list = catalogue[typeSel.value] || [];
+      // Rebuild options.
+      outSel.innerHTML = '<option value="">— اختر النتيجة —</option>' +
+        list.map(o => `<option value="${o}">${o}</option>`).join("");
+      wrap.style.display = list.length > 0 ? "block" : "none";
+    }
+    // Initial paint (default type is CALL — first in the enum).
+    _refreshOutcomes();
+    </script>
+    {# Status-change suggestion prompt (only after an activity save that
+       maps to a status). The session key is populated by
+       crm.activity_create — read here + cleared by the confirm/dismiss
+       routes on leads. #}
+    {% if status_suggestion and status_suggestion.lead_id == lead.id %}
+    <div class="card p-3 mb-3 border-brand-500 bg-brand-50/30">
+      <div class="text-sm mb-2">
+        💡 هل ترغب في تحديث حالة العميل إلى
+        <span class="font-bold text-brand-700">
+          {{ status_suggestion.suggested_label }}
+        </span>؟
+      </div>
+      <div class="flex gap-2">
+        <form method="POST"
+              action="{{ url_for('leads.suggest_status_apply', lead_id=lead.id) }}">
+          <button type="submit" class="btn-primary text-xs">
+            ✓ نعم، حدّث الحالة
+          </button>
+        </form>
+        <form method="POST"
+              action="{{ url_for('leads.suggest_status_dismiss', lead_id=lead.id) }}">
+          <button type="submit" class="btn-secondary text-xs">
+            ✗ لا، تجاهل
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
     {% endif %}
     {% if activities %}
     <div class="space-y-2 max-h-96 overflow-y-auto">
@@ -257,6 +320,11 @@
         <div class="flex-1 min-w-0">
           <div class="flex items-baseline gap-2 flex-wrap text-xs">
             <span class="badge badge-sent text-[10px]">{{ a.type.label_ar }}</span>
+            {% if a.outcome %}
+            {# MARSOUD-CRM-STATUS-ACTIVITY-SPLIT — outcome pill next to
+               the type badge for a scannable timeline. #}
+            <span class="badge badge-partial text-[10px]">🎯 {{ a.outcome }}</span>
+            {% endif %}
             {% if a.subject %}<span class="font-semibold">{{ a.subject }}</span>{% endif %}
             <span class="text-slate-400 font-mono">{{ a.activity_date | company_dt('%Y-%m-%d %H:%M') }}</span>
           </div>

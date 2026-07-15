@@ -433,8 +433,18 @@ def export_excel():
                 dt + timedelta(days=1), datetime.min.time()))
 
     leads = query.order_by(Lead.created_at.desc()).all()
-    buf = export_leads_excel(g.active_company, leads)
-    fname = f"leads-{g.active_company.id}-{datetime.now():%Y%m%d-%H%M}.xlsx"
+    # MARSOUD-LEAD-EXPORT-BY-CAMPAIGN (Abdelhamid 2026-07-15) — when
+    # ?group_by=campaign is present, ship the multi-sheet variant
+    # (summary + one sheet per campaign). Default stays flat so
+    # existing bookmarks / integrations keep working unchanged.
+    group_by = (request.args.get("group_by") or "").strip().lower()
+    if group_by == "campaign":
+        from app.services.export import export_leads_by_campaign_excel
+        buf = export_leads_by_campaign_excel(g.active_company, leads)
+        fname = f"leads-by-campaign-{g.active_company.id}-{datetime.now():%Y%m%d-%H%M}.xlsx"
+    else:
+        buf = export_leads_excel(g.active_company, leads)
+        fname = f"leads-{g.active_company.id}-{datetime.now():%Y%m%d-%H%M}.xlsx"
     return send_file(
         buf, as_attachment=True, download_name=fname,
         mimetype=("application/vnd.openxmlformats-officedocument."
@@ -518,12 +528,22 @@ def detail(lead_id):
     contacts = LeadContact.query.filter_by(
         lead_id=lead.id).order_by(LeadContact.is_primary.desc(),
                                     LeadContact.name).all()
+    # MARSOUD-CRM-STATUS-ACTIVITY-SPLIT — outcome catalogue for the JS
+    # dropdown + any pending status-change suggestion from the last
+    # activity save.
+    from app.services.activity_outcomes import all_outcomes_json
+    from flask import session
+    _sugg = session.get("status_suggestion")
+    if _sugg and _sugg.get("lead_id") != lead.id:
+        _sugg = None
     return render_template("leads/detail.html",
                            lead=lead, statuses=LeadStatus,
                            lead_types=LeadType, lead_sources=LeadSource,
                            can_manage_files=can_manage_files,
                            activities=activities, contacts=contacts,
-                           activity_types=LeadActivityType)
+                           activity_types=LeadActivityType,
+                           activity_outcomes_json=all_outcomes_json(),
+                           status_suggestion=_sugg)
 
 
 @bp.route("/<int:lead_id>/edit", methods=["GET", "POST"])
@@ -726,3 +746,44 @@ def convert(lead_id):
                            lead=lead, pms=pms,
                            default_name=f"مشروع: {lead.service_needed} — {lead.client_name}",
                            default_type=lead.service_needed)
+
+
+# ─── MARSOUD-CRM-STATUS-ACTIVITY-SPLIT (Abdelhamid 2026-07-15) ─────────
+# When an activity outcome maps to a status change (e.g. MEETING with
+# outcome "تم الاجتماع" → MEETING_SCHEDULED), the crm.activity_create
+# route stores a suggestion in the session. These two endpoints let
+# the user confirm or dismiss it — status is NEVER changed
+# automatically.
+@bp.route("/<int:lead_id>/suggest-status/apply", methods=["POST"])
+@login_required
+@require_permission("leads.manage")
+def suggest_status_apply(lead_id):
+    from flask import session
+    lead = _lead_or_403(lead_id)
+    suggestion = session.get("status_suggestion") or {}
+    if (suggestion.get("lead_id") != lead.id
+            or not suggestion.get("suggested")):
+        flash("لا توجد اقتراح حالة صالح", "warning")
+        return redirect(url_for("leads.detail", lead_id=lead.id))
+    try:
+        change_lead_status(
+            lead, suggestion["suggested"],
+            changed_by_id=current_user.id,
+            note="اقتراح من نتيجة النشاط",
+        )
+        flash("تم تحديث حالة العميل حسب اقتراح النشاط", "success")
+    except CRMError as e:
+        flash(str(e), "error")
+    session.pop("status_suggestion", None)
+    return redirect(url_for("leads.detail", lead_id=lead.id))
+
+
+@bp.route("/<int:lead_id>/suggest-status/dismiss", methods=["POST"])
+@login_required
+@require_permission("leads.manage")
+def suggest_status_dismiss(lead_id):
+    from flask import session
+    lead = _lead_or_403(lead_id)
+    session.pop("status_suggestion", None)
+    flash("تم تجاهل اقتراح تغيير الحالة", "info")
+    return redirect(url_for("leads.detail", lead_id=lead.id))

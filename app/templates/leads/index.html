@@ -22,6 +22,13 @@
        class="btn-secondary text-sm" title="تنزيل قائمة العملاء المحتملين كملف Excel">
       ⬇ تصدير Excel
     </a>
+    {# MARSOUD-LEAD-EXPORT-BY-CAMPAIGN (Abdelhamid 2026-07-15) —
+       second export button: multi-sheet file grouped by campaign
+       with a status-count summary sheet at the front. #}
+    <a href="{{ url_for('leads.export_excel', q=q, status=status_filter, rep=rep_filter, campaign=campaign_filter, group_by='campaign', **{'from': date_from, 'to': date_to}) }}"
+       class="btn-secondary text-sm" title="تصدير Excel مقسّم حسب الحملة">
+      🗂 تصدير حسب الحملة
+    </a>
     <a href="{{ url_for('leads.new') }}" class="btn-primary text-sm">+ عميل محتمل جديد</a>
   </div>
 </div>

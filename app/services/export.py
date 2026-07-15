@@ -1837,3 +1837,137 @@ def export_leads_excel(company, leads):
     wb.save(buf)
     buf.seek(0)
     return buf
+
+
+# ─── MARSOUD-LEAD-EXPORT-BY-CAMPAIGN (Abdelhamid 2026-07-15) ────────────
+# Alternative shape of the leads export: one sheet per campaign,
+# sorted by status inside each sheet, plus a summary sheet up front
+# showing count-per-status per campaign. Handles the ticket's ask
+# "export by campaign type with categorization by status inside."
+def export_leads_by_campaign_excel(company, leads):
+    """Same fields as export_leads_excel, but rearranged as:
+
+      · Sheet 1 "ملخص الحملات" — table of {campaign × status → count}
+        + a grand total column per campaign + column totals.
+      · Sheet N (per campaign) — leads on that campaign, sorted by
+        status then created_at. Un-campaigned leads land in a
+        "بدون حملة" sheet at the end.
+    """
+    from app.services.time import to_company_tz_str
+    from app.models import LeadStatus
+
+    wb = Workbook()
+    # Bucket leads by campaign name (None → "بدون حملة").
+    buckets = {}
+    for L in leads:
+        key = L.campaign.name if L.campaign else "بدون حملة"
+        buckets.setdefault(key, []).append(L)
+
+    # ── Summary sheet ────────────────────────────────────────────────
+    ws0 = wb.active
+    ws0.title = "ملخص الحملات"
+    _excel_styled_header(
+        ws0, "ملخص العملاء المحتملين حسب الحملة",
+        company.name, f"عدد الحملات: {len(buckets)}",
+    )
+    statuses = list(LeadStatus)
+    summary_headers = ["الحملة"] + [s.label_ar for s in statuses] + ["الإجمالي"]
+    row = 5
+    for col, h in enumerate(summary_headers, 1):
+        c = ws0.cell(row=row, column=col, value=h)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="0A2540")
+        c.alignment = Alignment(horizontal="center", wrap_text=True)
+    ws0.column_dimensions["A"].width = 28
+    for i in range(len(statuses)):
+        ws0.column_dimensions[ws0.cell(row=1, column=2 + i).column_letter].width = 14
+    ws0.column_dimensions[ws0.cell(row=1, column=2 + len(statuses)).column_letter].width = 14
+
+    row += 1
+    for camp_name in sorted(buckets.keys()):
+        camp_leads = buckets[camp_name]
+        counts = {s: 0 for s in statuses}
+        for L in camp_leads:
+            counts[L.status] = counts.get(L.status, 0) + 1
+        vals = [camp_name] + [counts[s] for s in statuses] + [len(camp_leads)]
+        for col, v in enumerate(vals, 1):
+            cell = ws0.cell(row=row, column=col, value=v)
+            cell.alignment = Alignment(vertical="center",
+                                        horizontal="center")
+        # Highlight campaign name cell.
+        ws0.cell(row=row, column=1).font = Font(bold=True)
+        # Highlight total.
+        ws0.cell(row=row, column=len(vals)).font = Font(bold=True)
+        row += 1
+
+    # ── One sheet per campaign ──────────────────────────────────────
+    headers = [
+        "#", "الاسم", "الهاتف", "البريد", "الخدمة",
+        "الحالة", "المسؤول", "القيمة المتوقعة",
+        "تاريخ الإنشاء", "اجتماع قادم",
+    ]
+    for camp_name in sorted(buckets.keys()):
+        # Sort inside a campaign by status then created_at desc.
+        # Excel caps sheet names at 31 chars — truncate defensively.
+        title = (camp_name or "بدون حملة")[:31]
+        # Also strip characters Excel forbids in sheet names.
+        for ch in r'[]:*?/\\':
+            title = title.replace(ch, " ")
+        ws = wb.create_sheet(title=title)
+        camp_leads = sorted(
+            buckets[camp_name],
+            key=lambda L: (
+                list(statuses).index(L.status) if L.status in statuses
+                else len(statuses),
+                L.created_at or datetime.min,
+            ),
+        )
+        _excel_styled_header(
+            ws, f"حملة: {camp_name}",
+            company.name, f"عدد العملاء: {len(camp_leads)}",
+        )
+        for col, h in enumerate(headers, 1):
+            c = ws.cell(row=5, column=col, value=h)
+            c.font = Font(bold=True, color="FFFFFF")
+            c.fill = PatternFill("solid", fgColor="0A2540")
+            c.alignment = Alignment(horizontal="center", wrap_text=True)
+        widths = [4, 22, 18, 26, 22, 14, 18, 14, 18, 18]
+        for i, w in enumerate(widths, 1):
+            ws.column_dimensions[
+                ws.cell(row=1, column=i).column_letter].width = w
+        r = 6
+        for i, L in enumerate(camp_leads, 1):
+            rep = L.assigned_to.full_name if L.assigned_to else ""
+            status_lbl = L.status.label_ar if L.status else ""
+            expected = float(L.expected_value or 0)
+            meeting_str = (to_company_tz_str(
+                L.next_meeting, L.company, "%Y-%m-%d %H:%M"
+            ) or "" if L.next_meeting else "")
+            created_str = (to_company_tz_str(
+                L.created_at, L.company, "%Y-%m-%d %H:%M"
+            ) or "" if L.created_at else "")
+            vals = [
+                i, L.client_name or "", L.phone or "", L.email or "",
+                L.service_needed or "", status_lbl, rep, expected,
+                created_str, meeting_str,
+            ]
+            for col, v in enumerate(vals, 1):
+                cell = ws.cell(row=r, column=col, value=v)
+                cell.alignment = Alignment(vertical="top",
+                                            wrap_text=True)
+                if col == 8:
+                    cell.number_format = "#,##0.00"
+            r += 1
+        # Totals row for the campaign.
+        if camp_leads:
+            ws.cell(row=r, column=7,
+                     value="إجمالي القيمة المتوقعة:").font = Font(bold=True)
+            total = sum(float(L.expected_value or 0) for L in camp_leads)
+            c = ws.cell(row=r, column=8, value=total)
+            c.number_format = "#,##0.00"
+            c.font = Font(bold=True)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf

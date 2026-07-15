@@ -208,6 +208,12 @@ def activity_create(lead_id):
             return to_utc_from_company(local_dt, g.active_company)
         return None
     posted_at = _parse_dt(request.form.get("activity_date")) or datetime.utcnow()
+    # MARSOUD-CRM-STATUS-ACTIVITY-SPLIT (Abdelhamid 2026-07-15) —
+    # accept an outcome + emit a status-change suggestion. The
+    # suggestion is stored in the session flash so the lead detail
+    # page can render a "هل ترغب في تحديث الحالة؟ [نعم] [لا]"
+    # panel on the redirect target. Never auto-changes the status.
+    outcome = (request.form.get("outcome") or "").strip() or None
     a = LeadActivity(
         company_id=g.active_company.id,
         lead_id=lead.id,
@@ -216,11 +222,28 @@ def activity_create(lead_id):
         body=(request.form.get("body") or "").strip() or None,
         activity_date=posted_at,
         follow_up_date=_parse_dt(request.form.get("follow_up_date")),
+        outcome=outcome,
         created_by_id=current_user.id,
     )
     db.session.add(a)
     db.session.commit()
-    flash(f"تم تسجيل: {atype.label_ar}", "success")
+    flash(f"تم تسجيل: {atype.label_ar}"
+          + (f" — {outcome}" if outcome else ""), "success")
+
+    # Status-change suggestion — never auto-applied.
+    from app.services.activity_outcomes import suggest_status
+    suggested = suggest_status(atype, outcome, lead.status)
+    if suggested is not None:
+        # Store the suggestion on the flask session so the lead detail
+        # can render the confirm prompt. Cleared once the user answers
+        # yes/no (see leads.suggest_status_apply / _dismiss).
+        from flask import session
+        session["status_suggestion"] = {
+            "lead_id": lead.id,
+            "suggested": suggested.name,
+            "suggested_label": suggested.label_ar,
+            "activity_id": a.id,
+        }
     return redirect(request.referrer or url_for("leads.detail", lead_id=lead.id))
 
 
