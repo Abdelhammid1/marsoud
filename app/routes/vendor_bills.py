@@ -370,22 +370,69 @@ def view(bill_id):
 @login_required
 @require_permission("vendor_bills.delete")
 def delete(bill_id):
-    """MARSOUD-52 — soft delete a DRAFT vendor bill. OWNER + admin only.
-    Refused for any non-DRAFT status (posted bills have a journal entry +
-    possibly stock movements / payments that must not be silently dropped)."""
+    """MARSOUD-52 + MARSOUD-VBILL-DELETE-POSTED (Abdelhamid 2026-07-15).
+
+    DRAFT bills → soft delete (never posted, safe).
+    Any other status → mirror the invoice-delete flow (commit 1ea029f):
+      1. call post_vendor_bill_refund(FULL) which reverses AP, input
+         VAT, restocks inventory + returns cash if it was paid.
+      2. flip status to CANCELLED + mark deleted_at + deleted_by.
+      3. audit trail preserved (bill row + refund row + journal
+         entries stay in the DB).
+
+    Same accounting invariants as the customer-invoice side:
+      · vendor AP sub-account net balance = 0 after
+      · Input VAT (1280) net balance = 0
+      · Cash returns exactly the paid amount (for PAID bills)
+      · A second delete on an already-CANCELLED bill is a no-op
+    """
     bill = db.session.get(VendorBill, bill_id)
-    if not bill or bill.company_id != g.active_company.id or bill.deleted_at is not None:
+    if (not bill or bill.company_id != g.active_company.id
+            or bill.deleted_at is not None):
         return redirect(url_for("vendor_bills.index"))
-    if bill.status != VendorBillStatus.DRAFT:
-        flash(
-            f"لا يمكن حذف فاتورة {bill.number} — حالتها {bill.status.value} وليس DRAFT.",
-            "error",
-        )
+
+    reason = (request.form.get("reason") or "").strip() or "حذف الفاتورة"
+
+    if bill.status == VendorBillStatus.DRAFT:
+        # Never posted — safe to soft-delete.
+        bill.deleted_at = datetime.utcnow()
+        bill.deleted_by_id = current_user.id
+        db.session.commit()
+        flash(f"تم حذف الفاتورة {bill.number}", "success")
+        return redirect(url_for("vendor_bills.index"))
+
+    if bill.status == VendorBillStatus.CANCELLED:
+        flash("الفاتورة ملغاة بالفعل", "warning")
         return redirect(url_for("vendor_bills.view", bill_id=bill.id))
+
+    # Posted / paid / overdue — reverse via a FULL refund.
+    from app.services.vendor_bills import (
+        post_vendor_bill_refund,
+    )
+    try:
+        post_vendor_bill_refund(
+            bill, VendorRefundType.FULL, reason=reason,
+            created_by=current_user.id,
+        )
+    except LedgerError as e:
+        flash(str(e), "error")
+        return redirect(url_for("vendor_bills.view", bill_id=bill.id))
+    # Mark cancelled + soft-delete for full audit trail.
+    bill.status = VendorBillStatus.CANCELLED
     bill.deleted_at = datetime.utcnow()
     bill.deleted_by_id = current_user.id
     db.session.commit()
-    flash(f"تم حذف الفاتورة {bill.number}", "success")
+    try:
+        from app.services.superadmin import log_platform_action
+        log_platform_action(
+            "vendor_bill_deleted",
+            target_company_id=bill.company_id,
+            actor_id=current_user.id,
+            details=f"#{bill.number} reason={reason[:60]}")
+    except Exception:
+        pass
+    flash(f"تم حذف الفاتورة {bill.number} وعكس القيود المرتبطة بها",
+          "success")
     return redirect(url_for("vendor_bills.index"))
 
 
