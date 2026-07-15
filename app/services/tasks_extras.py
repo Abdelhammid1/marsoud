@@ -66,10 +66,18 @@ def _notify(user_id, *, company_id, kind, title, body=None, link_url=None,
     except Exception:
         current_app.logger.exception("notification insert failed")
 
-    # Email fan-out for TASK_* kinds.
+    # MARSOUD-NOTIF-EMAIL-SCOPE (Abdelhamid 2026-07-15) — restrict
+    # email fan-out to the two events he actually wants inbox spam
+    # for: (1) getting assigned to a task, (2) being @-mentioned in
+    # a comment (mentions are emailed on their own path in
+    # app/services/mentions.py, unchanged here). Everything else —
+    # status changes, comments, updates, deadline pings — stays
+    # in-app-only via the bell. In-app notifications for all kinds
+    # still fire above (unchanged).
+    _EMAIL_ALLOWED_KINDS = {"TASK_ASSIGNED"}
     try:
         kind_value = kind.value if hasattr(kind, "value") else str(kind)
-        if not kind_value.startswith("TASK_") or task is None:
+        if kind_value not in _EMAIL_ALLOWED_KINDS or task is None:
             return
         from app.models import User
         recipient = User.query.get(user_id)
