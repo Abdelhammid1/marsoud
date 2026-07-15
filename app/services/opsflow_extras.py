@@ -57,8 +57,17 @@ def mark_notification_read(notif):
     return notif
 
 
-def unread_count_for(user_id):
-    return Notification.query.filter_by(user_id=user_id, read_at=None).count()
+def unread_count_for(user_id, company_id=None):
+    """Unread bell count for the given user. MARSOUD-NOTIF-TENANT-FIX
+    (Abdelhamid 2026-07-15) — accepts an optional company_id so the
+    bell in the header only counts notifications for the ACTIVE
+    tenant. Callers should always pass it; the None-default is kept
+    for backwards compatibility with any place that hasn't been
+    updated yet."""
+    q = Notification.query.filter_by(user_id=user_id, read_at=None)
+    if company_id is not None:
+        q = q.filter_by(company_id=company_id)
+    return q.count()
 
 
 # ─── Audit Trail (generic) ──────────────────────────────────────────────

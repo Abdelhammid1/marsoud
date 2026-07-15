@@ -69,10 +69,15 @@ def next_number(company_id, doc_type, width=4):
         db.session.add(seq)
         db.session.flush()
 
-    # Self-heal for EMPLOYEE only. If the seq is way ahead of what's
+    # Self-heal for EMPLOYEE + LEAD. If the seq is way ahead of what's
     # actually in the DB (e.g. legacy shared counter) drop it back down.
-    if doc_type == "EMPLOYEE" and seq.next_number > 1:
-        _resync_if_stale(seq, company_id, prefix, width)
+    # MARSOUD-LEAD-NUM-RESYNC (Abdelhamid 2026-07-15) — he reported a
+    # brand-new company's leads showing L-0105 when barely any leads
+    # existed. Same shape as the earlier EMP-NUM bug. Lead numbers
+    # aren't ledger-critical so shrinking is safe. Invoice/journal
+    # numbering stays gap-free.
+    if doc_type in ("EMPLOYEE", "LEAD") and seq.next_number > 1:
+        _resync_if_stale(seq, company_id, prefix, width, doc_type=doc_type)
 
     n = seq.next_number
     seq.next_number = n + 1
@@ -81,18 +86,31 @@ def next_number(company_id, doc_type, width=4):
     return f"{prefix}-{n:0{width}d}"
 
 
-def _resync_if_stale(seq, company_id, prefix, width):
-    """Look at the max EMP-NNNN actually used in this company. If the seq
-    is above (max + 1), quietly reset it. Never moves the counter up."""
-    from app.models import Employee
+def _resync_if_stale(seq, company_id, prefix, width, doc_type="EMPLOYEE"):
+    """Look at the max <prefix>-NNNN actually used in this company. If
+    the seq is above (max + 1), quietly reset it. Never moves the
+    counter up."""
+    from app.models import Employee, Lead
     actual_max = 0
-    for row in Employee.query.filter(
-        Employee.company_id == company_id,
-        Employee.employee_number.isnot(None),
-        Employee.employee_number.like(f"{prefix}-%"),
-    ).all():
+    if doc_type == "EMPLOYEE":
+        rows = Employee.query.filter(
+            Employee.company_id == company_id,
+            Employee.employee_number.isnot(None),
+            Employee.employee_number.like(f"{prefix}-%"),
+        ).all()
+        get_num = lambda r: r.employee_number
+    elif doc_type == "LEAD":
+        rows = Lead.query.filter(
+            Lead.company_id == company_id,
+            Lead.number.isnot(None),
+            Lead.number.like(f"{prefix}-%"),
+        ).all()
+        get_num = lambda r: r.number
+    else:
+        return
+    for row in rows:
         try:
-            n = int((row.employee_number or "").split("-")[-1])
+            n = int((get_num(row) or "").split("-")[-1])
             actual_max = max(actual_max, n)
         except (ValueError, IndexError):
             continue
@@ -100,9 +118,10 @@ def _resync_if_stale(seq, company_id, prefix, width):
     if seq.next_number > expected_next:
         import logging
         logging.getLogger("ledgeros.numbering").info(
-            "[EMP-NUM-RESYNC] company=%s: seq.next_number was %s, "
+            "[%s-NUM-RESYNC] company=%s: seq.next_number was %s, "
             "actual max in company is %s → resetting to %s",
-            company_id, seq.next_number, actual_max, expected_next,
+            doc_type, company_id, seq.next_number, actual_max,
+            expected_next,
         )
         seq.next_number = expected_next
 

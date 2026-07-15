@@ -119,14 +119,33 @@ def delete(doc_id):
 
 
 # ─── Notifications (bell icon page) ─────────────────────────────────────
+# MARSOUD-NOTIF-TENANT-FIX (Abdelhamid 2026-07-15) — a user with
+# memberships in multiple companies was seeing notifications from the
+# OTHER company leak into the current company's UI. Root cause: all 4
+# endpoints filtered only by user_id, ignoring g.active_company. Every
+# query below is now scoped to (user_id, company_id) so the bell +
+# dropdown + read + read-all only ever touch the active tenant's
+# notification set.
 notifications_bp = Blueprint("notifications", __name__)
+
+
+def _active_company_id():
+    """Return the currently-active company id or None. Callers use
+    None to short-circuit to an empty result set (defense in depth —
+    a request with no active company shouldn't see any notification)."""
+    from flask import g
+    c = g.get("active_company")
+    return c.id if c else None
 
 
 @notifications_bp.route("/")
 @login_required
 def index():
+    cid = _active_company_id()
+    if cid is None:
+        return render_template("notifications/index.html", notifications=[])
     notifs = Notification.query.filter_by(
-        user_id=current_user.id,
+        user_id=current_user.id, company_id=cid,
     ).order_by(Notification.created_at.desc()).limit(200).all()
     return render_template("notifications/index.html", notifications=notifs)
 
@@ -134,13 +153,17 @@ def index():
 @notifications_bp.route("/dropdown")
 @login_required
 def dropdown():
-    """JSON for the bell dropdown — last 10 + unread count."""
+    """JSON for the bell dropdown — last 10 + unread count, scoped
+    to the ACTIVE company only."""
     from flask import jsonify
+    cid = _active_company_id()
+    if cid is None:
+        return jsonify({"unread": 0, "items": []})
     rows = Notification.query.filter_by(
-        user_id=current_user.id,
+        user_id=current_user.id, company_id=cid,
     ).order_by(Notification.created_at.desc()).limit(10).all()
     unread = Notification.query.filter_by(
-        user_id=current_user.id, read_at=None,
+        user_id=current_user.id, company_id=cid, read_at=None,
     ).count()
     return jsonify({
         "unread": unread,
@@ -159,8 +182,13 @@ def dropdown():
 @notifications_bp.route("/<int:n_id>/read", methods=["POST"])
 @login_required
 def read(n_id):
+    cid = _active_company_id()
     n = db.session.get(Notification, n_id)
-    if not n or n.user_id != current_user.id:
+    # Refuse to mark a notification from a different company as read
+    # even if the user technically owns it — matters for the bell
+    # scope integrity.
+    if (not n or n.user_id != current_user.id
+            or (cid is not None and n.company_id != cid)):
         abort(404)
     mark_notification_read(n)
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
@@ -172,10 +200,12 @@ def read(n_id):
 @notifications_bp.route("/read-all", methods=["POST"])
 @login_required
 def read_all():
-    Notification.query.filter_by(
-        user_id=current_user.id, read_at=None,
-    ).update({"read_at": datetime.utcnow()})
-    db.session.commit()
+    cid = _active_company_id()
+    if cid is not None:
+        Notification.query.filter_by(
+            user_id=current_user.id, company_id=cid, read_at=None,
+        ).update({"read_at": datetime.utcnow()})
+        db.session.commit()
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         from flask import jsonify
         return jsonify({"ok": True})

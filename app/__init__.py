@@ -484,7 +484,14 @@ def create_app(config_class=Config):
         try:
             if current_user.is_authenticated:
                 from app.services.opsflow_extras import unread_count_for
-                return {"notif_unread_count": unread_count_for(current_user.id)}
+                # MARSOUD-NOTIF-TENANT-FIX — scope the header bell
+                # count to the ACTIVE company only. Without this a
+                # user in multiple companies would see notifications
+                # from all of them combined.
+                active = g.get("active_company")
+                cid = active.id if active else None
+                return {"notif_unread_count": unread_count_for(
+                    current_user.id, company_id=cid)}
         except Exception:
             pass
         return {"notif_unread_count": 0}
