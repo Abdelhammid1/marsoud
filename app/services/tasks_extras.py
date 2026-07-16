@@ -207,50 +207,86 @@ def log_activity(task, action, *, before=None, after=None, user_id=None):
     return entry
 
 
+def _user_link_html(user_id, display_name):
+    """MARSOUD-CLICKABLE-ASSIGNEE (Abdelhamid 2026-07-16) — wrap a
+    user's display name in an anchor pointing at their tasks board
+    (/tasks/?scope=employees&user_id=<id>). System-authored entries
+    keep the plain "النظام" label — no id, no link."""
+    from markupsafe import escape
+    if not user_id:
+        return str(escape(display_name))
+    return (
+        f'<a href="/tasks/?scope=employees&user_id={int(user_id)}" '
+        f'class="text-brand-600 hover:underline font-semibold">'
+        f'{escape(display_name)}</a>'
+    )
+
+
 def activity_description(entry):
-    """Render an activity entry as a short Arabic phrase."""
+    """Render an activity entry as a short Arabic phrase.
+
+    MARSOUD-CLICKABLE-ASSIGNEE — the actor name + any referenced
+    assignee names are wrapped in anchors pointing at their tasks
+    board. Returns Markup so Jinja auto-escapes surrounding text
+    while trusting our anchors.
+    """
+    from markupsafe import escape, Markup
     a = entry.action
-    user = entry.user.full_name if entry.user else "النظام"
+    user_name = entry.user.full_name if entry.user else "النظام"
+    user_link = _user_link_html(
+        entry.user.id if entry.user else None, user_name)
     try:
         before = json.loads(entry.before_json) if entry.before_json else {}
         after = json.loads(entry.after_json) if entry.after_json else {}
     except (TypeError, ValueError):
         before, after = {}, {}
 
+    def _esc(x):
+        return str(escape(x)) if x is not None else ""
+
     if a == "CREATED":
-        return f"{user} أنشأ هذه المهمة"
+        return Markup(f"{user_link} أنشأ هذه المهمة")
     if a == "STATUS_CHANGED":
         try:
             o = TaskStatus[before.get("status", "TODO")].label_ar
             n = TaskStatus[after.get("status", "TODO")].label_ar
         except KeyError:
             o, n = before.get("status"), after.get("status")
-        return f"{user} غيّر الحالة من «{o}» إلى «{n}»"
+        return Markup(
+            f"{user_link} غيّر الحالة من «{_esc(o)}» إلى «{_esc(n)}»")
     if a == "PRIORITY_CHANGED":
         try:
             o = TaskPriority[before.get("priority", "MEDIUM")].label_ar
             n = TaskPriority[after.get("priority", "MEDIUM")].label_ar
         except KeyError:
             o, n = before.get("priority"), after.get("priority")
-        return f"{user} غيّر الأولوية من «{o}» إلى «{n}»"
+        return Markup(
+            f"{user_link} غيّر الأولوية من «{_esc(o)}» إلى «{_esc(n)}»")
     if a == "DEADLINE_CHANGED":
-        return f"{user} حدّث الموعد النهائي إلى {after.get('deadline') or '—'}"
+        return Markup(
+            f"{user_link} حدّث الموعد النهائي إلى "
+            f"{_esc(after.get('deadline') or '—')}")
     if a == "TITLE_CHANGED":
-        return f"{user} حدّث العنوان"
+        return Markup(f"{user_link} حدّث العنوان")
     if a == "DESCRIPTION_CHANGED":
-        return f"{user} حدّث الوصف"
+        return Markup(f"{user_link} حدّث الوصف")
     if a == "ASSIGNEES_CHANGED":
         added_ids = set(after.get("ids", [])) - set(before.get("ids", []))
         removed_ids = set(before.get("ids", [])) - set(after.get("ids", []))
+        # Link each added/removed name so the reader can jump to
+        # their tasks board directly.
+        def _linked_name(uid):
+            return _user_link_html(uid, _safe_user_full_name(uid))
         bits = []
         if added_ids:
-            bits.append("أضاف " + "، ".join(_safe_user_full_name(i) for i in added_ids))
+            bits.append("أضاف " + "، ".join(_linked_name(i) for i in added_ids))
         if removed_ids:
-            bits.append("أزال " + "، ".join(_safe_user_full_name(i) for i in removed_ids))
-        return f"{user} " + (" و".join(bits) if bits else "حدّث المكلَّفين")
+            bits.append("أزال " + "، ".join(_linked_name(i) for i in removed_ids))
+        tail = " و".join(bits) if bits else "حدّث المكلَّفين"
+        return Markup(f"{user_link} {tail}")
     if a == "COMMENT_ADDED":
-        return f"{user} علّق على المهمة"
-    return f"{user}: {a}"
+        return Markup(f"{user_link} علّق على المهمة")
+    return Markup(f"{user_link}: {_esc(a)}")
 
 
 # ─── Comments ─────────────────────────────────────────────────────────────

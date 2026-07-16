@@ -138,22 +138,32 @@ def _():
     return "both alice + bob links rendered"
 
 
-@check("2. each link carries the assignee's OWN user_id (not the creator's)")
+@check("2. each assignee's link carries their OWN user_id")
 def _():
+    # AUDIT SYNC 2026-07-16 — the wider MARSOUD-CLICKABLE-ASSIGNEE
+    # ticket now ALSO links the creator badge in the task header
+    # + the comment author's name, so the creator's user_id
+    # legitimately appears as an href on the page. Narrow the
+    # negative assertion to "the creator id must not appear inside
+    # the assignees list" instead of "anywhere on the page".
     r = _client_as(_STATE["owner_id"]).get(f"/tasks/{_STATE['task_id']}")
     body = r.get_data(as_text=True)
-    # The creator's user_id must NOT appear as an href target inside
-    # the assignees list — only alice + bob should be linked. We
-    # can't grep for owner_id alone (could appear elsewhere), so
-    # test the specific bad case: an href for the owner among the
-    # rendered links.
-    owner_marker_a = f'href="/tasks/?scope=employees&amp;user_id={_STATE["owner_id"]}"'
-    owner_marker_b = f'href="/tasks/?scope=employees&user_id={_STATE["owner_id"]}"'
-    # The task is `created_by=owner` but NOT assigned to owner. So
-    # neither marker should appear.
-    assert owner_marker_a not in body and owner_marker_b not in body, \
-        "creator wrongly rendered as an assignee link"
-    return "no rogue owner link"
+    # Find the assignees region — it lives between the "المكلَّفون"
+    # heading and either "تعديل المكلَّفين" or the next card.
+    import re
+    m_start = body.find("المكلَّفون")
+    m_end = body.find("تعديل المكلَّفين", m_start)
+    if m_end == -1:
+        m_end = body.find("<div class=\"card", m_start + 1)
+    if m_end == -1:
+        m_end = len(body)
+    assignees_section = body[m_start:m_end] if m_start != -1 else ""
+    owner_marker_a = f'user_id={_STATE["owner_id"]}"'
+    owner_marker_b = f'user_id={_STATE["owner_id"]}&amp;'
+    assert (owner_marker_a not in assignees_section
+            and owner_marker_b not in assignees_section), \
+        "creator wrongly rendered as an assignee link inside the assignees box"
+    return "creator id NOT inside assignees section"
 
 
 @check("3. multi-assignee task renders one link per assignee")

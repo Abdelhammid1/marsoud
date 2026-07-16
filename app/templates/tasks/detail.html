@@ -80,34 +80,47 @@
 
     <div class="text-xs text-slate-500 mb-4">
       أُنشئت <span class="font-mono">{{ task.created_at | company_dt('%Y-%m-%d') }}</span>
-      {% if task.created_by %} بواسطة <span class="font-semibold text-slate-700">{{ task.created_by.full_name }}</span>{% endif %}
+      {# MARSOUD-CLICKABLE-ASSIGNEE — creator name links to their board. #}
+      {% if task.created_by %} بواسطة <a href="{{ url_for('tasks.index', scope='employees', user_id=task.created_by.id) }}"
+         class="font-semibold text-brand-600 hover:underline"
+         title="افتح كل مهام {{ task.created_by.full_name|e }}">{{ task.created_by.full_name }}</a>{% endif %}
       {% if task.completed_at %} · أُكملت <span class="font-mono">{{ task.completed_at | company_dt('%Y-%m-%d %H:%M') }}</span>{% endif %}
     </div>
 
     <!-- ─── Description (MARSOUD: creator-only edit) ───────────────── -->
     {% set is_creator = task.created_by_id and task.created_by_id == current_user.id %}
     {% if can_edit and is_creator %}
-    <details class="bg-slate-50 rounded-lg p-3 mb-3" {% if not task.description %}open{% endif %}>
-      <summary class="cursor-pointer text-sm font-semibold text-slate-700">📝 الوصف <span class="text-xs text-slate-400">(انقر للتعديل)</span></summary>
-      <form method="POST" action="{{ url_for('tasks.inline_edit', task_id=task.id) }}" class="mt-2">
-        <textarea name="description" rows="4" class="input text-sm w-full"
-                  placeholder="وصف المهمة…">{{ task.description or '' }}</textarea>
-        <button type="submit" class="btn-primary text-sm mt-2">حفظ الوصف</button>
-      </form>
-    </details>
+    <div class="bg-slate-50 rounded-lg p-3 mb-3">
+      <div class="text-xs text-slate-500 font-semibold mb-1">📝 الوصف</div>
+      {% if task.description %}
+      {# MARSOUD-LINKIFY — read-only preview always visible so URLs
+         inside the description are clickable even for the creator. #}
+      <div class="text-sm whitespace-pre-wrap mb-2">{{ task.description | linkify }}</div>
+      {% endif %}
+      <details {% if not task.description %}open{% endif %}>
+        <summary class="cursor-pointer text-xs text-slate-500">✎ تعديل الوصف</summary>
+        <form method="POST" action="{{ url_for('tasks.inline_edit', task_id=task.id) }}" class="mt-2">
+          <textarea name="description" rows="4" class="input text-sm w-full"
+                    placeholder="وصف المهمة…">{{ task.description or '' }}</textarea>
+          <button type="submit" class="btn-primary text-sm mt-2">حفظ الوصف</button>
+        </form>
+      </details>
+    </div>
     {% elif task.description %}
     <div class="bg-slate-50 rounded-lg p-3 mb-3">
       <div class="text-xs text-slate-500 font-semibold mb-1">
         📝 الوصف
         {% if not is_creator %}<span class="text-slate-400 font-normal">(للقراءة — لا يمكن تعديله إلا من قِبل من أنشأ المهمة)</span>{% endif %}
       </div>
-      <div class="text-sm whitespace-pre-wrap">{{ task.description }}</div>
+      {# MARSOUD-LINKIFY (Abdelhamid 2026-07-16) — URLs pasted into
+         the description render as clickable anchors. #}
+      <div class="text-sm whitespace-pre-wrap">{{ task.description | linkify }}</div>
     </div>
     {% endif %}
     {% if task.notes %}
     <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm whitespace-pre-wrap mb-4">
       <div class="text-xs text-amber-700 font-semibold mb-1">ملاحظات</div>
-      {{ task.notes }}
+      {{ task.notes | linkify }}
     </div>
     {% endif %}
 
@@ -119,12 +132,24 @@
       {% for c in task.comments %}
       <div class="bg-slate-50 rounded-lg p-3">
         <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
-          <div class="font-semibold text-slate-700">{{ c.user.full_name if c.user else '—' }}</div>
+          {# MARSOUD-CLICKABLE-ASSIGNEE — comment author's name links
+             to their tasks board. #}
+          <div class="font-semibold">
+          {% if c.user %}
+          <a href="{{ url_for('tasks.index', scope='employees', user_id=c.user.id) }}"
+             class="text-brand-600 hover:underline"
+             title="افتح كل مهام {{ c.user.full_name|e }}">{{ c.user.full_name }}</a>
+          {% else %}
+          <span class="text-slate-500">—</span>
+          {% endif %}
+          </div>
           <div class="font-mono">{{ c.created_at | company_dt('%Y-%m-%d %H:%M') }}</div>
         </div>
         {# MARSOUD-MENTIONS — render `@[Name](user:ID)` tokens as
            styled clickable badges via the `mentions` Jinja filter. #}
-        <div class="text-sm whitespace-pre-wrap">{{ c.content|mentions }}</div>
+        {# MARSOUD-LINKIFY — compose mentions first (produces <a>
+           badges for @-tagged users), then linkify plain URLs. #}
+        <div class="text-sm whitespace-pre-wrap">{{ c.content | mentions | linkify }}</div>
       </div>
       {% else %}
       <div class="text-sm text-slate-400">لا توجد تعليقات بعد.</div>

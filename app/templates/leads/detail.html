@@ -50,7 +50,7 @@
     {% if lead.notes %}
     <div class="mt-4 bg-amber-50/50 border border-amber-200 rounded-lg p-3 text-sm">
       <div class="text-xs text-amber-700 mb-1">ملاحظات</div>
-      <div class="whitespace-pre-wrap">{{ lead.notes }}</div>
+      <div class="whitespace-pre-wrap">{{ lead.notes | linkify }}</div>
     </div>
     {% endif %}
     {# MARSOUD-63 — show the two new fields above status history if filled. #}
@@ -144,7 +144,7 @@
             <div class="text-xs text-slate-400 font-mono">{{ c.created_at | company_dt('%Y-%m-%d %H:%M') }}</div>
           </div>
           {# MARSOUD-MENTIONS — render @[Name](user:ID) as anchor tags. #}
-          <div class="text-sm text-slate-700 whitespace-pre-wrap mt-1">{{ c.content|mentions }}</div>
+          <div class="text-sm text-slate-700 whitespace-pre-wrap mt-1">{{ c.content | mentions | linkify }}</div>
         </div>
       </div>
     {% else %}

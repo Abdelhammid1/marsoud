@@ -523,6 +523,20 @@ def create_app(config_class=Config):
         from app.services.mentions import render_mentions
         return render_mentions(text)
 
+    @app.template_filter("linkify")
+    def _linkify_filter(text):
+        """MARSOUD-LINKIFY (Abdelhamid 2026-07-16) — auto-detect URLs
+        (http://, https://, www.) inside free-text and wrap them in
+        clickable `<a>` tags. Escapes everything else with MarkupSafe
+        so we don't open an XSS hole on comment/description fields.
+
+        Composable with the `mentions` filter — use
+        `{{ text | mentions | linkify }}` to get both @-mentions
+        AND clickable URLs on the same string.
+        """
+        from app.services.linkify import render_linkify
+        return render_linkify(text)
+
     @app.template_filter("company_dt")
     def company_dt_filter(value, fmt="%Y-%m-%d %H:%M:%S", company=None):
         """MARSOUD-TZ-01 — format a stored UTC datetime in the company's
