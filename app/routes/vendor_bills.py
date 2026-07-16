@@ -44,6 +44,32 @@ def index():
             db.or_(VendorBill.number.ilike(like), Vendor.name.ilike(like), VendorBill.supplier_invoice_number.ilike(like))
         )
 
+    # MARSOUD-VBILL-SUBCAT-DISPLAY-FILTER (Abdelhamid 2026-07-16) —
+    # dedicated vendor filter + per-vendor sub-category filter. Both
+    # are optional; invalid ids are silently dropped so a hand-crafted
+    # query arg can't break the page.
+    vendor_filter = (request.args.get("vendor") or "").strip()
+    if vendor_filter:
+        try:
+            q = q.filter(VendorBill.vendor_id == int(vendor_filter))
+        except (TypeError, ValueError):
+            pass
+    sub_category_filter = (request.args.get("sub_category") or "").strip()
+    if sub_category_filter:
+        try:
+            sc_id = int(sub_category_filter)
+            # Filter to bills that have AT LEAST ONE line with this
+            # sub-category. Use EXISTS so we don't dupe-multiply the
+            # per-bill totals via a join.
+            q = q.filter(
+                db.session.query(VendorBillItem.id)
+                .filter(VendorBillItem.bill_id == VendorBill.id)
+                .filter(VendorBillItem.sub_category_id == sc_id)
+                .exists()
+            )
+        except (TypeError, ValueError):
+            pass
+
     def _parse_date(value):
         try:
             return datetime.strptime(value, "%Y-%m-%d").date()
@@ -69,7 +95,29 @@ def index():
         "paid": total_paid,
         "outstanding": total_outstanding,
     }
-    return render_template("vendor_bills/index.html", bills=bills, statuses=VendorBillStatus, totals=totals)
+    # Dropdown feeds — active vendors + sub-categories for the picked
+    # vendor. When no vendor is selected we show sub-categories across
+    # every vendor (useful when the user picks a sub-cat first).
+    vendors_dd = Vendor.query.filter_by(
+        company_id=g.active_company.id, is_active=True,
+    ).order_by(Vendor.name).all()
+    from app.models import VendorSubCategory
+    sub_cats_q = VendorSubCategory.query.filter_by(
+        company_id=g.active_company.id, is_active=True,
+    )
+    if vendor_filter:
+        try:
+            sub_cats_q = sub_cats_q.filter_by(vendor_id=int(vendor_filter))
+        except (TypeError, ValueError):
+            pass
+    sub_cats_dd = sub_cats_q.order_by(VendorSubCategory.name).all()
+    return render_template(
+        "vendor_bills/index.html",
+        bills=bills, statuses=VendorBillStatus, totals=totals,
+        vendors=vendors_dd, sub_categories=sub_cats_dd,
+        vendor_filter=vendor_filter,
+        sub_category_filter=sub_category_filter,
+    )
 
 
 @bp.route("/api/accounts")

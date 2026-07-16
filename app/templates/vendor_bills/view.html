@@ -83,7 +83,7 @@
     </div>
 
     <table class="data-table">
-      <thead><tr><th>الوصف</th><th>النوع</th><th>الحساب</th><th>الكمية</th><th>السعر</th><th class="text-left">الإجمالي</th></tr></thead>
+      <thead><tr><th>الوصف</th><th>التصنيف الفرعي</th><th>النوع</th><th>الحساب</th><th>الكمية</th><th>السعر</th><th class="text-left">الإجمالي</th></tr></thead>
       <tbody>
         {% for item in bill.items %}
         <tr>
@@ -91,6 +91,16 @@
             {{ item.description }}
             {% if item.created_asset_id %}<a href="{{ url_for('assets.view', asset_id=item.created_asset_id) }}" class="text-xs text-brand-600 hover:underline block mt-1">🏗️ تم إنشاء الأصل تلقائياً</a>{% endif %}
             {% if item.line_type.value == 'FIXED_ASSET' %}<div class="text-xs text-slate-500 mt-1">عمر: {{ item.useful_life_years }} سنة · قيمة تخريدية: {{ "%.2f"|format(item.salvage_value or 0) }}</div>{% endif %}
+          </td>
+          <td class="text-xs">
+            {# MARSOUD-VBILL-SUBCAT-DISPLAY-FILTER (Abdelhamid 2026-07-16) —
+               dedicated column for the per-line sub-category so it's
+               always visible on the bill detail. #}
+            {% if item.sub_category %}
+              <span class="badge badge-partial text-[10px]">🏷 {{ item.sub_category.name }}</span>
+            {% else %}
+              <span class="text-slate-400">—</span>
+            {% endif %}
           </td>
           <td>
             {% if item.line_type.value == 'EXPENSE' %}<span class="badge bg-blue-50 text-blue-700">مصروف</span>
