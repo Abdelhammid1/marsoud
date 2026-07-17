@@ -8,6 +8,10 @@ load_dotenv(basedir / ".env")
 
 class Config:
     SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-me")
+    # MARSOUD-SAAS-SUBDOMAIN — share the session cookie across all
+    # *.marsoud.com subdomains so switching companies (tenant subdomains)
+    # doesn't force a re-login.
+    SESSION_COOKIE_DOMAIN = os.environ.get("SESSION_COOKIE_DOMAIN", ".marsoud.com")
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL", f"sqlite:///{basedir / 'instance' / 'ledgeros.db'}"
     )
