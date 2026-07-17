@@ -165,6 +165,34 @@ def create_app(config_class=Config):
         from flask import redirect, url_for
         return redirect(url_for("auth.login"))
 
+    # MARSOUD-SAAS-SUBDOMAIN — resolves the tenant from the subdomain
+    # (nginx sets X-Tenant-Subdomain for any *.marsoud.com request that
+    # isn't marsoud.com/www.marsoud.com themselves). Must run BEFORE
+    # load_active_company below, since it writes active_company_id into
+    # the session for that function to pick up — no other route code
+    # changes needed; the subdomain becomes the source of truth while
+    # everything downstream keeps reading session["active_company_id"]
+    # exactly like before.
+    RESERVED_SUBDOMAINS = {"www", "api", "admin", "mail", "static", "cdn", "app"}
+
+    @app.before_request
+    def resolve_tenant_from_subdomain():
+        from flask_login import current_user
+        from flask import abort
+        g.tenant_subdomain = None
+        tenant = request.headers.get("X-Tenant-Subdomain")
+        if not tenant or tenant in RESERVED_SUBDOMAINS:
+            return
+        company = Company.query.filter_by(subdomain=tenant).first()
+        if not company or company.deleted_at is not None:
+            abort(404)
+        g.tenant_subdomain = tenant
+        g.tenant_company = company
+        if current_user.is_authenticated:
+            if company not in current_user.companies:
+                abort(403)
+            session["active_company_id"] = company.id
+
     @app.before_request
     def load_active_company():
         from flask_login import current_user
