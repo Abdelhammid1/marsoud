@@ -14,6 +14,9 @@ class Company(db.Model):
     __tablename__ = "companies"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), nullable=False)
+    # MARSOUD-SAAS-SUBDOMAIN — tenant identity for *.marsoud.com routing.
+    # Nullable until backfill script runs; enforced unique+indexed in DB.
+    subdomain = db.Column(db.String(63), unique=True, nullable=True, index=True)
     base_currency = db.Column(db.String(3), default="SAR", nullable=False)
     logo_url = db.Column(db.Text)
     logo_path = db.Column(db.String(300))   # uploaded logo on disk, served from /static/logos/
