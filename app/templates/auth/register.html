@@ -54,7 +54,18 @@
         <div class="grid grid-cols-2 gap-4">
           <div class="col-span-2">
             <label class="block text-sm font-semibold text-slate-700 mb-2">اسم الشركة</label>
-            <input type="text" name="company_name" required class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100">
+            <input type="text" name="company_name" id="company_name" required class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100">
+          </div>
+          <div class="col-span-2">
+            <label class="block text-sm font-semibold text-slate-700 mb-2">عنوان شركتك (subdomain)</label>
+            <div class="flex items-center border border-slate-200 rounded-xl overflow-hidden focus-within:border-[#2563EB] focus-within:ring-4 focus-within:ring-blue-100">
+              <input type="text" name="subdomain" id="subdomain" required
+                     pattern="[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?" minlength="3" maxlength="63"
+                     dir="ltr" placeholder="my-company"
+                     class="flex-1 px-4 py-3 outline-none">
+              <span class="px-3 text-slate-400 text-sm bg-slate-50 h-full flex items-center border-r border-slate-200" dir="ltr">.marsoud.com</span>
+            </div>
+            <p class="text-xs text-slate-400 mt-1">أحرف إنجليزية صغيرة وأرقام وشرطات فقط، 3 أحرف على الأقل</p>
           </div>
           <div>
             <label class="block text-sm font-semibold text-slate-700 mb-2">العملة الأساسية</label>
@@ -79,5 +90,22 @@
     </div>
   </div>
 </div>
+<script>
+  (function () {
+    const nameInput = document.getElementById("company_name");
+    const subInput = document.getElementById("subdomain");
+    let subEdited = false;
+    subInput.addEventListener("input", () => { subEdited = true; });
+    nameInput.addEventListener("input", () => {
+      if (subEdited) return;
+      subInput.value = nameInput.value
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, "")
+        .trim()
+        .replace(/\s+/g, "-")
+        .slice(0, 63);
+    });
+  })();
+</script>
 </body>
 </html>

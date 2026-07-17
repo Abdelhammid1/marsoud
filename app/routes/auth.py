@@ -62,11 +62,24 @@ def register():
         email = request.form.get("email", "").strip().lower()
         full_name = request.form.get("full_name", "").strip()
         company_name = request.form.get("company_name", "").strip()
+        subdomain = request.form.get("subdomain", "").strip().lower()
         password = request.form.get("password", "")
         base_currency = request.form.get("base_currency", "SAR")
 
-        if not email or not password or not full_name or not company_name:
+        if not email or not password or not full_name or not company_name or not subdomain:
             flash("جميع الحقول مطلوبة", "error")
+            return render_template("auth/register.html")
+
+        from app.models.company import is_valid_subdomain
+        if not is_valid_subdomain(subdomain):
+            flash(
+                "عنوان الشركة غير صالح — من 3 إلى 63 حرفًا، أحرف إنجليزية صغيرة وأرقام وشرطات فقط",
+                "error",
+            )
+            return render_template("auth/register.html")
+
+        if Company.query.filter_by(subdomain=subdomain).first():
+            flash("عنوان الشركة هذا محجوز بالفعل، جرّب عنوانًا آخر", "error")
             return render_template("auth/register.html")
 
         if User.query.filter_by(email=email).first():
@@ -75,7 +88,7 @@ def register():
 
         user = User(email=email, full_name=full_name)
         user.set_password(password)
-        company = Company(name=company_name, base_currency=base_currency)
+        company = Company(name=company_name, base_currency=base_currency, subdomain=subdomain)
         # Bug fix (abdelhamid) — every new company gets the one-month
         # default subscription window + the enterprise plan, instead of
         # being created without any subscription state.
@@ -97,7 +110,9 @@ def register():
         login_user(user)
         session["active_company_id"] = company.id
         flash("تم إنشاء الحساب وشجرة الحسابات الافتراضية", "success")
-        return redirect(url_for("dashboard.index"))
+        # MARSOUD-SAAS-SUBDOMAIN — send them to their new tenant subdomain.
+        # SESSION_COOKIE_DOMAIN=.marsoud.com keeps them logged in across it.
+        return redirect(f"https://{subdomain}.marsoud.com" + url_for("dashboard.index"))
     return render_template("auth/register.html")
 
 
