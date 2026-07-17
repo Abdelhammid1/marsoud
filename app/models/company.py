@@ -1,6 +1,22 @@
 import json
+import re
 from datetime import datetime
 from app import db
+
+
+# MARSOUD-SAAS-SUBDOMAIN — shared between register() and the nginx
+# tenant-resolution middleware so the reserved list only lives in one place.
+RESERVED_SUBDOMAINS = {"www", "api", "admin", "mail", "static", "cdn", "app"}
+SUBDOMAIN_PATTERN = re.compile(r"^[a-z0-9]([a-z0-9-]{1,61}[a-z0-9])?$")
+
+
+def is_valid_subdomain(value: str) -> bool:
+    """3-63 chars, lowercase letters/digits/hyphens, not reserved."""
+    if not value or value in RESERVED_SUBDOMAINS:
+        return False
+    if len(value) < 3 or len(value) > 63:
+        return False
+    return bool(SUBDOMAIN_PATTERN.match(value))
 
 
 DEFAULT_REMINDER_CONFIG = {

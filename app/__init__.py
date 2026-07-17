@@ -173,7 +173,7 @@ def create_app(config_class=Config):
     # changes needed; the subdomain becomes the source of truth while
     # everything downstream keeps reading session["active_company_id"]
     # exactly like before.
-    RESERVED_SUBDOMAINS = {"www", "api", "admin", "mail", "static", "cdn", "app"}
+    from app.models.company import RESERVED_SUBDOMAINS
 
     @app.before_request
     def resolve_tenant_from_subdomain():
