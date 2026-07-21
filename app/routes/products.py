@@ -155,7 +155,29 @@ def new():
                 ).first() is not None:
                     raise ValueError(f"الباركود '{barcode}' موجود بالفعل لمنتج آخر")
 
-                unit_cost = float(request.form.get("unit_cost", 0) or 0)
+                # MARSOUD-PACK-PRICING (Abdelhamid 2026-07-19) — allow
+                # the user to enter the pack purchase price + pieces-per-
+                # pack instead of pre-dividing to get the per-piece cost.
+                # If both are provided AND unit_cost wasn't filled by
+                # hand, derive unit_cost = pack_price / pieces. Also
+                # remember the pack info so we can create a matching
+                # ProductUnit AFTER the base unit exists (below).
+                raw_cost = (request.form.get("unit_cost") or "").strip()
+                pack_price = float(
+                    request.form.get("pack_purchase_price") or 0)
+                pieces_per_pack = float(
+                    request.form.get("pieces_per_pack") or 0)
+                pack_unit_name = (
+                    request.form.get("pack_unit_name") or "").strip()
+                if pack_price > 0 and pieces_per_pack > 0:
+                    derived = pack_price / pieces_per_pack
+                    # If the user didn't override unit_cost, take derived.
+                    if not raw_cost or float(raw_cost or 0) <= 0:
+                        unit_cost = derived
+                    else:
+                        unit_cost = float(raw_cost)
+                else:
+                    unit_cost = float(raw_cost or 0)
                 v = ProductVariant(
                     company_id=cid,
                     product_id=p.id,
@@ -170,11 +192,48 @@ def new():
                 # MARSOUD-UNIT-CONVERSION-01 — every tracked product
                 # gets a base unit at create time so POS + invoicing
                 # can pick it without a separate "define units" step.
-                from app.services.units import ensure_base_unit
-                ensure_base_unit(p)
+                from app.services.units import ensure_base_unit, create_unit
+                base_unit = ensure_base_unit(p)
+
+                # MARSOUD-PACK-PRICING — auto-create the pack ProductUnit
+                # so the pack (e.g. كرتونة) shows up natively on future
+                # vendor bills / POS without the user redoing the setup.
+                # Rejected only when the pack name would collide with the
+                # base unit's name — otherwise POS unit-picker rows would
+                # merge and cause mis-priced lines.
+                if pack_price > 0 and pieces_per_pack > 0:
+                    pack_name = pack_unit_name or "كرتونة"
+                    if pack_name == base_unit.unit_name:
+                        raise ValueError(
+                            "اسم العلبة مطابق لوحدة الأساس — "
+                            f"اختر اسم مختلف عن '{base_unit.unit_name}'."
+                        )
+                    create_unit(
+                        p, unit_name=pack_name,
+                        conversion_factor=pieces_per_pack,
+                        sale_price=None,
+                    )
 
                 # Opening balance is optional. > 0 → post Dr 1140 / Cr 3900.
-                opening_qty = float(request.form.get("opening_qty", 0) or 0)
+                # MARSOUD-PACK-PRICING — the cashier may enter the qty in
+                # PACKS ("3 كراتين") instead of base units. Convert here
+                # so the ledger sees base units (which is what stock,
+                # COGS and every downstream report agree on).
+                opening_qty_raw = float(
+                    request.form.get("opening_qty", 0) or 0)
+                opening_qty_unit = (
+                    request.form.get("opening_qty_unit") or "base"
+                ).strip()
+                if (opening_qty_unit == "pack"
+                        and opening_qty_raw > 0):
+                    if pieces_per_pack <= 0:
+                        raise ValueError(
+                            "الرصيد الافتتاحي مطلوب بالعلبة لكن "
+                            "لم يتم تحديد عدد القطع في العلبة."
+                        )
+                    opening_qty = opening_qty_raw * pieces_per_pack
+                else:
+                    opening_qty = opening_qty_raw
                 if opening_qty > 0:
                     if unit_cost <= 0:
                         raise ValueError(
