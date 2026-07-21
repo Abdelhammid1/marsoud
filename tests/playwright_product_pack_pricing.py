@@ -59,6 +59,19 @@ def _fixture():
                 conn.execute(text(
                     "DELETE FROM user_companies WHERE company_id = :c"),
                     {"c": c.id})
+                # Transitive delete: stock_balances / stock_movements /
+                # stock_lots are scoped through variant_id (no
+                # company_id column). SQLite has FKs off in dev so the
+                # ON DELETE CASCADE on stock_balances.variant_id
+                # doesn't fire — leaving orphans that get re-adopted
+                # when SQLite reuses the variant PK on the next run.
+                for tbl_name in ("stock_balances", "stock_movements",
+                                 "stock_lots"):
+                    conn.execute(text(
+                        f"DELETE FROM {tbl_name} WHERE variant_id IN "
+                        "(SELECT id FROM product_variants "
+                        " WHERE company_id = :c)"),
+                        {"c": c.id})
                 for tbl_name in ("payments", "invoice_reminders_sent",
                                  "invoice_items"):
                     conn.execute(text(
@@ -73,11 +86,33 @@ def _fixture():
                             {"c": c.id})
                 conn.execute(text("DELETE FROM companies WHERE id = :c"),
                              {"c": c.id})
+                # Zombie sweep for orphans left by older buggy runs.
+                for tbl_name in ("stock_balances", "stock_movements",
+                                 "stock_lots"):
+                    conn.execute(text(
+                        f"DELETE FROM {tbl_name} WHERE variant_id NOT IN "
+                        "(SELECT id FROM product_variants)"))
+                conn.execute(text(
+                    "DELETE FROM stock_balances WHERE warehouse_id "
+                    "NOT IN (SELECT id FROM warehouses)"))
         _wipe(FIX)
         with db.engine.begin() as conn:
             conn.execute(text(
                 "DELETE FROM users WHERE email = :e"),
                 {"e": OWNER_EMAIL})
+            # Always-run zombie sweep for orphan stock rows left by
+            # older buggy runs — runs even when _wipe finds nothing.
+            for tbl_name in ("stock_balances", "stock_movements",
+                             "stock_lots"):
+                conn.execute(text(
+                    f"DELETE FROM {tbl_name} WHERE variant_id NOT IN "
+                    "(SELECT id FROM product_variants)"))
+            conn.execute(text(
+                "DELETE FROM stock_balances WHERE warehouse_id NOT IN "
+                "(SELECT id FROM warehouses)"))
+            conn.execute(text(
+                "DELETE FROM invoice_items WHERE invoice_id NOT IN "
+                "(SELECT id FROM invoices)"))
 
         c = Company(name=FIX, base_currency="EGP",
                     vat_rate=0, stock_strict_mode=True)
@@ -268,6 +303,96 @@ def main():
                 and abs(bal_per_unit - 2.0) < 1e-6,
                 f"stock qty = {bal_qty} @ {bal_per_unit:.2f}",
             )
+
+            # ── Gap 1: edit form pack helper ────────────────
+            page.goto(f"{BASE}/products/{p2.id}/edit")
+            page.wait_for_load_state("networkidle")
+            # Expand the (only) variant's <details> row to reveal
+            # its edit form + pack helper.
+            page.locator("details summary").first.click()
+            # Type pack fields inside the variant's row and assert
+            # its unit_cost input live-derives.
+            form = page.locator("form.pack-scope").first
+            form.locator("[data-pack-price]").fill("100")
+            form.locator("[data-pack-pieces]").fill("40")
+            derived_edit = form.locator("[data-unit-cost]").input_value()
+            _record(
+                "5. Gap 1 — edit form: typing pack fields inside a "
+                "variant row live-fills [data-unit-cost] to price/pieces",
+                derived_edit == "2.5",
+                f"edit form unit_cost = {derived_edit!r}",
+            )
+            page.screenshot(
+                path=SHOT / "pack_04_edit_form_helper.png",
+                full_page=True)
+
+            # ── Gap 3: units page pack cost ──────────────────
+            page.goto(f"{BASE}/products/{p2.id}/units")
+            page.wait_for_load_state("networkidle")
+            # Scope selectors to the add-unit form — the page also has
+            # inline row-edit forms with an input[name="unit_name"],
+            # which would otherwise match ambiguously.
+            page.fill('#add-unit-form input[name="unit_name"]', "شدة")
+            page.fill('#add-factor', '10')
+            page.fill('#add-pack-cost', '30')
+            # Assert live hint reports "= 3" (per-piece).
+            hint = page.locator('#add-pack-cost-hint').text_content()
+            _record(
+                "6. Gap 3 — units page: live hint reports derived "
+                "per-piece cost (30 / 10 = 3)",
+                "3" in hint,
+                f"hint = {hint!r}",
+            )
+            page.screenshot(
+                path=SHOT / "pack_05_units_page_helper.png",
+                full_page=True)
+            # Submit + assert variant.unit_cost was overwritten by
+            # the derivation (previous value was 2.0 from initial
+            # opening balance; new should be 3.0).
+            page.click('form#add-unit-form button[type="submit"]')
+            page.wait_for_load_state("networkidle")
+            _app = _ca()
+            with _app.app_context():
+                from app.models import ProductVariant, ProductUnit
+                v2 = ProductVariant.query.filter_by(
+                    product_id=p2.id).one()
+                units_after = ProductUnit.query.filter_by(
+                    product_id=p2.id).all()
+                unit_names = {u.unit_name for u in units_after}
+            _record(
+                "7. Gap 3 — units page POST: variant.unit_cost updated "
+                "from pack_purchase_price / factor (30 / 10 → 3.0)",
+                abs(float(v2.unit_cost) - 3.0) < 1e-6,
+                f"variant.unit_cost = {float(v2.unit_cost)}",
+            )
+            _record(
+                "8. Gap 3 — units page POST also creates the شدة unit "
+                "alongside the existing base + كرتونة",
+                "شدة" in unit_names,
+                f"units = {unit_names}",
+            )
+
+            # ── Gap 4: sale-price hint on non-base row ──────
+            # Type into the existing كرتونة sale_price and assert
+            # a per-piece hint appears somewhere on the page.
+            sale_input = page.locator(
+                'tr[data-nonbase][data-factor="40"] input[name="sale_price"]'
+            ).first
+            sale_input.fill("80")
+            # Give the JS time to run.
+            page.wait_for_timeout(200)
+            page_html = page.content()
+            _record(
+                "9. Gap 4 — sale-price hint reports per-piece rate "
+                "(80 / 40 = 2) under the كرتونة sale_price input",
+                # Hint text is "= <b>2</b> / قطعة" — just check '2' + 'قطعة'
+                # coexist near the input; wrap in a fine check.
+                "= <b>2</b>" in page_html and "/ قطعة" in page_html,
+                "sale-price hint injected + updated",
+            )
+            page.screenshot(
+                path=SHOT / "pack_06_sale_hint.png",
+                full_page=True)
 
             browser.close()
     finally:

@@ -629,12 +629,35 @@ def units(product_id):
 
     if request.method == "POST":
         try:
-            create_unit(
+            new_unit = create_unit(
                 p,
                 request.form.get("unit_name"),
                 request.form.get("conversion_factor"),
                 sale_price=request.form.get("sale_price"),
             )
+            # MARSOUD-PACK-PRICING gap 3 — optional pack purchase cost.
+            # If set, update variant.unit_cost = pack_price / factor.
+            # Only when the product has exactly one active variant —
+            # otherwise we'd have no way to know WHICH variant to
+            # update. Multi-variant products should use the edit page
+            # (which has its own per-variant pack helper via gap 1).
+            pack_price_raw = (request.form.get(
+                "pack_purchase_price") or "").strip()
+            if pack_price_raw:
+                pack_price = float(pack_price_raw)
+                if pack_price > 0:
+                    factor = float(new_unit.conversion_factor or 0)
+                    active_variants = ProductVariant.query.filter_by(
+                        product_id=p.id, is_active=True,
+                    ).all()
+                    if len(active_variants) != 1:
+                        raise UnitError(
+                            "المنتج فيه أكثر من variant — "
+                            "عدّل تكلفة الشراء من صفحة تعديل المنتج."
+                        )
+                    if factor <= 0:
+                        raise UnitError("معامل التحويل غير صحيح")
+                    active_variants[0].unit_cost = pack_price / factor
             db.session.commit()
             flash("تم إضافة الوحدة", "success")
         except UnitError as e:

@@ -113,8 +113,18 @@ def _fixture():
                 conn.execute(text(
                     "DELETE FROM user_companies WHERE company_id = :c"),
                     {"c": c.id})
-                # Transitive cleanup — every table with `invoice_id`
-                # but no `company_id` must be cleared FIRST.
+                # Transitive cleanup — every table with `invoice_id` or
+                # `variant_id` but no `company_id` must be cleared
+                # FIRST. SQLite has FKs off in dev so the ON DELETE
+                # CASCADE on stock_balances / invoice_items would leave
+                # orphans behind, and PK reuse re-adopts them.
+                for tbl_name in ("stock_balances", "stock_movements",
+                                 "stock_lots"):
+                    conn.execute(text(
+                        f"DELETE FROM {tbl_name} WHERE variant_id IN "
+                        "(SELECT id FROM product_variants "
+                        " WHERE company_id = :c)"),
+                        {"c": c.id})
                 for tbl_name in ("payments", "invoice_reminders_sent",
                                  "invoice_items"):
                     conn.execute(text(
@@ -132,6 +142,12 @@ def _fixture():
                 conn.execute(
                     text("DELETE FROM companies WHERE id = :c"),
                     {"c": c.id})
+                # Zombie sweep for orphans left by older buggy runs.
+                for tbl_name in ("stock_balances", "stock_movements",
+                                 "stock_lots"):
+                    conn.execute(text(
+                        f"DELETE FROM {tbl_name} WHERE variant_id "
+                        "NOT IN (SELECT id FROM product_variants)"))
         _wipe(FIX); _wipe(FIX_B)
         # Zombie sweep — orphan rows left over from an OLDER buggy
         # test run before the transitive-delete above was added.

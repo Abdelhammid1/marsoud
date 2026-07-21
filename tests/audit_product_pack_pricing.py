@@ -67,6 +67,20 @@ def _wipe(name):
         conn.execute(text(
             "DELETE FROM user_companies WHERE company_id = :c"),
             {"c": c.id})
+        # Transitive delete for tables that have no company_id and
+        # are scoped through variant_id — SQLite pragma foreign_keys
+        # is off in dev so the ON DELETE CASCADE on stock_balances
+        # etc. doesn't fire. Miss this and orphan rows survive a
+        # variant deletion; SQLite then reuses the variant PK on the
+        # next INSERT and the orphan gets re-adopted, corrupting
+        # the next test's opening balance.
+        for tbl_name in ("stock_balances", "stock_movements",
+                         "stock_lots"):
+            conn.execute(text(
+                f"DELETE FROM {tbl_name} WHERE variant_id IN "
+                "(SELECT id FROM product_variants "
+                " WHERE company_id = :c)"),
+                {"c": c.id})
         # invoice_items has no company_id; scope through invoice_id.
         for tbl_name in ("payments", "invoice_reminders_sent",
                          "invoice_items"):
@@ -82,6 +96,18 @@ def _wipe(name):
                     {"c": c.id})
         conn.execute(text("DELETE FROM companies WHERE id = :c"),
                      {"c": c.id})
+        # Zombie sweep — the fixture-bug fix above catches wipes going
+        # forward, but this run may still be sitting on orphans from
+        # older buggy runs. Purge any stock row whose variant/warehouse
+        # no longer exists.
+        for tbl_name in ("stock_balances", "stock_movements",
+                         "stock_lots"):
+            conn.execute(text(
+                f"DELETE FROM {tbl_name} WHERE variant_id NOT IN "
+                "(SELECT id FROM product_variants)"))
+        conn.execute(text(
+            "DELETE FROM stock_balances WHERE warehouse_id NOT IN "
+            "(SELECT id FROM warehouses)"))
 
 
 def _setup():
@@ -100,6 +126,21 @@ def _setup():
     with db.engine.begin() as conn:
         conn.execute(text(
             "DELETE FROM users WHERE email = 'pack-owner@t.co'"))
+        # Always-run zombie sweep — catches orphans from older buggy
+        # runs that ran BEFORE the transitive-delete was added. Runs
+        # unconditionally (not gated on the wipe finding a company),
+        # because the orphans outlive their parent company.
+        for tbl_name in ("stock_balances", "stock_movements",
+                         "stock_lots"):
+            conn.execute(text(
+                f"DELETE FROM {tbl_name} WHERE variant_id NOT IN "
+                "(SELECT id FROM product_variants)"))
+        conn.execute(text(
+            "DELETE FROM stock_balances WHERE warehouse_id NOT IN "
+            "(SELECT id FROM warehouses)"))
+        conn.execute(text(
+            "DELETE FROM invoice_items WHERE invoice_id NOT IN "
+            "(SELECT id FROM invoices)"))
     seed_permissions_catalog()
     c = Company(name="__PACK__", base_currency="EGP", vat_rate=0)
     db.session.add(c); db.session.flush()
@@ -260,6 +301,83 @@ def _():
     after = Product.query.filter_by(company_id=_STATE["cid"]).count()
     assert before == after, f"count changed {before} → {after}"
     return f"rejected cleanly (status={r.status_code}, count unchanged)"
+
+
+@check("6a. Units-page pack cost — POST to /products/<id>/units with "
+       "pack_purchase_price + factor updates the single variant's unit_cost")
+def _():
+    from app.models import Product, ProductVariant
+    # Create a fresh product with initial cost 0.
+    c = _client_for(_STATE["uid"], _STATE["cid"])
+    r = _create_product(c, name="UNIT-PAGE-A", unit_cost="0")
+    assert r.status_code == 302, f"HTTP {r.status_code}"
+    p = Product.query.filter_by(company_id=_STATE["cid"],
+                                name="UNIT-PAGE-A").one()
+    v = ProductVariant.query.filter_by(product_id=p.id).one()
+    assert float(v.unit_cost) == 0.0
+    # Now add a كرتونة unit with pack_purchase_price=120 (factor=30 → 4.00 per piece).
+    r2 = c.post(
+        f"/products/{p.id}/units",
+        data={"unit_name": "كرتونة",
+              "conversion_factor": "30",
+              "sale_price": "",
+              "pack_purchase_price": "120"},
+        follow_redirects=False,
+    )
+    assert r2.status_code == 302, f"HTTP {r2.status_code}"
+    from app import db as _db
+    _db.session.refresh(v)
+    assert abs(float(v.unit_cost) - 4.0) < 1e-6, \
+        f"unit_cost={v.unit_cost} (expected 4.0)"
+    return f"variant.unit_cost updated to {float(v.unit_cost)}"
+
+
+@check("6b. Units-page pack cost is REFUSED on a multi-variant product "
+       "(user must edit cost from the /edit page instead)")
+def _():
+    from app.models import Product, ProductVariant
+    c = _client_for(_STATE["uid"], _STATE["cid"])
+    r = _create_product(c, name="UNIT-PAGE-B", unit_cost="1")
+    assert r.status_code == 302
+    p = Product.query.filter_by(company_id=_STATE["cid"],
+                                name="UNIT-PAGE-B").one()
+    # Add a second variant via the route so the product has 2 actives.
+    r2 = c.post(
+        f"/products/{p.id}/variants/new",
+        data={"sku": f"UP-B-2", "barcode": "",
+              "name": "أحمر", "unit_cost": "1", "reorder_level": "0"},
+        follow_redirects=False,
+    )
+    assert r2.status_code == 302
+    variants_before = {
+        v.id: float(v.unit_cost)
+        for v in ProductVariant.query.filter_by(
+            product_id=p.id, is_active=True).all()
+    }
+    assert len(variants_before) == 2, \
+        f"expected 2 variants, got {len(variants_before)}"
+    # POST the units page — pack cost should be rejected.
+    r3 = c.post(
+        f"/products/{p.id}/units",
+        data={"unit_name": "كرتونة",
+              "conversion_factor": "10",
+              "sale_price": "",
+              "pack_purchase_price": "50"},
+        follow_redirects=False,
+    )
+    assert r3.status_code == 302
+    variants_after = {
+        v.id: float(v.unit_cost)
+        for v in ProductVariant.query.filter_by(
+            product_id=p.id, is_active=True).all()
+    }
+    assert variants_before == variants_after, \
+        f"variant costs must be unchanged, {variants_before} → {variants_after}"
+    # And no كرتونة unit created either (transaction rolled back).
+    from app.models import ProductUnit
+    assert ProductUnit.query.filter_by(
+        product_id=p.id, unit_name="كرتونة").first() is None
+    return "multi-variant product blocks the cost-derivation cleanly"
 
 
 @check("6. Legacy path — no pack fields, plain unit_cost — keeps "

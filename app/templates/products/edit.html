@@ -120,7 +120,7 @@
           </summary>
           <div class="p-3 border-t border-slate-200">
             <form method="POST" action="{{ url_for('products.variant_edit', product_id=product.id, variant_id=v.id) }}"
-                  class="grid grid-cols-2 gap-2 text-sm">
+                  class="grid grid-cols-2 gap-2 text-sm pack-scope">
               <label class="block">
                 <span class="text-xs text-slate-500">SKU</span>
                 <input type="text" name="sku" required value="{{ v.sku }}" class="input text-sm font-mono">
@@ -133,9 +133,29 @@
                 <span class="text-xs text-slate-500">اسم الـ variant (مثل: أحمر / مقاس M)</span>
                 <input type="text" name="name" value="{{ v.name or '' }}" class="input text-sm">
               </label>
+              {# MARSOUD-PACK-PRICING — same green helper as the create form.
+                 Filling both pack fields live-updates تكلفة الوحدة to
+                 pack_price/pieces. Manual edit of تكلفة الوحدة wins.
+                 Pack fields are NOT posted — they exist only client-side. #}
+              <div class="col-span-2 rounded-lg border border-dashed border-emerald-200 bg-emerald-50/50 p-2 grid grid-cols-3 gap-2">
+                <label class="block">
+                  <span class="text-xs font-semibold text-emerald-800">📦 سعر شراء العلبة</span>
+                  <input type="number" step="0.01" min="0" data-pack-price
+                         class="input text-xs font-mono" placeholder="60">
+                </label>
+                <label class="block">
+                  <span class="text-xs font-semibold text-emerald-800">عدد القطع في العلبة</span>
+                  <input type="number" step="1" min="1" data-pack-pieces
+                         class="input text-xs font-mono" placeholder="24">
+                </label>
+                <div class="text-xs text-emerald-700 flex items-end">
+                  <span data-pack-status>—</span>
+                </div>
+              </div>
               <label class="block">
-                <span class="text-xs text-slate-500">تكلفة الوحدة</span>
-                <input type="number" name="unit_cost" step="0.0001" value="{{ v.unit_cost }}" class="input text-sm font-mono">
+                <span class="text-xs text-slate-500">تكلفة الوحدة (لكل قطعة)</span>
+                <input type="number" name="unit_cost" step="0.0001" value="{{ v.unit_cost }}"
+                       data-unit-cost class="input text-sm font-mono">
               </label>
               <label class="block">
                 <span class="text-xs text-slate-500">حد إعادة الطلب</span>
@@ -163,7 +183,7 @@
     <div class="card p-5">
       <h3 class="font-bold text-navy-900 mb-3">+ إضافة variant جديد</h3>
       <form method="POST" action="{{ url_for('products.variant_new', product_id=product.id) }}"
-            class="grid grid-cols-2 gap-3 text-sm">
+            class="grid grid-cols-2 gap-3 text-sm pack-scope">
         <label class="block">
           <span class="text-xs font-semibold text-slate-700">SKU (مطلوب)</span>
           <input type="text" name="sku" required class="input text-sm font-mono"
@@ -177,9 +197,26 @@
           <span class="text-xs font-semibold text-slate-700">اسم الـ variant</span>
           <input type="text" name="name" class="input text-sm" placeholder="أحمر / مقاس M">
         </label>
+        {# MARSOUD-PACK-PRICING — same helper as the edit form + create form. #}
+        <div class="col-span-2 rounded-lg border border-dashed border-emerald-200 bg-emerald-50/50 p-2 grid grid-cols-3 gap-2">
+          <label class="block">
+            <span class="text-xs font-semibold text-emerald-800">📦 سعر شراء العلبة</span>
+            <input type="number" step="0.01" min="0" data-pack-price
+                   class="input text-xs font-mono" placeholder="60">
+          </label>
+          <label class="block">
+            <span class="text-xs font-semibold text-emerald-800">عدد القطع في العلبة</span>
+            <input type="number" step="1" min="1" data-pack-pieces
+                   class="input text-xs font-mono" placeholder="24">
+          </label>
+          <div class="text-xs text-emerald-700 flex items-end">
+            <span data-pack-status>—</span>
+          </div>
+        </div>
         <label class="block">
-          <span class="text-xs font-semibold text-slate-700">تكلفة الوحدة</span>
-          <input type="number" name="unit_cost" step="0.0001" value="0" class="input text-sm font-mono">
+          <span class="text-xs font-semibold text-slate-700">تكلفة الوحدة (لكل قطعة)</span>
+          <input type="number" name="unit_cost" step="0.0001" value="0"
+                 data-unit-cost class="input text-sm font-mono">
         </label>
         <label class="block">
           <span class="text-xs font-semibold text-slate-700">حد إعادة الطلب</span>
@@ -190,6 +227,42 @@
         </div>
       </form>
     </div>
+
+    {# MARSOUD-PACK-PRICING — one script wires every .pack-scope form. #}
+    <script>
+    (function() {
+      document.querySelectorAll('form.pack-scope').forEach(function(form) {
+        var priceEl  = form.querySelector('[data-pack-price]');
+        var piecesEl = form.querySelector('[data-pack-pieces]');
+        var costEl   = form.querySelector('[data-unit-cost]');
+        var status   = form.querySelector('[data-pack-status]');
+        if (!priceEl || !piecesEl || !costEl) return;
+        // Manual edit of unit_cost stops the derivation from overwriting.
+        var userTouched = false;
+        costEl.addEventListener('input', function() { userTouched = true; });
+        function recompute() {
+          var p = parseFloat(priceEl.value);
+          var n = parseFloat(piecesEl.value);
+          if (!(p > 0) || !(n > 0)) {
+            if (status) status.textContent = '—';
+            return;
+          }
+          var per = p / n;
+          if (status) {
+            status.textContent = '= ' +
+              (Math.round(per * 10000) / 10000)
+              .toString() + ' / قطعة';
+          }
+          if (!userTouched) {
+            costEl.value = String(Math.round(per * 10000) / 10000);
+          }
+        }
+        priceEl.addEventListener('input', recompute);
+        piecesEl.addEventListener('input', recompute);
+      });
+    })();
+    </script>
+
     {% else %}
     <div class="card p-6 bg-slate-50">
       <div class="text-center text-sm text-slate-500">

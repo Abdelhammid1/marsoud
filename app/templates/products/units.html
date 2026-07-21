@@ -33,7 +33,7 @@
     </thead>
     <tbody>
     {% for u in units %}
-      <tr>
+      <tr {% if not u.is_base %}data-nonbase data-factor="{{ '%g'|format(u.conversion_factor|float) }}"{% endif %}>
         {% if u.is_base %}
         {# MARSOUD-UOM-PRICE — base unit is still name+factor-locked
            but its sale_price IS editable (and mirrors default_price
@@ -95,21 +95,45 @@
 
 <div class="card p-6">
   <h3 class="font-bold text-navy-900 mb-3">+ وحدة جديدة</h3>
-  <form method="POST" action="{{ url_for('products.units', product_id=product.id) }}" class="grid grid-cols-1 md:grid-cols-4 gap-3">
+  <form method="POST" action="{{ url_for('products.units', product_id=product.id) }}"
+        class="grid grid-cols-1 md:grid-cols-4 gap-3" id="add-unit-form">
     <div>
       <label class="block text-xs font-semibold mb-1">اسم الوحدة</label>
       <input type="text" name="unit_name" placeholder="كرتونة" required class="input">
     </div>
     <div>
       <label class="block text-xs font-semibold mb-1">معامل التحويل (لكل {{ product.base_unit.unit_name if product.base_unit else 'وحدة أساس' }})</label>
-      <input type="number" name="conversion_factor" step="0.0001" min="0.0001" placeholder="30" required class="input font-mono">
+      <input type="number" name="conversion_factor" id="add-factor" step="0.0001" min="0.0001" placeholder="30" required class="input font-mono">
     </div>
     <div>
       <label class="block text-xs font-semibold mb-1">سعر البيع (اختياري)</label>
-      <input type="number" name="sale_price" step="0.0001" min="0" placeholder="مثلاً 100" class="input font-mono">
+      <input type="number" name="sale_price" id="add-sale-price" step="0.0001" min="0" placeholder="مثلاً 100" class="input font-mono">
+      {# MARSOUD-PACK-PRICING gap 4 — live per-piece hint for the sale price. #}
+      <p class="text-xs text-slate-400 mt-1" id="add-sale-hint">&nbsp;</p>
     </div>
     <div class="flex items-end">
       <button type="submit" class="btn-primary">إضافة</button>
+    </div>
+    {# MARSOUD-PACK-PRICING gap 3 — optional pack purchase cost. When
+       filled, the route writes it to the variant's unit_cost — provided
+       the product has exactly one active variant. Multi-variant
+       products should update cost from the /products/<id>/edit page. #}
+    <div class="md:col-span-4 rounded-lg border border-dashed border-emerald-200 bg-emerald-50/50 p-3">
+      <div class="flex items-center justify-between gap-3 mb-2">
+        <span class="text-xs font-bold text-emerald-800">📦 اختياري — تحديث تكلفة الشراء من سعر العلبة</span>
+        <span class="text-xs text-emerald-700" id="add-pack-cost-hint">&nbsp;</span>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <label class="block">
+          <span class="text-xs font-semibold text-slate-700">سعر شراء العلبة (اختياري)</span>
+          <input type="number" name="pack_purchase_price" id="add-pack-cost"
+                 step="0.01" min="0" class="input font-mono text-sm"
+                 placeholder="مثلاً 60">
+        </label>
+        <div class="text-xs text-slate-500 flex items-end">
+          لو ملّيت هذا الحقل، تكلفة الشراء لكل قطعة تتحدّث تلقائي على الـ variant الوحيد للمنتج.
+        </div>
+      </div>
     </div>
   </form>
   <p class="text-xs text-slate-400 mt-3">
@@ -117,4 +141,71 @@
     السعر ممكن يتعدل في أي وقت.
   </p>
 </div>
+
+{# MARSOUD-PACK-PRICING gap 4 — inject per-piece hints under every
+   sale-price cell on this page. Non-base rows only; base is factor=1
+   so a per-piece hint is redundant. #}
+<script>
+(function() {
+  var baseName = {{ (product.base_unit.unit_name if product.base_unit else 'قطعة')|tojson }};
+  // Add-form: live per-piece hint under sale_price + pack-cost hint.
+  var addFactor = document.getElementById('add-factor');
+  var addSale   = document.getElementById('add-sale-price');
+  var addSaleHint = document.getElementById('add-sale-hint');
+  var addPackCost = document.getElementById('add-pack-cost');
+  var addPackCostHint = document.getElementById('add-pack-cost-hint');
+  function fmt(x) {
+    return String(Math.round(x * 10000) / 10000);
+  }
+  function refreshAddSaleHint() {
+    var f = parseFloat(addFactor.value);
+    var s = parseFloat(addSale.value);
+    if (f > 0 && s > 0) {
+      addSaleHint.innerHTML = '= <b>' + fmt(s / f)
+        + '</b> لكل ' + baseName;
+    } else {
+      addSaleHint.innerHTML = '&nbsp;';
+    }
+  }
+  function refreshAddPackCostHint() {
+    var f = parseFloat(addFactor.value);
+    var p = parseFloat(addPackCost.value);
+    if (f > 0 && p > 0) {
+      addPackCostHint.innerHTML = '= تكلفة القطعة <b>'
+        + fmt(p / f) + '</b>';
+    } else {
+      addPackCostHint.innerHTML = '&nbsp;';
+    }
+  }
+  [addFactor, addSale].forEach(function(el) {
+    if (el) el.addEventListener('input', refreshAddSaleHint);
+  });
+  [addFactor, addPackCost].forEach(function(el) {
+    if (el) el.addEventListener('input', refreshAddPackCostHint);
+  });
+
+  // Existing non-base rows: inject a per-piece hint span under each
+  // sale_price input. Look them up by data-factor.
+  document.querySelectorAll('tr[data-nonbase]').forEach(function(row) {
+    var f = parseFloat(row.getAttribute('data-factor'));
+    var saleInput = row.querySelector('input[name="sale_price"]');
+    if (!saleInput || !(f > 0)) return;
+    var hint = document.createElement('div');
+    hint.className = 'text-xs text-slate-400 mt-1';
+    hint.style.direction = 'ltr';
+    hint.style.textAlign = 'right';
+    saleInput.parentNode.appendChild(hint);
+    function refresh() {
+      var s = parseFloat(saleInput.value);
+      if (s > 0) {
+        hint.innerHTML = '= <b>' + fmt(s / f) + '</b> / ' + baseName;
+      } else {
+        hint.innerHTML = '&nbsp;';
+      }
+    }
+    saleInput.addEventListener('input', refresh);
+    refresh();
+  });
+})();
+</script>
 {% endblock %}
