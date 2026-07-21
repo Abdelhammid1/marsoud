@@ -255,51 +255,62 @@ def order_new():
             tax_rate=tax_rate,
         )
         flash(f"تم تسجيل الأوردر {invoice.number}", "success")
-        return redirect(url_for("pos.receipt", invoice_id=invoice.id))
+        return redirect(url_for("pos.receipt", number=invoice.number))
     except (POSError, LedgerError, ValueError, TypeError, KeyError) as e:
         db.session.rollback()
         flash(str(e), "error")
         return redirect(url_for("pos.index"))
 
 
+# MARSOUD-POS-URL-OPACITY (Abdelhamid 2026-07-19) — receipt / detail /
+# void routes now key on the per-company Invoice.number (e.g. POS-0001)
+# instead of the global auto-increment id. Two goals:
+#   1. Customer sees /pos/orders/POS-0001/receipt in the address bar,
+#      not /pos/orders/81/receipt. The old id leaked the system-wide
+#      count of POS orders across every tenant on the install.
+#   2. Number is scoped per-company + already used on receipts, so we
+#      pick it up "for free" instead of adding a new column.
+# `<path:number>` because our numbering format contains a hyphen and
+# Flask's default int/string converters would either reject it or
+# match too greedily. `path` accepts everything up to the next slash.
 # ─── Receipt (print) ─────────────────────────────────────────────────────
-@bp.route("/orders/<int:invoice_id>/receipt")
+@bp.route("/orders/<path:number>/receipt")
 @login_required
 @require_permission("pos.use")
-def receipt(invoice_id):
+def receipt(number):
     cid = g.active_company.id
-    inv = _order_or_404(invoice_id, cid)
+    inv = _order_or_404(number, cid)
     return render_template("pos/receipt.html", invoice=inv,
                            company=g.active_company)
 
 
 # ─── Detail ──────────────────────────────────────────────────────────────
-@bp.route("/orders/<int:invoice_id>")
+@bp.route("/orders/<path:number>")
 @login_required
 @require_permission("pos.use")
-def detail(invoice_id):
+def detail(number):
     cid = g.active_company.id
-    inv = _order_or_404(invoice_id, cid)
+    inv = _order_or_404(number, cid)
     return render_template("pos/detail.html", invoice=inv,
                            can_void=has_permission("pos.void")
                                      and not inv.is_voided)
 
 
 # ─── Void ────────────────────────────────────────────────────────────────
-@bp.route("/orders/<int:invoice_id>/void", methods=["POST"])
+@bp.route("/orders/<path:number>/void", methods=["POST"])
 @login_required
 @require_permission("pos.void")
-def void(invoice_id):
+def void(number):
     cid = g.active_company.id
-    inv = _order_or_404(invoice_id, cid)
+    inv = _order_or_404(number, cid)
     reason = (request.form.get("reason") or "").strip()
     try:
         void_pos_order(inv, reason=reason, actor_id=current_user.id)
         flash("تم إلغاء الأوردر وإرجاع المخزون", "success")
-        return redirect(url_for("pos.detail", invoice_id=inv.id))
+        return redirect(url_for("pos.detail", number=inv.number))
     except POSError as e:
         flash(str(e), "error")
-        return redirect(url_for("pos.detail", invoice_id=inv.id))
+        return redirect(url_for("pos.detail", number=inv.number))
 
 
 # ─── History (cashier's own orders) ──────────────────────────────────────
@@ -319,8 +330,26 @@ def history():
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────
-def _order_or_404(invoice_id, company_id):
-    inv = db.session.get(Invoice, invoice_id)
-    if not inv or inv.company_id != company_id or inv.source != "POS":
+def _order_or_404(number_or_id, company_id):
+    """Look up a POS invoice by its per-company number (POS-0001) OR
+    by its numeric id — the latter kept for backward-compat with any
+    external bookmark / integration that still uses the id.
+    Always company-scoped."""
+    inv = Invoice.query.filter_by(
+        company_id=company_id, number=str(number_or_id), source="POS",
+    ).first()
+    if not inv:
+        # Fallback: legacy numeric-id URL. Still company-scoped so we
+        # never leak another tenant's invoice.
+        try:
+            _id = int(number_or_id)
+        except (TypeError, ValueError):
+            _id = None
+        if _id is not None:
+            inv = db.session.get(Invoice, _id)
+            if inv and (inv.company_id != company_id
+                        or inv.source != "POS"):
+                inv = None
+    if not inv:
         abort(404)
     return inv

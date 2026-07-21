@@ -113,11 +113,62 @@
         <input type="number" name="cash_received" step="0.01" id="cash-received" class="input text-sm" placeholder="اختياري">
         <div class="text-xs text-emerald-700 mt-1">الباقي: <span id="change-due" class="font-mono">0.00</span></div>
       </div>
-      <button type="submit" id="pay-btn"
+      {# MARSOUD-POS-CONFIRM-BEFORE-PAY (Abdelhamid 2026-07-19) —
+         customer complaint: an accidental click on a category product
+         added a phantom line ("منتج خام 1", 0.50) that the cashier
+         didn't notice, and the customer was charged 2.50 instead of
+         the 2.00 they were quoted. The old pay button submitted
+         immediately with zero confirmation. Now the pay button opens
+         a modal that lists every line + the grand total so the
+         cashier explicitly confirms before the ledger is touched.
+         Cancel returns to the cart; only the "confirm" button
+         actually submits. #}
+      <button type="button" id="pay-btn" onclick="openConfirmModal()"
               class="btn-primary mt-auto text-lg py-3" disabled>
         💳 دفع
       </button>
     </form>
+  </div>
+</div>
+
+{# ─── Confirmation modal ──────────────────────────────────────── #}
+<div id="confirm-modal" style="display:none"
+     class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-lg shadow-2xl max-w-md w-full">
+    <div class="p-5 border-b border-slate-100">
+      <h3 class="font-bold text-lg text-navy-900">🧾 تأكيد الطلب</h3>
+      <p class="text-xs text-slate-500 mt-1">
+        راجع البنود قبل تأكيد الدفع — الفاتورة والقيود المحاسبية تُقيَّد
+        بعد التأكيد مباشرة ولا يمكن تعديلها إلا بإلغاء الأوردر.
+      </p>
+    </div>
+    <div class="p-5 max-h-72 overflow-y-auto">
+      <div id="confirm-items" class="space-y-1 text-sm mb-3"></div>
+      <div class="border-t border-slate-100 pt-3 space-y-1 text-sm">
+        <div class="flex justify-between text-slate-500">
+          <span>عدد البنود:</span>
+          <span id="confirm-count" class="font-mono"></span>
+        </div>
+        <div class="flex justify-between text-slate-500">
+          <span>قبل الضريبة:</span>
+          <span id="confirm-sub" class="font-mono"></span>
+        </div>
+        <div class="flex justify-between text-slate-500">
+          <span>الضريبة:</span>
+          <span id="confirm-tax" class="font-mono"></span>
+        </div>
+        <div class="flex justify-between text-lg font-bold text-navy-900 pt-1 border-t border-slate-100">
+          <span>الإجمالي المطلوب:</span>
+          <span id="confirm-total" class="font-mono"></span>
+        </div>
+      </div>
+    </div>
+    <div class="p-4 bg-slate-50 rounded-b-lg flex gap-2 justify-end">
+      <button type="button" onclick="closeConfirmModal()"
+              class="btn-secondary">✗ إلغاء ورجوع للكارت</button>
+      <button type="button" onclick="submitOrder()"
+              class="btn-primary">✓ تأكيد الدفع</button>
+    </div>
   </div>
 </div>
 
@@ -274,6 +325,46 @@ document.getElementById('cash-received').addEventListener('input', recalc);
 document.getElementById('tax-rate-input').addEventListener('input', (e) => {
   taxRate = parseFloat(e.target.value) || 0;
   recalc();
+});
+
+// MARSOUD-POS-CONFIRM-BEFORE-PAY — modal open/close + submit.
+function openConfirmModal() {
+  if (cart.length === 0) return;
+  // Recompute the totals for the modal so it never lags the cart.
+  let sub = 0;
+  for (const r of cart) sub += (parseFloat(r.qty) || 0) * (parseFloat(r.unit_price) || 0);
+  const tax = sub * (taxRate / 100);
+  const total = sub + tax;
+  document.getElementById('confirm-items').innerHTML = cart.map(r => {
+    const line = (parseFloat(r.qty) || 0) * (parseFloat(r.unit_price) || 0);
+    return `<div class="flex justify-between border-b border-slate-100 py-1">
+      <span>${escapeHtml(r.name)} <span class="text-slate-400 text-xs">× ${r.qty}</span></span>
+      <span class="font-mono">${line.toFixed(2)}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('confirm-count').textContent = cart.length;
+  document.getElementById('confirm-sub').textContent = sub.toFixed(2);
+  document.getElementById('confirm-tax').textContent = tax.toFixed(2);
+  document.getElementById('confirm-total').textContent = total.toFixed(2);
+  document.getElementById('confirm-modal').style.display = 'flex';
+}
+function closeConfirmModal() {
+  document.getElementById('confirm-modal').style.display = 'none';
+}
+function submitOrder() {
+  // Guard against a double-click during the network round-trip.
+  const okBtn = document.querySelector('#confirm-modal .btn-primary');
+  if (okBtn.dataset._submitting === '1') return;
+  okBtn.dataset._submitting = '1';
+  okBtn.textContent = 'جاري التأكيد...';
+  document.getElementById('pos-form').submit();
+}
+// Escape key closes the modal without submitting.
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape'
+      && document.getElementById('confirm-modal').style.display === 'flex') {
+    closeConfirmModal();
+  }
 });
 
 renderCart();

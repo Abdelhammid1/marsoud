@@ -43,9 +43,9 @@
           {% else %}<span class="badge badge-paid">مدفوع</span>{% endif %}
         </td>
         <td class="text-xs">
-          <a href="{{ url_for('pos.detail', invoice_id=o.id) }}" class="text-emerald-600 hover:underline">تفاصيل</a>
+          <a href="{{ url_for('pos.detail', number=o.number) }}" class="text-emerald-600 hover:underline">تفاصيل</a>
           ·
-          <a href="{{ url_for('pos.receipt', invoice_id=o.id) }}" target="_blank" class="text-emerald-600 hover:underline">إيصال</a>
+          <a href="{{ url_for('pos.receipt', number=o.number) }}" target="_blank" class="text-emerald-600 hover:underline">إيصال</a>
         </td>
       </tr>
       {% endfor %}

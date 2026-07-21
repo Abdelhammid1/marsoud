@@ -98,7 +98,7 @@
 <div class="footer-bar">
   <button onclick="window.print()">🖨 طباعة</button>
   <a href="{{ url_for('pos.index') }}">← أوردر جديد</a>
-  <a href="{{ url_for('pos.detail', invoice_id=invoice.id) }}">تفاصيل</a>
+  <a href="{{ url_for('pos.detail', number=invoice.number) }}">تفاصيل</a>
 </div>
 
 </body>

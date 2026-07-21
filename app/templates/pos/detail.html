@@ -15,7 +15,7 @@
       <div class="flex items-center gap-2 flex-wrap">
         {% if invoice.is_voided %}<span class="badge badge-cancelled">ملغى</span>
         {% else %}<span class="badge badge-paid">مدفوع</span>{% endif %}
-        <a href="{{ url_for('pos.receipt', invoice_id=invoice.id) }}" target="_blank" class="btn-secondary text-sm">🧾 إيصال</a>
+        <a href="{{ url_for('pos.receipt', number=invoice.number) }}" target="_blank" class="btn-secondary text-sm">🧾 إيصال</a>
       </div>
     </div>
 
@@ -64,7 +64,7 @@
     <p class="text-xs text-slate-500 mb-3">
       الإلغاء يعكس المخزون + يعكس القيود + يسجّل اسمك وسبب الإلغاء.
     </p>
-    <form method="POST" action="{{ url_for('pos.void', invoice_id=invoice.id) }}"
+    <form method="POST" action="{{ url_for('pos.void', number=invoice.number) }}"
           onsubmit="return confirm('تأكيد إلغاء الأوردر؟ لا يمكن التراجع.');">
       <textarea name="reason" rows="3" required minlength="3" placeholder="سبب الإلغاء (مطلوب)…" class="textarea text-sm mb-2"></textarea>
       <button type="submit" class="btn-primary w-full" style="background:#dc2626;">إلغاء الأوردر</button>
