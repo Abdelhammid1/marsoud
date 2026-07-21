@@ -11,7 +11,18 @@ class Config:
     # MARSOUD-SAAS-SUBDOMAIN — share the session cookie across all
     # *.marsoud.com subdomains so switching companies (tenant subdomains)
     # doesn't force a re-login.
-    SESSION_COOKIE_DOMAIN = os.environ.get("SESSION_COOKIE_DOMAIN", ".marsoud.com")
+    #
+    # MARSOUD-SESSION-COOKIE-DEV-FIX (Ibrahim 2026-07-18) — default is
+    # None so localhost + test_client work out-of-the-box. Every audit
+    # + Playwright suite was breaking with 302 → /login because a
+    # cookie scoped to `.marsoud.com` isn't attached to `localhost`
+    # requests. Production MUST override this in .env:
+    #
+    #     SESSION_COOKIE_DOMAIN=.marsoud.com
+    #
+    # Without that override in production, subdomain login isolation
+    # would break (each subdomain would look like a separate session).
+    SESSION_COOKIE_DOMAIN = os.environ.get("SESSION_COOKIE_DOMAIN") or None
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL", f"sqlite:///{basedir / 'instance' / 'ledgeros.db'}"
     )

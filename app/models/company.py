@@ -173,3 +173,27 @@ class Company(db.Model):
 
     def __repr__(self):
         return f"<Company {self.name}>"
+
+
+# MARSOUD-SAAS-SUBDOMAIN-DEFAULT (Ibrahim 2026-07-18) — the NOT NULL
+# constraint from migration d5133e40815c breaks every fixture that
+# creates a Company without an explicit subdomain (57 audit scripts,
+# any future test, seed_defaults, etc). Rather than churn every call
+# site, this hook auto-generates a valid subdomain right before the
+# INSERT fires — but only when the caller didn't set one.
+#
+# The signup path in app/routes/auth.py sets `subdomain` explicitly
+# so this listener is a no-op there. Production flows are unchanged;
+# the generated form is only for fixture / bulk-seed cases where the
+# tenant identity truly doesn't matter.
+import uuid as _uuid
+from sqlalchemy import event as _sa_event
+
+
+@_sa_event.listens_for(Company, "before_insert")
+def _fill_default_subdomain(mapper, connection, target):
+    if target.subdomain:
+        return
+    # 11 chars, always lowercase alphanumeric — always passes
+    # is_valid_subdomain() and can't collide with the reserved list.
+    target.subdomain = "co-" + _uuid.uuid4().hex[:8]
