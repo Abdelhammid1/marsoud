@@ -39,6 +39,21 @@
       </p>
     </div>
 
+    {# MARSOUD-TRIAL-DAYS-SETTING (Abdelhamid 2026-07-22) — trial
+       length is now admin-tunable instead of a hardcoded constant. #}
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">
+        🎁 مدة الفترة التجريبية للحسابات الجديدة (أيام)
+      </label>
+      <input type="number" name="trial_days" min="1" max="365"
+             value="{{ trial_days }}" class="input font-mono w-32">
+      <p class="text-xs text-slate-500 mt-1">
+        كل شركة جديدة بتدخل النظام تاخد الفترة دي مجاناً بجميع
+        المميزات. بعدها بتتحكم فيها قيود الباقة المختارة.
+        افتراضي: <span class="font-mono">{{ default_trial_days }}</span> يوم.
+      </p>
+    </div>
+
     {# ─── Read-only enforcement toggle ─────────────────────────── #}
     <div>
       <label class="flex items-start gap-3 cursor-pointer">

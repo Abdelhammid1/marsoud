@@ -16,16 +16,37 @@ from datetime import datetime, timedelta, date
 from app import db
 
 
-# Default subscription window for new companies — abdelhamid asked for
-# one month from the activation date instead of the 100 years the
-# original migration used by mistake.
-DEFAULT_SUBSCRIPTION_DAYS = 30
+# MARSOUD-TRIAL-DAYS-SETTING (Abdelhamid 2026-07-22) — the trial length
+# used to be hardcoded at 30 days. It's now stored under the
+# `subscription_trial_days` key in `platform_settings` and editable from
+# /admin/subscription-settings. This constant is the fallback used only
+# when the key is missing (first boot, before the admin visits the page).
+DEFAULT_SUBSCRIPTION_DAYS = 14
 
 # Defaults for the platform-level settings. Used when the key isn't set
 # in the platform_settings table.
 DEFAULT_REMINDER_THRESHOLDS = [7, 5, 3, 1, 0]
 DEFAULT_GRACE_DAYS = 7
 DEFAULT_READONLY_ENABLED = True
+
+
+def get_trial_days():
+    """MARSOUD-TRIAL-DAYS-SETTING — trial window for new companies.
+    Reads `subscription_trial_days` from platform_settings, falling
+    back to DEFAULT_SUBSCRIPTION_DAYS when unset or invalid."""
+    raw = _get_setting_raw("subscription_trial_days")
+    if raw and raw.strip().isdigit():
+        n = int(raw)
+        if 1 <= n <= 365:
+            return n
+    return DEFAULT_SUBSCRIPTION_DAYS
+
+
+def set_trial_days(n):
+    """Persist the trial window. Callers should already have validated
+    the int + range; we clamp defensively."""
+    n = max(1, min(365, int(n)))
+    _set_setting_raw("subscription_trial_days", str(n))
 
 
 def activate_default_subscription(company, *, plan_code="enterprise"):
@@ -37,7 +58,9 @@ def activate_default_subscription(company, *, plan_code="enterprise"):
     if not company.subscription_started_at:
         company.subscription_started_at = now
     if not company.subscription_expires_at:
-        company.subscription_expires_at = now + timedelta(days=DEFAULT_SUBSCRIPTION_DAYS)
+        # MARSOUD-TRIAL-DAYS-SETTING — pull the trial length from
+        # platform_settings so admins can tune it without a redeploy.
+        company.subscription_expires_at = now + timedelta(days=get_trial_days())
     if not company.plan_id and plan_code:
         plan = Plan.query.filter_by(code=plan_code).first()
         if plan:

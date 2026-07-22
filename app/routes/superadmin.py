@@ -722,8 +722,9 @@ def subscription_settings():
         get_reminder_thresholds, set_reminder_thresholds,
         get_grace_days, set_grace_days,
         get_readonly_enabled, set_readonly_enabled,
+        get_trial_days, set_trial_days,
         DEFAULT_REMINDER_THRESHOLDS, DEFAULT_GRACE_DAYS,
-        DEFAULT_READONLY_ENABLED,
+        DEFAULT_READONLY_ENABLED, DEFAULT_SUBSCRIPTION_DAYS,
     )
     if request.method == "POST":
         raw = request.form.get("reminder_thresholds", "")
@@ -742,10 +743,18 @@ def subscription_settings():
 
         set_readonly_enabled(request.form.get("readonly_enabled") == "on")
 
+        # MARSOUD-TRIAL-DAYS-SETTING — accept the trial length. Silently
+        # ignored if the field is missing or out of range so older POSTs
+        # (missing the field) don't blow away a previously-saved value.
+        trial_raw = request.form.get("trial_days", "").strip()
+        if trial_raw.isdigit() and 1 <= int(trial_raw) <= 365:
+            set_trial_days(int(trial_raw))
+
         db.session.commit()
         log_platform_action("subscription_settings_update",
                             actor_id=current_user.id,
-                            details=f"thresholds={nums}, grace={grace}")
+                            details=(f"thresholds={nums}, grace={grace}, "
+                                     f"trial_days={trial_raw or '—'}"))
         flash("تم حفظ إعدادات الاشتراك", "success")
         return redirect(url_for("superadmin.subscription_settings"))
 
@@ -754,7 +763,9 @@ def subscription_settings():
         thresholds=get_reminder_thresholds(),
         grace_days=get_grace_days(),
         readonly_enabled=get_readonly_enabled(),
+        trial_days=get_trial_days(),
         default_thresholds=DEFAULT_REMINDER_THRESHOLDS,
         default_grace=DEFAULT_GRACE_DAYS,
         default_readonly=DEFAULT_READONLY_ENABLED,
+        default_trial_days=DEFAULT_SUBSCRIPTION_DAYS,
     )
