@@ -55,6 +55,8 @@ class NotificationKind(str, enum.Enum):
     EMPLOYEE_REPORT_SUBMITTED = "EMPLOYEE_REPORT_SUBMITTED"
     # MARSOUD-MENTIONS — user @-mentioned inside a comment
     MENTION = "MENTION"
+    # MARSOUD-CUSTOMER-BROADCAST-CENTER (Abdelhamid 2026-07-22)
+    BROADCAST = "BROADCAST"
 
 
 class Notification(db.Model):

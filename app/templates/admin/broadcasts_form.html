@@ -1,0 +1,60 @@
+{% extends "admin/base.html" %}
+{% block page_title %}رسالة جماعية جديدة{% endblock %}
+{% block content %}
+
+<div class="card p-6 max-w-2xl">
+  <h2 class="font-bold text-navy-900 mb-5">📣 رسالة جديدة</h2>
+  <form method="POST" class="space-y-4">
+    <div>
+      <label class="block text-sm font-semibold mb-1">العنوان</label>
+      <input type="text" name="title" required class="input" placeholder="صيانة الليلة">
+    </div>
+    <div>
+      <label class="block text-sm font-semibold mb-1">المحتوى (HTML)</label>
+      <textarea name="body_html" rows="8" required class="textarea"
+                placeholder="<p>مرحباً...</p>"></textarea>
+    </div>
+    <div>
+      <label class="block text-sm font-semibold mb-2">الجمهور</label>
+      <select name="audience_kind" class="select" id="audience-kind">
+        <option value="all">جميع العملاء</option>
+        <option value="trial">العملاء في فترة التجربة</option>
+        <option value="active">العملاء ذوو الاشتراك النشط</option>
+        <option value="expired">العملاء ذوو الاشتراك المنتهي</option>
+        <option value="by_plan">حسب الباقة</option>
+      </select>
+      <div id="plan-picker" class="mt-2" style="display:none">
+        <label class="block text-xs font-semibold mb-1">الباقة</label>
+        <select name="plan_id" class="select text-sm">
+          {% for p in plans %}
+          <option value="{{ p.id }}">{{ p.name_ar or p.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm font-semibold mb-2">قنوات الإرسال</label>
+      <div class="flex gap-4">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" name="channels" value="INAPP" checked>
+          <span>إشعار داخل النظام</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" name="channels" value="EMAIL">
+          <span>بريد إلكتروني</span>
+        </label>
+      </div>
+    </div>
+    <div class="flex justify-between items-center pt-2">
+      <a href="{{ url_for('superadmin.broadcasts_index') }}" class="btn-secondary text-sm">إلغاء</a>
+      <button type="submit" class="btn-primary">💾 حفظ المسودة</button>
+    </div>
+  </form>
+</div>
+<script>
+document.getElementById('audience-kind').addEventListener('change', function() {
+  document.getElementById('plan-picker').style.display =
+    (this.value === 'by_plan') ? 'block' : 'none';
+});
+</script>
+{% endblock %}

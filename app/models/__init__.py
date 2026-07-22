@@ -12,6 +12,12 @@ from app.models.coupon import (
     Coupon, CouponRedemption,
     DISCOUNT_PERCENT, DISCOUNT_FIXED,
 )
+# MARSOUD-CUSTOMER-BROADCAST-CENTER (Abdelhamid 2026-07-22).
+from app.models.broadcast import (
+    Broadcast,
+    AUDIENCE_ALL, AUDIENCE_TRIAL, AUDIENCE_ACTIVE, AUDIENCE_EXPIRED,
+    AUDIENCE_BY_PLAN,
+)
 from app.models.platform_setting import PlatformSetting
 from app.models.recurring_bill import (
     RecurringBill, RecurringBillOverride,
@@ -129,6 +135,9 @@ __all__ = [
     "ConsentEvent", "FeatureFlag",
     "Coupon", "CouponRedemption",
     "DISCOUNT_PERCENT", "DISCOUNT_FIXED",
+    "Broadcast",
+    "AUDIENCE_ALL", "AUDIENCE_TRIAL", "AUDIENCE_ACTIVE",
+    "AUDIENCE_EXPIRED", "AUDIENCE_BY_PLAN",
     "RecurringBill", "RecurringBillOverride",
     "INTERVAL_UNITS", "OVERRIDE_ACTIONS",
     "SalesCommission", "COMMISSION_STATUSES",

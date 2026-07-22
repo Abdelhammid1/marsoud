@@ -759,6 +759,79 @@ def subscriptions_renew(company_id):
 
 # ─── TICKET 1: subscription settings (platform-level) ────────────────────
 
+# MARSOUD-CUSTOMER-BROADCAST-CENTER (Abdelhamid 2026-07-22) — compose,
+# preview count, send.
+@bp.route("/broadcasts")
+@login_required
+@superadmin_required
+def broadcasts_index():
+    from app.models import Broadcast
+    rows = Broadcast.query.order_by(Broadcast.created_at.desc()).all()
+    return render_template("admin/broadcasts_index.html", rows=rows)
+
+
+@bp.route("/broadcasts/new", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def broadcasts_new():
+    from app.models import (
+        Broadcast, Plan,
+        AUDIENCE_ALL, AUDIENCE_TRIAL, AUDIENCE_ACTIVE,
+        AUDIENCE_EXPIRED, AUDIENCE_BY_PLAN,
+    )
+    from app.services.broadcasts import preview_count
+    if request.method == "POST":
+        title = (request.form.get("title") or "").strip()
+        body_html = (request.form.get("body_html") or "").strip()
+        if not title or not body_html:
+            flash("العنوان والمحتوى مطلوبان.", "error")
+            return redirect(url_for("superadmin.broadcasts_new"))
+        kind = request.form.get("audience_kind", AUDIENCE_ALL)
+        filter_dict = {"kind": kind}
+        if kind == AUDIENCE_BY_PLAN:
+            filter_dict["plan_id"] = int(
+                request.form.get("plan_id") or 0)
+        channels = request.form.getlist("channels") or ["INAPP"]
+        b = Broadcast(title=title, body_html=body_html,
+                      sent_by_id=current_user.id)
+        b.set_audience(filter_dict)
+        b.set_channels(channels)
+        db.session.add(b); db.session.commit()
+        flash(f"تم إنشاء الرسالة. الجمهور: {preview_count(filter_dict)} مستخدم",
+              "success")
+        return redirect(url_for("superadmin.broadcasts_index"))
+    plans = Plan.query.filter_by(is_active=True).all()
+    return render_template("admin/broadcasts_form.html", plans=plans)
+
+
+@bp.route("/broadcasts/<int:broadcast_id>/preview")
+@login_required
+@superadmin_required
+def broadcasts_preview(broadcast_id):
+    from app.models import Broadcast
+    from app.services.broadcasts import preview_count
+    from flask import jsonify
+    b = db.session.get(Broadcast, broadcast_id) or _404()
+    return jsonify({"count": preview_count(b.audience)})
+
+
+@bp.route("/broadcasts/<int:broadcast_id>/send", methods=["POST"])
+@login_required
+@superadmin_required
+def broadcasts_send(broadcast_id):
+    from app.models import Broadcast
+    from app.services.broadcasts import send, BroadcastError
+    b = db.session.get(Broadcast, broadcast_id) or _404()
+    try:
+        sent, failed = send(b)
+        flash(f"تم الإرسال لـ {sent} مستخدم"
+              + (f" (فشل {failed})" if failed else ""),
+              "success")
+    except BroadcastError as e:
+        flash(str(e), "error")
+    return redirect(url_for("superadmin.broadcasts_index"))
+
+
 # MARSOUD-DISCOUNT-COUPONS (Abdelhamid 2026-07-22) — CRUD + stats.
 @bp.route("/coupons")
 @login_required

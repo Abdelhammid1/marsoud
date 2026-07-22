@@ -1,0 +1,65 @@
+{% extends "admin/base.html" %}
+{% block page_title %}البث للعملاء{% endblock %}
+{% block content %}
+
+<div class="card p-6 max-w-5xl">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="font-bold text-navy-900">📣 مركز البث للعملاء</h2>
+    <a href="{{ url_for('superadmin.broadcasts_new') }}" class="btn-primary text-sm">
+      + رسالة جديدة
+    </a>
+  </div>
+
+  <table class="data-table w-full text-sm">
+    <thead>
+      <tr>
+        <th>العنوان</th>
+        <th>الجمهور</th>
+        <th>القنوات</th>
+        <th>الحالة</th>
+        <th>عدد المستلمين</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for b in rows %}
+      <tr>
+        <td class="font-semibold">{{ b.title }}</td>
+        <td class="text-xs">
+          {% set audience = b.audience %}
+          {{ {'all': 'الجميع',
+              'trial': 'العملاء في التجربة',
+              'active': 'اشتراك نشط',
+              'expired': 'اشتراك منتهي',
+              'by_plan': 'حسب الباقة'}.get(audience.kind, audience.kind) }}
+        </td>
+        <td class="text-xs">{{ b.channels }}</td>
+        <td>
+          {% if b.sent_at %}
+            <span class="badge badge-paid">أُرسلت</span>
+          {% else %}
+            <span class="badge badge-sent">في الانتظار</span>
+          {% endif %}
+        </td>
+        <td>{{ b.target_count }}</td>
+        <td>
+          {% if not b.sent_at %}
+          <form method="POST" action="{{ url_for('superadmin.broadcasts_send', broadcast_id=b.id) }}"
+                onsubmit="return confirm('إرسال الرسالة الآن؟');">
+            <button type="submit" class="text-xs text-emerald-700 hover:underline">🚀 إرسال</button>
+          </form>
+          {% else %}
+          <span class="text-xs text-slate-400">
+            {{ b.sent_at.strftime('%Y-%m-%d %H:%M') }}
+          </span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-center text-slate-400 py-6">لا رسائل بعد.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}
