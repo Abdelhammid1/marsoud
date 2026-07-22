@@ -105,10 +105,20 @@ class Product(db.Model):
 
         Defined as a property (not a relationship) so callers don't have
         to remember to filter by is_active.
+
+        MARSOUD-POS-CROSS-TENANT-FIX (Abdelhamid 2026-07-22) — also
+        filters by company_id to defend against data drift where a
+        variant row's company_id doesn't match its parent product
+        (from an old migration, backup restore, or DBA edit). Without
+        this filter, that drifted variant leaks into the wrong tenant's
+        POS product picker — which is exactly the "variant_id=20 from
+        company 31 appeared in company 34's cashier grid" incident.
         """
         from app.models.inventory import ProductVariant
         return ProductVariant.query.filter_by(
-            product_id=self.id, is_active=True,
+            product_id=self.id,
+            company_id=self.company_id,
+            is_active=True,
         ).order_by(ProductVariant.id.asc()).first()
 
 

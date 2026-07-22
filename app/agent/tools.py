@@ -311,6 +311,7 @@ def execute_tool(name, args, company_id, user_id):
             for it in args["items"]:
                 item = InvoiceItem(
                     invoice_id=invoice.id,
+                    company_id=invoice.company_id,
                     description=it["description"],
                     quantity=it["quantity"],
                     unit_price=it["unit_price"],

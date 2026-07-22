@@ -20,6 +20,24 @@ def create_app(config_class=Config):
 
     from app.models import User, Company
 
+    # MARSOUD-POS-ORPHAN-CASCADE (Abdelhamid 2026-07-22) — one-shot
+    # zombie sweep + integrity probe on boot. Handles rows left over
+    # from bulk-SQL deletes that ran BEFORE the CASCADE FK migration.
+    # Gated by MARSOUD_ORPHAN_SWEEP_ON_BOOT (default "1") so tests
+    # can opt out when they intentionally seed orphan state.
+    import os as _os
+    if _os.environ.get("MARSOUD_ORPHAN_SWEEP_ON_BOOT", "1") == "1":
+        try:
+            with app.app_context():
+                from app.services.orphan_sweep import (
+                    sweep_orphans, probe_variant_drift,
+                )
+                sweep_orphans(db.engine)
+                probe_variant_drift(db.engine)
+        except Exception as _e:
+            app.logger.warning(
+                "orphan_sweep skipped on boot: %s", _e)
+
     @login_manager.user_loader
     def load_user(user_id):
         return db.session.get(User, int(user_id))

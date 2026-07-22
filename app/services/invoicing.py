@@ -233,6 +233,7 @@ def record_payment(invoice, amount, payment_date=None, method=None, payment_meth
 
     payment = Payment(
         invoice_id=invoice.id,
+        company_id=invoice.company_id,
         amount=amount,
         payment_date=payment_date or date.today(),
         payment_method_id=pm.id if pm else None,

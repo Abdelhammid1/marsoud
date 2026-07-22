@@ -140,6 +140,7 @@ def create_pos_order(
             unit_id = None
         item = InvoiceItem(
             invoice_id=invoice.id,
+            company_id=invoice.company_id,
             product_id=variant.product_id,
             variant_id=variant.id,
             warehouse_id=default_wh.id,

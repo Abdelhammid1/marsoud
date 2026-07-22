@@ -55,8 +55,22 @@ def hard_delete_company(company, *, actor_id, reason):
     `customers.company_id` first, but the same trap exists across
     ~45 tables. We walk db.metadata.sorted_tables in REVERSE (children
     before parents) and run a bulk `DELETE WHERE company_id = ?` on
-    every table that carries the column. Indirect children (e.g.
-    invoice_items → invoices) cascade-delete via their own FKs.
+    every table that carries the column.
+
+    MARSOUD-POS-ORPHAN-CASCADE (Abdelhamid 2026-07-22) — the older
+    version of this docstring claimed "invoice_items → invoices
+    cascade-delete via their own FKs." That was wrong: those FKs
+    had no ON DELETE CASCADE at the DB level, so the bulk delete
+    below LEFT the child rows orphaned. When a new invoice later
+    got the same primary key (SQLite always, Postgres after a
+    sequence reset / backup restore), SQLAlchemy's `.items`
+    relationship auto-adopted the orphans, which is what surfaced
+    on Abdelhamid's invoice 82 (a one-variant `create_pos_order`
+    returned an invoice with two lines). The migration
+    a6c9f2e5b8d1 added `company_id` to the three previously-blind
+    child tables (invoice_items, payments, invoice_reminders_sent)
+    so the loop below now catches them directly, and added
+    ON DELETE CASCADE on every invoices-child FK as a second net.
 
     Logs the PlatformAuditLog row FIRST so the audit trace survives
     even if a downstream cascade fails. Per-table failures are

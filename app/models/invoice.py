@@ -135,7 +135,20 @@ def _resolve_discount(dtype, value, base):
 class InvoiceItem(db.Model):
     __tablename__ = "invoice_items"
     id = db.Column(db.Integer, primary_key=True)
-    invoice_id = db.Column(db.Integer, db.ForeignKey("invoices.id"), nullable=False)
+    # MARSOUD-POS-ORPHAN-CASCADE (Abdelhamid 2026-07-22) — CASCADE
+    # at the DB level so bulk-SQL invoice deletes (hard_delete_company,
+    # DBA cleanup, backup restore) don't leave orphan items behind
+    # that get re-adopted by SQLAlchemy's relationship loader when a
+    # PK is reused.
+    invoice_id = db.Column(
+        db.Integer,
+        db.ForeignKey("invoices.id", ondelete="CASCADE"),
+        nullable=False)
+    # MARSOUD-POS-ORPHAN-CASCADE — denormalized company_id so company-
+    # scoped bulk deletes + zombie sweeps don't need the invoice join.
+    company_id = db.Column(db.Integer,
+                           db.ForeignKey("companies.id"),
+                           nullable=False, index=True)
     product_id = db.Column(db.Integer, db.ForeignKey("products.id"))
     description = db.Column(db.String(255), nullable=False)
     quantity = db.Column(db.Numeric(10, 2), default=1)
@@ -181,7 +194,15 @@ class InvoiceReminderSent(db.Model):
     """
     __tablename__ = "invoice_reminders_sent"
     id = db.Column(db.Integer, primary_key=True)
-    invoice_id = db.Column(db.Integer, db.ForeignKey("invoices.id"), nullable=False, index=True)
+    # MARSOUD-POS-ORPHAN-CASCADE (Abdelhamid 2026-07-22) — same
+    # CASCADE + company_id shape as invoice_items.
+    invoice_id = db.Column(
+        db.Integer,
+        db.ForeignKey("invoices.id", ondelete="CASCADE"),
+        nullable=False, index=True)
+    company_id = db.Column(db.Integer,
+                           db.ForeignKey("companies.id"),
+                           nullable=False, index=True)
     threshold_kind = db.Column(db.String(10), nullable=False)
     threshold_days = db.Column(db.Integer, nullable=False)
     sent_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
@@ -197,7 +218,14 @@ class InvoiceReminderSent(db.Model):
 class Payment(db.Model):
     __tablename__ = "payments"
     id = db.Column(db.Integer, primary_key=True)
-    invoice_id = db.Column(db.Integer, db.ForeignKey("invoices.id"), nullable=False)
+    # MARSOUD-POS-ORPHAN-CASCADE (Abdelhamid 2026-07-22).
+    invoice_id = db.Column(
+        db.Integer,
+        db.ForeignKey("invoices.id", ondelete="CASCADE"),
+        nullable=False)
+    company_id = db.Column(db.Integer,
+                           db.ForeignKey("companies.id"),
+                           nullable=False, index=True)
     amount = db.Column(db.Numeric(15, 4), nullable=False)
     payment_date = db.Column(db.Date, default=date.today, nullable=False)
     payment_method_id = db.Column(db.Integer, db.ForeignKey("payment_methods.id"))
@@ -207,3 +235,33 @@ class Payment(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     payment_method = db.relationship("PaymentMethod")
+
+
+# MARSOUD-POS-ORPHAN-CASCADE (Abdelhamid 2026-07-22) — defence-in-depth
+# auto-fill of company_id for the three child models that gained it in
+# migration a6c9f2e5b8d1. Every real caller has been updated to pass
+# company_id explicitly, but many test fixtures + any future caller
+# who forgets would trip the NOT NULL. This listener resolves it from
+# invoice_id at INSERT time so a forgotten company_id is never fatal —
+# same pattern as Company.subdomain's auto-fill listener.
+from sqlalchemy import event as _sa_event
+
+
+def _fill_company_id_from_invoice(mapper, connection, target):
+    if getattr(target, "company_id", None):
+        return
+    inv_id = getattr(target, "invoice_id", None)
+    if not inv_id:
+        return
+    row = connection.execute(
+        Invoice.__table__.select().with_only_columns(
+            Invoice.__table__.c.company_id
+        ).where(Invoice.__table__.c.id == inv_id)
+    ).first()
+    if row and row[0]:
+        target.company_id = row[0]
+
+
+for _cls in (InvoiceItem, InvoiceReminderSent, Payment):
+    _sa_event.listen(
+        _cls, "before_insert", _fill_company_id_from_invoice)

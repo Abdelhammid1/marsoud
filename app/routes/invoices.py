@@ -120,6 +120,7 @@ def _populate_invoice_from_form(invoice, form):
             uid = None
         item = InvoiceItem(
             invoice_id=invoice.id,
+            company_id=invoice.company_id,
             product_id=int(pid) if pid else None,
             description=desc.strip(),
             quantity=float(quantities[i] or 1),
@@ -315,6 +316,7 @@ def send_overdue_reminder_route(invoice_id):
         try:
             db.session.add(InvoiceReminderSent(
                 invoice_id=invoice.id,
+                company_id=invoice.company_id,
                 threshold_kind="overdue",
                 threshold_days=days_late,
             ))

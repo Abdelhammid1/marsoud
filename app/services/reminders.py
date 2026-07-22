@@ -25,9 +25,10 @@ def _already_sent(invoice_id, kind, days):
     ).first() is not None
 
 
-def _mark_sent(invoice_id, kind, days):
+def _mark_sent(invoice_id, company_id, kind, days):
     db.session.add(InvoiceReminderSent(
-        invoice_id=invoice_id, threshold_kind=kind, threshold_days=days,
+        invoice_id=invoice_id, company_id=company_id,
+        threshold_kind=kind, threshold_days=days,
         sent_at=datetime.utcnow(),
     ))
 
@@ -81,14 +82,14 @@ def process_invoice_reminders():
         for d in cfg.get("days_before", []):
             if days_until == d and not _already_sent(inv.id, "before", d):
                 if send_overdue_reminder(inv, f"before_{d}"):
-                    _mark_sent(inv.id, "before", d)
+                    _mark_sent(inv.id, inv.company_id, "before", d)
                     sent_counts["before"] += 1
         # overdue thresholds (days past due)
         days_overdue = -days_until  # positive = past due
         for d in cfg.get("overdue_days", []):
             if days_overdue == d and days_overdue >= 0 and not _already_sent(inv.id, "overdue", d):
                 if send_overdue_reminder(inv, "overdue" if d == 0 else f"overdue_{d}"):
-                    _mark_sent(inv.id, "overdue", d)
+                    _mark_sent(inv.id, inv.company_id, "overdue", d)
                     if inv.status != InvoiceStatus.OVERDUE and days_overdue > 0:
                         inv.status = InvoiceStatus.OVERDUE
                     sent_counts["overdue"] += 1

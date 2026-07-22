@@ -135,7 +135,8 @@ def _fresh_invoice(status_after_post="SENT", pay=False):
     )
     db.session.add(inv); db.session.flush()
     db.session.add(InvoiceItem(
-        invoice_id=inv.id, description="widget",
+        invoice_id=inv.id, company_id=inv.company_id,
+        description="widget",
         quantity=1, unit_price=100, line_total=100,
     ))
     inv.recalc()
