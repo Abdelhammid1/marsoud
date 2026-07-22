@@ -54,6 +54,23 @@
       </p>
     </div>
 
+    {# MARSOUD-API-RATE-LIMIT (Abdelhamid 2026-07-22) — cap on
+       per-ApiToken requests per minute. Applies to /api/v1/*. #}
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">
+        ⚡ حد الطلبات للـ API (لكل توكن، لكل دقيقة)
+      </label>
+      <input type="number" name="api_rate_limit_per_minute"
+             min="1" max="100000"
+             value="{{ api_rate_limit_per_minute }}"
+             class="input font-mono w-32">
+      <p class="text-xs text-slate-500 mt-1">
+        كل توكن API بيقدر يبعت هذا العدد من الطلبات على /api/v1/*
+        في الدقيقة الواحدة. لو تجاوز، النظام بيرجّع HTTP 429.
+        افتراضي: <span class="font-mono">{{ default_api_rate_limit }}</span> طلب/دقيقة.
+      </p>
+    </div>
+
     {# ─── Read-only enforcement toggle ─────────────────────────── #}
     <div>
       <label class="flex items-start gap-3 cursor-pointer">

@@ -786,6 +786,14 @@ def subscription_settings():
         if trial_raw.isdigit() and 1 <= int(trial_raw) <= 365:
             set_trial_days(int(trial_raw))
 
+        # MARSOUD-API-RATE-LIMIT — per-token requests-per-minute cap.
+        # Same pattern as trial_days: silently skip when missing or
+        # out of range so older POSTs don't blow away the value.
+        rate_raw = request.form.get("api_rate_limit_per_minute", "").strip()
+        if rate_raw.isdigit() and 1 <= int(rate_raw) <= 100_000:
+            from app.services.subscription import _set_setting_raw
+            _set_setting_raw("api_rate_limit_per_minute", str(int(rate_raw)))
+
         db.session.commit()
         log_platform_action("subscription_settings_update",
                             actor_id=current_user.id,
@@ -794,6 +802,10 @@ def subscription_settings():
         flash("تم حفظ إعدادات الاشتراك", "success")
         return redirect(url_for("superadmin.subscription_settings"))
 
+    # MARSOUD-API-RATE-LIMIT — surface the current per-minute cap.
+    from app.services.rate_limit import (
+        _limit_per_minute, DEFAULT_LIMIT_PER_MINUTE,
+    )
     return render_template(
         "admin/subscription_settings.html",
         thresholds=get_reminder_thresholds(),
@@ -804,4 +816,6 @@ def subscription_settings():
         default_grace=DEFAULT_GRACE_DAYS,
         default_readonly=DEFAULT_READONLY_ENABLED,
         default_trial_days=DEFAULT_SUBSCRIPTION_DAYS,
+        api_rate_limit_per_minute=_limit_per_minute(),
+        default_api_rate_limit=DEFAULT_LIMIT_PER_MINUTE,
     )

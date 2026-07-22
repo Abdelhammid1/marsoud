@@ -82,19 +82,58 @@ def _require_api_token():
     if not getattr(current_user, "is_active", False):
         return _err("inactive user", 401)
     if g.get("active_company"):
-        return
-    companies = list(current_user.companies)
-    if not companies:
-        return _err("user has no company", 403)
-    cid_arg = request.args.get("company_id", type=int)
-    if cid_arg:
-        match = next((c for c in companies if c.id == cid_arg), None)
-        if not match:
-            return _err(
-                f"you are not a member of company {cid_arg}", 403)
-        g.active_company = match
+        pass
     else:
-        g.active_company = companies[0]
+        companies = list(current_user.companies)
+        if not companies:
+            return _err("user has no company", 403)
+        cid_arg = request.args.get("company_id", type=int)
+        if cid_arg:
+            match = next((c for c in companies if c.id == cid_arg), None)
+            if not match:
+                return _err(
+                    f"you are not a member of company {cid_arg}", 403)
+            g.active_company = match
+        else:
+            g.active_company = companies[0]
+
+    # MARSOUD-API-RATE-LIMIT (Abdelhamid 2026-07-22) — per-ApiToken
+    # rate limit AFTER auth so we know which token is spending. Always
+    # re-verify the bearer header here — Flask-Login can cache the
+    # resolved user across requests in a client session, which means
+    # `request_loader` (and any g.api_token_id it stashes) only runs
+    # on the FIRST request. Re-reading is O(1) hash lookup, cheap.
+    token_id = None
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        from app.services.api_tokens import verify_token
+        tok = verify_token(auth[7:].strip())
+        token_id = tok.id if tok else None
+    if token_id is not None:
+        from app.services.rate_limit import check_and_increment
+        ok, retry_after = check_and_increment(token_id)
+        if not ok:
+            # Log for forensics (ticket asks for this explicitly).
+            from flask import current_app
+            try:
+                current_app.logger.warning(
+                    "api rate-limit exceeded: token=%s company=%s "
+                    "endpoint=%s ip=%s retry_after=%ss",
+                    token_id,
+                    g.active_company.id if g.get("active_company") else None,
+                    request.endpoint, request.remote_addr,
+                    retry_after,
+                )
+            except Exception:
+                pass
+            resp = jsonify({
+                "success": False,
+                "message": "Rate limit exceeded. Please try again later.",
+                "retry_after_seconds": retry_after,
+            })
+            resp.status_code = 429
+            resp.headers["Retry-After"] = str(retry_after)
+            return resp
 
 
 # ─── Serializers ────────────────────────────────────────────────────────

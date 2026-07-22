@@ -59,6 +59,14 @@ def create_app(config_class=Config):
             tok = verify_token(raw)
         except Exception:
             return None
+        # MARSOUD-API-RATE-LIMIT — stash the token id so the api_v1
+        # before_request can look up per-token counters without
+        # re-hashing the bearer string.
+        if tok:
+            try:
+                g.api_token_id = tok.id
+            except Exception:
+                pass
         return tok.user if tok else None
 
     from app.routes.auth import bp as auth_bp
