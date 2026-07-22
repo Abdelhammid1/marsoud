@@ -82,9 +82,12 @@
           </div>
           <div>
             <label class="block text-sm font-semibold text-slate-700 mb-2">العملة الأساسية</label>
+            {# MARSOUD-MULTI-CURRENCY-PRICING (Abdelhamid 2026-07-22) —
+               default flipped from SAR to EGP; EGP is now the primary
+               currency of the tenant base. #}
             <select name="base_currency" class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-blue-100 bg-white">
+              <option value="EGP" selected>جنيه مصري (EGP)</option>
               <option value="SAR">ريال سعودي (SAR)</option>
-              <option value="EGP">جنيه مصري (EGP)</option>
               <option value="AED">درهم إماراتي (AED)</option>
               <option value="USD">دولار أمريكي (USD)</option>
               <option value="EUR">يورو (EUR)</option>

@@ -570,6 +570,29 @@ def plans_index():
                            module_labels=MODULE_LABELS_AR)
 
 
+def _upsert_plan_price(plan, currency, monthly_raw, yearly_raw):
+    """MARSOUD-MULTI-CURRENCY-PRICING — helper used by plans_new /
+    plans_edit. Upserts a plan_prices row per currency. Empty inputs
+    delete the row so the plan-price resolver falls back to legacy
+    columns / other currencies cleanly."""
+    from app.models import PlanPrice
+    monthly = (monthly_raw or "").strip()
+    yearly = (yearly_raw or "").strip()
+    row = PlanPrice.query.filter_by(
+        plan_id=plan.id, currency=currency).first()
+    m_val = float(monthly) if monthly else None
+    y_val = float(yearly) if yearly else None
+    if m_val is None and y_val is None:
+        if row:
+            db.session.delete(row)
+        return
+    if not row:
+        row = PlanPrice(plan_id=plan.id, currency=currency)
+        db.session.add(row)
+    row.price_monthly = m_val
+    row.price_yearly = y_val
+
+
 @bp.route("/plans/new", methods=["GET", "POST"])
 @login_required
 @superadmin_required
@@ -594,6 +617,12 @@ def plans_new():
         if request.form.get("submit_subitems") == "1":
             p.set_subitems(_read_subitems_form())
         db.session.add(p)
+        db.session.flush()
+        # MARSOUD-MULTI-CURRENCY-PRICING — accept SAR alongside EGP.
+        _upsert_plan_price(
+            p, "SAR",
+            request.form.get("price_monthly_sar"),
+            request.form.get("price_yearly_sar"))
         db.session.commit()
         log_platform_action("plan_create", details=f"code={code}",
                             actor_id=current_user.id)
@@ -625,6 +654,12 @@ def plans_edit(plan_id):
         p.set_modules(request.form.getlist("modules"))
         if request.form.get("submit_subitems") == "1":
             p.set_subitems(_read_subitems_form())
+        # MARSOUD-MULTI-CURRENCY-PRICING — SAR is optional; empty
+        # inputs clean up the row so price_for falls back to EGP.
+        _upsert_plan_price(
+            p, "SAR",
+            request.form.get("price_monthly_sar"),
+            request.form.get("price_yearly_sar"))
         db.session.commit()
         log_platform_action("plan_edit", details=f"code={p.code}",
                             actor_id=current_user.id)
@@ -633,7 +668,13 @@ def plans_edit(plan_id):
     from app.services.plan_gating import (
         SUB_ITEM_CATALOG, SECTION_LABEL_AR, SECTION_REQUIRES_MODULES,
     )
+    # MARSOUD-MULTI-CURRENCY-PRICING — SAR row (may be None on first
+    # visit) so the template can pre-fill the SAR inputs.
+    from app.models import PlanPrice
+    sar_price = PlanPrice.query.filter_by(
+        plan_id=p.id, currency="SAR").first()
     return render_template("admin/plans_form.html", plan=p,
+                           sar_price=sar_price,
                            all_modules=ALL_MODULES,
                            module_labels=MODULE_LABELS_AR,
                            sub_item_catalog=SUB_ITEM_CATALOG,

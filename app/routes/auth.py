@@ -178,7 +178,9 @@ def register():
         company_name = request.form.get("company_name", "").strip()
         subdomain = request.form.get("subdomain", "").strip().lower()
         password = request.form.get("password", "")
-        base_currency = request.form.get("base_currency", "SAR")
+        # MARSOUD-MULTI-CURRENCY-PRICING (Abdelhamid 2026-07-22) —
+        # default currency flipped SAR → EGP.
+        base_currency = request.form.get("base_currency", "EGP")
 
         if not email or not password or not full_name or not company_name or not subdomain:
             flash("جميع الحقول مطلوبة", "error")

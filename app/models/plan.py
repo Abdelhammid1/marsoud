@@ -1,7 +1,14 @@
 """MARSOUD-57.2 — Plan + SubscriptionReminderSent models."""
 import json
+from decimal import Decimal
 from datetime import datetime
 from app import db
+
+
+# MARSOUD-MULTI-CURRENCY-PRICING (Abdelhamid 2026-07-22) — EGP is
+# always the fallback so we don't need SAR/USD/AED rows populated to
+# render a price.
+DEFAULT_CURRENCY = "EGP"
 
 
 class Plan(db.Model):
@@ -57,6 +64,59 @@ class Plan(db.Model):
             self.allowed_subitems = None
         else:
             self.allowed_subitems = json.dumps(list(items))
+
+    # MARSOUD-MULTI-CURRENCY-PRICING — new resolver. All callers
+    # displaying a price should call this instead of reading
+    # price_monthly/price_yearly directly.
+    def price_for(self, currency, cycle="monthly"):
+        """Return the price for the requested currency + cycle.
+
+        Order of lookup:
+          1. plan_prices row (currency, cycle) — super-admin explicit
+             per-currency price.
+          2. If currency=EGP: fallback to legacy Plan.price_monthly /
+             price_yearly (no schema break for existing rows).
+          3. Otherwise: EGP row / legacy columns as the safe fallback
+             so a client that picked SAR never sees an empty price.
+        """
+        cur = (currency or DEFAULT_CURRENCY).upper()
+        row = PlanPrice.query.filter_by(
+            plan_id=self.id, currency=cur).first()
+        col = "price_monthly" if cycle == "monthly" else "price_yearly"
+        if row and getattr(row, col) is not None:
+            return Decimal(getattr(row, col))
+        # Legacy fallback (EGP always has the legacy columns).
+        legacy = self.price_monthly if cycle == "monthly" else self.price_yearly
+        if legacy is not None:
+            return Decimal(legacy)
+        # Try an EGP row (in case a super-admin populated plan_prices
+        # for EGP explicitly but left the legacy column NULL).
+        if cur != DEFAULT_CURRENCY:
+            egp_row = PlanPrice.query.filter_by(
+                plan_id=self.id, currency=DEFAULT_CURRENCY).first()
+            if egp_row and getattr(egp_row, col) is not None:
+                return Decimal(getattr(egp_row, col))
+        return None
+
+
+class PlanPrice(db.Model):
+    """MARSOUD-MULTI-CURRENCY-PRICING — one row per (plan_id, currency).
+    Super-admin edits from /admin/plans/<id>/edit. NULL price_monthly
+    / price_yearly means "not offered in this currency" — Plan.price_for
+    falls back to the EGP row (or the legacy columns for EGP)."""
+    __tablename__ = "plan_prices"
+    id = db.Column(db.Integer, primary_key=True)
+    plan_id = db.Column(db.Integer,
+                        db.ForeignKey("plans.id", ondelete="CASCADE"),
+                        nullable=False, index=True)
+    currency = db.Column(db.String(3), nullable=False)
+    price_monthly = db.Column(db.Numeric(15, 2), nullable=True)
+    price_yearly = db.Column(db.Numeric(15, 2), nullable=True)
+
+    __table_args__ = (
+        db.UniqueConstraint("plan_id", "currency",
+                             name="uq_plan_prices_plan_currency"),
+    )
 
 
 class SubscriptionReminderSent(db.Model):

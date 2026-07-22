@@ -30,18 +30,37 @@
       <label class="block text-sm font-semibold text-slate-200 mb-2">الوصف</label>
       <textarea name="description" rows="2" class="textarea">{{ plan.description if plan else '' }}</textarea>
     </div>
+    {# MARSOUD-MULTI-CURRENCY-PRICING (Abdelhamid 2026-07-22) —
+       EGP is the required base; SAR is optional. When a currency
+       block is empty the resolver Plan.price_for falls back to
+       EGP so the display never breaks. #}
     <div class="grid grid-cols-2 gap-4">
       <div>
-        {# MARSOUD-CURRENCY-LABEL (Abdelhamid 2026-07-22) — cosmetic
-           label swap SAR → جنيه per ticket. Actual currency is per-
-           company on Company.base_currency. #}
-        <label class="block text-sm font-semibold text-slate-200 mb-2">السعر الشهري (جنيه)</label>
+        <label class="block text-sm font-semibold text-slate-200 mb-2">السعر الشهري (جنيه) <span class="text-rose-400">*</span></label>
         <input type="number" name="price_monthly" step="0.01" value="{{ plan.price_monthly if plan and plan.price_monthly else '' }}" class="input font-mono">
       </div>
       <div>
         <label class="block text-sm font-semibold text-slate-200 mb-2">السعر السنوي (جنيه)</label>
         <input type="number" name="price_yearly" step="0.01" value="{{ plan.price_yearly if plan and plan.price_yearly else '' }}" class="input font-mono">
       </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 bg-white/5 border border-white/10 rounded-lg p-3">
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 mb-2">السعر الشهري (ريال سعودي) — اختياري</label>
+        <input type="number" name="price_monthly_sar" step="0.01"
+               value="{{ sar_price.price_monthly if sar_price and sar_price.price_monthly else '' }}"
+               class="input font-mono" placeholder="اتركه فارغ لاستخدام سعر الجنيه">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 mb-2">السعر السنوي (ريال سعودي) — اختياري</label>
+        <input type="number" name="price_yearly_sar" step="0.01"
+               value="{{ sar_price.price_yearly if sar_price and sar_price.price_yearly else '' }}"
+               class="input font-mono" placeholder="اتركه فارغ لاستخدام سعر الجنيه">
+      </div>
+      <p class="col-span-2 text-xs text-slate-400 -mt-1">
+        العميل اللي يختار "ريال سعودي" وقت التسجيل هيشوف السعر ده لو مُدخل — غير كده الرجوع للجنيه تلقائي.
+      </p>
     </div>
 
     <div>
