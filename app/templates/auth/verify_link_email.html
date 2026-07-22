@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>تفعيل حسابك في مرصود</title>
+</head>
+<body style="font-family:Arial,sans-serif;background:#f8fafc;padding:20px;color:#0f172a;">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;">
+    <h1 style="color:#065f46;margin-top:0;">مرحباً {{ user.full_name }} 👋</h1>
+    <p style="font-size:15px;line-height:1.6;">
+      شكراً لتسجيلك في <strong>مرصود</strong>. للبدء في استخدام النظام،
+      اضغط على الزر التالي لتفعيل حسابك:
+    </p>
+    <p style="text-align:center;margin:32px 0;">
+      <a href="{{ verify_url }}"
+         style="background:#059669;color:#fff;padding:14px 36px;
+                text-decoration:none;border-radius:8px;font-weight:bold;
+                display:inline-block;">
+        ✅ تفعيل الحساب
+      </a>
+    </p>
+    <p style="font-size:13px;color:#64748b;line-height:1.6;">
+      لو الزر مش شغال، انسخ الرابط ده والصقه في المتصفح:
+      <br>
+      <span style="font-family:monospace;font-size:11px;word-break:break-all;color:#0f172a;">
+        {{ verify_url }}
+      </span>
+    </p>
+    <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;">
+    <p style="font-size:12px;color:#94a3b8;">
+      الرابط صالح لمدة 7 أيام. لو ماكنتش أنت اللي أنشأت الحساب،
+      تجاهل هذا البريد.
+    </p>
+  </div>
+</body>
+</html>

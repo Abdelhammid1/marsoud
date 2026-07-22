@@ -9,25 +9,32 @@ class UserStatus(str, enum.Enum):
     """HR-SS — accounts auto-provisioned for employees start as PENDING
     until OWNER activates them. DISABLED is a soft revoke.
 
-    NB: kept in sync with is_active — PENDING/DISABLED imply is_active=False,
-    ACTIVE implies is_active=True. Both checks work; status is the source
-    of truth for the HR portal flow.
+    MARSOUD-EMAIL-VERIFY (Abdelhamid 2026-07-22) — self-service signups
+    now start as PENDING_VERIFICATION until the user clicks the verify
+    link in the welcome email. They can log in but a middleware
+    redirects them to /auth/verify-pending until they verify.
+
+    NB: kept in sync with is_active — PENDING/DISABLED/
+    PENDING_VERIFICATION imply is_active=False (users.py:83 property).
     """
     ACTIVE = "ACTIVE"
     PENDING = "PENDING"
     DISABLED = "DISABLED"
+    PENDING_VERIFICATION = "PENDING_VERIFICATION"
 
     @property
     def label_ar(self):
         return {"ACTIVE": "نشط",
                 "PENDING": "قيد التفعيل",
-                "DISABLED": "معطّل"}[self.value]
+                "DISABLED": "معطّل",
+                "PENDING_VERIFICATION": "بانتظار تفعيل البريد"}[self.value]
 
     @property
     def badge_class(self):
         return {"ACTIVE": "badge-paid",
                 "PENDING": "badge-sent",
-                "DISABLED": "badge-cancelled"}[self.value]
+                "DISABLED": "badge-cancelled",
+                "PENDING_VERIFICATION": "badge-sent"}[self.value]
 
 
 user_companies = db.Table(
@@ -55,6 +62,10 @@ class User(UserMixin, db.Model):
 
     # HR-SS: lifecycle state.
     status = db.Column(db.String(20), default="ACTIVE", nullable=False)
+
+    # MARSOUD-EMAIL-VERIFY (Abdelhamid 2026-07-22) — set on successful
+    # click of the verify-email link. Nullable → not yet verified.
+    email_verified_at = db.Column(db.DateTime, nullable=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -85,3 +96,9 @@ class User(UserMixin, db.Model):
     @property
     def is_disabled(self):
         return self.status == UserStatus.DISABLED.value
+
+    @property
+    def is_pending_verification(self):
+        """MARSOUD-EMAIL-VERIFY — used by the auth middleware to send
+        the user to /auth/verify-pending instead of the dashboard."""
+        return self.status == UserStatus.PENDING_VERIFICATION.value

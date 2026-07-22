@@ -424,19 +424,36 @@ def forbid_roles(*roles):
 
 
 # ─── Invitation token helpers ────────────────────────────────────────────
-def _serializer():
+def _serializer(salt="marsoud-invite"):
+    """MARSOUD-EMAIL-VERIFY / MARSOUD-PW-RESET — accept a custom salt
+    so verify + reset flows produce distinct token spaces. An invite
+    token can never be replayed as a verify or reset token (or vice
+    versa) even if SECRET_KEY leaks partial state."""
     from itsdangerous import URLSafeTimedSerializer
     from flask import current_app
     secret = current_app.config.get("SECRET_KEY")
-    return URLSafeTimedSerializer(secret, salt="marsoud-invite")
+    return URLSafeTimedSerializer(secret, salt=salt)
 
 
 def generate_invite_token(payload):
-    return _serializer().dumps(payload)
+    return _serializer("marsoud-invite").dumps(payload)
 
 
 def parse_invite_token(token, max_age_seconds=7 * 24 * 3600):
     try:
-        return _serializer().loads(token, max_age=max_age_seconds)
+        return _serializer("marsoud-invite").loads(token, max_age=max_age_seconds)
+    except Exception:
+        return None
+
+
+# MARSOUD-EMAIL-VERIFY — one-shot token for the verify-email link.
+def generate_verify_email_token(user_id):
+    return _serializer("marsoud-verify-email").dumps({"user_id": int(user_id)})
+
+
+def parse_verify_email_token(token, max_age_seconds=7 * 24 * 3600):
+    try:
+        return _serializer("marsoud-verify-email").loads(
+            token, max_age=max_age_seconds)
     except Exception:
         return None

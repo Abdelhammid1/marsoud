@@ -279,6 +279,32 @@ def create_app(config_class=Config):
         if role in NON_FINANCIAL_ROLES:
             abort(403)
 
+    # MARSOUD-EMAIL-VERIFY (Abdelhamid 2026-07-22) — send
+    # PENDING_VERIFICATION users to the "check your email" page on
+    # every request except a small allowlist (auth endpoints,
+    # static, and the verify flow itself).
+    _VERIFY_ALLOWLIST_PREFIXES = (
+        "auth.", "static", "public.",  # login, verify, resend, terms
+    )
+
+    @app.before_request
+    def block_until_email_verified():
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return
+        # Super-admin, invited users, and legacy accounts (grandfathered
+        # by the migration backfill) are unaffected.
+        if not getattr(current_user, "is_pending_verification", False):
+            return
+        endpoint = (request.endpoint or "")
+        if any(endpoint.startswith(p) for p in _VERIFY_ALLOWLIST_PREFIXES):
+            return
+        # AJAX / API: return 403 JSON instead of redirect.
+        if request.path.startswith("/api/"):
+            from flask import jsonify
+            return jsonify({"error": "email verification required"}), 403
+        return redirect(url_for("auth.verify_pending"))
+
     # MARSOUD-58 — sub-item gating enforcement. Block routes whose
     # sub-item is not in the company's plan, regardless of method.
     @app.before_request

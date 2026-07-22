@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block page_title %}تفعيل البريد الإلكتروني{% endblock %}
+{% block content %}
+<div class="max-w-lg mx-auto card p-8 text-center">
+  <div class="text-5xl mb-4">📧</div>
+  <h2 class="text-xl font-bold text-navy-900 mb-2">راجع بريدك الإلكتروني</h2>
+  <p class="text-slate-600 mb-4">
+    أرسلنا رابط تفعيل إلى:
+    <span class="font-mono text-emerald-700">{{ current_user.email }}</span>
+  </p>
+  <p class="text-sm text-slate-500 mb-6">
+    اضغط على الرابط في البريد لتفعيل حسابك واستخدام النظام.
+    الرابط صالح لمدة 7 أيام.
+  </p>
+  <form method="POST" action="{{ url_for('auth.verify_resend') }}" class="mb-4">
+    <button type="submit" class="btn-primary">
+      🔄 إعادة إرسال رابط التفعيل
+    </button>
+  </form>
+  <p class="text-xs text-slate-400">
+    مالقيتش البريد؟ راجع مجلد الـ Spam / الرسائل غير المرغوب فيها.
+  </p>
+  <div class="mt-6 pt-4 border-t border-slate-100">
+    <a href="{{ url_for('auth.logout') }}" class="text-xs text-slate-500 hover:text-slate-700">تسجيل خروج</a>
+  </div>
+</div>
+{% endblock %}

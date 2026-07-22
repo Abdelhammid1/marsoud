@@ -97,6 +97,13 @@ def register():
 
         user = User(email=email, full_name=full_name)
         user.set_password(password)
+        # MARSOUD-EMAIL-VERIFY (Abdelhamid 2026-07-22) — self-service
+        # signups start as PENDING_VERIFICATION until they click the
+        # link in the welcome email. The middleware in app/__init__.py
+        # redirects them to /auth/verify-pending on every dashboard
+        # request until they do.
+        from app.models import UserStatus
+        user.status = UserStatus.PENDING_VERIFICATION.value
         company = Company(name=company_name, base_currency=base_currency, subdomain=subdomain)
         # Bug fix (abdelhamid) — every new company gets the one-month
         # default subscription window + the enterprise plan, instead of
@@ -116,13 +123,99 @@ def register():
         db.session.add(owner_emp)
         db.session.commit()
         seed_default_coa(company.id)
+        # MARSOUD-EMAIL-VERIFY — send verification email. Failure is
+        # non-fatal (SMTP might be down in dev) — the user can hit
+        # /auth/verify/resend from the pending page.
+        try:
+            _send_verify_email(user)
+        except Exception:
+            from flask import current_app
+            current_app.logger.exception("verify email send failed")
         login_user(user)
         session["active_company_id"] = company.id
-        flash("تم إنشاء الحساب وشجرة الحسابات الافتراضية", "success")
-        # MARSOUD-SAAS-SUBDOMAIN — send them to their new tenant subdomain.
-        # SESSION_COOKIE_DOMAIN=.marsoud.com keeps them logged in across it.
-        return redirect(f"https://{subdomain}.marsoud.com" + url_for("dashboard.index"))
+        flash(
+            "تم إنشاء الحساب — راجع بريدك الإلكتروني لتفعيل الحساب.",
+            "success",
+        )
+        # Land on the "check your email" page inside the new tenant
+        # subdomain so the middleware doesn't need to redirect again.
+        return redirect(
+            f"https://{subdomain}.marsoud.com" + url_for("auth.verify_pending"))
     return render_template("auth/register.html")
+
+
+# ─── MARSOUD-EMAIL-VERIFY (Abdelhamid 2026-07-22) — verify flow ───
+def _send_verify_email(user):
+    """Send the welcome + verify link email. Called from /register and
+    from the resend endpoint. Uses the itsdangerous-based
+    generate_verify_email_token so the link expires after 7 days."""
+    from app.services.permissions import generate_verify_email_token
+    from app.services.email import send_email
+    token = generate_verify_email_token(user.id)
+    # Prefer the tenant's subdomain if the user has a company attached.
+    subdomain = None
+    if user.companies:
+        subdomain = user.companies[0].subdomain
+    if subdomain:
+        verify_url = (f"https://{subdomain}.marsoud.com"
+                      + url_for("auth.verify_email", token=token))
+    else:
+        verify_url = url_for("auth.verify_email", token=token,
+                             _external=True)
+    subject = "تفعيل حسابك في مرصود"
+    html = render_template("auth/verify_link_email.html",
+                            user=user, verify_url=verify_url)
+    send_email(user.email, subject, html)
+
+
+@bp.route("/verify/<token>")
+def verify_email(token):
+    """Consume a verify-email token. Marks the user ACTIVE + records
+    email_verified_at. Idempotent — a repeat click just says
+    'already verified' instead of erroring."""
+    from app.services.permissions import parse_verify_email_token
+    from app.models import UserStatus
+    payload = parse_verify_email_token(token)
+    if not payload:
+        flash("رابط التفعيل غير صحيح أو منتهي الصلاحية.", "error")
+        return redirect(url_for("auth.login"))
+    uid = int(payload.get("user_id") or 0)
+    user = db.session.get(User, uid)
+    if not user:
+        flash("رابط التفعيل غير صحيح.", "error")
+        return redirect(url_for("auth.login"))
+    if user.email_verified_at:
+        flash("الحساب مفعّل بالفعل — تفضّل بتسجيل الدخول.", "success")
+        return redirect(url_for("auth.login"))
+    user.email_verified_at = datetime.utcnow()
+    user.status = UserStatus.ACTIVE.value
+    user.is_active = True
+    db.session.commit()
+    flash("تم تفعيل حسابك بنجاح 🎉 يمكنك الآن تسجيل الدخول.", "success")
+    return redirect(url_for("auth.login"))
+
+
+@bp.route("/verify-pending")
+@login_required
+def verify_pending():
+    """Landing page after signup + destination the middleware sends
+    unverified users to. Shows a friendly 'check your email' message
+    with a resend button."""
+    return render_template("auth/verify_pending.html")
+
+
+@bp.route("/verify/resend", methods=["POST"])
+@login_required
+def verify_resend():
+    """Fire another verification email — cheap idempotent operation."""
+    try:
+        _send_verify_email(current_user)
+        flash("تم إعادة إرسال رسالة التفعيل — راجع بريدك.", "success")
+    except Exception:
+        from flask import current_app
+        current_app.logger.exception("verify email resend failed")
+        flash("تعذّر إرسال البريد الآن — حاول لاحقاً.", "error")
+    return redirect(url_for("auth.verify_pending"))
 
 
 @bp.route("/logout")
