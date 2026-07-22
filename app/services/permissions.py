@@ -457,3 +457,23 @@ def parse_verify_email_token(token, max_age_seconds=7 * 24 * 3600):
             token, max_age=max_age_seconds)
     except Exception:
         return None
+
+
+# MARSOUD-LOCKOUT-RESET — password-reset token. Includes the last 12
+# chars of the password_hash so the token is invalidated the moment
+# the password changes (a leaked token from an old email can't be
+# reused after the user resets).
+def generate_password_reset_token(user):
+    return _serializer("marsoud-password-reset").dumps({
+        "user_id": int(user.id),
+        "h": (user.password_hash or "")[-12:],
+    })
+
+
+def parse_password_reset_token(token, max_age_seconds=3600):
+    """1-hour expiry by default. Returns the payload dict or None."""
+    try:
+        return _serializer("marsoud-password-reset").loads(
+            token, max_age=max_age_seconds)
+    except Exception:
+        return None

@@ -18,6 +18,21 @@ def login():
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
         user = User.query.filter_by(email=email).first()
+
+        # MARSOUD-LOCKOUT-RESET (Abdelhamid 2026-07-22) — refuse any
+        # attempt during the lock window, even a correct password.
+        # Prevents the timing signal "wrong pw is faster than correct
+        # pw" from being useful during brute-force.
+        if user and user.locked_until and user.locked_until > datetime.utcnow():
+            remaining = int(
+                (user.locked_until - datetime.utcnow()).total_seconds() // 60) + 1
+            flash(
+                f"الحساب مقفل مؤقتاً بسبب محاولات دخول متكررة. "
+                f"جرّب بعد {remaining} دقيقة.",
+                "error",
+            )
+            return render_template("auth/login.html")
+
         if user and user.check_password(password):
             # Inactive accounts (pending activation or disabled) can't sign in.
             if not user.is_active:
@@ -30,6 +45,10 @@ def login():
                 return render_template("auth/login.html")
             login_user(user, remember=True)
             user.last_login_at = datetime.utcnow()
+            # MARSOUD-LOCKOUT-RESET — successful login resets the
+            # failed-attempts counter.
+            user.failed_login_attempts = 0
+            user.locked_until = None
             db.session.commit()
             log_platform_action("user_login", actor_id=user.id,
                                 target_user_id=user.id)
@@ -50,8 +69,103 @@ def login():
             if user.is_superadmin:
                 return redirect(url_for("superadmin.dashboard"))
             return redirect(url_for("dashboard.index"))
+
+        # MARSOUD-LOCKOUT-RESET — wrong password: bump counter, lock
+        # at the threshold. Only count when we actually found a user
+        # to avoid enumerating valid emails via lockout behaviour.
+        if user:
+            user.failed_login_attempts = (
+                (user.failed_login_attempts or 0) + 1)
+            if user.failed_login_attempts >= 5:
+                from datetime import timedelta as _td
+                user.locked_until = datetime.utcnow() + _td(minutes=15)
+            db.session.commit()
         flash("بيانات الدخول غير صحيحة", "error")
     return render_template("auth/login.html")
+
+
+# ─── MARSOUD-LOCKOUT-RESET (Abdelhamid 2026-07-22) — forgot pw ───
+@bp.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    """Ask for an email, mail a reset link. Always shows the same
+    'sent' message regardless of whether the email exists — prevents
+    account-enumeration via error text."""
+    if request.method == "POST":
+        email = (request.form.get("email") or "").strip().lower()
+        user = User.query.filter_by(email=email).first() if email else None
+        if user:
+            try:
+                _send_password_reset_email(user)
+            except Exception:
+                from flask import current_app
+                current_app.logger.exception("password reset email failed")
+        flash(
+            "لو الإيميل مسجّل عندنا، هتلاقي رسالة فيها رابط إعادة "
+            "التعيين خلال دقيقة.",
+            "success",
+        )
+        return redirect(url_for("auth.login"))
+    return render_template("auth/forgot_password.html")
+
+
+def _send_password_reset_email(user):
+    from app.services.permissions import generate_password_reset_token
+    from app.services.email import send_email
+    token = generate_password_reset_token(user)
+    subdomain = None
+    if user.companies:
+        subdomain = user.companies[0].subdomain
+    if subdomain:
+        reset_url = (f"https://{subdomain}.marsoud.com"
+                     + url_for("auth.reset_password", token=token))
+    else:
+        reset_url = url_for("auth.reset_password", token=token,
+                            _external=True)
+    subject = "إعادة تعيين كلمة السر — مرصود"
+    html = render_template("auth/reset_link_email.html",
+                            user=user, reset_url=reset_url)
+    send_email(user.email, subject, html)
+
+
+@bp.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    from app.services.permissions import parse_password_reset_token
+    from app.services.password_policy import validate_password
+    payload = parse_password_reset_token(token)
+    if not payload:
+        flash("رابط إعادة التعيين غير صحيح أو منتهي الصلاحية.", "error")
+        return redirect(url_for("auth.forgot_password"))
+    user = db.session.get(User, int(payload.get("user_id") or 0))
+    if not user:
+        flash("رابط غير صحيح.", "error")
+        return redirect(url_for("auth.forgot_password"))
+    # Anti-replay: token was signed against a snapshot of the pw hash;
+    # if the pw has changed since, the snapshot won't match anymore.
+    if payload.get("h") != (user.password_hash or "")[-12:]:
+        flash("الرابط تم استخدامه بالفعل — اطلب رابط جديد.", "error")
+        return redirect(url_for("auth.forgot_password"))
+
+    if request.method == "POST":
+        new = request.form.get("password") or ""
+        confirm = request.form.get("confirm") or ""
+        if new != confirm:
+            flash("كلمة السر وتأكيدها غير متطابقين.", "error")
+            return render_template("auth/reset_password.html", token=token)
+        ok, reason = validate_password(new)
+        if not ok:
+            flash(reason, "error")
+            return render_template("auth/reset_password.html", token=token)
+        user.set_password(new)
+        # Reset lockout state as a courtesy — if the user forgot
+        # their password and locked themselves out, the reset should
+        # unlock them.
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        db.session.commit()
+        flash("تم تغيير كلمة السر بنجاح — سجل دخولك بها.", "success")
+        return redirect(url_for("auth.login"))
+
+    return render_template("auth/reset_password.html", token=token)
 
 
 @bp.route("/register", methods=["GET", "POST"])

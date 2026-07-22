@@ -67,6 +67,13 @@ class User(UserMixin, db.Model):
     # click of the verify-email link. Nullable → not yet verified.
     email_verified_at = db.Column(db.DateTime, nullable=True)
 
+    # MARSOUD-LOCKOUT-RESET (Abdelhamid 2026-07-22) — brute-force
+    # protection. failed_login_attempts is incremented on wrong pw and
+    # reset to 0 on success. locked_until, when in the future, refuses
+    # every login attempt with a friendly Arabic error.
+    failed_login_attempts = db.Column(db.Integer, default=0, nullable=False)
+    locked_until = db.Column(db.DateTime, nullable=True)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     companies = db.relationship(
