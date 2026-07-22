@@ -47,6 +47,13 @@ from app.models.task_schedule import (
     TaskSchedule, task_schedule_assignees,
     RECURRENCE_ONCE, RECURRENCE_DAILY, RECURRENCE_KINDS,
 )
+# MARSOUD-RECURRING-TASKS (Abdelhamid 2026-07-22).
+from app.models.recurring_task import (
+    RecurringTaskSeries, RecurringTaskException,
+    FREQUENCIES, END_CONDITIONS,
+    FREQ_DAILY, FREQ_WEEKLY, FREQ_MONTHLY, FREQ_YEARLY, FREQ_CUSTOM,
+    END_NEVER, END_AFTER_N, END_ON_DATE,
+)
 # MARSOUD-CRM-EXPANSION §2/5b/5c — new lightweight CRM tables.
 from app.models.crm_expansion import (
     Campaign, LeadContact, LeadActivity, LeadActivityType,
@@ -121,6 +128,10 @@ __all__ = [
     "Task", "TaskStatus", "TaskPriority", "KANBAN_ORDER",
     "TaskComment", "TaskActivityLog", "task_assignees",
     "TaskSchedule", "task_schedule_assignees",
+    "RecurringTaskSeries", "RecurringTaskException",
+    "FREQUENCIES", "END_CONDITIONS",
+    "FREQ_DAILY", "FREQ_WEEKLY", "FREQ_MONTHLY", "FREQ_YEARLY", "FREQ_CUSTOM",
+    "END_NEVER", "END_AFTER_N", "END_ON_DATE",
     "RECURRENCE_ONCE", "RECURRENCE_DAILY", "RECURRENCE_KINDS",
     "LeadComment",
     "Document", "DocumentSourceType", "DocumentVisibility",

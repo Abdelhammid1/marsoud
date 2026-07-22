@@ -454,6 +454,17 @@ class Task(db.Model):
     archived_by_id = db.Column(db.Integer, db.ForeignKey("users.id"),
                                 nullable=True)
 
+    # MARSOUD-RECURRING-TASKS (Abdelhamid 2026-07-22) — set on tasks
+    # that were generated from a RecurringTaskSeries. NULL for
+    # standalone tasks. occurrence_index is 1-based (1 = the first
+    # generated task from the series).
+    recurring_series_id = db.Column(db.Integer,
+                                     db.ForeignKey(
+                                         "recurring_task_series.id",
+                                         name="fk_tasks_recurring_series_id"),
+                                     nullable=True, index=True)
+    occurrence_index = db.Column(db.Integer, nullable=True)
+
     company = db.relationship("Company")
     project = db.relationship("Project", foreign_keys=[project_id], backref="tasks")
     milestone = db.relationship("Milestone", foreign_keys=[milestone_id])
