@@ -759,6 +759,91 @@ def subscriptions_renew(company_id):
 
 # ─── TICKET 1: subscription settings (platform-level) ────────────────────
 
+# MARSOUD-DISCOUNT-COUPONS (Abdelhamid 2026-07-22) — CRUD + stats.
+@bp.route("/coupons")
+@login_required
+@superadmin_required
+def coupons_index():
+    from app.models import Coupon, CouponRedemption
+    coupons = Coupon.query.order_by(Coupon.created_at.desc()).all()
+    stats = {}
+    for c in coupons:
+        redemptions = CouponRedemption.query.filter_by(
+            coupon_id=c.id).all()
+        stats[c.id] = {
+            "uses": len(redemptions),
+            "saved": sum((float(r.amount_saved) for r in redemptions), 0.0),
+            "last_used": max((r.redeemed_at for r in redemptions),
+                              default=None),
+        }
+    return render_template("admin/coupons_index.html",
+                           coupons=coupons, stats=stats)
+
+
+@bp.route("/coupons/new", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def coupons_new():
+    from app.models import Coupon, Plan, DISCOUNT_PERCENT, DISCOUNT_FIXED
+    from datetime import datetime as _dt
+    if request.method == "POST":
+        code = (request.form.get("code") or "").strip().upper()
+        if not code:
+            flash("الكود مطلوب.", "error")
+            return redirect(url_for("superadmin.coupons_new"))
+        if Coupon.query.filter_by(code=code).first():
+            flash("الكود موجود بالفعل.", "error")
+            return redirect(url_for("superadmin.coupons_new"))
+        dtype = request.form.get("discount_type", DISCOUNT_PERCENT)
+        if dtype not in (DISCOUNT_PERCENT, DISCOUNT_FIXED):
+            dtype = DISCOUNT_PERCENT
+        try:
+            dvalue = float(request.form.get("discount_value") or 0)
+        except ValueError:
+            dvalue = 0
+        max_uses_raw = (request.form.get("max_uses") or "").strip()
+        max_per_raw = (request.form.get("max_uses_per_customer") or "1").strip()
+        valid_from_raw = (request.form.get("valid_from") or "").strip()
+        valid_until_raw = (request.form.get("valid_until") or "").strip()
+        def _parse_date(s):
+            try:
+                return _dt.strptime(s, "%Y-%m-%d").date()
+            except (ValueError, TypeError):
+                return None
+        c = Coupon(
+            code=code,
+            discount_type=dtype,
+            discount_value=dvalue,
+            valid_from=_parse_date(valid_from_raw),
+            valid_until=_parse_date(valid_until_raw),
+            max_uses=int(max_uses_raw) if max_uses_raw.isdigit() else None,
+            max_uses_per_customer=int(max_per_raw) if max_per_raw.isdigit() else 1,
+            active=True,
+            created_by_id=current_user.id,
+        )
+        plan_ids = request.form.getlist("plan_ids")
+        if plan_ids:
+            c.set_plan_ids(plan_ids)
+        db.session.add(c); db.session.commit()
+        log_platform_action("coupon_create", details=f"code={code}",
+                            actor_id=current_user.id)
+        flash(f"تم إنشاء كود: {code}", "success")
+        return redirect(url_for("superadmin.coupons_index"))
+    plans = Plan.query.filter_by(is_active=True).all()
+    return render_template("admin/coupons_form.html", plans=plans)
+
+
+@bp.route("/coupons/<int:coupon_id>/toggle", methods=["POST"])
+@login_required
+@superadmin_required
+def coupons_toggle(coupon_id):
+    from app.models import Coupon
+    c = db.session.get(Coupon, coupon_id) or _404()
+    c.active = not c.active
+    db.session.commit()
+    return redirect(url_for("superadmin.coupons_index"))
+
+
 # MARSOUD-INACTIVE-COMPANIES-MONITORING (Abdelhamid 2026-07-22) —
 # list stale tenants filtered by inactivity window.
 @bp.route("/companies/inactive")

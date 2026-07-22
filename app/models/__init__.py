@@ -7,6 +7,11 @@ from app.models.plan import (
 from app.models.consent import ConsentEvent
 # MARSOUD-FEATURE-FLAGS-KILL-SWITCH (Abdelhamid 2026-07-22).
 from app.models.feature_flag import FeatureFlag
+# MARSOUD-DISCOUNT-COUPONS (Abdelhamid 2026-07-22).
+from app.models.coupon import (
+    Coupon, CouponRedemption,
+    DISCOUNT_PERCENT, DISCOUNT_FIXED,
+)
 from app.models.platform_setting import PlatformSetting
 from app.models.recurring_bill import (
     RecurringBill, RecurringBillOverride,
@@ -122,6 +127,8 @@ __all__ = [
     "Plan", "PlanPrice", "SubscriptionReminderSent",
     "DEFAULT_CURRENCY", "PlatformSetting",
     "ConsentEvent", "FeatureFlag",
+    "Coupon", "CouponRedemption",
+    "DISCOUNT_PERCENT", "DISCOUNT_FIXED",
     "RecurringBill", "RecurringBillOverride",
     "INTERVAL_UNITS", "OVERRIDE_ACTIONS",
     "SalesCommission", "COMMISSION_STATUSES",

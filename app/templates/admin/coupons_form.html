@@ -1,0 +1,66 @@
+{% extends "admin/base.html" %}
+{% block page_title %}كود خصم جديد{% endblock %}
+{% block content %}
+
+<div class="card p-6 max-w-2xl">
+  <h2 class="font-bold text-navy-900 mb-5">🎟️ كود خصم جديد</h2>
+  <form method="POST" class="space-y-4">
+    <div>
+      <label class="block text-sm font-semibold mb-1">الكود</label>
+      <input type="text" name="code" required class="input font-mono uppercase"
+             placeholder="SUMMER25">
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold mb-1">نوع الخصم</label>
+        <select name="discount_type" class="select">
+          <option value="PERCENT">نسبة مئوية %</option>
+          <option value="FIXED">مبلغ ثابت (جنيه)</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-1">قيمة الخصم</label>
+        <input type="number" name="discount_value" step="0.01" required class="input font-mono">
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold mb-1">صالح من</label>
+        <input type="date" name="valid_from" class="input">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-1">صالح حتى</label>
+        <input type="date" name="valid_until" class="input">
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold mb-1">أقصى عدد استخدام (كلي)</label>
+        <input type="number" name="max_uses" min="1" placeholder="فارغ = بلا حد"
+               class="input font-mono">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-1">أقصى استخدام لكل عميل</label>
+        <input type="number" name="max_uses_per_customer" min="1" value="1"
+               class="input font-mono">
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm font-semibold mb-2">الباقات المستهدفة (فارغ = كل الباقات)</label>
+      <div class="flex flex-wrap gap-2 bg-slate-50 rounded p-3">
+        {% for p in plans %}
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" name="plan_ids" value="{{ p.id }}">
+          <span>{{ p.name_ar or p.name }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="flex justify-between items-center pt-2">
+      <a href="{{ url_for('superadmin.coupons_index') }}" class="btn-secondary text-sm">إلغاء</a>
+      <button type="submit" class="btn-primary">💾 حفظ الكود</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}
