@@ -103,6 +103,7 @@ def _():
         "company_name": "__EVERIFY_NEW__",
         "subdomain": "everify-new",
         "base_currency": "EGP",
+        "agree_terms": "on",
     }, follow_redirects=False)
     u = User.query.filter_by(email="everify-new@x.test").one()
     assert u.status == UserStatus.PENDING_VERIFICATION.value, \

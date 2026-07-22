@@ -62,6 +62,8 @@ def create_app(config_class=Config):
         return tok.user if tok else None
 
     from app.routes.auth import bp as auth_bp
+    # MARSOUD-TERMS-CONSENT — public /terms + /privacy pages.
+    from app.routes.public import bp as public_bp
     from app.routes.dashboard import bp as dashboard_bp
     from app.routes.companies import bp as companies_bp
     from app.routes.accounts import bp as accounts_bp
@@ -112,6 +114,7 @@ def create_app(config_class=Config):
     from app.routes.evaluations import bp as evaluations_bp
 
     app.register_blueprint(auth_bp)
+    app.register_blueprint(public_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(companies_bp, url_prefix="/companies")
     app.register_blueprint(accounts_bp, url_prefix="/accounts")
@@ -304,6 +307,47 @@ def create_app(config_class=Config):
             from flask import jsonify
             return jsonify({"error": "email verification required"}), 403
         return redirect(url_for("auth.verify_pending"))
+
+    # MARSOUD-TERMS-CONSENT (Abdelhamid 2026-07-22) — when the super-
+    # admin bumps `terms_version`, every user whose stored version
+    # doesn't match gets redirected to /re-accept-terms on the next
+    # request. Users with NULL terms_version (created before this
+    # ticket shipped) are also nudged so we build the audit trail.
+    _TERMS_ALLOWLIST_PREFIXES = (
+        "auth.", "static", "public.", "superadmin.",
+    )
+
+    @app.before_request
+    def require_current_terms_version():
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return
+        if getattr(current_user, "is_superadmin", False):
+            return
+        endpoint = (request.endpoint or "")
+        if any(endpoint.startswith(p) for p in _TERMS_ALLOWLIST_PREFIXES):
+            return
+        try:
+            from app.services.legal import (
+                get_terms_version, has_published_legal,
+            )
+            # Nothing published yet → don't nag. Prevents fresh
+            # installs + every audit fixture (users created directly
+            # via ORM, no /register call) from being redirected.
+            if not has_published_legal():
+                return
+            current = get_terms_version()
+        except Exception:
+            return
+        if (current_user.terms_version or "") == current:
+            return
+        if request.path.startswith("/api/"):
+            from flask import jsonify
+            return jsonify({
+                "error": "terms acceptance required",
+                "terms_version": current,
+            }), 403
+        return redirect(url_for("auth.reaccept_terms"))
 
     # MARSOUD-58 — sub-item gating enforcement. Block routes whose
     # sub-item is not in the company's plan, regardless of method.

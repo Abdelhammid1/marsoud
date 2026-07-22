@@ -74,6 +74,13 @@ class User(UserMixin, db.Model):
     failed_login_attempts = db.Column(db.Integer, default=0, nullable=False)
     locked_until = db.Column(db.DateTime, nullable=True)
 
+    # MARSOUD-TERMS-CONSENT (Abdelhamid 2026-07-22) — legal audit
+    # trail. When the super-admin publishes a new version via
+    # /admin/legal, middleware nudges any user whose stored version
+    # doesn't match to re-accept on their next request.
+    terms_accepted_at = db.Column(db.DateTime, nullable=True)
+    terms_version = db.Column(db.String(20), nullable=True)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     companies = db.relationship(

@@ -193,6 +193,16 @@ def register():
             flash(reason, "error")
             return render_template("auth/register.html")
 
+        # MARSOUD-TERMS-CONSENT (Abdelhamid 2026-07-22) — mandatory
+        # checkbox. HTML `required` catches most, this is the server-
+        # side safety net.
+        if request.form.get("agree_terms") != "on":
+            flash(
+                "الموافقة على الشروط والأحكام وسياسة الخصوصية مطلوبة.",
+                "error",
+            )
+            return render_template("auth/register.html")
+
         from app.models.company import is_valid_subdomain
         if not is_valid_subdomain(subdomain):
             flash(
@@ -218,6 +228,11 @@ def register():
         # request until they do.
         from app.models import UserStatus
         user.status = UserStatus.PENDING_VERIFICATION.value
+        # MARSOUD-TERMS-CONSENT — record the audit trail. Version comes
+        # from platform_settings so a later version-bump can re-prompt.
+        from app.services.legal import get_terms_version
+        user.terms_accepted_at = datetime.utcnow()
+        user.terms_version = get_terms_version()
         company = Company(name=company_name, base_currency=base_currency, subdomain=subdomain)
         # Bug fix (abdelhamid) — every new company gets the one-month
         # default subscription window + the enterprise plan, instead of
@@ -316,6 +331,32 @@ def verify_pending():
     unverified users to. Shows a friendly 'check your email' message
     with a resend button."""
     return render_template("auth/verify_pending.html")
+
+
+# ─── MARSOUD-TERMS-CONSENT (Abdelhamid 2026-07-22) — re-accept ───
+@bp.route("/re-accept-terms", methods=["GET", "POST"])
+@login_required
+def reaccept_terms():
+    from app.services.legal import (
+        get_terms_version, get_terms_html, get_privacy_html,
+    )
+    from markupsafe import Markup
+    current = get_terms_version()
+    if request.method == "POST":
+        if request.form.get("agree_terms") != "on":
+            flash("لازم توافق على الشروط للمتابعة.", "error")
+            return redirect(url_for("auth.reaccept_terms"))
+        current_user.terms_accepted_at = datetime.utcnow()
+        current_user.terms_version = current
+        db.session.commit()
+        flash("تم تسجيل موافقتك على الإصدار الجديد.", "success")
+        return redirect(url_for("dashboard.index"))
+    return render_template(
+        "auth/reaccept.html",
+        version=current,
+        terms=Markup(get_terms_html()),
+        privacy=Markup(get_privacy_html()),
+    )
 
 
 @bp.route("/verify/resend", methods=["POST"])

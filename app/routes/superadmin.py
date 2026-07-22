@@ -717,6 +717,39 @@ def subscriptions_renew(company_id):
 
 
 # ─── TICKET 1: subscription settings (platform-level) ────────────────────
+# MARSOUD-TERMS-CONSENT (Abdelhamid 2026-07-22) — content editor
+# for /terms + /privacy. Super-admin only. Publishing a NEW version
+# forces every user to re-accept on their next request.
+@bp.route("/legal", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def legal():
+    from app.services.legal import (
+        get_terms_version, get_terms_html, get_privacy_html,
+        set_legal, DEFAULT_TERMS_VERSION,
+    )
+    if request.method == "POST":
+        version = (request.form.get("terms_version") or "").strip() or DEFAULT_TERMS_VERSION
+        terms_html = request.form.get("terms_html") or ""
+        privacy_html = request.form.get("privacy_html") or ""
+        set_legal(version, terms_html, privacy_html)
+        db.session.commit()
+        log_platform_action(
+            "legal_publish", actor_id=current_user.id,
+            details=f"version={version}, "
+                    f"terms_len={len(terms_html)}, "
+                    f"privacy_len={len(privacy_html)}")
+        flash("تم نشر الإصدار — سيُطلب من المستخدمين الموافقة عليه.",
+              "success")
+        return redirect(url_for("superadmin.legal"))
+    return render_template(
+        "admin/legal.html",
+        terms_version=get_terms_version(),
+        terms_html=get_terms_html(),
+        privacy_html=get_privacy_html(),
+    )
+
+
 @bp.route("/subscription-settings", methods=["GET", "POST"])
 @login_required
 @superadmin_required

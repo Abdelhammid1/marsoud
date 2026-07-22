@@ -1,0 +1,54 @@
+{% extends "admin/base.html" %}
+{% block page_title %}الشروط والأحكام + الخصوصية{% endblock %}
+{% block content %}
+
+<div class="card p-6 max-w-4xl">
+  <h2 class="font-bold text-navy-900 mb-1">📄 محرر النصوص القانونية</h2>
+  <p class="text-sm text-slate-500 mb-5">
+    ما يظهر هنا هو المصدر الوحيد لصفحتَي
+    <a href="/terms" class="text-emerald-700 underline">/terms</a>
+    و
+    <a href="/privacy" class="text-emerald-700 underline">/privacy</a>.
+    اكتب النص بصيغة HTML مبسّطة (p, br, ul, li, b, i). لما تغيّر
+    الإصدار، النظام هيطلب من كل المستخدمين الموافقة على النسخة
+    الجديدة عند أول دخول لهم.
+  </p>
+
+  <form method="POST" class="space-y-5">
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">
+        رقم الإصدار
+      </label>
+      <input type="text" name="terms_version" value="{{ terms_version }}"
+             class="input font-mono w-40" placeholder="v1.0">
+      <p class="text-xs text-slate-500 mt-1">
+        غيّر الرقم لما تنشر تحديثاً جوهرياً — كل مستخدم قديم
+        هيتطلب منه الموافقة على النسخة الجديدة.
+      </p>
+    </div>
+
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">
+        الشروط والأحكام (HTML)
+      </label>
+      <textarea name="terms_html" rows="14"
+                class="textarea font-mono text-xs" dir="ltr"
+                >{{ terms_html }}</textarea>
+    </div>
+
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">
+        سياسة الخصوصية (HTML)
+      </label>
+      <textarea name="privacy_html" rows="14"
+                class="textarea font-mono text-xs" dir="ltr"
+                >{{ privacy_html }}</textarea>
+    </div>
+
+    <div class="flex justify-end pt-2">
+      <button type="submit" class="btn-primary">📢 نشر الإصدار</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}
