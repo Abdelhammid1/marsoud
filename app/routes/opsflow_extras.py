@@ -141,13 +141,27 @@ def _active_company_id():
 @notifications_bp.route("/")
 @login_required
 def index():
+    # MARSOUD-NOTIF-FILTER (Abdelhamid image #17) — allow the user to
+    # narrow the list to unread only via ?filter=unread. Anything else
+    # (missing / "all" / a typo) shows everything so the URL is safe
+    # to bookmark.
+    filter_arg = (request.args.get("filter") or "all").strip().lower()
+    filter_mode = "unread" if filter_arg == "unread" else "all"
     cid = _active_company_id()
     if cid is None:
-        return render_template("notifications/index.html", notifications=[])
-    notifs = Notification.query.filter_by(
+        return render_template(
+            "notifications/index.html", notifications=[],
+            filter_mode=filter_mode, unread_count=0)
+    q = Notification.query.filter_by(
         user_id=current_user.id, company_id=cid,
-    ).order_by(Notification.created_at.desc()).limit(200).all()
-    return render_template("notifications/index.html", notifications=notifs)
+    )
+    unread_count = q.filter(Notification.read_at.is_(None)).count()
+    if filter_mode == "unread":
+        q = q.filter(Notification.read_at.is_(None))
+    notifs = q.order_by(Notification.created_at.desc()).limit(200).all()
+    return render_template(
+        "notifications/index.html", notifications=notifs,
+        filter_mode=filter_mode, unread_count=unread_count)
 
 
 @notifications_bp.route("/dropdown")

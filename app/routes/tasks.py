@@ -62,9 +62,17 @@ def _pm_project_ids():
 
 
 def _visible_tasks_query():
+    # MARSOUD-PM-TASKS-VIS (Abdelhamid 2026-07-22) — used to gate the
+    # PM-projects lookup on _role() == "project_manager". That was too
+    # tight: a user who is the manager of a specific project (via
+    # Project.manager_id FK) should see all tasks in that project even
+    # if their global role in the company isn't "project_manager"
+    # (e.g. a team_member who was just promoted to manage one project).
+    # Always pass the list — empty means no expansion, so no regression
+    # for users who don't manage any project.
     cid = g.active_company.id
     full = _has_full_task_visibility()
-    pm_pids = _pm_project_ids() if _role() == "project_manager" else None
+    pm_pids = _pm_project_ids() or None
     return visible_tasks_query(cid, current_user.id, full, pm_pids)
 
 
@@ -302,16 +310,12 @@ def index():
 
     cid = g.active_company.id
     if not can_see_all:
-        # Employees: their tasks + tasks they created. Tabs hidden.
-        from app.models import task_assignees as _ta
-        sub = db.session.query(_ta.c.task_id).filter(
-            _ta.c.user_id == current_user.id,
-        )
-        q = Task.query.filter(Task.company_id == cid).filter(or_(
-            Task.assigned_to_id == current_user.id,
-            Task.id.in_(sub),
-            Task.created_by_id == current_user.id,
-        ))
+        # MARSOUD-PM-TASKS-VIS (Abdelhamid 2026-07-22) — used to build
+        # a manual assignee-OR-creator query here, which silently
+        # dropped tasks in projects the user MANAGES (Project.manager_id
+        # FK). Route through _visible_tasks_query() so PM projects are
+        # included via the same helper the detail view uses.
+        q = _visible_tasks_query()
     else:
         if scope == "created":
             q = Task.query.filter_by(
