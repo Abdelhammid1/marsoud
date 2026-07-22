@@ -380,9 +380,66 @@ def index():
         except (TypeError, ValueError):
             pass
 
+    # MARSOUD-TASK-CREATED-AT (Abdelhamid 2026-07-22) — sort + range
+    # filter on created_at. Sort default stays "deadline first" to
+    # preserve legacy card ordering; users pick newest/oldest via
+    # ?sort=. Range filter narrows the base query to tasks created
+    # within a named window OR a custom (from, to) pair.
+    from datetime import datetime as _dt, timedelta as _td
+    created_range = (request.args.get("created_range") or "").strip().lower()
+    date_from_raw = (request.args.get("from") or "").strip()
+    date_to_raw   = (request.args.get("to") or "").strip()
+    sort_arg = (request.args.get("sort") or "").strip().lower()
+
+    def _parse(iso):
+        try:
+            return _dt.strptime(iso, "%Y-%m-%d")
+        except (TypeError, ValueError):
+            return None
+
+    now = _dt.utcnow()
+    start_of_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    range_lo = range_hi = None
+    if created_range == "today":
+        range_lo, range_hi = start_of_today, start_of_today + _td(days=1)
+    elif created_range == "yesterday":
+        range_lo = start_of_today - _td(days=1)
+        range_hi = start_of_today
+    elif created_range == "last7":
+        range_lo = start_of_today - _td(days=6)
+        range_hi = start_of_today + _td(days=1)
+    elif created_range == "last30":
+        range_lo = start_of_today - _td(days=29)
+        range_hi = start_of_today + _td(days=1)
+    elif created_range == "this_month":
+        range_lo = start_of_today.replace(day=1)
+        # Naive next-month: works for the query (any date works).
+        range_hi = (range_lo + _td(days=32)).replace(day=1)
+    elif created_range == "last_month":
+        first_this = start_of_today.replace(day=1)
+        range_hi = first_this
+        range_lo = (first_this - _td(days=1)).replace(day=1)
+    elif created_range == "custom":
+        d_from = _parse(date_from_raw)
+        d_to = _parse(date_to_raw)
+        if d_from:
+            range_lo = d_from
+        if d_to:
+            range_hi = d_to + _td(days=1)   # inclusive end
+
+    if range_lo is not None:
+        q = q.filter(Task.created_at >= range_lo)
+    if range_hi is not None:
+        q = q.filter(Task.created_at < range_hi)
+
     if employee_cards is None:
-        tasks = q.order_by(Task.deadline.asc().nullslast(),
-                            Task.created_at.desc()).all()
+        if sort_arg == "newest":
+            tasks = q.order_by(Task.created_at.desc()).all()
+        elif sort_arg == "oldest":
+            tasks = q.order_by(Task.created_at.asc()).all()
+        else:
+            tasks = q.order_by(Task.deadline.asc().nullslast(),
+                                Task.created_at.desc()).all()
     else:
         tasks = []
     columns = {s: [] for s in KANBAN_ORDER}
@@ -427,6 +484,13 @@ def index():
         drill_user=drill_user,
         drill_monthly=drill_monthly,
         drill_archived_count=drill_archived_count,
+        # MARSOUD-TASK-CREATED-AT — surface for the filter UI so the
+        # form pre-selects the active option and the quick-pill row
+        # highlights the active range.
+        sort=sort_arg or "",
+        created_range=created_range,
+        date_from=date_from_raw,
+        date_to=date_to_raw,
     )
 
 

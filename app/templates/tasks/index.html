@@ -166,7 +166,7 @@
 </div>
 {% else %}
 
-<form method="GET" class="flex flex-wrap items-end gap-3 mb-4 card p-4">
+<form method="GET" class="flex flex-wrap items-end gap-3 mb-4 card p-4" id="task-filters-form">
 {% if can_see_all and scope and scope != 'mine' %}<input type="hidden" name="scope" value="{{ scope }}">{% endif %}
 {% if drill_user %}<input type="hidden" name="user_id" value="{{ drill_user.id }}">{% endif %}
   <div>
@@ -190,8 +190,73 @@
       {% for u in users %}{% if u %}<option value="{{ u.id }}" {% if assignee_filter == u.id|string %}selected{% endif %}>{{ u.full_name }}</option>{% endif %}{% endfor %}
     </select>
   </div>
+  {# MARSOUD-TASK-CREATED-AT — sort + range filter. #}
+  <div>
+    <label class="block text-xs font-semibold text-slate-700 mb-1">الترتيب</label>
+    <select name="sort" class="select text-sm">
+      <option value="" {% if not sort %}selected{% endif %}>افتراضي</option>
+      <option value="newest" {% if sort == 'newest' %}selected{% endif %}>الأحدث أولاً</option>
+      <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>الأقدم أولاً</option>
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold text-slate-700 mb-1">تاريخ الإنشاء</label>
+    <select name="created_range" id="created-range-select" class="select text-sm">
+      <option value="" {% if not created_range %}selected{% endif %}>الكل</option>
+      <option value="today"      {% if created_range == 'today' %}selected{% endif %}>اليوم</option>
+      <option value="yesterday"  {% if created_range == 'yesterday' %}selected{% endif %}>أمس</option>
+      <option value="last7"      {% if created_range == 'last7' %}selected{% endif %}>آخر 7 أيام</option>
+      <option value="last30"     {% if created_range == 'last30' %}selected{% endif %}>آخر 30 يوم</option>
+      <option value="this_month" {% if created_range == 'this_month' %}selected{% endif %}>هذا الشهر</option>
+      <option value="last_month" {% if created_range == 'last_month' %}selected{% endif %}>الشهر الماضي</option>
+      <option value="custom"     {% if created_range == 'custom' %}selected{% endif %}>نطاق مخصص</option>
+    </select>
+  </div>
+  <div id="custom-range-fields" style="display:{% if created_range == 'custom' %}flex{% else %}none{% endif %}" class="items-end gap-2">
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">من</label>
+      <input type="date" name="from" value="{{ date_from }}" class="input text-sm">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">إلى</label>
+      <input type="date" name="to" value="{{ date_to }}" class="input text-sm">
+    </div>
+  </div>
   <button type="submit" class="btn-primary text-sm">تطبيق</button>
 </form>
+
+{# MARSOUD-TASK-CREATED-AT — quick-filter pill row above the Kanban. #}
+{% macro quick_pill(label, arg) -%}
+  {%- set active = (created_range == arg) -%}
+  <a class="px-3 py-1 rounded-full border text-xs {% if active %}bg-emerald-600 text-white border-emerald-600{% else %}bg-white text-slate-700 border-slate-200 hover:bg-slate-50{% endif %}"
+     href="{{ url_for('tasks.index',
+                       scope=scope if can_see_all and scope != 'mine' else None,
+                       user_id=drill_user.id if drill_user else None,
+                       project_id=project_filter or None,
+                       priority=priority_filter or None,
+                       assignee=assignee_filter or None,
+                       sort=sort or None,
+                       created_range=arg or None) }}">{{ label }}</a>
+{%- endmacro %}
+<div class="flex flex-wrap gap-2 mb-3 items-center">
+  <span class="text-xs text-slate-500">اختصار:</span>
+  {{ quick_pill('اليوم', 'today') }}
+  {{ quick_pill('أمس', 'yesterday') }}
+  {{ quick_pill('آخر 7 أيام', 'last7') }}
+  {% if created_range %}
+  {{ quick_pill('مسح', '') }}
+  {% endif %}
+</div>
+
+<script>
+(function() {
+  var sel = document.getElementById('created-range-select');
+  var wrap = document.getElementById('custom-range-fields');
+  if (sel && wrap) sel.addEventListener('change', function() {
+    wrap.style.display = (sel.value === 'custom') ? 'flex' : 'none';
+  });
+})();
+</script>
 
 {# MARSOUD-MOBILE-FIX v2 (Ibrahim 2026-07-03) — one column per swipe
    on phone. Previous 80vw / 280px cap left ~110px of the neighbour
@@ -246,6 +311,10 @@
         {% if t.created_by %}
         <div class="mt-0.5 text-[10px] text-slate-400">أنشأها: {{ t.created_by.full_name }}</div>
         {% endif %}
+        {# MARSOUD-TASK-CREATED-AT — friendly relative-date line. #}
+        <div class="mt-0.5 text-[10px] text-slate-400" title="{{ t.created_at | company_dt('%Y-%m-%d %H:%M') }}">
+          📅 {{ t.created_at | relative_date }}
+        </div>
         {% if has_permission('tasks.manage') %}
         {# MARSOUD-TASK-CONTEXT — send the full current URL as return_to
            so the status flip lands the user back on the same drill-down

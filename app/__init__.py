@@ -605,6 +605,33 @@ def create_app(config_class=Config):
             company = g.get("active_company") if g else None
         return to_company_tz_str(value, company, fmt)
 
+    # MARSOUD-TASK-CREATED-AT (Abdelhamid 2026-07-22) — humanize a
+    # datetime as "اليوم" / "أمس" / "قبل N أيام" / "17 Jul 2026" so
+    # task cards can show a friendlier created-at line.
+    @app.template_filter("relative_date")
+    def relative_date_filter(value):
+        if value is None:
+            return "—"
+        from datetime import datetime as _dt, date as _date
+        now = _dt.utcnow()
+        # Accept both date and datetime; normalize to a date for the
+        # day-delta math.
+        if isinstance(value, _dt):
+            target_date = value.date()
+        elif isinstance(value, _date):
+            target_date = value
+        else:
+            return str(value)
+        delta_days = (now.date() - target_date).days
+        if delta_days == 0:
+            return "اليوم"
+        if delta_days == 1:
+            return "أمس"
+        if 2 <= delta_days <= 6:
+            return f"قبل {delta_days} أيام"
+        # Older than a week: fall back to a compact absolute date.
+        return target_date.strftime("%d %b %Y")
+
     # MARSOUD-62 — Expose company_logo_email_uri so the email base
     # template can embed the logo as a data: URI (email clients can't
     # fetch /static/ relative paths).
