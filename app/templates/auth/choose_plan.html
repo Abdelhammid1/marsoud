@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block page_title %}اختر باقتك{% endblock %}
+{% block content %}
+<div class="max-w-5xl mx-auto">
+  <div class="text-center mb-8">
+    <h1 class="text-3xl font-bold text-navy-900 mb-2">🎁 اختر باقتك</h1>
+    <p class="text-slate-600">
+      خلال فترة التجربة (14 يوم) هتجرب <b>كل مميزات النظام</b>
+      بغض النظر عن اختيارك.
+      بعد نهاية التجربة هتتفعّل قيود الباقة اللي اختارتها.
+    </p>
+  </div>
+
+  <form method="POST" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    {% for plan in plans %}
+    <label class="cursor-pointer">
+      <input type="radio" name="plan_id" value="{{ plan.id }}"
+             class="peer sr-only" {% if loop.first %}checked{% endif %}>
+      <div class="border-2 border-slate-200 rounded-2xl p-6 h-full flex flex-col
+                  peer-checked:border-emerald-500 peer-checked:bg-emerald-50/50
+                  hover:border-emerald-300 transition">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-bold text-lg text-navy-900">{{ plan.name_ar or plan.name }}</h3>
+          <span class="peer-checked:text-emerald-600 text-slate-300 text-xl">●</span>
+        </div>
+        {% if plan.price_monthly %}
+        <div class="text-3xl font-bold text-emerald-700 mb-1">
+          {{ plan.price_monthly|int }}
+          <span class="text-sm font-normal text-slate-500">جنيه/شهر</span>
+        </div>
+        {% if plan.price_yearly %}
+        <div class="text-xs text-slate-500 mb-3">
+          أو {{ plan.price_yearly|int }} جنيه/سنة
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="text-xl font-bold text-slate-700 mb-3">مجاني</div>
+        {% endif %}
+        {% if plan.description %}
+        <p class="text-sm text-slate-600 flex-1">{{ plan.description }}</p>
+        {% endif %}
+      </div>
+    </label>
+    {% endfor %}
+  </form>
+
+  <div class="text-center mt-6">
+    <button type="submit" form="" onclick="document.querySelector('form').submit()"
+            class="btn-primary text-lg px-8 py-3">
+      ✓ تأكيد الاختيار
+    </button>
+    <p class="text-xs text-slate-400 mt-3">
+      تقدر تغير الاختيار لاحقاً من إعدادات الشركة.
+    </p>
+  </div>
+</div>
+{% endblock %}

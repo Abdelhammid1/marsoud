@@ -234,8 +234,15 @@ def subitem_allowed(endpoint, company):
       - the company has no plan attached (back-compat)
       - the plan's allowed_subitems is None (legacy / not yet set)
       - the endpoint is in the plan's allowed_subitems list
+      - the company is inside its trial window (MARSOUD-CHOOSE-PLAN):
+        during the trial, ALL features are enabled regardless of the
+        picked plan so the user experiences the full product before
+        deciding whether to keep the chosen tier.
     """
     if not company:
+        return True
+    # MARSOUD-CHOOSE-PLAN — trial window overrides plan gating.
+    if _company_in_trial(company):
         return True
     plan = getattr(company, "subscription_plan", None)
     if not plan:
@@ -245,6 +252,17 @@ def subitem_allowed(endpoint, company):
         # Back-compat: NULL allowed_subitems = no filtering.
         return True
     return endpoint in items
+
+
+def _company_in_trial(company):
+    """MARSOUD-CHOOSE-PLAN — true iff the company is still inside its
+    subscription window. Named "trial" because for freshly-registered
+    companies the window IS the trial. Same predicate also protects
+    any renewal buffer (the app should stay full-features during the
+    active window regardless of trial-vs-paid nuance)."""
+    from datetime import datetime
+    expires = getattr(company, "subscription_expires_at", None)
+    return bool(expires and expires > datetime.utcnow())
 
 
 def endpoint_to_subitem(endpoint):

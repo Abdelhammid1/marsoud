@@ -83,6 +83,20 @@ def _setup():
     db.session.add(c); db.session.flush()
     seed_default_coa(c.id)
     seed_system_roles_for_company(c.id)
+    # MARSOUD-CHOOSE-PLAN — pretend the owner already picked a plan
+    # so the choose-plan middleware doesn't hijack /tasks/ requests.
+    # Prefer enterprise (unrestricted subitems) so plan_gating
+    # doesn't block /tasks/ either — this audit isn't about plans.
+    from app.models import Plan
+    p = Plan.query.filter_by(code="enterprise").first() \
+        or Plan.query.filter_by(is_active=True).first()
+    if p:
+        c.plan_id = p.id
+        c.intended_plan_id = p.id
+    # A future trial window so during-trial gating gets bypassed too.
+    from datetime import datetime as _dt, timedelta as _td
+    c.subscription_expires_at = _dt.utcnow() + _td(days=30)
+    db.session.flush()
 
     u = User(email="tc-owner@x.test",
              password_hash=generate_password_hash("x", method="pbkdf2:sha256"),

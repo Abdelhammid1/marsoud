@@ -234,11 +234,14 @@ def register():
         user.terms_accepted_at = datetime.utcnow()
         user.terms_version = get_terms_version()
         company = Company(name=company_name, base_currency=base_currency, subdomain=subdomain)
-        # Bug fix (abdelhamid) — every new company gets the one-month
-        # default subscription window + the enterprise plan, instead of
-        # being created without any subscription state.
+        # MARSOUD-CHOOSE-PLAN (Abdelhamid 2026-07-22) — was auto-
+        # assigning the Enterprise plan at signup. Now: only stamp the
+        # trial window; leave plan_id + intended_plan_id NULL so the
+        # user lands on /choose-plan after email verify. plan_gating
+        # treats any company inside its trial window as full-access
+        # regardless of intended_plan_id.
         from app.services.subscription import activate_default_subscription
-        activate_default_subscription(company)
+        activate_default_subscription(company, plan_code=None)
         user.companies.append(company)
         db.session.add(user)
         db.session.flush()
@@ -331,6 +334,41 @@ def verify_pending():
     unverified users to. Shows a friendly 'check your email' message
     with a resend button."""
     return render_template("auth/verify_pending.html")
+
+
+# ─── MARSOUD-CHOOSE-PLAN (Abdelhamid 2026-07-22) — post-signup ───
+@bp.route("/choose-plan", methods=["GET", "POST"])
+@login_required
+def choose_plan():
+    """Post-signup plan selection. Owner picks Starter/Growth/Pro (or
+    whatever active plans exist). During the trial the choice is
+    only recorded — enforcement kicks in after subscription_expires_at.
+    """
+    from app.models import Plan, Company
+    from flask import g as _g
+    company = _g.get("active_company")
+    if not company:
+        # No active tenant → nothing to choose against. Just land them.
+        return redirect(url_for("dashboard.index"))
+    if request.method == "POST":
+        pid = request.form.get("plan_id", type=int)
+        plan = db.session.get(Plan, pid) if pid else None
+        if not plan or not plan.is_active:
+            flash("الباقة المختارة غير صحيحة.", "error")
+            return redirect(url_for("auth.choose_plan"))
+        company.intended_plan_id = plan.id
+        db.session.commit()
+        flash(
+            f"سجّلنا اختيارك للباقة: {plan.name_ar or plan.name}. "
+            f"تمتّع بالفترة التجريبية.",
+            "success",
+        )
+        return redirect(url_for("dashboard.index"))
+
+    plans = Plan.query.filter_by(is_active=True).order_by(
+        Plan.price_monthly.asc().nullslast()).all()
+    return render_template(
+        "auth/choose_plan.html", plans=plans, company=company)
 
 
 # ─── MARSOUD-TERMS-CONSENT (Abdelhamid 2026-07-22) — re-accept ───

@@ -69,6 +69,14 @@ class Company(db.Model):
     iban = db.Column(db.String(50))
     # MARSOUD-57.2 + 57.3 — commercial plan + subscription window
     plan_id = db.Column(db.Integer, db.ForeignKey("plans.id"))
+    # MARSOUD-CHOOSE-PLAN (Abdelhamid 2026-07-22) — plan the OWNER
+    # picked on the post-signup /choose-plan page. Nullable until they
+    # pick. During the trial window (subscription_expires_at > now)
+    # the app grants full-feature access regardless of this field;
+    # after trial expiry, plan_gating enforces this plan's modules.
+    intended_plan_id = db.Column(db.Integer,
+                                 db.ForeignKey("plans.id",
+                                               name="fk_companies_intended_plan_id"))
     subscription_started_at = db.Column(db.DateTime)
     subscription_expires_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -82,6 +90,11 @@ class Company(db.Model):
     # Named `subscription_plan` to avoid collision with the legacy `plan`
     # String column (kept for back-compat with the super-admin form).
     subscription_plan = db.relationship("Plan", foreign_keys=[plan_id])
+    # MARSOUD-CHOOSE-PLAN — what the owner picked at signup. Used by
+    # sales team + billing when trial ends. Separate from plan_id so
+    # a super-admin can override with a comped/custom plan without
+    # losing the record of what the client originally intended.
+    intended_plan = db.relationship("Plan", foreign_keys=[intended_plan_id])
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     @property

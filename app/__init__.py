@@ -308,6 +308,44 @@ def create_app(config_class=Config):
             return jsonify({"error": "email verification required"}), 403
         return redirect(url_for("auth.verify_pending"))
 
+    # MARSOUD-CHOOSE-PLAN (Abdelhamid 2026-07-22) — after email
+    # verify, if the owner's active company still has intended_plan_id
+    # NULL, nudge them to /choose-plan before dashboard. Owner-only
+    # so a team member doesn't get blocked by a task the owner
+    # hasn't done yet.
+    _CHOOSE_PLAN_ALLOWLIST_PREFIXES = (
+        "auth.", "static", "public.", "superadmin.",
+    )
+
+    @app.before_request
+    def require_plan_selection():
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return
+        if getattr(current_user, "is_superadmin", False):
+            return
+        company = g.get("active_company")
+        if not company:
+            return
+        # Grandfather anyone who already has an assigned plan (legacy
+        # signups + super-admin-comped tenants). Only NEW signups
+        # (both plan_id AND intended_plan_id NULL) get nudged.
+        if company.plan_id or company.intended_plan_id:
+            return
+        # Only the OWNER of the company is asked. Team members roll
+        # through even if their owner hasn't picked yet.
+        from app.services.permissions import get_user_role
+        role = get_user_role(current_user.id, company.id)
+        if role != "owner":
+            return
+        endpoint = (request.endpoint or "")
+        if any(endpoint.startswith(p) for p in _CHOOSE_PLAN_ALLOWLIST_PREFIXES):
+            return
+        if request.path.startswith("/api/"):
+            from flask import jsonify
+            return jsonify({"error": "plan selection required"}), 403
+        return redirect(url_for("auth.choose_plan"))
+
     # MARSOUD-TERMS-CONSENT (Abdelhamid 2026-07-22) — when the super-
     # admin bumps `terms_version`, every user whose stored version
     # doesn't match gets redirected to /re-accept-terms on the next
