@@ -1,4 +1,8 @@
 {% extends "base.html" %}
+{# MARSOUD-CHOOSE-PLAN-HIDE-SIDEBAR (Abdelhamid 2026-07-22) — hide the
+   whole navigation shell so a brand-new owner can't sneak into other
+   parts of the app before picking a plan. #}
+{% set hide_sidebar = true %}
 {% block page_title %}اختر باقتك{% endblock %}
 {% block content %}
 <div class="max-w-5xl mx-auto">

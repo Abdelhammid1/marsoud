@@ -429,6 +429,11 @@ tailwind.config = {
 
 {% if current_user.is_authenticated %}
 <div class="flex min-h-screen">
+  {# MARSOUD-CHOOSE-PLAN-HIDE-SIDEBAR (Abdelhamid 2026-07-22) — a
+     template can set `hide_sidebar = true` to render the whole page
+     without the navigation shell. Used on /choose-plan so a new
+     owner can't sneak into other sections before picking a plan. #}
+  {% if not hide_sidebar %}
   <!-- Sidebar -->
   <aside id="sidebar" class="sidebar-aside w-64 bg-slate-50 text-slate-600 flex flex-col fixed h-screen right-0 top-0 border-l border-slate-200 z-40">
     <div class="px-6 py-5 border-b border-slate-200">
@@ -776,9 +781,10 @@ tailwind.config = {
   <!-- MARSOUD-42 — backdrop shown only on mobile when sidebar is open -->
   <div id="sidebar-backdrop" class="hidden fixed inset-0 bg-black/40 z-30 md:hidden"
        onclick="toggleSidebar(false)"></div>
+  {% endif %}
 
   <!-- Main -->
-  <main id="main-content" class="sidebar-main flex-1 mr-64 min-h-screen">
+  <main id="main-content" class="sidebar-main flex-1 {% if not hide_sidebar %}mr-64{% endif %} min-h-screen">
     {% if impersonating %}
     <div class="bg-rose-600 text-white px-6 py-2 flex items-center justify-between text-sm">
       <div>
@@ -817,6 +823,7 @@ tailwind.config = {
     <header class="bg-white/80 backdrop-blur border-b border-slate-200 sticky top-0 z-30">
       <div class="px-3 sm:px-6 lg:px-8 py-3 sm:py-4 flex items-center justify-between gap-2">
         <div class="flex items-center gap-3">
+          {% if not hide_sidebar %}
           <!-- MARSOUD-42 — hamburger: hides/shows the whole sidebar -->
           <button type="button" onclick="toggleSidebar()"
                   class="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:border-emerald-500 hover:bg-emerald-50 transition"
@@ -826,9 +833,21 @@ tailwind.config = {
               <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
             </svg>
           </button>
+          {% endif %}
           <h1 class="text-xl font-bold text-navy-900">{% block page_title %}{% endblock %}</h1>
         </div>
         <div class="flex items-center gap-3">
+          {% if hide_sidebar %}
+          {# MARSOUD-CHOOSE-PLAN-HIDE-SIDEBAR — /choose-plan hides the
+             notification bell + agent button too so the owner stays
+             on the pick-a-plan flow with a single choice to make. #}
+          <form method="POST" action="{{ url_for('auth.logout') }}" class="inline">
+            <button type="submit"
+                    class="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-red-600 transition">
+              🚪 خروج
+            </button>
+          </form>
+          {% else %}
           {# MARSOUD-57.1 — حسابي icon visible to any employee with a
              linked HR record. Outside the sidebar per spec.
              MARSOUD-MC-EMPLOYEE — my_employee_here is scoped to the
@@ -853,6 +872,7 @@ tailwind.config = {
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
             <span class="hidden sm:inline">المحاسب الذكي</span>
           </button>
+          {% endif %}
           {% endif %}
         </div>
       </div>

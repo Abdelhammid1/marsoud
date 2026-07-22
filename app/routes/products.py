@@ -14,21 +14,27 @@ bp = Blueprint("products", __name__)
 def _ensure_default_hierarchy(company_id):
     """MARSOUD-PRODUCT-HIERARCHY-01 — a company created AFTER the
     migration still needs a default 'عام' group/category so its first
-    product save doesn't fail category-required validation. Idempotent."""
-    g_row = ProductGroup.query.filter_by(
-        company_id=company_id, name="عام",
-    ).first()
-    if not g_row:
-        g_row = ProductGroup(company_id=company_id, name="عام")
-        db.session.add(g_row); db.session.flush()
-    c_row = ProductCategory.query.filter_by(
+    product save doesn't fail category-required validation.
+
+    MARSOUD-HIERARCHY-DELETE-STICKS (Abdelhamid 2026-07-22) — used to
+    always re-create the 'عام' row on every visit. That silently
+    undid an owner's delete: the flash said "تم الحذف" then the next
+    render put the row back. Now we only seed the default when the
+    company has ZERO groups. Once the owner has any group of their
+    own, delete of 'عام' sticks.
+    """
+    existing = ProductGroup.query.filter_by(
+        company_id=company_id).first()
+    if existing:
+        # Even if 'عام' is gone, another group can catch new products
+        # via the /hierarchy page — no need to recreate it.
+        return existing, None
+    g_row = ProductGroup(company_id=company_id, name="عام")
+    db.session.add(g_row); db.session.flush()
+    c_row = ProductCategory(
         company_id=company_id, group_id=g_row.id, name="عام",
-    ).first()
-    if not c_row:
-        c_row = ProductCategory(
-            company_id=company_id, group_id=g_row.id, name="عام",
-        )
-        db.session.add(c_row); db.session.flush()
+    )
+    db.session.add(c_row); db.session.flush()
     return g_row, c_row
 
 
