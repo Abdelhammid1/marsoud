@@ -45,12 +45,16 @@ def accept(token):
     existing_user = User.query.filter_by(email=email).first()
     company = db.session.get(Company, company_id)
 
+    # MARSOUD-PASSWORD-POLICY — one central validator.
+    from app.services.password_policy import validate_password
+
     if request.method == "POST":
         if existing_user and kind == "activation":
             # HR-SS: PENDING employee setting their first password.
             password = request.form.get("password", "")
-            if len(password) < 6:
-                flash("كلمة المرور (6 أحرف على الأقل) مطلوبة", "error")
+            ok, reason = validate_password(password)
+            if not ok:
+                flash(reason, "error")
                 return render_template(
                     "invitations/accept.html",
                     invitation=invitation, company=company,
@@ -74,8 +78,16 @@ def accept(token):
             # New user — create
             full_name = (request.form.get("full_name") or "").strip()
             password = request.form.get("password", "")
-            if not full_name or len(password) < 6:
-                flash("الاسم وكلمة المرور (6 أحرف على الأقل) مطلوبة", "error")
+            if not full_name:
+                flash("الاسم مطلوب", "error")
+                return render_template(
+                    "invitations/accept.html",
+                    invitation=invitation, company=company,
+                    existing_user=None,
+                )
+            ok, reason = validate_password(password)
+            if not ok:
+                flash(reason, "error")
                 return render_template(
                     "invitations/accept.html",
                     invitation=invitation, company=company,

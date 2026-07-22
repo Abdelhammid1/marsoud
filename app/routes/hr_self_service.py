@@ -162,8 +162,11 @@ def set_password(user_id):
     if not u or not _is_company_member(u.id, g.active_company.id):
         abort(404)
     new_password = request.form.get("new_password", "")
-    if len(new_password) < 6:
-        flash("كلمة المرور لازم 6 أحرف على الأقل", "error")
+    # MARSOUD-PASSWORD-POLICY — same policy everywhere.
+    from app.services.password_policy import validate_password
+    ok, reason = validate_password(new_password)
+    if not ok:
+        flash(reason, "error")
         return redirect(url_for("hr_ss.index"))
     u.set_password(new_password)
     # Owner intentionally typed it → activate the account too.
@@ -355,8 +358,11 @@ def change_password():
     if not current_user.check_password(old):
         flash("كلمة السر القديمة غير صحيحة.", "error")
         return redirect(url_for("portal_emp.account") + "#password")
-    if len(new) < 6:
-        flash("كلمة السر الجديدة لازم 6 أحرف على الأقل.", "error")
+    # MARSOUD-PASSWORD-POLICY — one central validator.
+    from app.services.password_policy import validate_password
+    ok, reason = validate_password(new)
+    if not ok:
+        flash(reason, "error")
         return redirect(url_for("portal_emp.account") + "#password")
     if new != confirm:
         flash("كلمة السر الجديدة وتأكيدها غير متطابقين.", "error")

@@ -70,6 +70,15 @@ def register():
             flash("جميع الحقول مطلوبة", "error")
             return render_template("auth/register.html")
 
+        # MARSOUD-PASSWORD-POLICY — one central validator so signup,
+        # invitation accept, super-admin reset, and HR self-service all
+        # agree on the same rules.
+        from app.services.password_policy import validate_password
+        ok, reason = validate_password(password)
+        if not ok:
+            flash(reason, "error")
+            return render_template("auth/register.html")
+
         from app.models.company import is_valid_subdomain
         if not is_valid_subdomain(subdomain):
             flash(

@@ -32,11 +32,14 @@
     </div>
     <div class="grid grid-cols-2 gap-4">
       <div>
-        <label class="block text-sm font-semibold text-slate-200 mb-2">السعر الشهري (SAR)</label>
+        {# MARSOUD-CURRENCY-LABEL (Abdelhamid 2026-07-22) — cosmetic
+           label swap SAR → جنيه per ticket. Actual currency is per-
+           company on Company.base_currency. #}
+        <label class="block text-sm font-semibold text-slate-200 mb-2">السعر الشهري (جنيه)</label>
         <input type="number" name="price_monthly" step="0.01" value="{{ plan.price_monthly if plan and plan.price_monthly else '' }}" class="input font-mono">
       </div>
       <div>
-        <label class="block text-sm font-semibold text-slate-200 mb-2">السعر السنوي (SAR)</label>
+        <label class="block text-sm font-semibold text-slate-200 mb-2">السعر السنوي (جنيه)</label>
         <input type="number" name="price_yearly" step="0.01" value="{{ plan.price_yearly if plan and plan.price_yearly else '' }}" class="input font-mono">
       </div>
     </div>

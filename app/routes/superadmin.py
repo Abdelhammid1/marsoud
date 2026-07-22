@@ -219,8 +219,11 @@ def user_toggle(user_id):
 def user_reset_password(user_id):
     user = db.session.get(User, user_id) or _404()
     new_pw = (request.form.get("new_password") or "").strip()
-    if len(new_pw) < 6:
-        flash("كلمة المرور يجب أن تكون 6 أحرف على الأقل", "error")
+    # MARSOUD-PASSWORD-POLICY — same policy everywhere.
+    from app.services.password_policy import validate_password
+    ok, reason = validate_password(new_pw)
+    if not ok:
+        flash(reason, "error")
         return redirect(url_for("superadmin.users"))
     user.set_password(new_pw)
     db.session.commit()
