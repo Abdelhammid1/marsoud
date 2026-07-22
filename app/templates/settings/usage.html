@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block page_title %}الاستهلاك والحدود{% endblock %}
+{% block content %}
+<div class="max-w-5xl space-y-6">
+
+  <div class="card p-6">
+    <div class="flex items-start justify-between mb-4">
+      <div>
+        <h2 class="font-bold text-navy-900 text-lg">📊 استهلاك الباقة</h2>
+        <p class="text-sm text-slate-500 mt-1">
+          استهلاكك الحالي من الحدود المخصّصة لباقة {{ active_company.plan.name if active_company.plan else '—' }}.
+          الأشرطة الحمراء تعني أنّك اقتربت أو تجاوزت الحد.
+        </p>
+      </div>
+      <span class="badge badge-paid">للمالك فقط</span>
+    </div>
+
+    {% if cards %}
+      <div class="grid gap-4 md:grid-cols-2">
+        {% for card in cards %}
+          <div class="border rounded-lg p-4">
+            <div class="flex justify-between items-baseline">
+              <div class="text-slate-700 font-semibold">{{ card.label }}</div>
+              <div class="text-xs text-slate-400">{{ card.enforcement }}</div>
+            </div>
+            <div class="text-sm text-slate-600 mt-1">
+              {% if card.display_used %}
+                {{ card.display_used }} / {{ card.display_limit }}
+              {% else %}
+                {{ card.used | int }} / {{ card.limit | int }}
+              {% endif %}
+              <span class="ml-1 text-slate-400">({{ card.pct }}%)</span>
+            </div>
+            <div class="w-full bg-slate-100 rounded-full h-2 mt-2">
+              {% set bar_class = 'bg-green-500' if card.color == 'green' else ('bg-yellow-500' if card.color == 'yellow' else 'bg-red-500') %}
+              <div class="{{ bar_class }} h-2 rounded-full" style="width: {{ card.pct }}%"></div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="bg-slate-50 border rounded p-4 text-sm text-slate-500">
+        لا توجد حدود مضبوطة على الباقة الحالية.
+      </div>
+    {% endif %}
+  </div>
+
+  {% if overage_rows %}
+    <div class="card p-6 border-l-4 border-red-500">
+      <h3 class="font-bold text-navy-900 text-lg mb-2">💳 تجاوز الشهر الحالي</h3>
+      <p class="text-sm text-slate-500 mb-3">
+        هذه القيم هي ما ستُضاف على فاتورتك القادمة بحسب أسعار الوحدة
+        الإضافية في الباقة.
+      </p>
+      <table class="w-full text-sm">
+        <thead class="text-right text-slate-500 border-b">
+          <tr>
+            <th class="py-2">المورد</th>
+            <th class="py-2">المستخدَم</th>
+            <th class="py-2">الحد</th>
+            <th class="py-2">الزيادة</th>
+            <th class="py-2">قيمة الفاتورة</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in overage_rows %}
+            <tr class="border-b">
+              <td class="py-2 font-medium">{{ r.label }}</td>
+              <td class="py-2">{{ r.used }}</td>
+              <td class="py-2">{{ r.included }}</td>
+              <td class="py-2 text-red-600 font-bold">+{{ r.extra }}</td>
+              <td class="py-2 font-bold">{{ '%.2f'|format(r.amount) }} ج</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4" class="pt-3 text-right font-bold">الإجمالي:</td>
+            <td class="pt-3 font-bold text-red-600 text-lg">{{ '%.2f'|format(overage_total) }} ج</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  {% endif %}
+
+  {% if per_employee %}
+    <div class="card p-6">
+      <h3 class="font-bold text-navy-900 text-lg mb-2">🧠 استهلاك الوكيل الذكي — حسب الموظف</h3>
+      <p class="text-sm text-slate-500 mb-3">
+        اضبط حداً شهرياً لكل موظف حتى لا يستنفذ أحدهم رصيد الشركة بمفرده.
+      </p>
+      <table class="w-full text-sm">
+        <thead class="text-right text-slate-500 border-b">
+          <tr>
+            <th class="py-2">الموظف</th>
+            <th class="py-2">التوكنز هذا الشهر</th>
+            <th class="py-2">الحد الشهري</th>
+            <th class="py-2">تعديل</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in per_employee %}
+            <tr class="border-b">
+              <td class="py-2">{{ row.user.full_name or row.user.email }}</td>
+              <td class="py-2">{{ '{:,}'.format(row.used) }}</td>
+              <td class="py-2">
+                {% if row.cap %}{{ '{:,}'.format(row.cap) }}{% else %}<span class="text-slate-400">بدون حد</span>{% endif %}
+              </td>
+              <td class="py-2">
+                <form method="post" action="{{ url_for('settings_usage.set_cap', user_id=row.user.id) }}" class="flex gap-2">
+                  <input type="number" name="monthly_cap" min="0"
+                          class="border rounded px-2 py-1 text-sm w-28"
+                          value="{{ row.cap or '' }}" placeholder="مثال: 50000">
+                  <button class="btn btn-primary text-xs">حفظ</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

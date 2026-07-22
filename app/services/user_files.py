@@ -93,6 +93,28 @@ def save_user_file(*, company_id: int, user_id: int, file_storage) -> UserFile:
             f"المتبقي {remaining_mb} ميجا — احذف ملفات قديمة قبل الرفع."
         )
 
+    # MARSOUD-PLANS-COMPLETE (Abdelhamid 2026-07-22) — company-wide
+    # storage quota. Raises QuotaBlockedError with an Arabic message
+    # when the incoming file would push total company storage over
+    # the plan's included_amount. Failure to look up the company /
+    # quota MUST NOT block a valid upload — falls through silently.
+    try:
+        from app.services.quotas import (
+            check_quota, QuotaBlockedError,
+        )
+        from app.models import Company, QUOTA_STORAGE_BYTES
+        _co = db.session.get(Company, company_id)
+        if _co:
+            try:
+                check_quota(_co, QUOTA_STORAGE_BYTES, incoming=size,
+                             user_id=user_id)
+            except QuotaBlockedError as e:
+                raise UserFileError(str(e))
+    except UserFileError:
+        raise
+    except Exception:
+        pass
+
     dest_dir = _root() / str(company_id) / str(user_id)
     dest_dir.mkdir(parents=True, exist_ok=True)
     # uuid prefix guarantees uniqueness even for identical original names.

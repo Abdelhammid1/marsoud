@@ -236,6 +236,80 @@ def _notify_thresholds(company, quota_type, current, limit):
             pass
 
 
+# ─── Overage ─────────────────────────────────────────────────────
+def compute_overage(company, month=None):
+    """MARSOUD-PLANS-COMPLETE (Abdelhamid 2026-07-22).
+
+    Returns a dict of quota_type → billable overage row:
+
+        {
+          "USERS": {"used": 4, "included": 3, "extra": 1,
+                     "unit_price": 150, "amount": 150},
+          ...
+        }
+
+    `month` = "YYYY-MM"; defaults to the current UTC month. Zero
+    rows are omitted so the owner dashboard only shows what's
+    actually being charged.
+
+    NOTE: This is a pure calculation. It does NOT create an invoice
+    or a payment intent — the billing gateway is out of scope.
+    """
+    from decimal import Decimal
+    result = {}
+    plan_id = (getattr(company, "intended_plan_id", None)
+               or getattr(company, "plan_id", None))
+    if not plan_id:
+        return result
+    quotas = Quota.query.filter_by(plan_id=plan_id).all()
+    for q in quotas:
+        if q.enforcement_mode == ENF_UNLIMITED:
+            continue
+        # Historical months would need per-month usage — for now,
+        # AI tokens is the only per-month counter. Users, storage,
+        # and branches use their CURRENT value regardless of month.
+        if q.quota_type == QUOTA_AI_TOKENS_MONTH:
+            used = _count_ai_tokens_in_month(company, month or _cycle_month())
+        else:
+            used = count_current(company, q.quota_type)
+        extra = max(0, used - int(q.included_amount or 0))
+        if extra <= 0:
+            continue
+        unit_price = Decimal(str(q.price_per_extra_unit or 0))
+        # AI token unit price is per 100k tokens per the ticket.
+        if q.quota_type == QUOTA_AI_TOKENS_MONTH:
+            billable_units = Decimal(extra) / Decimal(100_000)
+        elif q.quota_type == QUOTA_STORAGE_BYTES:
+            billable_units = Decimal(extra) / Decimal(1024 ** 3)
+        else:
+            billable_units = Decimal(extra)
+        amount = (billable_units * unit_price).quantize(Decimal("0.01"))
+        result[q.quota_type] = {
+            "used": used,
+            "included": int(q.included_amount or 0),
+            "extra": extra,
+            "unit_price": float(unit_price),
+            "amount": float(amount),
+        }
+    return result
+
+
+def _count_ai_tokens_in_month(company, month_str):
+    """Sum AI tokens for one YYYY-MM window."""
+    from datetime import datetime as _dt
+    from dateutil.relativedelta import relativedelta
+    start = _dt.strptime(month_str + "-01", "%Y-%m-%d")
+    end = start + relativedelta(months=1)
+    row = db.session.query(func.coalesce(
+        func.sum(AiTokenUsage.total_tokens), 0)
+    ).filter(
+        AiTokenUsage.company_id == company.id,
+        AiTokenUsage.created_at >= start,
+        AiTokenUsage.created_at < end,
+    ).scalar()
+    return int(row or 0)
+
+
 def _send_owner_notification(company, quota_type, threshold_pct,
                               current, limit):
     """Send email + create in-app Notification for the company

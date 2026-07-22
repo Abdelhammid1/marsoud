@@ -111,6 +111,7 @@ def create_app(config_class=Config):
         admin_activity_bp, settings_activity_bp,
     )
     from app.routes.settings_backup import bp as settings_backup_bp
+    from app.routes.settings_usage import bp as settings_usage_bp
     from app.routes.party_ledger import bp as party_ledger_bp
     from app.routes.crm import bp as crm_bp
     from app.routes.refunds import bp as refunds_bp
@@ -162,6 +163,7 @@ def create_app(config_class=Config):
     app.register_blueprint(admin_activity_bp, url_prefix="/admin/activity")
     app.register_blueprint(settings_activity_bp, url_prefix="/settings/activity")
     app.register_blueprint(settings_backup_bp, url_prefix="/settings/backup")
+    app.register_blueprint(settings_usage_bp, url_prefix="/settings/usage")
     app.register_blueprint(party_ledger_bp, url_prefix="/reports/party-ledger")
     app.register_blueprint(crm_bp, url_prefix="/crm")
     app.register_blueprint(refunds_bp, url_prefix="/refunds")
@@ -839,6 +841,11 @@ def create_app(config_class=Config):
         except Exception:
             pass
         return response
+
+    # MARSOUD-PLANS-COMPLETE (Abdelhamid 2026-07-22) — CLI:
+    #   flask seed-plans    (idempotent renamer + quota-row seeder)
+    from app.cli import register as _register_plans_cli
+    _register_plans_cli(app)
 
     # MARSOUD-PARTY-LEDGER-02 — CLI: backfill old data
     from scripts.backfill_party_ledger import backfill_cli

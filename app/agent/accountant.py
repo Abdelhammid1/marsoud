@@ -2,6 +2,7 @@
 import json
 from flask import current_app
 from anthropic import Anthropic
+from app import db
 from app.agent.prompts import SYSTEM_PROMPT
 from app.agent.tools import TOOL_SCHEMAS, execute_tool
 
@@ -32,6 +33,25 @@ def run_agent(messages, company_id, user_id, company_context=None, max_iters=8):
 
     while iterations < max_iters:
         iterations += 1
+        # MARSOUD-PLANS-COMPLETE (Abdelhamid 2026-07-22) — check the
+        # monthly AI-token quota BEFORE spending more. We can't know
+        # the exact token cost of this call in advance, so we ask for
+        # a "1 token" increment — enough to trip a company already
+        # sitting on the ceiling. Blocking here surfaces a friendlier
+        # QuotaBlockedError to the caller than a 402 from Anthropic.
+        try:
+            from app.services.quotas import (
+                check_quota, QUOTA_AI_TOKENS_MONTH, QuotaBlockedError,
+            )
+            from app.models import Company
+            _co = db.session.get(Company, company_id) if company_id else None
+            if _co:
+                check_quota(_co, QUOTA_AI_TOKENS_MONTH, incoming=1,
+                             user_id=user_id)
+        except QuotaBlockedError:
+            raise
+        except Exception:
+            pass
         response = client.messages.create(
             model=model,
             max_tokens=4096,
@@ -39,6 +59,20 @@ def run_agent(messages, company_id, user_id, company_context=None, max_iters=8):
             tools=TOOL_SCHEMAS,
             messages=messages,
         )
+        # After the call, record actual token usage so the meter +
+        # threshold notifications work correctly on the next request.
+        try:
+            from app.services.quotas import log_ai_usage
+            usage = getattr(response, "usage", None)
+            if usage is not None:
+                log_ai_usage(
+                    company_id=company_id, user_id=user_id,
+                    provider="anthropic", model=model,
+                    input_tokens=getattr(usage, "input_tokens", 0),
+                    output_tokens=getattr(usage, "output_tokens", 0),
+                )
+        except Exception:
+            pass
 
         # Collect assistant content
         assistant_content = []
