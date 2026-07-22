@@ -30,6 +30,28 @@ bp = Blueprint("superadmin", __name__, template_folder="../templates")
 @superadmin_required
 def dashboard():
     data = platform_overview()
+    # MARSOUD-PLATFORM-REVENUE-DASHBOARD (Abdelhamid 2026-07-22).
+    from app.services.platform_metrics import (
+        mrr, arr, plan_distribution, subscription_states,
+        renewals_due, monthly_revenue_series,
+    )
+    from app.models import Plan
+    plan_lookup = {p.id: (p.name_ar or p.name)
+                    for p in Plan.query.all()}
+    plan_lookup[0] = "بدون باقة"
+    data["revenue"] = {
+        "mrr": float(mrr()),
+        "arr": float(arr()),
+        "plan_distribution": [
+            {"label": plan_lookup.get(pid, f"#{pid}"),
+             "count": count}
+            for pid, count in plan_distribution().items()
+        ],
+        "subscription_states": subscription_states(),
+        "renewals_7d": renewals_due(days=7),
+        "renewals_30d": renewals_due(days=30),
+        "monthly_series": monthly_revenue_series(months=12),
+    }
     return render_template("admin/dashboard.html", **data)
 
 

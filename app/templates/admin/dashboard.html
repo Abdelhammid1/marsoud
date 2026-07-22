@@ -78,4 +78,94 @@
   </div>
 </div>
 
+{# MARSOUD-PLATFORM-REVENUE-DASHBOARD (Abdelhamid 2026-07-22) —
+   MRR/ARR + subscription counts + 12-month revenue chart. #}
+{% if revenue %}
+<div class="card p-5 mt-4">
+  <h3 class="font-bold text-white mb-3 flex items-center gap-2">
+    <span>💰</span> الإيرادات والاشتراكات
+  </h3>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+    <div class="bg-emerald-900/30 border border-emerald-800 rounded-lg p-3">
+      <div class="text-xs text-emerald-300 mb-1">MRR</div>
+      <div class="text-2xl font-bold text-emerald-100 font-mono">{{ revenue.mrr | int }}</div>
+      <div class="text-xs text-emerald-300">جنيه/شهر</div>
+    </div>
+    <div class="bg-sky-900/30 border border-sky-800 rounded-lg p-3">
+      <div class="text-xs text-sky-300 mb-1">ARR</div>
+      <div class="text-2xl font-bold text-sky-100 font-mono">{{ revenue.arr | int }}</div>
+      <div class="text-xs text-sky-300">جنيه/سنة</div>
+    </div>
+    <div class="bg-amber-900/30 border border-amber-800 rounded-lg p-3">
+      <div class="text-xs text-amber-300 mb-1">تجديدات خلال 7 أيام</div>
+      <div class="text-2xl font-bold text-amber-100 font-mono">{{ revenue.renewals_7d }}</div>
+      <div class="text-xs text-amber-300">شركة</div>
+    </div>
+    <div class="bg-rose-900/30 border border-rose-800 rounded-lg p-3">
+      <div class="text-xs text-rose-300 mb-1">تجديدات خلال 30 يوم</div>
+      <div class="text-2xl font-bold text-rose-100 font-mono">{{ revenue.renewals_30d }}</div>
+      <div class="text-xs text-rose-300">شركة</div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+      <h4 class="text-sm font-semibold text-white mb-2">توزيع الشركات على الباقات</h4>
+      <ul class="space-y-2">
+        {% for row in revenue.plan_distribution %}
+        <li class="flex items-center justify-between text-sm bg-white/5 rounded p-2">
+          <span class="text-ink-200">{{ row.label }}</span>
+          <span class="font-mono font-bold text-white">{{ row.count }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div>
+      <h4 class="text-sm font-semibold text-white mb-2">حالة الاشتراكات</h4>
+      <ul class="space-y-2">
+        {% for label, ar in [('TRIAL', 'فترة تجربة'),
+                                ('ACTIVE', 'اشتراك نشط'),
+                                ('GRACE', 'فترة سماح'),
+                                ('EXPIRED', 'منتهي'),
+                                ('NEVER_STARTED', 'لم يبدأ')] %}
+        <li class="flex items-center justify-between text-sm bg-white/5 rounded p-2">
+          <span class="text-ink-200">{{ ar }}</span>
+          <span class="font-mono font-bold text-white">{{ revenue.subscription_states[label] }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="mt-4">
+    <h4 class="text-sm font-semibold text-white mb-2">📈 الإيرادات آخر 12 شهر</h4>
+    <canvas id="revenue-chart" height="80"></canvas>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+    (function() {
+      const data = {{ revenue.monthly_series | tojson }};
+      new Chart(document.getElementById('revenue-chart'), {
+        type: 'line',
+        data: {
+          labels: data.map(d => d.month),
+          datasets: [{
+            label: 'جنيه',
+            data: data.map(d => d.egp),
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16, 185, 129, 0.15)',
+            fill: true,
+            tension: 0.3,
+          }]
+        },
+        options: {
+          plugins: { legend: { display: false }},
+          scales: { y: { beginAtZero: true }}
+        }
+      });
+    })();
+    </script>
+  </div>
+</div>
+{% endif %}
+
 {% endblock %}
