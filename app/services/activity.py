@@ -82,18 +82,51 @@ def parse_user_agent(ua):
 
 
 # ─── Session lifecycle ──────────────────────────────────────────────────
+def _device_signature(user_agent, ip_address):
+    """MARSOUD-NEW-DEVICE (Abdelhamid 2026-07-22) — coarse device
+    fingerprint. Not a security control (spoofable), just a "have we
+    seen this shape of client before?" flag so we don't spam the user
+    with an alert on every browser tab.
+
+    Uses SHA-256 over the User-Agent + first 3 octets of the IP
+    (masks the last octet — different sessions on the same LAN will
+    share a signature, which we consider the same 'device' for alert
+    purposes and matches how most consumer email providers scope
+    'new device' notifications).
+    """
+    import hashlib as _h
+    ip_class = ""
+    if ip_address:
+        parts = str(ip_address).split(".")
+        if len(parts) >= 3:
+            ip_class = ".".join(parts[:3]) + ".0/24"
+        else:
+            ip_class = str(ip_address)   # IPv6 or malformed — take as-is
+    raw = f"{user_agent or ''}||{ip_class}"
+    return _h.sha256(raw.encode("utf-8")).hexdigest()[:32]
+
+
 def start_session(user, *, company_id=None):
     """Called from auth.login() after Flask-Login marks the user signed in.
     Inserts a UserSession row and stashes its id in the Flask session
     cookie so subsequent requests can link activity to it."""
     ua_raw = (request.headers.get("User-Agent") or "")[:500]
     meta = parse_user_agent(ua_raw)
+    ip_addr = _client_ip()
+
+    # MARSOUD-NEW-DEVICE — decide BEFORE inserting the new session
+    # row so we don't accidentally match against ourselves.
+    signature = _device_signature(ua_raw, ip_addr)
+    seen_before = UserSession.query.filter_by(
+        user_id=user.id, device_signature=signature).first() is not None
+
     sess = UserSession(
         user_id=user.id, company_id=company_id,
         session_token=secrets.token_urlsafe(32),
+        device_signature=signature,
         login_at=datetime.utcnow(),
         last_seen_at=datetime.utcnow(),
-        ip_address=_client_ip(),
+        ip_address=ip_addr,
         user_agent=ua_raw,
         device_type=meta["device_type"],
         device_os=meta["device_os"],
@@ -103,7 +136,28 @@ def start_session(user, *, company_id=None):
     db.session.add(sess)
     db.session.commit()
     flask_session[SESSION_KEY] = sess.id
+
+    # MARSOUD-NEW-DEVICE (Abdelhamid 2026-07-22) — if we haven't seen
+    # this signature before, send the user a heads-up email. Non-
+    # blocking + non-fatal: SMTP failures are logged, not surfaced.
+    if not seen_before:
+        try:
+            _send_new_device_email(user, sess)
+        except Exception:
+            from flask import current_app
+            current_app.logger.exception(
+                "new-device alert email failed for user #%s", user.id)
     return sess
+
+
+def _send_new_device_email(user, sess):
+    from flask import render_template
+    from app.services.email import send_email
+    html = render_template(
+        "auth/new_device_email.html",
+        user=user, session=sess,
+    )
+    send_email(user.email, "تنبيه تسجيل دخول من جهاز جديد — مرصود", html)
 
 
 def end_session_by_token(session_id):

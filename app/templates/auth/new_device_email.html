@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>تنبيه تسجيل دخول جديد — مرصود</title>
+</head>
+<body style="font-family:Arial,sans-serif;background:#f8fafc;padding:20px;color:#0f172a;">
+  <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;">
+    <h1 style="color:#0f172a;margin-top:0;">🔔 تسجيل دخول من جهاز جديد</h1>
+    <p style="font-size:15px;line-height:1.6;">
+      مرحباً {{ user.full_name }}،<br>
+      لاحظنا تسجيل دخول لحسابك من جهاز أو متصفح جديد. هذه التفاصيل:
+    </p>
+
+    <table style="width:100%;font-size:14px;border-collapse:collapse;margin:16px 0;">
+      <tr>
+        <td style="padding:6px 4px;color:#64748b;">الوقت:</td>
+        <td style="padding:6px 4px;font-family:monospace;direction:ltr;">
+          {{ session.login_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:6px 4px;color:#64748b;">المتصفح:</td>
+        <td style="padding:6px 4px;">
+          {{ session.browser or '—' }}
+          {% if session.device_os %}على {{ session.device_os }}{% endif %}
+          {% if session.device_type %}({{ session.device_type }}){% endif %}
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:6px 4px;color:#64748b;">عنوان IP:</td>
+        <td style="padding:6px 4px;font-family:monospace;direction:ltr;">
+          {{ session.ip_address or 'غير معروف' }}
+        </td>
+      </tr>
+    </table>
+
+    <p style="font-size:14px;line-height:1.6;background:#fef3c7;
+              padding:12px;border-radius:8px;color:#78350f;">
+      <b>لو دي مش أنت؟</b> غيّر كلمة السر فوراً من رابط "نسيت كلمة السر"
+      في صفحة الدخول، وراجع نشاط جلساتك من إعدادات الحساب.
+    </p>
+
+    <p style="font-size:13px;color:#64748b;">
+      هذا التنبيه بيتبعت مرة واحدة لكل جهاز/متصفح جديد. مش هيتكرر
+      من نفس الجهاز في المرات الجاية.
+    </p>
+  </div>
+</body>
+</html>

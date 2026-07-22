@@ -36,6 +36,11 @@ class UserSession(db.Model):
     device_type = db.Column(db.String(20))     # MOBILE / TABLET / DESKTOP
     device_os = db.Column(db.String(40))       # Windows / macOS / Android / iOS / Linux
     browser = db.Column(db.String(40))         # Chrome / Firefox / Safari / Edge / Other
+    # MARSOUD-NEW-DEVICE (Abdelhamid 2026-07-22) — SHA-256[:32] of
+    # (UA || ip_class). Used to decide whether to send the "new
+    # device" alert on login. Non-unique — many sessions may share
+    # a signature (same user on same laptop).
+    device_signature = db.Column(db.String(64), nullable=True, index=True)
     status = db.Column(db.String(15), default="ACTIVE", nullable=False)
 
     user = db.relationship("User", foreign_keys=[user_id])
