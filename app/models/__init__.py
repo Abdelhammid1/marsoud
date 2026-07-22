@@ -54,6 +54,13 @@ from app.models.recurring_task import (
     FREQ_DAILY, FREQ_WEEKLY, FREQ_MONTHLY, FREQ_YEARLY, FREQ_CUSTOM,
     END_NEVER, END_AFTER_N, END_ON_DATE,
 )
+# MARSOUD-QUOTAS (Abdelhamid 2026-07-22).
+from app.models.quota import (
+    Quota, AiTokenUsage, EmployeeAiCap, QuotaNotificationSent,
+    QUOTA_USERS, QUOTA_AI_TOKENS_MONTH, QUOTA_STORAGE_BYTES, QUOTA_BRANCHES,
+    KNOWN_QUOTA_TYPES,
+    ENF_BLOCK, ENF_ALLOW_NOTIFY, ENF_UNLIMITED, ENFORCEMENT_MODES,
+)
 # MARSOUD-CRM-EXPANSION §2/5b/5c — new lightweight CRM tables.
 from app.models.crm_expansion import (
     Campaign, LeadContact, LeadActivity, LeadActivityType,
@@ -132,6 +139,10 @@ __all__ = [
     "FREQUENCIES", "END_CONDITIONS",
     "FREQ_DAILY", "FREQ_WEEKLY", "FREQ_MONTHLY", "FREQ_YEARLY", "FREQ_CUSTOM",
     "END_NEVER", "END_AFTER_N", "END_ON_DATE",
+    "Quota", "AiTokenUsage", "EmployeeAiCap", "QuotaNotificationSent",
+    "QUOTA_USERS", "QUOTA_AI_TOKENS_MONTH",
+    "QUOTA_STORAGE_BYTES", "QUOTA_BRANCHES", "KNOWN_QUOTA_TYPES",
+    "ENF_BLOCK", "ENF_ALLOW_NOTIFY", "ENF_UNLIMITED", "ENFORCEMENT_MODES",
     "RECURRENCE_ONCE", "RECURRENCE_DAILY", "RECURRENCE_KINDS",
     "LeadComment",
     "Document", "DocumentSourceType", "DocumentVisibility",

@@ -86,6 +86,17 @@ def invite():
         flash("لا يمكن إضافة مالك آخر عبر الدعوة — انقل الملكية يدوياً", "error")
         return redirect(url_for("users.index"))
 
+    # MARSOUD-QUOTAS (Abdelhamid 2026-07-22) — refuse when at the users
+    # cap under BLOCK mode. Existing users being re-invited to update
+    # their role don't count (short-circuits below).
+    try:
+        from app.services.quotas import check_quota, QuotaBlockedError
+        from app.models import QUOTA_USERS
+        check_quota(g.active_company, QUOTA_USERS, incoming=1)
+    except QuotaBlockedError as e:
+        flash(str(e), "error")
+        return redirect(url_for("users.index"))
+
     # If the user already has a role for this company, just update role
     existing_user = User.query.filter_by(email=email).first()
     if existing_user:
