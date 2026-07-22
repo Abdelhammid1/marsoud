@@ -759,6 +759,42 @@ def subscriptions_renew(company_id):
 
 # ─── TICKET 1: subscription settings (platform-level) ────────────────────
 
+# MARSOUD-FEATURE-FLAGS-KILL-SWITCH (Abdelhamid 2026-07-22) — runtime
+# module on/off. Super-admin picks a module + optional reason;
+# every non-super-admin request into that module gets the friendly
+# 503 page. Cache invalidates immediately on save.
+@bp.route("/feature-flags", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def feature_flags_index():
+    from app.services.feature_flags import (
+        set_module, is_module_enabled, disabled_reason,
+    )
+    from app.services.plan_gating import _PREFIX_TO_MODULE
+    if request.method == "POST":
+        module_key = (request.form.get("module_key") or "").strip()
+        if not module_key:
+            flash("Module key مطلوب.", "error")
+            return redirect(url_for("superadmin.feature_flags_index"))
+        enabled = request.form.get("enabled") == "on"
+        reason = (request.form.get("reason") or "").strip() or None
+        set_module(module_key, enabled, reason, current_user.id)
+        flash(
+            "✅ فُعّل" if enabled else "🚫 توقّف",
+            "success",
+        )
+        return redirect(url_for("superadmin.feature_flags_index"))
+
+    modules = sorted(set(_PREFIX_TO_MODULE.values()))
+    rows = [
+        {"module_key": m,
+         "enabled": is_module_enabled(m),
+         "reason": disabled_reason(m)}
+        for m in modules
+    ]
+    return render_template("admin/feature_flags.html", rows=rows)
+
+
 # MARSOUD-CONSENT-AUDIT-LOG (Abdelhamid 2026-07-22) — cross-tenant
 # consent history + "not accepted current version" report.
 @bp.route("/consent")

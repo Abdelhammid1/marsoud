@@ -5,6 +5,8 @@ from app.models.plan import (
 )
 # MARSOUD-CONSENT-AUDIT-LOG (Abdelhamid 2026-07-22).
 from app.models.consent import ConsentEvent
+# MARSOUD-FEATURE-FLAGS-KILL-SWITCH (Abdelhamid 2026-07-22).
+from app.models.feature_flag import FeatureFlag
 from app.models.platform_setting import PlatformSetting
 from app.models.recurring_bill import (
     RecurringBill, RecurringBillOverride,
@@ -119,7 +121,7 @@ __all__ = [
     "User", "user_companies", "UserStatus", "Company",
     "Plan", "PlanPrice", "SubscriptionReminderSent",
     "DEFAULT_CURRENCY", "PlatformSetting",
-    "ConsentEvent",
+    "ConsentEvent", "FeatureFlag",
     "RecurringBill", "RecurringBillOverride",
     "INTERVAL_UNITS", "OVERRIDE_ACTIONS",
     "SalesCommission", "COMMISSION_STATUSES",

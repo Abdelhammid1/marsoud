@@ -298,6 +298,53 @@ def create_app(config_class=Config):
         "auth.", "static", "public.",  # login, verify, resend, terms
     )
 
+    # MARSOUD-FEATURE-FLAGS-KILL-SWITCH (Abdelhamid 2026-07-22) —
+    # super-admin can disable a whole module runtime from
+    # /admin/feature-flags. Super-admins themselves bypass so they
+    # can always fix the toggle.
+    _FLAG_ALLOWLIST_PREFIXES = (
+        "auth.", "static", "public.", "superadmin.", "cron.",
+        "portal_emp.", "portal.", "notifications.",
+    )
+
+    @app.before_request
+    def enforce_feature_flags():
+        from flask_login import current_user
+        endpoint = (request.endpoint or "")
+        if not endpoint:
+            return
+        if any(endpoint.startswith(p) for p in _FLAG_ALLOWLIST_PREFIXES):
+            return
+        if current_user.is_authenticated and getattr(
+                current_user, "is_superadmin", False):
+            return
+        # Blueprint name doubles as the module key.
+        module_key = endpoint.split(".", 1)[0]
+        try:
+            from app.services.feature_flags import (
+                is_module_enabled, disabled_reason,
+            )
+            if is_module_enabled(module_key):
+                return
+            reason = disabled_reason(module_key)
+        except Exception:
+            return
+        # AJAX / API: JSON with 503.
+        if request.path.startswith("/api/"):
+            from flask import jsonify
+            resp = jsonify({
+                "error": "module temporarily unavailable",
+                "module": module_key,
+                "reason": reason,
+            })
+            resp.status_code = 503
+            return resp
+        from flask import render_template
+        return render_template(
+            "errors/module_disabled.html",
+            module_key=module_key, reason=reason,
+        ), 503
+
     @app.before_request
     def block_until_email_verified():
         from flask_login import current_user

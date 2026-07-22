@@ -1,0 +1,39 @@
+{% extends "admin/base.html" %}
+{% block page_title %}Feature Flags & Kill Switch{% endblock %}
+{% block content %}
+
+<div class="card p-6 max-w-4xl">
+  <h2 class="font-bold text-navy-900 mb-1">🎛️ التحكم في الموديولات</h2>
+  <p class="text-sm text-slate-500 mb-6">
+    كل صف موديول. لما تعطّله، كل الشركات هتشوف صفحة "متوقف مؤقتاً" بدل ما تدخل عليه.
+    Super Admin دايماً بيعدي حتى لو الموديول متعطل، عشان يقدر يرجعه.
+  </p>
+
+  <div class="space-y-3">
+    {% for r in rows %}
+    <form method="POST" class="border border-slate-200 rounded-lg p-4">
+      <input type="hidden" name="module_key" value="{{ r.module_key }}">
+      <div class="flex items-center justify-between mb-2">
+        <div class="font-semibold text-navy-900">
+          <span class="font-mono text-emerald-700">{{ r.module_key }}</span>
+        </div>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" name="enabled" {% if r.enabled %}checked{% endif %}
+                 class="w-5 h-5 accent-emerald-600">
+          <span class="text-sm {% if r.enabled %}text-emerald-700{% else %}text-rose-700{% endif %}">
+            {% if r.enabled %}✅ مفعّل{% else %}🚫 متوقف{% endif %}
+          </span>
+        </label>
+      </div>
+      <div class="flex gap-2">
+        <input type="text" name="reason" value="{{ r.reason or '' }}"
+               placeholder="سبب التوقف (يظهر للمستخدمين)"
+               class="input text-sm flex-1">
+        <button type="submit" class="btn-primary text-sm">💾 حفظ</button>
+      </div>
+    </form>
+    {% endfor %}
+  </div>
+</div>
+
+{% endblock %}
