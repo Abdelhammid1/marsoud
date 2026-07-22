@@ -1,0 +1,46 @@
+{% extends "admin/base.html" %}
+{% block page_title %}سجل موافقات {{ u.email }}{% endblock %}
+{% block content %}
+
+<div class="card p-6 max-w-3xl">
+  <div class="mb-4">
+    <a href="{{ url_for('superadmin.consent_index') }}"
+       class="text-sm text-emerald-700 hover:underline">← سجل الموافقات</a>
+  </div>
+
+  <h2 class="font-bold text-navy-900 mb-1">📄 موافقات {{ u.email }}</h2>
+  <p class="text-sm text-slate-500 mb-6">
+    آخر موافقة: <span class="font-mono">{{ u.terms_version or '—' }}</span>
+    {% if u.terms_accepted_at %}
+      ({{ u.terms_accepted_at.strftime('%Y-%m-%d %H:%M') }})
+    {% endif %}
+  </p>
+
+  <ol class="relative border-r-2 border-slate-200 pr-4 space-y-4">
+    {% for e in events %}
+    <li>
+      <div class="absolute -right-2 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white"></div>
+      <div class="ms-4">
+        <div class="text-sm font-semibold text-navy-900">
+          {{ e.consent_type }} — إصدار
+          <span class="font-mono">{{ e.document_version }}</span>
+        </div>
+        <div class="text-xs text-slate-500">
+          {{ e.created_at.strftime('%Y-%m-%d %H:%M:%S') }} UTC ·
+          مصدر: {{ e.source }}
+        </div>
+        {% if e.ip_address %}
+        <div class="text-xs text-slate-400 font-mono">IP: {{ e.ip_address }}</div>
+        {% endif %}
+        {% if e.user_agent %}
+        <div class="text-xs text-slate-400 truncate">{{ e.user_agent }}</div>
+        {% endif %}
+      </div>
+    </li>
+    {% else %}
+    <li class="text-slate-400 text-center py-6">لا سجلات لهذا المستخدم.</li>
+    {% endfor %}
+  </ol>
+</div>
+
+{% endblock %}

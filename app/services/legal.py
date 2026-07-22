@@ -47,6 +47,74 @@ def has_published_legal():
         return False
 
 
+# MARSOUD-CONSENT-AUDIT-LOG (Abdelhamid 2026-07-22) — append-only
+# history writer. Called from every acceptance path.
+def record_consent(user, *, source, company_id=None,
+                    consent_type="terms",
+                    document_version=None,
+                    request=None):
+    """Append a ConsentEvent row. Best-effort — a logging failure
+    never blocks the user from proceeding with signup / re-accept."""
+    try:
+        from app.models import ConsentEvent
+        ip = None
+        ua = None
+        if request is not None:
+            ip = request.remote_addr
+            ua = (request.headers.get("User-Agent") or "")[:500]
+        version = document_version or get_terms_version()
+        db.session.add(ConsentEvent(
+            user_id=user.id, company_id=company_id,
+            consent_type=consent_type,
+            document_version=version,
+            ip_address=ip, user_agent=ua,
+            source=source,
+        ))
+        # Caller commits — this lets a single request record multiple
+        # consent events (terms + privacy) atomically with the rest of
+        # the acceptance transaction.
+    except Exception:
+        from flask import current_app
+        try:
+            current_app.logger.exception(
+                "record_consent failed for user=%s source=%s",
+                getattr(user, "id", "?"), source)
+        except Exception:
+            pass
+
+
+def users_missing_current_version():
+    """MARSOUD-CONSENT-AUDIT-LOG — cross-tenant report used by
+    /admin/consent. Users whose LATEST ConsentEvent for `terms` is
+    NOT the current published version (or who have none at all).
+    Excludes super-admins because they're never nagged by the
+    terms middleware."""
+    from app.models import User, ConsentEvent
+    from sqlalchemy import func
+    current = get_terms_version()
+    # Latest per-user version (subquery: MAX(created_at) per user).
+    latest_subq = db.session.query(
+        ConsentEvent.user_id,
+        func.max(ConsentEvent.created_at).label("last_at"),
+    ).filter(
+        ConsentEvent.consent_type == "terms"
+    ).group_by(ConsentEvent.user_id).subquery()
+    # Join back to get the version at that latest event.
+    latest_versions = db.session.query(
+        ConsentEvent.user_id, ConsentEvent.document_version
+    ).join(
+        latest_subq,
+        (ConsentEvent.user_id == latest_subq.c.user_id) &
+        (ConsentEvent.created_at == latest_subq.c.last_at)
+    ).all()
+    accepted_current = {uid for uid, v in latest_versions
+                        if v == current}
+    return User.query.filter(
+        User.is_superadmin == False,
+        ~User.id.in_(accepted_current),
+    ).all()
+
+
 def _set(key, value):
     from app.models import PlatformSetting
     row = PlatformSetting.query.filter_by(key=key).first()

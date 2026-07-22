@@ -232,7 +232,7 @@ def register():
         user.status = UserStatus.PENDING_VERIFICATION.value
         # MARSOUD-TERMS-CONSENT — record the audit trail. Version comes
         # from platform_settings so a later version-bump can re-prompt.
-        from app.services.legal import get_terms_version
+        from app.services.legal import get_terms_version, record_consent
         user.terms_accepted_at = datetime.utcnow()
         user.terms_version = get_terms_version()
         company = Company(name=company_name, base_currency=base_currency, subdomain=subdomain)
@@ -247,6 +247,10 @@ def register():
         user.companies.append(company)
         db.session.add(user)
         db.session.flush()
+        # MARSOUD-CONSENT-AUDIT-LOG — immutable per-event history.
+        # Deliberately AFTER the flush so user.id is populated.
+        record_consent(user, source="signup",
+                        company_id=company.id, request=request)
         # MARSOUD-MC-EMPLOYEE — link on Employee.user_id (per-company).
         owner_emp = Employee(
             company_id=company.id,
@@ -388,6 +392,13 @@ def reaccept_terms():
             return redirect(url_for("auth.reaccept_terms"))
         current_user.terms_accepted_at = datetime.utcnow()
         current_user.terms_version = current
+        # MARSOUD-CONSENT-AUDIT-LOG.
+        from app.services.legal import record_consent
+        from flask import g as _g
+        _cid = _g.get("active_company").id if _g.get("active_company") else None
+        record_consent(current_user, source="reaccept",
+                        company_id=_cid,
+                        document_version=current, request=request)
         db.session.commit()
         flash("تم تسجيل موافقتك على الإصدار الجديد.", "success")
         return redirect(url_for("dashboard.index"))

@@ -758,6 +758,49 @@ def subscriptions_renew(company_id):
 
 
 # ─── TICKET 1: subscription settings (platform-level) ────────────────────
+
+# MARSOUD-CONSENT-AUDIT-LOG (Abdelhamid 2026-07-22) — cross-tenant
+# consent history + "not accepted current version" report.
+@bp.route("/consent")
+@login_required
+@superadmin_required
+def consent_index():
+    from app.models import ConsentEvent, User
+    from app.services.legal import (
+        get_terms_version, users_missing_current_version,
+    )
+    q = ConsentEvent.query
+    version_filter = (request.args.get("version") or "").strip()
+    email_filter = (request.args.get("email") or "").strip().lower()
+    if version_filter:
+        q = q.filter(ConsentEvent.document_version == version_filter)
+    if email_filter:
+        q = q.join(User).filter(User.email.ilike(f"%{email_filter}%"))
+    events = q.order_by(ConsentEvent.created_at.desc()).limit(200).all()
+    missing = users_missing_current_version() if request.args.get(
+        "show_missing") == "1" else []
+    return render_template(
+        "admin/consent_index.html",
+        events=events,
+        current_version=get_terms_version(),
+        version_filter=version_filter,
+        email_filter=email_filter,
+        missing=missing,
+    )
+
+
+@bp.route("/users/<int:user_id>/consent")
+@login_required
+@superadmin_required
+def user_consent(user_id):
+    from app.models import User, ConsentEvent
+    u = db.session.get(User, user_id) or _404()
+    events = ConsentEvent.query.filter_by(user_id=user_id).order_by(
+        ConsentEvent.created_at.desc()).all()
+    return render_template("admin/user_consent.html",
+                           u=u, events=events)
+
+
 # MARSOUD-TERMS-CONSENT (Abdelhamid 2026-07-22) — content editor
 # for /terms + /privacy. Super-admin only. Publishing a NEW version
 # forces every user to re-accept on their next request.
