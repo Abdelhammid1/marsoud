@@ -759,6 +759,35 @@ def subscriptions_renew(company_id):
 
 # ─── TICKET 1: subscription settings (platform-level) ────────────────────
 
+# MARSOUD-INACTIVE-COMPANIES-MONITORING (Abdelhamid 2026-07-22) —
+# list stale tenants filtered by inactivity window.
+@bp.route("/companies/inactive")
+@login_required
+@superadmin_required
+def companies_inactive():
+    from datetime import timedelta
+    since_arg = (request.args.get("since") or "7d").strip().lower()
+    now = datetime.utcnow()
+    if since_arg == "never":
+        q = Company.query.filter(Company.last_activity_at.is_(None))
+    else:
+        raw = since_arg.rstrip("d")
+        try:
+            days = int(raw)
+        except ValueError:
+            days = 7
+        cutoff = now - timedelta(days=days)
+        q = Company.query.filter(
+            Company.last_activity_at < cutoff
+        )
+    q = q.filter(Company.deleted_at.is_(None))
+    companies = q.order_by(Company.last_activity_at.asc().nullsfirst()).all()
+    return render_template(
+        "admin/companies_inactive.html",
+        companies=companies, since=since_arg, now=now,
+    )
+
+
 # MARSOUD-FEATURE-FLAGS-KILL-SWITCH (Abdelhamid 2026-07-22) — runtime
 # module on/off. Super-admin picks a module + optional reason;
 # every non-super-admin request into that module gets the friendly

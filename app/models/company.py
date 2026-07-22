@@ -79,6 +79,11 @@ class Company(db.Model):
                                                name="fk_companies_intended_plan_id"))
     subscription_started_at = db.Column(db.DateTime)
     subscription_expires_at = db.Column(db.DateTime)
+    # MARSOUD-INACTIVE-COMPANIES-MONITORING (Abdelhamid 2026-07-22) —
+    # stamped by start_session() on every user login. Used by
+    # /admin/companies/inactive to answer "who hasn't touched the
+    # system in N days?" without scanning UserSession.
+    last_activity_at = db.Column(db.DateTime, nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     # MARSOUD — soft-delete. Owners may close their own company; super-
     # admin can restore or wipe permanently from the admin panel.

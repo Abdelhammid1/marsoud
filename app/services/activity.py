@@ -134,6 +134,15 @@ def start_session(user, *, company_id=None):
         status="ACTIVE",
     )
     db.session.add(sess)
+    # MARSOUD-INACTIVE-COMPANIES-MONITORING (Abdelhamid 2026-07-22) —
+    # every login stamps the parent company's last_activity_at so
+    # /admin/companies/inactive can filter without scanning
+    # UserSession. Cheap — one UPDATE per login.
+    if company_id:
+        from app.models import Company as _Company
+        co = db.session.get(_Company, company_id)
+        if co:
+            co.last_activity_at = datetime.utcnow()
     db.session.commit()
     flask_session[SESSION_KEY] = sess.id
 

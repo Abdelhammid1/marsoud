@@ -1,0 +1,82 @@
+{% extends "admin/base.html" %}
+{% block page_title %}الشركات غير النشطة{% endblock %}
+{% block content %}
+
+<div class="card p-6 max-w-5xl">
+  <h2 class="font-bold text-navy-900 mb-1">😴 الشركات غير النشطة</h2>
+  <p class="text-sm text-slate-500 mb-5">
+    شركات لم يدخلها أحد من المستخدمين خلال فترة معينة. اضغط على شركة
+    لفتح تفاصيلها ومتابعتها.
+  </p>
+
+  <div class="flex flex-wrap gap-2 mb-5">
+    {% for key, label in [('3d', 'منذ 3 أيام'),
+                            ('7d', 'منذ 7 أيام'),
+                            ('30d', 'منذ 30 يوم'),
+                            ('never', 'لم يدخلوا مطلقًا')] %}
+    <a href="{{ url_for('superadmin.companies_inactive', since=key) }}"
+       class="px-3 py-1 rounded-full border text-xs
+              {% if since == key %}bg-emerald-600 text-white border-emerald-600{% else %}bg-white text-slate-700 border-slate-200 hover:bg-slate-50{% endif %}">
+      {{ label }}
+    </a>
+    {% endfor %}
+  </div>
+
+  <table class="data-table w-full text-sm">
+    <thead>
+      <tr>
+        <th>الشركة</th>
+        <th>الباقة</th>
+        <th>الاشتراك</th>
+        <th>آخر نشاط</th>
+        <th>مضى</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in companies %}
+      <tr>
+        <td>
+          <a href="{{ url_for('superadmin.company_detail', company_id=c.id) }}"
+             class="text-emerald-700 hover:underline">
+            {{ c.name }}
+          </a>
+        </td>
+        <td class="text-xs">
+          {% if c.subscription_plan %}{{ c.subscription_plan.name_ar or c.subscription_plan.name }}{% else %}—{% endif %}
+        </td>
+        <td class="text-xs">
+          {% if c.subscription_expires_at %}
+            {% if c.subscription_expires_at > now %}
+              <span class="badge badge-paid">نشط</span>
+            {% else %}
+              <span class="badge badge-overdue">منتهي</span>
+            {% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td class="font-mono text-xs">
+          {% if c.last_activity_at %}
+            {{ c.last_activity_at.strftime('%Y-%m-%d %H:%M') }}
+          {% else %}
+            <span class="text-rose-600">مطلقًا</span>
+          {% endif %}
+        </td>
+        <td class="text-xs text-slate-500">
+          {% if c.last_activity_at %}
+            {{ (now - c.last_activity_at).days }} يوم
+          {% else %}
+            —
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5" class="text-center text-slate-400 py-6">
+          🎉 مافيش شركات ضمن هذا الفلتر.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}
