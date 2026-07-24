@@ -36,6 +36,10 @@ DOC_PREFIXES = {
     "LEAD": "L",
     "PROJECT": "PRJ",
     "PRODUCT": "PRD",
+    # MARSOUD-CUSTOMER-DEPOSIT-01 (Abdelhamid 2026-07-24) — advance
+    # payments the customer makes BEFORE an invoice exists. Distinct
+    # from PAYMENT so the audit trail stays clean.
+    "DEPOSIT": "DEP",
 }
 
 

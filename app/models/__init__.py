@@ -23,6 +23,12 @@ from app.models.help import (
     HelpArticle, HelpArticleExample, HelpArticleMedia,
     MEDIA_IMAGE, MEDIA_YOUTUBE, MEDIA_VIMEO, MEDIA_LINK,
 )
+# MARSOUD-CUSTOMER-DEPOSIT-01 (Abdelhamid 2026-07-24).
+from app.models.customer_deposit import (
+    CustomerDeposit,
+    DEPOSIT_ACTIVE, DEPOSIT_APPLIED, DEPOSIT_REFUNDED,
+    ALL_DEPOSIT_STATUSES, DEPOSIT_STATUS_LABELS_AR,
+)
 # MARSOUD-RECURRING-INVOICE-01 (Abdelhamid 2026-07-24).
 from app.models.recurring_invoice import (
     RecurringInvoice, RecurringInvoiceLog,
