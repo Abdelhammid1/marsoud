@@ -121,6 +121,8 @@ def create_app(config_class=Config):
     from app.routes.manufacturing import bp as manufacturing_bp
     from app.routes.user_files import bp as user_files_bp
     from app.routes.evaluations import bp as evaluations_bp
+    # MARSOUD-HELP-CENTER-01 (Abdelhamid 2026-07-24).
+    from app.routes.help import bp as help_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(public_bp)
@@ -172,6 +174,7 @@ def create_app(config_class=Config):
     app.register_blueprint(manufacturing_bp, url_prefix="/manufacturing")
     app.register_blueprint(user_files_bp, url_prefix="/files")
     app.register_blueprint(evaluations_bp, url_prefix="/evaluations")
+    app.register_blueprint(help_bp, url_prefix="/help")
 
     # MARSOUD-API-V1 — make sure /api/v1/* abort(...) / unauthorized
     # responses come out as JSON instead of HTML / login redirects.
@@ -307,6 +310,7 @@ def create_app(config_class=Config):
     _FLAG_ALLOWLIST_PREFIXES = (
         "auth.", "static", "public.", "superadmin.", "cron.",
         "portal_emp.", "portal.", "notifications.",
+        "help.",   # in-product docs — must stay reachable
     )
 
     @app.before_request
@@ -706,6 +710,22 @@ def create_app(config_class=Config):
         except Exception:
             pass
         return {"notif_unread_count": 0}
+
+    # MARSOUD-HELP-CENTER-01 — surface the module_key for the header
+    # "?" icon. Cheap DB lookup guarded by a simple exists check;
+    # per-request, so a newly-published article shows up immediately.
+    @app.context_processor
+    def inject_help_module_key():
+        try:
+            from app.services.help_media import (
+                current_module_key, has_published_article,
+            )
+            key = current_module_key()
+            if key and has_published_article(key):
+                return {"help_module_key": key}
+        except Exception:
+            pass
+        return {"help_module_key": None}
 
     @app.context_processor
     def inject_today_date():

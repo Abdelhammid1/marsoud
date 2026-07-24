@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block page_title %}{{ article.title_ar }}{% endblock %}
+{% block content %}
+<div class="max-w-4xl">
+
+  {% if preview %}
+  <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-sm text-amber-800">
+    👁️ <strong>معاينة</strong> — هذه صفحة تحرير قبل النشر. المستخدم لسه ما بيشوفهاش.
+  </div>
+  {% endif %}
+
+  <div class="card p-6 mb-4">
+    <div class="text-xs font-mono text-slate-400 mb-1">{{ article.module_key }}</div>
+    <h1 class="text-2xl font-bold text-navy-900 mb-1">{{ article.title_ar }}</h1>
+    {% if article.title_en %}
+      <div class="text-sm text-slate-500">{{ article.title_en }}</div>
+    {% endif %}
+  </div>
+
+  {% if article.goal %}
+    <div class="card p-6 mb-4">
+      <h2 class="font-bold text-navy-900 mb-2">🎯 الهدف</h2>
+      <p class="text-slate-700 whitespace-pre-line">{{ article.goal }}</p>
+    </div>
+  {% endif %}
+
+  {% if article.general_explanation %}
+    <div class="card p-6 mb-4">
+      <h2 class="font-bold text-navy-900 mb-2">📖 الشرح العام</h2>
+      <div class="text-slate-700 whitespace-pre-line leading-relaxed">{{ article.general_explanation }}</div>
+    </div>
+  {% endif %}
+
+  {% if article.examples %}
+    <div class="card p-6 mb-4">
+      <h2 class="font-bold text-navy-900 mb-3">💡 أمثلة عملية</h2>
+      {% for ex in article.examples %}
+        <div class="border-r-4 border-emerald-400 pr-4 py-2 mb-4">
+          <div class="font-semibold text-navy-900 mb-1">{{ loop.index }}. {{ ex.title }}</div>
+          {% if ex.body %}
+            <div class="text-slate-600 whitespace-pre-line">{{ ex.body }}</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% set tips = article.tips_list %}
+  {% if tips %}
+    <div class="card p-6 mb-4">
+      <h2 class="font-bold text-navy-900 mb-3">✨ نصائح</h2>
+      <ul class="list-disc pr-5 space-y-1 text-slate-700">
+        {% for t in tips %}<li>{{ t }}</li>{% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  {% if article.media %}
+    <div class="card p-6 mb-4">
+      <h2 class="font-bold text-navy-900 mb-3">🎞️ الوسائط</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {% for m in article.media %}
+          <div>
+            {% if m.is_image %}
+              <img src="{{ url_for('help.media', media_id=m.id) }}"
+                   class="w-full rounded border" alt="{{ m.caption or '' }}">
+            {% elif m.is_video %}
+              <div class="aspect-video">
+                <iframe src="{{ m.embed_url() }}" class="w-full h-full rounded border"
+                        frameborder="0" allowfullscreen></iframe>
+              </div>
+            {% else %}
+              <a href="{{ m.url }}" target="_blank"
+                 class="block border rounded p-3 hover:border-emerald-500">
+                🔗 {{ m.caption or m.url }}
+              </a>
+            {% endif %}
+            {% if m.caption %}
+              <div class="text-xs text-slate-500 mt-1">{{ m.caption }}</div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  {% set related = article.related_list %}
+  {% if related %}
+    <div class="card p-6 mb-4">
+      <h2 class="font-bold text-navy-900 mb-3">🔗 مقالات ذات صلة</h2>
+      <div class="flex flex-wrap gap-2">
+        {% for r in related %}
+          <a href="{{ url_for('help.article', module_key=r) }}"
+             class="badge bg-slate-100 text-slate-700 hover:bg-emerald-100">
+            {{ r }}
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

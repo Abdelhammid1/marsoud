@@ -1,0 +1,59 @@
+{% extends "admin/base.html" %}
+{% block page_title %}مركز المساعدة{% endblock %}
+{% block content %}
+
+<div class="card p-6 max-w-5xl">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="font-bold text-navy-900">📚 مقالات المساعدة</h2>
+    <a href="{{ url_for('superadmin.help_new') }}" class="btn-primary text-sm">
+      + مقال جديد
+    </a>
+  </div>
+
+  <p class="text-sm text-slate-500 mb-4">
+    كل مقال مربوط بموديول واحد. المستخدم بيوصله من زرار "؟" في الهيدر
+    أو من صفحة <code>/help</code>. تنشر/تخفي المقال في أي وقت بدون Deploy.
+  </p>
+
+  <table class="data-table w-full text-sm">
+    <thead>
+      <tr>
+        <th>الموديول</th>
+        <th>العنوان</th>
+        <th>الأمثلة</th>
+        <th>الوسائط</th>
+        <th>الحالة</th>
+        <th>آخر تحديث</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in rows %}
+      <tr>
+        <td class="font-mono text-xs">{{ a.module_key }}</td>
+        <td class="font-semibold">{{ a.title_ar }}</td>
+        <td>{{ a.examples|length }}</td>
+        <td>{{ a.media|length }}</td>
+        <td>
+          {% if a.is_published %}
+            <span class="badge badge-paid">منشور</span>
+          {% else %}
+            <span class="badge badge-draft">مسودة</span>
+          {% endif %}
+        </td>
+        <td class="text-slate-500 text-xs">{{ a.updated_at | company_dt('%Y-%m-%d %H:%M') }}</td>
+        <td class="text-left space-x-2 space-x-reverse">
+          <a href="{{ url_for('superadmin.help_edit', article_id=a.id) }}" class="text-brand-600 hover:underline text-xs">تعديل</a>
+          <a href="{{ url_for('superadmin.help_preview', article_id=a.id) }}" class="text-slate-600 hover:underline text-xs">معاينة</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7" class="text-center py-8 text-slate-400">لا توجد مقالات بعد.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

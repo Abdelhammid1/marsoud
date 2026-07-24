@@ -1,0 +1,175 @@
+{% extends "admin/base.html" %}
+{% block page_title %}{{ 'تعديل مقال' if article else 'مقال مساعدة جديد' }}{% endblock %}
+{% block content %}
+
+<div class="max-w-5xl space-y-6">
+
+  <div class="card p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-bold text-navy-900">
+        {{ 'تعديل مقال' if article else 'مقال جديد' }}
+      </h2>
+      <div class="flex gap-2">
+        {% if article %}
+          <a href="{{ url_for('superadmin.help_preview', article_id=article.id) }}"
+             class="btn-secondary text-sm">👀 معاينة</a>
+          <form method="post" action="{{ url_for('superadmin.help_toggle', article_id=article.id) }}" class="inline">
+            <button class="btn-secondary text-sm">
+              {{ 'إخفاء' if article.is_published else 'نشر' }}
+            </button>
+          </form>
+          <form method="post" action="{{ url_for('superadmin.help_delete', article_id=article.id) }}"
+                onsubmit="return confirm('حذف نهائي — تأكد؟')" class="inline">
+            <button class="btn-danger text-sm">حذف</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <form method="post" class="space-y-4">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-sm font-semibold text-slate-700">Module Key *</label>
+          <input name="module_key" value="{{ article.module_key if article else '' }}"
+                 placeholder="مثال: invoices, inventory, pos"
+                 class="w-full border rounded px-3 py-2 mt-1 font-mono" required>
+        </div>
+        <div>
+          <label class="text-sm font-semibold text-slate-700">ترتيب العرض</label>
+          <input type="number" name="display_order"
+                 value="{{ article.display_order if article else 0 }}"
+                 class="w-full border rounded px-3 py-2 mt-1">
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-sm font-semibold text-slate-700">العنوان بالعربية *</label>
+          <input name="title_ar" value="{{ article.title_ar if article else '' }}"
+                 class="w-full border rounded px-3 py-2 mt-1" required>
+        </div>
+        <div>
+          <label class="text-sm font-semibold text-slate-700">Title (EN)</label>
+          <input name="title_en" value="{{ article.title_en or '' if article else '' }}"
+                 class="w-full border rounded px-3 py-2 mt-1">
+        </div>
+      </div>
+
+      <div>
+        <label class="text-sm font-semibold text-slate-700">الهدف (مختصر)</label>
+        <textarea name="goal" rows="2"
+                  class="w-full border rounded px-3 py-2 mt-1">{{ article.goal or '' if article else '' }}</textarea>
+      </div>
+
+      <div>
+        <label class="text-sm font-semibold text-slate-700">الشرح العام</label>
+        <textarea name="general_explanation" rows="8"
+                  class="w-full border rounded px-3 py-2 mt-1">{{ article.general_explanation or '' if article else '' }}</textarea>
+      </div>
+
+      <div>
+        <label class="text-sm font-semibold text-slate-700">نصائح — نصيحة لكل سطر</label>
+        <textarea name="tips" rows="4"
+                  class="w-full border rounded px-3 py-2 mt-1">{% if article %}{{ '\n'.join(article.tips_list) }}{% endif %}</textarea>
+      </div>
+
+      <div>
+        <label class="text-sm font-semibold text-slate-700">Module Keys مرتبطة — مفتاح لكل سطر</label>
+        <textarea name="related_module_keys" rows="3"
+                  class="w-full border rounded px-3 py-2 mt-1">{% if article %}{{ '\n'.join(article.related_list) }}{% endif %}</textarea>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <input type="checkbox" name="is_published" id="is_published"
+               {% if article and article.is_published %}checked{% endif %}>
+        <label for="is_published" class="text-sm">نشر (يظهر للمستخدمين فوراً)</label>
+      </div>
+
+      <div class="flex gap-2">
+        <button class="btn-primary">💾 حفظ</button>
+        <a href="{{ url_for('superadmin.help_index') }}" class="btn-secondary">إلغاء</a>
+      </div>
+    </form>
+  </div>
+
+  {% if article %}
+  <div class="card p-6">
+    <h3 class="font-bold text-navy-900 mb-3">📖 الأمثلة العملية</h3>
+    {% for ex in article.examples %}
+      <div class="border rounded p-3 mb-2 flex items-start justify-between">
+        <div>
+          <div class="font-semibold">{{ loop.index }}. {{ ex.title }}</div>
+          <div class="text-sm text-slate-600 mt-1 whitespace-pre-line">{{ ex.body }}</div>
+        </div>
+        <form method="post" action="{{ url_for('superadmin.help_delete_example', example_id=ex.id) }}"
+              onsubmit="return confirm('حذف المثال؟')">
+          <button class="text-red-600 text-xs">حذف</button>
+        </form>
+      </div>
+    {% endfor %}
+    <form method="post" action="{{ url_for('superadmin.help_add_example', article_id=article.id) }}"
+          class="border-t pt-3 mt-3 space-y-2">
+      <input name="title" placeholder="عنوان المثال (مثلاً: تسجيل فاتورة عميل جديد)"
+             class="w-full border rounded px-3 py-2" required>
+      <textarea name="body" rows="4" placeholder="الخطوات بالتفصيل"
+                class="w-full border rounded px-3 py-2"></textarea>
+      <button class="btn-primary text-sm">+ إضافة مثال</button>
+    </form>
+  </div>
+
+  <div class="card p-6">
+    <h3 class="font-bold text-navy-900 mb-3">🖼️ الوسائط</h3>
+    {% for m in article.media %}
+      <div class="border rounded p-3 mb-2 flex items-start justify-between">
+        <div class="flex-1">
+          <div class="text-xs text-slate-400">{{ m.type }}</div>
+          {% if m.is_image %}
+            <img src="{{ url_for('help.media', media_id=m.id) }}"
+                  class="mt-2 max-w-xs max-h-40 border rounded">
+          {% elif m.is_video %}
+            <div class="text-sm mt-1">🎬 <code>{{ m.type }}:{{ m.url }}</code></div>
+          {% else %}
+            <a href="{{ m.url }}" target="_blank" class="text-brand-600 text-sm underline">{{ m.url }}</a>
+          {% endif %}
+          {% if m.caption %}<div class="text-xs text-slate-500 mt-1">{{ m.caption }}</div>{% endif %}
+        </div>
+        <form method="post" action="{{ url_for('superadmin.help_delete_media', media_id=m.id) }}"
+              onsubmit="return confirm('حذف الوسيلة؟')">
+          <button class="text-red-600 text-xs">حذف</button>
+        </form>
+      </div>
+    {% endfor %}
+    <div class="border-t pt-3 mt-3 grid grid-cols-3 gap-3">
+      <form method="post" action="{{ url_for('superadmin.help_add_media', article_id=article.id) }}"
+            enctype="multipart/form-data" class="space-y-2 border rounded p-3">
+        <div class="font-semibold text-sm">🖼️ رفع صورة</div>
+        <input type="hidden" name="kind" value="IMAGE">
+        <input type="file" name="file" accept="image/*" required class="w-full text-xs">
+        <input name="caption" placeholder="وصف اختياري" class="w-full border rounded px-2 py-1 text-xs">
+        <button class="btn-primary text-xs w-full">رفع</button>
+      </form>
+      <form method="post" action="{{ url_for('superadmin.help_add_media', article_id=article.id) }}"
+            class="space-y-2 border rounded p-3">
+        <div class="font-semibold text-sm">🎬 يوتيوب / فيميو</div>
+        <input type="hidden" name="kind" value="VIDEO">
+        <input name="url" placeholder="https://youtube.com/watch?v=... or vimeo.com/..."
+                required class="w-full border rounded px-2 py-1 text-xs">
+        <input name="caption" placeholder="وصف اختياري" class="w-full border rounded px-2 py-1 text-xs">
+        <button class="btn-primary text-xs w-full">إضافة</button>
+      </form>
+      <form method="post" action="{{ url_for('superadmin.help_add_media', article_id=article.id) }}"
+            class="space-y-2 border rounded p-3">
+        <div class="font-semibold text-sm">🔗 رابط عام</div>
+        <input type="hidden" name="kind" value="LINK">
+        <input name="url" placeholder="https://..." required
+                class="w-full border rounded px-2 py-1 text-xs">
+        <input name="caption" placeholder="وصف اختياري" class="w-full border rounded px-2 py-1 text-xs">
+        <button class="btn-primary text-xs w-full">إضافة</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+{% endblock %}

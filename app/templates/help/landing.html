@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block page_title %}مركز المساعدة{% endblock %}
+{% block content %}
+<div class="max-w-6xl">
+  <div class="text-center mb-8">
+    <h1 class="text-3xl font-bold text-navy-900 mb-2">📚 مركز المساعدة</h1>
+    <p class="text-slate-600">شرح كل موديول ومثال عملي لاستخدامه</p>
+  </div>
+
+  {% if not grouped %}
+    <div class="card p-8 text-center text-slate-500">
+      لسه ما فيش مقالات منشورة. راجع Super Admin.
+    </div>
+  {% else %}
+    {% for module_key, articles in grouped.items() %}
+      <div class="card p-6 mb-4">
+        <h2 class="font-bold text-navy-900 mb-3 text-lg">
+          <span class="text-sm font-mono text-slate-400">{{ module_key }}</span>
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {% for a in articles %}
+            <a href="{{ url_for('help.article', module_key=a.module_key) }}"
+               class="border rounded-lg p-4 hover:border-emerald-500 hover:bg-emerald-50/30 transition">
+              <div class="font-semibold text-navy-900">{{ a.title_ar }}</div>
+              {% if a.goal %}
+                <div class="text-xs text-slate-500 mt-1">{{ a.goal | truncate(140) }}</div>
+              {% endif %}
+            </a>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  {% endif %}
+</div>
+{% endblock %}

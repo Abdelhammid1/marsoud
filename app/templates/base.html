@@ -871,6 +871,16 @@ tailwind.config = {
             📝
           </a>
           {% endif %}
+          {# MARSOUD-HELP-CENTER-01 — contextual "?" icon. Only
+             renders when the current blueprint has a published
+             HelpArticle whose module_key matches. #}
+          {% if help_module_key %}
+          <a href="{{ url_for('help.article', module_key=help_module_key) }}"
+             class="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:border-emerald-500 hover:bg-emerald-50 transition text-navy-900 font-bold"
+             title="مساعدة عن هذه الشاشة">
+            ؟
+          </a>
+          {% endif %}
           <a href="{{ url_for('notifications.index') }}" class="relative inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:border-brand-500 transition" title="الإشعارات">
             🔔
             {% if notif_unread_count and notif_unread_count > 0 %}

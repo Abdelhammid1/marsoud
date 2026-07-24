@@ -18,6 +18,11 @@ from app.models.broadcast import (
     AUDIENCE_ALL, AUDIENCE_TRIAL, AUDIENCE_ACTIVE, AUDIENCE_EXPIRED,
     AUDIENCE_BY_PLAN,
 )
+# MARSOUD-HELP-CENTER-01 (Abdelhamid 2026-07-24).
+from app.models.help import (
+    HelpArticle, HelpArticleExample, HelpArticleMedia,
+    MEDIA_IMAGE, MEDIA_YOUTUBE, MEDIA_VIMEO, MEDIA_LINK,
+)
 from app.models.platform_setting import PlatformSetting
 from app.models.recurring_bill import (
     RecurringBill, RecurringBillOverride,

@@ -1148,3 +1148,212 @@ def subscription_settings():
         api_rate_limit_per_minute=_limit_per_minute(),
         default_api_rate_limit=DEFAULT_LIMIT_PER_MINUTE,
     )
+
+
+# ─── MARSOUD-HELP-CENTER-01 (Abdelhamid 2026-07-24) ──────────────
+# Super-admin CRUD for the in-product help articles. Public reads
+# live in app/routes/help.py.
+
+@bp.route("/help")
+@login_required
+@superadmin_required
+def help_index():
+    from app.models import HelpArticle
+    rows = HelpArticle.query.order_by(
+        HelpArticle.module_key.asc(),
+        HelpArticle.display_order.asc()).all()
+    return render_template("admin/help_index.html", rows=rows)
+
+
+@bp.route("/help/new", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def help_new():
+    from app.models import HelpArticle
+    if request.method == "POST":
+        a = HelpArticle(
+            module_key=(request.form.get("module_key") or "").strip(),
+            title_ar=(request.form.get("title_ar") or "").strip(),
+            title_en=(request.form.get("title_en") or "").strip() or None,
+            goal=(request.form.get("goal") or "").strip() or None,
+            general_explanation=(
+                request.form.get("general_explanation") or "").strip()
+                or None,
+            display_order=int(request.form.get("display_order") or 0),
+            is_published=(request.form.get("is_published") == "on"),
+            created_by_id=current_user.id,
+        )
+        a.set_tips(_split_lines(request.form.get("tips")))
+        a.set_related(_split_lines(request.form.get("related_module_keys")))
+        if not a.module_key or not a.title_ar:
+            flash("module_key والعنوان مطلوبان", "error")
+            return redirect(url_for("superadmin.help_new"))
+        db.session.add(a); db.session.commit()
+        flash("تم إنشاء المقال. أضف الآن الأمثلة والوسائط.", "success")
+        return redirect(url_for("superadmin.help_edit", article_id=a.id))
+    return render_template("admin/help_form.html", article=None)
+
+
+@bp.route("/help/<int:article_id>/edit", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def help_edit(article_id):
+    from app.models import HelpArticle
+    a = db.session.get(HelpArticle, article_id) or _404()
+    if request.method == "POST":
+        a.module_key = (request.form.get("module_key")
+                        or a.module_key).strip()
+        a.title_ar = (request.form.get("title_ar") or a.title_ar).strip()
+        a.title_en = (request.form.get("title_en") or "").strip() or None
+        a.goal = (request.form.get("goal") or "").strip() or None
+        a.general_explanation = (
+            request.form.get("general_explanation") or "").strip() or None
+        a.display_order = int(request.form.get("display_order") or 0)
+        a.is_published = (request.form.get("is_published") == "on")
+        a.set_tips(_split_lines(request.form.get("tips")))
+        a.set_related(_split_lines(
+            request.form.get("related_module_keys")))
+        db.session.commit()
+        flash("تم الحفظ", "success")
+        return redirect(url_for("superadmin.help_edit",
+                                 article_id=a.id))
+    return render_template("admin/help_form.html", article=a)
+
+
+@bp.route("/help/<int:article_id>/toggle", methods=["POST"])
+@login_required
+@superadmin_required
+def help_toggle(article_id):
+    from app.models import HelpArticle
+    a = db.session.get(HelpArticle, article_id) or _404()
+    a.is_published = not a.is_published
+    db.session.commit()
+    flash("تم النشر" if a.is_published else "تم الإخفاء", "success")
+    return redirect(url_for("superadmin.help_edit", article_id=a.id))
+
+
+@bp.route("/help/<int:article_id>/delete", methods=["POST"])
+@login_required
+@superadmin_required
+def help_delete(article_id):
+    from app.models import HelpArticle
+    a = db.session.get(HelpArticle, article_id) or _404()
+    db.session.delete(a); db.session.commit()
+    flash("تم حذف المقال", "success")
+    return redirect(url_for("superadmin.help_index"))
+
+
+@bp.route("/help/<int:article_id>/examples", methods=["POST"])
+@login_required
+@superadmin_required
+def help_add_example(article_id):
+    from app.models import HelpArticle, HelpArticleExample
+    a = db.session.get(HelpArticle, article_id) or _404()
+    title = (request.form.get("title") or "").strip()
+    body = (request.form.get("body") or "").strip()
+    if not title:
+        flash("عنوان المثال مطلوب", "error")
+    else:
+        order = int(request.form.get("display_order") or
+                     (len(a.examples) + 1))
+        db.session.add(HelpArticleExample(
+            article_id=a.id, title=title, body=body,
+            display_order=order))
+        db.session.commit()
+        flash("تمت إضافة المثال", "success")
+    return redirect(url_for("superadmin.help_edit", article_id=a.id))
+
+
+@bp.route("/help/examples/<int:example_id>/delete", methods=["POST"])
+@login_required
+@superadmin_required
+def help_delete_example(example_id):
+    from app.models import HelpArticleExample
+    ex = db.session.get(HelpArticleExample, example_id) or _404()
+    aid = ex.article_id
+    db.session.delete(ex); db.session.commit()
+    flash("حُذف المثال", "success")
+    return redirect(url_for("superadmin.help_edit", article_id=aid))
+
+
+@bp.route("/help/<int:article_id>/media", methods=["POST"])
+@login_required
+@superadmin_required
+def help_add_media(article_id):
+    from app.models import (
+        HelpArticle, HelpArticleMedia, MEDIA_IMAGE, MEDIA_LINK,
+    )
+    from app.services.help_media import (
+        save_image, extract_video, HelpMediaError,
+    )
+    a = db.session.get(HelpArticle, article_id) or _404()
+    kind = (request.form.get("kind") or "").strip().upper()
+    caption = (request.form.get("caption") or "").strip() or None
+    order = int(request.form.get("display_order") or
+                 (len(a.media) + 1))
+    try:
+        if kind == "IMAGE":
+            f = request.files.get("file")
+            key = save_image(f)
+            db.session.add(HelpArticleMedia(
+                article_id=a.id, type=MEDIA_IMAGE,
+                file_path=key, caption=caption,
+                display_order=order))
+        elif kind == "VIDEO":
+            url = (request.form.get("url") or "").strip()
+            parsed = extract_video(url)
+            if not parsed:
+                raise HelpMediaError(
+                    "رابط الفيديو غير صحيح (يوتيوب أو فيميو فقط)")
+            vtype, video_id = parsed
+            db.session.add(HelpArticleMedia(
+                article_id=a.id, type=vtype,
+                url=video_id, caption=caption,
+                display_order=order))
+        elif kind == "LINK":
+            url = (request.form.get("url") or "").strip()
+            if not url:
+                raise HelpMediaError("الرابط مطلوب")
+            db.session.add(HelpArticleMedia(
+                article_id=a.id, type=MEDIA_LINK,
+                url=url, caption=caption,
+                display_order=order))
+        else:
+            raise HelpMediaError("نوع الوسيلة غير معروف")
+        db.session.commit()
+        flash("تمت إضافة الوسيلة", "success")
+    except HelpMediaError as e:
+        flash(str(e), "error")
+    return redirect(url_for("superadmin.help_edit", article_id=a.id))
+
+
+@bp.route("/help/media/<int:media_id>/delete", methods=["POST"])
+@login_required
+@superadmin_required
+def help_delete_media(media_id):
+    from app.models import HelpArticleMedia
+    m = db.session.get(HelpArticleMedia, media_id) or _404()
+    aid = m.article_id
+    db.session.delete(m); db.session.commit()
+    flash("حُذفت الوسيلة", "success")
+    return redirect(url_for("superadmin.help_edit", article_id=aid))
+
+
+@bp.route("/help/<int:article_id>/preview")
+@login_required
+@superadmin_required
+def help_preview(article_id):
+    """Render the article using the public template but with an
+    unpublished-preview banner. Lets the author see the final shape
+    before flipping is_published."""
+    from app.models import HelpArticle
+    a = db.session.get(HelpArticle, article_id) or _404()
+    return render_template("help/article.html", article=a,
+                             preview=True)
+
+
+def _split_lines(raw):
+    """Textarea → list of non-empty stripped strings, one per line."""
+    if not raw:
+        return []
+    return [ln.strip() for ln in raw.splitlines() if ln.strip()]
