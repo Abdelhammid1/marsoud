@@ -23,6 +23,16 @@ from app.models.help import (
     HelpArticle, HelpArticleExample, HelpArticleMedia,
     MEDIA_IMAGE, MEDIA_YOUTUBE, MEDIA_VIMEO, MEDIA_LINK,
 )
+# MARSOUD-RECURRING-INVOICE-01 (Abdelhamid 2026-07-24).
+from app.models.recurring_invoice import (
+    RecurringInvoice, RecurringInvoiceLog,
+    REC_INV_ACTION_EXECUTE, REC_INV_ACTION_FAIL,
+    REC_INV_ACTION_STOP, REC_INV_ACTION_RESUME,
+    REC_INV_ACTION_DELETE,
+    REC_INV_FREQ_DAILY, REC_INV_FREQ_WEEKLY,
+    REC_INV_FREQ_MONTHLY, REC_INV_FREQ_YEARLY,
+    ALL_REC_INV_FREQS, REC_INV_FREQ_LABELS_AR,
+)
 # MARSOUD-SUPPORT-TICKETS-01 (Abdelhamid 2026-07-24).
 from app.models.support import (
     SupportTicket, SupportTicketComment, SupportTicketAudit,

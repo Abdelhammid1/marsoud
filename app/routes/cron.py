@@ -49,6 +49,19 @@ def tick():
     # Post any due recurring journal entries
     summary["recurring"] = process_recurring_journals()
 
+    # MARSOUD-RECURRING-INVOICE-01 (Abdelhamid 2026-07-24) — post any
+    # due recurring invoices. Idempotent via the unique index on
+    # (recurring_id, period_posted, action) — safe if cron double-
+    # fires on the same day.
+    try:
+        from app.services.recurring_invoices import process_recurring_invoices
+        summary["recurring_invoices"] = process_recurring_invoices()
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception(
+            "recurring invoices failed: %s", e)
+        summary["recurring_invoices"] = {"error": str(e)[:200]}
+
     # HR-03: contract expiry alerts (30 / 60 days)
     try:
         summary["contract_alerts"] = check_expiring_contracts()
