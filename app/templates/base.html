@@ -527,6 +527,8 @@ tailwind.config = {
           ]),
           ('المبيعات', '💰', [
             ('pos.index', 'نقطة البيع', '🛒'),
+            ('pos.shifts', 'سجل الورديات', '🕐'),
+            ('pos.history', 'سجل عمليات البيع', '📜'),
             ('invoices.index', 'الفواتير', '🧾'),
             ('customers.index', 'العملاء', '👥'),
           ]),
@@ -548,6 +550,8 @@ tailwind.config = {
           ('المخزون', '📦', [
             ('inventory.index', 'المخزون', '📊'),
             ('inventory.warehouses', 'المخازن', '🏬'),
+            ('inventory.movements', 'حركة الأصناف', '🔄'),
+            ('inventory.transfers', 'تحويل بين المخازن', '🚚'),
             ('products.index', 'المنتجات والخدمات', '🏷️'),
           ]),
           ('العملاء المحتملين (CRM)', '🤝', [
@@ -579,9 +583,11 @@ tailwind.config = {
             ('settings_activity.index', 'نشاط الموظفين', '👣'),
             ('settings_employee_reports.index', 'صلاحيات تقارير الموظفين', '📝'),
             ('settings_backup.index', 'نسخة احتياطية (Excel)', '📥'),
+            ('settings_usage.index', 'استهلاك الباقة', '📈'),
             ('payment_methods.index', 'طرق الدفع', '💳'),
             ('companies.edit', 'بيانات الشركة', '🏢',
              {'company_id': active_company.id} if active_company else {}),
+            ('companies.index', 'كل شركاتي', '🏬'),
             ('audit_log.index', 'سجل التدقيق', '🔍'),
           ]),
         ] %}
@@ -618,9 +624,11 @@ tailwind.config = {
         'inventory.index': 'inventory.view',
         'inventory.warehouses': 'inventory.manage',
         'inventory.transfers': 'transfers.view',
+        'inventory.movements': 'inventory.view',
         'inventory.inventory_balance': 'inventory.view',
         'pos.index': 'pos.use',
         'pos.shifts': 'shifts.manage',
+        'pos.history': 'pos.use',
         'reports.cashier_sales': 'reports.cashier_sales',
         'reports.profitability': 'reports.profitability',
         'reports.index': 'reports.view',
@@ -644,6 +652,8 @@ tailwind.config = {
         'tasks.archive_list': 'tasks.archive',
         'settings_activity.index': 'activity_log.view',
         'settings_backup.index': 'backup.download',
+        'settings_usage.index': 'settings_usage.view',
+        'companies.index': 'companies.manage',
       } %}
 
       {# Flat list for the non-owner roles. #}

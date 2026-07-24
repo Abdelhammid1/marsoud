@@ -164,6 +164,14 @@ P = {
     "api_tokens.manage":    {"owner", "admin"},
     "activity_log.view":    {"owner", "admin"},
     "backup.download":      {"owner", "admin"},
+
+    # MARSOUD-SIDEBAR-COMPLETE (Abdelhamid 2026-07-24) — two orphan
+    # pages had no permission code, so the sidebar couldn't gate them
+    # per role. Both are owner-scoped: /settings/usage shows the
+    # company's quota consumption + billable overage, and
+    # /companies/ lists every company this user owns / co-owns.
+    "settings_usage.view":  {"owner"},
+    "companies.manage":     {"owner"},
 }
 
 ALL_ROLES = [
