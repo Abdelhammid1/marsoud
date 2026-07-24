@@ -23,6 +23,10 @@ from app.models.help import (
     HelpArticle, HelpArticleExample, HelpArticleMedia,
     MEDIA_IMAGE, MEDIA_YOUTUBE, MEDIA_VIMEO, MEDIA_LINK,
 )
+# MARSOUD-DUAL-UOM-WEIGHT-01 (Abdelhamid 2026-07-24).
+from app.models.inventory import (
+    InventoryCount, INV_COUNT_DRAFT, INV_COUNT_CONFIRMED,
+)
 # MARSOUD-INSTALLMENT-PLAN-01 (Abdelhamid 2026-07-24).
 from app.models.invoice_installment import (
     InvoiceInstallment, InstallmentReminderSent,

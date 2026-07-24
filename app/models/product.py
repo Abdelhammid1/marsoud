@@ -72,6 +72,14 @@ class Product(db.Model):
     # DB from migration m1a4e7c9b3f6.
     is_tracked = db.Column(db.Boolean, default=True, nullable=False)
     default_unit = db.Column(db.String(20), default="قطعة", nullable=False)
+    # MARSOUD-DUAL-UOM-WEIGHT-01 (Abdelhamid 2026-07-24) — opt-in flag
+    # for gold/silver / any variable-weight goods. When True, every
+    # stock movement for this product also updates a piece_count on
+    # StockBalance in the same transaction. Backwards-compatible
+    # default (False) means unaffected products behave exactly as
+    # before.
+    tracks_piece_count = db.Column(db.Boolean, default=False,
+                                    nullable=False)
     # MARSOUD-PRODUCT-HIERARCHY-01 — required for new products; nullable
     # in the DB column for a smooth backfill (the migration fills every
     # existing row with a per-company default "عام" category). App-level

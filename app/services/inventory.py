@@ -123,6 +123,7 @@ def apply_stock_movement(
     *, variant, warehouse, qty_delta, kind,
     unit_cost=None, source_type=None, source_id=None,
     journal_entry_id=None, actor_id=None, reason=None,
+    piece_delta=None,
 ):
     """Atomic stock mutation. Caller MUST be inside a transaction.
 
@@ -185,6 +186,16 @@ def apply_stock_movement(
     # Update cached balance.
     bal.qty = new_qty
     bal.value = new_value
+
+    # MARSOUD-DUAL-UOM-WEIGHT-01 (Abdelhamid 2026-07-24) — for
+    # products opted into piece tracking, apply the piece delta
+    # inside the SAME transaction. avg_cost stays weight-based, so
+    # no cost math changes here. Ignored (no-op) for products that
+    # never opted in.
+    if piece_delta is not None and \
+            getattr(variant.product, "tracks_piece_count", False):
+        cur_pieces = float(bal.piece_count or 0)
+        bal.piece_count = cur_pieces + float(piece_delta)
     db.session.flush()
 
     # Insert the immutable movement row.
@@ -228,7 +239,8 @@ def apply_stock_movement(
 # ─── Wrappers used by the rest of the app ────────────────────────────────
 def receive_stock(*, variant, warehouse, qty, unit_cost,
                   bill_id=None, line_id=None, actor_id=None,
-                  journal_entry_id=None, reason=None):
+                  journal_entry_id=None, reason=None,
+                  piece_delta=None):
     """Inbound stock from a vendor bill (or any other receipt event).
 
     The matching journal entry is posted by the vendor bill code; we just
@@ -242,12 +254,13 @@ def receive_stock(*, variant, warehouse, qty, unit_cost,
         unit_cost=unit_cost,
         source_type="vendor_bill_item", source_id=line_id or bill_id,
         journal_entry_id=journal_entry_id, actor_id=actor_id, reason=reason,
+        piece_delta=piece_delta,
     )
 
 
 def record_sale(*, variant, warehouse, qty,
                 invoice_id=None, line_id=None, actor_id=None,
-                journal_entry_id=None):
+                journal_entry_id=None, piece_delta=None):
     """Outbound stock for a sale. Returns the unit cost that was actually
     consumed — caller writes it to invoice_items.unit_cost_at_sale and
     uses it to build the COGS journal line.
@@ -255,6 +268,10 @@ def record_sale(*, variant, warehouse, qty,
     The caller is responsible for posting the COGS journal. We do NOT
     post it here because the journal aggregates ALL tracked lines on one
     invoice into a single Dr 5100 / Cr 1140 entry, which is cleaner.
+
+    piece_delta: optional signed delta for products with
+    tracks_piece_count=True. For a sell-by-piece sale, pass the
+    negative piece count (e.g. -1 for one piece).
     """
     if qty <= 0:
         raise InventoryError("كمية البيع يجب أن تكون أكبر من صفر")
@@ -263,6 +280,7 @@ def record_sale(*, variant, warehouse, qty,
         qty_delta=-qty, kind=StockMovementKind.SALE,
         source_type="invoice_item", source_id=line_id or invoice_id,
         journal_entry_id=journal_entry_id, actor_id=actor_id,
+        piece_delta=piece_delta,
     )
     return float(mv.unit_cost_at_time or 0)
 
@@ -539,3 +557,71 @@ def post_refund_cogs_reversal(*, company_id, total_cost, refund,
         created_by=created_by,
         source_type="refund_cogs", source_id=refund.id,
     )
+
+
+# ─── MARSOUD-DUAL-UOM-WEIGHT-01 (Abdelhamid 2026-07-24) ──────────
+def start_inventory_count(*, variant, warehouse,
+                            counted_qty, counted_pieces,
+                            counted_by_id=None):
+    """Create a DRAFT InventoryCount capturing the current book
+    balance + the physical count. Returns the row so the caller can
+    show variance before confirming."""
+    from app.models import InventoryCount, INV_COUNT_DRAFT
+    if variant.company_id != warehouse.company_id:
+        raise InventoryError("الصنف والمخزن من شركتين مختلفتين")
+    bal = _lock_balance(variant.id, warehouse.id)
+    book_qty = _dec(bal.qty)
+    book_pieces = _dec(bal.piece_count or 0)
+    row = InventoryCount(
+        company_id=variant.company_id,
+        variant_id=variant.id, warehouse_id=warehouse.id,
+        book_qty=book_qty, book_pieces=book_pieces,
+        counted_qty=_dec(counted_qty),
+        counted_pieces=_dec(counted_pieces),
+        variance_qty=_dec(counted_qty) - book_qty,
+        variance_pieces=_dec(counted_pieces) - book_pieces,
+        status=INV_COUNT_DRAFT,
+        counted_by_id=counted_by_id,
+    )
+    db.session.add(row); db.session.commit()
+    return row
+
+
+def commit_inventory_count(count_row, *, actor_id=None):
+    """Post the variance:
+      · Weight variance → record_adjustment (existing service; posts
+        the balancing JE).
+      · Piece variance → direct piece_count update on StockBalance
+        (no JE — pieces are a parallel counter, not a valued
+        quantity).
+    Zero-variance counts CONFIRM without posting anything."""
+    from app.models import InventoryCount, INV_COUNT_CONFIRMED
+    if count_row.status != "DRAFT":
+        raise InventoryError("هذا الجرد مؤكد بالفعل")
+    variant = count_row.variant
+    warehouse = count_row.warehouse
+
+    if _dec(count_row.variance_qty) != 0:
+        mv = record_adjustment(
+            variant=variant, warehouse=warehouse,
+            new_qty=float(count_row.counted_qty),
+            reason=f"جرد #{count_row.id}",
+            actor_id=actor_id, created_by=actor_id,
+        )
+        if mv is not None:
+            count_row.adjustment_movement_id = mv.id
+
+    if _dec(count_row.variance_pieces) != 0:
+        bal = _lock_balance(variant.id, warehouse.id)
+        bal.piece_count = _dec(count_row.counted_pieces)
+
+    from datetime import datetime as _dt
+    count_row.status = INV_COUNT_CONFIRMED
+    count_row.confirmed_at = _dt.utcnow()
+    db.session.commit()
+    return count_row
+
+
+def _dec(v):
+    from decimal import Decimal
+    return Decimal(str(v or 0))

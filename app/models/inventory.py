@@ -146,6 +146,12 @@ class StockBalance(db.Model):
                              primary_key=True)
     qty = db.Column(db.Numeric(15, 2), default=0, nullable=False)
     value = db.Column(db.Numeric(15, 4), default=0, nullable=False)
+    # MARSOUD-DUAL-UOM-WEIGHT-01 (Abdelhamid 2026-07-24) — parallel
+    # counter for products where tracks_piece_count=True. Independent
+    # of qty (the weight); no impact on cost math (avg_cost is
+    # weight-based only).
+    piece_count = db.Column(db.Numeric(15, 2), default=0,
+                             nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow,
                            onupdate=datetime.utcnow, nullable=False)
 
@@ -424,3 +430,51 @@ class CashierShift(db.Model):
     @property
     def is_open(self):
         return self.status == "OPEN"
+
+
+# ─── MARSOUD-DUAL-UOM-WEIGHT-01 (Abdelhamid 2026-07-24) ──────────
+INV_COUNT_DRAFT = "DRAFT"
+INV_COUNT_CONFIRMED = "CONFIRMED"
+
+
+class InventoryCount(db.Model):
+    """Physical stock count vs the book balance for a single
+    (variant, warehouse). Confirmation posts a stock adjustment for
+    the weight variance + a direct piece_count adjustment for the
+    piece variance."""
+    __tablename__ = "inventory_counts"
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"),
+                           nullable=False, index=True)
+    variant_id = db.Column(db.Integer,
+                            db.ForeignKey("product_variants.id"),
+                            nullable=False)
+    warehouse_id = db.Column(db.Integer,
+                              db.ForeignKey("warehouses.id"),
+                              nullable=False)
+    book_qty = db.Column(db.Numeric(15, 2), nullable=False)
+    book_pieces = db.Column(db.Numeric(15, 2), nullable=False,
+                              default=0)
+    counted_qty = db.Column(db.Numeric(15, 2), nullable=False)
+    counted_pieces = db.Column(db.Numeric(15, 2), nullable=False,
+                                 default=0)
+    variance_qty = db.Column(db.Numeric(15, 2), nullable=False,
+                              default=0)
+    variance_pieces = db.Column(db.Numeric(15, 2), nullable=False,
+                                 default=0)
+    status = db.Column(db.String(20), nullable=False,
+                       default=INV_COUNT_DRAFT)
+    counted_by_id = db.Column(db.Integer, db.ForeignKey("users.id"),
+                              nullable=True)
+    counted_at = db.Column(db.DateTime, default=datetime.utcnow,
+                           nullable=False)
+    confirmed_at = db.Column(db.DateTime, nullable=True)
+    adjustment_movement_id = db.Column(
+        db.Integer, db.ForeignKey("stock_movements.id"), nullable=True)
+
+    variant = db.relationship("ProductVariant",
+                                foreign_keys=[variant_id])
+    warehouse = db.relationship("Warehouse",
+                                  foreign_keys=[warehouse_id])
+    adjustment_movement = db.relationship(
+        "StockMovement", foreign_keys=[adjustment_movement_id])
