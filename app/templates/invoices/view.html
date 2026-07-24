@@ -107,6 +107,37 @@
 
   <div class="space-y-4">
 
+    {# MARSOUD-CUSTOMER-DEPOSIT-01 UI (Abdelhamid 2026-07-24) —
+       apply an ACTIVE deposit against this invoice. Only shown when
+       the invoice still has a balance AND the customer has one. #}
+    {% if active_deposits and invoice.balance > 0.01
+          and invoice.status.value not in ['CANCELLED', 'VOIDED', 'REFUNDED'] %}
+    <div class="card p-5 border-l-4 border-emerald-500">
+      <h3 class="font-bold text-navy-900 mb-2">💵 خصم من العربون</h3>
+      <p class="text-xs text-slate-500 mb-3">
+        هذا العميل عنده {{ active_deposits|length }} عربون
+        بإجمالي
+        {{ '%.2f'|format(active_deposits | map(attribute='amount') | map('float') | sum) }}.
+      </p>
+      <form method="POST"
+            action="{{ url_for('invoices.apply_deposit', invoice_id=invoice.id) }}"
+            class="space-y-2">
+        <select name="deposit_id" required
+                class="w-full border rounded px-2 py-1 text-sm">
+          {% for d in active_deposits %}
+            <option value="{{ d.id }}">
+              {{ d.doc_number }} — {{ '%.2f'|format(d.amount) }}
+              ({{ d.date.strftime('%Y-%m-%d') }})
+            </option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn-primary w-full text-sm">
+          خصم من العربون
+        </button>
+      </form>
+    </div>
+    {% endif %}
+
     {# MARSOUD-RECURRING-INVOICE-01 (Abdelhamid 2026-07-24) — one-
        click "make this a template" for subscriptions / maintenance
        contracts. Non-DRAFT + customer required so we don't clone

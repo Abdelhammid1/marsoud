@@ -251,7 +251,15 @@ def view(invoice_id):
     if not invoice or invoice.company_id != g.active_company.id:
         flash("غير موجود", "error")
         return redirect(url_for("invoices.index"))
-    return render_template("invoices/view.html", invoice=invoice, refund_types=RefundType)
+    # MARSOUD-CUSTOMER-DEPOSIT-01 UI — pull active deposits for the
+    # invoice's customer so the sidebar can offer a one-click apply.
+    active_deposits = []
+    if invoice.customer_id:
+        from app.services.deposits import active_deposits_for_customer
+        active_deposits = active_deposits_for_customer(invoice.customer_id)
+    return render_template("invoices/view.html", invoice=invoice,
+                             refund_types=RefundType,
+                             active_deposits=active_deposits)
 
 
 @bp.route("/<int:invoice_id>/send", methods=["POST"])
@@ -376,6 +384,38 @@ def pay(invoice_id):
     except LedgerError as e:
         flash(str(e), "error")
     return redirect(url_for("invoices.view", invoice_id=invoice_id))
+
+
+# MARSOUD-CUSTOMER-DEPOSIT-01 UI (Abdelhamid 2026-07-24) — apply an
+# ACTIVE deposit against this invoice. The service handles cross-
+# customer / cross-company / already-applied guards.
+@bp.route("/<int:invoice_id>/apply-deposit", methods=["POST"])
+@login_required
+@require_permission("invoices.create")
+def apply_deposit(invoice_id):
+    from app.services.deposits import apply_to_invoice, DepositError
+    from app.models import CustomerDeposit
+    invoice = db.session.get(Invoice, invoice_id)
+    if not invoice or invoice.company_id != g.active_company.id:
+        flash("غير موجود", "error")
+        return redirect(url_for("invoices.index"))
+    deposit_id = request.form.get("deposit_id", type=int)
+    if not deposit_id:
+        flash("اختر عربوناً أولاً", "error")
+        return redirect(url_for("invoices.view",
+                                  invoice_id=invoice.id))
+    d = db.session.get(CustomerDeposit, deposit_id)
+    if not d or d.company_id != invoice.company_id:
+        flash("العربون غير موجود", "error")
+        return redirect(url_for("invoices.view",
+                                  invoice_id=invoice.id))
+    try:
+        apply_to_invoice(d, invoice, actor_id=current_user.id)
+        flash(f"تم خصم {d.amount} من العربون على الفاتورة", "success")
+    except DepositError as e:
+        flash(str(e), "error")
+    return redirect(url_for("invoices.view",
+                              invoice_id=invoice.id))
 
 
 # MARSOUD-INVOICE-DELETE (Abdelhamid 2026-07-13) — the ticket asks for

@@ -165,13 +165,91 @@ def view(customer_id):
         party_type=PartyType.CUSTOMER, party_id=c.id,
     ).first()
 
+    # MARSOUD-CUSTOMER-DEPOSIT-01 UI (Abdelhamid 2026-07-24) — surface
+    # every deposit the customer paid us, active + history. The
+    # customer view is the natural home; a global deposits page
+    # doesn't fit the tenant's mental model.
+    from app.models import CustomerDeposit, PaymentMethod
+    deposits = CustomerDeposit.query.filter_by(
+        customer_id=c.id,
+    ).order_by(CustomerDeposit.date.desc(),
+                CustomerDeposit.id.desc()).all()
+    from app.services.deposits import total_active_amount
+    active_deposits_total = total_active_amount(c.id)
+    payment_methods = PaymentMethod.query.filter_by(
+        company_id=c.company_id, is_active=True,
+    ).order_by(PaymentMethod.is_default.desc(),
+                PaymentMethod.name.asc()).all()
+
     return render_template(
         "customers/view.html", customer=c,
         customer_projects=customer_projects,
         customer_refunds=customer_refunds,
         refunds_total=refunds_total,
         opening_balance=opening,
+        deposits=deposits,
+        active_deposits_total=active_deposits_total,
+        payment_methods=payment_methods,
     )
+
+
+# MARSOUD-CUSTOMER-DEPOSIT-01 UI (Abdelhamid 2026-07-24) —
+# post + refund actions.
+@bp.route("/<int:customer_id>/deposits", methods=["POST"])
+@login_required
+@require_permission("customers.view")
+def receive_deposit(customer_id):
+    from datetime import datetime as _dt
+    from app.services.deposits import record_deposit, DepositError
+    from app.models import PaymentMethod
+    c = db.session.get(Customer, customer_id)
+    if not c or c.company_id != g.active_company.id:
+        abort(404)
+    try:
+        amount = float(request.form.get("amount") or 0)
+    except (TypeError, ValueError):
+        amount = 0
+    pm_id = request.form.get("payment_method_id", type=int)
+    pm = db.session.get(PaymentMethod, pm_id) if pm_id else None
+    if pm and pm.company_id != c.company_id:
+        pm = None
+    date_raw = (request.form.get("date") or "").strip()
+    d = None
+    if date_raw:
+        try:
+            d = _dt.strptime(date_raw, "%Y-%m-%d").date()
+        except ValueError:
+            d = None
+    notes = (request.form.get("notes") or "").strip() or None
+    try:
+        record_deposit(
+            company_id=c.company_id, customer=c,
+            amount=amount, payment_method=pm, date_=d,
+            notes=notes, actor_id=current_user.id,
+        )
+        flash("تم استلام العربون", "success")
+    except DepositError as e:
+        flash(str(e), "error")
+    return redirect(url_for("customers.view",
+                              customer_id=c.id))
+
+
+@bp.route("/deposits/<int:deposit_id>/refund", methods=["POST"])
+@login_required
+@require_permission("customers.view")
+def refund_deposit(deposit_id):
+    from app.services.deposits import refund, DepositError
+    from app.models import CustomerDeposit
+    d = db.session.get(CustomerDeposit, deposit_id)
+    if not d or d.company_id != g.active_company.id:
+        abort(404)
+    try:
+        refund(d, actor_id=current_user.id)
+        flash("تم استرداد العربون", "success")
+    except DepositError as e:
+        flash(str(e), "error")
+    return redirect(url_for("customers.view",
+                              customer_id=d.customer_id))
 
 
 @bp.route("/aging")

@@ -51,6 +51,93 @@
       </tbody>
     </table>
 
+    {# MARSOUD-CUSTOMER-DEPOSIT-01 UI (Abdelhamid 2026-07-24) —
+       list every deposit + form to receive a new one. #}
+    <div class="mt-8">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold text-navy-900">
+          💵 عربونات العميل
+          {% if deposits %}({{ deposits|length }}){% endif %}
+        </h2>
+        {% if active_deposits_total and active_deposits_total > 0 %}
+        <div class="text-sm">
+          <span class="text-slate-500">رصيد العربونات المتاحة:</span>
+          <span class="font-mono font-bold text-emerald-700">{{ "%.2f"|format(active_deposits_total) }}</span>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="bg-emerald-50/40 border border-emerald-200 rounded-lg p-4 mb-4">
+        <form method="POST" action="{{ url_for('customers.receive_deposit', customer_id=customer.id) }}"
+              class="grid grid-cols-1 md:grid-cols-4 gap-2">
+          <input name="amount" type="number" step="0.01" min="0.01"
+                  placeholder="المبلغ" required
+                  class="border rounded px-2 py-1 text-sm">
+          <select name="payment_method_id" required
+                  class="border rounded px-2 py-1 text-sm">
+            <option value="">اختر طريقة الدفع</option>
+            {% for pm in payment_methods %}
+              <option value="{{ pm.id }}" {% if pm.is_default %}selected{% endif %}>
+                {{ pm.name_ar or pm.name }}
+              </option>
+            {% endfor %}
+          </select>
+          <input name="date" type="date"
+                  value="{{ today_date().isoformat() }}"
+                  class="border rounded px-2 py-1 text-sm">
+          <button class="btn-primary text-sm">+ استلام عربون</button>
+          <input name="notes" placeholder="ملاحظة اختيارية"
+                  class="border rounded px-2 py-1 text-sm md:col-span-4">
+        </form>
+      </div>
+
+      {% if deposits %}
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>رقم</th><th>التاريخ</th><th>القيمة</th>
+            <th>طريقة الدفع</th><th>الحالة</th><th>مربوط بفاتورة</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for d in deposits %}
+          <tr>
+            <td class="font-mono text-sm">{{ d.doc_number }}</td>
+            <td class="text-sm">{{ d.date.strftime('%Y-%m-%d') }}</td>
+            <td class="text-left font-mono">{{ "%.2f"|format(d.amount) }}</td>
+            <td class="text-sm">{{ d.payment_method.name_ar or d.payment_method.name if d.payment_method else '—' }}</td>
+            <td>
+              {% if d.status == 'ACTIVE' %}
+                <span class="badge badge-paid">متاح</span>
+              {% elif d.status == 'APPLIED' %}
+                <span class="badge">مُطبَّق</span>
+              {% else %}
+                <span class="badge badge-cancelled">مسترجع</span>
+              {% endif %}
+            </td>
+            <td class="text-sm">
+              {% if d.applied_invoice_id %}
+                <a href="{{ url_for('invoices.view', invoice_id=d.applied_invoice_id) }}"
+                   class="text-brand-600 hover:underline">
+                  {{ d.applied_invoice.number if d.applied_invoice else d.applied_invoice_id }}
+                </a>
+              {% else %}—{% endif %}
+            </td>
+            <td class="text-sm">
+              {% if d.status == 'ACTIVE' %}
+                <form method="POST" action="{{ url_for('customers.refund_deposit', deposit_id=d.id) }}"
+                      onsubmit="return confirm('استرجاع {{ d.amount }} من العربون؟')">
+                  <button class="text-xs text-red-600 hover:underline">استرداد</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+
     {# MARSOUD-REFUNDS-01 — customer refunds section #}
     {% if customer_refunds %}
     <div class="mt-8">
