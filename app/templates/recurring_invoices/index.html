@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block page_title %}الفواتير المتكررة{% endblock %}
+{% block content %}
+<div class="max-w-6xl">
+  <div class="card p-6">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="font-bold text-navy-900">🔁 الفواتير المتكررة</h2>
+        <p class="text-sm text-slate-500 mt-1">
+          تتم صياغة كل جدولة تلقائياً في موعدها من الـ cron. حذف الجدولة
+          يوقف التوليد فوراً؛ الفواتير المُولّدة قبل الحذف تبقى ظاهرة في
+          قائمة الفواتير.
+        </p>
+      </div>
+      <a href="{{ url_for('invoices.index') }}" class="btn-secondary text-sm">← الفواتير</a>
+    </div>
+
+    <table class="data-table w-full text-sm">
+      <thead>
+        <tr>
+          <th>الاسم</th>
+          <th>العميل</th>
+          <th>التكرار</th>
+          <th>القيمة</th>
+          <th>الموعد القادم</th>
+          <th>الحالة</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in rows %}
+        <tr class="{% if s.next_run_date <= today %}bg-amber-50{% endif %}">
+          <td class="font-semibold">{{ s.name }}</td>
+          <td>{{ s.customer.name if s.customer else '—' }}</td>
+          <td>{{ freq_labels.get(s.frequency, s.frequency) }}</td>
+          <td>{{ '%.2f'|format(s.items|map(attribute='quantity')|sum * 0 + (s.items[0].unit_price if s.items else 0)) }}
+              <span class="text-xs text-slate-400">
+                ({{ s.items|length }} بند)
+              </span>
+          </td>
+          <td>{{ s.next_run_date.strftime('%Y-%m-%d') }}
+              {% if s.end_date %}
+                <br><span class="text-xs text-slate-400">حتى {{ s.end_date.strftime('%Y-%m-%d') }}</span>
+              {% endif %}
+          </td>
+          <td>
+            {% if s.is_active %}
+              <span class="badge badge-paid">نشطة</span>
+            {% else %}
+              <span class="badge">موقوفة</span>
+            {% endif %}
+          </td>
+          <td class="text-left space-x-2 space-x-reverse">
+            <form method="post" action="{{ url_for('recurring_invoices.toggle', sched_id=s.id) }}" class="inline">
+              <button class="text-xs text-brand-600 hover:underline">
+                {% if s.is_active %}إيقاف{% else %}تفعيل{% endif %}
+              </button>
+            </form>
+            <form method="post" action="{{ url_for('recurring_invoices.delete', sched_id=s.id) }}"
+                  onsubmit="return confirm('حذف الجدولة؟ الفواتير المُولّدة تبقى ظاهرة.')" class="inline">
+              <button class="text-xs text-red-600 hover:underline">حذف</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center py-8 text-slate-400">
+          لا توجد جدولات بعد. افتح أي فاتورة واضغط "🔁 اجعلها متكررة".
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

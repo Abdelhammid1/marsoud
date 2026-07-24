@@ -126,6 +126,8 @@ def create_app(config_class=Config):
     # MARSOUD-SUPPORT-TICKETS-01 (Abdelhamid 2026-07-24).
     from app.routes.support import bp as support_bp
     from app.routes.support_admin import bp as support_admin_bp
+    # MARSOUD-RECURRING-INVOICE-01 UI (Abdelhamid 2026-07-24).
+    from app.routes.recurring_invoices import bp as recurring_invoices_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(public_bp)
@@ -180,6 +182,8 @@ def create_app(config_class=Config):
     app.register_blueprint(help_bp, url_prefix="/help")
     app.register_blueprint(support_bp, url_prefix="/support")
     app.register_blueprint(support_admin_bp, url_prefix="/support-admin")
+    app.register_blueprint(recurring_invoices_bp,
+                            url_prefix="/recurring-invoices")
 
     # MARSOUD-API-V1 — make sure /api/v1/* abort(...) / unauthorized
     # responses come out as JSON instead of HTML / login redirects.

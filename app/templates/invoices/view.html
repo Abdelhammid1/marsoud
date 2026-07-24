@@ -106,6 +106,43 @@
   </div>
 
   <div class="space-y-4">
+
+    {# MARSOUD-RECURRING-INVOICE-01 (Abdelhamid 2026-07-24) — one-
+       click "make this a template" for subscriptions / maintenance
+       contracts. Non-DRAFT + customer required so we don't clone
+       a walk-in cash sale. #}
+    {% if invoice.customer_id and invoice.status.value != 'DRAFT' %}
+    <div class="card p-5">
+      <h3 class="font-bold text-navy-900 mb-2">🔁 اجعلها متكررة</h3>
+      <p class="text-xs text-slate-500 mb-3">
+        استخدم بنود هذه الفاتورة كقالب. سيتم إصدار فاتورة جديدة تلقائياً في كل موعد.
+      </p>
+      <form method="POST"
+            action="{{ url_for('recurring_invoices.create_from_invoice', invoice_id=invoice.id) }}"
+            class="space-y-2">
+        <select name="frequency" class="w-full border rounded px-2 py-1 text-sm">
+          <option value="MONTHLY">شهرياً</option>
+          <option value="WEEKLY">أسبوعياً</option>
+          <option value="YEARLY">سنوياً</option>
+          <option value="DAILY">يومياً</option>
+        </select>
+        <input type="date" name="next_run_date"
+                class="w-full border rounded px-2 py-1 text-sm"
+                title="أول موعد إصدار (اليوم إذا فارغ)">
+        <input type="date" name="end_date"
+                class="w-full border rounded px-2 py-1 text-sm"
+                title="تاريخ انتهاء اختياري">
+        <button type="submit" class="btn-primary w-full text-sm">
+          + إنشاء جدولة
+        </button>
+        <a href="{{ url_for('recurring_invoices.index') }}"
+           class="block text-center text-xs text-brand-600 hover:underline mt-1">
+          إدارة كل الجدولات ←
+        </a>
+      </form>
+    </div>
+    {% endif %}
+
     {% if invoice.status.value == 'DRAFT' %}
     <div class="card p-5">
       <h3 class="font-bold text-navy-900 mb-3">إرسال الفاتورة</h3>
