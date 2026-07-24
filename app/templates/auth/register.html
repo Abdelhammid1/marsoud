@@ -35,6 +35,24 @@
       {% endwith %}
 
       <form method="POST" class="space-y-4">
+        {# MARSOUD-BOT-PROTECTION-01 (Abdelhamid 2026-07-24) —
+           honeypot. Real humans never fill this because they can't
+           see it. Bots that iterate every field WILL fill it, and
+           the server soft-succeeds without inserting anything —
+           the bot thinks it worked and moves on.
+           display:none + tabindex=-1 + autocomplete=off keeps
+           accessibility tools + keyboard nav from ever landing on
+           it. Renamed from "url" to "website" because most bots
+           try common field names first. #}
+        <div style="position:absolute; left:-9999px; top:-9999px;
+                    height:0; overflow:hidden; display:none;"
+              aria-hidden="true">
+          <label>Website (do not fill)
+            <input type="text" name="website" tabindex="-1"
+                    autocomplete="off" value="">
+          </label>
+        </div>
+
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-semibold text-slate-700 mb-2">الاسم الكامل</label>

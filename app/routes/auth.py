@@ -173,6 +173,24 @@ def register():
     if current_user.is_authenticated:
         return redirect(url_for("dashboard.index"))
     if request.method == "POST":
+        # MARSOUD-BOT-PROTECTION-01 (Abdelhamid 2026-07-24) — three
+        # cheap gates BEFORE any DB read/write. Order matters: the
+        # honeypot check first (soft-fail, silent), then rate limit
+        # (429), then spam-domain check (403).
+        from app.services.bot_guard import (
+            honeypot_tripped, register_rate_ok, is_spam_email, client_ip,
+        )
+        if honeypot_tripped(request.form):
+            # DO NOT return an error — that tells the bot the trap
+            # exists. Answer with a plain "OK" page and quietly
+            # discard the request. To the bot, everything worked.
+            return render_template("auth/register_success_decoy.html"), 200
+        ip = client_ip(request)
+        if not register_rate_ok(ip):
+            flash("تم تجاوز الحد المسموح من محاولات التسجيل. حاول لاحقاً.",
+                  "error")
+            return render_template("auth/register.html"), 429
+
         email = request.form.get("email", "").strip().lower()
         full_name = request.form.get("full_name", "").strip()
         company_name = request.form.get("company_name", "").strip()
@@ -185,6 +203,11 @@ def register():
         if not email or not password or not full_name or not company_name or not subdomain:
             flash("جميع الحقول مطلوبة", "error")
             return render_template("auth/register.html")
+
+        if is_spam_email(email):
+            flash("عنوان بريد إلكتروني غير مقبول. استخدم بريدك الحقيقي.",
+                  "error")
+            return render_template("auth/register.html"), 403
 
         # MARSOUD-PASSWORD-POLICY — one central validator so signup,
         # invitation accept, super-admin reset, and HR self-service all
