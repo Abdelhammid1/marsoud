@@ -42,3 +42,15 @@ class Config:
     SMTP_FROM_NAME = os.environ.get("SMTP_FROM_NAME", "Marsoud")
     SMTP_USE_TLS = os.environ.get("SMTP_USE_TLS", "true").lower() == "true"
     CRON_TOKEN = os.environ.get("CRON_TOKEN", "")
+
+    # MARSOUD-PUBLIC-CONTACT-FORM-01 (Abdelhamid 2026-07-24) —
+    # Manasty's own company id in this deployment. Every ticket that
+    # writes into Manasty (public contact form → Lead, support
+    # tickets cross-tenant permission) reads this. Env var so an
+    # accidental DB id swap doesn't need a code push.
+    MANASTY_COMPANY_ID = int(os.environ.get("MANASTY_COMPANY_ID", 8))
+
+    # Public /api/v1/public/contact-lead token. If empty, the
+    # endpoint refuses EVERY request (fail-closed) — same lesson we
+    # learned the hard way with CRON_TOKEN.
+    CONTACT_FORM_TOKEN = os.environ.get("CONTACT_FORM_TOKEN", "")

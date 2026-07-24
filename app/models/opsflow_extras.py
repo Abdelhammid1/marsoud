@@ -57,6 +57,8 @@ class NotificationKind(str, enum.Enum):
     MENTION = "MENTION"
     # MARSOUD-CUSTOMER-BROADCAST-CENTER (Abdelhamid 2026-07-22)
     BROADCAST = "BROADCAST"
+    # MARSOUD-PUBLIC-CONTACT-FORM-01 (Abdelhamid 2026-07-24)
+    NEW_LEAD = "NEW_LEAD"
 
 
 class Notification(db.Model):
