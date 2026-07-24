@@ -62,6 +62,20 @@ def tick():
             "recurring invoices failed: %s", e)
         summary["recurring_invoices"] = {"error": str(e)[:200]}
 
+    # MARSOUD-INSTALLMENT-PLAN-01 (Abdelhamid 2026-07-24) — flip
+    # PENDING → OVERDUE for installments past their due date. Cheap
+    # single-query update, safe on any cadence.
+    try:
+        from app.services.installments import refresh_installment_overdue_flags
+        summary["installment_overdue"] = {
+            "flipped": refresh_installment_overdue_flags(),
+        }
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception(
+            "installment overdue refresh failed: %s", e)
+        summary["installment_overdue"] = {"error": str(e)[:200]}
+
     # HR-03: contract expiry alerts (30 / 60 days)
     try:
         summary["contract_alerts"] = check_expiring_contracts()

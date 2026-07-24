@@ -107,6 +107,84 @@
 
   <div class="space-y-4">
 
+    {# MARSOUD-INSTALLMENT-PLAN-01 UI (Abdelhamid 2026-07-24) —
+       shows a "قسّم على دفعات" panel for invoices without a plan,
+       and the installment table (with per-row collect button) once
+       a plan exists. #}
+    {% if invoice.status.value not in ['CANCELLED', 'VOIDED', 'REFUNDED'] %}
+      {% if invoice.installments %}
+        <div class="card p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-bold text-navy-900">📅 خطة الأقساط</h3>
+            {% if not (invoice.installments | selectattr('status', 'equalto', 'PAID') | list) %}
+              <form method="post" action="{{ url_for('invoices.drop_installments', invoice_id=invoice.id) }}"
+                    onsubmit="return confirm('حذف خطة الأقساط؟')">
+                <button class="text-xs text-red-600 hover:underline">حذف الخطة</button>
+              </form>
+            {% endif %}
+          </div>
+          <table class="w-full text-xs">
+            <thead class="text-slate-500 border-b">
+              <tr><th class="text-right py-1">#</th><th class="text-right">القيمة</th><th class="text-right">الاستحقاق</th><th class="text-right">الحالة</th><th></th></tr>
+            </thead>
+            <tbody>
+            {% for inst in invoice.installments %}
+              <tr class="border-b {% if inst.status == 'OVERDUE' %}bg-rose-50{% elif inst.status == 'PAID' %}bg-emerald-50{% endif %}">
+                <td class="py-1">{{ inst.sequence_no }}</td>
+                <td class="font-mono">{{ '%.2f'|format(inst.amount) }}</td>
+                <td>{{ inst.due_date.strftime('%Y-%m-%d') }}</td>
+                <td>
+                  {% if inst.status == 'PAID' %}
+                    <span class="badge badge-paid">مدفوع</span>
+                  {% elif inst.status == 'OVERDUE' %}
+                    <span class="badge badge-overdue">متأخر</span>
+                  {% else %}
+                    <span class="badge">معلّق</span>
+                  {% endif %}
+                </td>
+                <td class="text-left">
+                  {% if inst.status != 'PAID' and active_deposits_pm_list %}
+                    <form method="post" action="{{ url_for('invoices.pay_installment_route', installment_id=inst.id) }}"
+                          class="flex gap-1">
+                      <select name="payment_method_id" class="border rounded px-1 py-0.5 text-[10px]">
+                        {% for pm in active_deposits_pm_list %}
+                          <option value="{{ pm.id }}" {% if pm.is_default %}selected{% endif %}>{{ pm.name_ar or pm.name }}</option>
+                        {% endfor %}
+                      </select>
+                      <button class="text-brand-600 hover:underline text-[10px]">تحصيل</button>
+                    </form>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% elif invoice.balance > 0.01 %}
+        <div class="card p-5">
+          <h3 class="font-bold text-navy-900 mb-2">📅 قسّم على دفعات</h3>
+          <form method="post" action="{{ url_for('invoices.create_installments', invoice_id=invoice.id) }}"
+                class="space-y-2 text-sm">
+            <label class="block">
+              <span class="text-slate-500 text-xs">عدد الأقساط</span>
+              <input type="number" name="count" min="2" max="60" value="3" required
+                      class="w-full border rounded px-2 py-1 text-sm">
+            </label>
+            <label class="block">
+              <span class="text-slate-500 text-xs">تاريخ أول قسط</span>
+              <input type="date" name="start_date"
+                      value="{{ invoice.due_date.isoformat() if invoice.due_date else today_date().isoformat() }}"
+                      class="w-full border rounded px-2 py-1 text-sm">
+            </label>
+            <button class="btn-primary w-full text-sm">+ إنشاء خطة</button>
+          </form>
+          <p class="text-[10px] text-slate-400 mt-2">
+            توزيع تلقائي شهرياً بالتساوي؛ الفرق يذهب لآخر قسط لتفادي الكسور.
+          </p>
+        </div>
+      {% endif %}
+    {% endif %}
+
     {# MARSOUD-CUSTOMER-DEPOSIT-01 UI (Abdelhamid 2026-07-24) —
        apply an ACTIVE deposit against this invoice. Only shown when
        the invoice still has a balance AND the customer has one. #}

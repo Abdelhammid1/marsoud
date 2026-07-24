@@ -257,9 +257,17 @@ def view(invoice_id):
     if invoice.customer_id:
         from app.services.deposits import active_deposits_for_customer
         active_deposits = active_deposits_for_customer(invoice.customer_id)
+    # MARSOUD-INSTALLMENT-PLAN-01 UI — payment methods for the per-
+    # installment collect button.
+    from app.models import PaymentMethod
+    payment_methods = PaymentMethod.query.filter_by(
+        company_id=invoice.company_id, is_active=True,
+    ).order_by(PaymentMethod.is_default.desc(),
+                PaymentMethod.name.asc()).all()
     return render_template("invoices/view.html", invoice=invoice,
                              refund_types=RefundType,
-                             active_deposits=active_deposits)
+                             active_deposits=active_deposits,
+                             active_deposits_pm_list=payment_methods)
 
 
 @bp.route("/<int:invoice_id>/send", methods=["POST"])
@@ -384,6 +392,113 @@ def pay(invoice_id):
     except LedgerError as e:
         flash(str(e), "error")
     return redirect(url_for("invoices.view", invoice_id=invoice_id))
+
+
+# MARSOUD-INSTALLMENT-PLAN-01 UI (Abdelhamid 2026-07-24) — three
+# endpoints: create a plan, pay one installment, drop the plan.
+@bp.route("/<int:invoice_id>/installments/plan", methods=["POST"])
+@login_required
+@require_permission("invoices.create")
+def create_installments(invoice_id):
+    from datetime import datetime as _dt
+    from app.services.installments import (
+        create_installment_plan, InstallmentError,
+    )
+    invoice = db.session.get(Invoice, invoice_id)
+    if not invoice or invoice.company_id != g.active_company.id:
+        abort(404)
+    # Two shapes: "count" (auto-distribute evenly starting from
+    # start_date, monthly gap) OR explicit "amounts[]" + "due_dates[]".
+    amounts = request.form.getlist("amount[]")
+    dates = request.form.getlist("due_date[]")
+    if amounts and dates and len(amounts) == len(dates):
+        rows = [{"amount": a, "due_date": d}
+                 for a, d in zip(amounts, dates) if a and d]
+    else:
+        count = int(request.form.get("count") or 0)
+        if count < 2:
+            flash("عدد الأقساط يجب أن يكون 2 على الأقل", "error")
+            return redirect(url_for("invoices.view",
+                                      invoice_id=invoice.id))
+        start_raw = (request.form.get("start_date") or "").strip()
+        try:
+            start = (_dt.strptime(start_raw, "%Y-%m-%d").date()
+                     if start_raw else invoice.due_date or date.today())
+        except ValueError:
+            start = invoice.due_date or date.today()
+        from decimal import Decimal, ROUND_HALF_UP
+        total = Decimal(str(invoice.total or 0))
+        per = (total / Decimal(count)).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP)
+        rows = []
+        current = start
+        remaining = total
+        for i in range(count):
+            amt = per if i < count - 1 else remaining
+            rows.append({
+                "amount": str(amt),
+                "due_date": current.isoformat(),
+            })
+            remaining -= amt
+            # Advance one month.
+            from dateutil.relativedelta import relativedelta
+            current = current + relativedelta(months=1)
+    try:
+        create_installment_plan(invoice, rows,
+                                  actor_id=current_user.id)
+        flash("تم إنشاء خطة الأقساط", "success")
+    except InstallmentError as e:
+        flash(str(e), "error")
+    return redirect(url_for("invoices.view",
+                              invoice_id=invoice.id))
+
+
+@bp.route("/installments/<int:installment_id>/pay", methods=["POST"])
+@login_required
+@require_permission("invoices.create")
+def pay_installment_route(installment_id):
+    from app.services.installments import (
+        pay_installment, InstallmentError,
+    )
+    from app.models import InvoiceInstallment, PaymentMethod
+    inst = db.session.get(InvoiceInstallment, installment_id)
+    if not inst or inst.invoice.company_id != g.active_company.id:
+        abort(404)
+    pm_id = request.form.get("payment_method_id", type=int)
+    pm = db.session.get(PaymentMethod, pm_id) if pm_id else None
+    if not pm or pm.company_id != inst.invoice.company_id:
+        flash("اختر طريقة دفع صحيحة", "error")
+        return redirect(url_for("invoices.view",
+                                  invoice_id=inst.invoice_id))
+    try:
+        pay_installment(inst, payment_method=pm,
+                         actor_id=current_user.id)
+        flash(f"تم تحصيل قسط {inst.amount}", "success")
+    except InstallmentError as e:
+        flash(str(e), "error")
+    return redirect(url_for("invoices.view",
+                              invoice_id=inst.invoice_id))
+
+
+@bp.route("/<int:invoice_id>/installments/drop", methods=["POST"])
+@login_required
+@require_permission("invoices.create")
+def drop_installments(invoice_id):
+    """Delete the entire plan. Only allowed when no installment has
+    been paid yet — otherwise the audit trail would be inconsistent
+    with the invoice's paid_amount."""
+    invoice = db.session.get(Invoice, invoice_id)
+    if not invoice or invoice.company_id != g.active_company.id:
+        abort(404)
+    if any(i.status == "PAID" for i in invoice.installments):
+        flash("لا يمكن حذف الخطة بعد تحصيل قسط", "error")
+        return redirect(url_for("invoices.view",
+                                  invoice_id=invoice.id))
+    for i in list(invoice.installments):
+        db.session.delete(i)
+    db.session.commit()
+    flash("تم حذف خطة الأقساط", "success")
+    return redirect(url_for("invoices.view", invoice_id=invoice.id))
 
 
 # MARSOUD-CUSTOMER-DEPOSIT-01 UI (Abdelhamid 2026-07-24) — apply an
