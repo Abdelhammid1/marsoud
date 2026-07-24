@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block page_title %}تذكرة #{{ ticket.id }}{% endblock %}
+{% block content %}
+<div class="max-w-3xl space-y-4">
+
+  <div class="card p-6">
+    <div class="flex items-start justify-between">
+      <div>
+        <div class="text-xs text-slate-500 mb-1">تذكرة #{{ ticket.id }}</div>
+        <h1 class="text-xl font-bold text-navy-900">{{ ticket.title }}</h1>
+        <div class="mt-2 text-sm text-slate-500">
+          <span class="badge">{{ priority_labels.get(ticket.priority, ticket.priority) }}</span>
+          <span class="badge">{{ status_labels.get(ticket.status, ticket.status) }}</span>
+        </div>
+      </div>
+      <a href="{{ url_for('support.index') }}" class="btn-secondary text-sm">← كل التذاكر</a>
+    </div>
+    {% if ticket.description %}
+      <div class="mt-3 text-slate-700 whitespace-pre-line">{{ ticket.description }}</div>
+    {% endif %}
+  </div>
+
+  {% for c in comments %}
+    <div class="card p-4 {% if c.user_id == ticket.created_by_id %}ml-8{% else %}mr-8 bg-emerald-50/40{% endif %}">
+      <div class="flex justify-between text-xs text-slate-500 mb-1">
+        <span class="font-semibold">{{ c.user.full_name or c.user.email }}</span>
+        <span>{{ c.created_at | company_dt('%Y-%m-%d %H:%M') }}</span>
+      </div>
+      <div class="text-slate-700 whitespace-pre-line">{{ c.content }}</div>
+      {% if c.attachment_url %}
+        <a href="{{ url_for('support.attachment', key=c.attachment_url) }}"
+           class="text-brand-600 text-sm hover:underline mt-2 inline-block" target="_blank">
+          📎 {{ c.attachment_name or 'مرفق' }}
+        </a>
+      {% endif %}
+    </div>
+  {% else %}
+    <div class="text-center text-slate-400 text-sm py-4">لا توجد ردود بعد.</div>
+  {% endfor %}
+
+  {% if ticket.status not in ('CLOSED', 'RESOLVED') %}
+    <div class="card p-4">
+      <form method="post" enctype="multipart/form-data"
+             action="{{ url_for('support.comment', ticket_id=ticket.id) }}"
+             class="space-y-3">
+        <textarea name="content" rows="4" required
+                  class="w-full border rounded px-3 py-2"
+                  placeholder="اكتب ردك هنا..."></textarea>
+        <div class="flex justify-between items-center">
+          <input type="file" name="file" class="text-sm">
+          <button class="btn-primary">إرسال الرد</button>
+        </div>
+      </form>
+    </div>
+  {% else %}
+    <div class="card p-4 text-center text-slate-500 text-sm">
+      التذكرة مغلقة — افتح تذكرة جديدة إن احتجت المتابعة.
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

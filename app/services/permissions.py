@@ -172,6 +172,13 @@ P = {
     # /companies/ lists every company this user owns / co-owns.
     "settings_usage.view":  {"owner"},
     "companies.manage":     {"owner"},
+
+    # MARSOUD-SUPPORT-TICKETS-01 (Abdelhamid 2026-07-24) — narrow
+    # cross-tenant permission granted only inside Manasty. Wired via
+    # the new `support_agent` role seeded on Manasty's company id.
+    # Owner is included so Abdelhamid never needs to grant it to
+    # himself before opening /support-admin/ the first time.
+    "support.manage_tickets": {"owner", "support_agent"},
 }
 
 ALL_ROLES = [
@@ -180,6 +187,8 @@ ALL_ROLES = [
     "project_manager", "team_member",
     "employee",
     "viewer", "client",
+    # MARSOUD-SUPPORT-TICKETS-01 — Manasty-only role.
+    "support_agent",
 ]
 # All invitable for staff/clients except "owner" (per-company singleton).
 # "employee" is also excluded — it's auto-provisioned by HR when an
@@ -189,6 +198,10 @@ INVITABLE_ROLES = [
     "sales_manager", "sales_rep",
     "project_manager", "team_member",
     "viewer", "client",
+    # MARSOUD-SUPPORT-TICKETS-01 — invitable INSIDE Manasty only.
+    # The support decorator layer verifies Manasty membership so
+    # granting this role in a customer company is a no-op.
+    "support_agent",
 ]
 ROLE_LABELS_AR = {
     "owner":           "مالك",
@@ -203,6 +216,7 @@ ROLE_LABELS_AR = {
     "employee":        "موظف (بوابة شخصية)",
     "viewer":          "مشاهد",
     "client":          "عميل (بوابة)",
+    "support_agent":   "موظف دعم فني (منصتي)",
 }
 
 

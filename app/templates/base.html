@@ -517,6 +517,7 @@ tailwind.config = {
           ('الرئيسية', '🏠', [
             ('dashboard.index', 'لوحة المعلومات', '📊'),
             ('user_files.index', 'ملفاتي', '📁'),
+            ('support.index', 'الدعم الفني', '🆘'),
           ]),
           ('المالية والمحاسبة', '📊', [
             ('journals.index', 'القيود اليومية', '📒'),
@@ -576,6 +577,9 @@ tailwind.config = {
             ('evaluations.index', 'تقييم الأداء الشهري', '📊'),
             ('evaluations.logs_index', 'تسجيل قيود المتريك', '📥'),
             ('payroll.archive', 'الموظفون السابقون', '🗂'),
+          ]),
+          ('دعم منصتي', '🎧', [
+            ('support_admin.index', 'كل تذاكر الدعم', '📥'),
           ]),
           ('الإعدادات والنظام', '⚙️', [
             ('settings_roles.index', 'المستخدمين والأدوار', '🔐'),
@@ -654,6 +658,8 @@ tailwind.config = {
         'settings_backup.index': 'backup.download',
         'settings_usage.index': 'settings_usage.view',
         'companies.index': 'companies.manage',
+        'support.index': None,
+        'support_admin.index': 'support.manage_tickets',
       } %}
 
       {# Flat list for the non-owner roles. #}

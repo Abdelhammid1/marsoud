@@ -1,0 +1,108 @@
+{% extends "admin/base.html" %}
+{% block page_title %}تذكرة #{{ ticket.id }} — {{ ticket.company.name }}{% endblock %}
+{% block content %}
+<div class="max-w-5xl grid grid-cols-3 gap-6">
+
+  <div class="col-span-2 space-y-4">
+    <div class="card p-6">
+      <div class="text-xs text-slate-500 mb-1">
+        شركة {{ ticket.company.name }} • أنشأ التذكرة {{ ticket.created_by.full_name or ticket.created_by.email }}
+      </div>
+      <h1 class="text-xl font-bold text-navy-900">{{ ticket.title }}</h1>
+      {% if ticket.description %}
+        <div class="mt-3 text-slate-700 whitespace-pre-line">{{ ticket.description }}</div>
+      {% endif %}
+    </div>
+
+    {% for c in ticket.comments %}
+      <div class="card p-4 {% if c.is_internal %}bg-amber-50 border-r-4 border-amber-400{% endif %}">
+        <div class="flex justify-between text-xs text-slate-500 mb-1">
+          <span class="font-semibold">
+            {{ c.user.full_name or c.user.email }}
+            {% if c.is_internal %}<span class="text-amber-700">(ملاحظة داخلية — غير ظاهرة للعميل)</span>{% endif %}
+          </span>
+          <span>{{ c.created_at | company_dt('%Y-%m-%d %H:%M') }}</span>
+        </div>
+        <div class="text-slate-700 whitespace-pre-line">{{ c.content }}</div>
+        {% if c.attachment_url %}
+          <a href="{{ url_for('support.attachment', key=c.attachment_url) }}"
+             class="text-brand-600 text-sm hover:underline mt-2 inline-block" target="_blank">
+            📎 {{ c.attachment_name or 'مرفق' }}
+          </a>
+        {% endif %}
+      </div>
+    {% endfor %}
+
+    <div class="card p-4">
+      <form method="post" enctype="multipart/form-data"
+             action="{{ url_for('support_admin.reply', ticket_id=ticket.id) }}"
+             class="space-y-3">
+        <textarea name="content" rows="4" required
+                  class="w-full border rounded px-3 py-2"
+                  placeholder="رد ظاهر للعميل..."></textarea>
+        <div class="flex justify-between items-center">
+          <input type="file" name="file" class="text-sm">
+          <button class="btn-primary">إرسال الرد</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card p-4 bg-amber-50/40">
+      <form method="post" action="{{ url_for('support_admin.internal_note', ticket_id=ticket.id) }}"
+             class="space-y-3">
+        <div class="font-semibold text-amber-800 text-sm">🔒 ملاحظة داخلية (لن يراها العميل)</div>
+        <textarea name="content" rows="3" required
+                  class="w-full border rounded px-3 py-2"></textarea>
+        <button class="btn-secondary text-sm">إضافة ملاحظة</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="space-y-4">
+    <div class="card p-4">
+      <h3 class="font-bold text-navy-900 mb-3">إدارة التذكرة</h3>
+      <form method="post" action="{{ url_for('support_admin.status', ticket_id=ticket.id) }}"
+             class="space-y-3 text-sm">
+        <div>
+          <label class="text-slate-600">الحالة</label>
+          <select name="status" class="w-full border rounded px-2 py-1 mt-1">
+            {% for s in all_statuses %}
+              <option value="{{ s }}" {% if s == ticket.status %}selected{% endif %}>
+                {{ status_labels.get(s, s) }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="text-slate-600">الأولوية</label>
+          <select name="priority" class="w-full border rounded px-2 py-1 mt-1">
+            {% for p in all_priorities %}
+              <option value="{{ p }}" {% if p == ticket.priority %}selected{% endif %}>
+                {{ priority_labels.get(p, p) }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="btn-primary text-sm w-full">حفظ</button>
+      </form>
+    </div>
+
+    {% if ticket.audits %}
+    <div class="card p-4">
+      <h3 class="font-bold text-navy-900 mb-3">📋 سجل التذكرة</h3>
+      <div class="space-y-1 text-xs">
+        {% for a in ticket.audits[-15:] %}
+          <div class="text-slate-500">
+            <span class="font-semibold">{{ a.actor.full_name or a.actor.email }}</span>
+            → {{ a.action }}
+            {% if a.old_value or a.new_value %}: <code>{{ a.old_value or '-' }}</code> → <code>{{ a.new_value or '-' }}</code>{% endif %}
+            <span class="text-slate-400">({{ a.created_at | company_dt('%m-%d %H:%M') }})</span>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

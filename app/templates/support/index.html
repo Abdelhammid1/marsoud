@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block page_title %}الدعم الفني{% endblock %}
+{% block content %}
+<div class="max-w-5xl">
+  <div class="card p-6">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="font-bold text-navy-900">🆘 تذاكر الدعم الفني</h2>
+        <p class="text-sm text-slate-500 mt-1">تواصل مباشرة مع فريق دعم منصتي</p>
+      </div>
+      <a href="{{ url_for('support.new') }}" class="btn-primary text-sm">+ تذكرة جديدة</a>
+    </div>
+
+    <table class="data-table w-full text-sm">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>العنوان</th>
+          <th>الأولوية</th>
+          <th>الحالة</th>
+          <th>آخر تحديث</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tickets %}
+        <tr class="hover:bg-slate-50 cursor-pointer"
+            onclick="window.location='{{ url_for('support.detail', ticket_id=t.id) }}'">
+          <td>#{{ t.id }}</td>
+          <td class="font-semibold">{{ t.title }}</td>
+          <td><span class="badge">{{ priority_labels.get(t.priority, t.priority) }}</span></td>
+          <td><span class="badge">{{ status_labels.get(t.status, t.status) }}</span></td>
+          <td class="text-xs text-slate-500">{{ t.updated_at | company_dt('%Y-%m-%d %H:%M') }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center py-8 text-slate-400">لا توجد تذاكر بعد.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -116,6 +116,13 @@ PERMISSION_CATALOG = {
     "manufacturing.view":     ("العمليات والمبيعات", "التصنيع: عرض", "view"),
     "manufacturing.manage":   ("العمليات والمبيعات", "التصنيع: إدارة BOM وأوامر الإنتاج", "edit"),
     "manufacturing.complete": ("العمليات والمبيعات", "التصنيع: إكمال أمر إنتاج (سحب مواد + قيد)", "delete"),
+
+    # ─── MARSOUD-SIDEBAR-COMPLETE ───────────────────────────────────
+    "settings_usage.view":    ("النظام", "استهلاك الباقة", "view"),
+    "companies.manage":       ("النظام", "إدارة الشركات المتعددة", "edit"),
+
+    # ─── MARSOUD-SUPPORT-TICKETS-01 ─────────────────────────────────
+    "support.manage_tickets": ("النظام", "الدعم الفني: إدارة كل تذاكر منصتي", "edit"),
 }
 
 

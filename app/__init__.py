@@ -123,6 +123,9 @@ def create_app(config_class=Config):
     from app.routes.evaluations import bp as evaluations_bp
     # MARSOUD-HELP-CENTER-01 (Abdelhamid 2026-07-24).
     from app.routes.help import bp as help_bp
+    # MARSOUD-SUPPORT-TICKETS-01 (Abdelhamid 2026-07-24).
+    from app.routes.support import bp as support_bp
+    from app.routes.support_admin import bp as support_admin_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(public_bp)
@@ -175,6 +178,8 @@ def create_app(config_class=Config):
     app.register_blueprint(user_files_bp, url_prefix="/files")
     app.register_blueprint(evaluations_bp, url_prefix="/evaluations")
     app.register_blueprint(help_bp, url_prefix="/help")
+    app.register_blueprint(support_bp, url_prefix="/support")
+    app.register_blueprint(support_admin_bp, url_prefix="/support-admin")
 
     # MARSOUD-API-V1 — make sure /api/v1/* abort(...) / unauthorized
     # responses come out as JSON instead of HTML / login redirects.
@@ -311,6 +316,7 @@ def create_app(config_class=Config):
         "auth.", "static", "public.", "superadmin.", "cron.",
         "portal_emp.", "portal.", "notifications.",
         "help.",   # in-product docs — must stay reachable
+        "support.", "support_admin.",   # support channel always up
     )
 
     @app.before_request
@@ -376,6 +382,13 @@ def create_app(config_class=Config):
     # hasn't done yet.
     _CHOOSE_PLAN_ALLOWLIST_PREFIXES = (
         "auth.", "static", "public.", "superadmin.",
+        # MARSOUD-SUPPORT-TICKETS-01 — support agents inside Manasty
+        # must reach /support-admin/ even when Manasty has no plan
+        # set. And any customer must be able to open a ticket even if
+        # their onboarding stalled at the choose-plan gate.
+        "support.", "support_admin.",
+        # MARSOUD-HELP-CENTER-01 — help remains reachable pre-onboarding.
+        "help.",
     )
 
     @app.before_request
@@ -414,6 +427,7 @@ def create_app(config_class=Config):
     # ticket shipped) are also nudged so we build the audit trail.
     _TERMS_ALLOWLIST_PREFIXES = (
         "auth.", "static", "public.", "superadmin.",
+        "support.", "support_admin.", "help.",
     )
 
     @app.before_request
@@ -710,6 +724,17 @@ def create_app(config_class=Config):
         except Exception:
             pass
         return {"notif_unread_count": 0}
+
+    # MARSOUD-SUPPORT-TICKETS-01 — surface whether the current user
+    # is a Manasty support agent so the sidebar knows whether to show
+    # the /support-admin/ link. The check itself is O(1) per request.
+    @app.context_processor
+    def inject_is_support_agent():
+        try:
+            from app.services.support_permissions import is_support_agent
+            return {"is_support_agent": is_support_agent()}
+        except Exception:
+            return {"is_support_agent": False}
 
     # MARSOUD-HELP-CENTER-01 — surface the module_key for the header
     # "?" icon. Cheap DB lookup guarded by a simple exists check;

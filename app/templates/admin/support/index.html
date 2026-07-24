@@ -1,0 +1,70 @@
+{% extends "admin/base.html" %}
+{% block page_title %}تذاكر الدعم — كل الشركات{% endblock %}
+{% block content %}
+<div class="max-w-6xl">
+  <div class="card p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-bold text-navy-900">🆘 تذاكر الدعم (كل الشركات)</h2>
+    </div>
+
+    <form method="get" class="flex gap-2 mb-4 text-sm">
+      <select name="status" class="border rounded px-2 py-1">
+        <option value="">كل الحالات</option>
+        {% for code in all_statuses %}
+          <option value="{{ code }}" {% if request.args.get('status') == code %}selected{% endif %}>
+            {{ status_labels.get(code, code) }}
+          </option>
+        {% endfor %}
+      </select>
+      <select name="priority" class="border rounded px-2 py-1">
+        <option value="">كل الأولويات</option>
+        {% for code in all_priorities %}
+          <option value="{{ code }}" {% if request.args.get('priority') == code %}selected{% endif %}>
+            {{ priority_labels.get(code, code) }}
+          </option>
+        {% endfor %}
+      </select>
+      <select name="company_id" class="border rounded px-2 py-1">
+        <option value="">كل الشركات</option>
+        {% for c in companies %}
+          <option value="{{ c.id }}"
+                  {% if request.args.get('company_id')|int == c.id %}selected{% endif %}>
+            {{ c.name }}
+          </option>
+        {% endfor %}
+      </select>
+      <button class="btn-secondary text-xs">فلترة</button>
+    </form>
+
+    <table class="data-table w-full text-sm">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>الشركة</th>
+          <th>العنوان</th>
+          <th>الأولوية</th>
+          <th>الحالة</th>
+          <th>مسند إلى</th>
+          <th>آخر تحديث</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in rows %}
+        <tr class="hover:bg-slate-50 cursor-pointer"
+            onclick="window.location='{{ url_for('support_admin.detail', ticket_id=t.id) }}'">
+          <td>#{{ t.id }}</td>
+          <td>{{ t.company.name if t.company else '—' }}</td>
+          <td class="font-semibold">{{ t.title }}</td>
+          <td><span class="badge">{{ priority_labels.get(t.priority, t.priority) }}</span></td>
+          <td><span class="badge">{{ status_labels.get(t.status, t.status) }}</span></td>
+          <td class="text-xs">{{ t.assigned_to.full_name if t.assigned_to else '—' }}</td>
+          <td class="text-xs text-slate-500">{{ t.updated_at | company_dt('%Y-%m-%d %H:%M') }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center py-8 text-slate-400">لا توجد تذاكر.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

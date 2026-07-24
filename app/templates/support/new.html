@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block page_title %}تذكرة دعم جديدة{% endblock %}
+{% block content %}
+<div class="max-w-2xl">
+  <div class="card p-6">
+    <h2 class="font-bold text-navy-900 mb-4">🆘 اشرح مشكلتك</h2>
+    <form method="post" enctype="multipart/form-data" class="space-y-4">
+      <div>
+        <label class="text-sm font-semibold text-slate-700">العنوان *</label>
+        <input name="title" required maxlength="200"
+                class="w-full border rounded px-3 py-2 mt-1"
+                placeholder="مثال: خطأ في حساب المخزون">
+      </div>
+      <div>
+        <label class="text-sm font-semibold text-slate-700">تفاصيل المشكلة</label>
+        <textarea name="description" rows="6"
+                  class="w-full border rounded px-3 py-2 mt-1"
+                  placeholder="اشرح الخطوات التي أدت للمشكلة، ورقم الفاتورة/الحساب المتأثر إن وجد."></textarea>
+      </div>
+      <div>
+        <label class="text-sm font-semibold text-slate-700">الأولوية</label>
+        <select name="priority" class="w-full border rounded px-3 py-2 mt-1">
+          {% for code, label in priority_labels.items() %}
+            <option value="{{ code }}" {% if code == 'MEDIUM' %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="text-sm font-semibold text-slate-700">مرفق (اختياري)</label>
+        <input type="file" name="file"
+                class="w-full border rounded px-3 py-2 mt-1">
+        <p class="text-xs text-slate-400 mt-1">حجم أقصى 15 ميجا. الصور مفيدة جداً.</p>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn-primary">إرسال</button>
+        <a href="{{ url_for('support.index') }}" class="btn-secondary">إلغاء</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

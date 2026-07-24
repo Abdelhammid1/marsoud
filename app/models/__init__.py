@@ -23,6 +23,16 @@ from app.models.help import (
     HelpArticle, HelpArticleExample, HelpArticleMedia,
     MEDIA_IMAGE, MEDIA_YOUTUBE, MEDIA_VIMEO, MEDIA_LINK,
 )
+# MARSOUD-SUPPORT-TICKETS-01 (Abdelhamid 2026-07-24).
+from app.models.support import (
+    SupportTicket, SupportTicketComment, SupportTicketAudit,
+    STATUS_OPEN, STATUS_IN_PROGRESS, STATUS_WAITING,
+    STATUS_RESOLVED, STATUS_CLOSED, ALL_STATUSES, STATUS_LABELS_AR,
+    PRIORITY_LOW, PRIORITY_MEDIUM, PRIORITY_HIGH, PRIORITY_URGENT,
+    ALL_PRIORITIES, PRIORITY_LABELS_AR,
+    ACTION_REPLY, ACTION_INTERNAL, ACTION_STATUS,
+    ACTION_PRIORITY, ACTION_ASSIGN,
+)
 from app.models.platform_setting import PlatformSetting
 from app.models.recurring_bill import (
     RecurringBill, RecurringBillOverride,
