@@ -76,6 +76,23 @@
         <input type="checkbox" name="is_active" {% if product.is_active %}checked{% endif %}>
         <span class="text-sm font-semibold">نشط (يظهر في القوائم)</span>
       </label>
+
+      {# MARSOUD-DUAL-UOM-WEIGHT-01 UI (Abdelhamid 2026-07-24) —
+         opt-in / opt-out for products already created. Meaningful
+         only for tracked goods. #}
+      {% if product.is_tracked %}
+      <label class="flex items-start gap-2 pt-2 border-t">
+        <input type="checkbox" name="tracks_piece_count" class="mt-0.5"
+                {% if product.tracks_piece_count %}checked{% endif %}>
+        <div>
+          <span class="text-sm font-semibold">⚖️ تتبع مزدوج (وزن + عدد قطعة)</span>
+          <div class="text-xs text-slate-500 mt-0.5">
+            كل حركة مخزون بتحدّث الوزن والعدد سوا. متوسط التكلفة يفضل مبني على الوزن.
+          </div>
+        </div>
+      </label>
+      {% endif %}
+
       <div class="flex justify-between items-center gap-2 pt-2">
         <a href="{{ url_for('products.index') }}" class="btn-secondary">← الرجوع</a>
         <div class="flex gap-2">

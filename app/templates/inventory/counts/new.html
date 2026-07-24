@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block page_title %}جرد جديد{% endblock %}
+{% block content %}
+<div class="max-w-2xl">
+  <div class="card p-6">
+    <h2 class="font-bold text-navy-900 mb-4">📋 جرد جديد</h2>
+    <form method="POST" class="space-y-4">
+      <div>
+        <label class="text-sm font-semibold">الصنف</label>
+        <select name="variant_id" required class="w-full border rounded px-2 py-1 mt-1 text-sm">
+          <option value="">— اختر —</option>
+          {% for v, p in variants %}
+            <option value="{{ v.id }}">
+              {{ p.name }}{% if v.name %} — {{ v.name }}{% endif %}
+              ({{ v.sku }}){% if p.tracks_piece_count %} ⚖️{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+        <p class="text-xs text-slate-500 mt-1">
+          الأصناف بعلامة ⚖️ عندها تتبع مزدوج (وزن + عدد قطعة).
+        </p>
+      </div>
+      <div>
+        <label class="text-sm font-semibold">المخزن</label>
+        <select name="warehouse_id" required class="w-full border rounded px-2 py-1 mt-1 text-sm">
+          {% for w in warehouses %}
+            <option value="{{ w.id }}" {% if w.is_default %}selected{% endif %}>{{ w.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-sm font-semibold">العد الفعلي (الوزن)</label>
+          <input type="number" step="0.01" name="counted_qty" required
+                  class="w-full border rounded px-2 py-1 mt-1 font-mono text-sm">
+          <p class="text-xs text-slate-500 mt-1">جرام / كيلو / وحدة، حسب المنتج.</p>
+        </div>
+        <div>
+          <label class="text-sm font-semibold">العد الفعلي (عدد القطع)</label>
+          <input type="number" step="0.01" name="counted_pieces"
+                  class="w-full border rounded px-2 py-1 mt-1 font-mono text-sm">
+          <p class="text-xs text-slate-500 mt-1">اتركه فارغاً للأصناف بدون تتبع قطع.</p>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <button class="btn-primary">التالي — عرض الفرق</button>
+        <a href="{{ url_for('inventory_counts.index') }}" class="btn-secondary">إلغاء</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

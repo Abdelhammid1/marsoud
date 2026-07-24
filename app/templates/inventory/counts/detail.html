@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block page_title %}جرد #{{ row.id }}{% endblock %}
+{% block content %}
+<div class="max-w-3xl">
+  <div class="card p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-bold text-navy-900">📋 جرد #{{ row.id }}</h2>
+      {% if row.status == 'CONFIRMED' %}
+        <span class="badge badge-paid">مؤكد</span>
+      {% else %}
+        <span class="badge">مسودة</span>
+      {% endif %}
+    </div>
+
+    <div class="space-y-2 text-sm mb-4">
+      <div><b>الصنف:</b> {{ row.variant.product.name }} — {{ row.variant.name }}</div>
+      <div><b>المخزن:</b> {{ row.warehouse.name }}</div>
+      <div class="text-xs text-slate-500">
+        عدّه {{ row.counted_at | company_dt('%Y-%m-%d %H:%M') }}
+      </div>
+    </div>
+
+    <table class="w-full text-sm border rounded">
+      <thead class="bg-slate-50">
+        <tr class="text-slate-600">
+          <th class="text-right p-2">البيان</th>
+          <th class="text-right p-2">دفتري</th>
+          <th class="text-right p-2">فعلي</th>
+          <th class="text-right p-2">الفرق</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="border-t">
+          <td class="p-2">الوزن</td>
+          <td class="p-2 font-mono">{{ row.book_qty }}</td>
+          <td class="p-2 font-mono">{{ row.counted_qty }}</td>
+          <td class="p-2 font-mono {% if row.variance_qty < 0 %}text-red-600{% elif row.variance_qty > 0 %}text-emerald-600{% endif %}">
+            {{ row.variance_qty }}
+          </td>
+        </tr>
+        <tr class="border-t">
+          <td class="p-2">عدد القطع</td>
+          <td class="p-2 font-mono">{{ row.book_pieces }}</td>
+          <td class="p-2 font-mono">{{ row.counted_pieces }}</td>
+          <td class="p-2 font-mono {% if row.variance_pieces < 0 %}text-red-600{% elif row.variance_pieces > 0 %}text-emerald-600{% endif %}">
+            {{ row.variance_pieces }}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="mt-6 flex gap-2">
+      {% if row.status == 'DRAFT' %}
+        <form method="POST" action="{{ url_for('inventory_counts.confirm', count_id=row.id) }}"
+              onsubmit="return confirm('تأكيد الجرد بيولد قيد تسوية للفرق. متأكد؟')">
+          <button class="btn-primary">✓ تأكيد الجرد + ترحيل التسوية</button>
+        </form>
+        <a href="{{ url_for('inventory_counts.index') }}" class="btn-secondary">← الرجوع</a>
+      {% else %}
+        {% if row.adjustment_movement_id %}
+          <div class="text-sm text-slate-600">
+            ✓ تم ترحيل حركة التسوية رقم #{{ row.adjustment_movement_id }}
+          </div>
+        {% else %}
+          <div class="text-sm text-slate-600">
+            ✓ الجرد بدون فرق — لم يتم ترحيل أي حركة.
+          </div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

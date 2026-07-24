@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block page_title %}جرد المخزون{% endblock %}
+{% block content %}
+<div class="max-w-5xl">
+  <div class="card p-6">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="font-bold text-navy-900">📋 جرد المخزون</h2>
+        <p class="text-sm text-slate-500 mt-1">
+          سجّل العد الفعلي مقابل الرصيد الدفتري. تأكيد الجرد بيولّد قيد تسوية تلقائي للفرق.
+        </p>
+      </div>
+      <a href="{{ url_for('inventory_counts.new') }}" class="btn-primary text-sm">+ جرد جديد</a>
+    </div>
+
+    <table class="data-table w-full text-sm">
+      <thead>
+        <tr>
+          <th>#</th><th>الصنف</th><th>المخزن</th>
+          <th>دفتري (وزن)</th><th>فعلي (وزن)</th><th>الفرق</th>
+          <th>الحالة</th><th>التاريخ</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+        <tr class="{% if r.variance_qty != 0 %}bg-amber-50{% endif %}">
+          <td>#{{ r.id }}</td>
+          <td>{{ r.variant.product.name }} — {{ r.variant.name }}</td>
+          <td>{{ r.warehouse.name }}</td>
+          <td class="font-mono">{{ r.book_qty }}</td>
+          <td class="font-mono">{{ r.counted_qty }}</td>
+          <td class="font-mono {% if r.variance_qty < 0 %}text-red-600{% elif r.variance_qty > 0 %}text-emerald-600{% endif %}">
+            {{ r.variance_qty }}
+          </td>
+          <td>
+            {% if r.status == 'CONFIRMED' %}
+              <span class="badge badge-paid">مؤكد</span>
+            {% else %}
+              <span class="badge">مسودة</span>
+            {% endif %}
+          </td>
+          <td class="text-xs text-slate-500">{{ r.counted_at | company_dt('%Y-%m-%d %H:%M') }}</td>
+          <td><a href="{{ url_for('inventory_counts.detail', count_id=r.id) }}" class="text-brand-600 text-xs hover:underline">فتح</a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="9" class="text-center py-8 text-slate-400">لا يوجد جرد بعد.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -182,6 +182,27 @@
       </div>
     </div>
 
+    {# MARSOUD-DUAL-UOM-WEIGHT-01 UI (Abdelhamid 2026-07-24) —
+       opt-in flag for products where the weight AND piece count
+       both matter simultaneously (gold, silver, meat, produce
+       sold by weight but also counted per piece). #}
+    <div id="dual-uom-section" class="border-t pt-4">
+      <label class="flex items-start gap-3 cursor-pointer">
+        <input type="checkbox" name="tracks_piece_count" id="tracks-piece-count"
+                class="w-4 h-4 mt-0.5 rounded text-emerald-600">
+        <div>
+          <div class="font-semibold text-navy-900 text-sm">
+            ⚖️ تتبع مزدوج (وزن + عدد قطعة)
+          </div>
+          <div class="text-xs text-slate-500 mt-1">
+            للمنتجات اللي بتتباع بالجرام أو بالقطعة في نفس الوقت
+            (زي الذهب / الفضة). كل بيع بيخصم من الوزن والعدد سوا،
+            بدون تأثير على حساب متوسط التكلفة.
+          </div>
+        </div>
+      </label>
+    </div>
+
     <div class="flex justify-end gap-2 pt-2">
       <a href="{{ url_for('products.index') }}" class="btn-secondary">إلغاء</a>
       <button type="submit" class="btn-primary">إضافة</button>

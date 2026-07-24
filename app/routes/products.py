@@ -137,6 +137,11 @@ def new():
                 sku=(request.form.get("sku") or "").strip() or None,
                 is_tracked=is_tracked,
                 category_id=category_id,
+                # MARSOUD-DUAL-UOM-WEIGHT-01 UI — opt-in flag; only
+                # meaningful for goods, harmless on services.
+                tracks_piece_count=(
+                    is_tracked and
+                    request.form.get("tracks_piece_count") == "on"),
             )
             db.session.add(p)
             db.session.flush()  # need p.id for the variant SKU fallback
@@ -321,6 +326,12 @@ def edit(product_id):
                 cat = ProductCategory.query.get(new_cat_id)
                 if cat and cat.company_id == p.company_id:
                     p.category_id = new_cat_id
+            # MARSOUD-DUAL-UOM-WEIGHT-01 UI — flag opt-in / opt-out.
+            # Only meaningful when the product is tracked (services
+            # ignore it either way).
+            if p.is_tracked:
+                p.tracks_piece_count = (
+                    request.form.get("tracks_piece_count") == "on")
             db.session.commit()
             flash("تم حفظ التعديلات", "success")
             return redirect(url_for("products.edit", product_id=p.id))
