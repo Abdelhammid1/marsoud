@@ -58,14 +58,28 @@ def index():
 
     invoices = q.order_by(Invoice.issue_date.desc(), Invoice.id.desc()).all()
 
-    total_invoiced = sum(float(i.total or 0) for i in invoices)
-    total_collected = sum(float(i.paid_amount or 0) for i in invoices)
-    total_outstanding = sum(i.balance for i in invoices if i.status not in (InvoiceStatus.CANCELLED, InvoiceStatus.REFUNDED))
+    # MARSOUD-FIX-INVOICE-TOTALS-CANCELLED (Abdelhamid 2026-07-24) —
+    # CANCELLED / VOIDED / REFUNDED invoices used to inflate
+    # total_invoiced and total_collected. Now every top-of-page KPI
+    # uses the same exclusion set as _ar_balance_as_of() in
+    # reports.py, so the numbers agree across the app.
+    _EXCLUDED = (
+        InvoiceStatus.CANCELLED,
+        InvoiceStatus.VOIDED,
+        InvoiceStatus.REFUNDED,
+    )
+    countable = [i for i in invoices if i.status not in _EXCLUDED]
+    total_invoiced = sum(float(i.total or 0) for i in countable)
+    total_collected = sum(float(i.paid_amount or 0) for i in countable)
+    total_outstanding = sum(i.balance for i in countable)
 
     totals = {
         "invoiced": total_invoiced,
         "collected": total_collected,
         "outstanding": total_outstanding,
+        # Row count stays as the full filtered list — the KPI cards
+        # under "المُفوتَر / المُحصَّل / المتبقي" are billable only,
+        # but users still expect to see every row of their filter.
         "count": len(invoices),
     }
 
