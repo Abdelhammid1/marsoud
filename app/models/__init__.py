@@ -23,6 +23,12 @@ from app.models.help import (
     HelpArticle, HelpArticleExample, HelpArticleMedia,
     MEDIA_IMAGE, MEDIA_YOUTUBE, MEDIA_VIMEO, MEDIA_LINK,
 )
+# MARSOUD-INSTALLMENT-PLAN-01 (Abdelhamid 2026-07-24).
+from app.models.invoice_installment import (
+    InvoiceInstallment, InstallmentReminderSent,
+    INSTALLMENT_PENDING, INSTALLMENT_PAID, INSTALLMENT_OVERDUE,
+    ALL_INSTALLMENT_STATUSES, INSTALLMENT_STATUS_LABELS_AR,
+)
 # MARSOUD-CUSTOMER-DEPOSIT-01 (Abdelhamid 2026-07-24).
 from app.models.customer_deposit import (
     CustomerDeposit,
