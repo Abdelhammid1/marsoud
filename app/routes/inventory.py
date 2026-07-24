@@ -444,23 +444,32 @@ def barcodes_print():
 @require_permission("inventory.view")
 def inventory_balance():
     """Current per-warehouse stock balance — the report version of the
-    dashboard. Same data, different presentation (full table)."""
+    dashboard. Same data, different presentation (full table).
+
+    Optional ?warehouse_id=X scopes the whole report (screen + exports)
+    to a single warehouse — كشف حساب مخزن واحد.
+    """
     cid = g.active_company.id
+    warehouse_id = request.args.get("warehouse_id", type=int)
     from app.services.export import _inventory_balance_rows
-    rows = _inventory_balance_rows(cid)
+    rows = _inventory_balance_rows(cid, warehouse_id=warehouse_id)
     total = sum(r["value"] for r in rows)
     return render_template(
         "inventory/balance_report.html",
         rows=rows, total_value=total,
+        warehouses=Warehouse.query.filter_by(
+            company_id=cid, is_active=True).order_by(Warehouse.code).all(),
+        warehouse_filter=warehouse_id,
     )
 
 
-def _generic_export(report_type, fmt, start=None, end=None):
+def _generic_export(report_type, fmt, start=None, end=None, **kwargs):
     from flask import send_file
     from app.services.export import export_report
     buf, filename, mimetype = export_report(
         g.active_company, report_type, fmt,
         start or date.today().replace(day=1), end or date.today(),
+        **kwargs,
     )
     return send_file(buf, as_attachment=True,
                      download_name=filename, mimetype=mimetype)
@@ -508,8 +517,10 @@ def export_movements(fmt):
 def export_inventory_balance(fmt):
     if fmt not in ("xlsx", "pdf"):
         abort(404)
+    warehouse_id = request.args.get("warehouse_id", type=int)
     return _generic_export("inventory-balance",
-                           "pdf" if fmt == "pdf" else "excel")
+                           "pdf" if fmt == "pdf" else "excel",
+                           warehouse_id=warehouse_id)
 
 
 # ─── Internal helpers ────────────────────────────────────────────────────

@@ -1279,10 +1279,11 @@ def export_report(company, report_type, fmt, start, end, **kwargs):
         return (export_stock_movements_excel(company, start, end),
                 f"stock-movements-{start}-{end}.xlsx", XLSX_MIME)
     if report_type == "inventory-balance":
+        wh_id = kwargs.get("warehouse_id")
         if fmt == "pdf":
-            return (export_inventory_balance_pdf(company),
+            return (export_inventory_balance_pdf(company, warehouse_id=wh_id),
                     f"inventory-balance-{date.today()}.pdf", "application/pdf")
-        return (export_inventory_balance_excel(company),
+        return (export_inventory_balance_excel(company, warehouse_id=wh_id),
                 f"inventory-balance-{date.today()}.xlsx", XLSX_MIME)
     if report_type == "profitability":
         if fmt == "pdf":
@@ -1448,18 +1449,23 @@ def _simple_pdf_table(buf, company, title, period, headers, rows,
 
 
 # ─── 1. رصيد المخزون الحالي (inventory balance) ────────────────────────
-def _inventory_balance_rows(company_id):
-    """One row per (variant, warehouse) with current qty + value."""
+def _inventory_balance_rows(company_id, warehouse_id=None):
+    """One row per (variant, warehouse) with current qty + value.
+
+    warehouse_id: optional filter to scope the report to a single
+    warehouse (كشف حساب لمخزن واحد).
+    """
     from app.models import StockBalance, ProductVariant, Warehouse
     out = []
-    rows = (
+    q = (
         db.session.query(StockBalance, ProductVariant, Warehouse)
         .join(ProductVariant, StockBalance.variant_id == ProductVariant.id)
         .join(Warehouse, StockBalance.warehouse_id == Warehouse.id)
         .filter(ProductVariant.company_id == company_id)
-        .order_by(ProductVariant.sku, Warehouse.code)
-        .all()
     )
+    if warehouse_id:
+        q = q.filter(StockBalance.warehouse_id == warehouse_id)
+    rows = q.order_by(ProductVariant.sku, Warehouse.code).all()
     for bal, v, w in rows:
         qty = float(bal.qty or 0)
         value = float(bal.value or 0)
@@ -1472,13 +1478,15 @@ def _inventory_balance_rows(company_id):
     return out
 
 
-def export_inventory_balance_excel(company):
-    rows = _inventory_balance_rows(company.id)
+def export_inventory_balance_excel(company, warehouse_id=None):
+    rows = _inventory_balance_rows(company.id, warehouse_id=warehouse_id)
     wb = Workbook()
     ws = wb.active
     ws.title = "Inventory Balance"
-    _excel_styled_header(ws, "رصيد المخزون الحالي", company.name,
-                         f"كما في {date.today()}")
+    subtitle = f"كما في {date.today()}"
+    if warehouse_id and rows:
+        subtitle = f"مخزن: {rows[0]['warehouse']} — {subtitle}"
+    _excel_styled_header(ws, "رصيد المخزون الحالي", company.name, subtitle)
     row = 5
     headers = ["SKU", "المنتج", "المخزن", "الكمية", "متوسط التكلفة", "القيمة"]
     for col, h in enumerate(headers, start=1):
@@ -1507,8 +1515,8 @@ def export_inventory_balance_excel(company):
     return buf
 
 
-def export_inventory_balance_pdf(company):
-    rows = _inventory_balance_rows(company.id)
+def export_inventory_balance_pdf(company, warehouse_id=None):
+    rows = _inventory_balance_rows(company.id, warehouse_id=warehouse_id)
     out = [
         [r["sku"], r["name"], r["warehouse"],
          f"{r['qty']:,.2f}", f"{r['avg_cost']:,.4f}", f"{r['value']:,.2f}"]
@@ -1517,8 +1525,11 @@ def export_inventory_balance_pdf(company):
     total = sum(r["value"] for r in rows)
     out.append(["", "", "", "", "إجمالي", f"{total:,.2f}"])
     buf = io.BytesIO()
+    subtitle = f"كما في {date.today()}"
+    if warehouse_id and rows:
+        subtitle = f"مخزن: {rows[0]['warehouse']} — {subtitle}"
     return _simple_pdf_table(
-        buf, company, "رصيد المخزون الحالي", f"كما في {date.today()}",
+        buf, company, "رصيد المخزون الحالي", subtitle,
         ["SKU", "المنتج", "المخزن", "الكمية", "متوسط التكلفة", "القيمة"],
         out, col_widths=[2.5, 6.0, 2.0, 2.5, 3.0, 3.0],
     )

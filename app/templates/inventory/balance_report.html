@@ -8,10 +8,20 @@
     <p class="text-xs text-slate-500">لكل صنف وvariant، الكمية والقيمة الدفترية لكل مخزن.</p>
   </div>
   <div class="flex gap-2">
-    <a href="{{ url_for('inventory.export_inventory_balance', fmt='xlsx') }}" class="btn-secondary text-sm">⬇ Excel</a>
-    <a href="{{ url_for('inventory.export_inventory_balance', fmt='pdf') }}" class="btn-secondary text-sm">⬇ PDF</a>
+    <a href="{{ url_for('inventory.export_inventory_balance', fmt='xlsx', warehouse_id=warehouse_filter) }}" class="btn-secondary text-sm">⬇ Excel</a>
+    <a href="{{ url_for('inventory.export_inventory_balance', fmt='pdf', warehouse_id=warehouse_filter) }}" class="btn-secondary text-sm">⬇ PDF</a>
   </div>
 </div>
+
+<form method="get" class="card p-3 mb-3 flex items-center gap-2">
+  <label class="text-sm text-slate-600">المخزن:</label>
+  <select name="warehouse_id" onchange="this.form.submit()" class="form-select text-sm">
+    <option value="">كل المخازن</option>
+    {% for w in warehouses %}
+    <option value="{{ w.id }}" {% if warehouse_filter == w.id %}selected{% endif %}>{{ w.code }} — {{ w.name }}</option>
+    {% endfor %}
+  </select>
+</form>
 
 <div class="card p-4">
   {% if rows %}
