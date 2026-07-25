@@ -138,6 +138,23 @@ def create_pos_order(
             unit_id = int(unit_id) if unit_id else None
         except (ValueError, TypeError):
             unit_id = None
+        # MARSOUD-DUAL-UOM-WEIGHT-01 pt 2 (Abdelhamid 2026-07-25) —
+        # POS carries an optional `sold_pieces` per line for products
+        # with tracks_piece_count=True. Cart sends the weight in
+        # `qty` (grams) plus the piece count in `sold_pieces` (usually
+        # 1 for "one item of THIS weight"). Ignored for products
+        # without the flag — the inventory service double-checks.
+        sold_pieces = None
+        raw_pieces = line.get("sold_pieces")
+        if raw_pieces not in (None, "", 0):
+            try:
+                _v = float(raw_pieces)
+                if _v > 0 and variant.product and \
+                        getattr(variant.product,
+                                 "tracks_piece_count", False):
+                    sold_pieces = _v
+            except (TypeError, ValueError):
+                pass
         item = InvoiceItem(
             invoice_id=invoice.id,
             company_id=invoice.company_id,
@@ -150,6 +167,7 @@ def create_pos_order(
             discount_type=ldt,
             discount_value=float(line.get("discount_value") or 0),
             unit_id=unit_id,
+            sold_pieces=sold_pieces,
         )
         db.session.add(item)
     db.session.flush()

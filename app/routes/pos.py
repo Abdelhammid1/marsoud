@@ -91,6 +91,9 @@ def index():
                 if p.default_tax_rate is not None else company_vat_rate
             ),
             "units": units,
+            # MARSOUD-DUAL-UOM-WEIGHT-01 pt 2 (Abdelhamid 2026-07-25)
+            "tracks_piece_count": bool(
+                getattr(p, "tracks_piece_count", False)),
         })
     return render_template(
         "pos/register.html",
@@ -222,6 +225,10 @@ def lookup():
             if v.product.default_tax_rate is not None
             else (g.active_company.vat_rate or 0)
         ),
+        # MARSOUD-DUAL-UOM-WEIGHT-01 pt 2 (Abdelhamid 2026-07-25) —
+        # flag so the cart can show a piece-count input.
+        "tracks_piece_count": bool(
+            getattr(v.product, "tracks_piece_count", False)),
     })
 
 

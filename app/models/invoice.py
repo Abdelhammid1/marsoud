@@ -170,6 +170,15 @@ class InvoiceItem(db.Model):
     unit_id = db.Column(db.Integer, db.ForeignKey("product_units.id"))
     base_quantity = db.Column(db.Numeric(15, 4))
 
+    # MARSOUD-DUAL-UOM-WEIGHT-01 pt 2 (Abdelhamid 2026-07-25) — for
+    # products with tracks_piece_count=True (gold, silver, meat…),
+    # this records how many DISCRETE pieces the customer took. The
+    # weight (grams) still lives in `quantity`. Both flow through
+    # the inventory service in ONE transaction so avg_cost stays
+    # weight-based and the piece counter stays exact. NULL for
+    # every other product (backward-compatible default).
+    sold_pieces = db.Column(db.Numeric(15, 2), nullable=True)
+
     product = db.relationship("Product")
     variant = db.relationship("ProductVariant", foreign_keys=[variant_id])
     warehouse = db.relationship("Warehouse", foreign_keys=[warehouse_id])

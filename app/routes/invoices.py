@@ -19,6 +19,26 @@ def _next_number(company_id):
     return next_number(company_id, "INVOICE")
 
 
+def _safe_float(raw, default=0):
+    """MARSOUD-FIX-INVOICE-FLOAT (Abdelhamid 2026-07-25).
+
+    Backport of vendor_bills._safe_float — same "empty/whitespace/
+    comma-formatted string crashes float()" bug applies here too.
+    Any raw form value passed through here becomes a float safely,
+    or falls back to `default` on unparseable input. Never raises.
+    """
+    if raw is None:
+        return default
+    s = str(raw).strip()
+    if not s:
+        return default
+    s = s.replace(",", "")
+    try:
+        return float(s)
+    except (TypeError, ValueError):
+        return default
+
+
 @bp.route("/")
 @login_required
 def index():
@@ -94,7 +114,9 @@ def _populate_invoice_from_form(invoice, form):
     invoice.customer_id = int(form.get("customer_id"))
     invoice.issue_date = datetime.strptime(form.get("issue_date", date.today().isoformat()), "%Y-%m-%d").date()
     invoice.due_date = datetime.strptime(form.get("due_date", (date.today() + timedelta(days=30)).isoformat()), "%Y-%m-%d").date()
-    invoice.tax_rate = float(form.get("tax_rate", g.active_company.vat_rate or 15))
+    invoice.tax_rate = _safe_float(
+        form.get("tax_rate"),
+        default=float(g.active_company.vat_rate or 15))
     invoice.notes = form.get("notes", "")
     invoice.internal_notes = form.get("internal_notes", "")
     invoice.send_reminders = form.get("send_reminders") == "1"
@@ -103,7 +125,8 @@ def _populate_invoice_from_form(invoice, form):
         invoice.invoice_discount_type = DiscountType[(form.get("invoice_discount_type") or "NONE")]
     except KeyError:
         invoice.invoice_discount_type = DiscountType.NONE
-    invoice.invoice_discount_value = float(form.get("invoice_discount_value") or 0)
+    invoice.invoice_discount_value = _safe_float(
+        form.get("invoice_discount_value"), 0)
 
     # Replace items
     for old in list(invoice.items):
@@ -137,10 +160,13 @@ def _populate_invoice_from_form(invoice, form):
             company_id=invoice.company_id,
             product_id=int(pid) if pid else None,
             description=desc.strip(),
-            quantity=float(quantities[i] or 1),
-            unit_price=float(unit_prices[i] or 0),
+            quantity=_safe_float(
+                quantities[i] if i < len(quantities) else None, 1),
+            unit_price=_safe_float(
+                unit_prices[i] if i < len(unit_prices) else None, 0),
             discount_type=item_dt,
-            discount_value=float((disc_values[i] if i < len(disc_values) else 0) or 0),
+            discount_value=_safe_float(
+                disc_values[i] if i < len(disc_values) else None, 0),
             unit_id=uid,
         )
         db.session.add(item)
@@ -372,7 +398,7 @@ def pay(invoice_id):
         flash("غير موجود", "error")
         return redirect(url_for("invoices.index"))
     try:
-        amount = float(request.form.get("amount", 0))
+        amount = _safe_float(request.form.get("amount"), 0)
         pmid = request.form.get("payment_method_id") or None
         notify = request.form.get("notify_customer", "1") == "1"
         record_payment(

@@ -214,6 +214,85 @@ def _():
     return f"CONFIRMED, adj={committed.adjustment_movement_id}"
 
 
+@check("6b. POS sale carries sold_pieces → InvoiceItem persists it → stock drops both dims")
+def _():
+    """End-to-end proof: POS → create_pos_order → post_invoice_to_ledger
+    → record_sale with piece_delta. Same-transaction guarantee for
+    weight + piece counter."""
+    from decimal import Decimal
+    from app.models import (
+        Company, Product, ProductVariant, Warehouse, StockBalance,
+        PaymentMethod, Account, ProductGroup, ProductCategory,
+        User, UserStatus, InvoiceItem,
+    )
+    from app.models.user import user_companies
+    from app.services.seed_coa import seed_default_coa
+    from app.services.pos import create_pos_order
+    from app.services.inventory import receive_stock
+    from werkzeug.security import generate_password_hash
+    # Fresh company with a piece-tracked product and an opening bal.
+    from datetime import datetime as _dt
+    c = Company(name="__DU_POS__", base_currency="EGP",
+                 subdomain="du-pos",
+                 subscription_started_at=_dt.utcnow(),
+                 subscription_expires_at=_dt(2999, 1, 1))
+    db.session.add(c); db.session.flush()
+    seed_default_coa(c.id)
+    g = ProductGroup(company_id=c.id, name="عام")
+    db.session.add(g); db.session.flush()
+    cat = ProductCategory(company_id=c.id, group_id=g.id, name="عام")
+    db.session.add(cat); db.session.flush()
+    u = User(email="du-pos@x.test",
+             password_hash=generate_password_hash("x", method="pbkdf2:sha256"),
+             full_name="dp", is_active=True,
+             status=UserStatus.ACTIVE.value)
+    db.session.add(u); db.session.flush()
+    db.session.execute(user_companies.insert().values(
+        user_id=u.id, company_id=c.id, role="owner"))
+    wh = Warehouse(company_id=c.id, code="MAIN", name="MAIN",
+                    is_default=True)
+    db.session.add(wh); db.session.flush()
+    p = Product(company_id=c.id, name="فضة قطع", is_tracked=True,
+                 category_id=cat.id, tracks_piece_count=True,
+                 default_price=50)
+    db.session.add(p); db.session.flush()
+    v = ProductVariant(company_id=c.id, product_id=p.id,
+                        sku="POS-SILVER", name="d", unit_cost=0)
+    db.session.add(v); db.session.commit()
+    # Opening stock: 1000g / 20 pieces.
+    receive_stock(variant=v, warehouse=wh, qty=1000, unit_cost=5,
+                   piece_delta=20, actor_id=u.id)
+    # Payment method.
+    any_asset = Account.query.filter_by(
+        company_id=c.id, is_postable=True).first()
+    pm = PaymentMethod.query.filter_by(
+        company_id=c.id, is_active=True).first()
+    if not pm:
+        pm = PaymentMethod(company_id=c.id, name="POS-CASH",
+                            name_ar="نقدي POS",
+                            account_id=any_asset.id, is_active=True,
+                            is_default=True)
+        db.session.add(pm); db.session.commit()
+    # Cart: 1 line, 15g of silver = 2 pieces. Price per gram = 10.
+    invoice = create_pos_order(
+        company_id=c.id,
+        items=[{"variant_id": v.id, "qty": 15.0,
+                 "unit_price": 10, "sold_pieces": 2}],
+        payment_method_id=pm.id, cashier_id=u.id,
+        cash_received=1000, tax_rate=0,
+    )
+    # Item persisted with sold_pieces=2.
+    item = invoice.items[0]
+    assert item.sold_pieces is not None and float(item.sold_pieces) == 2.0, \
+        f"sold_pieces={item.sold_pieces}"
+    # StockBalance: 1000 - 15 = 985g; 20 - 2 = 18 pieces.
+    bal = StockBalance.query.filter_by(
+        variant_id=v.id, warehouse_id=wh.id).first()
+    assert float(bal.qty) == 985.0, f"qty={bal.qty}"
+    assert float(bal.piece_count) == 18.0, f"pieces={bal.piece_count}"
+    return f"POS: -15g / -2 pieces via one invoice"
+
+
 @check("6. Zero-variance count → CONFIRMED, no adjustment")
 def _():
     from app.services.inventory import (

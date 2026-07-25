@@ -11,6 +11,9 @@ from app import db
 from app.models import (
     Invoice, InvoiceStatus, InvoiceReminderSent, Company,
     SubscriptionReminderSent,
+    # MARSOUD-INSTALLMENT-PLAN-01 (Abdelhamid 2026-07-25).
+    InvoiceInstallment, InstallmentReminderSent,
+    INSTALLMENT_PENDING, INSTALLMENT_OVERDUE,
 )
 from app.services.email import send_overdue_reminder, send_email
 import logging
@@ -97,6 +100,115 @@ def process_invoice_reminders():
     db.session.commit()
     logger.info("Reminders processed: %s", sent_counts)
     return sent_counts
+
+
+# ─── MARSOUD-INSTALLMENT-PLAN-01 (Abdelhamid 2026-07-25) ─────────────────
+def process_installment_reminders():
+    """Fire per-installment reminders. Mirror of
+    process_invoice_reminders() but scoped to InvoiceInstallment
+    rows. Uses the SAME company reminder_config (days_before +
+    overdue_days) so tenants don't juggle two settings — one policy
+    applies to both.
+
+    Each (installment_id, kind, days) fires at most once via
+    InstallmentReminderSent (unique index guards duplicates even if
+    cron double-fires the same day).
+
+    Skips installments whose parent invoice is CANCELLED / VOIDED /
+    REFUNDED to avoid nagging about voided commitments.
+    """
+    from app.services.time import today_in_company_tz
+    sent_counts = {"before": 0, "overdue": 0, "skipped": 0}
+
+    company_cfg = {}
+    company_today = {}
+
+    # PENDING or OVERDUE installments on non-cancelled invoices.
+    candidates = (
+        db.session.query(InvoiceInstallment, Invoice)
+        .join(Invoice, InvoiceInstallment.invoice_id == Invoice.id)
+        .filter(InvoiceInstallment.status.in_(
+            [INSTALLMENT_PENDING, INSTALLMENT_OVERDUE]))
+        .filter(Invoice.send_reminders.is_(True))
+        .filter(Invoice.status.notin_([
+            InvoiceStatus.CANCELLED, InvoiceStatus.VOIDED,
+            InvoiceStatus.REFUNDED,
+        ]))
+        .all()
+    )
+
+    for inst, inv in candidates:
+        cfg = company_cfg.get(inv.company_id)
+        today = company_today.get(inv.company_id)
+        if cfg is None or today is None:
+            company = db.session.get(Company, inv.company_id)
+            cfg = company.reminders if company else {}
+            today = today_in_company_tz(company) if company else date.today()
+            company_cfg[inv.company_id] = cfg
+            company_today[inv.company_id] = today
+        if not cfg.get("enabled", True):
+            sent_counts["skipped"] += 1
+            continue
+
+        days_until = (inst.due_date - today).days
+        for d in cfg.get("days_before", []):
+            if days_until == d and not _installment_already_sent(
+                    inst.id, "before", d):
+                if _send_installment_reminder(inv, inst,
+                                                f"before_{d}"):
+                    _installment_mark_sent(inst.id, inv.company_id,
+                                             "before", d)
+                    sent_counts["before"] += 1
+        days_overdue = -days_until
+        for d in cfg.get("overdue_days", []):
+            if days_overdue == d and days_overdue >= 0 and \
+                    not _installment_already_sent(inst.id, "overdue", d):
+                label = "overdue" if d == 0 else f"overdue_{d}"
+                if _send_installment_reminder(inv, inst, label):
+                    _installment_mark_sent(inst.id, inv.company_id,
+                                             "overdue", d)
+                    sent_counts["overdue"] += 1
+    db.session.commit()
+    logger.info("Installment reminders: %s", sent_counts)
+    return sent_counts
+
+
+def _installment_already_sent(installment_id, kind, days):
+    return InstallmentReminderSent.query.filter_by(
+        installment_id=installment_id,
+        threshold_kind=kind, threshold_days=days,
+    ).first() is not None
+
+
+def _installment_mark_sent(installment_id, company_id, kind, days):
+    db.session.add(InstallmentReminderSent(
+        installment_id=installment_id, company_id=company_id,
+        threshold_kind=kind, threshold_days=days,
+        sent_at=datetime.utcnow(),
+    ))
+
+
+def _send_installment_reminder(invoice, installment, label):
+    """Format + send the customer email. Uses the existing invoice
+    reminder template — we add installment-specific context so the
+    same shell can render either flavor without a new template."""
+    if not invoice.customer or not invoice.customer.email:
+        return False
+    if label.startswith("before_"):
+        n = label.split("_", 1)[1]
+        subject = (f"تذكير: القسط #{installment.sequence_no} من فاتورة "
+                    f"#{invoice.number} يستحق خلال {n} أيام")
+    elif label.startswith("overdue_"):
+        n = label.split("_", 1)[1]
+        subject = (f"القسط #{installment.sequence_no} من فاتورة "
+                    f"#{invoice.number} متأخر منذ {n} يوم")
+    else:
+        subject = (f"القسط #{installment.sequence_no} من فاتورة "
+                    f"#{invoice.number} تجاوز موعد الاستحقاق")
+    html = render_template("emails/invoice_reminder.html",
+                             invoice=invoice, days_label=label,
+                             installment=installment)
+    return send_email(invoice.customer.email, subject, html)
 
 
 # ─── MARSOUD-57.3: subscription expiry reminders ─────────────────────────

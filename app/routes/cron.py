@@ -76,6 +76,20 @@ def tick():
             "installment overdue refresh failed: %s", e)
         summary["installment_overdue"] = {"error": str(e)[:200]}
 
+    # MARSOUD-INSTALLMENT-PLAN-01 pt 2 (Abdelhamid 2026-07-25) —
+    # per-installment reminders. Same policy as invoice reminders
+    # (company.reminders config), but fires one email per DUE
+    # installment (not the whole invoice) so a 3-installment plan
+    # gets 3 separate customer touchpoints.
+    try:
+        from app.services.reminders import process_installment_reminders
+        summary["installment_reminders"] = process_installment_reminders()
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception(
+            "installment reminders failed: %s", e)
+        summary["installment_reminders"] = {"error": str(e)[:200]}
+
     # HR-03: contract expiry alerts (30 / 60 days)
     try:
         summary["contract_alerts"] = check_expiring_contracts()

@@ -228,6 +228,15 @@ function renderCart() {
         <input type="number" min="0" step="0.01" value="${r.unit_price}" onchange="setPrice(${i}, this.value)" class="input text-sm w-24 text-center">
         <span class="ms-auto text-sm font-bold font-mono text-emerald-700">${(r.qty * r.unit_price).toFixed(2)}</span>
       </div>
+      ${r.tracks_piece_count ? `
+      <div class="flex items-center gap-2 mt-1 text-xs bg-amber-50 rounded p-1">
+        <span class="text-amber-800">⚖️ عدد القطع:</span>
+        <input type="number" min="0.01" step="0.01" value="${r.sold_pieces}"
+                onchange="setPieces(${i}, this.value)"
+                class="input text-xs w-16 text-center">
+        <span class="text-slate-500">(الوزن أعلاه بالجرام)</span>
+      </div>
+      ` : ''}
     </div>
   `;}).join('');
   recalc();
@@ -259,6 +268,12 @@ function addLine(v) {
     qty: 1, unit_price: incomingPrice,
     units: v.units || [],
     unit_id: incomingUnitId,
+    // MARSOUD-DUAL-UOM-WEIGHT-01 pt 2 — piece count for gold/silver
+    // style products. Default 1 (one physical piece); cashier can
+    // edit inline. Flag comes from the tile / lookup so this input
+    // only appears where it matters.
+    tracks_piece_count: !!v.tracks_piece_count,
+    sold_pieces: v.tracks_piece_count ? 1 : null,
   });
   if (v.tax_rate) {
     taxRate = parseFloat(v.tax_rate);
@@ -282,6 +297,7 @@ function setUnit(i, id) {
   renderCart();
 }
 function setPrice(i, v) { cart[i].unit_price = parseFloat(v) || 0; renderCart(); }
+function setPieces(i, v) { cart[i].sold_pieces = parseFloat(v) || 1; renderCart(); }
 function removeLine(i) { cart.splice(i, 1); renderCart(); }
 function emptyCart() { if (cart.length && !confirm('تفريغ الكارت؟')) return; cart = []; renderCart(); }
 

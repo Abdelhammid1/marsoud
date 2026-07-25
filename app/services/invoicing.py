@@ -143,11 +143,20 @@ def _apply_inventory_side_for_invoice(invoice, entry, created_by):
         except UnitError as e:
             raise LedgerError(str(e))
         base_qty = float(base_qty_dec)
+        # MARSOUD-DUAL-UOM-WEIGHT-01 pt 2 (Abdelhamid 2026-07-25) —
+        # forward the piece count as a negative delta for products
+        # opted into piece tracking. sold_pieces NULL / 0 → skipped
+        # by the inventory service (guarded on
+        # tracks_piece_count too).
+        piece_delta = None
+        if item.sold_pieces is not None and float(item.sold_pieces or 0) > 0:
+            piece_delta = -float(item.sold_pieces)
         try:
             unit_cost = record_sale(
                 variant=variant, warehouse=warehouse, qty=base_qty,
                 invoice_id=invoice.id, line_id=item.id,
                 actor_id=created_by,
+                piece_delta=piece_delta,
             )
         except InventoryError as e:
             raise LedgerError(str(e))
