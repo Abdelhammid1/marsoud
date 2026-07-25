@@ -15,7 +15,15 @@
     </p>
   </div>
 
-  <form method="POST" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  {# MARSOUD-FIX-CHOOSE-PLAN-SUBMIT (Abdelhamid 2026-07-25) — form
+     gets an explicit id and the confirm button now lives INSIDE
+     the form. The previous layout put the button outside and used
+     document.querySelector('form') to submit it, which picked the
+     header logout form after the hide_sidebar layout added one
+     — clicking تأكيد الاختيار silently logged the user out
+     instead of persisting the plan choice. #}
+  <form method="POST" id="choose-plan-form"
+        class="grid grid-cols-1 md:grid-cols-3 gap-4">
     {% for plan in plans %}
     <label class="cursor-pointer">
       <input type="radio" name="plan_id" value="{{ plan.id }}"
@@ -55,16 +63,16 @@
       </div>
     </label>
     {% endfor %}
-  </form>
 
-  <div class="text-center mt-6">
-    <button type="submit" form="" onclick="document.querySelector('form').submit()"
-            class="btn-primary text-lg px-8 py-3">
-      ✓ تأكيد الاختيار
-    </button>
-    <p class="text-xs text-slate-400 mt-3">
-      تقدر تغير الاختيار لاحقاً من إعدادات الشركة.
-    </p>
-  </div>
+    <div class="col-span-full text-center mt-6">
+      <button type="submit"
+              class="btn-primary text-lg px-8 py-3">
+        ✓ تأكيد الاختيار
+      </button>
+      <p class="text-xs text-slate-400 mt-3">
+        تقدر تغير الاختيار لاحقاً من إعدادات الشركة.
+      </p>
+    </div>
+  </form>
 </div>
 {% endblock %}
