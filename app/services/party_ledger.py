@@ -146,6 +146,17 @@ def party_ledger(company_id, kind, party_id, start_date=None, end_date=None):
             "balance": round(balance, 2),
         })
 
+    # MARSOUD-SOURCE-REFERENCE-01 (Abdelhamid 2026-07-25) — enrich
+    # each row with a human-readable label + optional link to the
+    # source document. Batched: 1 query per source_type per company,
+    # even for 200+ rows.
+    from app.services.source_reference import build_reference_map
+    ref_map = build_reference_map(rows, company_id)
+    for r in rows:
+        r["reference"] = ref_map.get((r["source_type"], r["source_id"]),
+                                       {"label": "قيد يدوي",
+                                        "url": None, "kind": None})
+
     return {
         "party": {
             "id": party.id,

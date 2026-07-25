@@ -146,9 +146,16 @@ def movements():
 
     rows = q.order_by(StockMovement.created_at.desc()).limit(500).all()
 
+    # MARSOUD-SOURCE-REFERENCE-01 (Abdelhamid 2026-07-25) — batched
+    # (source_type, source_id) → {label, url} map so the template
+    # can render a clickable reference without N+1 queries.
+    from app.services.source_reference import build_reference_map
+    ref_map = build_reference_map(rows, cid)
+
     return render_template(
         "inventory/movements.html",
         movements=rows,
+        ref_map=ref_map,
         kinds=StockMovementKind,
         users=_company_users(cid),
         variants=ProductVariant.query.filter_by(

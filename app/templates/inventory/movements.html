@@ -89,7 +89,24 @@
           <td class="text-end font-mono {% if m.qty_delta and m.qty_delta < 0 %}text-rose-600{% else %}text-emerald-700{% endif %}">{{ '%+.2f'|format(m.qty_delta) }}</td>
           <td class="text-end font-mono">{{ '%.4f'|format(m.unit_cost_at_time) }}</td>
           <td class="text-end font-mono font-semibold">{{ '%.2f'|format(m.balance_qty_after) }}</td>
-          <td class="text-xs font-mono">{{ m.source_type or '—' }}{% if m.source_id %}#{{ m.source_id }}{% endif %}</td>
+          {# MARSOUD-SOURCE-REFERENCE-01 (Abdelhamid 2026-07-25) —
+             resolve to a human-readable label + link when possible.
+             ref_map is a dict keyed on (source_type, source_id); if
+             lookup misses (unknown type), fall back to the raw
+             source_type so we never render an empty cell. #}
+          {% set ref = ref_map.get((m.source_type, m.source_id)) %}
+          <td class="text-xs">
+            {% if ref and ref.url %}
+              <a href="{{ ref.url }}" class="text-brand-600 hover:underline"
+                 target="_blank" rel="noopener">{{ ref.label }}</a>
+            {% elif ref %}
+              <span class="text-slate-500">{{ ref.label }}</span>
+            {% elif m.source_type %}
+              <span class="text-slate-500 font-mono">{{ m.source_type }}{% if m.source_id %}#{{ m.source_id }}{% endif %}</span>
+            {% else %}
+              <span class="text-slate-400">قيد يدوي</span>
+            {% endif %}
+          </td>
           <td class="text-xs">{{ m.actor.full_name if m.actor else 'نظام' }}</td>
         </tr>
         {% endfor %}

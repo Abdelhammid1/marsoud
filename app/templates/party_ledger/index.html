@@ -99,6 +99,7 @@
       <tr>
         <th>التاريخ</th>
         <th>رقم القيد</th>
+        <th>المرجع</th>
         <th>البيان</th>
         <th>الملاحظة</th>
         <th class="text-right">مدين</th>
@@ -109,7 +110,7 @@
     <tbody>
       {# Opening balance row #}
       <tr class="bg-slate-50 font-semibold">
-        <td colspan="4">الرصيد الافتتاحي</td>
+        <td colspan="5">الرصيد الافتتاحي</td>
         <td class="text-right font-mono">—</td>
         <td class="text-right font-mono">—</td>
         <td class="text-right font-mono">{{ "%.2f"|format(statement.opening_balance) }}</td>
@@ -118,6 +119,23 @@
       <tr class="hover:bg-slate-50">
         <td class="font-mono">{{ row.date.isoformat() if row.date }}</td>
         <td class="font-mono">{{ row.entry_number }}</td>
+        {# MARSOUD-SOURCE-REFERENCE-01 (Abdelhamid 2026-07-25) —
+           show the source doc label with a link when we could build
+           one. Manual entries + unknown types fall back to "قيد
+           يدوي" without a URL. #}
+        <td class="text-[11px]">
+          {% if row.reference and row.reference.url %}
+            <a href="{{ row.reference.url }}"
+                class="text-brand-600 hover:underline"
+                target="_blank" rel="noopener">
+              {{ row.reference.label }}
+            </a>
+          {% elif row.reference %}
+            <span class="text-slate-500">{{ row.reference.label }}</span>
+          {% else %}
+            <span class="text-slate-400">—</span>
+          {% endif %}
+        </td>
         <td>{{ row.description }}</td>
         <td class="text-slate-500 text-[11px]">{{ row.memo }}</td>
         <td class="text-right font-mono">
@@ -131,7 +149,7 @@
       {% endfor %}
       {# Closing totals row #}
       <tr class="bg-slate-100 font-bold border-t-2 border-slate-300">
-        <td colspan="4">الإجماليات</td>
+        <td colspan="5">الإجماليات</td>
         <td class="text-right font-mono">{{ "%.2f"|format(statement.total_debit) }}</td>
         <td class="text-right font-mono">{{ "%.2f"|format(statement.total_credit) }}</td>
         <td class="text-right font-mono">{{ "%.2f"|format(statement.closing_balance) }}</td>
