@@ -98,7 +98,14 @@ def platform_overview():
 
 
 def companies_with_stats():
-    """Every company with a few cross-tenant counts. Used by /admin/companies."""
+    """Every company with a few cross-tenant counts. Used by /admin/companies.
+
+    MARSOUD-BOT-PROTECTION-01 (Abdelhamid 2026-07-24) — also annotates
+    each row with `owner_verified` (True iff the owner's status is
+    not PENDING_VERIFICATION). The admin list uses this to hide bot
+    signups by default until they verify their email.
+    """
+    from app.models import UserStatus
     rows = []
     for c in Company.query.order_by(Company.created_at.desc()).all():
         users = db.session.query(func.count()).select_from(user_companies).filter(
@@ -112,12 +119,28 @@ def companies_with_stats():
             .filter(user_companies.c.company_id == c.id)
             .scalar()
         )
+        # Owner verification status. If there are multiple owners, we
+        # consider the company "verified" as soon as any one owner has
+        # verified — the common case is one owner, and this handles
+        # legacy multi-owner rows gracefully.
+        owner_verified = db.session.execute(
+            db.select(User.status)
+            .join(user_companies,
+                  user_companies.c.user_id == User.id)
+            .where(user_companies.c.company_id == c.id)
+            .where(user_companies.c.role == "owner")
+        ).scalars().all()
+        is_verified = any(
+            s != UserStatus.PENDING_VERIFICATION.value
+            for s in owner_verified
+        ) if owner_verified else True
         rows.append({
             "company": c,
             "users": users,
             "journals": journals,
             "invoices": invoices,
             "last_activity": last_user_login,
+            "owner_verified": is_verified,
         })
     return rows
 

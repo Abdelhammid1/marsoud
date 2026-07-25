@@ -112,6 +112,20 @@
             </select>
           </div>
         </div>
+        {# MARSOUD-BOT-PROTECTION-01 (Abdelhamid 2026-07-24) —
+           Cloudflare Turnstile widget. Renders only when the site
+           key is configured; otherwise the div stays empty (dev
+           mode). The server-side verify_turnstile() also short-
+           circuits to True when keys are absent, so the widget
+           being missing doesn't break local signups. #}
+        {% if turnstile_site_key %}
+        <div class="cf-turnstile my-2"
+              data-sitekey="{{ turnstile_site_key }}"
+              data-theme="light"></div>
+        <script src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+                async defer></script>
+        {% endif %}
+
         <button type="submit" class="w-full bg-gradient-to-br from-[#0A2540] to-[#1B3A5C] text-white py-3 rounded-xl font-bold hover:shadow-xl hover:-translate-y-0.5 transition-all mt-2">
           ابدأ الآن
         </button>

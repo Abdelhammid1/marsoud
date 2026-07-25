@@ -39,7 +39,8 @@ def _teardown():
     insp = inspect(db.engine)
     with db.engine.begin() as conn:
         cids = [r[0] for r in conn.execute(text(
-            "SELECT id FROM companies WHERE subdomain LIKE 'bp-%'"))]
+            "SELECT id FROM companies WHERE subdomain LIKE 'bp-%' "
+            "OR name LIKE '__BP_%__'"))]
         for cid in cids:
             conn.execute(text(
                 "DELETE FROM user_companies WHERE company_id = :c"),
@@ -196,6 +197,72 @@ def _():
         assert "Registration received" not in body and "Success" not in body, \
             "got the decoy — bot-guard misfired for a real signup"
     return f"gate cleared (status={r.status_code})"
+
+
+@check("7. Turnstile short-circuits to True when keys not configured")
+def _():
+    from flask import current_app
+    from app.services.bot_guard import (
+        verify_turnstile, is_turnstile_enabled,
+    )
+    # Ensure keys are empty (dev mode).
+    current_app.config["TURNSTILE_SITE_KEY"] = ""
+    current_app.config["TURNSTILE_SECRET_KEY"] = ""
+    assert is_turnstile_enabled() is False
+    assert verify_turnstile("") is True   # no-op when unconfigured
+    assert verify_turnstile("anything") is True
+    return "dev mode: verify → True"
+
+
+@check("8. Turnstile empty token → False when keys configured")
+def _():
+    from flask import current_app
+    from app.services.bot_guard import (
+        verify_turnstile, is_turnstile_enabled,
+    )
+    current_app.config["TURNSTILE_SITE_KEY"] = "test-site"
+    current_app.config["TURNSTILE_SECRET_KEY"] = "test-secret"
+    assert is_turnstile_enabled() is True
+    # Empty response token → False WITHOUT hitting network (short
+    # circuit inside verify_turnstile).
+    assert verify_turnstile("") is False
+    # Reset for other tests.
+    current_app.config["TURNSTILE_SITE_KEY"] = ""
+    current_app.config["TURNSTILE_SECRET_KEY"] = ""
+    return "empty token → False"
+
+
+@check("9. /admin/companies hides PENDING_VERIFICATION owners by default")
+def _():
+    from flask import current_app
+    from app.services.superadmin import companies_with_stats
+    from app.models import (
+        Company, User, UserStatus,
+    )
+    from app.models.user import user_companies
+    from werkzeug.security import generate_password_hash
+    _teardown()
+    # Create a PENDING_VERIFICATION owner + company.
+    c = Company(name="__BP_PENDING_CO__", base_currency="EGP",
+                 subdomain="bp-pending")
+    db.session.add(c); db.session.flush()
+    u = User(email="bp-pend@x.test",
+             password_hash=generate_password_hash(
+                 "x", method="pbkdf2:sha256"),
+             full_name="pend", is_active=True,
+             status=UserStatus.PENDING_VERIFICATION.value)
+    db.session.add(u); db.session.flush()
+    db.session.execute(user_companies.insert().values(
+        user_id=u.id, company_id=c.id, role="owner"))
+    db.session.commit()
+
+    # companies_with_stats() should annotate owner_verified=False.
+    rows = companies_with_stats()
+    match = [r for r in rows if r["company"].id == c.id]
+    assert match, "test company missing from list"
+    assert match[0]["owner_verified"] is False, \
+        "pending owner incorrectly marked verified"
+    return "PENDING owner flagged, admin list can filter"
 
 
 def main():

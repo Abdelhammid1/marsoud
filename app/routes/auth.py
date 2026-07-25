@@ -179,6 +179,7 @@ def register():
         # (429), then spam-domain check (403).
         from app.services.bot_guard import (
             honeypot_tripped, register_rate_ok, is_spam_email, client_ip,
+            verify_turnstile, is_turnstile_enabled,
         )
         if honeypot_tripped(request.form):
             # DO NOT return an error — that tells the bot the trap
@@ -190,6 +191,13 @@ def register():
             flash("تم تجاوز الحد المسموح من محاولات التسجيل. حاول لاحقاً.",
                   "error")
             return render_template("auth/register.html"), 429
+        # Cloudflare Turnstile — no-op when the keys aren't set
+        # (dev/local). In prod both keys are populated so bots that
+        # skip the widget or reuse tokens are rejected here.
+        ts_token = request.form.get("cf-turnstile-response", "")
+        if not verify_turnstile(ts_token, remote_ip=ip):
+            flash("فشل التحقق من كونك بشراً. حاول تحديث الصفحة.", "error")
+            return render_template("auth/register.html"), 403
 
         email = request.form.get("email", "").strip().lower()
         full_name = request.form.get("full_name", "").strip()

@@ -733,6 +733,14 @@ def create_app(config_class=Config):
             pass
         return {"notif_unread_count": 0}
 
+    # MARSOUD-BOT-PROTECTION-01 (Abdelhamid 2026-07-24) — surface the
+    # Turnstile site key to the register template. When empty, the
+    # template hides the widget entirely (dev mode).
+    @app.context_processor
+    def inject_turnstile_site_key():
+        return {"turnstile_site_key":
+                app.config.get("TURNSTILE_SITE_KEY", "")}
+
     # MARSOUD-SUPPORT-TICKETS-01 — surface whether the current user
     # is a Manasty support agent so the sidebar knows whether to show
     # the /support-admin/ link. The check itself is O(1) per request.

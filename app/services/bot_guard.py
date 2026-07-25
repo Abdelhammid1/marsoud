@@ -114,7 +114,58 @@ def is_spam_email(email):
     return False
 
 
-# ─── 4. Client IP resolver ───────────────────────────────────────
+# ─── 4. Cloudflare Turnstile ─────────────────────────────────────
+# Server-side CAPTCHA verification. Turnstile is enabled only when
+# BOTH TURNSTILE_SITE_KEY (front-end widget) and
+# TURNSTILE_SECRET_KEY (server-side verify call) are configured.
+# When either is empty, is_turnstile_enabled() returns False and
+# verify_turnstile() short-circuits to True — honeypot + rate limit
+# still enforce protection.
+TURNSTILE_VERIFY_URL = ("https://challenges.cloudflare.com/turnstile/v0/"
+                         "siteverify")
+
+
+def is_turnstile_enabled():
+    """True when both keys are configured."""
+    from flask import current_app
+    return bool(
+        current_app.config.get("TURNSTILE_SITE_KEY") and
+        current_app.config.get("TURNSTILE_SECRET_KEY")
+    )
+
+
+def verify_turnstile(token, remote_ip=None, timeout_secs=5):
+    """POST the widget's response token to Cloudflare and return
+    True/False. When Turnstile isn't configured, returns True (no
+    challenge means no failure). Never raises — network errors +
+    Cloudflare 5xx return False so the caller can 403 the request."""
+    from flask import current_app
+    if not is_turnstile_enabled():
+        return True
+    if not token:
+        return False
+    secret = current_app.config.get("TURNSTILE_SECRET_KEY")
+    import urllib.parse
+    import urllib.request
+    payload = {"secret": secret, "response": token}
+    if remote_ip:
+        payload["remoteip"] = remote_ip
+    data = urllib.parse.urlencode(payload).encode("utf-8")
+    req = urllib.request.Request(
+        TURNSTILE_VERIFY_URL, data=data, method="POST",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_secs) as resp:
+            import json as _json
+            body = _json.loads(resp.read().decode("utf-8"))
+        return bool(body.get("success"))
+    except Exception:
+        current_app.logger.exception("Turnstile verify failed")
+        return False
+
+
+# ─── 5. Client IP resolver ───────────────────────────────────────
 def client_ip(request):
     """Pick a stable IP identifier for rate-limit bucketing. Behind
     nginx we trust the first entry in X-Forwarded-For; falls back

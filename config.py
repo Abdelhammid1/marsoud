@@ -54,3 +54,14 @@ class Config:
     # endpoint refuses EVERY request (fail-closed) — same lesson we
     # learned the hard way with CRON_TOKEN.
     CONTACT_FORM_TOKEN = os.environ.get("CONTACT_FORM_TOKEN", "")
+
+    # MARSOUD-BOT-PROTECTION-01 (Abdelhamid 2026-07-24) — Cloudflare
+    # Turnstile keys. Set BOTH to enable the widget on /register.
+    # When either is unset, the widget doesn't render and no
+    # server-side verification runs (dev mode). This is a *design*
+    # choice: honeypot + rate-limit + spam-domain-filter remain
+    # active regardless of Turnstile, so an unconfigured deploy is
+    # still protected — Turnstile is an extra layer, not the only
+    # defense.
+    TURNSTILE_SITE_KEY = os.environ.get("TURNSTILE_SITE_KEY", "")
+    TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "")

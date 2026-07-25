@@ -64,6 +64,13 @@ def companies():
     rows = companies_with_stats()
     if q:
         rows = [r for r in rows if q.lower() in (r["company"].name or "").lower()]
+    # MARSOUD-BOT-PROTECTION-01 (Abdelhamid 2026-07-24) — hide
+    # unverified-owner companies by default so bot signups don't
+    # clutter the list. Toggle with ?show_unverified=1 to review.
+    show_unverified = request.args.get("show_unverified") == "1"
+    unverified_count = sum(1 for r in rows if not r["owner_verified"])
+    if not show_unverified:
+        rows = [r for r in rows if r["owner_verified"]]
     sort = (request.args.get("sort") or "").strip()
     from datetime import datetime
     _min = datetime.min
@@ -73,7 +80,9 @@ def companies():
         rows.sort(key=lambda r: r["company"].created_at or _min)
     elif sort == "created_desc":
         rows.sort(key=lambda r: r["company"].created_at or _min, reverse=True)
-    return render_template("admin/companies.html", rows=rows, q=q, sort=sort)
+    return render_template("admin/companies.html", rows=rows, q=q, sort=sort,
+                             show_unverified=show_unverified,
+                             unverified_count=unverified_count)
 
 
 @bp.route("/companies/<int:company_id>")

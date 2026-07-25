@@ -8,9 +8,35 @@
       <label class="block text-xs text-ink-200 mb-1">بحث باسم الشركة</label>
       <input type="text" name="q" value="{{ q }}" class="input" placeholder="اكتب اسم الشركة...">
     </div>
+    {% if show_unverified %}
+      <input type="hidden" name="show_unverified" value="1">
+    {% endif %}
     <button type="submit" class="btn btn-primary">بحث</button>
   </form>
 </div>
+
+{# MARSOUD-BOT-PROTECTION-01 (Abdelhamid 2026-07-24) — hide
+   unverified-owner companies by default so bot signups don't
+   clutter the list. #}
+{% if unverified_count > 0 or show_unverified %}
+<div class="card p-3 mb-4 text-sm flex items-center justify-between
+            {% if show_unverified %}bg-amber-50 border border-amber-200{% else %}bg-slate-50{% endif %}">
+  <div>
+    {% if show_unverified %}
+      👁️ يعرض <b>كل الشركات</b> بما فيها {{ unverified_count }} شركة لم يتم تفعيل بريدها.
+    {% else %}
+      🙈 تم إخفاء <b>{{ unverified_count }}</b> شركة لم يفعّل مالكها البريد
+      (تسجيل تلقائي محتمل من بوت).
+    {% endif %}
+  </div>
+  <a href="{{ url_for('superadmin.companies',
+                        q=q,
+                        show_unverified='' if show_unverified else '1') }}"
+     class="text-brand-600 hover:underline text-xs">
+    {% if show_unverified %}إخفاء غير المفعّل{% else %}عرض غير المفعّل →{% endif %}
+  </a>
+</div>
+{% endif %}
 
 <div class="card p-0 overflow-hidden">
 <table class="data-table">
