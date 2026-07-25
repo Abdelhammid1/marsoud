@@ -23,6 +23,32 @@ def _next_bill_number(company_id):
     return next_number(company_id, "VENDOR_BILL")
 
 
+def _safe_float(raw, default=0):
+    """MARSOUD-FIX-VENDOR-BILL-FLOAT (Abdelhamid 2026-07-25).
+
+    Coerce a form field to a float without ever raising ValueError.
+    Handles the common bug shapes we saw in production:
+      · None / empty string → default
+      · Whitespace-only ("   ")  → default (previously crashed)
+      · Comma-formatted ("1,000") → 1000 (previously crashed)
+      · Non-numeric garbage → default (log but don't 500)
+
+    Called from every numeric form-field read on vendor bills.
+    """
+    if raw is None:
+        return default
+    s = str(raw).strip()
+    if not s:
+        return default
+    # Common Arabic/EN thousand separator that the browser accepts
+    # in numeric inputs on some locales.
+    s = s.replace(",", "")
+    try:
+        return float(s)
+    except (TypeError, ValueError):
+        return default
+
+
 @bp.route("/")
 @login_required
 def index():
@@ -243,7 +269,7 @@ def _populate_from_form(bill, form):
     bill.due_date = datetime.strptime(form.get("due_date") or (date.today() + timedelta(days=30)).isoformat(), "%Y-%m-%d").date()
     bill.payment_method = VendorBillPaymentMethod[form.get("payment_method", "CASH")]
     bill.notes = form.get("notes", "")
-    bill.tax_rate = float(form.get("tax_rate", 0) or 0)
+    bill.tax_rate = _safe_float(form.get("tax_rate"), 0)
 
     # Replace items
     for old in list(bill.items):
@@ -294,14 +320,22 @@ def _populate_from_form(bill, form):
             description=desc.strip(),
             line_type=lt,
             account_id=int(accounts[i]),
-            quantity=float(quantities[i] or 1),
-            unit_price=float(prices[i] or 0),
+            # MARSOUD-FIX-VENDOR-BILL-FLOAT (Abdelhamid 2026-07-25) —
+            # raw form values that came in as whitespace-only or
+            # comma-formatted ("1,000") used to crash the whole save
+            # with ValueError: could not convert string to float: ''.
+            # _safe_float handles the edge cases + returns a sane
+            # fallback so multi-line saves don't blow up on one
+            # sloppy field.
+            quantity=_safe_float(quantities[i] if i < len(quantities) else None, 1),
+            unit_price=_safe_float(prices[i] if i < len(prices) else None, 0),
             unit_id=uid,
             sub_category_id=sc_id,
         )
         if lt == BillLineType.FIXED_ASSET:
             item.useful_life_years = int(lives[i] or 0) if i < len(lives) and lives[i] else None
-            item.salvage_value = float(salvages[i] or 0) if i < len(salvages) and salvages[i] else 0
+            item.salvage_value = _safe_float(
+                salvages[i] if i < len(salvages) else None, 0)
         elif lt == BillLineType.INVENTORY:
             # MARSOUD-50.3 — resolve variant + warehouse for INVENTORY lines.
             # Inline-creates a Product+Variant if the row supplied a new name.
