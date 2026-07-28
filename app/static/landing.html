@@ -251,12 +251,11 @@
   }
   .price-toggle button.on{color:#fff}
   .price-toggle .slide{
-    position:absolute;top:5px;bottom:5px;left:5px;width:calc(50% - 5px);
+    position:absolute;top:5px;bottom:5px;
     background:linear-gradient(135deg,var(--emerald),var(--navy));
-    border-radius:99px;transition:transform .28s cubic-bezier(.4,0,.2,1);
+    border-radius:99px;transition:left .28s cubic-bezier(.4,0,.2,1),width .28s cubic-bezier(.4,0,.2,1);
     z-index:1;
   }
-  .price-toggle.yearly .slide{transform:translateX(-100%)}
   .price-toggle .save{
     display:inline-block;background:var(--amber);color:#fff;
     font-size:.68rem;padding:2px 7px;border-radius:99px;margin-right:6px;
@@ -282,13 +281,13 @@
     font-size:.75rem;font-weight:800;padding:6px 16px;border-radius:99px;
     box-shadow:0 6px 14px -4px rgba(5,150,105,.5);letter-spacing:.02em;
   }
-  .plan-name{font-family:'Cairo';font-weight:800;font-size:1.4rem;color:var(--slate-900);margin-bottom:4px}
-  .plan-tag{font-size:.86rem;color:var(--slate-500);margin-bottom:22px;min-height:1.4em}
-  .plan-price{display:flex;align-items:baseline;gap:6px;margin-bottom:2px}
+  .plan-name{font-family:'Cairo';font-weight:800;font-size:1.4rem;color:var(--slate-900);margin-bottom:4px;text-align:center}
+  .plan-tag{font-size:.86rem;color:var(--slate-500);margin-bottom:22px;min-height:1.4em;text-align:center}
+  .plan-price{display:flex;align-items:baseline;justify-content:center;gap:6px;margin-bottom:2px}
   .plan-price .amt{font-family:'Cairo';font-weight:900;font-size:2.6rem;color:var(--slate-900);line-height:1}
   .plan-price .cur{font-size:.95rem;font-weight:600;color:var(--slate-500)}
-  .plan-per{font-size:.88rem;color:var(--slate-500);margin-bottom:4px}
-  .plan-yearly-note{font-size:.78rem;color:var(--emerald-600);font-weight:600;min-height:1.2em;margin-bottom:22px}
+  .plan-per{font-size:.88rem;color:var(--slate-500);margin-bottom:4px;text-align:center}
+  .plan-yearly-note{font-size:.78rem;color:var(--emerald-600);font-weight:600;min-height:1.2em;margin-bottom:22px;text-align:center}
   .plan-cta{
     display:block;text-align:center;padding:12px;border-radius:12px;
     font-family:'Tajawal';font-weight:700;font-size:.98rem;margin-bottom:22px;
@@ -308,7 +307,7 @@
   .plan-limits .li .n{font-family:'Cairo';font-weight:800;font-size:1.05rem;color:var(--slate-900);display:block;line-height:1.1}
   .plan-limits .li .l{font-size:.7rem;color:var(--slate-500);display:block;margin-top:2px}
   .plan-limits .li + .li{border-right:1px solid var(--slate-200);padding-right:6px}
-  .plan-features{list-style:none;padding:0;margin:0;flex:1}
+  .plan-features{list-style:none;padding:0;margin:0 auto;flex:1;width:fit-content;display:flex;flex-direction:column;justify-content:center}
   .plan-features li{
     display:flex;align-items:flex-start;gap:9px;
     font-size:.93rem;color:var(--slate-700);padding:7px 0;
@@ -635,13 +634,12 @@
         </div>
 
         <ul class="plan-features">
-          <li>المحاسبة والقيود</li>
-          <li>المبيعات والفواتير</li>
-          <li>المخزون</li>
+          <li>المحاسبة والقيود والتقارير المالية</li>
+          <li>المبيعات والفواتير والمرتجعات</li>
+          <li>المخزون والمخازن ونقطة البيع (POS)</li>
           <li>المشتريات</li>
-          <li>نقطة البيع (POS)</li>
-          <li>التقارير المالية</li>
           <li>المحاسب الذكي (AI)</li>
+          <li>الأدوار والصلاحيات وسجل التدقيق</li>
         </ul>
       </div>
 
@@ -667,14 +665,10 @@
 
         <ul class="plan-features">
           <li>كل مميزات Starter</li>
-          <li>العملاء المحتملين (CRM)</li>
-          <li>الموارد البشرية والرواتب</li>
-          <li>المحاسبة والقيود</li>
-          <li>المبيعات والفواتير</li>
-          <li>المخزون والمشتريات</li>
-          <li>نقطة البيع (POS)</li>
-          <li>التقارير المالية</li>
-          <li>المحاسب الذكي (AI)</li>
+          <li>العملاء المحتملين وإدارة الحملات (CRM)</li>
+          <li>إدارة المهام والمشاريع والتقويم</li>
+          <li>الموظفين والرواتب</li>
+          <li>الحضور والإجازات</li>
         </ul>
       </div>
 
@@ -699,16 +693,9 @@
 
         <ul class="plan-features">
           <li>كل مميزات Growth</li>
-          <li>التصنيع (BOM + أوامر إنتاج)</li>
           <li>تقارير الموظفين اليومية</li>
-          <li>إدارة العمل والمهام</li>
-          <li>المحاسبة والقيود</li>
-          <li>المبيعات والفواتير</li>
-          <li>المخزون والمشتريات</li>
-          <li>نقطة البيع (POS)</li>
-          <li>الموارد البشرية والرواتب</li>
-          <li>CRM والتقارير المالية</li>
-          <li>المحاسب الذكي (AI)</li>
+          <li>التصنيع (BOM + أوامر إنتاج)</li>
+          <li>تقارير التكلفة الصناعية</li>
         </ul>
       </div>
     </div>
@@ -729,6 +716,13 @@
   var amounts = document.querySelectorAll('.plan-price .amt');
   var pers = document.querySelectorAll('.plan-per');
   var notes = document.querySelectorAll('.plan-yearly-note');
+  var slideEl = toggle.querySelector('.slide');
+  function positionSlide(){
+    var activeBtn = toggle.querySelector('button.on');
+    if (!activeBtn || !slideEl) return;
+    slideEl.style.left = activeBtn.offsetLeft + 'px';
+    slideEl.style.width = activeBtn.offsetWidth + 'px';
+  }
   function set(cycle){
     toggle.classList.toggle('yearly', cycle === 'yearly');
     buttons.forEach(function(b){
@@ -736,6 +730,7 @@
       b.classList.toggle('on', on);
       b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
+    positionSlide();
     amounts.forEach(function(el){
       el.textContent = el.getAttribute(cycle === 'yearly' ? 'data-yearly' : 'data-monthly');
     });
@@ -758,6 +753,11 @@
   buttons.forEach(function(b){
     b.addEventListener('click', function(){ set(b.getAttribute('data-cycle')); });
   });
+  positionSlide();
+  window.addEventListener('resize', positionSlide);
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(positionSlide);
+  }
 })();
 </script>
 
