@@ -22,6 +22,7 @@ PLAN_SEED = [
         "price_yearly": 7990,
         "modules": [
             "accounting", "sales", "purchases", "reports", "agent",
+            "inventory", "pos",
         ],
         "quotas": {
             "users": (3, 150),                    # 150 EGP/extra user
