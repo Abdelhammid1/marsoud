@@ -21,3 +21,4 @@ Pillow>=10.0.0
 #   Debian/Ubuntu: apt install libpango-1.0-0 libpangoft2-1.0-0
 #   macOS dev:     brew install pango
 weasyprint>=60.0
+python-dateutil
