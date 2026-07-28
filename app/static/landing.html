@@ -237,11 +237,100 @@
   .reveal.in{opacity:1;transform:none}
 
   /* ===== responsive ===== */
+  /* ===== pricing ===== */
+  .price-toggle{
+    display:inline-flex;background:#fff;border:1px solid var(--slate-200);
+    border-radius:99px;padding:5px;margin:0 auto 40px;box-shadow:var(--shadow-sm);
+    position:relative;
+  }
+  .price-toggle button{
+    background:none;border:none;cursor:pointer;font-family:'Tajawal';
+    font-weight:700;font-size:.95rem;color:var(--slate-500);
+    padding:10px 22px;border-radius:99px;transition:color .18s ease;
+    position:relative;z-index:2;
+  }
+  .price-toggle button.on{color:#fff}
+  .price-toggle .slide{
+    position:absolute;top:5px;bottom:5px;left:5px;width:calc(50% - 5px);
+    background:linear-gradient(135deg,var(--emerald),var(--navy));
+    border-radius:99px;transition:transform .28s cubic-bezier(.4,0,.2,1);
+    z-index:1;
+  }
+  .price-toggle.yearly .slide{transform:translateX(-100%)}
+  .price-toggle .save{
+    display:inline-block;background:var(--amber);color:#fff;
+    font-size:.68rem;padding:2px 7px;border-radius:99px;margin-right:6px;
+    font-weight:800;letter-spacing:.02em;
+  }
+  .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;align-items:stretch}
+  .plan{
+    background:#fff;border-radius:var(--radius);padding:32px 26px;
+    border:1.5px solid var(--slate-200);box-shadow:var(--shadow-sm);
+    display:flex;flex-direction:column;position:relative;
+    transition:transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+  }
+  .plan:hover{transform:translateY(-4px);box-shadow:var(--shadow-md);border-color:var(--slate-400)}
+  .plan.featured{
+    border:2px solid var(--emerald);
+    box-shadow:0 20px 44px -12px rgba(5,150,105,.28);
+    transform:translateY(-6px);
+  }
+  .plan.featured:hover{transform:translateY(-10px)}
+  .plan-badge{
+    position:absolute;top:-13px;left:50%;transform:translateX(-50%);
+    background:linear-gradient(135deg,var(--emerald),var(--navy));color:#fff;
+    font-size:.75rem;font-weight:800;padding:6px 16px;border-radius:99px;
+    box-shadow:0 6px 14px -4px rgba(5,150,105,.5);letter-spacing:.02em;
+  }
+  .plan-name{font-family:'Cairo';font-weight:800;font-size:1.4rem;color:var(--slate-900);margin-bottom:4px}
+  .plan-tag{font-size:.86rem;color:var(--slate-500);margin-bottom:22px;min-height:1.4em}
+  .plan-price{display:flex;align-items:baseline;gap:6px;margin-bottom:2px}
+  .plan-price .amt{font-family:'Cairo';font-weight:900;font-size:2.6rem;color:var(--slate-900);line-height:1}
+  .plan-price .cur{font-size:.95rem;font-weight:600;color:var(--slate-500)}
+  .plan-per{font-size:.88rem;color:var(--slate-500);margin-bottom:4px}
+  .plan-yearly-note{font-size:.78rem;color:var(--emerald-600);font-weight:600;min-height:1.2em;margin-bottom:22px}
+  .plan-cta{
+    display:block;text-align:center;padding:12px;border-radius:12px;
+    font-family:'Tajawal';font-weight:700;font-size:.98rem;margin-bottom:22px;
+    transition:background .18s ease, transform .18s ease;
+  }
+  .plan-cta.primary{background:var(--emerald);color:#fff}
+  .plan-cta.primary:hover{background:var(--emerald-600);transform:translateY(-1px)}
+  .plan-cta.ghost{background:var(--slate-100);color:var(--slate-700);border:1px solid var(--slate-200)}
+  .plan-cta.ghost:hover{background:var(--slate-200)}
+  .plan-limits{
+    display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;
+    background:linear-gradient(180deg,var(--slate-50),#fff);
+    border:1px solid var(--slate-200);border-radius:12px;
+    padding:14px 8px;margin-bottom:22px;
+  }
+  .plan-limits .li{text-align:center}
+  .plan-limits .li .n{font-family:'Cairo';font-weight:800;font-size:1.05rem;color:var(--slate-900);display:block;line-height:1.1}
+  .plan-limits .li .l{font-size:.7rem;color:var(--slate-500);display:block;margin-top:2px}
+  .plan-limits .li + .li{border-right:1px solid var(--slate-200);padding-right:6px}
+  .plan-features{list-style:none;padding:0;margin:0;flex:1}
+  .plan-features li{
+    display:flex;align-items:flex-start;gap:9px;
+    font-size:.93rem;color:var(--slate-700);padding:7px 0;
+  }
+  .plan-features li::before{
+    content:"✓";flex-shrink:0;width:20px;height:20px;
+    background:var(--emerald-light);color:var(--emerald-600);
+    border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:.78rem;
+  }
+  .plan-features li.muted{color:var(--slate-400)}
+  .plan-features li.muted::before{content:"·";background:var(--slate-100);color:var(--slate-400)}
+  .price-foot{text-align:center;color:var(--slate-500);font-size:.92rem;margin-top:36px}
+  .price-foot a{color:var(--emerald);font-weight:700}
+
   @media(max-width:900px){
     .hero-grid,.diff-in,.ai-grid{grid-template-columns:1fr;gap:40px}
     .mods{grid-template-columns:repeat(2,1fr)}
     .diff-in{padding:40px 28px}
     .nav-links{display:none}
+    .plans{grid-template-columns:1fr;gap:28px;max-width:420px;margin:0 auto}
+    .plan.featured{transform:none}
+    .plan.featured:hover{transform:translateY(-4px)}
   }
   @media(max-width:600px){
     .mods{grid-template-columns:1fr}
@@ -250,6 +339,9 @@
     section.blk{padding:60px 0}
     .je-foot .sums{gap:14px;font-size:.82rem}
     .cta-box{padding:46px 24px}
+    .plan-price .amt{font-size:2.2rem}
+    .plan-limits{grid-template-columns:1fr;padding:12px}
+    .plan-limits .li + .li{border-right:none;border-top:1px solid var(--slate-200);padding-right:0;padding-top:8px;margin-top:8px}
   }
   @media(prefers-reduced-motion:reduce){
     *{animation:none!important;transition:none!important}
@@ -305,6 +397,7 @@
     <div class="nav-links">
       <a href="#modules">الموديولات</a>
       <a href="#why">ليه مرصود</a>
+      <a href="#pricing">الأسعار</a>
       <a href="https://manasety.ai/">الشركة المطورة</a>
       <a href="https://manasety.ai/contact-page.html">تواصل معنا</a>
     </div>
@@ -500,6 +593,173 @@
     </div>
   </div>
 </section>
+
+<!-- PRICING -->
+<section class="blk" id="pricing">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <div class="kick">اختر باقتك</div>
+      <h2>أسعار واضحة، بدون مفاجآت</h2>
+      <p>3 باقات مصمّمة لتنمو مع شركتك. كل الباقات تشمل تحديثات مجانية ودعم فني.</p>
+    </div>
+
+    <div style="text-align:center">
+      <div class="price-toggle reveal" id="price-toggle" role="tablist">
+        <div class="slide"></div>
+        <button type="button" class="on" data-cycle="monthly" role="tab" aria-selected="true">شهري</button>
+        <button type="button" data-cycle="yearly" role="tab" aria-selected="false">
+          سنوي <span class="save">وفّر شهرين</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="plans">
+
+      <!-- STARTER -->
+      <div class="plan reveal">
+        <div class="plan-name">Starter</div>
+        <div class="plan-tag">للفرق الصغيرة والبداية</div>
+        <div class="plan-price">
+          <span class="amt" data-monthly="799" data-yearly="7,990">799</span>
+          <span class="cur">جنيه</span>
+        </div>
+        <div class="plan-per" data-monthly-label="/شهر" data-yearly-label="/سنة">/شهر</div>
+        <div class="plan-yearly-note" data-yearly-note="وفّر 1,598 جنيه سنوياً">أو 7,990 جنيه سنوياً</div>
+
+        <a href="/register?plan=starter" class="plan-cta ghost">ابدأ مجانًا</a>
+
+        <div class="plan-limits">
+          <div class="li"><span class="n">3</span><span class="l">مستخدم</span></div>
+          <div class="li"><span class="n">2 GB</span><span class="l">تخزين</span></div>
+          <div class="li"><span class="n">300K</span><span class="l">توكنز AI</span></div>
+        </div>
+
+        <ul class="plan-features">
+          <li>المحاسبة والقيود</li>
+          <li>المبيعات والفواتير</li>
+          <li>المخزون</li>
+          <li>المشتريات</li>
+          <li>نقطة البيع (POS)</li>
+          <li>التقارير المالية</li>
+          <li>المحاسب الذكي (AI)</li>
+        </ul>
+      </div>
+
+      <!-- GROWTH — FEATURED -->
+      <div class="plan featured reveal">
+        <span class="plan-badge">⭐ الأكثر شيوعاً</span>
+        <div class="plan-name">Growth</div>
+        <div class="plan-tag">للشركات المتوسطة النامية</div>
+        <div class="plan-price">
+          <span class="amt" data-monthly="1,499" data-yearly="14,990">1,499</span>
+          <span class="cur">جنيه</span>
+        </div>
+        <div class="plan-per" data-monthly-label="/شهر" data-yearly-label="/سنة">/شهر</div>
+        <div class="plan-yearly-note" data-yearly-note="وفّر 2,998 جنيه سنوياً">أو 14,990 جنيه سنوياً</div>
+
+        <a href="/register?plan=growth" class="plan-cta primary">ابدأ مجانًا</a>
+
+        <div class="plan-limits">
+          <div class="li"><span class="n">7</span><span class="l">مستخدم</span></div>
+          <div class="li"><span class="n">10 GB</span><span class="l">تخزين</span></div>
+          <div class="li"><span class="n">600K</span><span class="l">توكنز AI</span></div>
+        </div>
+
+        <ul class="plan-features">
+          <li>كل مميزات Starter</li>
+          <li>العملاء المحتملين (CRM)</li>
+          <li>الموارد البشرية والرواتب</li>
+          <li>المحاسبة والقيود</li>
+          <li>المبيعات والفواتير</li>
+          <li>المخزون والمشتريات</li>
+          <li>نقطة البيع (POS)</li>
+          <li>التقارير المالية</li>
+          <li>المحاسب الذكي (AI)</li>
+        </ul>
+      </div>
+
+      <!-- PRO -->
+      <div class="plan reveal">
+        <div class="plan-name">Pro</div>
+        <div class="plan-tag">للشركات الكبيرة والمصانع</div>
+        <div class="plan-price">
+          <span class="amt" data-monthly="2,799" data-yearly="27,990">2,799</span>
+          <span class="cur">جنيه</span>
+        </div>
+        <div class="plan-per" data-monthly-label="/شهر" data-yearly-label="/سنة">/شهر</div>
+        <div class="plan-yearly-note" data-yearly-note="وفّر 5,598 جنيه سنوياً">أو 27,990 جنيه سنوياً</div>
+
+        <a href="/register?plan=pro" class="plan-cta ghost">ابدأ مجانًا</a>
+
+        <div class="plan-limits">
+          <div class="li"><span class="n">15</span><span class="l">مستخدم</span></div>
+          <div class="li"><span class="n">50 GB</span><span class="l">تخزين</span></div>
+          <div class="li"><span class="n">1M</span><span class="l">توكنز AI</span></div>
+        </div>
+
+        <ul class="plan-features">
+          <li>كل مميزات Growth</li>
+          <li>التصنيع (BOM + أوامر إنتاج)</li>
+          <li>تقارير الموظفين اليومية</li>
+          <li>إدارة العمل والمهام</li>
+          <li>المحاسبة والقيود</li>
+          <li>المبيعات والفواتير</li>
+          <li>المخزون والمشتريات</li>
+          <li>نقطة البيع (POS)</li>
+          <li>الموارد البشرية والرواتب</li>
+          <li>CRM والتقارير المالية</li>
+          <li>المحاسب الذكي (AI)</li>
+        </ul>
+      </div>
+    </div>
+
+    <p class="price-foot">
+      جميع الباقات تشمل 14 يوم تجربة مجانية بكامل المميزات، بدون بيانات بطاقة.
+      <br>
+      محتاج باقة مخصصة؟ <a href="https://manasety.ai/contact-page.html">تواصل معنا</a>.
+    </p>
+  </div>
+</section>
+
+<script>
+(function(){
+  var toggle = document.getElementById('price-toggle');
+  if (!toggle) return;
+  var buttons = toggle.querySelectorAll('button[data-cycle]');
+  var amounts = document.querySelectorAll('.plan-price .amt');
+  var pers = document.querySelectorAll('.plan-per');
+  var notes = document.querySelectorAll('.plan-yearly-note');
+  function set(cycle){
+    toggle.classList.toggle('yearly', cycle === 'yearly');
+    buttons.forEach(function(b){
+      var on = b.getAttribute('data-cycle') === cycle;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    amounts.forEach(function(el){
+      el.textContent = el.getAttribute(cycle === 'yearly' ? 'data-yearly' : 'data-monthly');
+    });
+    pers.forEach(function(el){
+      el.textContent = el.getAttribute(cycle === 'yearly' ? 'data-yearly-label' : 'data-monthly-label');
+    });
+    notes.forEach(function(el){
+      // Swap between the "yearly total" hint (monthly view) and the "you save" line (yearly view).
+      var msg = cycle === 'yearly' ? el.getAttribute('data-yearly-note') : el.textContent;
+      if (cycle === 'yearly') { el.textContent = el.getAttribute('data-yearly-note'); }
+      else {
+        // Restore the "or X yearly" hint deterministically from data-yearly on the amt sibling.
+        var card = el.closest('.plan');
+        var amt = card && card.querySelector('.plan-price .amt');
+        var yearly = amt && amt.getAttribute('data-yearly');
+        el.textContent = yearly ? ('أو ' + yearly + ' جنيه سنوياً') : el.textContent;
+      }
+    });
+  }
+  buttons.forEach(function(b){
+    b.addEventListener('click', function(){ set(b.getAttribute('data-cycle')); });
+  });
+})();
+</script>
 
 <!-- FINAL CTA -->
 <section class="cta-band" id="start">
