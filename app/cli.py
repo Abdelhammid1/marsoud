@@ -40,7 +40,7 @@ PLAN_SEED = [
         "price_yearly": 14990,
         "modules": [
             "accounting", "sales", "purchases", "reports", "agent",
-            "inventory", "pos", "crm",
+            "inventory", "pos", "crm", "hr",
         ],
         "quotas": {
             "users": (7, 150),
