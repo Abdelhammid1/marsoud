@@ -699,7 +699,18 @@ tailwind.config = {
              an otherwise-open section. subitem_allowed() returns True
              when the company has no plan, the plan's allowed_subitems is
              null (legacy), or the endpoint is listed in it. #}
-          {% if (not req or has_permission(req)) and subitem_allowed(endpoint) %}
+          {# MARSOUD-SUPPORT-SIDEBAR-GATE (Abdelhamid 2026-07-29) —
+             the "دعم منصتي" cross-tenant inbox must ONLY show for
+             users who are actually Manasty support agents. The
+             permission alone isn't enough — the `owner` role holds
+             support.manage_tickets by default, so every owner of
+             every customer company was seeing this section. Add
+             a Manasty-membership check on top. is_support_agent
+             comes from the context processor in app/__init__.py
+             and is already False for anyone outside Manasty. #}
+          {% set _ok_support = (not endpoint.startswith('support_admin.'))
+                                or is_support_agent %}
+          {% if (not req or has_permission(req)) and subitem_allowed(endpoint) and _ok_support %}
             {% set _ = ns.visible.append((endpoint, label, icon, kwargs)) %}
             {% if request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
               {% set ns.active = true %}
