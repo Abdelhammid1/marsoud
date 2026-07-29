@@ -99,11 +99,19 @@ def company_detail(company_id):
                        .order_by(PlatformAuditLog.created_at.desc())
                        .limit(25).all())
     plans = Plan.query.filter_by(is_active=True).order_by(Plan.id).all()
+    # MARSOUD-SUPERADMIN-LINK-USER-01 (Batch 7 Ticket 1) — expose
+    # the roles list to the link-user form. Skip `client` +
+    # `employee` (attached via portal signup / HR self-service).
+    from app.services.permissions import ALL_ROLES, ROLE_LABELS_AR
+    linkable_roles = [r for r in ALL_ROLES
+                       if r not in ("client", "employee")]
     return render_template("admin/company_detail.html",
                            company=company,
                            company_users=company_users,
                            recent_activity=recent_activity,
-                           plans=plans)
+                           plans=plans,
+                           linkable_roles=linkable_roles,
+                           role_labels_ar=ROLE_LABELS_AR)
 
 
 @bp.route("/companies/<int:company_id>/toggle", methods=["POST"])
@@ -292,6 +300,123 @@ def user_unlink(user_id, company_id):
                             target_company_id=company_id)
         flash("تم فك الربط", "success")
     return redirect(request.referrer or url_for("superadmin.users"))
+
+
+# ─── MARSOUD-SUPERADMIN-LINK-USER-01 (Batch 7 Ticket 1, 2026-07-29) ───
+@bp.route("/companies/<int:company_id>/link-user", methods=["POST"])
+@login_required
+@superadmin_required
+def company_link_user(company_id):
+    """Attach an email to a company from super-admin. Two paths:
+
+      · Existing User → INSERT (or UPDATE) user_companies row with
+        the chosen role. Bypasses the regular /users/invite
+        `role != 'owner'` guard — super-admin is the escape hatch
+        when a company loses its only owner.
+      · New email → CREATE Invitation + send accept email. Reuses
+        the same helpers the regular owner-invite flow uses so
+        the accept URL + email template stay consistent.
+
+    Multiple owners are permitted (schema allows it — PK is
+    user_id + company_id, no unique on role). Cross-tenant is
+    enforced by the (company_id, user_id) primary key.
+    """
+    from app.services.permissions import ALL_ROLES, ROLE_LABELS_AR
+    from app.models import Role
+    from app.services.email import send_invitation_email
+    from app.services.permissions import generate_invite_token
+
+    company = db.session.get(Company, company_id) or _404()
+    email = (request.form.get("email") or "").strip().lower()
+    role = (request.form.get("role") or "").strip()
+
+    # Basic input validation.
+    if not email or "@" not in email or "." not in email.split("@")[-1]:
+        flash("بريد إلكتروني غير صالح", "error")
+        return redirect(url_for("superadmin.company_detail",
+                                 company_id=company_id))
+    if role not in ALL_ROLES:
+        flash("دور غير صالح", "error")
+        return redirect(url_for("superadmin.company_detail",
+                                 company_id=company_id))
+
+    # Existing-user path.
+    existing = User.query.filter_by(email=email).first()
+    if existing:
+        # Refuse to link deactivated / soft-deleted accounts.
+        if not existing.is_active:
+            flash("المستخدم موقوف — فعّل الحساب أولاً", "error")
+            return redirect(url_for("superadmin.company_detail",
+                                     company_id=company_id))
+        # Look up the matching Role row (some deployments have
+        # per-company custom Role rows; system role is our
+        # fallback).
+        role_row = Role.query.filter_by(
+            company_id=company_id, code=role).first()
+        # Check for existing user_companies row (re-link case:
+        # super-admin may be re-adding the same user right after
+        # an unlink).
+        row = db.session.execute(
+            user_companies.select().where(
+                (user_companies.c.user_id == existing.id) &
+                (user_companies.c.company_id == company_id)
+            )
+        ).fetchone()
+        if row:
+            db.session.execute(
+                user_companies.update()
+                .where(
+                    (user_companies.c.user_id == existing.id) &
+                    (user_companies.c.company_id == company_id)
+                )
+                .values(role=role,
+                         role_id=role_row.id if role_row else None)
+            )
+            action = "user_link_role_updated"
+            msg = (f"تم تحديث دور {existing.email} إلى "
+                    f"{ROLE_LABELS_AR.get(role, role)}")
+        else:
+            db.session.execute(user_companies.insert().values(
+                user_id=existing.id, company_id=company_id,
+                role=role,
+                role_id=role_row.id if role_row else None,
+            ))
+            action = ("user_link_owner_by_superadmin"
+                       if role == "owner" else "user_link_to_company")
+            msg = (f"تم ربط {existing.email} بالشركة كـ "
+                    f"{ROLE_LABELS_AR.get(role, role)}")
+        db.session.commit()
+        log_platform_action(action,
+                             target_user_id=existing.id,
+                             target_company_id=company_id)
+        flash(msg, "success")
+        return redirect(url_for("superadmin.company_detail",
+                                 company_id=company_id))
+
+    # New-email path — mint an invitation + send accept email.
+    token = generate_invite_token({
+        "email": email, "company_id": company_id, "role": role,
+    })
+    inv = Invitation(
+        company_id=company_id,
+        email=email, role=role, token=token,
+        invited_by_id=current_user.id,
+    )
+    db.session.add(inv)
+    db.session.commit()
+    accept_url = url_for("invitations.accept", token=token,
+                          _external=True)
+    try:
+        send_invitation_email(inv, accept_url)
+    except Exception:
+        import logging
+        logging.getLogger("marsoud.superadmin").exception(
+            "invite email send failed for %s", email)
+    log_platform_action("user_invite_from_superadmin",
+                         target_company_id=company_id)
+    flash(f"تم إرسال دعوة إلى {email}", "success")
+    return redirect(url_for("superadmin.company_detail",
+                             company_id=company_id))
 
 
 @bp.route("/users/<int:user_id>/resend-invite", methods=["POST"])

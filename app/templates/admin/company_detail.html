@@ -81,6 +81,41 @@
       {% endfor %}
       </tbody>
     </table>
+
+    {# MARSOUD-SUPERADMIN-LINK-USER-01 (Batch 7 Ticket 1,
+       2026-07-29) — add a user/email to this company. If the
+       email is an existing User, we insert directly (or update
+       the role if they were already linked). If it's a new
+       email, we mint an Invitation + send the accept email. #}
+    <div class="mt-4 p-3 bg-white/5 rounded border border-white/10">
+      <div class="text-sm font-semibold text-white mb-2">
+        ➕ ربط مستخدم جديد بالشركة
+      </div>
+      <form method="POST"
+            action="{{ url_for('superadmin.company_link_user', company_id=company.id) }}"
+            class="flex flex-wrap gap-2 items-end">
+        <div class="flex-1 min-w-[220px]">
+          <label class="block text-xs text-ink-200 mb-1">البريد الإلكتروني</label>
+          <input type="email" name="email" required dir="ltr"
+                 placeholder="user@example.com"
+                 class="input text-sm w-full">
+        </div>
+        <div>
+          <label class="block text-xs text-ink-200 mb-1">الدور</label>
+          <select name="role" class="select text-sm">
+            {% for r in linkable_roles %}
+            <option value="{{ r }}" {% if r == 'owner' %}selected{% endif %}>
+              {{ role_labels_ar.get(r, r) }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary text-sm">ربط</button>
+      </form>
+      <p class="text-xs text-ink-200 mt-2">
+        لو الإيميل موجود يتربط فوراً؛ لو جديد نبعت له دعوة على البريد.
+      </p>
+    </div>
   </div>
 
   {# MARSOUD-K — super-admin deletion controls. #}
