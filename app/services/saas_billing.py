@@ -215,11 +215,44 @@ def create_first_invoice(company):
     invoice.recalc()
     db.session.flush()
 
+    # MARSOUD-SAAS-INVOICE-LEDGER-01 (Batch 6 Ticket 6, 2026-07-29)
+    # — post the journal entry BEFORE emailing, inside the same
+    # transaction. If ledger posting fails, the whole invoice
+    # rolls back so we never leave an invoice orphan without a
+    # matching journal entry (which would break AR aging + the
+    # customer sub-account balance). Idempotent via
+    # _has_journal_entry() so callers can safely retry.
+    _post_to_ledger_idempotent(invoice)
+
     # MARSOUD-SAAS-EMAIL-01 (2026-07-29) — email the customer
     # about their new subscription invoice. Wrapped in a try so
     # a mail-server hiccup doesn't roll back the invoice creation.
     _try_email(invoice)
     return invoice
+
+
+def _has_journal_entry(invoice):
+    """MARSOUD-SAAS-INVOICE-LEDGER-01 idempotency check. Returns
+    True if this invoice already has at least one journal entry
+    posted for it. Guards against double-posting on retries + on
+    the backfill script rerun."""
+    from sqlalchemy import text
+    row = db.session.execute(text(
+        "SELECT id FROM journal_entries "
+        "WHERE source_type = 'invoice' AND source_id = :i "
+        "LIMIT 1"), {"i": invoice.id}).fetchone()
+    return row is not None
+
+
+def _post_to_ledger_idempotent(invoice, created_by=None):
+    """Post the invoice to the ledger unless it already has an
+    entry. Any LedgerError propagates so the caller's outer
+    transaction rolls back — orphan invoices are worse than a
+    failed signup."""
+    from app.services.invoicing import post_invoice_to_ledger
+    if _has_journal_entry(invoice):
+        return None
+    return post_invoice_to_ledger(invoice, created_by=created_by)
 
 
 def _try_email(invoice):
@@ -327,6 +360,12 @@ def _saas_post_payment(invoice, admin_user_id):
         ))
         next_inv.recalc()
         db.session.flush()
+        # MARSOUD-SAAS-INVOICE-LEDGER-01 (Batch 6 Ticket 6,
+        # 2026-07-29) — post the JE for the next-cycle invoice
+        # inside the same transaction. Same idempotency guard as
+        # create_first_invoice.
+        _post_to_ledger_idempotent(next_inv,
+                                     created_by=admin_user_id)
     return tenant, next_inv
 
 

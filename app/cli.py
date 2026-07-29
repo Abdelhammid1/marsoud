@@ -254,7 +254,107 @@ def saas_backfill_command(dry_run):
         click.echo("\n(dry-run — no writes)")
 
 
+@click.command("saas-backfill-ledger")
+@click.option("--dry-run", is_flag=True,
+              help="List the orphan invoices without posting.")
+@click.option("--yes", is_flag=True,
+              help="Skip the pre-flight confirmation prompt.")
+@with_appcontext
+def saas_backfill_ledger_command(dry_run, yes):
+    """MARSOUD-SAAS-INVOICE-LEDGER-01 (Batch 6 Ticket 6,
+    2026-07-29) — one-shot script that posts a journal entry
+    for every SaaS invoice (source='SAAS_BILLING') that lacks
+    one. Uses the invoice's ORIGINAL issue_date as the entry
+    date, so historical monthly reports don't shift.
+
+    Cross-tenant: scans every company. Idempotent — an invoice
+    that already has a JE is skipped. Safe to re-run.
+    """
+    from app import db
+    from app.models import Invoice, InvoiceStatus
+    from app.services.invoicing import post_invoice_to_ledger
+    from sqlalchemy import text
+
+    # Find orphan SaaS invoices — status != DRAFT (drafts are
+    # provisional, they should NOT post to the ledger).
+    rows = db.session.execute(text(
+        "SELECT i.id, i.company_id, i.number, i.issue_date, "
+        "       i.total, i.status "
+        "FROM invoices i "
+        "WHERE i.source = 'SAAS_BILLING' "
+        "  AND i.status != 'DRAFT' "
+        "  AND NOT EXISTS ("
+        "    SELECT 1 FROM journal_entries je "
+        "    WHERE je.source_type = 'invoice' "
+        "      AND je.source_id = i.id"
+        "  ) "
+        "ORDER BY i.company_id, i.issue_date, i.id"
+    )).fetchall()
+
+    click.echo("─" * 60)
+    click.echo(f"  Orphan SaaS invoices: {len(rows)}")
+    click.echo("─" * 60)
+    by_company = {}
+    total_amount = 0.0
+    for r in rows:
+        by_company.setdefault(r[1], []).append(r)
+        total_amount += float(r[4] or 0)
+    for cid, invs in by_company.items():
+        subtotal = sum(float(r[4] or 0) for r in invs)
+        click.echo(f"  Company #{cid}: {len(invs)} invoices, "
+                    f"total = {subtotal:,.2f}")
+        for r in invs:
+            click.echo(f"    {r[2]}  {r[3]}  {float(r[4] or 0):,.2f}  {r[5]}")
+    click.echo("─" * 60)
+    click.echo(f"  Grand total: {total_amount:,.2f}")
+    click.echo("─" * 60)
+
+    if not rows:
+        click.echo("  Nothing to do — no orphan SaaS invoices.")
+        return
+
+    if dry_run:
+        click.echo("\n(dry-run — no writes)")
+        return
+
+    if not yes:
+        if not click.confirm(
+                "\nPost journal entries for the invoices above?"):
+            click.echo("aborted.")
+            return
+
+    posted = 0
+    errored = 0
+    error_list = []
+    for r in rows:
+        inv = db.session.get(Invoice, r[0])
+        if inv is None:
+            continue
+        try:
+            entry = post_invoice_to_ledger(
+                inv, created_by=inv.created_by_id)
+            db.session.commit()
+            posted += 1
+            click.echo(f"  POSTED  {inv.number}  → JE {entry.number}")
+        except Exception as e:  # noqa: BLE001
+            db.session.rollback()
+            errored += 1
+            error_list.append((inv.number, str(e)))
+            click.echo(f"  ERROR  {inv.number}: {e}")
+
+    click.echo("")
+    click.echo("─" * 60)
+    click.echo(f"  Posted:  {posted}")
+    click.echo(f"  Errored: {errored}")
+    click.echo("─" * 60)
+    if error_list:
+        click.echo("\nErrors:")
+        for num, err in error_list:
+            click.echo(f"  {num}: {err}")
+
+
 def register(app):
     """Wire the CLI into the Flask app. Called from app/__init__.py."""
     app.cli.add_command(seed_plans_command)
     app.cli.add_command(saas_backfill_command)
+    app.cli.add_command(saas_backfill_ledger_command)
