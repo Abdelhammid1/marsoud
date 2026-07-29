@@ -43,11 +43,11 @@
   <thead>
     <tr>
       <th>الشركة</th>
-      <th><a href="{{ url_for('superadmin.companies', q=q, sort='created_asc') }}" class="text-white hover:underline">تاريخ الإنشاء ↑</a> / <a href="{{ url_for('superadmin.companies', q=q, sort='created_desc') }}" class="text-white hover:underline">↓</a></th>
+      <th><a href="{{ url_for('superadmin.companies', q=q, sort='created_asc') }}" class="text-slate-700 hover:underline">تاريخ الإنشاء ↑</a> / <a href="{{ url_for('superadmin.companies', q=q, sort='created_desc') }}" class="text-slate-700 hover:underline">↓</a></th>
       <th>المستخدمون</th>
       <th>القيود</th>
       <th>الفواتير</th>
-      <th><a href="{{ url_for('superadmin.companies', q=q, sort='activity') }}" class="text-white hover:underline">آخر نشاط ↓</a></th>
+      <th><a href="{{ url_for('superadmin.companies', q=q, sort='activity') }}" class="text-slate-700 hover:underline">آخر نشاط ↓</a></th>
       <th>الحالة</th>
       <th>الإجراءات</th>
     </tr>
@@ -57,7 +57,7 @@
     <tr>
       <td>
         <a href="{{ url_for('superadmin.company_detail', company_id=r.company.id) }}"
-           class="text-white font-semibold hover:underline">{{ r.company.name }}</a>
+           class="text-slate-900 font-semibold hover:underline">{{ r.company.name }}</a>
         <div class="text-xs text-ink-200">{{ r.company.base_currency }} · ضريبة {{ r.company.vat_rate }}%</div>
       </td>
       <td class="font-mono text-xs">{{ r.company.created_at | company_dt('%Y-%m-%d') if r.company.created_at else '—' }}</td>

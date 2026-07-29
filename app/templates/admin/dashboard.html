@@ -5,7 +5,7 @@
 <div class="grid grid-cols-4 gap-4 mb-6">
   <div class="stat p-5">
     <div class="text-xs text-ink-200 mb-1">إجمالي الشركات</div>
-    <div class="text-3xl font-bold text-white">{{ total_companies }}</div>
+    <div class="text-3xl font-bold text-slate-900">{{ total_companies }}</div>
     <div class="text-xs text-ink-200 mt-2">
       <span class="text-emerald-300">{{ active_companies }} نشطة</span>
       · <span class="text-amber-300">{{ trial_companies }} تجريبية</span>
@@ -14,7 +14,7 @@
   </div>
   <div class="stat-muted p-5">
     <div class="text-xs text-ink-200 mb-1">إجمالي المستخدمين</div>
-    <div class="text-3xl font-bold text-white">{{ total_users }}</div>
+    <div class="text-3xl font-bold text-slate-900">{{ total_users }}</div>
     <div class="text-xs text-ink-200 mt-2">
       <span class="text-amber-300">{{ active_24h }}</span> آخر 24س ·
       <span class="text-sky-300">{{ active_7d }}</span> آخر 7 أيام
@@ -22,19 +22,19 @@
   </div>
   <div class="stat-muted p-5">
     <div class="text-xs text-ink-200 mb-1">إجمالي القيود</div>
-    <div class="text-3xl font-bold text-white">{{ total_journals }}</div>
+    <div class="text-3xl font-bold text-slate-900">{{ total_journals }}</div>
     <div class="text-xs text-ink-200 mt-2">عبر كل الشركات</div>
   </div>
   <div class="stat-muted p-5">
     <div class="text-xs text-ink-200 mb-1">إجمالي الفواتير</div>
-    <div class="text-3xl font-bold text-white">{{ total_invoices }}</div>
+    <div class="text-3xl font-bold text-slate-900">{{ total_invoices }}</div>
     <div class="text-xs text-ink-200 mt-2">عبر كل الشركات</div>
   </div>
 </div>
 
 <div class="grid grid-cols-2 gap-4">
   <div class="card p-5">
-    <h3 class="font-bold text-white mb-3 flex items-center gap-2">
+    <h3 class="font-bold text-slate-900 mb-3 flex items-center gap-2">
       <span>🟢</span> آخر تسجيلات الدخول
     </h3>
     {% if last_logins %}
@@ -56,7 +56,7 @@
   </div>
 
   <div class="card p-5">
-    <h3 class="font-bold text-white mb-3 flex items-center gap-2">
+    <h3 class="font-bold text-slate-900 mb-3 flex items-center gap-2">
       <span>📜</span> آخر النشاطات
     </h3>
     {% if recent_audit %}
@@ -82,7 +82,7 @@
    MRR/ARR + subscription counts + 12-month revenue chart. #}
 {% if revenue %}
 <div class="card p-5 mt-4">
-  <h3 class="font-bold text-white mb-3 flex items-center gap-2">
+  <h3 class="font-bold text-slate-900 mb-3 flex items-center gap-2">
     <span>💰</span> الإيرادات والاشتراكات
   </h3>
   <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
@@ -110,18 +110,18 @@
 
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
     <div>
-      <h4 class="text-sm font-semibold text-white mb-2">توزيع الشركات على الباقات</h4>
+      <h4 class="text-sm font-semibold text-slate-900 mb-2">توزيع الشركات على الباقات</h4>
       <ul class="space-y-2">
         {% for row in revenue.plan_distribution %}
         <li class="flex items-center justify-between text-sm bg-white/5 rounded p-2">
           <span class="text-ink-200">{{ row.label }}</span>
-          <span class="font-mono font-bold text-white">{{ row.count }}</span>
+          <span class="font-mono font-bold text-slate-900">{{ row.count }}</span>
         </li>
         {% endfor %}
       </ul>
     </div>
     <div>
-      <h4 class="text-sm font-semibold text-white mb-2">حالة الاشتراكات</h4>
+      <h4 class="text-sm font-semibold text-slate-900 mb-2">حالة الاشتراكات</h4>
       <ul class="space-y-2">
         {% for label, ar in [('TRIAL', 'فترة تجربة'),
                                 ('ACTIVE', 'اشتراك نشط'),
@@ -130,7 +130,7 @@
                                 ('NEVER_STARTED', 'لم يبدأ')] %}
         <li class="flex items-center justify-between text-sm bg-white/5 rounded p-2">
           <span class="text-ink-200">{{ ar }}</span>
-          <span class="font-mono font-bold text-white">{{ revenue.subscription_states[label] }}</span>
+          <span class="font-mono font-bold text-slate-900">{{ revenue.subscription_states[label] }}</span>
         </li>
         {% endfor %}
       </ul>
@@ -138,7 +138,7 @@
   </div>
 
   <div class="mt-4">
-    <h4 class="text-sm font-semibold text-white mb-2">📈 الإيرادات آخر 12 شهر</h4>
+    <h4 class="text-sm font-semibold text-slate-900 mb-2">📈 الإيرادات آخر 12 شهر</h4>
     <canvas id="revenue-chart" height="80"></canvas>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script>
