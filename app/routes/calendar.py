@@ -6,15 +6,32 @@ This satisfies FR-39's literal requirement (system shows a calendar of meetings
 deferred to v1.5+ per the SRD's MVP-scope section.
 """
 from datetime import date, datetime, timedelta
-from flask import Blueprint, render_template, g, request
+from flask import (
+    Blueprint, render_template, g, request, redirect, url_for, flash,
+    abort,
+)
 from flask_login import login_required, current_user
 
 from app import db
 from app.models import (
     Lead, Task, Project, TaskStatus, ProjectStatus,
-    LeadActivity, LeadActivityType,
+    LeadActivity, LeadActivityType, CalendarEvent,
 )
 from app.services.permissions import get_user_role
+
+
+def _parse_dt(raw):
+    """Accept HTML5 datetime-local ("YYYY-MM-DDTHH:MM") or ISO."""
+    if not raw:
+        return None
+    raw = raw.strip()
+    for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M",
+                 "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(raw, fmt)
+        except ValueError:
+            continue
+    return None
 
 
 bp = Blueprint("calendar", __name__)
@@ -148,7 +165,30 @@ def index():
                 "link": f"/projects/{p.id}",
             })
 
-    events = sorted(meetings + tasks + projects, key=lambda e: e["when"])
+    # MARSOUD-CALENDAR-MANUAL-EVENTS (Abdelhamid 2026-07-29) — user-
+    # added events (visible to everyone in the company, regardless
+    # of role). Same window as the derived events.
+    manual_events = []
+    start_dt = datetime.combine(today, datetime.min.time())
+    end_dt = datetime.combine(horizon, datetime.min.time())
+    mq = CalendarEvent.query.filter(
+        CalendarEvent.company_id == cid,
+        CalendarEvent.is_deleted.is_(False),
+        CalendarEvent.starts_at >= start_dt,
+        CalendarEvent.starts_at < end_dt,
+    ).order_by(CalendarEvent.starts_at)
+    for e in mq.all():
+        manual_events.append({
+            "when": e.starts_at,
+            "kind": "manual",
+            "title": e.title,
+            "subtitle": (e.location or e.description or "")[:120],
+            "link": None,
+            "event_id": e.id,
+        })
+
+    events = sorted(meetings + tasks + projects + manual_events,
+                    key=lambda e: e["when"])
     # Group by date for the timeline render
     by_day = {}
     for e in events:
@@ -159,3 +199,101 @@ def index():
                            by_day=by_day, today=today,
                            horizon=horizon, window=window,
                            total=len(events))
+
+
+# ─── MARSOUD-CALENDAR-MANUAL-EVENTS (Abdelhamid 2026-07-29) ───
+@bp.route("/events", methods=["POST"])
+@login_required
+def create_event():
+    cid = g.active_company.id
+    title = (request.form.get("title") or "").strip()
+    starts_raw = request.form.get("starts_at")
+    if not title or not starts_raw:
+        flash("لازم تدخل عنوان وتاريخ بداية.", "error")
+        return redirect(url_for("calendar.index"))
+    starts_at = _parse_dt(starts_raw)
+    if not starts_at:
+        flash("تنسيق تاريخ البداية غير صحيح.", "error")
+        return redirect(url_for("calendar.index"))
+    ends_at = _parse_dt(request.form.get("ends_at"))
+    if ends_at and ends_at < starts_at:
+        flash("تاريخ النهاية لازم يكون بعد البداية.", "error")
+        return redirect(url_for("calendar.index"))
+    reminder_raw = request.form.get("reminder_minutes_before")
+    reminder = None
+    if reminder_raw:
+        try:
+            reminder = int(reminder_raw)
+            if reminder < 0:
+                reminder = None
+        except ValueError:
+            reminder = None
+    ev = CalendarEvent(
+        company_id=cid,
+        created_by_id=current_user.id,
+        title=title[:255],
+        description=(request.form.get("description") or "").strip()
+                     or None,
+        starts_at=starts_at,
+        ends_at=ends_at,
+        location=(request.form.get("location") or "").strip()[:500]
+                  or None,
+        reminder_minutes_before=reminder,
+    )
+    db.session.add(ev)
+    db.session.commit()
+    flash(f"تم إضافة الحدث: {title}", "success")
+    return redirect(url_for("calendar.index"))
+
+
+@bp.route("/events/<int:event_id>/edit", methods=["POST"])
+@login_required
+def edit_event(event_id):
+    cid = g.active_company.id
+    ev = CalendarEvent.query.filter_by(
+        id=event_id, company_id=cid, is_deleted=False).first()
+    if not ev:
+        abort(404)
+    title = (request.form.get("title") or "").strip()
+    starts_at = _parse_dt(request.form.get("starts_at"))
+    if not title or not starts_at:
+        flash("لازم تدخل عنوان وتاريخ بداية.", "error")
+        return redirect(url_for("calendar.index"))
+    ends_at = _parse_dt(request.form.get("ends_at"))
+    if ends_at and ends_at < starts_at:
+        flash("تاريخ النهاية لازم يكون بعد البداية.", "error")
+        return redirect(url_for("calendar.index"))
+    reminder_raw = request.form.get("reminder_minutes_before")
+    reminder = None
+    if reminder_raw:
+        try:
+            reminder = int(reminder_raw)
+            if reminder < 0:
+                reminder = None
+        except ValueError:
+            reminder = None
+    ev.title = title[:255]
+    ev.description = ((request.form.get("description") or "").strip()
+                       or None)
+    ev.starts_at = starts_at
+    ev.ends_at = ends_at
+    ev.location = ((request.form.get("location") or "").strip()[:500]
+                    or None)
+    ev.reminder_minutes_before = reminder
+    db.session.commit()
+    flash("تم تحديث الحدث.", "success")
+    return redirect(url_for("calendar.index"))
+
+
+@bp.route("/events/<int:event_id>/delete", methods=["POST"])
+@login_required
+def delete_event(event_id):
+    cid = g.active_company.id
+    ev = CalendarEvent.query.filter_by(
+        id=event_id, company_id=cid, is_deleted=False).first()
+    if not ev:
+        abort(404)
+    ev.is_deleted = True
+    db.session.commit()
+    flash("تم حذف الحدث.", "success")
+    return redirect(url_for("calendar.index"))

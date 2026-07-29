@@ -4,16 +4,22 @@
 <div class="flex items-center justify-between mb-4">
   <div>
     <h2 class="font-bold text-navy-900">التقويم</h2>
-    <p class="text-xs text-slate-500">الاجتماعات القادمة + مواعيد المهام + التسليمات — {{ total }} حدث خلال {{ window }} يوم.</p>
+    <p class="text-xs text-slate-500">الاجتماعات القادمة + مواعيد المهام + التسليمات + أحداثك الشخصية — {{ total }} حدث خلال {{ window }} يوم.</p>
   </div>
-  <form method="GET" class="flex items-center gap-2">
-    <label class="text-xs text-slate-700">نافذة</label>
-    <select name="days" onchange="this.form.submit()" class="select text-sm">
-      {% for n in [7, 14, 30, 60, 90, 180] %}
-      <option value="{{ n }}" {% if window == n %}selected{% endif %}>{{ n }} يوم</option>
-      {% endfor %}
-    </select>
-  </form>
+  <div class="flex items-center gap-2">
+    <button type="button" class="btn btn-primary"
+            onclick="document.getElementById('add-event-modal').classList.remove('hidden');">
+      + إضافة حدث
+    </button>
+    <form method="GET" class="flex items-center gap-2">
+      <label class="text-xs text-slate-700">نافذة</label>
+      <select name="days" onchange="this.form.submit()" class="select text-sm">
+        {% for n in [7, 14, 30, 60, 90, 180] %}
+        <option value="{{ n }}" {% if window == n %}selected{% endif %}>{{ n }} يوم</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
 </div>
 
 <div class="card p-6">
@@ -32,16 +38,35 @@
       </div>
       <div class="grid grid-cols-2 gap-3">
       {% for ev in events %}
-        {% set kind_class = {'meeting': 'border-emerald-200 bg-emerald-50', 'task_deadline': 'border-amber-200 bg-amber-50', 'project_end': 'border-brand-200 bg-brand-50'} %}
-        {% set kind_icon = {'meeting': '📅', 'task_deadline': '⏰', 'project_end': '🚀'} %}
-        <a href="{{ ev.link }}" class="block rounded-lg border {{ kind_class.get(ev.kind, '') }} p-3 hover:shadow-soft transition">
-          <div class="flex items-start justify-between">
-            <div class="text-2xl">{{ kind_icon.get(ev.kind, '•') }}</div>
-            <div class="text-xs font-mono text-slate-500">{{ ev.when | company_dt('%H:%M') }}</div>
+        {% set kind_class = {'meeting': 'border-emerald-200 bg-emerald-50', 'task_deadline': 'border-amber-200 bg-amber-50', 'project_end': 'border-brand-200 bg-brand-50', 'follow_up': 'border-sky-200 bg-sky-50', 'manual': 'border-slate-300 bg-slate-50'} %}
+        {% set kind_icon = {'meeting': '📅', 'task_deadline': '⏰', 'project_end': '🚀', 'follow_up': '📞', 'manual': '📌'} %}
+        {% set card_class = "block rounded-lg border " + kind_class.get(ev.kind, '') + " p-3 hover:shadow-soft transition" %}
+        {% if ev.link %}
+          <a href="{{ ev.link }}" class="{{ card_class }}">
+            <div class="flex items-start justify-between">
+              <div class="text-2xl">{{ kind_icon.get(ev.kind, '•') }}</div>
+              <div class="text-xs font-mono text-slate-500">{{ ev.when | company_dt('%H:%M') }}</div>
+            </div>
+            <div class="font-semibold text-navy-900 text-sm mt-1">{{ ev.title }}</div>
+            {% if ev.subtitle %}<div class="text-xs text-slate-600 mt-1">{{ ev.subtitle }}</div>{% endif %}
+          </a>
+        {% else %}
+          <div class="{{ card_class }}">
+            <div class="flex items-start justify-between">
+              <div class="text-2xl">{{ kind_icon.get(ev.kind, '•') }}</div>
+              <div class="text-xs font-mono text-slate-500">{{ ev.when | company_dt('%H:%M') }}</div>
+            </div>
+            <div class="font-semibold text-navy-900 text-sm mt-1">{{ ev.title }}</div>
+            {% if ev.subtitle %}<div class="text-xs text-slate-600 mt-1">{{ ev.subtitle }}</div>{% endif %}
+            {% if ev.kind == 'manual' and ev.event_id %}
+            <form method="POST" action="{{ url_for('calendar.delete_event', event_id=ev.event_id) }}"
+                  class="mt-2"
+                  onsubmit="return confirm('تأكيد حذف الحدث؟')">
+              <button type="submit" class="text-xs text-red-600 hover:underline">حذف</button>
+            </form>
+            {% endif %}
           </div>
-          <div class="font-semibold text-navy-900 text-sm mt-1">{{ ev.title }}</div>
-          {% if ev.subtitle %}<div class="text-xs text-slate-600 mt-1">{{ ev.subtitle }}</div>{% endif %}
-        </a>
+        {% endif %}
       {% endfor %}
       </div>
     </div>
@@ -54,7 +79,59 @@
 
 <div class="mt-4 flex items-center gap-4 text-xs text-slate-600">
   <span class="flex items-center gap-1">📅 اجتماع</span>
+  <span class="flex items-center gap-1">📞 متابعة</span>
   <span class="flex items-center gap-1">⏰ Deadline مهمة</span>
   <span class="flex items-center gap-1">🚀 تسليم مشروع</span>
+  <span class="flex items-center gap-1">📌 حدث شخصي</span>
+</div>
+
+{# MARSOUD-CALENDAR-MANUAL-EVENTS — add-event modal. Hidden by
+   default; opens on the "+ إضافة حدث" button click. #}
+<div id="add-event-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+  <div class="bg-white rounded-lg p-6 w-full max-w-md">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-bold text-navy-900">إضافة حدث جديد</h3>
+      <button type="button" class="text-slate-400 hover:text-slate-700"
+              onclick="document.getElementById('add-event-modal').classList.add('hidden');">✕</button>
+    </div>
+    <form method="POST" action="{{ url_for('calendar.create_event') }}" class="space-y-3">
+      <div>
+        <label class="block text-xs text-slate-700 mb-1">العنوان *</label>
+        <input type="text" name="title" required maxlength="255"
+               class="input w-full" placeholder="مثال: اجتماع مع الشريك">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs text-slate-700 mb-1">البداية *</label>
+          <input type="datetime-local" name="starts_at" required class="input w-full">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-700 mb-1">النهاية</label>
+          <input type="datetime-local" name="ends_at" class="input w-full">
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-700 mb-1">المكان</label>
+        <input type="text" name="location" maxlength="500"
+               class="input w-full" placeholder="اختياري">
+      </div>
+      <div>
+        <label class="block text-xs text-slate-700 mb-1">التذكير (دقائق قبل الحدث)</label>
+        <input type="number" name="reminder_minutes_before" min="0"
+               class="input w-full" placeholder="مثال: 15">
+        <p class="text-xs text-slate-400 mt-1">التذكير عبر البريد قيد التطوير — الحقل يُحفظ الآن للاستخدام لاحقًا.</p>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-700 mb-1">الوصف</label>
+        <textarea name="description" rows="3" class="input w-full"
+                  placeholder="اختياري"></textarea>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" class="btn btn-secondary"
+                onclick="document.getElementById('add-event-modal').classList.add('hidden');">إلغاء</button>
+        <button type="submit" class="btn btn-primary">حفظ</button>
+      </div>
+    </form>
+  </div>
 </div>
 {% endblock %}
