@@ -846,13 +846,38 @@ def dashboard_metrics(company_id, period="month"):
     upcoming_total = 0.0
     try:
         from app.services.recurring_bills import get_due_within
+        from app.models import VendorBill
         forecast_data = get_due_within(company_id, days=7)
+        # MARSOUD-DASHBOARD-RECURRING-TITLE (Batch 6 Ticket 3,
+        # 2026-07-29) — batch-load source VendorBills so we can
+        # surface their notes/number for a distinguishable title
+        # + link straight to the vendor bill instead of the
+        # recurring-bills list.
+        src_ids = {r.get("source_bill_id") for r in forecast_data.get("rows", [])
+                    if r.get("source_bill_id")}
+        src_bills = {b.id: b for b in
+                      VendorBill.query.filter(
+                          VendorBill.id.in_(src_ids)).all()} if src_ids else {}
         for row in forecast_data.get("rows", [])[:3]:
             days_until = (row["date"] - today).days
+            vendor_name = row.get("vendor_name") or "—"
+            src = src_bills.get(row.get("source_bill_id"))
+            # Fallback chain for the title: source bill notes (60
+            # chars) → vendor name → interval label. Same shape as
+            # Batch 5 Ticket 3 for late_invoices.
+            title = None
+            if src and src.notes and src.notes.strip():
+                title = src.notes.strip()[:60]
+            if not title:
+                title = vendor_name if vendor_name != "—" else (
+                    row.get("template_label") or "فاتورة متكررة")
             upcoming_bills.append({
                 "id": row.get("recurring_bill_id"),
-                "label": row.get("template_label") or row.get("vendor_name") or "—",
-                "vendor_initials": _initials_for(row.get("vendor_name")),
+                "source_bill_id": row.get("source_bill_id"),
+                "label": row.get("template_label") or vendor_name,
+                "title_for_display": title,
+                "vendor_name": vendor_name,
+                "vendor_initials": _initials_for(vendor_name),
                 "amount": float(row.get("amount") or 0),
                 "currency": row.get("currency") or currency,
                 "days_until": days_until,

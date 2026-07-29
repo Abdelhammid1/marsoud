@@ -357,12 +357,22 @@
       </div>
       {% if metrics.upcoming_bills %}
         {% for b in metrics.upcoming_bills %}
-        <a class="d-row" href="{{ url_for('recurring_bills.index') }}">
+        {# MARSOUD-DASHBOARD-RECURRING-TITLE (Batch 6 Ticket 3) —
+           per-bill link to the source VendorBill detail page +
+           title_for_display (notes/vendor/interval) so users can
+           actually tell bills apart. Falls back to
+           recurring_bills.index only when the source bill id is
+           missing (very old data). #}
+        <a class="d-row"
+           href="{% if b.source_bill_id %}{{ url_for('vendor_bills.view', bill_id=b.source_bill_id) }}{% else %}{{ url_for('recurring_bills.index') }}{% endif %}">
           <div class="row-l">
             <div class="row-ava">{{ b.vendor_initials }}</div>
             <div>
-              <div class="row-name">{{ b.label }}</div>
-              <div class="row-sub">{{ b.interval_label }}</div>
+              <div class="row-name">{{ b.title_for_display }}</div>
+              <div class="row-sub">
+                {{ b.vendor_name }}
+                {% if b.label and b.label != b.vendor_name %} · {{ b.label }}{% endif %}
+              </div>
             </div>
           </div>
           <div class="row-r">
