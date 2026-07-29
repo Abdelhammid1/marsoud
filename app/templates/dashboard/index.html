@@ -312,8 +312,18 @@
           <div class="row-l">
             <div class="row-ava">{{ inv.customer_initials }}</div>
             <div>
+              {# MARSOUD-DASHBOARD-INVOICE-TITLE (Abdelhamid 2026-07-29) —
+                 primary line: customer name (unchanged).
+                 secondary line: title_for_display (notes/subject → number).
+                 tertiary: invoice number small + monospaced for
+                 quick copy-paste. #}
               <div class="row-name">{{ inv.customer_name }}</div>
-              <div class="row-sub">{{ inv.number }}</div>
+              <div class="row-sub">
+                {{ inv.title_for_display }}
+                {% if inv.title_for_display != inv.number %}
+                <span style="opacity:.6;font-family:monospace;font-size:11px;margin-inline-start:6px">· {{ inv.number }}</span>
+                {% endif %}
+              </div>
             </div>
           </div>
           <div class="row-r">

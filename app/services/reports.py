@@ -831,6 +831,14 @@ def dashboard_metrics(company_id, period="month"):
         "customer_initials": _initials_for(i.customer.name if i.customer else None),
         "amount": float(i.balance or 0),
         "days_late": (today - i.due_date).days if i.due_date else 0,
+        # MARSOUD-DASHBOARD-INVOICE-TITLE (Abdelhamid 2026-07-29) —
+        # subtitle used to be just the invoice number. Users
+        # couldn't tell invoices apart at a glance. Fallback chain:
+        # invoice.notes (first 60 chars) → invoice.number.
+        "title_for_display": (
+            (i.notes.strip()[:60] if i.notes and i.notes.strip()
+             else i.number)
+        ),
     } for i in late_sorted]
 
     # Upcoming bills via the MARSOUD-65 forecast helper.
