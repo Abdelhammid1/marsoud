@@ -38,6 +38,10 @@ class Company(db.Model):
     logo_path = db.Column(db.String(300))   # uploaded logo on disk, served from /static/logos/
     address = db.Column(db.Text)
     tax_number = db.Column(db.String(50))
+    # MARSOUD-REGISTRATION-PHONES-01 (Batch 6 Ticket 4, 2026-07-29) —
+    # company's official contact number. Shown on invoices/PDFs +
+    # /admin/companies. Nullable so existing tenants keep working.
+    phone = db.Column(db.String(50), nullable=True)
     # MARSOUD-COMPANY-LEGAL — official metadata surfaced on every
     # invoice / quotation / receipt / email / PDF. All three nullable
     # so an existing tenant keeps working with just `name` until they

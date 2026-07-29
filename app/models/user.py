@@ -51,6 +51,10 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(150), unique=True, nullable=False, index=True)
     full_name = db.Column(db.String(150), nullable=False)
+    # MARSOUD-REGISTRATION-PHONES-01 (Batch 6 Ticket 4, 2026-07-29) —
+    # personal contact number for the owner. Used by Manasty support
+    # when email bounces. Free-text; no SMS verification yet.
+    phone = db.Column(db.String(50), nullable=True)
     password_hash = db.Column(db.String(255), nullable=False)
     locale = db.Column(db.String(5), default="ar")
     is_superadmin = db.Column(db.Boolean, default=False, nullable=False)

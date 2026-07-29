@@ -207,6 +207,15 @@ def register():
         # MARSOUD-MULTI-CURRENCY-PRICING (Abdelhamid 2026-07-22) —
         # default currency flipped SAR → EGP.
         base_currency = request.form.get("base_currency", "EGP")
+        # MARSOUD-REGISTRATION-PHONES-01 (Batch 6 Ticket 4,
+        # 2026-07-29) — optional phone fields, capped at 50 chars
+        # and stripped. Both optional (blank stored as NULL) so
+        # signup stays backward compatible with any old
+        # bookmarked form.
+        company_phone = (request.form.get("company_phone")
+                           or "").strip()[:50] or None
+        owner_phone = (request.form.get("owner_phone")
+                         or "").strip()[:50] or None
 
         if not email or not password or not full_name or not company_name or not subdomain:
             flash("جميع الحقول مطلوبة", "error")
@@ -252,7 +261,8 @@ def register():
             flash("الإيميل مستخدم بالفعل", "error")
             return render_template("auth/register.html")
 
-        user = User(email=email, full_name=full_name)
+        user = User(email=email, full_name=full_name,
+                    phone=owner_phone)
         user.set_password(password)
         # MARSOUD-EMAIL-VERIFY (Abdelhamid 2026-07-22) — self-service
         # signups start as PENDING_VERIFICATION until they click the
@@ -266,7 +276,8 @@ def register():
         from app.services.legal import get_terms_version, record_consent
         user.terms_accepted_at = datetime.utcnow()
         user.terms_version = get_terms_version()
-        company = Company(name=company_name, base_currency=base_currency, subdomain=subdomain)
+        company = Company(name=company_name, base_currency=base_currency,
+                          subdomain=subdomain, phone=company_phone)
         # MARSOUD-CHOOSE-PLAN (Abdelhamid 2026-07-22) — was auto-
         # assigning the Enterprise plan at signup. Now: only stamp the
         # trial window; leave plan_id + intended_plan_id NULL so the
