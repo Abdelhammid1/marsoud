@@ -143,6 +143,118 @@ def seed_plans_command():
     click.echo(f"✅ seeded plans: {', '.join(updated)}")
 
 
+@click.command("saas-backfill")
+@click.option("--dry-run", is_flag=True,
+              help="Print what WOULD be created without touching the DB.")
+@with_appcontext
+def saas_backfill_command(dry_run):
+    """MARSOUD-SAAS-BILLING-BACKFILL-01 (Batch 6 Ticket 2,
+    2026-07-29) — create a first SaaS invoice for every OLD
+    company that already has a chosen plan but was registered
+    BEFORE the SaaS billing feature shipped.
+
+    Idempotent — safe to re-run. Per-company:
+      · If no intended_plan_id → SKIP.
+      · If subscription_frequency is NULL → force to MONTHLY.
+      · Calls saas_billing.create_first_invoice() which itself
+        returns the existing invoice if one is already
+        outstanding (so re-running doesn't spam duplicates).
+    """
+    from app import db
+    from app.models import Company
+    from app.services import saas_billing as _sb
+
+    companies = (Company.query
+                    .filter(Company.deleted_at.is_(None),
+                              Company.intended_plan_id.isnot(None))
+                    .order_by(Company.id)
+                    .all())
+
+    created = 0
+    skipped = 0
+    errored = 0
+    error_list = []
+    freq_forced = 0
+
+    for c in companies:
+        try:
+            if not c.subscription_frequency:
+                if not dry_run:
+                    c.subscription_frequency = "MONTHLY"
+                freq_forced += 1
+            if dry_run:
+                # In dry-run just count what we'd try to create.
+                # A company with an outstanding SaaS invoice already
+                # counts as "skip".
+                from app.models import Invoice, InvoiceStatus
+                existing = None
+                if c.saas_customer_id:
+                    existing = Invoice.query.filter_by(
+                        customer_id=c.saas_customer_id,
+                        source="SAAS_BILLING",
+                    ).filter(Invoice.status.in_([
+                        InvoiceStatus.DRAFT, InvoiceStatus.SENT,
+                        InvoiceStatus.PARTIALLY_PAID,
+                        InvoiceStatus.OVERDUE,
+                    ])).first()
+                if existing:
+                    skipped += 1
+                    click.echo(f"  SKIP  #{c.id} {c.name} "
+                                f"(has invoice #{existing.number})")
+                else:
+                    created += 1
+                    click.echo(f"  WOULD-CREATE  #{c.id} {c.name}")
+            else:
+                before = c.saas_customer_id
+                inv = _sb.create_first_invoice(c)
+                # If create_first_invoice returned an EXISTING
+                # invoice, that's a skip. Otherwise it created one.
+                # We detect this via marker on internal_notes: a
+                # freshly-created invoice has no ";post_payment=1".
+                # Simpler heuristic: check invoice.created_at was
+                # in this last minute.
+                if inv is None:
+                    skipped += 1
+                    click.echo(f"  SKIP  #{c.id} {c.name} "
+                                f"(no plan resolved)")
+                else:
+                    # Use idempotency check: outstanding existing
+                    # invoice → skip; anything else → created.
+                    from datetime import datetime as _dt, timedelta
+                    if inv.created_at and (
+                        _dt.utcnow() - inv.created_at) < timedelta(
+                            minutes=1):
+                        created += 1
+                        click.echo(f"  CREATED  #{c.id} {c.name} "
+                                    f"→ invoice {inv.number}")
+                    else:
+                        skipped += 1
+                        click.echo(f"  SKIP  #{c.id} {c.name} "
+                                    f"(already has invoice {inv.number})")
+                db.session.commit()
+        except Exception as e:  # noqa: BLE001
+            errored += 1
+            error_list.append((c.id, c.name, str(e)))
+            db.session.rollback()
+            click.echo(f"  ERROR  #{c.id} {c.name}: {e}")
+
+    click.echo("")
+    click.echo("─" * 60)
+    click.echo(f"  Companies scanned:     {len(companies)}")
+    click.echo(f"  Invoices created:      {created}")
+    click.echo(f"  Skipped (had one):     {skipped}")
+    click.echo(f"  Errored:               {errored}")
+    click.echo(f"  Frequency forced=MONTHLY: {freq_forced}")
+    click.echo("─" * 60)
+    if error_list:
+        click.echo("\nErrors:")
+        for cid, name, err in error_list:
+            click.echo(f"  #{cid} {name}: {err}")
+    if dry_run:
+        click.echo("\n(dry-run — no writes)")
+
+
 def register(app):
     """Wire the CLI into the Flask app. Called from app/__init__.py."""
     app.cli.add_command(seed_plans_command)
+    app.cli.add_command(saas_backfill_command)

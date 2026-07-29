@@ -236,39 +236,34 @@ def _try_email(invoice):
             "SaaS invoice email failed for invoice #%s", invoice.id)
 
 
-# ─── Mark paid + renew ───────────────────────────────────────────
-def mark_saas_invoice_paid(invoice, admin_user_id):
-    """Called from /admin/saas mark-paid button. Records payment,
-    renews the subscription (+1 cycle), redeems the coupon (if
-    any), and creates the NEXT invoice with a future issue_date
-    so the reminder engine picks it up naturally."""
-    from app.services.invoicing import record_payment
+# ─── Post-payment side-effects (renew + next invoice + coupon) ──
+def _saas_post_payment(invoice, admin_user_id):
+    """Runs AFTER a SaaS invoice has been paid. Called by BOTH
+    mark_saas_invoice_paid() and — via a post-commit hook — from
+    invoicing.record_payment() so paying a SaaS invoice from the
+    regular invoices screen produces the same effect as clicking
+    'تم الدفع' on /admin/saas.
+
+    Returns (tenant, next_invoice_or_None). Idempotent: if the
+    tenant's subscription was already renewed by an earlier call
+    on this same invoice, we skip renewal + skip next-invoice
+    creation (both flagged by the invoice's `internal_notes`
+    picking up a ';post_payment=1' marker)."""
     from app.services import coupons as _cp
 
-    if invoice.status == InvoiceStatus.PAID:
-        raise SaasBillingError("الفاتورة مدفوعة بالفعل")
-
-    # Find the tenant company. The invoice sits in Manasty's books
-    # so company_id = Manasty; the tenant is embedded in
-    # internal_notes for cross-reference. We locate the tenant by
-    # matching saas_customer_id back to the invoice's customer.
     tenant = Company.query.filter_by(
         saas_customer_id=invoice.customer_id).first()
     if not tenant:
         raise SaasBillingError(
             "لا نستطيع ربط الفاتورة بالشركة المستأجرة")
 
-    # 1. Record the payment against the invoice.
-    record_payment(
-        invoice=invoice,
-        amount=float(invoice.balance),
-        payment_date=date.today(),
-        method="cash",
-        created_by=admin_user_id,
-        notify=False,
-    )
+    # Idempotency: refuse to double-run on the same invoice.
+    marker = ";post_payment=1"
+    if invoice.internal_notes and marker in invoice.internal_notes:
+        return tenant, None
+    invoice.internal_notes = (invoice.internal_notes or "") + marker
 
-    # 2. Renew the tenant's subscription.
+    # 1. Renew the tenant's subscription.
     days = 365 if tenant.subscription_frequency == FREQ_YEARLY else 30
     prev = tenant.subscription_expires_at or datetime.utcnow()
     base = max(prev, datetime.utcnow())
@@ -276,9 +271,9 @@ def mark_saas_invoice_paid(invoice, admin_user_id):
     if not tenant.subscription_started_at:
         tenant.subscription_started_at = datetime.utcnow()
 
-    # 3. Redeem coupon if any. Per ticket: redeem() runs ONLY AFTER
-    # payment succeeds (not before). We clear applied_coupon_id so
-    # the discount doesn't re-apply on the NEXT invoice.
+    # 2. Redeem coupon if any. Per ticket: redeem() runs ONLY AFTER
+    # payment succeeds (not before). Clear applied_coupon_id so the
+    # discount doesn't re-apply on the NEXT invoice.
     if tenant.applied_coupon_id:
         coupon = db.session.get(Coupon, tenant.applied_coupon_id)
         if coupon:
@@ -289,14 +284,13 @@ def mark_saas_invoice_paid(invoice, admin_user_id):
                            amount_saved=Decimal(str(
                                invoice.invoice_discount_amount or 0)))
             except _cp.CouponError:
-                # Non-fatal — the coupon may already be exhausted.
-                # We still want the payment + renewal to stick.
+                # Non-fatal — coupon may already be exhausted.
                 pass
         tenant.applied_coupon_id = None
 
-    # 4. Create the NEXT invoice. Dated at the appropriate offset
+    # 3. Create the NEXT invoice. Dated at the appropriate offset
     # so the existing reminder engine fires naturally.
-    next_issue = next_billing_date(tenant)
+    next_inv = None
     plan = db.session.get(Plan, tenant.intended_plan_id) \
         if tenant.intended_plan_id else None
     if plan:
@@ -306,6 +300,7 @@ def mark_saas_invoice_paid(invoice, admin_user_id):
         mid = cust.company_id
         freq_label = FREQ_LABELS_AR.get(freq, freq)
         plan_label = plan.name_ar or plan.name
+        next_issue = next_billing_date(tenant)
         next_inv = Invoice(
             company_id=mid,
             customer_id=cust.id,
@@ -332,15 +327,53 @@ def mark_saas_invoice_paid(invoice, admin_user_id):
         ))
         next_inv.recalc()
         db.session.flush()
+    return tenant, next_inv
 
-    db.session.commit()
 
-    # MARSOUD-SAAS-EMAIL-01 (2026-07-29) — email the customer
-    # about their newly-created next-cycle invoice. Done AFTER
-    # commit so a mail failure doesn't undo the renewal.
-    if plan:
+# ─── Mark paid + renew ───────────────────────────────────────────
+def mark_saas_invoice_paid(invoice, admin_user_id):
+    """Called from /admin/saas mark-paid button. Records payment
+    then runs the shared post-payment routine."""
+    from app.services.invoicing import record_payment
+
+    if invoice.status == InvoiceStatus.PAID:
+        raise SaasBillingError("الفاتورة مدفوعة بالفعل")
+
+    # 1. Record the payment against the invoice. record_payment
+    # will trigger _saas_post_payment via its post-commit hook, so
+    # we don't call the helper explicitly here.
+    record_payment(
+        invoice=invoice,
+        amount=float(invoice.balance),
+        payment_date=date.today(),
+        method="cash",
+        created_by=admin_user_id,
+        notify=False,
+    )
+    # record_payment already ran _saas_post_payment via the hook +
+    # committed. Just look up the tenant to return it, and email
+    # the next invoice if one was created.
+    tenant = Company.query.filter_by(
+        saas_customer_id=invoice.customer_id).first()
+    next_inv = _find_latest_next_invoice(tenant) if tenant else None
+    if next_inv:
         _try_email(next_inv)
     return tenant
+
+
+def _find_latest_next_invoice(tenant):
+    """Return the most-recently-created outstanding SaaS invoice
+    for this tenant, or None. Used to know which invoice to email
+    after mark_saas_invoice_paid() runs."""
+    if not tenant or not tenant.saas_customer_id:
+        return None
+    return (Invoice.query
+              .filter(Invoice.customer_id == tenant.saas_customer_id,
+                       Invoice.source == "SAAS_BILLING",
+                       Invoice.status.in_([
+                           InvoiceStatus.DRAFT, InvoiceStatus.SENT]))
+              .order_by(Invoice.id.desc())
+              .first())
 
 
 def outstanding_saas_invoices():

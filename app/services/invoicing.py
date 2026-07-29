@@ -279,6 +279,26 @@ def record_payment(invoice, amount, payment_date=None, method=None, payment_meth
 
     db.session.commit()
 
+    # MARSOUD-SAAS-BILLING-BACKFILL-01 (Batch 6 Ticket 2, 2026-07-29)
+    # — unified payment path. When a SaaS invoice gets fully paid
+    # from ANY screen (regular /invoices/<id> payment form, bulk
+    # payment, admin/saas mark-paid), run the shared post-payment
+    # routine so the tenant's subscription renews + the next
+    # invoice gets created + the coupon (if any) is redeemed.
+    # Idempotent — _saas_post_payment refuses to double-run on the
+    # same invoice.
+    if is_full and invoice.source == "SAAS_BILLING":
+        try:
+            from app.services.saas_billing import _saas_post_payment
+            _saas_post_payment(invoice, created_by)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            import logging
+            logging.getLogger("ledgeros.invoicing").exception(
+                "SaaS post-payment hook failed for invoice %s "
+                "(payment recorded, renewal skipped)", invoice.number)
+
     # Email notification — non-blocking, controlled by caller
     if notify:
         try:
