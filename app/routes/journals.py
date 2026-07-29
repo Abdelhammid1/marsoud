@@ -595,7 +595,11 @@ def export_filtered():
 
     wb = Workbook()
     ws = wb.active
-    ws.title = "Journals"
+    ws.title = "قيود اليومية"
+    # MARSOUD-JOURNAL-EXPORT-AR (Batch 6 Ticket 5, 2026-07-29) —
+    # flip the workbook right-to-left so headers + first-column
+    # data land where an Arabic reader expects them.
+    ws.sheet_view.rightToLeft = True
     headers = ["الرقم", "التاريخ", "الوصف", "المرجع", "المدين", "الدائن", "الحالة"]
     for col, h in enumerate(headers, 1):
         c = ws.cell(row=1, column=col, value=h)
@@ -663,7 +667,9 @@ def bulk_action():
         from openpyxl.styles import Font, PatternFill
         wb = Workbook()
         ws = wb.active
-        ws.title = "Selected Journals"
+        ws.title = "قيود مختارة"
+        # MARSOUD-JOURNAL-EXPORT-AR (Batch 6 Ticket 5, 2026-07-29).
+        ws.sheet_view.rightToLeft = True
         for col, h in enumerate(["الرقم", "التاريخ", "الوصف", "المرجع", "المدين", "الدائن", "الحالة"], 1):
             c = ws.cell(row=1, column=col, value=h)
             c.font = Font(bold=True, color="FFFFFF")

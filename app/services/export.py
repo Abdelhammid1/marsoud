@@ -635,31 +635,41 @@ def _export_payslip_pdf_legacy(employee, line, run):
 
 
 def export_journal_entry_pdf(entry):
-    """Single journal entry PDF with all its lines."""
+    """Single journal entry PDF — Arabic layout (MARSOUD-JOURNAL-
+    EXPORT-AR, Batch 6 Ticket 5, 2026-07-29).
+
+    Columns: الحساب | البيان | مدين | دائن. Amounts stay
+    LTR-formatted with thousands separator + 2 decimals so
+    accountants can copy them cleanly."""
     buf = io.BytesIO()
     p = canvas.Canvas(buf, pagesize=A4)
-    title = f"Journal Entry {entry.number or '#' + str(entry.id)}"
-    _pdf_header(p, entry.company, title, f"Date: {entry.date}  ·  {entry.currency}")
+    title = ar(f"قيد يومية — {entry.number or '#' + str(entry.id)}")
+    _pdf_header(p, entry.company, title,
+                ar(f"التاريخ: {entry.date}  ·  {entry.currency}"))
 
     y = 24 * cm
     p.setFillColor(colors.HexColor("#475569"))
     p.setFont(_FONT_REGULAR, 10)
-    p.drawString(1.5 * cm, y, ar(f"Description: {entry.description}"))
+    p.drawRightString(19.5 * cm, y,
+                      ar(f"الوصف: {entry.description or ''}"))
     y -= 0.5 * cm
     if entry.reference:
-        p.drawString(1.5 * cm, y, ar(f"Reference: {entry.reference}"))
+        p.drawRightString(19.5 * cm, y,
+                          ar(f"المرجع: {entry.reference}"))
         y -= 0.5 * cm
-    p.drawString(1.5 * cm, y, ar(f"Status: {'Active' if entry.is_active else 'PAUSED'}"))
+    status_label = "نشط" if entry.is_active else "موقوف"
+    p.drawRightString(19.5 * cm, y, ar(f"الحالة: {status_label}"))
     y -= 1 * cm
 
     p.setFillColor(NAVY)
     p.rect(1 * cm, y - 0.4 * cm, 19 * cm, 0.7 * cm, fill=1, stroke=0)
     p.setFillColor(colors.white)
     p.setFont(_FONT_BOLD, 10)
-    p.drawString(1.3 * cm, y - 0.2 * cm, "ACCOUNT")
-    p.drawString(11 * cm, y - 0.2 * cm, "MEMO")
-    p.drawString(15.5 * cm, y - 0.2 * cm, "DEBIT")
-    p.drawRightString(19.5 * cm, y - 0.2 * cm, "CREDIT")
+    # RTL column order (right → left): الحساب | البيان | مدين | دائن.
+    p.drawRightString(19.5 * cm, y - 0.2 * cm, ar("الحساب"))
+    p.drawRightString(13 * cm, y - 0.2 * cm, ar("البيان"))
+    p.drawRightString(7 * cm, y - 0.2 * cm, ar("مدين"))
+    p.drawRightString(3.5 * cm, y - 0.2 * cm, ar("دائن"))
     y -= 0.9 * cm
 
     p.setFillColor(colors.black)
@@ -668,11 +678,12 @@ def export_journal_entry_pdf(entry):
         if y < 3 * cm:
             p.showPage()
             y = 27 * cm
-        acc_label = f"{line.account.code} {line.account.name[:30]}"
-        p.drawString(1.3 * cm, y, ar(acc_label))
-        p.drawString(11 * cm, y, ar((line.memo or "")[:25]))
-        p.drawString(15.5 * cm, y, f"{float(line.debit):,.2f}")
-        p.drawRightString(19.5 * cm, y, f"{float(line.credit):,.2f}")
+        acc_name = line.account.name_ar or line.account.name
+        acc_label = f"{line.account.code} · {acc_name[:30]}"
+        p.drawRightString(19.5 * cm, y, ar(acc_label))
+        p.drawRightString(13 * cm, y, ar((line.memo or "")[:35]))
+        p.drawRightString(7 * cm, y, f"{float(line.debit):,.2f}")
+        p.drawRightString(3.5 * cm, y, f"{float(line.credit):,.2f}")
         y -= 0.5 * cm
 
     y -= 0.3 * cm
@@ -680,9 +691,9 @@ def export_journal_entry_pdf(entry):
     p.rect(1 * cm, y - 0.5 * cm, 19 * cm, 0.8 * cm, fill=1, stroke=0)
     p.setFillColor(colors.white)
     p.setFont(_FONT_BOLD, 11)
-    p.drawString(1.3 * cm, y - 0.15 * cm, "TOTAL")
-    p.drawString(15.5 * cm, y - 0.15 * cm, f"{entry.total_debit:,.2f}")
-    p.drawRightString(19.5 * cm, y - 0.15 * cm, f"{entry.total_credit:,.2f}")
+    p.drawRightString(19.5 * cm, y - 0.15 * cm, ar("الإجمالي"))
+    p.drawRightString(7 * cm, y - 0.15 * cm, f"{entry.total_debit:,.2f}")
+    p.drawRightString(3.5 * cm, y - 0.15 * cm, f"{entry.total_credit:,.2f}")
 
     p.showPage()
     p.save()
@@ -691,24 +702,34 @@ def export_journal_entry_pdf(entry):
 
 
 def export_journal_entry_excel(entry):
-    """Single journal entry Excel."""
+    """Single journal entry Excel — Arabic layout (MARSOUD-JOURNAL-
+    EXPORT-AR, Batch 6 Ticket 5, 2026-07-29). RTL sheet view +
+    Arabic headers + Arabic currency amount format."""
     wb = Workbook()
     ws = wb.active
-    ws.title = entry.number or f"JE-{entry.id}"
-    _excel_styled_header(ws, f"Journal {entry.number or entry.id}",
-                         entry.company.name, f"Date: {entry.date}")
+    ws.title = (entry.number or f"JE-{entry.id}")[:31]
+    # Flip the whole worksheet RTL so column A lands on the right.
+    ws.sheet_view.rightToLeft = True
+    _excel_styled_header(ws, f"قيد يومية {entry.number or entry.id}",
+                         entry.company.name, f"التاريخ: {entry.date}")
 
     row = 5
-    ws.cell(row=row, column=1, value="Description:").font = Font(bold=True)
+    ws.cell(row=row, column=1, value="الوصف:").font = Font(bold=True)
     ws.cell(row=row, column=2, value=entry.description)
     row += 1
     if entry.reference:
-        ws.cell(row=row, column=1, value="Reference:").font = Font(bold=True)
+        ws.cell(row=row, column=1,
+                value="المرجع:").font = Font(bold=True)
         ws.cell(row=row, column=2, value=entry.reference)
         row += 1
-    row += 1
+    ws.cell(row=row, column=1,
+            value="الحالة:").font = Font(bold=True)
+    ws.cell(row=row, column=2,
+            value="نشط" if entry.is_active else "موقوف")
+    row += 2
 
-    for col, h in enumerate(["Account Code", "Account Name", "Memo", "Debit", "Credit"], 1):
+    for col, h in enumerate(["كود الحساب", "اسم الحساب", "البيان",
+                              "مدين", "دائن"], 1):
         c = ws.cell(row=row, column=col, value=h)
         c.font = Font(bold=True, color="FFFFFF")
         c.fill = PatternFill("solid", fgColor="0A2540")
@@ -720,17 +741,24 @@ def export_journal_entry_excel(entry):
     row += 1
     for line in entry.lines:
         ws.cell(row=row, column=1, value=line.account.code)
-        ws.cell(row=row, column=2, value=line.account.name_ar or line.account.name)
+        ws.cell(row=row, column=2,
+                value=line.account.name_ar or line.account.name)
         ws.cell(row=row, column=3, value=line.memo or "")
-        ws.cell(row=row, column=4, value=float(line.debit)).number_format = "#,##0.00"
-        ws.cell(row=row, column=5, value=float(line.credit)).number_format = "#,##0.00"
+        ws.cell(row=row, column=4,
+                value=float(line.debit)).number_format = "#,##0.00"
+        ws.cell(row=row, column=5,
+                value=float(line.credit)).number_format = "#,##0.00"
         row += 1
 
-    ws.cell(row=row, column=1, value="TOTAL").font = Font(bold=True, color="FFFFFF")
+    ws.cell(row=row, column=1,
+            value="الإجمالي").font = Font(bold=True, color="FFFFFF")
     for col in range(1, 6):
-        ws.cell(row=row, column=col).fill = PatternFill("solid", fgColor="2563EB")
-    ws.cell(row=row, column=4, value=entry.total_debit).number_format = "#,##0.00"
-    ws.cell(row=row, column=5, value=entry.total_credit).number_format = "#,##0.00"
+        ws.cell(row=row, column=col).fill = PatternFill("solid",
+                                                          fgColor="2563EB")
+    ws.cell(row=row, column=4,
+            value=entry.total_debit).number_format = "#,##0.00"
+    ws.cell(row=row, column=5,
+            value=entry.total_credit).number_format = "#,##0.00"
     ws.cell(row=row, column=4).font = Font(bold=True, color="FFFFFF")
     ws.cell(row=row, column=5).font = Font(bold=True, color="FFFFFF")
 
@@ -741,23 +769,27 @@ def export_journal_entry_excel(entry):
 
 
 def export_journals_list_pdf(company, entries, period_label=""):
-    """Filtered list of journals to PDF — one row per entry."""
+    """Filtered list of journals to PDF — Arabic RTL layout
+    (MARSOUD-JOURNAL-EXPORT-AR, Batch 6 Ticket 5, 2026-07-29)."""
     buf = io.BytesIO()
     p = canvas.Canvas(buf, pagesize=A4)
-    _pdf_header(p, company, "Journal Entries List", period_label or "All filtered entries")
+    _pdf_header(p, company, ar("كشف قيود اليومية"),
+                 ar(period_label or "كل القيود المفلترة"))
 
     y = 24.5 * cm
     p.setFillColor(NAVY)
     p.rect(1 * cm, y - 0.4 * cm, 19 * cm, 0.7 * cm, fill=1, stroke=0)
     p.setFillColor(colors.white)
     p.setFont(_FONT_BOLD, 9)
-    p.drawString(1.3 * cm, y - 0.2 * cm, "#")
-    p.drawString(3 * cm, y - 0.2 * cm, "DATE")
-    p.drawString(5.5 * cm, y - 0.2 * cm, "DESCRIPTION")
-    p.drawString(12 * cm, y - 0.2 * cm, "REF")
-    p.drawString(14 * cm, y - 0.2 * cm, "STATUS")
-    p.drawString(15.5 * cm, y - 0.2 * cm, "DEBIT")
-    p.drawRightString(19.5 * cm, y - 0.2 * cm, "CREDIT")
+    # RTL header order (right → left): الرقم | التاريخ | الوصف |
+    # المرجع | الحالة | مدين | دائن.
+    p.drawRightString(19.5 * cm, y - 0.2 * cm, ar("الرقم"))
+    p.drawRightString(17 * cm, y - 0.2 * cm, ar("التاريخ"))
+    p.drawRightString(13 * cm, y - 0.2 * cm, ar("الوصف"))
+    p.drawRightString(8.5 * cm, y - 0.2 * cm, ar("المرجع"))
+    p.drawRightString(6.5 * cm, y - 0.2 * cm, ar("الحالة"))
+    p.drawRightString(4.5 * cm, y - 0.2 * cm, ar("مدين"))
+    p.drawRightString(2 * cm, y - 0.2 * cm, ar("دائن"))
     y -= 0.8 * cm
 
     p.setFillColor(colors.black)
@@ -767,13 +799,13 @@ def export_journals_list_pdf(company, entries, period_label=""):
         if y < 3 * cm:
             p.showPage()
             y = 27 * cm
-        p.drawString(1.3 * cm, y, ar((e.number or f"#{e.id}")[:10]))
-        p.drawString(3 * cm, y, str(e.date))
-        p.drawString(5.5 * cm, y, ar((e.description or "")[:42]))
-        p.drawString(12 * cm, y, ar((e.reference or "")[:10]))
-        p.drawString(14 * cm, y, ar("Active" if e.is_active else "PAUSED"))
-        p.drawString(15.5 * cm, y, f"{e.total_debit:,.2f}")
-        p.drawRightString(19.5 * cm, y, f"{e.total_credit:,.2f}")
+        p.drawRightString(19.5 * cm, y, ar((e.number or f"#{e.id}")[:10]))
+        p.drawRightString(17 * cm, y, str(e.date))
+        p.drawRightString(13 * cm, y, ar((e.description or "")[:42]))
+        p.drawRightString(8.5 * cm, y, ar((e.reference or "")[:10]))
+        p.drawRightString(6.5 * cm, y, ar("نشط" if e.is_active else "موقوف"))
+        p.drawRightString(4.5 * cm, y, f"{e.total_debit:,.2f}")
+        p.drawRightString(2 * cm, y, f"{e.total_credit:,.2f}")
         total_d += e.total_debit
         total_c += e.total_credit
         y -= 0.45 * cm
@@ -783,9 +815,10 @@ def export_journals_list_pdf(company, entries, period_label=""):
     p.rect(1 * cm, y - 0.5 * cm, 19 * cm, 0.8 * cm, fill=1, stroke=0)
     p.setFillColor(colors.white)
     p.setFont(_FONT_BOLD, 10)
-    p.drawString(1.3 * cm, y - 0.15 * cm, ar(f"TOTAL ({len(entries)} entries)"))
-    p.drawString(15.5 * cm, y - 0.15 * cm, f"{total_d:,.2f}")
-    p.drawRightString(19.5 * cm, y - 0.15 * cm, f"{total_c:,.2f}")
+    p.drawRightString(19.5 * cm, y - 0.15 * cm,
+                       ar(f"الإجمالي ({len(entries)} قيد)"))
+    p.drawRightString(4.5 * cm, y - 0.15 * cm, f"{total_d:,.2f}")
+    p.drawRightString(2 * cm, y - 0.15 * cm, f"{total_c:,.2f}")
 
     p.showPage()
     p.save()
