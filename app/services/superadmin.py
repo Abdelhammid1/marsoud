@@ -189,3 +189,54 @@ def end_impersonation():
 
 def is_impersonating():
     return bool(session.get(IMPERSONATION_SESSION_KEY))
+
+
+def ai_usage_overview():
+    """Per-company AI token usage vs plan quota (this month) plus
+    all-time totals and a rough USD cost estimate. Used by
+    /admin/ai-usage. MARSOUD-AI-USAGE-DASHBOARD (Abdelhamid 2026-07-29).
+    """
+    from app.models import Company, AiTokenUsage, QUOTA_AI_TOKENS_MONTH
+    from app.services.quotas import (
+        get_quota, is_unlimited, count_ai_tokens_this_month,
+    )
+
+    rows = []
+    for c in Company.query.order_by(Company.created_at.desc()).all():
+        month_used = count_ai_tokens_this_month(c)
+        agg = db.session.query(
+            func.coalesce(func.sum(AiTokenUsage.total_tokens), 0),
+            func.coalesce(func.sum(AiTokenUsage.input_tokens), 0),
+            func.coalesce(func.sum(AiTokenUsage.output_tokens), 0),
+            func.count(AiTokenUsage.id),
+            func.max(AiTokenUsage.created_at),
+        ).filter(AiTokenUsage.company_id == c.id).first()
+        all_time_total, all_time_input, all_time_output, call_count, last_used = agg
+
+        if not all_time_total and not month_used:
+            continue
+
+        quota = get_quota(c, QUOTA_AI_TOKENS_MONTH)
+        unlimited = is_unlimited(quota)
+        included = int(quota.included_amount) if quota else None
+        pct = round((month_used / included) * 100, 1) if (included and not unlimited) else None
+
+        est_cost_usd = (int(all_time_input or 0) / 1_000_000 * 3.0
+                        + int(all_time_output or 0) / 1_000_000 * 15.0)
+
+        rows.append({
+            "company": c,
+            "month_used": month_used,
+            "included": included,
+            "unlimited": unlimited,
+            "pct": pct,
+            "all_time_total": int(all_time_total or 0),
+            "all_time_input": int(all_time_input or 0),
+            "all_time_output": int(all_time_output or 0),
+            "call_count": int(call_count or 0),
+            "last_used": last_used,
+            "est_cost_usd": round(est_cost_usd, 4),
+        })
+
+    rows.sort(key=lambda r: r["month_used"], reverse=True)
+    return rows

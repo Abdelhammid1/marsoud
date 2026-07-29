@@ -1443,3 +1443,12 @@ def saas_price_lock(company_id):
             return redirect(url_for("superadmin.saas_index"))
     db.session.commit()
     return redirect(url_for("superadmin.saas_index"))
+
+
+@bp.route("/ai-usage")
+@login_required
+@superadmin_required
+def ai_usage():
+    from app.services.superadmin import ai_usage_overview
+    rows = ai_usage_overview()
+    return render_template("admin/ai_usage.html", rows=rows)

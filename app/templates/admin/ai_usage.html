@@ -1,0 +1,74 @@
+{% extends "admin/base.html" %}
+{% block page_title %}استهلاك الذكاء الاصطناعي{% endblock %}
+{% block content %}
+
+<div class="card p-6 max-w-6xl">
+  <h2 class="font-bold text-navy-900 mb-1">🤖 استهلاك الذكاء الاصطناعي (المحاسب الذكي)</h2>
+  <p class="text-sm text-slate-500 mb-5">
+    استهلاك كل شركة من توكنز Claude، مقارنة بحد الباقة الشهري، وتقدير التكلفة التراكمية بالدولار.
+  </p>
+
+  <table class="data-table w-full text-sm">
+    <thead>
+      <tr>
+        <th>الشركة</th>
+        <th>استهلاك الشهر الحالي</th>
+        <th>حد الباقة</th>
+        <th>النسبة</th>
+        <th>إجمالي كل الوقت</th>
+        <th>عدد الاستدعاءات</th>
+        <th>آخر استخدام</th>
+        <th>تكلفة تقديرية ($)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>
+          <a href="{{ url_for('superadmin.company_detail', company_id=r.company.id) }}"
+             class="text-emerald-700 hover:underline">
+            {{ r.company.name }}
+          </a>
+        </td>
+        <td class="font-mono text-xs">{{ "{:,}".format(r.month_used) }}</td>
+        <td class="text-xs">
+          {% if r.unlimited %}
+            <span class="text-slate-400">غير محدود</span>
+          {% else %}
+            {{ "{:,}".format(r.included) }}
+          {% endif %}
+        </td>
+        <td class="text-xs">
+          {% if r.pct is not none %}
+            {% if r.pct >= 100 %}
+              <span class="badge badge-overdue">{{ r.pct }}%</span>
+            {% elif r.pct >= 80 %}
+              <span class="badge" style="background:#FEF3C7;color:#92400E">{{ r.pct }}%</span>
+            {% else %}
+              <span class="badge badge-paid">{{ r.pct }}%</span>
+            {% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td class="font-mono text-xs">{{ "{:,}".format(r.all_time_total) }}</td>
+        <td class="text-xs">{{ r.call_count }}</td>
+        <td class="font-mono text-xs">
+          {% if r.last_used %}{{ r.last_used.strftime('%Y-%m-%d %H:%M') }}{% else %}—{% endif %}
+        </td>
+        <td class="font-mono text-xs">${{ r.est_cost_usd }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="8" class="text-center text-slate-400 py-6">
+          لا يوجد استهلاك مسجل بعد.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p class="text-xs text-slate-400 mt-4">
+    * التكلفة التقديرية محسوبة على أساس أسعار claude-sonnet-4-5 (٣$ لكل مليون توكن إدخال، ١٥$ لكل مليون توكن إخراج) وقد تختلف قليلاً عن فاتورة Anthropic الفعلية.
+  </p>
+</div>
+
+{% endblock %}
