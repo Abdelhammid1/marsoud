@@ -77,6 +77,16 @@ class Company(db.Model):
     intended_plan_id = db.Column(db.Integer,
                                  db.ForeignKey("plans.id",
                                                name="fk_companies_intended_plan_id"))
+    # MARSOUD-DISCOUNT-COUPONS wiring (Abdelhamid 2026-07-29) —
+    # coupon the owner entered on /choose-plan. Applied to the
+    # first subscription invoice + redeemed after payment. NULL
+    # when no coupon; cleared after redemption.
+    applied_coupon_id = db.Column(
+        db.Integer,
+        db.ForeignKey("coupons.id",
+                      name="fk_companies_applied_coupon_id"),
+        nullable=True,
+    )
     subscription_started_at = db.Column(db.DateTime)
     subscription_expires_at = db.Column(db.DateTime)
     # MARSOUD-INACTIVE-COMPANIES-MONITORING (Abdelhamid 2026-07-22) —

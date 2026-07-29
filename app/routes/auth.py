@@ -394,12 +394,41 @@ def choose_plan():
             flash("الباقة المختارة غير صحيحة.", "error")
             return redirect(url_for("auth.choose_plan"))
         company.intended_plan_id = plan.id
+
+        # MARSOUD-DISCOUNT-COUPONS wiring (Abdelhamid 2026-07-29) —
+        # optional coupon on /choose-plan. Validate immediately so a
+        # bad code doesn't silently slip through. On success, stash
+        # the coupon_id on the company; the SaaS billing service
+        # applies the discount to the first invoice + calls
+        # coupons.redeem() ONLY after payment is confirmed (per the
+        # ticket: "نداء redeem() بعد نجاح العملية فعليًا").
+        coupon_code = (request.form.get("coupon_code") or "").strip()
+        if coupon_code:
+            from app.services import coupons as _cp
+            try:
+                base_price = plan.price_monthly or 0
+                coupon, _amt = _cp.validate(
+                    coupon_code, company, plan.id, base_price)
+                company.applied_coupon_id = coupon.id
+                flash(
+                    f"سجّلنا اختيارك للباقة {plan.name_ar or plan.name} "
+                    f"+ كود الخصم '{coupon_code}'. الخصم يُطبّق على "
+                    f"أول فاتورة بعد نهاية الفترة التجريبية.",
+                    "success",
+                )
+            except _cp.CouponError as e:
+                # Don't lose the plan choice on a bad coupon — save
+                # it and warn about the coupon only.
+                db.session.commit()
+                flash(f"الباقة اتحفظت — لكن كود الخصم: {e}", "warning")
+                return redirect(url_for("auth.choose_plan"))
+        else:
+            flash(
+                f"سجّلنا اختيارك للباقة: {plan.name_ar or plan.name}. "
+                f"تمتّع بالفترة التجريبية.",
+                "success",
+            )
         db.session.commit()
-        flash(
-            f"سجّلنا اختيارك للباقة: {plan.name_ar or plan.name}. "
-            f"تمتّع بالفترة التجريبية.",
-            "success",
-        )
         return redirect(url_for("dashboard.index"))
 
     plans = Plan.query.filter_by(is_active=True).order_by(
