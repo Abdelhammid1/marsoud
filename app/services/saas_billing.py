@@ -55,20 +55,43 @@ class SaasBillingError(Exception):
     user-visible error."""
 
 
+def _tenant_owner_email(company):
+    """Return the owner's email for this tenant, or None. Looks up
+    user_companies with role='owner' scoped to the tenant's id.
+    Falls back to the first admin if no owner (defensive)."""
+    from sqlalchemy import text
+    row = db.session.execute(text(
+        "SELECT u.email FROM users u "
+        "JOIN user_companies uc ON uc.user_id = u.id "
+        "WHERE uc.company_id = :c "
+        "ORDER BY (CASE WHEN uc.role='owner' THEN 0 "
+        "               WHEN uc.role='admin' THEN 1 ELSE 2 END), "
+        "         u.id LIMIT 1"), {"c": company.id}).fetchone()
+    return row[0] if row and row[0] else None
+
+
 # ─── Customer mirror ─────────────────────────────────────────────
 def ensure_saas_customer(company):
     """Get-or-create the Customer row in Manasty's books that
-    represents this tenant. Idempotent."""
+    represents this tenant. Idempotent. Copies the owner's email
+    to Customer.email so the invoice notification has a real
+    recipient (MARSOUD-SAAS-EMAIL-01, 2026-07-29)."""
+    owner_email = _tenant_owner_email(company)
     if company.saas_customer_id:
         cust = db.session.get(Customer, company.saas_customer_id)
         if cust:
+            # Keep the mirror's email in sync — the owner might
+            # have changed their address between invoices.
+            if owner_email and cust.email != owner_email:
+                cust.email = owner_email
+                db.session.flush()
             return cust
         # Stale FK — fall through and re-create.
     mid = manasty_id()
     cust = Customer(
         company_id=mid,
         name=company.name,
-        email=None,
+        email=owner_email,
         phone=None,
         is_active=True,
     )
@@ -191,7 +214,26 @@ def create_first_invoice(company):
 
     invoice.recalc()
     db.session.flush()
+
+    # MARSOUD-SAAS-EMAIL-01 (2026-07-29) — email the customer
+    # about their new subscription invoice. Wrapped in a try so
+    # a mail-server hiccup doesn't roll back the invoice creation.
+    _try_email(invoice)
     return invoice
+
+
+def _try_email(invoice):
+    """Send the invoice email best-effort; swallow errors so the
+    caller's DB transaction isn't affected. Used by both
+    create_first_invoice and mark_saas_invoice_paid for the
+    next-cycle invoice."""
+    from app.services.invoicing import send_invoice_notification
+    try:
+        send_invoice_notification(invoice)
+    except Exception:  # noqa: BLE001
+        import logging
+        logging.getLogger("ledgeros.saas_billing").exception(
+            "SaaS invoice email failed for invoice #%s", invoice.id)
 
 
 # ─── Mark paid + renew ───────────────────────────────────────────
@@ -292,6 +334,12 @@ def mark_saas_invoice_paid(invoice, admin_user_id):
         db.session.flush()
 
     db.session.commit()
+
+    # MARSOUD-SAAS-EMAIL-01 (2026-07-29) — email the customer
+    # about their newly-created next-cycle invoice. Done AFTER
+    # commit so a mail failure doesn't undo the renewal.
+    if plan:
+        _try_email(next_inv)
     return tenant
 
 
