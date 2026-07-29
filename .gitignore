@@ -39,3 +39,4 @@ instance/
 *.bak2
 .env
 .env.*
+instance/
