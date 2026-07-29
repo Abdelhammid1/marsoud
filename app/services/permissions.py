@@ -68,6 +68,12 @@ P = {
 
     "hr.manage":            {"owner", "admin", "hr_manager"},  # departments + employee HR fields
 
+    # MARSOUD-EVALUATIONS-PRO-GATING (Batch 5 Ticket 6, 2026-07-29) —
+    # employee-evaluations (cycles, targets, actuals, bonuses). HR
+    # owns the operational side; owner + admin control everything.
+    # Sales/PM/finance roles have no business in HR performance reviews.
+    "evaluations.manage":   {"owner", "admin", "hr_manager"},
+
     # ─── CRM (Leads) ───────────────────────────────────────────────────
     "leads.view":      {"owner", "admin", "ceo", "sales_manager", "sales_rep"},
     # MARSOUD-PERM-FIX-01 — view ALL company leads (not just assigned-to-me).

@@ -1,7 +1,8 @@
 """MARSOUD-EVALUATIONS — routes for the monthly-evaluation workflow.
 
-Mounted at /evaluations. Owner + admin only for now (permission gate:
-users.manage). Sub-flows:
+Mounted at /evaluations. Owner + admin + hr_manager only (permission
+gate: evaluations.manage). Feature is Pro-plan-only via plan_gating —
+Starter and Growth companies get 403. Sub-flows:
 
   · GET  /                       list every cycle in the company
   · POST /new                    create a cycle
@@ -66,7 +67,7 @@ def _parse_date(s):
 # ─── List + create ─────────────────────────────────────────────────────
 @bp.route("/")
 @login_required
-@require_permission("users.manage")
+@require_permission("evaluations.manage")
 def index():
     cid = g.active_company.id
     cycles = (EvaluationCycle.query
@@ -83,7 +84,7 @@ def index():
 
 @bp.route("/new", methods=["POST"])
 @login_required
-@require_permission("users.manage")
+@require_permission("evaluations.manage")
 def new():
     try:
         c = create_cycle(
@@ -103,7 +104,7 @@ def new():
 
 @bp.route("/<int:cid>/delete", methods=["POST"])
 @login_required
-@require_permission("users.manage")
+@require_permission("evaluations.manage")
 def delete(cid):
     c = _cycle_or_404(cid)
     try:
@@ -117,7 +118,7 @@ def delete(cid):
 # ─── Cycle detail ──────────────────────────────────────────────────────
 @bp.route("/<int:cid>")
 @login_required
-@require_permission("users.manage")
+@require_permission("evaluations.manage")
 def detail(cid):
     c = _cycle_or_404(cid)
     company_id = g.active_company.id
@@ -180,7 +181,7 @@ def detail(cid):
 # ─── State transitions ────────────────────────────────────────────────
 @bp.route("/<int:cid>/status", methods=["POST"])
 @login_required
-@require_permission("users.manage")
+@require_permission("evaluations.manage")
 def status(cid):
     c = _cycle_or_404(cid)
     try:
@@ -195,7 +196,7 @@ def status(cid):
 # ─── Target CRUD ──────────────────────────────────────────────────────
 @bp.route("/<int:cid>/targets", methods=["POST"])
 @login_required
-@require_permission("users.manage")
+@require_permission("evaluations.manage")
 def target_upsert(cid):
     c = _cycle_or_404(cid)
     try:
@@ -218,7 +219,7 @@ def target_upsert(cid):
 
 @bp.route("/<int:cid>/targets/<int:tid>/delete", methods=["POST"])
 @login_required
-@require_permission("users.manage")
+@require_permission("evaluations.manage")
 def target_delete(cid, tid):
     c = _cycle_or_404(cid)
     t = db.session.get(EmployeeTarget, tid)
@@ -235,7 +236,7 @@ def target_delete(cid, tid):
 # ─── Actual CRUD ──────────────────────────────────────────────────────
 @bp.route("/<int:cid>/actuals", methods=["POST"])
 @login_required
-@require_permission("users.manage")
+@require_permission("evaluations.manage")
 def actual_upsert(cid):
     c = _cycle_or_404(cid)
     try:
@@ -256,7 +257,7 @@ def actual_upsert(cid):
 
 @bp.route("/<int:cid>/actuals/<int:aid>/delete", methods=["POST"])
 @login_required
-@require_permission("users.manage")
+@require_permission("evaluations.manage")
 def actual_delete(cid, aid):
     c = _cycle_or_404(cid)
     a = db.session.get(EmployeeMetricActual, aid)
@@ -273,7 +274,7 @@ def actual_delete(cid, aid):
 # ─── Compute + review ────────────────────────────────────────────────
 @bp.route("/<int:cid>/employees/<int:eid>/compute", methods=["POST"])
 @login_required
-@require_permission("users.manage")
+@require_permission("evaluations.manage")
 def score(cid, eid):
     c = _cycle_or_404(cid)
     emp = db.session.get(Employee, eid)
@@ -293,7 +294,7 @@ def score(cid, eid):
 
 @bp.route("/<int:cid>/employees/<int:eid>/weights", methods=["POST"])
 @login_required
-@require_permission("users.manage")
+@require_permission("evaluations.manage")
 def weights(cid, eid):
     """MARSOUD-EVAL-CATEGORY-WEIGHT — save per-employee category
     weights for the cycle. Requires the three inputs to sum to 100;
@@ -327,7 +328,7 @@ def weights(cid, eid):
 
 @bp.route("/<int:cid>/employees/<int:eid>/review", methods=["POST"])
 @login_required
-@require_permission("users.manage")
+@require_permission("evaluations.manage")
 def review(cid, eid):
     c = _cycle_or_404(cid)
     ev = EmployeeEvaluation.query.filter_by(
@@ -349,7 +350,7 @@ def review(cid, eid):
 # ─── MARSOUD-EVAL-METRIC-LOG — raw entry form + aggregation ───────────
 @bp.route("/logs/", methods=["GET"])
 @login_required
-@require_permission("users.manage")
+@require_permission("evaluations.manage")
 def logs_index():
     """Simple entry form + list of the most recent logs. Cycles list
     filters to non-LOCKED so خديجة can't waste time entering into a
@@ -380,7 +381,7 @@ def logs_index():
 
 @bp.route("/logs/", methods=["POST"])
 @login_required
-@require_permission("users.manage")
+@require_permission("evaluations.manage")
 def logs_create():
     from datetime import datetime as _dt
     try:
@@ -405,7 +406,7 @@ def logs_create():
 
 @bp.route("/logs/<int:log_id>/delete", methods=["POST"])
 @login_required
-@require_permission("users.manage")
+@require_permission("evaluations.manage")
 def logs_delete(log_id):
     row = db.session.get(MetricLogEntry, log_id)
     if not row or row.company_id != g.active_company.id:
@@ -420,7 +421,7 @@ def logs_delete(log_id):
 
 @bp.route("/api/targets")
 @login_required
-@require_permission("users.manage")
+@require_permission("evaluations.manage")
 def api_targets():
     """Dependent-dropdown API for the log form. Given cycle_id +
     employee_id, returns the metric_keys agreed for that pair. The
@@ -446,7 +447,7 @@ def api_targets():
 
 @bp.route("/<int:cid>/aggregate", methods=["POST"])
 @login_required
-@require_permission("users.manage")
+@require_permission("evaluations.manage")
 def aggregate(cid):
     """Manual "compute now" button — runs the log-roll-up without
     moving the cycle status. Handy for spot-checks while the cycle

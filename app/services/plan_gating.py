@@ -59,6 +59,10 @@ _PREFIX_TO_MODULE = {
     "employee_reports.": "employee_reports",
     # MARSOUD-MANUFACTURING-01 — own coarse module (BOM + work orders).
     "manufacturing.": "manufacturing",
+    # MARSOUD-EVALUATIONS-PRO-GATING (Batch 5 Ticket 6, 2026-07-29) —
+    # employee-evaluations feature is Pro-only. Starter/Growth companies
+    # get 403 on /evaluations/* until they upgrade.
+    "evaluations.": "evaluations",
     # reports (catch-all after the pos-specific overrides above)
     "reports.": "reports",
     # agent

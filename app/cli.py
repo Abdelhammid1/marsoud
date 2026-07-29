@@ -60,6 +60,8 @@ PLAN_SEED = [
             "accounting", "sales", "purchases", "reports", "agent",
             "inventory", "pos", "crm",
             "hr", "employee_reports", "manufacturing",
+            # MARSOUD-EVALUATIONS-PRO-GATING (Batch 5 Ticket 6, 2026-07-29).
+            "evaluations",
         ],
         "quotas": {
             "users": (15, 130),
