@@ -34,3 +34,8 @@ instance/
 *.bak
 *.bak.*
 *.bak-*
+*.bak
+*.bak_*
+*.bak2
+.env
+.env.*
