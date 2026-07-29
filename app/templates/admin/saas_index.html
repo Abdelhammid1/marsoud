@@ -1,0 +1,101 @@
+{% extends "admin/base.html" %}
+{% block page_title %}الفوترة والاشتراكات{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <h2 class="font-bold text-navy-900">إدارة اشتراكات SaaS</h2>
+  <p class="text-xs text-slate-500">
+    كل شركة، الباقة المختارة، دورة الفوترة، الفواتير المستحقة، وقفل السعر.
+  </p>
+</div>
+
+<div class="card p-0 overflow-hidden">
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>الشركة</th>
+      <th>الباقة</th>
+      <th>الدورة</th>
+      <th>حالة الاشتراك</th>
+      <th>قفل السعر</th>
+      <th>فواتير مستحقة</th>
+      <th>الإجراءات</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in companies %}
+    {% set plan = plans_lookup.get(c.intended_plan_id) %}
+    {% set outstanding = outstanding_by_tenant.get(c.id, []) %}
+    <tr>
+      <td>
+        <div class="font-semibold text-slate-900">{{ c.name }}</div>
+        <div class="text-xs text-slate-400">#{{ c.id }}</div>
+      </td>
+      <td>{{ plan.name_ar or plan.name if plan else '—' }}</td>
+      <td>
+        {% if c.subscription_frequency == 'YEARLY' %}
+          سنوي
+        {% elif c.subscription_frequency == 'MONTHLY' %}
+          شهري
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if c.subscription_expires_at %}
+          <span class="text-xs">
+            حتى {{ c.subscription_expires_at | company_dt('%Y-%m-%d') }}
+          </span>
+        {% else %}
+          <span class="text-slate-400">—</span>
+        {% endif %}
+      </td>
+      <td>
+        <form method="POST"
+              action="{{ url_for('superadmin.saas_price_lock', company_id=c.id) }}"
+              class="flex items-center gap-1">
+          <input type="text" name="price_lock"
+                 value="{{ c.price_lock or '' }}"
+                 placeholder="—"
+                 class="input text-xs w-20 text-center">
+          <button type="submit" class="btn btn-secondary text-xs">حفظ</button>
+        </form>
+      </td>
+      <td>
+        {% if outstanding %}
+          <div class="space-y-1">
+          {% for inv in outstanding %}
+            <div class="text-xs">
+              <span class="font-mono">{{ inv.number }}</span>
+              — <b>{{ inv.total|int }}</b> {{ inv.currency }}
+              (مستحقة {{ inv.due_date | company_dt('%Y-%m-%d') }})
+            </div>
+          {% endfor %}
+          </div>
+        {% else %}
+          <span class="text-slate-400">لا يوجد</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if outstanding %}
+          {% for inv in outstanding %}
+          <form method="POST"
+                action="{{ url_for('superadmin.saas_mark_paid', invoice_id=inv.id) }}"
+                onsubmit="return confirm('تأكيد استلام الدفعة للفاتورة {{ inv.number }}؟');"
+                class="inline">
+            <button type="submit" class="btn btn-primary text-xs">
+              💰 تم الدفع ({{ inv.number }})
+            </button>
+          </form>
+          {% endfor %}
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="7" class="text-center text-slate-400 py-6">
+        لا توجد شركات باشتراكات نشطة بعد.
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

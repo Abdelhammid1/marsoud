@@ -87,6 +87,19 @@ class Company(db.Model):
                       name="fk_companies_applied_coupon_id"),
         nullable=True,
     )
+    # MARSOUD-SAAS-BILLING-01 (Batch 5 Ticket 7, 2026-07-29) — SaaS
+    # billing loop. Picked on /choose-plan alongside the plan.
+    # subscription_frequency drives next-invoice timing; price_lock
+    # protects the customer from plan-price changes; saas_customer_id
+    # is Manasty's mirror of this tenant (auto-created lazily on
+    # first billing invoice).
+    subscription_frequency = db.Column(db.String(10), nullable=True)
+    saas_customer_id = db.Column(
+        db.Integer,
+        db.ForeignKey("customers.id",
+                      name="fk_companies_saas_customer_id"),
+        nullable=True)
+    price_lock = db.Column(db.Numeric(15, 2), nullable=True)
     subscription_started_at = db.Column(db.DateTime)
     subscription_expires_at = db.Column(db.DateTime)
     # MARSOUD-INACTIVE-COMPANIES-MONITORING (Abdelhamid 2026-07-22) —

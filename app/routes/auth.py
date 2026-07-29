@@ -394,6 +394,13 @@ def choose_plan():
             flash("الباقة المختارة غير صحيحة.", "error")
             return redirect(url_for("auth.choose_plan"))
         company.intended_plan_id = plan.id
+        # MARSOUD-SAAS-BILLING-01 (Batch 5 Ticket 7, 2026-07-29) —
+        # capture the frequency the owner picked so the SaaS
+        # billing loop knows how to time the next invoice.
+        freq = (request.form.get("frequency") or "MONTHLY").strip().upper()
+        if freq not in ("MONTHLY", "YEARLY"):
+            freq = "MONTHLY"
+        company.subscription_frequency = freq
 
         # MARSOUD-DISCOUNT-COUPONS wiring (Abdelhamid 2026-07-29) —
         # optional coupon on /choose-plan. Validate immediately so a
@@ -429,6 +436,22 @@ def choose_plan():
                 "success",
             )
         db.session.commit()
+        # MARSOUD-SAAS-BILLING-01 (Batch 5 Ticket 7, 2026-07-29) —
+        # kick off the first Manasty-side subscription invoice. We
+        # do this AFTER the commit so a failure creating the invoice
+        # doesn't roll back the plan pick (owner keeps their choice
+        # + we can retry the invoice later from admin UI).
+        try:
+            from flask import current_app as _ca
+            from app.services import saas_billing as _sb
+            _sb.create_first_invoice(company)
+            db.session.commit()
+        except Exception as e:  # noqa: BLE001
+            db.session.rollback()
+            from flask import current_app as _ca
+            _ca.logger.warning(
+                "SaaS first-invoice creation failed for company "
+                "%s: %s", company.id, e)
         return redirect(url_for("dashboard.index"))
 
     plans = Plan.query.filter_by(is_active=True).order_by(

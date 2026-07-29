@@ -1366,3 +1366,80 @@ def _split_lines(raw):
     if not raw:
         return []
     return [ln.strip() for ln in raw.splitlines() if ln.strip()]
+
+
+# ─── MARSOUD-SAAS-BILLING-01 (Batch 5 Ticket 7, 2026-07-29) ───
+@bp.route("/saas")
+@login_required
+@superadmin_required
+def saas_index():
+    """Cross-tenant SaaS billing dashboard. Shows each company's
+    current plan, frequency, subscription state, latest outstanding
+    invoice, and a mark-paid button."""
+    from app.models import Company, Plan, Invoice, InvoiceStatus
+    from app.services import saas_billing as _sb
+    outstanding = _sb.outstanding_saas_invoices()
+    # Map outstanding invoices → tenant company (via saas_customer_id).
+    inv_by_tenant = {}
+    for inv in outstanding:
+        t = Company.query.filter_by(
+            saas_customer_id=inv.customer_id).first()
+        if t:
+            inv_by_tenant.setdefault(t.id, []).append(inv)
+    # Show every non-deleted company with an intended_plan_id.
+    companies = (Company.query
+                   .filter(Company.deleted_at.is_(None),
+                             Company.intended_plan_id.isnot(None))
+                   .order_by(Company.name)
+                   .all())
+    plans_lookup = {p.id: p for p in Plan.query.all()}
+    return render_template(
+        "admin/saas_index.html",
+        companies=companies,
+        plans_lookup=plans_lookup,
+        outstanding_by_tenant=inv_by_tenant,
+    )
+
+
+@bp.route("/saas/invoices/<int:invoice_id>/mark-paid",
+          methods=["POST"])
+@login_required
+@superadmin_required
+def saas_mark_paid(invoice_id):
+    from app.models import Invoice
+    from app.services import saas_billing as _sb
+    inv = db.session.get(Invoice, invoice_id) or _404()
+    try:
+        tenant = _sb.mark_saas_invoice_paid(inv, current_user.id)
+        log_platform_action(
+            "saas.mark_paid",
+            f"invoice #{inv.number} marked paid for {tenant.name}")
+        flash(f"تم تسجيل الدفعة + تجديد اشتراك {tenant.name}",
+              "success")
+    except _sb.SaasBillingError as e:
+        flash(str(e), "error")
+    return redirect(url_for("superadmin.saas_index"))
+
+
+@bp.route("/saas/companies/<int:company_id>/price-lock",
+          methods=["POST"])
+@login_required
+@superadmin_required
+def saas_price_lock(company_id):
+    from app.models import Company
+    c = db.session.get(Company, company_id) or _404()
+    raw = (request.form.get("price_lock") or "").strip()
+    if not raw:
+        c.price_lock = None
+        flash(f"تم إلغاء قفل السعر لـ {c.name}", "success")
+    else:
+        try:
+            from decimal import Decimal
+            c.price_lock = Decimal(raw)
+            flash(f"تم قفل السعر لـ {c.name} على {c.price_lock}",
+                  "success")
+        except (ValueError, ArithmeticError):
+            flash("قيمة السعر غير صحيحة", "error")
+            return redirect(url_for("superadmin.saas_index"))
+    db.session.commit()
+    return redirect(url_for("superadmin.saas_index"))

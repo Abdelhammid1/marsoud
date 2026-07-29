@@ -64,6 +64,37 @@
     </label>
     {% endfor %}
 
+    {# MARSOUD-SAAS-BILLING-01 (Batch 5 Ticket 7, 2026-07-29) —
+       billing frequency. Drives the price shown + next-invoice
+       cadence. Monthly by default. #}
+    <div class="col-span-full max-w-md mx-auto mt-6">
+      <label class="block text-sm font-semibold text-slate-700 mb-2 text-center">
+        اختر دورة الفوترة
+      </label>
+      <div class="grid grid-cols-2 gap-2">
+        <label class="cursor-pointer">
+          <input type="radio" name="frequency" value="MONTHLY"
+                 class="peer sr-only" checked>
+          <div class="border-2 border-slate-200 rounded-xl px-4 py-3 text-center
+                      peer-checked:border-emerald-500 peer-checked:bg-emerald-50
+                      hover:border-emerald-300 transition">
+            <div class="font-semibold">شهري</div>
+            <div class="text-xs text-slate-500">دفع كل شهر</div>
+          </div>
+        </label>
+        <label class="cursor-pointer">
+          <input type="radio" name="frequency" value="YEARLY"
+                 class="peer sr-only">
+          <div class="border-2 border-slate-200 rounded-xl px-4 py-3 text-center
+                      peer-checked:border-emerald-500 peer-checked:bg-emerald-50
+                      hover:border-emerald-300 transition">
+            <div class="font-semibold">سنوي</div>
+            <div class="text-xs text-slate-500">وفّر مع الدفع السنوي</div>
+          </div>
+        </label>
+      </div>
+    </div>
+
     {# MARSOUD-DISCOUNT-COUPONS wiring (Abdelhamid 2026-07-29) —
        optional coupon field. Validated server-side; bad codes are
        rejected with a clear message but the plan choice is

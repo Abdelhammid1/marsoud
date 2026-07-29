@@ -23,7 +23,11 @@ class Customer(db.Model):
     # posts AR debits here instead of the parent header.
     account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=True)
 
-    company = db.relationship("Company", backref=db.backref("customers", lazy="dynamic"))
+    # foreign_keys pinned to company_id because Company also has
+    # saas_customer_id → customers.id (MARSOUD-SAAS-BILLING-01),
+    # which would otherwise make the join ambiguous.
+    company = db.relationship("Company", foreign_keys=[company_id],
+                              backref=db.backref("customers", lazy="dynamic"))
     sales_rep = db.relationship("User", foreign_keys=[sales_rep_id])
     account = db.relationship("Account", foreign_keys=[account_id])
 
