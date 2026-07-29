@@ -201,6 +201,63 @@ def _():
     return "no foreign number in label"
 
 
+@check("7. 6 backfilled source_types resolve to real labels (not 'قيد يدوي')")
+def _():
+    """MARSOUD-SOURCE-REFERENCE-01 pt 2 (Abdelhamid 2026-07-29).
+    Regression guard: the 6 source_types that were previously
+    falling into the manual-entry fallback must each resolve to
+    their proper Arabic label. Any label containing 'يدوي' means
+    the dict lost coverage."""
+    from flask import current_app
+    from app.services.source_reference import resolve_reference
+    from app.services.source_reference import _SOURCE_TYPES
+    backfilled = [
+        "opening_stock", "party_opening_balance",
+        "sales_commission_refund", "payroll_settlement",
+        "accrual_settle", "pos_void",
+    ]
+    with current_app.test_request_context():
+        for src_type in backfilled:
+            assert src_type in _SOURCE_TYPES, \
+                f"{src_type!r} not in _SOURCE_TYPES"
+            r = resolve_reference(src_type, 1)
+            assert "يدوي" not in r["label"], \
+                f"{src_type!r} still labeled as manual: {r['label']}"
+            assert r["label"], f"{src_type!r} empty label"
+    return f"{len(backfilled)} entries covered"
+
+
+@check("8. DB coverage: every non-null source_type in DB has a label")
+def _():
+    """Full-DB regression: run the same query pattern Abdelhamid
+    used in his follow-up ticket. Any source_type in journal_entries
+    or stock_movements that is missing from _SOURCE_TYPES will
+    fall back to 'قيد يدوي' — this test flags it loudly instead
+    of letting it silently mislabel real entries.
+
+    Skipped when the DB is empty (fresh checkout / CI without seed
+    data) — the check is a smoke test for populated envs.
+    """
+    from sqlalchemy import text
+    from app.services.source_reference import _SOURCE_TYPES
+    with db.engine.connect() as conn:
+        rows = list(conn.execute(text(
+            "SELECT source_type FROM journal_entries "
+            "WHERE source_type IS NOT NULL "
+            "UNION "
+            "SELECT source_type FROM stock_movements "
+            "WHERE source_type IS NOT NULL"
+        )))
+    if not rows:
+        return "skipped: no source_type rows in DB"
+    uncovered = sorted(
+        {r[0] for r in rows if r[0] and r[0] not in _SOURCE_TYPES})
+    assert not uncovered, (
+        f"{len(uncovered)} source_types missing from _SOURCE_TYPES: "
+        f"{uncovered}")
+    return f"all {len(rows)} distinct source_types covered"
+
+
 def main():
     app = create_app()
     passed = failed = 0

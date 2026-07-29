@@ -46,6 +46,22 @@ _SOURCE_TYPES = {
     "payroll":            ("قيد رواتب",         None,                    None),
     "sales_commission":   ("عمولة مبيعات",     None,                    None),
     "manufacturing_order": ("أمر إنتاج",       None,                    None),
+    # MARSOUD-SOURCE-REFERENCE-01 pt 2 (Abdelhamid 2026-07-29) —
+    # 6 source_types that were falling into the "قيد يدوي" default
+    # even though they're NOT manual entries. Found via a full DB
+    # scan (SELECT DISTINCT source_type FROM journal_entries +
+    # stock_movements). 154 rows previously mislabeled. All label-
+    # only for now — none have a dedicated detail view.
+    "opening_stock":           ("رصيد افتتاحي مخزون", None, None),
+    "party_opening_balance":   ("رصيد افتتاحي طرف",   None, None),
+    "sales_commission_refund": ("عكس عمولة مبيعات",   None, None),
+    "payroll_settlement":      ("سداد راتب مستحق",     None, None),
+    "accrual_settle":          ("تسوية استحقاق راتب", None, None),
+    "pos_void":                ("إلغاء عملية POS",     None, None),
+    # Discovered by the DB-coverage check (audit test 8). Legit
+    # entries that were also falling into the "قيد يدوي" default.
+    "stock_adjustment":        ("تسوية مخزون",          None, None),
+    "audit_seed":              ("قيد اختبار (تجربة)",   None, None),
 }
 
 
