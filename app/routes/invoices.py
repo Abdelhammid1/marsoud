@@ -56,6 +56,21 @@ def index():
         except KeyError:
             pass
 
+    # MARSOUD-INVOICES-RESTORE-01 (Batch 8 Ticket 3, 2026-07-30) —
+    # deleted-invoice visibility filter. `active` (default) hides
+    # voided invoices from the list; `deleted` shows ONLY voided
+    # ones (so users can find + restore them); `all` shows both.
+    # The Restore button in the template appears only when
+    # invoice.voided_at is not NULL.
+    deleted_filter = request.args.get("deleted_filter", "active")
+    if deleted_filter == "deleted":
+        q = q.filter(Invoice.voided_at.isnot(None))
+    elif deleted_filter == "all":
+        pass  # no filter
+    else:
+        deleted_filter = "active"
+        q = q.filter(Invoice.voided_at.is_(None))
+
     search = (request.args.get("search") or "").strip()
     if search:
         like = f"%{search}%"
@@ -106,6 +121,7 @@ def index():
     return render_template(
         "invoices/index.html",
         invoices=invoices, statuses=InvoiceStatus, totals=totals,
+        deleted_filter=deleted_filter,
     )
 
 
@@ -675,6 +691,111 @@ def delete(invoice_id):
     except (LedgerError, KeyError) as e:
         flash(str(e), "error")
     return redirect(url_for("invoices.index"))
+
+
+# MARSOUD-INVOICES-RESTORE-01 (Batch 8 Ticket 3, 2026-07-30) —
+# Undo a soft-delete. Posts a compensating JE that reverses the
+# refund/reversal the delete route created, so the customer's
+# sub-account balance returns to its pre-delete value. Gated on
+# invoices.refund (same permission as delete).
+@bp.route("/<int:invoice_id>/restore", methods=["POST"])
+@login_required
+@require_permission("invoices.refund")
+def restore(invoice_id):
+    from app.models.journal import JournalEntry, JournalLine
+    from app.services.ledger import post_journal
+    invoice = db.session.get(Invoice, invoice_id)
+    if not invoice or invoice.company_id != g.active_company.id:
+        flash("غير موجود", "error")
+        return redirect(url_for("invoices.index"))
+    if invoice.voided_at is None:
+        flash("الفاتورة نشطة بالفعل", "warning")
+        return redirect(url_for("invoices.view", invoice_id=invoice_id))
+    # Find the most-recent reversal JE for this invoice. The
+    # delete route calls issue_refund() which — for FULL refunds
+    # on unpaid invoices (the delete case) — posts a JE with
+    # source_type='refund' + source_id=invoice.id. The ORIGINAL
+    # invoice posting is source_type='invoice'. We distinguish
+    # the reversal by looking at the AR sub-account: original
+    # DEBITED it, reversal CREDITED it.
+    from app.services.subsidiary import party_ar_account
+    ar_acc = party_ar_account(invoice)
+    all_entries = (JournalEntry.query
+                     .filter(JournalEntry.company_id == invoice.company_id,
+                               JournalEntry.source_id == invoice.id,
+                               JournalEntry.source_type.in_(
+                                   ("invoice", "refund")))
+                     .order_by(JournalEntry.id.asc())
+                     .all())
+    reversal = None
+    for e in all_entries:
+        for line in e.lines:
+            if line.account_id == ar_acc.id and (line.credit or 0) > 0.01:
+                reversal = e
+                break
+        if reversal:
+            break
+    if not reversal:
+        flash("مفيش قيد عكسي مربوط بالفاتورة — تواصل مع الدعم",
+              "error")
+        return redirect(url_for("invoices.view",
+                                 invoice_id=invoice_id))
+    # Post a compensating JE that undoes the reversal (Dr what
+    # was credited, Cr what was debited).
+    comp_lines = []
+    for line in reversal.lines:
+        comp_lines.append({
+            "account_id": line.account_id,
+            "debit": float(line.credit or 0),
+            "credit": float(line.debit or 0),
+            "memo": (line.memo or "") + " — استرجاع",
+        })
+    try:
+        post_journal(
+            company_id=invoice.company_id,
+            description=f"استرجاع فاتورة {invoice.number}",
+            lines=comp_lines,
+            entry_date=date.today(),
+            reference=f"RESTORE-{invoice.number}",
+            currency=invoice.currency,
+            created_by=current_user.id,
+            source_type="invoice",
+            source_id=invoice.id,
+        )
+    except LedgerError as e:
+        flash(f"تعذّر ترحيل قيد الاسترجاع: {e}", "error")
+        return redirect(url_for("invoices.view",
+                                 invoice_id=invoice_id))
+    # Clear void state + recompute status from paid_amount.
+    invoice.voided_at = None
+    invoice.voided_by_id = None
+    invoice.void_reason = None
+    paid = float(invoice.paid_amount or 0)
+    total = float(invoice.total or 0)
+    if paid >= total - 0.01 and total > 0:
+        invoice.status = InvoiceStatus.PAID
+    elif paid > 0:
+        invoice.status = InvoiceStatus.PARTIALLY_PAID
+    elif invoice.due_date and invoice.due_date < date.today():
+        invoice.status = InvoiceStatus.OVERDUE
+    else:
+        invoice.status = InvoiceStatus.SENT
+    db.session.commit()
+    try:
+        from app.services.activity import log_action
+        log_action(
+            action_type="UPDATE", entity_type="invoice",
+            entity_id=invoice.id,
+            entity_label=f"استرجاع فاتورة {invoice.number}",
+            company_id=invoice.company_id,
+            extra_data={"restored": True,
+                        "new_status": invoice.status.value},
+        )
+    except Exception:
+        pass
+    flash(f"تم استرجاع الفاتورة {invoice.number} بحالة "
+          f"{invoice.status.value}", "success")
+    return redirect(url_for("invoices.view", invoice_id=invoice_id))
 
 
 @bp.route("/<int:invoice_id>/refund", methods=["POST"])

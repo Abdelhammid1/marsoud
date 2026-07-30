@@ -43,6 +43,18 @@
         {% for s in statuses %}<option value="{{ s.name }}" {% if request.args.get('status') == s.name %}selected{% endif %}>{{ s.value }}</option>{% endfor %}
       </select>
     </div>
+    {# MARSOUD-INVOICES-RESTORE-01 (Batch 8 Ticket 3, 2026-07-30)
+       — deleted-invoice visibility. Default = active only. Users
+       switch to 'deleted' or 'all' to find + restore soft-deleted
+       invoices. #}
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">العرض</label>
+      <select name="deleted_filter" class="select text-sm">
+        <option value="active" {% if deleted_filter == 'active' %}selected{% endif %}>النشطة فقط</option>
+        <option value="deleted" {% if deleted_filter == 'deleted' %}selected{% endif %}>المحذوفة فقط</option>
+        <option value="all" {% if deleted_filter == 'all' %}selected{% endif %}>الكل</option>
+      </select>
+    </div>
     <button type="submit" class="btn-primary text-sm">تطبيق</button>
     {% if request.args %}<a href="{{ url_for('invoices.index') }}" class="text-sm text-slate-500 hover:text-red-600">مسح الفلاتر</a>{% endif %}
     <div class="flex-grow"></div>
@@ -62,7 +74,20 @@
         <td class="text-left font-mono font-semibold">{{ "%.2f"|format(inv.total) }}</td>
         <td class="text-left font-mono {% if inv.balance > 0 %}text-amber-600{% else %}text-emerald-600{% endif %}">{{ "%.2f"|format(inv.balance) }}</td>
         <td><span class="badge {{ status_class.get(inv.status.value, 'badge-draft') }}">{{ inv.status.value }}</span></td>
-        <td><a href="{{ url_for('invoices.view', invoice_id=inv.id) }}" class="text-brand-600 hover:underline text-sm">عرض</a></td>
+        <td>
+          <a href="{{ url_for('invoices.view', invoice_id=inv.id) }}" class="text-brand-600 hover:underline text-sm">عرض</a>
+          {# MARSOUD-INVOICES-RESTORE-01 — Restore button visible
+             only on voided (soft-deleted) invoices. Uses the same
+             permission gate as delete (invoices.refund). #}
+          {% if inv.voided_at %}
+          <form method="POST"
+                action="{{ url_for('invoices.restore', invoice_id=inv.id) }}"
+                class="inline"
+                onsubmit="return confirm('استرجاع الفاتورة {{ inv.number }}؟');">
+            <button type="submit" class="text-emerald-700 hover:underline text-sm mr-2">↩ استرجاع</button>
+          </form>
+          {% endif %}
+        </td>
       </tr>
       {% else %}
       <tr><td colspan="8" class="text-center text-slate-400 py-8">لا توجد فواتير مطابقة</td></tr>
