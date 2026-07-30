@@ -178,11 +178,12 @@ def _():
     return f"email fired for invoice #{inv.id}"
 
 
-@check("4. mark_saas_invoice_paid emails the NEXT invoice it creates")
+@check("4. process_saas_next_invoices emails the NEXT invoice on due date")
 def _():
     from app.services import saas_billing as _sb
     from app.models import User, UserStatus
     from werkzeug.security import generate_password_hash
+    from datetime import date
     _teardown()
     c, u, plan = _bootstrap(owner_email="sbe-check4@x.test")
     first = _sb.create_first_invoice(c)
@@ -192,14 +193,18 @@ def _():
                   full_name="sbe-admin", is_active=True,
                   status=UserStatus.ACTIVE.value)
     db.session.add(admin); db.session.commit()
-    # Now count emails for BOTH invoices.
+    _sb.mark_saas_invoice_paid(first, admin.id)
+    # MARSOUD-SAAS-DEFERRED-INVOICE-01 (Batch 8 Ticket 2) — the
+    # NEXT invoice is now created + emailed by the cron sweep,
+    # not at payment time. Simulate the cron day.
+    c.next_billing_date = date.today()
+    db.session.commit()
     with patch(
         "app.services.invoicing.send_invoice_notification"
     ) as mock_send:
-        _sb.mark_saas_invoice_paid(first, admin.id)
-    # Called at least once for the next invoice.
-    assert mock_send.called, "no email fired for next invoice"
-    return f"email fired {mock_send.call_count}× for renewal"
+        _sb.process_saas_next_invoices()
+    assert mock_send.called, "no email fired by cron for next invoice"
+    return f"cron fired email {mock_send.call_count}× for renewal"
 
 
 @check("5. Email failure inside _try_email doesn't break invoice creation")

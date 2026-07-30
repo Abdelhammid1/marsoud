@@ -212,12 +212,13 @@ def _():
     return f"AR balance = {balance:.2f} matches invoice total"
 
 
-@check("5. _saas_post_payment posts JE for the NEXT invoice")
+@check("5. Cron sweep posts JE for the deferred NEXT invoice")
 def _():
     from app.services import saas_billing as _sb
     from app.services.invoicing import record_payment
-    from app.models import Invoice, User, UserStatus
+    from app.models import Invoice, User, UserStatus, Company
     from werkzeug.security import generate_password_hash
+    from datetime import date
     _teardown()
     c, u, plan = _bootstrap("E")
     inv = _sb.create_first_invoice(c)
@@ -228,21 +229,27 @@ def _():
                   full_name="sil-admin", is_active=True,
                   status=UserStatus.ACTIVE.value)
     db.session.add(admin); db.session.commit()
-    # Pay in full via record_payment — the SaaS hook runs
-    # _saas_post_payment which creates + posts the next invoice.
     record_payment(invoice=inv, amount=float(inv.total),
                     method="cash", created_by=admin.id, notify=False)
     db.session.expire_all()
-    # Find the next invoice.
+    # MARSOUD-SAAS-DEFERRED-INVOICE-01 (Batch 8 Ticket 2) —
+    # payment sets next_billing_date but does NOT create the
+    # next invoice. Simulate the cron day.
+    tenant = db.session.get(Company, c.id)
+    assert tenant.next_billing_date is not None
+    tenant.next_billing_date = date.today()
+    db.session.commit()
+    _sb.process_saas_next_invoices()
+    db.session.expire_all()
     next_inv = (Invoice.query
                   .filter(Invoice.customer_id == inv.customer_id,
                             Invoice.id != inv.id,
                             Invoice.source == "SAAS_BILLING")
                   .first())
-    assert next_inv is not None, "no next invoice"
+    assert next_inv is not None, "cron did not create next invoice"
     n = _je_count_for_invoice(next_inv.id)
     assert n == 1, f"next invoice has {n} JEs (expected 1)"
-    return f"next invoice #{next_inv.number} has 1 JE"
+    return f"cron-created next invoice #{next_inv.number} has 1 JE"
 
 
 # ─── Backfill CLI ────────────────────────────────────────────────

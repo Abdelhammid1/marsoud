@@ -106,6 +106,15 @@ class Company(db.Model):
     price_lock = db.Column(db.Numeric(15, 2), nullable=True)
     subscription_started_at = db.Column(db.DateTime)
     subscription_expires_at = db.Column(db.DateTime)
+    # MARSOUD-SAAS-DEFERRED-INVOICE-01 (Batch 8 Ticket 2,
+    # 2026-07-30) — when a SaaS payment lands, we set this to
+    # the future date we WANT to create the next-cycle invoice
+    # on (3 days before expiry for MONTHLY, 30 days before for
+    # YEARLY — computed via next_billing_date()). The cron
+    # sweep in process_saas_next_invoices() picks up companies
+    # whose date has arrived, creates the invoice, and clears
+    # the column. NULL = no pending invoice.
+    next_billing_date = db.Column(db.Date, nullable=True, index=True)
     # MARSOUD-INACTIVE-COMPANIES-MONITORING (Abdelhamid 2026-07-22) —
     # stamped by start_session() on every user login. Used by
     # /admin/companies/inactive to answer "who hasn't touched the

@@ -62,6 +62,20 @@ def tick():
             "recurring invoices failed: %s", e)
         summary["recurring_invoices"] = {"error": str(e)[:200]}
 
+    # MARSOUD-SAAS-DEFERRED-INVOICE-01 (Batch 8 Ticket 2,
+    # 2026-07-30) — create deferred SaaS next-cycle invoices for
+    # any tenant whose next_billing_date has arrived. Idempotent
+    # because the sweep clears the date after creating; re-runs
+    # find nothing to do.
+    try:
+        from app.services.saas_billing import process_saas_next_invoices
+        summary["saas_next_invoices"] = process_saas_next_invoices()
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception(
+            "SaaS next-invoice sweep failed: %s", e)
+        summary["saas_next_invoices"] = {"error": str(e)[:200]}
+
     # MARSOUD-INSTALLMENT-PLAN-01 (Abdelhamid 2026-07-24) — flip
     # PENDING → OVERDUE for installments past their due date. Cheap
     # single-query update, safe on any cadence.

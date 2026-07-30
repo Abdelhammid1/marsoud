@@ -135,7 +135,7 @@ def _bootstrap(suffix, freq="MONTHLY", with_plan=True, expired=False):
 
 
 # ─── Part A: unified payment path ────────────────────────────────
-@check("1. record_payment on SaaS invoice → subscription renews + next invoice")
+@check("1. record_payment on SaaS invoice → subscription renews + next_billing_date set")
 def _():
     from app.services import saas_billing as _sb
     from app.services.invoicing import record_payment
@@ -167,14 +167,13 @@ def _():
         f"invoice not PAID: {fresh_inv.status}"
     assert tenant.subscription_expires_at > prev_expiry, \
         "subscription not renewed via record_payment path"
-    next_inv = (Invoice.query
-                  .filter(Invoice.customer_id == tenant.saas_customer_id,
-                            Invoice.id != inv.id,
-                            Invoice.source == "SAAS_BILLING")
-                  .first())
-    assert next_inv is not None, \
-        "no NEXT invoice created via record_payment path"
-    return f"paid #{inv.id} via record_payment → renewed + next #{next_inv.id}"
+    # MARSOUD-SAAS-DEFERRED-INVOICE-01 (Batch 8 Ticket 2) — the
+    # next invoice is NOT created inline anymore; only
+    # next_billing_date is set. The cron creates the actual row.
+    assert tenant.next_billing_date is not None, \
+        "next_billing_date not set via record_payment path"
+    return (f"paid #{inv.id} via record_payment → renewed + "
+             f"next_billing_date={tenant.next_billing_date}")
 
 
 @check("2. record_payment on NON-SaaS invoice → subscription UNTOUCHED")

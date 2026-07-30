@@ -321,52 +321,106 @@ def _saas_post_payment(invoice, admin_user_id):
                 pass
         tenant.applied_coupon_id = None
 
-    # 3. Create the NEXT invoice. Dated at the appropriate offset
-    # so the existing reminder engine fires naturally.
-    next_inv = None
+    # 3. MARSOUD-SAAS-DEFERRED-INVOICE-01 (Batch 8 Ticket 2,
+    # 2026-07-30) — DEFER next-invoice creation to a daily cron.
+    # We used to create the invoice row + post its JE here, with
+    # a future issue_date. That leaked the row into /invoices/
+    # and AR aging months before its real date, confusing users
+    # who thought the system had double-billed them. Now we just
+    # stash the target date; process_saas_next_invoices() picks
+    # it up on the actual day.
+    tenant.next_billing_date = next_billing_date(tenant)
+    return tenant, None
+
+
+def _create_next_cycle_invoice(tenant, admin_user_id=None):
+    """Create the next-cycle SaaS invoice for a tenant + post its
+    JE. Extracted from the old _saas_post_payment inline block so
+    both the cron sweep and any future retry logic can call it.
+
+    Returns the Invoice, or None if the tenant has no
+    intended_plan_id or no saas_customer_id yet."""
     plan = db.session.get(Plan, tenant.intended_plan_id) \
         if tenant.intended_plan_id else None
-    if plan:
-        freq = tenant.subscription_frequency or FREQ_MONTHLY
-        price = _resolve_price(tenant, plan, freq)
-        cust = db.session.get(Customer, tenant.saas_customer_id)
-        mid = cust.company_id
-        freq_label = FREQ_LABELS_AR.get(freq, freq)
-        plan_label = plan.name_ar or plan.name
-        next_issue = next_billing_date(tenant)
-        next_inv = Invoice(
-            company_id=mid,
-            customer_id=cust.id,
-            number=next_number(mid, "INVOICE"),
-            issue_date=next_issue,
-            due_date=tenant.subscription_expires_at.date(),
-            currency=tenant.base_currency or "EGP",
-            tax_rate=0,
-            status=InvoiceStatus.SENT,
-            source="SAAS_BILLING",
-            notes=(f"فاتورة اشتراك تلقائية للشركة: {tenant.name}. "
-                   f"الفترة {freq_label}."),
-            internal_notes=f"tenant_id={tenant.id};freq={freq}",
-            send_reminders=True,
-        )
-        db.session.add(next_inv)
-        db.session.flush()
-        db.session.add(InvoiceItem(
-            invoice_id=next_inv.id,
-            company_id=mid,
-            description=f"اشتراك منصتي — باقة {plan_label} ({freq_label})",
-            quantity=1,
-            unit_price=price,
-        ))
-        next_inv.recalc()
-        db.session.flush()
-        # MARSOUD-SAAS-INVOICE-LEDGER-01 (Batch 6 Ticket 6,
-        # 2026-07-29) — post the JE for the next-cycle invoice
-        # inside the same transaction. Same idempotency guard as
-        # create_first_invoice.
-        _post_to_ledger_idempotent(next_inv,
-                                     created_by=admin_user_id)
-    return tenant, next_inv
+    if not plan or not tenant.saas_customer_id:
+        return None
+    freq = tenant.subscription_frequency or FREQ_MONTHLY
+    price = _resolve_price(tenant, plan, freq)
+    cust = db.session.get(Customer, tenant.saas_customer_id)
+    if not cust:
+        return None
+    mid = cust.company_id
+    freq_label = FREQ_LABELS_AR.get(freq, freq)
+    plan_label = plan.name_ar or plan.name
+    next_inv = Invoice(
+        company_id=mid,
+        customer_id=cust.id,
+        number=next_number(mid, "INVOICE"),
+        issue_date=date.today(),
+        due_date=(tenant.subscription_expires_at.date()
+                   if tenant.subscription_expires_at
+                   else date.today() + timedelta(days=30)),
+        currency=tenant.base_currency or "EGP",
+        tax_rate=0,
+        status=InvoiceStatus.SENT,
+        source="SAAS_BILLING",
+        notes=(f"فاتورة اشتراك تلقائية للشركة: {tenant.name}. "
+               f"الفترة {freq_label}."),
+        internal_notes=f"tenant_id={tenant.id};freq={freq}",
+        send_reminders=True,
+    )
+    db.session.add(next_inv)
+    db.session.flush()
+    db.session.add(InvoiceItem(
+        invoice_id=next_inv.id,
+        company_id=mid,
+        description=f"اشتراك منصتي — باقة {plan_label} ({freq_label})",
+        quantity=1,
+        unit_price=price,
+    ))
+    next_inv.recalc()
+    db.session.flush()
+    _post_to_ledger_idempotent(next_inv, created_by=admin_user_id)
+    return next_inv
+
+
+def process_saas_next_invoices():
+    """MARSOUD-SAAS-DEFERRED-INVOICE-01 (Batch 8 Ticket 2,
+    2026-07-30) — cron sweep called by /cron/tick. For every
+    tenant whose next_billing_date has arrived, create the
+    invoice + post the JE + email the customer + clear the
+    date. Idempotent: once the date is cleared, subsequent runs
+    the same day find nothing.
+
+    Any exception on a single tenant is logged + rolled back
+    for that tenant only; the sweep continues to the next.
+    Returns a summary dict for the cron endpoint."""
+    today = date.today()
+    tenants = Company.query.filter(
+        Company.next_billing_date.isnot(None),
+        Company.next_billing_date <= today,
+        Company.deleted_at.is_(None),
+    ).all()
+    created = 0
+    errored = 0
+    for tenant in tenants:
+        try:
+            inv = _create_next_cycle_invoice(tenant)
+            tenant.next_billing_date = None
+            db.session.commit()
+            if inv is not None:
+                created += 1
+                _try_email(inv)
+        except Exception:  # noqa: BLE001
+            db.session.rollback()
+            errored += 1
+            import logging
+            logging.getLogger("marsoud.saas_billing").exception(
+                "process_saas_next_invoices failed for tenant %s",
+                tenant.id)
+    return {"scanned": len(tenants),
+            "created": created,
+            "errored": errored}
 
 
 # ─── Mark paid + renew ───────────────────────────────────────────
@@ -390,13 +444,12 @@ def mark_saas_invoice_paid(invoice, admin_user_id):
         notify=False,
     )
     # record_payment already ran _saas_post_payment via the hook +
-    # committed. Just look up the tenant to return it, and email
-    # the next invoice if one was created.
+    # committed. The next invoice is NOT created here anymore
+    # (Batch 8 Ticket 2 defers it to the daily cron via
+    # process_saas_next_invoices). Return the tenant so the
+    # /admin/saas view can update its UI.
     tenant = Company.query.filter_by(
         saas_customer_id=invoice.customer_id).first()
-    next_inv = _find_latest_next_invoice(tenant) if tenant else None
-    if next_inv:
-        _try_email(next_inv)
     return tenant
 
 

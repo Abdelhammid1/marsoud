@@ -208,10 +208,10 @@ def _():
     return f"price_lock honored: {inv.total} (not plan 2000)"
 
 
-@check("6. Mark paid → payment recorded + subscription renewed + next invoice created")
+@check("6. Mark paid → payment recorded + subscription renewed + next_billing_date set")
 def _():
     from app.services import saas_billing as _sb
-    from app.models import Invoice, InvoiceStatus, User, UserStatus
+    from app.models import Invoice, InvoiceStatus, User, UserStatus, Company
     from werkzeug.security import generate_password_hash
     _teardown()
     c, u, plan = _bootstrap(freq="MONTHLY",
@@ -231,19 +231,20 @@ def _():
     inv = db.session.get(Invoice, inv_id)
     assert inv.status == InvoiceStatus.PAID, \
         f"invoice status = {inv.status}"
+    tenant = db.session.get(Company, c.id)
     # Subscription extended by 30 days.
     assert tenant.subscription_expires_at > prev_expiry, \
         "subscription not renewed"
     diff_days = (tenant.subscription_expires_at - prev_expiry).days
     assert 25 <= diff_days <= 35, \
         f"renewal off: {diff_days} days added (expected ~30)"
-    # NEXT invoice was created.
-    next_inv = Invoice.query.filter(
-        Invoice.customer_id == c.saas_customer_id,
-        Invoice.status.in_([InvoiceStatus.DRAFT, InvoiceStatus.SENT]),
-    ).first()
-    assert next_inv is not None, "next invoice was not created"
-    return f"paid {inv.id}, renewed +{diff_days}d, next invoice #{next_inv.id}"
+    # MARSOUD-SAAS-DEFERRED-INVOICE-01 (Batch 8 Ticket 2) — the
+    # next-cycle invoice is NOT created at payment time anymore;
+    # only next_billing_date is stashed. Cron creates the actual
+    # invoice on the target date. We verify the date is set here.
+    assert tenant.next_billing_date is not None, \
+        "next_billing_date not set at payment time"
+    return f"paid {inv.id}, renewed +{diff_days}d, next_billing_date={tenant.next_billing_date}"
 
 
 @check("7. Cross-tenant: SaaS invoice lives in Manasty, NOT in tenant's own books")
