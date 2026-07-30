@@ -461,7 +461,15 @@ def aging_report(company_id, as_of=None):
     for c in customers:
         buckets = {"current": 0.0, "d30": 0.0, "d60": 0.0, "d90": 0.0, "d90plus": 0.0}
         for inv in c.invoices:
-            if inv.status in (InvoiceStatus.PAID, InvoiceStatus.CANCELLED, InvoiceStatus.REFUNDED):
+            # MARSOUD-AR-AGING-VOIDED (Batch 8 Ticket 1, 2026-07-30) —
+            # VOIDED invoices already have a reversal JE so their
+            # ledger balance is zero. Excluding them here keeps the
+            # aging report consistent with the trial balance / 1130
+            # account balance shown at the bottom of the report.
+            if inv.status in (InvoiceStatus.PAID,
+                              InvoiceStatus.CANCELLED,
+                              InvoiceStatus.REFUNDED,
+                              InvoiceStatus.VOIDED):
                 continue
             bal = inv.balance
             if bal <= 0.01:
@@ -551,8 +559,11 @@ def _ar_balance_as_of(company_id, as_of_date):
     invs = Invoice.query.filter(
         Invoice.company_id == company_id,
         Invoice.issue_date <= as_of_date,
+        # MARSOUD-AR-AGING-VOIDED (Batch 8 Ticket 1, 2026-07-30) —
+        # VOIDED excluded for the same reason as in aging_report().
         ~Invoice.status.in_((InvoiceStatus.PAID, InvoiceStatus.CANCELLED,
-                              InvoiceStatus.REFUNDED, InvoiceStatus.DRAFT)),
+                              InvoiceStatus.REFUNDED, InvoiceStatus.DRAFT,
+                              InvoiceStatus.VOIDED)),
     ).all()
     return sum(float(i.balance or 0) for i in invs)
 
