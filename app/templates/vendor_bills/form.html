@@ -51,7 +51,13 @@
       </div>
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">الضريبة %</label>
-        <input type="number" name="tax_rate" id="tax_rate" step="0.01" value="0" class="input font-mono" oninput="calcTotals()">
+        {# MARSOUD-CURRENCY-TAX-DEFAULTS (Batch 8 Ticket 4a,
+           2026-07-30) — pre-fill from the company's default VAT
+           rate so vendor bills match the invoice/POS behaviour
+           instead of always hardcoding 0. #}
+        <input type="number" name="tax_rate" id="tax_rate" step="0.01"
+               value="{{ bill.tax_rate if bill else (g.active_company.vat_rate if g.active_company and g.active_company.vat_rate is not none else 0) }}"
+               class="input font-mono" oninput="calcTotals()">
       </div>
     </div>
     <div class="mt-4">

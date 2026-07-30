@@ -254,6 +254,61 @@ def edit(invoice_id):
     return render_template("invoices/form.html", customers=customers, invoice=invoice)
 
 
+# ─── MARSOUD-CURRENCY-TAX-DEFAULTS (Batch 8 Ticket 4c, 2026-07-30) ──
+_ALLOWED_INVOICE_CURRENCIES = ("EGP", "SAR", "AED", "USD", "EUR")
+
+
+@bp.route("/<int:invoice_id>/change-currency", methods=["POST"])
+@login_required
+@require_permission("invoices.create")
+def change_currency(invoice_id):
+    """Relabel the currency on a posted invoice + sync its JE
+    so the ledger stays consistent. Amounts are NOT converted —
+    this is purely a label fix for invoices that were created
+    with the wrong currency. Refused on VOIDED (already
+    deleted). Any other status is allowed."""
+    invoice = db.session.get(Invoice, invoice_id)
+    if not invoice or invoice.company_id != g.active_company.id:
+        flash("غير موجود", "error")
+        return redirect(url_for("invoices.index"))
+    if invoice.status == InvoiceStatus.VOIDED:
+        flash("لا يمكن تعديل عملة فاتورة محذوفة", "error")
+        return redirect(url_for("invoices.view", invoice_id=invoice_id))
+    new_currency = (request.form.get("currency") or "").strip().upper()
+    if new_currency not in _ALLOWED_INVOICE_CURRENCIES:
+        flash("عملة غير صالحة", "error")
+        return redirect(url_for("invoices.view", invoice_id=invoice_id))
+    if new_currency == invoice.currency:
+        flash("العملة الحالية زي المطلوبة — لا حاجة للتعديل", "warning")
+        return redirect(url_for("invoices.view", invoice_id=invoice_id))
+    old = invoice.currency
+    invoice.currency = new_currency
+    # Keep the linked JE in sync — otherwise trial balance /
+    # multi-currency reports get inconsistent.
+    from sqlalchemy import text
+    db.session.execute(text(
+        "UPDATE journal_entries SET currency = :c "
+        "WHERE source_type = 'invoice' AND source_id = :i"),
+        {"c": new_currency, "i": invoice.id})
+    db.session.commit()
+    # Activity log for the audit trail.
+    try:
+        from app.services.activity import log_action
+        log_action(
+            action_type="UPDATE", entity_type="invoice",
+            entity_id=invoice.id,
+            entity_label=f"عملة الفاتورة {invoice.number}: "
+                          f"{old} → {new_currency}",
+            company_id=invoice.company_id,
+            extra_data={"old_currency": old,
+                        "new_currency": new_currency},
+        )
+    except Exception:
+        pass
+    flash(f"تم تغيير العملة من {old} إلى {new_currency}", "success")
+    return redirect(url_for("invoices.view", invoice_id=invoice_id))
+
+
 @bp.route("/<int:invoice_id>/preview")
 @login_required
 def preview_pdf(invoice_id):

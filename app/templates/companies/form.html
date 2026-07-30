@@ -46,7 +46,10 @@
       </div>
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">نسبة الضريبة %</label>
-        <input type="number" name="vat_rate" step="0.01" value="{{ company.vat_rate if company else 15 }}" class="input">
+        {# MARSOUD-CURRENCY-TAX-DEFAULTS (Batch 8 Ticket 4b,
+           2026-07-30) — new companies default to 0% VAT;
+           existing rows keep whatever was saved. #}
+        <input type="number" name="vat_rate" step="0.01" value="{{ company.vat_rate if company else 0 }}" class="input">
       </div>
     </div>
 

@@ -93,7 +93,11 @@ def new():
         name = request.form.get("name", "").strip()
         base_currency = request.form.get("base_currency", "SAR")
         tax_number = request.form.get("tax_number", "").strip()
-        vat_rate = float(request.form.get("vat_rate", 15))
+        # MARSOUD-CURRENCY-TAX-DEFAULTS (Batch 8 Ticket 4b,
+        # 2026-07-30) — new sub-companies default to 0% VAT
+        # (same policy as /register). Owner can override in the
+        # form. Existing companies keep their saved rate.
+        vat_rate = float(request.form.get("vat_rate", 0))
         address = request.form.get("address", "").strip()
         if not name:
             flash("اسم الشركة مطلوب", "error")

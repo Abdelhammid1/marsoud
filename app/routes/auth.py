@@ -277,7 +277,15 @@ def register():
         user.terms_accepted_at = datetime.utcnow()
         user.terms_version = get_terms_version()
         company = Company(name=company_name, base_currency=base_currency,
-                          subdomain=subdomain, phone=company_phone)
+                          subdomain=subdomain, phone=company_phone,
+                          # MARSOUD-CURRENCY-TAX-DEFAULTS (Batch 8
+                          # Ticket 4b, 2026-07-30) — new companies
+                          # start at 0% VAT so tenants outside VAT-
+                          # jurisdictions don't have to manually
+                          # clear it. Existing companies keep their
+                          # previously-saved rate (column default
+                          # is still 15 for back-compat).
+                          vat_rate=0)
         # MARSOUD-CHOOSE-PLAN (Abdelhamid 2026-07-22) — was auto-
         # assigning the Enterprise plan at signup. Now: only stamp the
         # trial window; leave plan_id + intended_plan_id NULL so the

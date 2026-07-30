@@ -252,6 +252,32 @@
     </div>
     {% endif %}
 
+    {# MARSOUD-CURRENCY-TAX-DEFAULTS (Batch 8 Ticket 4c,
+       2026-07-30) — small tool to relabel an invoice's currency
+       when it was created wrong. Amounts are NOT converted;
+       this only updates the currency label + syncs the linked
+       journal entry so the ledger stays consistent. Hidden for
+       VOIDED invoices. #}
+    {% if invoice.status.value != 'VOIDED' %}
+    <div class="card p-5">
+      <h3 class="font-bold text-navy-900 mb-2">💱 تغيير عملة الفاتورة</h3>
+      <p class="text-xs text-slate-500 mb-3">
+        بيعدّل الوصف فقط — المبالغ ما بتتحوّلش. القيد المحاسبي بيتحدّث في نفس الوقت.
+      </p>
+      <form method="POST"
+            action="{{ url_for('invoices.change_currency', invoice_id=invoice.id) }}"
+            class="flex gap-2 items-center"
+            onsubmit="return confirm('تأكيد تغيير عملة الفاتورة {{ invoice.number }}؟');">
+        <select name="currency" class="select text-sm flex-1">
+          {% for cur in ['EGP', 'SAR', 'AED', 'USD', 'EUR'] %}
+          <option value="{{ cur }}" {% if invoice.currency == cur %}selected{% endif %}>{{ cur }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn-secondary text-sm">حفظ</button>
+      </form>
+    </div>
+    {% endif %}
+
     {% if invoice.status.value == 'DRAFT' %}
     <div class="card p-5">
       <h3 class="font-bold text-navy-900 mb-3">إرسال الفاتورة</h3>
