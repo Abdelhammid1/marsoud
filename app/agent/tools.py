@@ -116,6 +116,24 @@ TOOL_SCHEMAS = [
         },
     },
     {
+        "name": "list_invoices",
+        "description": "اعرض قائمة الفواتير مع فلاتر اختيارية (فترة تاريخ، حالة، عميل)، ويرجع أيضاً عدد الفواتير وإجمالي المبالغ. استخدم هذه الأداة لأي سؤال عن عدد الفواتير أو إجمالي المبيعات في فترة معينة (مثل: كام فاتورة النهاردة، إجمالي مبيعات الأسبوع ده، الفواتير المتأخرة).",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "start_date": {"type": "string", "description": "YYYY-MM-DD (افتراضي اليوم)"},
+                "end_date": {"type": "string", "description": "YYYY-MM-DD (افتراضي اليوم)"},
+                "status": {
+                    "type": "string",
+                    "enum": ["DRAFT", "SENT", "PARTIALLY_PAID", "PAID", "OVERDUE", "CANCELLED", "REFUNDED", "PARTIALLY_REFUNDED", "VOIDED"],
+                    "description": "فلتر بالحالة (اختياري)",
+                },
+                "customer_id": {"type": "integer", "description": "فلتر بعميل معين (اختياري)"},
+                "limit": {"type": "integer", "description": "أقصى عدد فواتير تُرجع بالتفصيل، افتراضي 20 (العدد والإجمالي يشملان كل الفواتير المطابقة بغض النظر عن هذا الحد)"},
+            },
+        },
+    },
+    {
         "name": "run_report",
         "description": "شغّل تقرير مالي.",
         "input_schema": {
@@ -364,6 +382,42 @@ def execute_tool(name, args, company_id, user_id):
                 "items": [
                     {"description": i.description, "quantity": float(i.quantity), "unit_price": float(i.unit_price)}
                     for i in inv.items
+                ],
+            }
+
+        if name == "list_invoices":
+            from app.models import InvoiceStatus as _InvStatus
+            start = _parse_date(args.get("start_date"), date.today())
+            end = _parse_date(args.get("end_date"), date.today())
+            limit = args.get("limit", 20)
+            q = Invoice.query.filter(
+                Invoice.company_id == company_id,
+                Invoice.issue_date >= start,
+                Invoice.issue_date <= end,
+            )
+            status = args.get("status")
+            if status:
+                q = q.filter(Invoice.status == _InvStatus(status))
+            customer_id = args.get("customer_id")
+            if customer_id:
+                q = q.filter(Invoice.customer_id == customer_id)
+            invoices = q.order_by(Invoice.issue_date.desc(), Invoice.id.desc()).all()
+            total_amount = sum(float(i.total or 0) for i in invoices)
+            return {
+                "count": len(invoices),
+                "total_amount": round(total_amount, 2),
+                "start_date": str(start),
+                "end_date": str(end),
+                "invoices": [
+                    {
+                        "invoice_id": i.id,
+                        "number": i.number,
+                        "customer": i.customer.name if i.customer else None,
+                        "issue_date": str(i.issue_date),
+                        "total": float(i.total or 0),
+                        "status": i.status.value,
+                    }
+                    for i in invoices[:limit]
                 ],
             }
 
