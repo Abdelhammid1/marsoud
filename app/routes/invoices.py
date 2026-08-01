@@ -62,14 +62,18 @@ def index():
     # ones (so users can find + restore them); `all` shows both.
     # The Restore button in the template appears only when
     # invoice.voided_at is not NULL.
-    deleted_filter = request.args.get("deleted_filter", "active")
-    if deleted_filter == "deleted":
-        q = q.filter(Invoice.voided_at.isnot(None))
-    elif deleted_filter == "all":
-        pass  # no filter
-    else:
-        deleted_filter = "active"
+    # MARSOUD-VOIDED-VISIBLE (Batch 9 Ticket 2, 2026-08-01) —
+    # user clarified voided invoices must stay in the list marked
+    # as deleted (for reference), NOT hidden by default. Financial
+    # totals (_EXCLUDED below) already exclude VOIDED so KPIs
+    # don't inflate. Flipped default from `active` to `all`.
+    deleted_filter = request.args.get("deleted_filter", "all")
+    if deleted_filter == "active":
         q = q.filter(Invoice.voided_at.is_(None))
+    elif deleted_filter == "deleted":
+        q = q.filter(Invoice.voided_at.isnot(None))
+    else:
+        deleted_filter = "all"
 
     search = (request.args.get("search") or "").strip()
     if search:
