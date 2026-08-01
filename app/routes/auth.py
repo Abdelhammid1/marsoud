@@ -483,10 +483,11 @@ def choose_plan():
 @bp.route("/re-accept-terms", methods=["GET", "POST"])
 @login_required
 def reaccept_terms():
-    from app.services.legal import (
-        get_terms_version, get_terms_html, get_privacy_html,
-    )
-    from markupsafe import Markup
+    # MARSOUD-PRIVACY-TERMS-UPDATE-01 (Batch 9 Ticket 3,
+    # 2026-08-01) — template now links to /terms + /privacy
+    # instead of dumping full HTML inline, so we no longer need
+    # get_terms_html / get_privacy_html here.
+    from app.services.legal import get_terms_version
     current = get_terms_version()
     if request.method == "POST":
         if request.form.get("agree_terms") != "on":
@@ -507,8 +508,6 @@ def reaccept_terms():
     return render_template(
         "auth/reaccept.html",
         version=current,
-        terms=Markup(get_terms_html()),
-        privacy=Markup(get_privacy_html()),
     )
 
 

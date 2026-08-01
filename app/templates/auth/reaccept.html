@@ -1,30 +1,49 @@
 {% extends "base.html" %}
 {% block page_title %}تحديث الشروط والأحكام{% endblock %}
 {% block content %}
-<div class="max-w-3xl mx-auto card p-8">
+{# MARSOUD-PRIVACY-TERMS-UPDATE-01 (Batch 9 Ticket 3, 2026-08-01)
+   — replaced the two inline scrollable divs that dumped the full
+   terms + privacy HTML with a short notice + links to the
+   dedicated /terms and /privacy pages. Users open them in a new
+   tab to read; the acknowledgement checkbox stays here. #}
+<div class="max-w-2xl mx-auto card p-8">
   <div class="flex items-baseline justify-between mb-4 pb-4 border-b border-slate-100">
     <h2 class="text-xl font-bold text-navy-900">📄 تحديث الشروط</h2>
     <span class="text-xs text-slate-400 font-mono">إصدار {{ version }}</span>
   </div>
-  <p class="text-sm text-slate-600 mb-4">
-    نشرنا إصداراً جديداً من الشروط والأحكام / سياسة الخصوصية.
-    راجعها وأكّد موافقتك للاستمرار في استخدام النظام.
+
+  <p class="text-sm text-slate-700 leading-relaxed mb-5">
+    تم تحديث <b>سياسة الخصوصية</b> و/أو <b>شروط وأحكام الاستخدام</b>.
+    للاطلاع على النسخة الكاملة، اضغط على الروابط أدناه، ثم أكّد
+    موافقتك للاستمرار في استخدام النظام.
   </p>
 
-  <div class="max-h-64 overflow-y-auto border border-slate-100 rounded p-4 text-sm text-slate-700 mb-3 bg-slate-50">
-    <h3 class="font-bold mb-2">الشروط والأحكام</h3>
-    <div class="prose prose-sm max-w-none">{{ terms }}</div>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+    <a href="{{ url_for('public.privacy') }}" target="_blank" rel="noopener"
+       class="flex items-center justify-between gap-2 border border-slate-200 rounded-xl p-4 hover:border-emerald-400 hover:bg-emerald-50/40 transition">
+      <div>
+        <div class="font-semibold text-navy-900 text-sm">سياسة الخصوصية</div>
+        <div class="text-xs text-slate-500 mt-1">تفتح في تبويب جديد</div>
+      </div>
+      <span class="text-emerald-600 text-lg">↗</span>
+    </a>
+    <a href="{{ url_for('public.terms') }}" target="_blank" rel="noopener"
+       class="flex items-center justify-between gap-2 border border-slate-200 rounded-xl p-4 hover:border-emerald-400 hover:bg-emerald-50/40 transition">
+      <div>
+        <div class="font-semibold text-navy-900 text-sm">شروط وأحكام الاستخدام</div>
+        <div class="text-xs text-slate-500 mt-1">تفتح في تبويب جديد</div>
+      </div>
+      <span class="text-emerald-600 text-lg">↗</span>
+    </a>
   </div>
 
-  <div class="max-h-64 overflow-y-auto border border-slate-100 rounded p-4 text-sm text-slate-700 mb-4 bg-slate-50">
-    <h3 class="font-bold mb-2">سياسة الخصوصية</h3>
-    <div class="prose prose-sm max-w-none">{{ privacy }}</div>
-  </div>
-
-  <form method="POST" class="space-y-3">
-    <label class="flex items-start gap-3">
+  <form method="POST" class="space-y-4 pt-4 border-t border-slate-100">
+    <label class="flex items-start gap-3 cursor-pointer">
       <input type="checkbox" name="agree_terms" required class="mt-1">
-      <span class="text-sm">أوافق على الإصدار الجديد.</span>
+      <span class="text-sm text-slate-700 leading-relaxed">
+        أُقرّ بأنني اطلعت على <b>سياسة الخصوصية</b> و<b>شروط وأحكام
+        الاستخدام</b>، وفهمت محتواهما، وأوافق عليهما.
+      </span>
     </label>
     <div class="flex justify-end pt-1">
       <button type="submit" class="btn-primary">✓ متابعة</button>
