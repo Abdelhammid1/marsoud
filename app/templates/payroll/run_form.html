@@ -1,22 +1,56 @@
 {% extends "base.html" %}
 {% block page_title %}تشغيل كشف رواتب{% endblock %}
 {% block content %}
+
+{# MARSOUD-PAYROLL-MONTH-PREVIEW (Batch 9 Ticket 4, 2026-08-01)
+   — the year/month selectors used to sit inside the POST form,
+   so changing them had no effect until the user hit "تشغيل".
+   Split into a mini GET form that reloads the page with the
+   chosen month (backend already reads year/month from
+   request.args on GET). The POST form below carries hidden
+   year+month for the actual run. #}
+<form method="GET" action="{{ url_for('payroll.run') }}"
+      class="card p-4 mb-4">
+  <div class="grid grid-cols-3 gap-4 items-end">
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">السنة</label>
+      <select name="year" class="select">
+        {% for y in [today.year - 1, today.year, today.year + 1] %}<option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">الشهر</label>
+      <select name="month" class="select">
+        {% for m in range(1, 13) %}<option value="{{ m }}" {% if m == month %}selected{% endif %}>شهر {{ m }}</option>{% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="btn-secondary text-sm">
+      🔍 تحديث المعاينة
+    </button>
+  </div>
+  <p class="text-xs text-slate-500 mt-2">
+    تنقّل بين الشهور لمعاينة بيانات كل شهر (الأيام والغياب التلقائي والمبالغ) قبل الاعتماد. ما بيتسجّلش أي قيد لحد ما تدوس زرار "تشغيل وتسجيل القيد" اللي تحت.
+  </p>
+</form>
+
 <form method="POST" class="space-y-4">
+  {# Carry the currently-previewed year/month with the POST so
+     the run posts against the shown month, not the calendar
+     default. #}
+  <input type="hidden" name="year" value="{{ year }}">
+  <input type="hidden" name="month" value="{{ month }}">
+
   <div class="card p-6">
-    <div class="grid grid-cols-3 gap-4 items-end">
+    <div class="flex items-center justify-between">
       <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">السنة</label>
-        <select name="year" class="select">
-          {% for y in [today.year - 1, today.year, today.year + 1] %}<option value="{{ y }}" {% if y == today.year %}selected{% endif %}>{{ y }}</option>{% endfor %}
-        </select>
+        <h3 class="font-bold text-navy-900">معاينة كشف {{ month }}/{{ year }}</h3>
+        <p class="text-xs text-slate-500 mt-1">
+          الراتب النسبي = الأساسي ÷ 30 × عدد أيام العمل.
+          الأوفرتايم/البونص/الخصومات المتغيرة بتدخلها هنا وبتتصفر بعد الكشف.
+          المدفوع فعلياً = الصافي يعني الراتب اتدفع كامل؛ لو قللته بيتسجل الفرق كرصيد مستحق للموظف.
+        </p>
       </div>
-      <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">الشهر</label>
-        <select name="month" class="select">
-          {% for m in range(1, 13) %}<option value="{{ m }}" {% if m == month %}selected{% endif %}>شهر {{ m }}</option>{% endfor %}
-        </select>
-      </div>
-      <label class="flex items-center gap-2 text-sm cursor-pointer">
+      <label class="flex items-center gap-2 text-sm cursor-pointer bg-slate-50 rounded-lg px-3 py-2">
         <input type="checkbox" name="send_emails" value="1" checked class="w-4 h-4 rounded text-brand-600">
         <span>📧 إرسال PDF كشف الراتب لكل موظف بالإيميل</span>
       </label>
@@ -25,8 +59,6 @@
 
   <div class="card p-6">
     <h3 class="font-bold text-navy-900 mb-3">تعديل البيانات الشهرية لكل موظف</h3>
-    <p class="text-xs text-slate-500 mb-4">الراتب النسبي = الأساسي ÷ 30 × عدد أيام العمل. الأوفرتايم/البونص/الخصومات المتغيرة بتدخلها هنا وبتتصفر بعد الكشف.</p>
-    <p class="text-xs text-slate-500 mb-2">المدفوع فعلياً = الصافي يعني الراتب اتدفع كامل. لو قللته بيتسجل الفرق كرصيد مستحق لاسم الموظف وتقدر تسدده لاحقاً من صفحته.</p>
     <table class="data-table">
       <thead><tr>
         <th>الموظف</th>
@@ -81,7 +113,10 @@
 
   <div class="flex justify-end gap-2">
     <a href="{{ url_for('payroll.index') }}" class="btn-secondary">إلغاء</a>
-    <button type="submit" class="btn-primary" {% if not employees %}disabled{% endif %}>تشغيل وتسجيل القيد</button>
+    <button type="submit" class="btn-primary" {% if not employees %}disabled{% endif %}
+            onclick="return confirm('تأكيد تسجيل قيد راتب شهر {{ month }}/{{ year }}؟');">
+      تشغيل وتسجيل قيد شهر {{ month }}/{{ year }}
+    </button>
   </div>
 </form>
 {% endblock %}
