@@ -131,6 +131,13 @@ P = {
     "assets.manage":        {"owner", "admin", "accountant"},
 
     "agent.use":            {"owner", "admin", "accountant"},   # agent can post journals → not viewer
+    # MARSOUD-INSIGHTS-AGENT-01 (Batch 9 Ticket 6, 2026-08-01)
+    # — read-only analyst agent. Broader default than agent.use
+    # because it can't post journals; owner can still restrict
+    # via the roles admin UI.
+    "insights.use":         {"owner", "admin", "accountant",
+                              "ceo", "hr_manager",
+                              "sales_manager", "project_manager"},
 
     # ERP-01 — inventory + (Phase 2) POS
     "inventory.view":       {"owner", "admin", "accountant", "viewer"},

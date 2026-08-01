@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block page_title %}المحلل الذكي{% endblock %}
+{% block content %}
+{# MARSOUD-INSIGHTS-AGENT-01 (Batch 9 Ticket 6, 2026-08-01) —
+   read-only analyst chat. Visually distinct from the accountant
+   (amber accent + 🔍 icon) so users don't mistake the two. #}
+<div class="grid grid-cols-3 gap-4 h-[calc(100vh-9rem)]">
+  <div class="card p-6 col-span-2 flex flex-col border-amber-200">
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-2xl">🔍</div>
+        <div>
+          <h2 class="font-bold text-navy-900">المحلل الذكي</h2>
+          <p class="text-xs text-slate-500">قراءة وتحليل بيانات شركتك — للاطلاع فقط، مش بيعدّل أو ينفّذ أي عملية.</p>
+        </div>
+      </div>
+      <button onclick="clearChat()" class="text-sm text-slate-500 hover:text-red-600">مسح المحادثة</button>
+    </div>
+
+    <div id="chat-messages" class="flex-1 overflow-y-auto space-y-3 mb-4 bg-amber-50/40 -mx-6 px-6 py-4 border-y border-amber-100">
+      {% if not history %}
+      <div class="text-center text-slate-400 py-8">
+        <div class="text-5xl mb-3">📊</div>
+        <p class="font-semibold text-slate-700">مرحباً! أنا المحلل الذكي — بقرا الأرقام وبلخّصهالك</p>
+        <p class="text-sm mt-2">جرّب واحد من الأسئلة دي:</p>
+        <div class="mt-4 flex flex-wrap gap-2 justify-center">
+          <button onclick="setMsg('إيه ملخص النهارده؟')" class="text-xs px-3 py-1.5 bg-white border border-amber-200 rounded-full hover:border-amber-500">إيه ملخص النهارده؟</button>
+          <button onclick="setMsg('مين أكتر موظف بينجز في آخر 30 يوم؟')" class="text-xs px-3 py-1.5 bg-white border border-amber-200 rounded-full hover:border-amber-500">مين أكتر موظف بينجز؟</button>
+          <button onclick="setMsg('فيه إيه متأخر عندي دلوقتي؟')" class="text-xs px-3 py-1.5 bg-white border border-amber-200 rounded-full hover:border-amber-500">إيه المتأخر عندي؟</button>
+          <button onclick="setMsg('إيه أكتر جزء شغال في النظام الفترة دي؟')" class="text-xs px-3 py-1.5 bg-white border border-amber-200 rounded-full hover:border-amber-500">أكتر حاجة شغالة</button>
+        </div>
+      </div>
+      {% else %}
+        {% for m in history %}
+          {% if m.role == 'user' %}
+          <div class="flex justify-end"><div class="bg-navy-900 text-white rounded-2xl rounded-tl-sm px-4 py-2 max-w-[80%] text-sm">{{ m.content }}</div></div>
+          {% else %}
+          <div class="flex justify-start"><div class="bg-white border border-amber-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap">{{ m.content }}</div></div>
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+    </div>
+
+    <form onsubmit="sendMessage(event)" class="flex gap-2">
+      <input id="msg-input" type="text" placeholder="اسأل عن أرقامك… مثلاً: إيه ملخص النهارده؟" required autocomplete="off" class="input">
+      <button type="submit" id="send-btn" class="btn-primary bg-amber-600 hover:bg-amber-700">إرسال</button>
+    </form>
+  </div>
+
+  <div class="card p-6 border-amber-100">
+    <h3 class="font-bold text-navy-900 mb-3">💡 اسأل عن</h3>
+    <div class="space-y-3 text-sm">
+      {% set topics = [
+        ('📅', 'ملخص اليوم', 'فواتير، تحصيلات، مهام، عملاء محتملين'),
+        ('✅', 'إحصائيات المهام', 'مفتوح/منجز/متأخر لكل حالة'),
+        ('👤', 'أداء الموظفين', 'مين اللي بينجز أكتر خلال فترة'),
+        ('⏰', 'المتأخرات', 'مهام + فواتير عملاء + فواتير موردين'),
+        ('📊', 'نشاط الموديولات', 'أكتر أجزاء النظام استخدامًا'),
+      ] %}
+      {% for icon, title, desc in topics %}
+      <div class="flex gap-3">
+        <div class="text-xl">{{ icon }}</div>
+        <div>
+          <div class="font-semibold text-navy-900">{{ title }}</div>
+          <div class="text-xs text-slate-500">{{ desc }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="mt-5 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-700">
+      <b class="text-slate-900">للقراءة فقط.</b> المحلل ما بيعدّل ولا يعمل قيد ولا يمسح حاجة. لأي عملية استخدم <a href="{{ url_for('agent.index') }}" class="text-brand-600 hover:underline">المحاسب الذكي</a>.
+    </div>
+  </div>
+</div>
+
+<script>
+function setMsg(t) { document.getElementById('msg-input').value = t; }
+async function sendMessage(e) {
+  e.preventDefault();
+  const input = document.getElementById('msg-input');
+  const text = input.value.trim();
+  if (!text) return;
+  const box = document.getElementById('chat-messages');
+  if (box.querySelector('.text-center')) box.innerHTML = '';
+  box.innerHTML += `<div class="flex justify-end"><div class="bg-navy-900 text-white rounded-2xl rounded-tl-sm px-4 py-2 max-w-[80%] text-sm">${escapeHtml(text)}</div></div>`;
+  input.value = '';
+  const loading = document.createElement('div');
+  loading.className = 'flex justify-start';
+  loading.innerHTML = '<div class="bg-white border border-amber-200 rounded-2xl rounded-tr-sm px-4 py-2 text-sm text-slate-500"><span class="animate-pulse">بيحلل…</span></div>';
+  box.appendChild(loading);
+  box.scrollTop = box.scrollHeight;
+  document.getElementById('send-btn').disabled = true;
+
+  try {
+    const res = await fetch('/agent/insights/chat', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: text}),
+    });
+    const data = await res.json();
+    loading.remove();
+    if (data.error) {
+      box.innerHTML += `<div class="text-xs text-red-600 px-2">${escapeHtml(data.error)}</div>`;
+    } else {
+      box.innerHTML += `<div class="flex justify-start"><div class="bg-white border border-amber-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">${escapeHtml(data.reply)}</div></div>`;
+      if (data.tools && data.tools.length) {
+        const usedTools = data.tools.map(t => t.tool).join(', ');
+        box.innerHTML += `<div class="text-xs text-slate-400 px-2">🔧 استخدم: ${escapeHtml(usedTools)}</div>`;
+      }
+    }
+  } catch (err) {
+    loading.remove();
+    box.innerHTML += `<div class="text-xs text-red-600 px-2">خطأ في الاتصال</div>`;
+  }
+  document.getElementById('send-btn').disabled = false;
+  box.scrollTop = box.scrollHeight;
+}
+async function clearChat() {
+  if (!confirm('مسح محادثة المحلل بالكامل؟')) return;
+  await fetch('/agent/insights/clear', {method: 'POST'});
+  location.reload();
+}
+function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+document.getElementById('chat-messages').scrollTop = 99999;
+</script>
+{% endblock %}

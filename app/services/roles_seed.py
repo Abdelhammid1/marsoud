@@ -91,6 +91,7 @@ PERMISSION_CATALOG = {
     "company.edit":         ("النظام", "إعدادات الشركة", "edit"),
     "company.create":       ("النظام", "إنشاء شركة جديدة", "add"),
     "agent.use":            ("النظام", "المحاسب الذكي (AI)", "run"),
+    "insights.use":         ("النظام", "المحلل الذكي (تحليلات وقراءة)", "run"),
 
     # ─── MARSOUD-PERM-EXPAND — new sidebar items (per-endpoint) ─────────
     # These live on top of the umbrella permissions above and are IMPLIED

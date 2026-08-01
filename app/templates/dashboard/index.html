@@ -555,6 +555,13 @@
     {% if has_permission('agent.use') %}
     <a class="q" href="{{ url_for('agent.index') }}"><span class="q-ico">🤖</span><span class="q-label">المساعد</span></a>
     {% endif %}
+    {# MARSOUD-INSIGHTS-AGENT-01 (Batch 9 Ticket 6, 2026-08-01) —
+       shortcut to the read-only insights agent. Distinct from
+       the accountant so users don't confuse "قراءة" with
+       "تنفيذ". #}
+    {% if has_permission('insights.use') %}
+    <a class="q" href="{{ url_for('agent.insights_index') }}"><span class="q-ico">🔍</span><span class="q-label">التحليل اليومي</span></a>
+    {% endif %}
   </div>
 </div>
 

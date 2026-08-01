@@ -67,6 +67,8 @@ _PREFIX_TO_MODULE = {
     "reports.": "reports",
     # agent
     "agent.": "agent",
+    # MARSOUD-INSIGHTS-AGENT-01 (Batch 9 Ticket 6, 2026-08-01).
+    "insights.": "insights",
     # settings — always on
     "users.": "settings",
 }
