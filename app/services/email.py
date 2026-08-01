@@ -21,24 +21,21 @@ def _smtp_configured():
 
 
 def company_logo_email_uri(company):
-    """MARSOUD-62 — Return the company logo as a data: URI for embedding in
-    HTML emails. Email clients can't fetch local /static/ paths, so we
-    encode the file bytes inline. Returns None if there's no logo or the
+    """MARSOUD-62 — Return a public https:// URL for the company logo.
+    Gmail (web + app) blocks data: URIs in <img src> for security reasons,
+    even though Outlook/Apple Mail accept them — so we serve a real hosted
+    URL instead of inlining base64. Returns None if there's no logo or the
     file isn't on disk."""
     if not company or not getattr(company, "logo_path", None):
         return None
     rel = company.logo_path.lstrip("/")
-    # static lives at app/static/ — same trick as services/export.py
     candidate = os.path.join(os.path.dirname(os.path.dirname(__file__)), rel)
     if not os.path.exists(candidate):
         return None
-    ext = os.path.splitext(candidate)[1].lstrip(".").lower()
-    mime = "image/png" if ext == "png" else f"image/{ext}"
-    try:
-        with open(candidate, "rb") as f:
-            return f"data:{mime};base64,{base64.b64encode(f.read()).decode('ascii')}"
-    except OSError:
+    base = current_app.config.get("SITE_URL", "").rstrip("/")
+    if not base:
         return None
+    return f"{base}/{rel}"
 
 
 def send_email(to, subject, html_body, attachments=None, text_body=None):

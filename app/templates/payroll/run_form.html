@@ -57,7 +57,7 @@
           <td><input type="number" name="overtime_hours_{{ e.id }}" step="0.5" value="0" class="input w-full text-sm font-mono"></td><td><input type="number" name="overtime_{{ e.id }}" step="0.01" value="0" class="input w-full text-sm font-mono"></td>
           <td><input type="number" name="bonus_{{ e.id }}" step="0.01" value="0" class="input w-full text-sm font-mono"></td>
           <td>
-            <input type="number" name="absence_days_{{ e.id }}" step="1" value="0" class="input w-full text-sm font-mono">
+            <input type="number" name="absence_days_{{ e.id }}" step="1" value="{{ auto_abs_count }}" class="input w-full text-sm font-mono">
           </td>
           <td>
             <input type="number" name="absence_{{ e.id }}" step="0.01" value="{{ "%.2f"|format(auto_abs) }}"
