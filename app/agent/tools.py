@@ -117,7 +117,7 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "list_invoices",
-        "description": "اعرض قائمة الفواتير مع فلاتر اختيارية (فترة تاريخ، حالة، عميل)، ويرجع أيضاً عدد الفواتير وإجمالي المبالغ. استخدم هذه الأداة لأي سؤال عن عدد الفواتير أو إجمالي المبيعات في فترة معينة (مثل: كام فاتورة النهاردة، إجمالي مبيعات الأسبوع ده، الفواتير المتأخرة).",
+        "description": "اعرض قائمة الفواتير مع فلاتر اختيارية (فترة تاريخ، حالة، عميل)، ويرجع أيضاً عدد الفواتير وإجمالي المبالغ. استخدم هذه الأداة لأي سؤال عن عدد الفواتير أو إجمالي المبيعات في فترة معينة (مثل: كام فاتورة النهاردة، إجمالي مبيعات الأسبوع ده، الفواتير المتأخرة). ملاحظة مهمة: الفواتير المسودة (DRAFT) والملغية (CANCELLED) والمعدومة (VOIDED) مستبعدة تلقائياً من العدد والإجمالي لأنها لا تمثل مبيعات فعلية، وهذا يطابق ما تعرضه التقارير المالية. لعرضها استخدم فلتر status صراحةً أو include_all_statuses.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -130,6 +130,7 @@ TOOL_SCHEMAS = [
                 },
                 "customer_id": {"type": "integer", "description": "فلتر بعميل معين (اختياري)"},
                 "limit": {"type": "integer", "description": "أقصى عدد فواتير تُرجع بالتفصيل، افتراضي 20 (العدد والإجمالي يشملان كل الفواتير المطابقة بغض النظر عن هذا الحد)"},
+                "include_all_statuses": {"type": "boolean", "description": "لو true، يشمل الفواتير المسودة والملغية والمعدومة في النتيجة. الافتراضي false."},
             },
         },
     },
@@ -396,8 +397,25 @@ def execute_tool(name, args, company_id, user_id):
                 Invoice.issue_date <= end,
             )
             status = args.get("status")
+            excluded = []
             if status:
                 q = q.filter(Invoice.status == _InvStatus(status))
+            elif not args.get("include_all_statuses"):
+                # MARSOUD-AGENT-INVOICES-FIX (Abdelhamid 2026-08-01) —
+                # DRAFT / CANCELLED / VOIDED are not real sales: a DRAFT
+                # was never posted to the ledger, and CANCELLED / VOIDED
+                # had their journal entry reversed. Counting them made the
+                # agent report a higher "total sales" than the income
+                # statement and the AR aging report show for the same
+                # period (aging started excluding VOIDED in 8b88ab7).
+                # The caller can still see them by passing an explicit
+                # `status` or include_all_statuses=true.
+                excluded = ["DRAFT", "CANCELLED", "VOIDED"]
+                q = q.filter(~Invoice.status.in_([
+                    _InvStatus.DRAFT,
+                    _InvStatus.CANCELLED,
+                    _InvStatus.VOIDED,
+                ]))
             customer_id = args.get("customer_id")
             if customer_id:
                 q = q.filter(Invoice.customer_id == customer_id)
@@ -408,6 +426,7 @@ def execute_tool(name, args, company_id, user_id):
                 "total_amount": round(total_amount, 2),
                 "start_date": str(start),
                 "end_date": str(end),
+                "excluded_statuses": excluded,
                 "invoices": [
                     {
                         "invoice_id": i.id,
