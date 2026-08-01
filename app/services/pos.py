@@ -104,7 +104,14 @@ def create_pos_order(
             else invoice_discount_type
         ),
         invoice_discount_value=float(invoice_discount_value or 0),
-        tax_rate=float(tax_rate) if tax_rate is not None else 15.0,
+        # MARSOUD-INVOICE-TAX-ZERO (Batch 9 Ticket 1, 2026-08-01) —
+        # if the POST didn't include a tax_rate, fall back to the
+        # company's saved vat_rate (which may legitimately be 0 for
+        # 0%-VAT jurisdictions). Old code hardcoded 15%.
+        tax_rate=(float(tax_rate) if tax_rate is not None
+                   else float(_company.vat_rate)
+                        if _company and _company.vat_rate is not None
+                        else 0.0),
         notes=notes,
         cash_received=float(cash_received) if cash_received is not None else None,
     )

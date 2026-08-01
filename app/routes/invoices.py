@@ -130,9 +130,14 @@ def _populate_invoice_from_form(invoice, form):
     invoice.customer_id = int(form.get("customer_id"))
     invoice.issue_date = datetime.strptime(form.get("issue_date", date.today().isoformat()), "%Y-%m-%d").date()
     invoice.due_date = datetime.strptime(form.get("due_date", (date.today() + timedelta(days=30)).isoformat()), "%Y-%m-%d").date()
+    # MARSOUD-INVOICE-TAX-ZERO (Batch 9 Ticket 1, 2026-08-01) —
+    # explicit None-check preserves vat_rate=0 (the new-company
+    # default from Batch 8 Ticket 4b). `X or 15` was returning 15
+    # for 0% companies.
+    _co_vat = g.active_company.vat_rate
     invoice.tax_rate = _safe_float(
         form.get("tax_rate"),
-        default=float(g.active_company.vat_rate or 15))
+        default=float(_co_vat if _co_vat is not None else 0))
     invoice.notes = form.get("notes", "")
     invoice.internal_notes = form.get("internal_notes", "")
     invoice.send_reminders = form.get("send_reminders") == "1"
@@ -207,7 +212,13 @@ def new():
                 issue_date=date.today(),
                 due_date=date.today() + timedelta(days=30),
                 currency=g.active_company.base_currency,
-                tax_rate=g.active_company.vat_rate or 15,
+                # MARSOUD-INVOICE-TAX-ZERO (Batch 9 Ticket 1) —
+                # placeholder; the real value gets set inside
+                # _populate_invoice_from_form a few lines down,
+                # which now respects vat_rate=0.
+                tax_rate=(g.active_company.vat_rate
+                          if g.active_company.vat_rate is not None
+                          else 0),
                 status=InvoiceStatus.DRAFT,
                 # MARSOUD-INVOICE-CREATOR — record who authored it.
                 created_by_id=current_user.id,

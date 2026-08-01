@@ -311,7 +311,13 @@ def execute_tool(name, args, company_id, user_id):
             company = db.session.get(Company, company_id)
             from app.routes.invoices import _next_number
             due_days = args.get("due_days", 30)
-            tax_rate = args.get("tax_rate", float(company.vat_rate or 15))
+            # MARSOUD-INVOICE-TAX-ZERO (Batch 9 Ticket 1, 2026-08-01)
+            # — respect a saved vat_rate of 0 (falsy in Python's
+            # `or`). Fall through to 0 only when the column is None.
+            tax_rate = args.get(
+                "tax_rate",
+                float(company.vat_rate
+                       if company.vat_rate is not None else 0))
             invoice = Invoice(
                 company_id=company_id,
                 number=_next_number(company_id),

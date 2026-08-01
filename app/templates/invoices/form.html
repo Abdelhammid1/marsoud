@@ -27,7 +27,14 @@
           نسبة الضريبة %
           <span class="text-xs text-slate-400 font-normal">(افتراضي من إعدادات الشركة: {{ active_company.vat_rate }}%)</span>
         </label>
-        <input type="number" name="tax_rate" id="tax_rate" step="0.01" value="{{ invoice.tax_rate if invoice else (active_company.vat_rate or 15) }}" class="input" oninput="calcTotals()">
+        {# MARSOUD-INVOICE-TAX-ZERO (Batch 9 Ticket 1, 2026-08-01)
+           — `X or 15` treats Decimal(0) as falsy so 0% companies
+           kept seeing 15% in this input even after Batch 8 Ticket
+           4b flipped the new-company default to 0. Explicit
+           None-check preserves 0. #}
+        <input type="number" name="tax_rate" id="tax_rate" step="0.01"
+               value="{{ invoice.tax_rate if invoice else (active_company.vat_rate if active_company.vat_rate is not none else 0) }}"
+               class="input" oninput="calcTotals()">
       </div>
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">ملاحظات للعميل (تظهر على الفاتورة)</label>
