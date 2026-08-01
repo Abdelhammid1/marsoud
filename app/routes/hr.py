@@ -352,14 +352,39 @@ def attendance_new():
                 raise LeaveError("التاريخ مطلوب")
             type_str = request.form.get("type")
             duration_raw = request.form.get("duration_hours") or None
-            create_exception(
-                company_id=cid, employee_id=emp_id, date_=d,
-                type_=type_str,
-                duration_hours=float(duration_raw) if duration_raw else None,
-                note=request.form.get("note"),
-                created_by=current_user.id,
-            )
-            flash("تم تسجيل الاستثناء", "success")
+            # MARSOUD-ATTENDANCE-RANGE (Batch 9 Ticket 5,
+            # 2026-08-01) — optional date_to. When provided,
+            # bulk-create one exception per non-rest day in the
+            # range, skipping days that already have one.
+            d_to = _parse_date(request.form.get("date_to"))
+            if d_to and d_to != d:
+                from app.services.leave import create_exception_range
+                summary = create_exception_range(
+                    company_id=cid, employee_id=emp_id,
+                    date_from=d, date_to=d_to, type_=type_str,
+                    note=request.form.get("note"),
+                    created_by=current_user.id,
+                    rest_weekdays=g.active_company.rest_weekdays,
+                )
+                msg_parts = [f"تم تسجيل {summary['created']} استثناء"]
+                if summary['skipped_weekend']:
+                    msg_parts.append(
+                        f"تخطينا {summary['skipped_weekend']} "
+                        f"يوم أجازة أسبوعية")
+                if summary['skipped_existing']:
+                    msg_parts.append(
+                        f"تخطينا {summary['skipped_existing']} "
+                        f"يوم كان مسجّل قبل كده")
+                flash(" — ".join(msg_parts), "success")
+            else:
+                create_exception(
+                    company_id=cid, employee_id=emp_id, date_=d,
+                    type_=type_str,
+                    duration_hours=float(duration_raw) if duration_raw else None,
+                    note=request.form.get("note"),
+                    created_by=current_user.id,
+                )
+                flash("تم تسجيل الاستثناء", "success")
             return redirect(url_for("hr.attendance", year=d.year, month=d.month))
         except (LeaveError, ValueError, TypeError) as e:
             flash(str(e), "error")

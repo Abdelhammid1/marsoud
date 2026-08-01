@@ -254,6 +254,86 @@ def create_exception(*, company_id, employee_id, date_, type_, duration_hours=No
     return ex
 
 
+def create_exception_range(*, company_id, employee_id, date_from,
+                            date_to, type_, duration_hours=None,
+                            note=None, created_by=None,
+                            rest_weekdays=None, max_days=90):
+    """MARSOUD-ATTENDANCE-RANGE (Batch 9 Ticket 5, 2026-08-01)
+    — bulk-create one AttendanceException per non-rest day in
+    the [date_from, date_to] inclusive range. Skips days that
+    already have an exception for the same employee (no
+    overwrite). Refuses if:
+      · date_to < date_from
+      · range > max_days (safety cap)
+    Returns a summary dict {created, skipped_weekend,
+    skipped_existing, dates_created}.
+    """
+    if date_to is None or date_to == date_from:
+        # Degenerates to a single-day create — delegate.
+        ex = create_exception(company_id=company_id,
+                                employee_id=employee_id,
+                                date_=date_from, type_=type_,
+                                duration_hours=duration_hours,
+                                note=note, created_by=created_by)
+        return {"created": 1, "skipped_weekend": 0,
+                "skipped_existing": 0,
+                "dates_created": [date_from]}
+    if date_to < date_from:
+        raise LeaveError(
+            "تاريخ النهاية لازم يكون بعد أو يساوي تاريخ البداية")
+    span = (date_to - date_from).days + 1
+    if span > max_days:
+        raise LeaveError(
+            f"الفترة أطول من الحد المسموح ({max_days} يوم)")
+
+    from datetime import timedelta as _td
+    rest = set(rest_weekdays or ())
+    created = 0
+    skipped_weekend = 0
+    skipped_existing = 0
+    dates_created = []
+    # Resolve the enum ONCE so every insert uses the same value.
+    if not isinstance(type_, AttendanceExceptionType):
+        try:
+            type_ = AttendanceExceptionType[type_]
+        except KeyError:
+            raise LeaveError("نوع الاستثناء غير صالح")
+    if type_ == AttendanceExceptionType.LATE:
+        # LATE per-day doesn't really make sense in a range —
+        # refuse rather than silently apply the same hours to
+        # every day.
+        raise LeaveError(
+            "نوع 'تأخير' مايتسجّلش لفترة زمنية — سجله يوم بيوم")
+
+    day = date_from
+    while day <= date_to:
+        if day.weekday() in rest:
+            skipped_weekend += 1
+        else:
+            already = AttendanceException.query.filter_by(
+                employee_id=employee_id, date=day).first()
+            if already:
+                skipped_existing += 1
+            else:
+                db.session.add(AttendanceException(
+                    company_id=company_id,
+                    employee_id=employee_id,
+                    date=day, type=type_,
+                    duration_hours=None,
+                    note=(note or "").strip() or None,
+                    created_by=created_by,
+                ))
+                created += 1
+                dates_created.append(day)
+        day = day + _td(days=1)
+    if created:
+        db.session.commit()
+    return {"created": created,
+            "skipped_weekend": skipped_weekend,
+            "skipped_existing": skipped_existing,
+            "dates_created": dates_created}
+
+
 def delete_exception(exception):
     """Refuse to delete if attached to a LeaveRequest — the user must cancel
     the request instead (which deletes its exceptions as a side effect)."""

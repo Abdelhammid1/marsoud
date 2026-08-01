@@ -14,8 +14,27 @@
         </select>
       </div>
       <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">التاريخ</label>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">التاريخ (البداية)</label>
         <input type="date" name="date" required value="{{ today }}" class="input">
+      </div>
+    </div>
+    {# MARSOUD-ATTENDANCE-RANGE (Batch 9 Ticket 5, 2026-08-01)
+       — optional date_to enables bulk-creating one absence per
+       non-rest day in the range. Weekly rest days (from
+       company.rest_weekdays) are skipped automatically. Days
+       that already have an exception for the same employee are
+       also skipped (no overwrite). LATE type is not supported
+       for ranges — sign hours per day. #}
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">
+          تاريخ النهاية
+          <span class="text-xs text-slate-400 font-normal">(اختياري — لغياب متتالي)</span>
+        </label>
+        <input type="date" name="date_to" class="input">
+        <p class="text-xs text-slate-500 mt-1">
+          لو ملهاش قيمة، هيتحسب يوم واحد بس. الجُمع والسبوت (أو أي أجازة أسبوعية عندك) هيتخطاها تلقائي. حد أقصى 90 يوم.
+        </p>
       </div>
     </div>
     <div class="grid grid-cols-2 gap-4">
