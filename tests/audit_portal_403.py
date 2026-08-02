@@ -517,6 +517,46 @@ def _():
 
 
 # ─── Run ────────────────────────────────────────────────────────────────
+def _preflight_session(app):
+    """Abort loudly if the fixture sessions don't authenticate.
+
+    Every assertion below distinguishes 403 (blocked) from 302 (allowed
+    elsewhere) — so an UNauthenticated test client turns this audit into a
+    liar. confine_client_to_portal returns early when the user is
+    anonymous, @login_required then bounces every route to /login, and the
+    run reports things like "confinement widened: /journals/=302" — which
+    reads as a security regression when in fact the gate never ran. That
+    misdiagnosis has cost a revert once already; fail with the real cause
+    instead of 17 misleading failures.
+
+    The usual trigger is a production-style .env: SESSION_COOKIE_DOMAIN
+    =.marsoud.com scopes the cookie to that domain, and the test client
+    runs on localhost, so it is never sent (see the MARSOUD-SESSION-
+    COOKIE-DEV-FIX note in config.py). It is irrelevant to what this audit
+    exercises, so we neutralise it for the run rather than depend on which
+    .env happens to be on the machine.
+    """
+    domain = app.config.get("SESSION_COOKIE_DOMAIN")
+    if domain:
+        app.config["SESSION_COOKIE_DOMAIN"] = None
+        print(f"NOTE  SESSION_COOKIE_DOMAIN={domain!r} overridden to None "
+              f"for this run\n      (a domain-scoped cookie is never sent "
+              f"to the localhost test client).")
+    r = _client_for("owner").get("/home", follow_redirects=False)
+    landed = r.headers.get("Location", "") if r.status_code in (301, 302) else ""
+    if "/login" in landed:
+        print("\nABORT  fixture session is NOT authenticated — GET /home as "
+              "the owner redirected to /login.")
+        print("       Every 403-vs-302 assertion below would be meaningless, "
+               "so the run is stopping here.")
+        print("       This is an environment problem, not a code failure. "
+              "Check SESSION_COOKIE_DOMAIN,")
+        print("       SECRET_KEY stability, and that Flask-Login is wired "
+              "before re-reading any result.")
+        return False
+    return True
+
+
 def main():
     app = create_app()
     app.config["WTF_CSRF_ENABLED"] = False
@@ -533,6 +573,11 @@ def main():
     with app.app_context():
         _setup()
     try:
+        if not _preflight_session(app):
+            with app.app_context():
+                _teardown()
+            print("\n────  aborted before any check ran  ────")
+            sys.exit(2)
         for label, fn in CHECKS:
             try:
                 result = fn()
