@@ -20,6 +20,19 @@
     "إنشاء حساب" لكل واحد، اختار الدور المناسب، وبعدها تقدر تفعّل
     الحساب من القسم اللي تحت.
   </p>
+  {# MARSOUD-PORTAL-403-FIX — the dropdown defaults to «موظف», which is
+     a personal-portal-only role: no projects, no tasks, no calendar.
+     Leaving the default on a programmer / designer / anyone who works
+     on projects is what put them in a portal with nothing in it. Spell
+     the consequence out at the point of choice. #}
+  <p class="text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 leading-relaxed">
+    ⚠ <strong>خد بالك من الدور:</strong>
+    «<strong>موظف (بوابة شخصية)</strong>» بيشوف بياناته وقسايم راتبه
+    وإجازاته وملفاته وتذاكر الدعم <strong>بس</strong> — من غير مشاريع
+    ولا مهام ولا تقويم. أي حد بيشتغل على مشاريع (مبرمج، مصمم، فني…)
+    لازم ياخد «<strong>عضو فريق</strong>» أو أعلى، وهيفضل شايف بوابته
+    الشخصية عادي طول ما ليه سجل موظف.
+  </p>
   <table class="data-table">
     <thead>
       <tr>
@@ -36,10 +49,25 @@
         <td>
           {% if emp.email %}
           <form method="POST" action="{{ url_for('hr_ss.create_user_for_employee', emp_id=emp.id) }}" class="flex items-center gap-2">
+            {# MARSOUD-PORTAL-403-FIX — annotate each system role with what
+               it actually unlocks, so HR isn't picking from bare labels.
+               Custom roles get no hint (their scope is owner-defined). #}
+            {% set role_scope = {
+              'employee':        'بوابة شخصية فقط — بدون مشاريع/مهام',
+              'team_member':     'مشاريع + مهام المسندة له',
+              'project_manager': 'إدارة المشاريع + المهام',
+              'sales_rep':       'العملاء المحتملين المسندين له',
+              'sales_manager':   'كل العملاء المحتملين + المشاريع',
+              'accountant':      'الفواتير والقيود والتقارير المالية',
+              'hr_manager':      'الموظفين والأقسام والإجازات',
+              'ceo':             'عرض شامل بدون تعديل مالي',
+              'viewer':          'قراءة فقط',
+              'admin':           'كل شيء ما عدا إدارة المستخدمين',
+            } %}
             <select name="user_role_code" class="select text-sm flex-1 max-w-xs">
               {% for r in available_roles %}
               <option value="{{ r.code }}" {% if r.code == 'employee' %}selected{% endif %}>
-                {{ r.name_ar }}{% if r.type == 'CUSTOM' %} (مخصص){% endif %}
+                {{ r.name_ar }}{% if r.type == 'CUSTOM' %} (مخصص){% elif role_scope.get(r.code) %} — {{ role_scope[r.code] }}{% endif %}
               </option>
               {% endfor %}
             </select>

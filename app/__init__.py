@@ -293,6 +293,18 @@ def create_app(config_class=Config):
         "hr_manager", "sales_manager", "sales_rep",
         "project_manager", "team_member", "client",
     })
+    # MARSOUD-PORTAL-403-FIX — carve-out for the read-only insights agent.
+    # `agent.` entered FINANCIAL_BLUEPRINTS in Cycle 7, when the blueprint
+    # held only the accountant agent (which posts journals). MARSOUD-
+    # INSIGHTS-AGENT-01 (2026-08-01) then added /agent/insights* behind its
+    # own `insights.use` permission, deliberately granted to hr_manager /
+    # sales_manager / project_manager because "it can't post journals" —
+    # but this hook 403s the whole prefix before that permission is ever
+    # consulted, so base.html advertised a link those roles could not open.
+    # The insights routes keep their own require_permission gate; only the
+    # blanket prefix block is lifted. agent.index / .chat / .clear (the
+    # journal-posting accountant agent) stay blocked.
+    FINANCIAL_EXEMPT_PREFIXES = ("agent.insights",)
 
     @app.before_request
     def block_non_financial_roles_from_financial():
@@ -302,6 +314,8 @@ def create_app(config_class=Config):
         if not current_user.is_authenticated or not g.get("active_company"):
             return
         endpoint = (request.endpoint or "")
+        if endpoint.startswith(FINANCIAL_EXEMPT_PREFIXES):
+            return
         if not any(endpoint.startswith(p) for p in FINANCIAL_BLUEPRINTS):
             return
         role = get_user_role(current_user.id, g.active_company.id)
@@ -543,13 +557,31 @@ def create_app(config_class=Config):
     CLIENT_ALLOWED_ENDPOINTS = (
         "portal.", "notifications.", "auth.", "static",
         "invitations.",   # accept-invitation pages
+        # MARSOUD-PORTAL-403-FIX — help + support are invariants in every
+        # other before_request gate in this file (_FLAG_ALLOWLIST,
+        # _CHOOSE_PLAN_ALLOWLIST, _TERMS_ALLOWLIST). They were missing
+        # here only, so the "?" help icon and the الدعم الفني link
+        # rendered by base.html handed portal users a bare 403.
+        "help.", "support.",
     )
     # HR-SS — employees only see their own portal + invariants (notifications,
     # auth, static, invitation acceptance). Everything else 403s.
     EMPLOYEE_ALLOWED_ENDPOINTS = (
         "portal_emp.", "notifications.", "auth.", "static",
         "invitations.",
+        # MARSOUD-PORTAL-403-FIX — same invariants as the client list,
+        # plus user_files: /files/ is the user's OWN folder (scoped by
+        # user_id in user_files._get_or_403), so an employee reaching it
+        # sees nothing but their own uploads.
+        "help.", "support.", "user_files.",
     )
+    # MARSOUD-PORTAL-403-FIX — endpoints that must bounce a confined user
+    # to their portal instead of 403-ing. `dashboard.landing` is the site
+    # root ("/"): typing the bare domain while logged in as an employee /
+    # client is the single most common way into the app, and it used to
+    # fall through to abort(403) because only `dashboard.index` (/home)
+    # was special-cased.
+    _PORTAL_BOUNCE_ENDPOINTS = ("dashboard.index", "dashboard.landing")
 
     @app.before_request
     def confine_client_to_portal():
@@ -563,13 +595,13 @@ def create_app(config_class=Config):
         if role == "client":
             if endpoint.startswith(CLIENT_ALLOWED_ENDPOINTS):
                 return
-            if endpoint == "dashboard.index":
+            if endpoint in _PORTAL_BOUNCE_ENDPOINTS:
                 return redirect(url_for("portal.index"))
             abort(403)
         if role == "employee":
             if endpoint.startswith(EMPLOYEE_ALLOWED_ENDPOINTS):
                 return
-            if endpoint == "dashboard.index":
+            if endpoint in _PORTAL_BOUNCE_ENDPOINTS:
                 return redirect(url_for("portal_emp.index"))
             abort(403)
 
