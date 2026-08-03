@@ -59,6 +59,12 @@ P = {
     "payroll.run":          {"owner", "admin", "accountant"},
     "payroll.employees":    {"owner", "admin", "accountant", "hr_manager"},  # employee lifecycle (create/edit/terminate) — HR owns this
     "payroll.accruals":     {"owner", "admin", "accountant"},  # settling accruals = posts a journal → financial-only
+    # MARSOUD-ADVANCES (2026-08-03) — approve/reject an advance request,
+    # add one directly, or cancel it. All three move cash and post a
+    # journal, so this matches payroll.accruals rather than hr.manage.
+    # An employee submits their own request through /my/ with no
+    # permission code at all (portal_emp is allowlisted by prefix).
+    "advances.manage":      {"owner", "admin", "accountant"},
     "payroll.view":         {"owner", "admin", "accountant", "hr_manager", "viewer"},
     # MARSOUD-PERM-FIX-01 — view employee personal/HR data WITHOUT salary
     # figures. Whoever has payroll.view sees the salary numbers; this is the

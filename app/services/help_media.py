@@ -113,6 +113,10 @@ BLUEPRINT_TO_MODULE_KEY = {
     "payroll":           "payroll",
     "hr":                "hr",
     "hr_ss":             "hr",
+    # MARSOUD-ADVANCES — advances are part of the payroll story, so the
+    # "?" icon on /advances/* points at the payroll article until one is
+    # authored for advances specifically.
+    "advances":          "payroll",
     "leads":             "crm",
     "crm":               "crm",
     "tasks":             "tasks",

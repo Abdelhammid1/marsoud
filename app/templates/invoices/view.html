@@ -91,7 +91,7 @@
         <tr><td colspan="4" class="text-left py-2">الوعاء الضريبي</td><td class="text-left font-mono">{{ "%.2f"|format(invoice.taxable_base) }}</td></tr>
         {% endif %}
         <tr><td colspan="4" class="text-left py-2">الضريبة ({{ "%.2f"|format(invoice.tax_rate) }}%)</td><td class="text-left font-mono">{{ "%.2f"|format(invoice.tax_amount) }}</td></tr>
-        <tr class="border-t-2 border-navy-900"><td colspan="4" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold text-lg">{{ "%.2f"|format(invoice.total) }} {{ invoice.currency }}</td></tr>
+        <tr class="border-t-2 border-navy-900"><td colspan="4" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold text-lg">{{ "%.2f"|format(invoice.total) }} {{ invoice.currency|currency_ar }}</td></tr>
         <tr><td colspan="4" class="text-left text-emerald-600 py-2">المدفوع</td><td class="text-left font-mono text-emerald-600">{{ "%.2f"|format(invoice.paid_amount or 0) }}</td></tr>
         <tr><td colspan="4" class="text-left font-bold text-amber-600 py-2">المتبقي</td><td class="text-left font-mono font-bold text-amber-600">{{ "%.2f"|format(invoice.balance) }}</td></tr>
       </tbody>
@@ -269,8 +269,8 @@
             class="flex gap-2 items-center"
             onsubmit="return confirm('تأكيد تغيير عملة الفاتورة {{ invoice.number }}؟');">
         <select name="currency" class="select text-sm flex-1">
-          {% for cur in ['EGP', 'SAR', 'AED', 'USD', 'EUR'] %}
-          <option value="{{ cur }}" {% if invoice.currency == cur %}selected{% endif %}>{{ cur }}</option>
+          {% for cur in currency_codes %}
+          <option value="{{ cur }}" {% if invoice.currency == cur %}selected{% endif %}>{{ cur }} — {{ cur|currency_ar }}</option>
           {% endfor %}
         </select>
         <button type="submit" class="btn-secondary text-sm">حفظ</button>

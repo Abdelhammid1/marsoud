@@ -18,6 +18,7 @@ from app.models import (
     User, Employee, EmployeeHistory, EmployeeChangeType,
     PayrollLine, PayrollRun, EmployeeAccrual,
     LeaveType, LeaveBalance, LeaveRequest, LeaveRequestStatus,
+    AdvanceRequest, AdvanceRequestStatus,
 )
 from app.models.user import user_companies
 from app.services.permissions import require_permission, get_user_role
@@ -328,6 +329,13 @@ def account():
         employee_id=emp.id,
     ).order_by(LeaveRequest.created_at.desc()).limit(50).all()
 
+    # MARSOUD-ADVANCES — current advance balance + own request history.
+    from app.services.advances import active_advance_for
+    advance = active_advance_for(emp.id)
+    advance_requests = AdvanceRequest.query.filter_by(
+        employee_id=emp.id,
+    ).order_by(AdvanceRequest.created_at.desc()).limit(50).all()
+
     # MARSOUD-57.1 — compute tenure (years + months) from start_date so the
     # unified account page can show "سنة و3 شهور" without doing math in Jinja.
     tenure_label = "—"
@@ -355,6 +363,9 @@ def account():
         bal_by_type=bal_by_type,
         requests=requests,
         statuses=LeaveRequestStatus,
+        advance=advance,
+        advance_requests=advance_requests,
+        advance_statuses=AdvanceRequestStatus,
         tenure_label=tenure_label,
     )
 
@@ -457,14 +468,48 @@ def leave_new():
                        kind=NotificationKind.TASK_ASSIGNED,
                        title=f"🌴 طلب إجازة جديد: {emp.name}",
                        body=f"{lt.name} — {days} يوم",
-                       link_url=url_for("leave.requests"))
+                       # Was url_for("leave.requests") — no such blueprint,
+                       # so this raised BuildError, got swallowed by the
+                       # except below, and no HR manager ever received the
+                       # notification. The real endpoint is hr.leave_requests.
+                       link_url=url_for("hr.leave_requests"))
         except Exception:
             from flask import current_app
             current_app.logger.exception("leave request notify failed")
         flash("تم إرسال طلب الإجازة للاعتماد.", "success")
     except (ValueError, TypeError, KeyError) as e:
         flash(str(e), "error")
-    return redirect(url_for("portal_emp.index") + "#leaves")
+    # portal_emp.index 302s to /account and drops the fragment on the way.
+    return redirect(url_for("portal_emp.account") + "#leaves")
+
+
+@portal_emp_bp.route("/advance/new", methods=["POST"])
+@login_required
+def advance_new():
+    """MARSOUD-ADVANCES — employee asking for an advance from /my/.
+
+    Same shape as leave_new: the employee acts on themselves only, so
+    there's no permission code — _my_employee() scopes to the active
+    company and 403s anyone without an HR record.
+    """
+    emp = _my_employee()
+    if not emp:
+        abort(403)
+    try:
+        from app.services.advances import submit_advance_request, AdvanceError
+        try:
+            submit_advance_request(
+                emp.company_id, emp.id,
+                request.form.get("amount"),
+                reason=request.form.get("reason"),
+                created_by=current_user.id,
+            )
+            flash("تم إرسال طلب السلفة للاعتماد.", "success")
+        except AdvanceError as e:
+            flash(str(e), "error")
+    except (ValueError, TypeError, KeyError) as e:
+        flash(str(e), "error")
+    return redirect(url_for("portal_emp.account") + "#advances")
 
 
 # ──────────────────────────────────────────────────────────────────────

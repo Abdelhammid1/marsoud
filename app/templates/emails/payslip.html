@@ -42,7 +42,7 @@
 <table cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:22px">
   <tr>
     <th align="right" style="background:#059669;color:#fff;padding:9px 12px;font-weight:600;font-size:11.5px">البند</th>
-    <th align="left" style="background:#059669;color:#fff;padding:9px 12px;font-weight:600;font-size:11.5px">المبلغ ({{ employee.company.base_currency }})</th>
+    <th align="left" style="background:#059669;color:#fff;padding:9px 12px;font-weight:600;font-size:11.5px">المبلغ ({{ employee.company.base_currency|currency_ar }})</th>
   </tr>
   {% if basic > 0 %}
   <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">الراتب الأساسي</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ "%.2f"|format(basic) }}</td></tr>
@@ -70,7 +70,7 @@
 <table cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:24px">
   <tr>
     <th align="right" style="background:#059669;color:#fff;padding:9px 12px;font-weight:600;font-size:11.5px">البند</th>
-    <th align="left" style="background:#059669;color:#fff;padding:9px 12px;font-weight:600;font-size:11.5px">المبلغ ({{ employee.company.base_currency }})</th>
+    <th align="left" style="background:#059669;color:#fff;padding:9px 12px;font-weight:600;font-size:11.5px">المبلغ ({{ employee.company.base_currency|currency_ar }})</th>
   </tr>
   {% if commissions < 0 %}
   <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">تسوية عمولات (استرجاع سابق)</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ "%.2f"|format(-commissions) }}</td></tr>
@@ -95,7 +95,7 @@
 
 {# ─── NET ───────────────────────────────────────────────────── #}
 <table cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:100%;font-size:13px;margin-bottom:20px">
-  <tr><td style="padding:4px 0;font-weight:800;color:#0A2540;width:120px">صافي الراتب</td><td style="padding:4px 0;width:14px;color:#0A2540">:</td><td style="padding:4px 0;font-weight:800;color:#059669;font-family:monospace;font-size:16px">{{ "%.2f"|format(net_f) }} {{ employee.company.base_currency }}</td></tr>
+  <tr><td style="padding:4px 0;font-weight:800;color:#0A2540;width:120px">صافي الراتب</td><td style="padding:4px 0;width:14px;color:#0A2540">:</td><td style="padding:4px 0;font-weight:800;color:#059669;font-family:monospace;font-size:16px">{{ "%.2f"|format(net_f) }} {{ employee.company.base_currency|currency_ar }}</td></tr>
 </table>
 
 {# ─── PAID / REMAINING ──────────────────────────────────────── #}
@@ -103,7 +103,7 @@
   <table cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:100%">
     <tr>
       <td style="color:#0F6E56;font-weight:600">المدفوع فعلياً</td>
-      <td align="left" style="font-family:monospace;font-weight:700;color:#04342C">{{ "%.2f"|format(paid_f) }} {{ employee.company.base_currency }}</td>
+      <td align="left" style="font-family:monospace;font-weight:700;color:#04342C">{{ "%.2f"|format(paid_f) }} {{ employee.company.base_currency|currency_ar }}</td>
     </tr>
   </table>
   {% if line.payment_method or line.payment_date or employee.bank_account_last4 %}
@@ -117,7 +117,7 @@
   <table cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:100%;margin-top:10px;padding-top:10px;border-top:1px solid #A7E4CE">
     <tr>
       <td style="color:#B45309;font-weight:600">المتبقي مستحق</td>
-      <td align="left" style="font-family:monospace;font-weight:700;color:#B45309">{{ "%.2f"|format(remaining) }} {{ employee.company.base_currency }}</td>
+      <td align="left" style="font-family:monospace;font-weight:700;color:#B45309">{{ "%.2f"|format(remaining) }} {{ employee.company.base_currency|currency_ar }}</td>
     </tr>
   </table>
   {% endif %}

@@ -10,8 +10,8 @@ from flask import Blueprint, render_template, redirect, url_for, flash, request,
 from flask_login import login_user, current_user
 from app import db
 from app.models import User, Company, Invitation
-from app.models.user import user_companies
 from app.services.permissions import parse_invite_token
+from app.services.roles import set_membership_role
 
 bp = Blueprint("invitations", __name__)
 
@@ -98,26 +98,15 @@ def accept(token):
             db.session.add(user)
             db.session.flush()
 
-        # Attach role
-        existing_row = db.session.execute(
-            user_companies.select().where(
-                (user_companies.c.user_id == user.id) &
-                (user_companies.c.company_id == company_id)
-            )
-        ).first()
-        if existing_row:
-            db.session.execute(
-                user_companies.update()
-                .where(
-                    (user_companies.c.user_id == user.id) &
-                    (user_companies.c.company_id == company_id)
-                )
-                .values(role=role)
-            )
-        else:
-            db.session.execute(user_companies.insert().values(
-                user_id=user.id, company_id=company_id, role=role,
-            ))
+        # Attach role — MARSOUD-ROLE-SYNC. This used to write only the
+        # legacy `role` string, so a member who had since been promoted
+        # through the roles page got their string stomped back to the
+        # invite's role while role_id kept the new one. allow_downgrade
+        # =False keeps the current role_id and heals the string instead;
+        # a genuine role change for an existing member is applied at
+        # invite time by users.invite(), not here.
+        set_membership_role(user.id, company_id, role,
+                            allow_downgrade=False, commit=False)
 
         invitation.accepted_at = datetime.utcnow()
         db.session.commit()

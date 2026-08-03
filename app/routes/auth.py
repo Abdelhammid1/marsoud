@@ -311,6 +311,19 @@ def register():
         db.session.add(owner_emp)
         db.session.commit()
         seed_default_coa(company.id)
+        # MARSOUD-ROLE-SYNC — `user.companies.append(company)` above goes
+        # through the ORM secondary table, so `role` falls back to the
+        # column default and `role_id` stays NULL until the next app
+        # boot runs the backfill. Seed the roles now and write both
+        # columns so the owner has a usable role from the first request.
+        try:
+            from app.services.roles_seed import ensure_roles_ready_for_company
+            from app.services.roles import set_membership_role
+            ensure_roles_ready_for_company(company.id)
+            set_membership_role(user.id, company.id, "owner")
+        except Exception:
+            from flask import current_app
+            current_app.logger.exception("seed system roles failed")
         # MARSOUD-EMAIL-VERIFY — send verification email. Failure is
         # non-fatal (SMTP might be down in dev) — the user can hit
         # /auth/verify/resend from the pending page.

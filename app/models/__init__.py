@@ -89,6 +89,10 @@ from app.models.payroll import (
     ContractType, EmployeeStatus, TerminationReason, Gender,
     EmployeeHistory, EmployeeChangeType,
 )
+from app.models.advances import (
+    AdvanceRequest, AdvanceRequestStatus,
+    EmployeeAdvance, AdvanceStatus, AdvanceSource,
+)
 from app.models.department import Department
 from app.models.leave import (
     LeaveType, LeaveBalance,
@@ -191,6 +195,8 @@ __all__ = [
     "FixedAsset",
     "Employee", "PayrollRun", "PayrollLine", "EmployeeAccrual", "Gender",
     "EmployeeHistory", "EmployeeChangeType",
+    "AdvanceRequest", "AdvanceRequestStatus",
+    "EmployeeAdvance", "AdvanceStatus", "AdvanceSource",
     "Department",
     "LeaveType", "LeaveBalance",
     "AttendanceException", "AttendanceExceptionType",

@@ -41,11 +41,21 @@ def check(label):
 
 
 def _seed_company(name):
-    from app.models import Company
+    from app.models import Company, Plan
     existing = Company.query.filter_by(name=name).first()
     if existing:
         _teardown_company(existing.id)
-    c = Company(name=name, base_currency="SAR")
+    # MARSOUD-CHOOSE-PLAN — an owner whose company has neither plan_id
+    # nor intended_plan_id is bounced to /choose-plan by the
+    # before_request gate, so the route checks below never reach the
+    # view. intended_plan_id alone satisfies that gate. plan_id stays
+    # NULL on purpose: it drives MARSOUD-58 sub-item gating, and the
+    # cheapest active plan doesn't necessarily list vendor_bills — a
+    # plan-less company skips the filter entirely (back-compat path in
+    # subitem_allowed), which is what this audit wants.
+    plan = Plan.query.filter_by(is_active=True).first()
+    c = Company(name=name, base_currency="SAR",
+                intended_plan_id=plan.id if plan else None)
     db.session.add(c); db.session.flush()
     from app.services.seed_coa import seed_default_coa
     seed_default_coa(c.id)
@@ -235,9 +245,18 @@ def _():
     from werkzeug.security import generate_password_hash
     from flask import current_app
     # Seed an owner in company A for the test client.
+    # MARSOUD-TERMS-CONSENT — stamp the currently published terms
+    # version, otherwise the reaccept middleware swallows every request
+    # below with a redirect to /re-accept-terms.
+    try:
+        from app.services.legal import get_terms_version
+        terms_version = get_terms_version()
+    except Exception:
+        terms_version = None
     u = User(email="recur-audit-owner@x.test",
               password_hash=generate_password_hash("x", method="pbkdf2:sha256"),
-              full_name="RecurAudit Owner")
+              full_name="RecurAudit Owner",
+              terms_version=terms_version)
     db.session.add(u); db.session.flush()
     db.session.execute(user_companies.insert().values(
         user_id=u.id, company_id=_STATE["a_id"], role="owner",
@@ -250,7 +269,16 @@ def _():
         sess["_user_id"] = str(u.id)
         sess["_fresh"] = True
         sess["active_company_id"] = _STATE["a_id"]
+    # MARSOUD-BILL-SPLIT — /vendor-bills/new is now a chooser. A
+    # single-type template skips it and lands on that type's own form,
+    # which carries the prefill payload.
     r = client.get(f"/vendor-bills/new?from_recurring={_STATE['rb_a_id']}")
+    assert r.status_code == 302, f"status={r.status_code}"
+    loc = r.headers.get("Location", "")
+    assert "/vendor-bills/new/expense" in loc, f"redirected to {loc}"
+    assert f"from_recurring={_STATE['rb_a_id']}" in loc, \
+        f"prefill id dropped from redirect: {loc}"
+    r = client.get(loc)
     assert r.status_code == 200, f"status={r.status_code}"
     body = r.get_data(as_text=True)
     # The template inlines the prefill payload in a <script id="recurring-prefill">.
@@ -259,10 +287,10 @@ def _():
     assert "إيجار المكتب" in body or "\\u0625" in body, \
         "prefill item description not in body"
     assert "فاتورة جديدة من قالب متكرر" in body, "banner missing"
-    return "banner + JSON payload both in body"
+    return "chooser redirects to the expense form with banner + payload"
 
 
-@check("6. GET /vendor-bills/new (no prefill) still renders normally")
+@check("6. GET /vendor-bills/new (no prefill) renders the chooser")
 def _():
     from flask import current_app
     _reset_g()
@@ -274,11 +302,15 @@ def _():
         sess["_fresh"] = True
         sess["active_company_id"] = _STATE["a_id"]
     r = client.get("/vendor-bills/new")
-    assert r.status_code == 200
+    assert r.status_code == 200, f"status={r.status_code}"
     body = r.get_data(as_text=True)
     assert 'id="recurring-prefill"' not in body, \
         "prefill JSON block should NOT render without from_recurring"
-    return "no prefill block; form still loads"
+    # MARSOUD-BILL-SPLIT — the bare URL is the three-way chooser now.
+    for slug in ("expense", "asset", "inventory"):
+        assert f"/vendor-bills/new/{slug}" in body, \
+            f"chooser missing the {slug} card"
+    return "no prefill block; chooser offers all three types"
 
 
 @check("7. recurring row unchanged after saving a new bill from it")

@@ -81,7 +81,7 @@ table.items tr:last-child td { border-bottom: none; }
   {% if d %}{{ d.day }} {{ AR_MONTHS[d.month] }} {{ d.year }}{% else %}—{% endif %}
 {%- endmacro %}
 {% macro amount(v) -%}
-  {{ "%.2f"|format(v|float) }} {{ invoice.currency }}
+  {{ "%.2f"|format(v|float) }} {{ invoice.currency|currency_ar }}
 {%- endmacro %}
 {# ── Status → (label, text color, bg color) ──────────────── #}
 {% set STATUS_META = {
@@ -156,7 +156,7 @@ table.items tr:last-child td { border-bottom: none; }
 
     {# ── DUE HEADLINE ───────────────────────────────────────── #}
     <div class="due-headline">
-      <span class="amt">{{ "%.2f"|format(invoice.total|float) }} {{ invoice.currency }}</span>
+      <span class="amt">{{ "%.2f"|format(invoice.total|float) }} {{ invoice.currency|currency_ar }}</span>
       مستحقة الدفع بتاريخ {{ ar_date(invoice.due_date) }}
     </div>
 
@@ -199,9 +199,9 @@ table.items tr:last-child td { border-bottom: none; }
         <tr>
           <td>{{ item.description }}</td>
           <td class="num">{{ "%g"|format(qty) }}</td>
-          <td class="num">{{ "%.2f"|format(price) }} {{ invoice.currency }}</td>
+          <td class="num">{{ "%.2f"|format(price) }} {{ invoice.currency|currency_ar }}</td>
           <td class="num">{{ "%g"|format(invoice.tax_rate|float) }}%</td>
-          <td class="num">{{ "%.2f"|format(pre_tax + line_tax) }} {{ invoice.currency }}</td>
+          <td class="num">{{ "%.2f"|format(pre_tax + line_tax) }} {{ invoice.currency|currency_ar }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -227,7 +227,7 @@ table.items tr:last-child td { border-bottom: none; }
     {# ── AMOUNT DUE (big, green signature element) ──────────── #}
     <div class="due-block" style="border-right-color:{{ status_color }}">
       <div class="lbl">{{ "المبلغ المسدد بالكامل" if status_key == "PAID" else "المبلغ المتبقي المستحق" if bal > 0.005 else "المبلغ المستحق" }}</div>
-      <div class="val" style="color:{{ status_color }}">{{ "%.2f"|format((bal if bal > 0.005 else invoice.total|float)) }} <span class="cur">{{ invoice.currency }}</span></div>
+      <div class="val" style="color:{{ status_color }}">{{ "%.2f"|format((bal if bal > 0.005 else invoice.total|float)) }} <span class="cur">{{ invoice.currency|currency_ar }}</span></div>
     </div>
   </div>
 

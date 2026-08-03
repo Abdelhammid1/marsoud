@@ -12,7 +12,7 @@
 
 <div style="background:linear-gradient(135deg,#10B981 0%,#047857 100%);color:#fff;border-radius:14px;padding:20px;margin:0 0 16px;text-align:center">
   <div style="font-size:11px;color:rgba(255,255,255,0.7);letter-spacing:1px">المبلغ المسدد</div>
-  <div style="font-size:34px;font-weight:bold;font-family:monospace;margin-top:4px">{{ "%.2f"|format(invoice.total) }} <span style="font-size:18px;opacity:0.7">{{ invoice.currency }}</span></div>
+  <div style="font-size:34px;font-weight:bold;font-family:monospace;margin-top:4px">{{ "%.2f"|format(invoice.total) }} <span style="font-size:18px;opacity:0.7">{{ invoice.currency|currency_ar }}</span></div>
 </div>
 
 <table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:13px">

@@ -14,10 +14,17 @@
       </div>
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">العملة</label>
+        {# MARSOUD-CURRENCY-AR — this list had no `selected` at all, so the
+           browser always preselected the first option (SAR) and every
+           manual entry for a non-SAR company was silently stamped SAR.
+           Default to the company's own currency. #}
         <select name="currency" class="select">
-          <option value="SAR">SAR</option><option value="EGP">EGP</option>
-          <option value="USD">USD</option><option value="EUR">EUR</option>
-          <option value="AED">AED</option>
+          {% for code in currency_codes %}
+          <option value="{{ code }}"
+                  {% if active_company and active_company.base_currency == code %}selected{% endif %}>
+            {{ code }} — {{ code|currency_ar }}
+          </option>
+          {% endfor %}
         </select>
       </div>
     </div>

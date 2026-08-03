@@ -125,7 +125,7 @@
         {% endfor %}
         <tr><td colspan="5" class="text-left font-semibold py-2">المجموع قبل الضريبة</td><td class="text-left font-mono">{{ "%.2f"|format(bill.subtotal) }}</td></tr>
         <tr><td colspan="5" class="text-left py-2">الضريبة ({{ "%.2f"|format(bill.tax_rate) }}%)</td><td class="text-left font-mono">{{ "%.2f"|format(bill.tax_amount) }}</td></tr>
-        <tr class="border-t-2 border-navy-900"><td colspan="5" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold text-lg">{{ "%.2f"|format(bill.total) }} {{ bill.currency }}</td></tr>
+        <tr class="border-t-2 border-navy-900"><td colspan="5" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold text-lg">{{ "%.2f"|format(bill.total) }} {{ bill.currency|currency_ar }}</td></tr>
         <tr><td colspan="5" class="text-left text-emerald-600 py-2">المدفوع</td><td class="text-left font-mono text-emerald-600">{{ "%.2f"|format(bill.paid_amount or 0) }}</td></tr>
         <tr><td colspan="5" class="text-left font-bold text-amber-600 py-2">المتبقي</td><td class="text-left font-mono font-bold text-amber-600">{{ "%.2f"|format(bill.balance) }}</td></tr>
       </tbody>

@@ -49,7 +49,7 @@
   <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
     {% for currency, total in data.totals.items() %}
     <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-      <div class="text-xs text-emerald-700 font-semibold">إجمالي متوقّع — {{ currency }}</div>
+      <div class="text-xs text-emerald-700 font-semibold">إجمالي متوقّع — {{ currency|currency_ar }}</div>
       <div class="text-2xl font-bold text-emerald-900 font-mono mt-1">{{ "%.2f"|format(total) }}</div>
     </div>
     {% endfor %}
@@ -78,7 +78,7 @@
             {% elif days_away <= 7 %}<span class="badge badge-partial text-[10px]">خلال {{ days_away }} يوم</span>{% endif %}
           </td>
           <td class="font-semibold">{{ r.vendor_name }}</td>
-          <td class="font-mono">{{ "%.2f"|format(r.amount) }} <span class="text-xs text-slate-500">{{ r.currency }}</span></td>
+          <td class="font-mono">{{ "%.2f"|format(r.amount) }} <span class="text-xs text-slate-500">{{ r.currency|currency_ar }}</span></td>
           <td class="text-xs text-slate-500">{{ r.template_label }}</td>
           <td>
             {% if r.is_amended %}<span class="badge badge-sent text-[10px]">معدّل</span>

@@ -134,6 +134,10 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
     total_accrued = 0.0
     lines_created = []
     accruals_to_create = []
+    # MARSOUD-ADVANCES — how much of each line's advance_deduction was
+    # actually drawn from a tracked EmployeeAdvance. Drives the ledger
+    # correction below; keyed by employee id.
+    advance_applied = {}
 
     for emp in employees:
         inputs = line_inputs.get(emp.id, {})
@@ -163,6 +167,9 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
             and abs(late - auto_late) < 0.01
         )
 
+        # MARSOUD-ADVANCES — the form prefills this from the employee's
+        # open advance, but the accountant can still override it, so the
+        # submitted number stays authoritative for the payslip.
         advance = float(inputs.get("advance", 0) or 0)
 
         basic_full = float(emp.basic_salary or 0)
@@ -225,6 +232,21 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
         db.session.flush()
         lines_created.append((emp, line))
 
+        # MARSOUD-ADVANCES — draw the deduction down from the employee's
+        # open advance and remember how much actually landed against a
+        # tracked balance. A number typed by hand with no advance behind
+        # it applies 0 and keeps the old ledger behaviour.
+        try:
+            from app.services.advances import apply_advance_deduction
+            advance_applied[emp.id] = apply_advance_deduction(emp, advance)
+        except Exception:
+            import logging
+            logging.getLogger("ledgeros.payroll").exception(
+                "apply_advance_deduction failed for %s — treating as untracked",
+                emp.name,
+            )
+            advance_applied[emp.id] = 0.0
+
         if accrued > 0.005:
             accruals_to_create.append((emp, line, accrued))
 
@@ -246,24 +268,40 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
         raise LedgerError("حسابات الرواتب أو النقدية غير موجودة")
 
     # ─── Entry 1: accrual ───────────────────────────────────────────
-    # Dr 5210 total_net (single aggregated expense line)
+    # Dr 5210 (single aggregated expense line)
     # Cr each employee's sub-account by their full NET (not just accrued)
+    #
+    # MARSOUD-ADVANCES — an advance instalment recovered this month is a
+    # settlement of what the employee owes, NOT a reduction of the salary
+    # expense. So the payable credit (and the expense debit) is net PLUS
+    # the recovered instalment, while only `net` is actually paid out.
+    # That's what amortises the debit the disbursement left on the
+    # employee's 2130 leaf:
+    #   -1000 (advance) + 5000 (accrual) - 4500 (payout) = -500 still owed
+    # Only the tracked portion counts, so companies with no advances get
+    # byte-identical journals to before.
+    total_advance_recovered = round(sum(advance_applied.values()), 2)
     accrual_lines = [
         {"account_id": salary_expense.id,
-         "debit": round(total_net, 2), "credit": 0,
+         "debit": round(total_net + total_advance_recovered, 2), "credit": 0,
          "memo": f"مصروف رواتب {month}/{year}"},
     ]
     # Track sub-accounts so the settlement entry can reuse them
     emp_subaccounts = {}
     for emp, line in lines_created:
-        if float(line.net or 0) < 0.005:
+        payable = round(float(line.net or 0) + advance_applied.get(emp.id, 0.0), 2)
+        if payable < 0.005:
             continue   # skip zero-net employees (e.g. all-deducted)
         emp_acct = party_payroll_account(emp)
         emp_subaccounts[emp.id] = emp_acct
+        recovered = advance_applied.get(emp.id, 0.0)
+        memo = f"استحقاق راتب — {emp.name}"
+        if recovered > 0.005:
+            memo += f" (منه {recovered:.2f} خصم سلفة)"
         accrual_lines.append({
             "account_id": emp_acct.id, "debit": 0,
-            "credit": round(float(line.net), 2),
-            "memo": f"استحقاق راتب — {emp.name}",
+            "credit": payable,
+            "memo": memo,
         })
 
     entry = post_journal(

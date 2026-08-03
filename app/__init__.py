@@ -76,6 +76,7 @@ def create_app(config_class=Config):
     from app.routes.companies import bp as companies_bp
     from app.routes.accounts import bp as accounts_bp
     from app.routes.journals import bp as journals_bp
+    from app.routes.accounting_ops import bp as accounting_ops_bp
     from app.routes.invoices import bp as invoices_bp
     from app.routes.customers import bp as customers_bp
     from app.routes.vendors import bp as vendors_bp
@@ -92,6 +93,7 @@ def create_app(config_class=Config):
     from app.routes.invitations import bp as invitations_bp
     from app.routes.superadmin import bp as superadmin_bp
     from app.routes.hr import bp as hr_bp
+    from app.routes.advances import bp as advances_bp
     from app.routes.leads import bp as leads_bp
     from app.routes.projects import bp as projects_bp
     from app.routes.tasks import bp as tasks_bp
@@ -137,6 +139,7 @@ def create_app(config_class=Config):
     app.register_blueprint(companies_bp, url_prefix="/companies")
     app.register_blueprint(accounts_bp, url_prefix="/accounts")
     app.register_blueprint(journals_bp, url_prefix="/journals")
+    app.register_blueprint(accounting_ops_bp, url_prefix="/accounting-ops")
     app.register_blueprint(invoices_bp, url_prefix="/invoices")
     app.register_blueprint(customers_bp, url_prefix="/customers")
     app.register_blueprint(vendors_bp, url_prefix="/vendors")
@@ -154,6 +157,7 @@ def create_app(config_class=Config):
     app.register_blueprint(invitations_bp, url_prefix="/invitations")
     app.register_blueprint(superadmin_bp, url_prefix="/admin")
     app.register_blueprint(hr_bp, url_prefix="/hr")
+    app.register_blueprint(advances_bp, url_prefix="/advances")
     app.register_blueprint(leads_bp, url_prefix="/leads")
     app.register_blueprint(projects_bp, url_prefix="/projects")
     app.register_blueprint(tasks_bp, url_prefix="/tasks")
@@ -657,6 +661,7 @@ def create_app(config_class=Config):
     def inject_globals():
         from datetime import datetime
         from app.services.permissions import has_permission, get_user_role
+        from app.services.currency import CURRENCY_ORDER
         active_company = g.get("active_company")
         current_role = None
         if active_company:
@@ -705,6 +710,10 @@ def create_app(config_class=Config):
             "subscription": sub_state,
             "subitem_allowed": _subitem_allowed_template,
             "my_employee_here": my_employee_here,
+            # MARSOUD-CURRENCY-AR — every currency <select> in the app
+            # renders from this one list instead of its own hardcoded
+            # copy, so the dictionary really is the single source.
+            "currency_codes": CURRENCY_ORDER,
         }
 
     @app.errorhandler(500)
@@ -824,6 +833,14 @@ def create_app(config_class=Config):
             return f"{float(value):,.2f}"
         except (TypeError, ValueError):
             return str(value)
+
+    # MARSOUD-CURRENCY-AR — the app stores ISO codes but must show Arabic
+    # names. One dictionary in app/services/currency.py backs both this
+    # filter and the ReportLab exports that can't use a filter.
+    @app.template_filter("currency_ar")
+    def currency_ar_filter(code):
+        from app.services.currency import currency_name_ar
+        return currency_name_ar(code)
 
     @app.template_filter("mentions")
     def _mentions_filter(text):
@@ -972,6 +989,14 @@ def create_app(config_class=Config):
     # the earliest Employee row before the duplicate is deleted.
     from scripts.merge_duplicate_employees import merge_cli as _mde_cli
     app.cli.add_command(_mde_cli)
+
+    # MARSOUD-ROLE-SYNC (2026-08-03) — CLI:
+    #   flask backfill-role-sync                 (dry-run)
+    #   flask backfill-role-sync --apply         (write)
+    # Repairs user_companies rows where the legacy `role` string drifted
+    # from the role_id FK (old invitation-accept path).
+    from scripts.backfill_role_sync import backfill_cli as _role_sync_cli
+    app.cli.add_command(_role_sync_cli)
 
     # ASMAA-FIX 2026-07-03 — CLI: re-sync system role permissions.
     # After the P dict is edited (e.g. broadening tasks.manage), run:

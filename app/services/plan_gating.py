@@ -25,6 +25,7 @@ _PREFIX_TO_MODULE = {
     # accounting
     "journals.": "accounting",
     "accounts.": "accounting",
+    "accounting_ops.": "accounting",
     "payment_methods.": "accounting",
     "partners.": "accounting",
     "assets.": "accounting",
@@ -54,6 +55,7 @@ _PREFIX_TO_MODULE = {
     # hr
     "hr.": "hr",
     "payroll.": "hr",
+    "advances.": "hr",
     # MARSOUD-EMPLOYEE-DAILY-REPORTS — own coarse module so plans can
     # ship without it (the ticket wants Super Admin control per package).
     "employee_reports.": "employee_reports",
@@ -287,6 +289,14 @@ def endpoint_to_subitem(endpoint):
     # Direct match in the catalog.
     if endpoint in ALL_SUB_ITEM_ENDPOINTS:
         return endpoint
+    # MARSOUD-ACCOUNTING-OPS — the 🧮 wizards are journal creation with the
+    # accounts picked for you, so they ride on the القيود اليومية sub-item
+    # rather than adding one of their own. Deliberate: a brand-new
+    # sub-item is absent from every existing plan's stored
+    # allowed_subitems, so the page would 403 for every tenant until a
+    # super-admin ticked it on each plan.
+    if endpoint.startswith("accounting_ops."):
+        return "journals.index"
     # Special-case inventory: warehouses is a separate sub-item.
     if endpoint == "inventory.warehouses" or endpoint.startswith("inventory.warehouse_"):
         return "inventory.warehouses"

@@ -9,7 +9,7 @@
 
 <table style="width:100%;border-collapse:collapse;margin:24px 0;background:#F8FAFC;border-radius:12px;overflow:hidden">
   <tr><td style="padding:12px 16px;color:#64748B">الفاتورة الأصلية</td><td style="padding:12px 16px;text-align:left;font-family:monospace;font-weight:bold">{{ invoice.number }}</td></tr>
-  <tr><td style="padding:12px 16px;color:#64748B">قيمة الإشعار</td><td style="padding:12px 16px;text-align:left;color:#047857;font-weight:bold;font-family:monospace">{{ "%.2f"|format(credit_note.amount) }} {{ invoice.currency }}</td></tr>
+  <tr><td style="padding:12px 16px;color:#64748B">قيمة الإشعار</td><td style="padding:12px 16px;text-align:left;color:#047857;font-weight:bold;font-family:monospace">{{ "%.2f"|format(credit_note.amount) }} {{ invoice.currency|currency_ar }}</td></tr>
   {% if credit_note.reason %}
   <tr><td style="padding:12px 16px;color:#64748B">السبب</td><td style="padding:12px 16px;text-align:left">{{ credit_note.reason }}</td></tr>
   {% endif %}

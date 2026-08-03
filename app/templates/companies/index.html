@@ -21,7 +21,7 @@
       <div class="flex items-center justify-between">
         <div>
           <h3 class="font-bold text-navy-900">{{ c.name }}</h3>
-          <div class="text-xs text-slate-500 mt-1">عملة أساسية: {{ c.base_currency }}</div>
+          <div class="text-xs text-slate-500 mt-1">عملة أساسية: {{ c.base_currency|currency_ar }}</div>
           {% if c.tax_number %}<div class="text-xs text-slate-500">ضريبي: {{ c.tax_number }}</div>{% endif %}
         </div>
         <a href="{{ url_for('companies.edit', company_id=c.id) }}" class="btn-secondary text-sm">تعديل</a>

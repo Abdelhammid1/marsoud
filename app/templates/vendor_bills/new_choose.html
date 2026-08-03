@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block page_title %}فاتورة مورد جديدة{% endblock %}
+{% block content %}
+
+{# MARSOUD-BILL-SPLIT — three entry points instead of one form with a
+   per-row type dropdown. The three types share almost nothing: each
+   filters a different set of accounts and produces a different posting,
+   so picking up-front means every field on the next screen is real. #}
+
+<div class="mb-5">
+  <h2 class="font-bold text-navy-900 text-lg">فاتورة مورد جديدة</h2>
+  <p class="text-sm text-slate-500 mt-1">اختر نوع الفاتورة — كل نوع له شاشة بحقوله الخاصة.</p>
+</div>
+
+{% if mixed_prefill %}
+<div class="mb-4 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">
+  ⚠ <strong>القالب المتكرر «{{ prefill.recurring_label }}» فيه أنواع مختلفة</strong>
+  (مصروف/أصل ثابت/مخزون في نفس الفاتورة). كل شاشة هتنسخ البنود بتاعتها هي بس،
+  فلو محتاج البنود كلها سجّلها على أكتر من فاتورة.
+</div>
+{% endif %}
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+  <a href="{{ url_for('vendor_bills.new_typed', kind='expense', from_recurring=recurring_id) }}"
+     class="card p-6 block hover:border-brand-400 hover:shadow-md transition border-2 border-transparent">
+    <div class="text-3xl mb-3">🧾</div>
+    <h3 class="font-bold text-navy-900 mb-1">مصروف</h3>
+    <p class="text-xs text-slate-500 leading-relaxed">
+      إيجار، رواتب، اتصالات، صيانة، تسويق، تكلفة مبيعات…
+    </p>
+    <p class="text-xs text-slate-400 mt-3">
+      يظهر لك حسابات المصروفات (اللي كودها بيبدأ بـ 5) بس.
+    </p>
+    <span class="inline-block mt-4 text-xs font-semibold text-brand-600">ابدأ ←</span>
+  </a>
+
+  <a href="{{ url_for('vendor_bills.new_typed', kind='asset', from_recurring=recurring_id) }}"
+     class="card p-6 block hover:border-brand-400 hover:shadow-md transition border-2 border-transparent">
+    <div class="text-3xl mb-3">🏗</div>
+    <h3 class="font-bold text-navy-900 mb-1">أصل ثابت</h3>
+    <p class="text-xs text-slate-500 leading-relaxed">
+      أجهزة، سيارات، أثاث، معدات — حاجة بتتستهلك على سنين.
+    </p>
+    <p class="text-xs text-slate-400 mt-3">
+      بتسألك على العمر الإنتاجي والقيمة التخريدية، وبيتعمل سجل أصل تلقائي بعد الترحيل.
+    </p>
+    <span class="inline-block mt-4 text-xs font-semibold text-brand-600">ابدأ ←</span>
+  </a>
+
+  <a href="{{ url_for('vendor_bills.new_typed', kind='inventory', from_recurring=recurring_id) }}"
+     class="card p-6 block hover:border-brand-400 hover:shadow-md transition border-2 border-transparent">
+    <div class="text-3xl mb-3">📦</div>
+    <h3 class="font-bold text-navy-900 mb-1">مخزون</h3>
+    <p class="text-xs text-slate-500 leading-relaxed">
+      بضاعة داخلة المخزن — صنف موجود عندك أو منتج جديد.
+    </p>
+    <p class="text-xs text-slate-400 mt-3">
+      بتختار الصنف والمخزن والوحدة (قطعة/كرتونة) — مفيش اختيار حساب، بيروح على حساب المخزون تلقائي.
+    </p>
+    <span class="inline-block mt-4 text-xs font-semibold text-brand-600">ابدأ ←</span>
+  </a>
+
+</div>
+
+<div class="mt-5 rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">
+  فاتورة المورد الواحدة بتكون نوع واحد. لو فاتورة المورد فيها بضاعة <b>و</b> مصروف شحن مثلاً،
+  سجّلها على فاتورتين — كده كل بند يروح على حسابه الصح.
+</div>
+
+<div class="mt-4">
+  <a href="{{ url_for('vendor_bills.index') }}" class="btn-secondary text-sm">رجوع لقائمة الفواتير</a>
+</div>
+
+{% endblock %}

@@ -178,7 +178,7 @@
         </div>
       </div>
       <div class="kpi-label">السيولة المتاحة</div>
-      <div class="kpi-val"><span class="cur">{{ cur }}</span>{{ "{:,.0f}".format(k.value) }}</div>
+      <div class="kpi-val"><span class="cur">{{ cur|currency_ar }}</span>{{ "{:,.0f}".format(k.value) }}</div>
       <div class="spark-wrap"><canvas class="spark" data-spark="{{ k.spark|join(',') }}" data-color="#159b54"></canvas></div>
     </a>
 
@@ -191,7 +191,7 @@
         </div>
       </div>
       <div class="kpi-label">صافي الربح ({{ metrics.period_label or 'الشهر' }})</div>
-      <div class="kpi-val"><span class="cur">{{ cur }}</span>{{ "{:,.0f}".format(k.value) }}</div>
+      <div class="kpi-val"><span class="cur">{{ cur|currency_ar }}</span>{{ "{:,.0f}".format(k.value) }}</div>
       <div class="spark-wrap"><canvas class="spark" data-spark="{{ k.spark|join(',') }}" data-color="#2d6fb3"></canvas></div>
     </a>
 
@@ -204,7 +204,7 @@
         </div>
       </div>
       <div class="kpi-label">مستحق لك (عملاء)</div>
-      <div class="kpi-val"><span class="cur">{{ cur }}</span>{{ "{:,.0f}".format(k.value) }}</div>
+      <div class="kpi-val"><span class="cur">{{ cur|currency_ar }}</span>{{ "{:,.0f}".format(k.value) }}</div>
       <div class="spark-wrap"><canvas class="spark" data-spark="{{ k.spark|join(',') }}" data-color="#c47d10"></canvas></div>
     </a>
 
@@ -217,7 +217,7 @@
         </div>
       </div>
       <div class="kpi-label">مستحق عليك (موردين)</div>
-      <div class="kpi-val"><span class="cur">{{ cur }}</span>{{ "{:,.0f}".format(k.value) }}</div>
+      <div class="kpi-val"><span class="cur">{{ cur|currency_ar }}</span>{{ "{:,.0f}".format(k.value) }}</div>
       <div class="spark-wrap"><canvas class="spark" data-spark="{{ k.spark|join(',') }}" data-color="#dc4640"></canvas></div>
     </a>
   </div>
@@ -333,7 +333,7 @@
         </a>
         {% endfor %}
         <div class="panel-foot">
-          <div class="sum">الإجمالي المتأخر: <b>{{ cur }} {{ "{:,.0f}".format(metrics.late_invoices_total) }}</b></div>
+          <div class="sum">الإجمالي المتأخر: <b>{{ cur|currency_ar }} {{ "{:,.0f}".format(metrics.late_invoices_total) }}</b></div>
           <a href="{{ url_for('reports.ar_aging') }}" style="color:var(--d-green-deep);font-weight:600;font-size:12.5px;text-decoration:none">عرض الكل →</a>
         </div>
       {% else %}
@@ -384,7 +384,7 @@
         </a>
         {% endfor %}
         <div class="panel-foot">
-          <div class="sum">الإجمالي المتوقع: <b>{{ cur }} {{ "{:,.0f}".format(metrics.upcoming_bills_total) }}</b></div>
+          <div class="sum">الإجمالي المتوقع: <b>{{ cur|currency_ar }} {{ "{:,.0f}".format(metrics.upcoming_bills_total) }}</b></div>
           <a href="{{ url_for('forecast.index') }}" style="color:var(--d-green-deep);font-weight:600;font-size:12.5px;text-decoration:none">الجدول الكامل →</a>
         </div>
       {% else %}

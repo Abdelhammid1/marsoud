@@ -107,14 +107,14 @@
     <div class="card p-5 bg-gradient-to-br from-navy-900 to-navy-700 text-white">
       <div class="text-xs text-navy-200 mb-1">إجمالي ما استلمه</div>
       <div class="text-3xl font-bold font-mono">{{ "%.2f"|format(employee.total_received) }}</div>
-      <div class="text-xs text-navy-200 mt-1">{{ active_company.base_currency }} منذ {{ employee.start_date.isoformat() if employee.start_date else 'بداية التعاقد' }}</div>
+      <div class="text-xs text-navy-200 mt-1">{{ active_company.base_currency|currency_ar }} منذ {{ employee.start_date.isoformat() if employee.start_date else 'بداية التعاقد' }}</div>
     </div>
 
     {% if outstanding > 0 %}
     <div class="card p-5 border-amber-200 bg-amber-50">
       <div class="text-xs text-amber-700 mb-1">رصيد مستحق على الشركة</div>
       <div class="text-2xl font-bold font-mono text-amber-900">{{ "%.2f"|format(outstanding) }}</div>
-      <div class="text-xs text-amber-700 mt-1">{{ active_company.base_currency }}</div>
+      <div class="text-xs text-amber-700 mt-1">{{ active_company.base_currency|currency_ar }}</div>
       <hr class="my-3 border-amber-200">
       <div class="space-y-2 text-sm">
         {# MARSOUD-PARTIAL-SETTLE — each row shows the remaining balance
@@ -188,6 +188,56 @@
     </div>
     {% endif %}
     {% endif %}{# end can_view_payroll #}
+
+    {# MARSOUD-ADVANCES — سلف الموظف #}
+    {% if has_permission('advances.manage') %}
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <h3 class="font-bold text-navy-900">💵 السلف</h3>
+        {% if not active_advance %}
+        <a href="{{ url_for('advances.new') }}" class="text-xs text-brand-600 hover:underline">+ سلفة جديدة</a>
+        {% endif %}
+      </div>
+
+      {% if active_advance %}
+      <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+        <div class="text-xs text-amber-700">الرصيد المتبقي</div>
+        <div class="text-2xl font-bold font-mono text-amber-900">{{ "%.2f"|format(active_advance.remaining) }}</div>
+        <div class="text-xs text-amber-700 mt-1">
+          من {{ "%.2f"|format(active_advance.amount) }} —
+          قسط {{ "%.2f"|format(active_advance.monthly_installment) }} × {{ active_advance.months }}
+        </div>
+        <form method="POST" action="{{ url_for('advances.cancel', advance_id=active_advance.id) }}" class="mt-2"
+              onsubmit="return confirm('إلغاء السلفة؟ سيُعكس قيد الصرف ويتوقف الخصم من الرواتب القادمة.');">
+          <input type="text" name="reason" placeholder="سبب الإلغاء (اختياري)" class="input text-xs mb-1">
+          <button type="submit" class="text-rose-600 text-xs hover:underline">إلغاء السلفة</button>
+        </form>
+      </div>
+      {% endif %}
+
+      {% if advance_history %}
+      <table class="data-table text-xs">
+        <thead><tr><th>التاريخ</th><th class="text-left">المبلغ</th><th class="text-left">المتبقي</th><th>الحالة</th></tr></thead>
+        <tbody>
+          {% for a in advance_history %}
+          <tr>
+            <td class="font-mono">{{ a.disbursed_on.isoformat() }}</td>
+            <td class="text-left font-mono">{{ "%.2f"|format(a.amount) }}</td>
+            <td class="text-left font-mono">{{ "%.2f"|format(a.remaining) }}</td>
+            <td>
+              {% if a.status.value == 'ACTIVE' %}<span class="badge badge-partial">نشطة</span>
+              {% elif a.status.value == 'SETTLED' %}<span class="badge badge-paid">مسددة</span>
+              {% else %}<span class="badge badge-cancelled">ملغاة</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% elif not active_advance %}
+      <p class="text-sm text-slate-400">لا توجد سلف.</p>
+      {% endif %}
+    </div>
+    {% endif %}
 
     {% if can_manage_employees and employee.status.value != 'TERMINATED' %}
     <div class="card p-5 border-red-100 bg-red-50/50">

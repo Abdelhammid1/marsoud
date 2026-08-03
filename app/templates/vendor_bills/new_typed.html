@@ -1,6 +1,34 @@
 {% extends "base.html" %}
-{% block page_title %}{% if bill %}تعديل فاتورة {{ bill.number }}{% else %}فاتورة مورد جديدة{% endif %}{% endblock %}
+{% set is_expense = kind == 'EXPENSE' %}
+{% set is_asset = kind == 'FIXED_ASSET' %}
+{% set is_inventory = kind == 'INVENTORY' %}
+{% set kind_label = 'مصروف' if is_expense else ('أصل ثابت' if is_asset else 'مخزون') %}
+{% set kind_icon = '🧾' if is_expense else ('🏗' if is_asset else '📦') %}
+{# Inventory has no account column, so its footer spans one cell less. #}
+{% set foot_colspan = 3 if is_inventory else 4 %}
+{% block page_title %}فاتورة {{ kind_label }} جديدة{% endblock %}
 {% block content %}
+
+{# MARSOUD-BILL-SPLIT — one template, three modes. The header, totals,
+   submit buttons and the shared JS stay single-source; only the item
+   row and its JS branch on `kind`. Every row ships a hidden
+   item_line_type[] so the server-side parser is unchanged. #}
+
+<div class="flex items-center justify-between mb-4 flex-wrap gap-2">
+  <div>
+    <h2 class="font-bold text-navy-900 text-lg">{{ kind_icon }} فاتورة {{ kind_label }} جديدة</h2>
+    <p class="text-xs text-slate-500 mt-1">
+      {% if is_expense %}
+        بنود المصروفات بس — حسابات المصروفات (5xxx).
+      {% elif is_asset %}
+        بنود الأصول الثابتة بس — بيتعمل سجل أصل تلقائي لكل بند بعد الترحيل.
+      {% else %}
+        بضاعة داخلة المخزن — الحساب بيتحدد تلقائي (المخزون 1300).
+      {% endif %}
+    </p>
+  </div>
+  <a href="{{ url_for('vendor_bills.new') }}" class="btn-secondary text-sm">↔ تغيير النوع</a>
+</div>
 
 {% if prefill %}
 {# MARSOUD-RECURRING-PAY — banner + inline JSON payload the init
@@ -11,6 +39,9 @@
   💰 <strong>فاتورة جديدة من قالب متكرر:</strong>
   {{ prefill.recurring_label }} — البيانات منسوخة أوتوماتيك، عدّل اللي عايز
   تعدله ثم اضغط <b>حفظ + تسجيل القيد</b>. الفاتورة المتكررة نفسها هتفضل زي ما هي.
+  {% if not prefill['items'] %}
+  <div class="mt-1 text-xs">القالب ده مفيهوش بنود من نوع «{{ kind_label }}» — ابدأ بند جديد بنفسك.</div>
+  {% endif %}
 </div>
 <script id="recurring-prefill" type="application/json">{{ prefill|tojson }}</script>
 {% endif %}
@@ -56,7 +87,7 @@
            rate so vendor bills match the invoice/POS behaviour
            instead of always hardcoding 0. #}
         <input type="number" name="tax_rate" id="tax_rate" step="0.01"
-               value="{{ bill.tax_rate if bill else (g.active_company.vat_rate if g.active_company and g.active_company.vat_rate is not none else 0) }}"
+               value="{{ g.active_company.vat_rate if g.active_company and g.active_company.vat_rate is not none else 0 }}"
                class="input font-mono" oninput="calcTotals()">
       </div>
     </div>
@@ -68,14 +99,13 @@
 
   <div class="card p-6">
     <div class="flex items-center justify-between mb-3">
-      <h3 class="font-bold text-navy-900">البنود (يمكن خلط أنواع مختلفة في نفس الفاتورة)</h3>
+      <h3 class="font-bold text-navy-900">بنود {{ kind_label }}</h3>
       <button type="button" onclick="addItem()" class="btn-secondary text-sm">+ بند</button>
     </div>
     <table class="data-table">
       <thead><tr>
-        <th style="width:25%">الوصف</th>
-        <th>النوع</th>
-        <th>الحساب</th>
+        <th style="width:{{ '40%' if is_inventory else '30%' }}">{{ 'الصنف والتفاصيل' if is_inventory else 'الوصف' }}</th>
+        {% if not is_inventory %}<th>الحساب</th>{% endif %}
         <th>الكمية</th>
         <th>السعر</th>
         <th class="text-left">الإجمالي</th>
@@ -83,9 +113,9 @@
       </tr></thead>
       <tbody id="items-body"></tbody>
       <tfoot>
-        <tr><td colspan="5" class="text-left font-semibold py-2">المجموع قبل الضريبة</td><td class="text-left font-mono" id="subtotal">0.00</td><td></td></tr>
-        <tr><td colspan="5" class="text-left font-semibold py-2">الضريبة</td><td class="text-left font-mono" id="tax">0.00</td><td></td></tr>
-        <tr class="border-t-2 border-navy-900"><td colspan="5" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold text-lg" id="total">0.00</td><td></td></tr>
+        <tr><td colspan="{{ foot_colspan }}" class="text-left font-semibold py-2">المجموع قبل الضريبة</td><td class="text-left font-mono" id="subtotal">0.00</td><td></td></tr>
+        <tr><td colspan="{{ foot_colspan }}" class="text-left font-semibold py-2">الضريبة</td><td class="text-left font-mono" id="tax">0.00</td><td></td></tr>
+        <tr class="border-t-2 border-navy-900"><td colspan="{{ foot_colspan }}" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold text-lg" id="total">0.00</td><td></td></tr>
       </tfoot>
     </table>
   </div>
@@ -98,30 +128,26 @@
 </form>
 
 <script>
-const TYPE_LABELS = {EXPENSE: "مصروف", FIXED_ASSET: "أصل ثابت", INVENTORY: "مخزون"};
-const accountCache = {};   // line_type → list of accounts
-
-async function loadAccountsFor(lineType) {
-  if (accountCache[lineType]) return accountCache[lineType];
-  const res = await fetch(`/vendor-bills/api/accounts?line_type=${lineType}`);
-  const data = await res.json();
-  accountCache[lineType] = data;
-  return data;
+const LINE_TYPE = "{{ kind }}";
+{% if not is_inventory %}
+let _accounts = null;
+async function loadAccounts() {
+  if (_accounts) return _accounts;
+  const res = await fetch(`/vendor-bills/api/accounts?line_type=${LINE_TYPE}`);
+  _accounts = await res.json();
+  return _accounts;
 }
 
 async function refreshAccountDropdown(tr) {
-  const typeSel = tr.querySelector('select[name="item_line_type[]"]');
   const accSel = tr.querySelector('select[name="item_account_id[]"]');
-  const accounts = await loadAccountsFor(typeSel.value);
+  const accounts = await loadAccounts();
   accSel.innerHTML = '<option value="">— اختر الحساب —</option>' +
     accounts.map(a => `<option value="${a.id}">${a.code} — ${escapeHtml(a.name)}</option>`).join('');
-
-  // Show/hide asset-specific fields
-  const assetFields = tr.querySelector('.asset-fields');
-  assetFields.style.display = (typeSel.value === 'FIXED_ASSET') ? 'block' : 'none';
 }
+{% endif %}
 
-// MARSOUD-50.3 — load variants + warehouses once for all INVENTORY lines.
+{% if is_inventory %}
+// MARSOUD-50.3 — load variants + warehouses once for all rows.
 let _inventoryTargets = null;
 async function loadInventoryTargets() {
   if (_inventoryTargets) return _inventoryTargets;
@@ -130,15 +156,7 @@ async function loadInventoryTargets() {
   return _inventoryTargets;
 }
 
-async function refreshInventoryFields(tr) {
-  const typeSel = tr.querySelector('select[name="item_line_type[]"]');
-  const invFields = tr.querySelector('.inventory-fields');
-  if (typeSel.value !== 'INVENTORY') {
-    invFields.style.display = 'none';
-    return;
-  }
-  invFields.style.display = 'block';
-  // Populate the picker dropdowns the first time we expand them
+async function fillInventoryPickers(tr) {
   const variantSel = tr.querySelector('select[name="item_variant_id[]"]');
   const whSel = tr.querySelector('select[name="item_warehouse_id[]"]');
   if (variantSel.options.length > 1) return;  // already populated
@@ -148,7 +166,7 @@ async function refreshInventoryFields(tr) {
   // API round-trip.
   tr._unitsByVariant = {};
   data.variants.forEach(v => { tr._unitsByVariant[v.id] = v.units || []; });
-  variantSel.innerHTML = '<option value="">— اختر variant —</option>'
+  variantSel.innerHTML = '<option value="">— اختر الصنف —</option>'
     + data.variants.map(v => `<option value="${v.id}" data-cost="${v.unit_cost}">${escapeHtml(v.label)}</option>`).join('');
   variantSel.onchange = () => onVariantPick(tr);
   whSel.innerHTML = data.warehouses.map(w =>
@@ -157,8 +175,8 @@ async function refreshInventoryFields(tr) {
 }
 
 // MARSOUD-UNIT-CONVERSION-01 — populate the row's unit picker when
-// the cashier picks a variant. Hidden if the product has just the
-// base unit; when hidden we still ship the (only) unit_id so backend
+// the user picks a variant. Hidden if the product has just the base
+// unit; when hidden we still ship the (only) unit_id so the backend
 // freezes base_quantity correctly.
 function onVariantPick(tr) {
   const variantSel = tr.querySelector('select[name="item_variant_id[]"]');
@@ -179,27 +197,55 @@ function onVariantPick(tr) {
   }
 }
 
+// MARSOUD-BILL-SPLIT — switching to "new product" swaps the existing-
+// variant picker for the create block. Only name + SKU are required;
+// the pack fields stay optional (marked data-req).
 function toggleNewProduct(tr, on) {
   const existingSel = tr.querySelector('select[name="item_variant_id[]"]');
   const newBlock = tr.querySelector('.new-product-block');
+  const unitPicker = tr.querySelector('.unit-picker');
   newBlock.style.display = on ? 'block' : 'none';
   existingSel.disabled = on;
   existingSel.required = !on;
-  newBlock.querySelectorAll('input').forEach(i => { i.required = on; });
+  newBlock.querySelectorAll('input[data-req]').forEach(i => { i.required = on; });
+  // A brand-new product has no units yet, so the existing-product unit
+  // picker is meaningless here — the pack fields below define the unit.
+  if (unitPicker) {
+    unitPicker.style.display = 'none';
+    if (on) unitPicker.innerHTML = '<option value="">—</option>';
+  }
+  updatePackHint(tr);
 }
+
+// Live "10 كرتونة × 30 = 300 قطعة" hint so the user sees exactly what
+// will land in stock before saving.
+function updatePackHint(tr) {
+  const hint = tr.querySelector('.pack-hint');
+  if (!hint) return;
+  const chk = tr.querySelector('.new-product-toggle');
+  const pieces = parseFloat(tr.querySelector('input[name="item_new_pack_pieces[]"]').value || 0);
+  const qty = parseFloat(tr.querySelector('input[name="item_quantity[]"]').value || 0);
+  const nameEl = tr.querySelector('input[name="item_new_pack_name[]"]');
+  const packName = (nameEl && nameEl.value.trim()) || 'كرتونة';
+  if (!chk || !chk.checked || !(pieces > 0) || !(qty > 0)) {
+    hint.textContent = '';
+    return;
+  }
+  hint.textContent = `→ ${qty} ${packName} × ${pieces} = ${qty * pieces} قطعة هتدخل المخزن`;
+}
+{% endif %}
 
 function addItem() {
   const tbody = document.getElementById('items-body');
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td>
-      <input type="text" name="item_description[]" required class="input text-sm" placeholder="مثلاً: إيجار / لاب توب / بضاعة">
+      <input type="hidden" name="item_line_type[]" value="${LINE_TYPE}">
+      <input type="text" name="item_description[]" required class="input text-sm" placeholder="{% if is_expense %}مثلاً: إيجار المكتب{% elif is_asset %}مثلاً: لاب توب ديل{% else %}وصف البند{% endif %}">
       {# MARSOUD-VENDOR-SUBCAT (Abdelhamid 2026-07-14) — per-vendor
          sub-category picker. Populated from
          /vendors/<id>/sub-categories.json whenever the header
-         vendor selector changes. Description stays as free text
-         next to it; the sub-category is the fixed taxonomy value
-         that reports group by. #}
+         vendor selector changes. #}
       <div class="mt-2 sub-cat-block" style="display:none">
         <label class="block text-xs text-slate-500 mb-1">
           🏷 التصنيف الفرعي (اختياري)
@@ -209,22 +255,24 @@ function addItem() {
           <option value="">— بدون تصنيف —</option>
         </select>
       </div>
-      <p class="text-xs text-slate-500 mt-1">لو بتضيف صنف/بضاعة موجودة عندك بالفعل، اختار النوع «مخزون» جنب عشان يظهرلك اختيار الصنف من قائمتك.</p>
-      <div class="asset-fields mt-2 flex gap-2" style="display:none">
+{% if is_asset %}
+      <div class="mt-2 flex gap-2">
         <div>
           <label class="block text-xs text-slate-500 mb-1">العمر الإنتاجي (سنوات)</label>
-          <input type="number" name="item_useful_life_years[]" min="1" class="input text-xs font-mono" style="width:6rem">
+          <input type="number" name="item_useful_life_years[]" min="1" required class="input text-xs font-mono" style="width:7rem">
         </div>
         <div>
           <label class="block text-xs text-slate-500 mb-1">القيمة التخريدية</label>
-          <input type="number" name="item_salvage_value[]" step="0.01" value="0" class="input text-xs font-mono" style="width:6rem">
+          <input type="number" name="item_salvage_value[]" step="0.01" value="0" class="input text-xs font-mono" style="width:7rem">
         </div>
       </div>
-      <div class="inventory-fields mt-2 space-y-1" style="display:none">
+{% endif %}
+{% if is_inventory %}
+      <div class="mt-2 space-y-2">
         <div class="flex gap-2 items-end">
           <div class="flex-1">
-            <label class="block text-xs text-slate-500 mb-1">المنتج (variant)</label>
-            <select name="item_variant_id[]" class="select text-xs"><option value="">— اختر variant —</option></select>
+            <label class="block text-xs text-slate-500 mb-1">الصنف</label>
+            <select name="item_variant_id[]" required class="select text-xs"><option value="">— اختر الصنف —</option></select>
           </div>
           <div style="width:9rem">
             <label class="block text-xs text-slate-500 mb-1">المخزن</label>
@@ -232,30 +280,61 @@ function addItem() {
           </div>
         </div>
         <label class="flex items-center gap-2 text-xs text-emerald-700 cursor-pointer">
-          <input type="checkbox" onchange="toggleNewProduct(this.closest('tr'), this.checked)">
-          + منتج جديد (هيتعمل ويضاف للمخزون مع رصيد افتتاحي من هذه الفاتورة)
+          <input type="checkbox" class="new-product-toggle" onchange="toggleNewProduct(this.closest('tr'), this.checked)">
+          + منتج جديد (هيتعمل ويدخل المخزون من هذه الفاتورة)
         </label>
-        <div class="new-product-block grid grid-cols-2 gap-2" style="display:none">
-          <input type="text" name="item_new_product_name[]" placeholder="اسم المنتج" class="input text-xs">
-          <input type="text" name="item_new_product_sku[]" placeholder="SKU" class="input text-xs font-mono">
+        <div class="new-product-block rounded-lg border-2 border-dashed border-emerald-200 bg-emerald-50/50 p-3 space-y-2" style="display:none">
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">اسم المنتج</label>
+              <input type="text" name="item_new_product_name[]" data-req placeholder="اسم المنتج" class="input text-xs">
+            </div>
+            <div>
+              <label class="block text-xs text-slate-500 mb-1">SKU</label>
+              <input type="text" name="item_new_product_sku[]" data-req placeholder="SKU" class="input text-xs font-mono">
+            </div>
+          </div>
+          {# MARSOUD-BILL-SPLIT — the pack fields that /products/new has
+             had all along (MARSOUD-PACK-PRICING) and this path was
+             missing, which is why "10 كراتين" used to add 10 pieces. #}
+          <div class="pt-1 border-t border-emerald-200">
+            <div class="text-xs font-bold text-emerald-800 mb-2">📦 الشراء بالعلبة (اختياري)</div>
+            <div class="grid grid-cols-3 gap-2">
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">اسم العلبة</label>
+                <input type="text" name="item_new_pack_name[]" value="كرتونة" class="input text-xs" oninput="updatePackHint(this.closest('tr'))">
+              </div>
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">عدد القطع في العلبة</label>
+                <input type="number" name="item_new_pack_pieces[]" step="1" min="1" placeholder="30" class="input text-xs font-mono" oninput="updatePackHint(this.closest('tr'))">
+              </div>
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">سعر بيع العلبة (اختياري)</label>
+                <input type="number" name="item_new_pack_sale_price[]" step="0.01" min="0" class="input text-xs font-mono">
+              </div>
+            </div>
+            <p class="text-xs text-slate-500 mt-2">
+              سيب «عدد القطع» فاضي لو بتشتري بالقطعة. لو ملّيته، الكمية فوق تبقى بالعلبة
+              والنظام بيحولها قطع لوحده.
+            </p>
+            <p class="text-xs font-bold text-emerald-800 mt-1 pack-hint"></p>
+          </div>
         </div>
       </div>
+{% endif %}
     </td>
-    <td>
-      <select name="item_line_type[]" class="select text-sm" onchange="onLineTypeChange(this.closest('tr'))">
-        <option value="EXPENSE">مصروف</option>
-        <option value="FIXED_ASSET">أصل ثابت</option>
-        <option value="INVENTORY">مخزون</option>
-      </select>
-    </td>
+{% if not is_inventory %}
     <td><select name="item_account_id[]" required class="select text-sm" style="min-width:14rem"><option value="">— اختر —</option></select></td>
+{% endif %}
     <td>
       <div class="flex gap-1 items-center">
-        <input type="number" name="item_quantity[]" step="0.01" value="1" required class="input text-sm font-mono" oninput="calcTotals()" style="width:4.5rem">
-        {# MARSOUD-UNIT-CONVERSION-01 — populated when variant picked and its product has >1 unit. #}
+        <input type="number" name="item_quantity[]" step="0.01" value="1" required class="input text-sm font-mono" oninput="calcTotals(){% if is_inventory %}; updatePackHint(this.closest('tr')){% endif %}" style="width:4.5rem">
+{% if is_inventory %}
+        {# MARSOUD-UNIT-CONVERSION-01 — populated when a variant is picked and its product has >1 unit. #}
         <select name="item_unit_id[]" class="select text-xs unit-picker" style="width:5.5rem;display:none">
           <option value="">—</option>
         </select>
+{% endif %}
       </div>
     </td>
     <td><input type="number" name="item_unit_price[]" step="0.01" value="0" required class="input text-sm font-mono" oninput="calcTotals()" style="width:7rem"></td>
@@ -263,17 +342,14 @@ function addItem() {
     <td><button type="button" onclick="this.closest('tr').remove(); calcTotals()" class="text-red-500">×</button></td>
   `;
   tbody.appendChild(tr);
-  // For empty rows, mirror the placeholder slots so getlist() arrays stay
-  // index-aligned across rows.
+{% if is_inventory %}
+  fillInventoryPickers(tr);
+{% else %}
   refreshAccountDropdown(tr);
+{% endif %}
   // MARSOUD-VENDOR-SUBCAT — paint the sub-category dropdown so the
   // new row shows whatever the current vendor has.
   _paintSubCategoryPicker(tr);
-}
-
-async function onLineTypeChange(tr) {
-  await refreshAccountDropdown(tr);
-  await refreshInventoryFields(tr);
 }
 
 function calcTotals() {
@@ -293,8 +369,6 @@ function calcTotals() {
 }
 
 // MARSOUD-VENDOR-SUBCAT (Abdelhamid 2026-07-14) — sub-category picker.
-// The vendor drop-down feeds the picker; we cache the fetched list so
-// adding a new row doesn't re-fetch.
 let _subCatCache = [];   // list of {id,name} for the current vendor
 
 async function _fetchSubCategoriesForCurrentVendor() {
@@ -311,8 +385,6 @@ function _paintSubCategoryPicker(tr) {
   if (!sel) return;
   const wrap = tr.querySelector('.sub-cat-block');
   const previous = sel.value;
-  // Always keep the "— none —" option so the user can clear a
-  // stale value when they switch vendors.
   sel.innerHTML =
     '<option value="">— بدون تصنيف —</option>' +
     _subCatCache
@@ -321,8 +393,6 @@ function _paintSubCategoryPicker(tr) {
   if (previous && _subCatCache.some(c => String(c.id) === previous)) {
     sel.value = previous;
   }
-  // Show the block only when the vendor has at least one sub-category
-  // defined — otherwise it's noise on the row.
   if (wrap) wrap.style.display = _subCatCache.length > 0 ? 'block' : 'none';
 }
 
@@ -352,10 +422,9 @@ const today = new Date(); document.getElementById('issue_date').value = today.to
 const due = new Date(today); due.setDate(due.getDate() + 30);
 document.getElementById('due_date').value = due.toISOString().split('T')[0];
 
-// MARSOUD-RECURRING-PAY — hydrate the form from a recurring-bill
-// template when the server rendered a `prefill` payload. The account /
-// variant / warehouse dropdowns are lazy-loaded async so we await
-// each row's population before assigning the incoming value.
+// MARSOUD-RECURRING-PAY — hydrate from a recurring-bill template when
+// the server rendered a `prefill` payload. Only the lines matching this
+// form's type are in it (the server filtered them).
 async function applyRecurringPrefill() {
   const el = document.getElementById('recurring-prefill');
   if (!el) { addItem(); return; }
@@ -363,7 +432,6 @@ async function applyRecurringPrefill() {
   try { data = JSON.parse(el.textContent || 'null'); }
   catch(_) { addItem(); return; }
   if (!data) { addItem(); return; }
-  // Header fields — vendor / payment_method / tax_rate / notes.
   if (data.vendor_id) document.getElementById('vendor_id').value = String(data.vendor_id);
   if (data.payment_method) document.getElementById('payment_method').value = data.payment_method;
   if (data.tax_rate !== undefined) document.getElementById('tax_rate').value = data.tax_rate;
@@ -371,8 +439,6 @@ async function applyRecurringPrefill() {
   if (notesEl && data.notes) notesEl.value = data.notes;
   onPaymentMethodChange();
 
-  // Items — build one row at a time so async loaders finish before
-  // the next row's setup fires.
   const items = data.items || [];
   if (!items.length) { addItem(); return; }
   const tbody = document.getElementById('items-body');
@@ -380,19 +446,14 @@ async function applyRecurringPrefill() {
     addItem();
     const tr = tbody.lastElementChild;
     tr.querySelector('input[name="item_description[]"]').value = it.description || '';
-    // Change line_type first so refreshAccountDropdown loads the right
-    // account set + so inventory-fields render if needed.
-    const typeSel = tr.querySelector('select[name="item_line_type[]"]');
-    typeSel.value = it.line_type || 'EXPENSE';
-    await onLineTypeChange(tr);
-    // Account
+{% if not is_inventory %}
+    await refreshAccountDropdown(tr);
     if (it.account_id) {
       tr.querySelector('select[name="item_account_id[]"]').value = String(it.account_id);
     }
-    tr.querySelector('input[name="item_quantity[]"]').value = it.quantity || 1;
-    tr.querySelector('input[name="item_unit_price[]"]').value = it.unit_price || 0;
-    // INVENTORY extras (variant + warehouse + unit)
-    if (it.line_type === 'INVENTORY' && it.variant_id) {
+{% else %}
+    await fillInventoryPickers(tr);
+    if (it.variant_id) {
       const variantSel = tr.querySelector('select[name="item_variant_id[]"]');
       variantSel.value = String(it.variant_id);
       onVariantPick(tr);
@@ -400,22 +461,22 @@ async function applyRecurringPrefill() {
         const picker = tr.querySelector('.unit-picker');
         if (picker) picker.value = String(it.unit_id);
       }
-      if (it.warehouse_id) {
-        tr.querySelector('select[name="item_warehouse_id[]"]').value = String(it.warehouse_id);
-      }
     }
+    if (it.warehouse_id) {
+      tr.querySelector('select[name="item_warehouse_id[]"]').value = String(it.warehouse_id);
+    }
+{% endif %}
+    tr.querySelector('input[name="item_quantity[]"]').value = it.quantity || 1;
+    tr.querySelector('input[name="item_unit_price[]"]').value = it.unit_price || 0;
   }
   calcTotals();
 }
 applyRecurringPrefill().catch(err => {
   console.error('prefill failed', err);
-  // Fallback: keep the default single-empty-row behavior if anything
-  // goes wrong so the user isn't stuck with a blank form.
+  // Fallback: keep the default single-empty-row behavior so the user
+  // isn't stuck with a blank form.
   if (!document.getElementById('items-body').children.length) addItem();
 }).finally(() => {
-  // MARSOUD-VENDOR-SUBCAT — if a vendor is pre-selected (edit mode or
-  // recurring prefill), populate the sub-category cache once so every
-  // row's dropdown shows the correct options on first paint.
   if (document.getElementById('vendor_id').value) {
     onVendorChange();
   }

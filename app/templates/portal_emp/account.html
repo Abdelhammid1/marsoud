@@ -27,6 +27,9 @@
       <a href="#mydata" class="flex-1 text-center px-4 py-3 rounded-lg bg-emerald-50 text-emerald-800 font-semibold hover:bg-emerald-100 transition">
         📋 بياناتي
       </a>
+      <a href="#advances" class="flex-1 text-center px-4 py-3 rounded-lg bg-slate-50 text-slate-700 font-semibold hover:bg-slate-100 transition">
+        💵 السلف
+      </a>
       <a href="#account-edit" class="flex-1 text-center px-4 py-3 rounded-lg bg-slate-50 text-slate-700 font-semibold hover:bg-slate-100 transition">
         ✎ تعديل حسابي
       </a>
@@ -79,11 +82,11 @@
     </div>
     <div>
       <div class="text-xs text-slate-400">الراتب الأساسي</div>
-      <div class="font-mono font-semibold">{{ "%.2f"|format(employee.basic_salary|float) }} {{ employee.company.base_currency }}</div>
+      <div class="font-mono font-semibold">{{ "%.2f"|format(employee.basic_salary|float) }} {{ employee.company.base_currency|currency_ar }}</div>
     </div>
     <div>
       <div class="text-xs text-slate-400">البدلات</div>
-      <div class="font-mono">{{ "%.2f"|format(employee.allowances|float) }} {{ employee.company.base_currency }}</div>
+      <div class="font-mono">{{ "%.2f"|format(employee.allowances|float) }} {{ employee.company.base_currency|currency_ar }}</div>
     </div>
     {% if employee.bank_account_last4 %}
     <div>
@@ -162,6 +165,81 @@
           {% elif r.status == statuses.APPROVED %}<span class="badge badge-paid">معتمدة</span>
           {% elif r.status == statuses.REJECTED %}<span class="badge badge-cancelled">مرفوضة</span>
           {% else %}{{ r.status.value }}{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+
+{# ─── Advance balance + request form ──────────────────────────── #}
+<div class="card p-6 mb-4" id="advances">
+  <div class="flex items-start justify-between mb-3 flex-wrap gap-2">
+    <h3 class="font-bold text-navy-900">💵 السلف</h3>
+  </div>
+
+  {% if advance %}
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+    <div class="bg-amber-50 rounded-lg p-3 border border-amber-200">
+      <div class="text-xs text-amber-700">الرصيد المتبقي</div>
+      <div class="text-lg font-bold text-navy-900 font-mono mt-1">{{ "%.2f"|format(advance.remaining) }}</div>
+    </div>
+    <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
+      <div class="text-xs text-slate-500">القسط الشهر القادم</div>
+      <div class="text-lg font-bold text-navy-900 font-mono mt-1">{{ "%.2f"|format(advance.next_installment) }}</div>
+    </div>
+    <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
+      <div class="text-xs text-slate-500">إجمالي السلفة</div>
+      <div class="text-lg font-bold text-navy-900 font-mono mt-1">{{ "%.2f"|format(advance.amount) }}</div>
+    </div>
+    <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
+      <div class="text-xs text-slate-500">المسدد حتى الآن</div>
+      <div class="text-lg font-bold text-navy-900 font-mono mt-1">{{ "%.2f"|format(advance.paid_amount) }}</div>
+    </div>
+  </div>
+  <p class="text-xs text-slate-500 mb-2">
+    صُرفت يوم <span class="font-mono">{{ advance.disbursed_on.isoformat() }}</span>
+    — مقسّطة على {{ advance.months }} {{ 'شهر' if advance.months == 1 else 'شهور' }}.
+    لا يمكن طلب سلفة جديدة قبل سداد الحالية.
+  </p>
+  {% else %}
+  <details class="bg-amber-50/40 border border-amber-200 rounded-lg p-3">
+    <summary class="cursor-pointer text-sm font-semibold text-amber-800">+ طلب سلفة جديدة</summary>
+    <form method="POST" action="{{ url_for('portal_emp.advance_new') }}" class="grid grid-cols-2 gap-3 mt-3 text-sm">
+      <label>
+        <span class="text-xs font-semibold text-slate-700">المبلغ</span>
+        <input type="number" name="amount" step="0.01" min="0.01" required class="input text-sm mt-1 font-mono">
+      </label>
+      <label class="col-span-2">
+        <span class="text-xs font-semibold text-slate-700">السبب (اختياري)</span>
+        <textarea name="reason" rows="2" class="textarea text-sm mt-1"></textarea>
+      </label>
+      <div class="col-span-2 flex justify-end">
+        <button type="submit" class="btn-primary text-sm">إرسال الطلب</button>
+      </div>
+    </form>
+  </details>
+  <p class="text-xs text-slate-500 mt-2">يصل الطلب لصاحب الشركة/المحاسب للموافقة. بعد الاعتماد يُخصم القسط تلقائياً من راتبك كل شهر.</p>
+  {% endif %}
+
+  {% if advance_requests %}
+  <hr class="my-4">
+  <h4 class="font-bold text-navy-900 text-sm mb-2">طلباتي السابقة</h4>
+  <table class="data-table text-xs">
+    <thead><tr><th>المبلغ</th><th>السبب</th><th>التاريخ</th><th>الحالة</th></tr></thead>
+    <tbody>
+      {% for r in advance_requests %}
+      <tr>
+        <td class="font-mono">{{ "%.2f"|format(r.amount) }}</td>
+        <td>{{ r.reason or '—' }}</td>
+        <td class="font-mono">{{ r.created_at | company_dt('%Y-%m-%d') if r.created_at else '—' }}</td>
+        <td>
+          {% if r.status == advance_statuses.PENDING %}<span class="badge badge-sent">قيد المراجعة</span>
+          {% elif r.status == advance_statuses.APPROVED %}<span class="badge badge-paid">معتمدة</span>
+          {% elif r.status == advance_statuses.REJECTED %}<span class="badge badge-cancelled">مرفوضة</span>
+          {% else %}{{ r.status.value }}{% endif %}
+          {% if r.review_note %}<div class="text-slate-400">{{ r.review_note }}</div>{% endif %}
         </td>
       </tr>
       {% endfor %}
