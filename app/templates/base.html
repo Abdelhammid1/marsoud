@@ -428,6 +428,15 @@ tailwind.config = {
 <body class="antialiased">
 
 {% if current_user.is_authenticated %}
+{# MARSOUD-PORTAL-403-FIX — one source of truth for "may this role use the
+   AI accountant agent". Ask the permission layer rather than hardcoding
+   roles: the old list excluded only client/team_member, so hr_manager,
+   sales_manager, sales_rep and project_manager still got a button whose
+   fetch('/agent/chat') is 403'd by block_non_financial_roles_from_financial,
+   and ceo/viewer got one that redirects (no agent.use grant). agent.use
+   already encodes all of it — including plan gating (a company without the
+   "agent" module gets no button) and any custom role the owner defines. #}
+{% set show_agent = has_permission('agent.use') %}
 <div class="flex min-h-screen">
   {# MARSOUD-CHOOSE-PLAN-HIDE-SIDEBAR (Abdelhamid 2026-07-22) — a
      template can set `hide_sidebar = true` to render the whole page
@@ -506,6 +515,21 @@ tailwind.config = {
       {% elif current_role == 'client' %}
         {% set links = [
           ('portal.index', 'مشاريعي', '📁'),
+        ] %}
+      {# MARSOUD-PORTAL-403-FIX — `employee` had no branch here, so it fell
+         through to the full sectioned (owner) sidebar below. Permission
+         filtering left a handful of links standing — لوحة المعلومات,
+         ملفاتي, الدعم الفني, المهام, التقويم (tasks.view is granted to
+         EVERY company member by the ASMAA-FIX bypass in
+         services/permissions.py) — but confine_client_to_portal in
+         app/__init__.py 403s employees on all of them. Give the role its
+         own portal-scoped list, mirroring `client`. #}
+      {% elif current_role == 'employee' %}
+        {% set links = [
+          ('portal_emp.account', 'حسابي', '👤'),
+          ('portal_emp.daily_reports_list', 'تقاريري اليومية', '📝'),
+          ('user_files.index', 'ملفاتي', '📁'),
+          ('support.index', 'الدعم الفني', '🆘'),
         ] %}
       {% else %}
         {# MARSOUD-56 — Sidebar reorganized into 7 sections ordered by
@@ -796,7 +820,12 @@ tailwind.config = {
     </nav>
 
     <div class="px-4 py-3 border-t border-slate-200">
+      {# MARSOUD-PORTAL-403-FIX — «+ شركة جديدة» was rendered for every
+         logged-in user, including the portal roles that
+         confine_client_to_portal 403s on `companies.*`. #}
+      {% if current_role not in ('client', 'employee') %}
       <a href="{{ url_for('companies.new') }}" class="block text-center text-xs text-slate-500 hover:text-emerald-600 py-1.5">+ شركة جديدة</a>
+      {% endif %}
       <div class="mt-3 flex items-center justify-between gap-2 bg-white/5 rounded-lg px-3 py-2">
         <div class="text-xs">
           <div class="text-white font-semibold leading-tight">{{ current_user.full_name }}</div>
@@ -908,7 +937,7 @@ tailwind.config = {
             <span class="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{{ notif_unread_count }}</span>
             {% endif %}
           </a>
-          {% if current_role not in ('client', 'team_member') %}
+          {% if show_agent %}
           <button onclick="toggleAgent()" class="btn-accent text-sm whitespace-nowrap" title="المحاسب الذكي" aria-label="المحاسب الذكي">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
             <span class="hidden sm:inline">المحاسب الذكي</span>
@@ -937,6 +966,10 @@ tailwind.config = {
   </main>
 
   <!-- Agent slide-over -->
+  {# MARSOUD-PORTAL-403-FIX — the launcher button was already role-gated but
+     the panel + its JS shipped to every role, so confined users still
+     carried dead markup wired to a 403 endpoint. Gate both on show_agent. #}
+  {% if show_agent %}
   <div id="agent-panel" class="fixed inset-y-0 left-0 w-96 bg-white shadow-2xl border-l border-slate-200 transform -translate-x-full transition-transform duration-300 z-50 flex flex-col">
     <div class="px-5 py-4 border-b border-slate-200 bg-navy-900 text-white">
       <div class="flex items-center justify-between">
@@ -961,7 +994,9 @@ tailwind.config = {
       </form>
     </div>
   </div>
+  {% endif %}
 </div>
+{% if show_agent %}
 <script>
 function toggleAgent() {
   const p = document.getElementById('agent-panel');
@@ -1007,6 +1042,7 @@ async function sendAgent(e) {
 }
 function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 </script>
+{% endif %}
 {% else %}
   {% block guest_content %}{% endblock %}
 {% endif %}

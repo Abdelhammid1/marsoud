@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block page_title %}حسابي{% endblock %}
+{% block content %}
+
+{# MARSOUD-PORTAL-403-FIX — a user carrying the `employee` role but with no
+   Employee row in the ACTIVE company used to get bounced back to the
+   dashboard, which confine_client_to_portal bounces straight back to /my/ —
+   an infinite redirect. Terminate the loop with a page that says what's
+   wrong and who fixes it. #}
+
+<div class="card p-8 max-w-lg mx-auto text-center">
+  <div class="text-5xl mb-3">👤</div>
+  <h2 class="text-lg font-bold text-navy-900 mb-2">حسابك غير مربوط بسجل موظف</h2>
+  <p class="text-sm text-slate-600 leading-relaxed">
+    البوابة الشخصية بتعرض بياناتك وقسائم راتبك وإجازاتك، وكل ده مربوط بسجل
+    الموظف بتاعك في
+    {{ g.active_company.name if g.active_company else 'الشركة' }}.
+    كلّم إدارة الموارد البشرية تربط حسابك بسجلك من صفحة «حسابات الموظفين».
+  </p>
+  <a href="{{ url_for('support.index') }}" class="btn-accent inline-flex mt-5 text-sm">
+    🆘 افتح تذكرة دعم
+  </a>
+</div>
+
+{% endblock %}

@@ -271,6 +271,23 @@ def _my_employee():
     ).first()
 
 
+def _no_employee_record_response():
+    """MARSOUD-PORTAL-403-FIX — what to serve a portal page when the user
+    has no Employee row in the active company.
+
+    Redirecting to the dashboard is only safe for roles that can actually
+    open it. A user on the `employee` / `client` role gets bounced right
+    back here by confine_client_to_portal, so the two redirects loop
+    forever (ERR_TOO_MANY_REDIRECTS). Those roles get a terminal page
+    instead; everyone else keeps the original flash + redirect.
+    """
+    if get_user_role(current_user.id, g.active_company.id) in (
+            "employee", "client"):
+        return render_template("portal_emp/no_record.html")
+    flash("هذه الصفحة للموظفين المرتبطين بسجل HR فقط.", "warning")
+    return redirect(url_for("dashboard.index"))
+
+
 @portal_emp_bp.route("/")
 @login_required
 def index():
@@ -284,8 +301,7 @@ def index():
 def account():
     emp = _my_employee()
     if not emp:
-        flash("هذه الصفحة للموظفين المرتبطين بسجل HR فقط.", "warning")
-        return redirect(url_for("dashboard.index"))
+        return _no_employee_record_response()
 
     # Payslips — strictly this employee, joined with the run for the period.
     payslips = (
@@ -462,8 +478,7 @@ def daily_reports_list():
     data."""
     emp = _my_employee()
     if not emp:
-        flash("هذه الصفحة للموظفين المرتبطين بسجل HR فقط.", "warning")
-        return redirect(url_for("dashboard.index"))
+        return _no_employee_record_response()
     from app.models import EmployeeDailyReport
     reports = EmployeeDailyReport.query.filter_by(
         employee_id=emp.id,
