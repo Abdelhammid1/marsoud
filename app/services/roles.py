@@ -113,38 +113,81 @@ def toggle_role_permission(role, permission_id, *, on):
 
 
 # ─── Role assignment to users ───────────────────────────────────────────
-def assign_user_to_role(user_id, role):
-    """Set the user's role on this company to `role`. Inserts the
-    user_companies row if missing. Updates BOTH role (string) and role_id
-    so the legacy callsites stay in sync.
+def set_membership_role(user_id, company_id, role_code, *,
+                        allow_downgrade=True, commit=True):
+    """MARSOUD-ROLE-SYNC — the single writer for user_companies.
+
+    Every path that assigns a role MUST go through here so the legacy
+    string column and the role_id FK are written in the same statement.
+    Permission checks read both (`_db_has_permission` wins whenever
+    role_id is set, while a long tail of pages still branch on the
+    string via `get_user_role`), so a row where they disagree shows the
+    user half of their role.
+
+    allow_downgrade=False — if the row already carries a role_id, keep it
+    and only repair the string to match. Used by paths that must never
+    revert a promotion: accepting a stale invitation link, HR activation
+    links. Without this, re-opening an old invite stomps the string back
+    to the invite's role while role_id keeps the new one.
+
+    commit=False lets callers fold the write into their own transaction.
+
+    Returns the effective role code now stored on the row.
     """
-    existing = db.session.execute(
-        user_companies.select().where(
-            (user_companies.c.user_id == user_id) &
-            (user_companies.c.company_id == role.company_id)
-        )
+    where = (
+        (user_companies.c.user_id == user_id) &
+        (user_companies.c.company_id == company_id)
+    )
+    existing = db.session.execute(user_companies.select().where(where)).first()
+
+    invited_role = Role.query.filter_by(
+        company_id=company_id, code=role_code,
     ).first()
+
+    if existing and existing.role_id is not None and not allow_downgrade:
+        # Keep the stronger/current role_id; only heal the string so the
+        # two columns agree again.
+        current = db.session.get(Role, existing.role_id)
+        effective = current.code if current else (existing.role or role_code)
+        if existing.role != effective:
+            db.session.execute(
+                user_companies.update().where(where).values(role=effective)
+            )
+        if commit:
+            db.session.commit()
+        return effective
+
+    role_id = invited_role.id if invited_role else None
     if existing:
         db.session.execute(
-            user_companies.update().where(
-                (user_companies.c.user_id == user_id) &
-                (user_companies.c.company_id == role.company_id)
-            ).values(role=role.code, role_id=role.id)
+            user_companies.update().where(where).values(
+                role=role_code, role_id=role_id,
+            )
         )
     else:
         db.session.execute(
             user_companies.insert().values(
-                user_id=user_id, company_id=role.company_id,
-                role=role.code, role_id=role.id,
+                user_id=user_id, company_id=company_id,
+                role=role_code, role_id=role_id,
             )
         )
-    db.session.commit()
+    if commit:
+        db.session.commit()
+    return role_code
+
+
+def assign_user_to_role(user_id, role):
+    """Set the user's role on this company to `role` (a Role object).
+    Inserts the user_companies row if missing. Updates BOTH role (string)
+    and role_id so the legacy callsites stay in sync.
+    """
+    set_membership_role(user_id, role.company_id, role.code,
+                        allow_downgrade=True, commit=True)
 
 
 def remove_user_from_role(user_id, role):
-    """Unlink the user from the role. Doesn't delete the user_companies
-    row entirely (the user may still have other access). Just clears
-    role_id and the string."""
+    """Unlink the user from the role by deleting the user_companies row —
+    the user loses access to the company entirely."""
     db.session.execute(
         user_companies.delete().where(
             (user_companies.c.user_id == user_id) &

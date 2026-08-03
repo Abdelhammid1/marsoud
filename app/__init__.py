@@ -973,6 +973,14 @@ def create_app(config_class=Config):
     from scripts.merge_duplicate_employees import merge_cli as _mde_cli
     app.cli.add_command(_mde_cli)
 
+    # MARSOUD-ROLE-SYNC (2026-08-03) — CLI:
+    #   flask backfill-role-sync                 (dry-run)
+    #   flask backfill-role-sync --apply         (write)
+    # Repairs user_companies rows where the legacy `role` string drifted
+    # from the role_id FK (old invitation-accept path).
+    from scripts.backfill_role_sync import backfill_cli as _role_sync_cli
+    app.cli.add_command(_role_sync_cli)
+
     # ASMAA-FIX 2026-07-03 — CLI: re-sync system role permissions.
     # After the P dict is edited (e.g. broadening tasks.manage), run:
     #   flask resync-system-roles

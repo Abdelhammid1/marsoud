@@ -33,6 +33,12 @@ def seed():
 
         seed_default_coa(company.id)
 
+        # MARSOUD-ROLE-SYNC — the append above leaves role_id NULL.
+        from app.services.roles_seed import ensure_roles_ready_for_company
+        from app.services.roles import set_membership_role
+        ensure_roles_ready_for_company(company.id)
+        set_membership_role(user.id, company.id, "owner")
+
         # Sample customers
         for name, email in [
             ("شركة النور", "info@alnoor.sa"),

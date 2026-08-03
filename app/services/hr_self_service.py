@@ -21,9 +21,8 @@ from flask import current_app, url_for
 from app import db
 from app.models import (
     User, Employee, EmployeeHistory, EmployeeChangeType,
-    Invitation, Role,
+    Invitation,
 )
-from app.models.user import user_companies
 from app.services.permissions import generate_invite_token
 
 
@@ -80,32 +79,17 @@ def ensure_user_for_employee(employee, *, actor_id=None, role_code="employee"):
 
 
 def _ensure_membership(user_id, company_id, *, role_code):
-    """Insert a user_companies row if missing, setting both string and FK."""
-    existing = db.session.execute(
-        user_companies.select().where(
-            (user_companies.c.user_id == user_id) &
-            (user_companies.c.company_id == company_id)
-        )
-    ).first()
-    role_row = Role.query.filter_by(
-        company_id=company_id, code=role_code
-    ).first()
-    role_id = role_row.id if role_row else None
-    if existing:
-        # Only fill in role_id if it's currently NULL — don't overwrite
-        # an admin that happens to share an email with an employee.
-        if existing.role_id is None:
-            db.session.execute(
-                user_companies.update().where(
-                    (user_companies.c.user_id == user_id) &
-                    (user_companies.c.company_id == company_id)
-                ).values(role=role_code, role_id=role_id)
-            )
-        return
-    db.session.execute(user_companies.insert().values(
-        user_id=user_id, company_id=company_id,
-        role=role_code, role_id=role_id,
-    ))
+    """Insert a user_companies row if missing, setting both string and FK.
+
+    MARSOUD-ROLE-SYNC — delegates to the single writer. allow_downgrade
+    =False preserves the old behaviour of never overwriting an existing
+    role_id (an admin who happens to share an email with an employee
+    keeps their role), and additionally heals the string column when the
+    two have drifted apart.
+    """
+    from app.services.roles import set_membership_role
+    set_membership_role(user_id, company_id, role_code,
+                        allow_downgrade=False, commit=False)
 
 
 # ─── Activation + password-set invitation ───────────────────────────────

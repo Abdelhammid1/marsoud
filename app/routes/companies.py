@@ -141,6 +141,11 @@ def new():
         try:
             from app.services.roles_seed import ensure_roles_ready_for_company
             ensure_roles_ready_for_company(company.id)
+            # MARSOUD-ROLE-SYNC — the insert above wrote only the string.
+            # Now that the Role rows exist, write both columns explicitly
+            # instead of leaning on the NULL-only boot backfill.
+            from app.services.roles import set_membership_role
+            set_membership_role(current_user.id, company.id, "owner")
         except Exception:
             current_app.logger.exception("seed system roles failed")
         # HR-05 — every new company starts with the 4 default leave types
