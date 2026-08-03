@@ -206,14 +206,58 @@ def api_inventory_targets():
     })
 
 
+def _default_category_id(company_id):
+    """MARSOUD-BILL-SPLIT — a category for a product created inline from
+    a bill.
+
+    /products/new treats the category as required, but the bill path used
+    to leave it NULL, so bill-born products sat outside the hierarchy.
+    Prefer any category the company already has; otherwise seed the
+    default 'عام' group+category the products screen uses.
+    """
+    from app.models import ProductCategory, ProductGroup
+    cat = ProductCategory.query.filter_by(
+        company_id=company_id, is_active=True,
+    ).order_by(ProductCategory.id).first()
+    if cat:
+        return cat.id
+    from app.routes.products import _ensure_default_hierarchy
+    group, cat = _ensure_default_hierarchy(company_id)
+    if cat:
+        return cat.id
+    # _ensure_default_hierarchy returns (group, None) when the company
+    # already has a group but every category under it was deleted.
+    if group:
+        cat = ProductCategory(company_id=company_id, group_id=group.id,
+                              name="عام")
+        db.session.add(cat)
+        db.session.flush()
+        return cat.id
+    return None
+
+
 def _resolve_inventory_target(form, i, company_id):
-    """For row i of an INVENTORY line, return (variant, warehouse).
+    """For row i of an INVENTORY line, return (variant, warehouse, unit_id).
+
     Creates a new Product + ProductVariant inline when the row supplies
-    new_product_name + new_product_sku instead of a variant_id."""
+    new_product_name + new_product_sku instead of a variant_id.
+
+    MARSOUD-BILL-SPLIT — a product created here used to get no
+    ProductUnit at all, so "10 كراتين × 30 قطعة" landed as 10 pieces in
+    stock at 30x the per-piece cost, and the product stayed unit-less
+    everywhere else until someone opened its units page. Now it goes
+    through the same ensure_base_unit + create_unit pair the products
+    screen uses (MARSOUD-PACK-PRICING, app/routes/products.py:203), and
+    the returned unit_id is stamped on the line so convert_to_base()
+    multiplies at posting time.
+    """
     variants_in = form.getlist("item_variant_id[]")
     warehouses_in = form.getlist("item_warehouse_id[]")
     new_names = form.getlist("item_new_product_name[]")
     new_skus = form.getlist("item_new_product_sku[]")
+    pack_names = form.getlist("item_new_pack_name[]")
+    pack_pieces = form.getlist("item_new_pack_pieces[]")
+    pack_prices = form.getlist("item_new_pack_sale_price[]")
 
     wh_id_raw = warehouses_in[i] if i < len(warehouses_in) else ""
     if not wh_id_raw:
@@ -240,6 +284,7 @@ def _resolve_inventory_target(form, i, company_id):
         p = Product(
             company_id=company_id, name=new_name,
             is_tracked=True, sku=new_sku,
+            category_id=_default_category_id(company_id),
         )
         db.session.add(p)
         db.session.flush()
@@ -249,16 +294,48 @@ def _resolve_inventory_target(form, i, company_id):
         )
         db.session.add(v)
         db.session.flush()
-        return v, wh
+
+        # Units. The base unit is created unconditionally so the product
+        # is never unit-less; the pack unit only when the row said how
+        # many pieces are in it.
+        from app.services.units import (
+            ensure_base_unit, create_unit, UnitError,
+        )
+        base = ensure_base_unit(p)
+        unit_id = None
+        pieces = _safe_float(
+            pack_pieces[i] if i < len(pack_pieces) else None, 0)
+        if pieces > 0:
+            pack_name = (
+                (pack_names[i] if i < len(pack_names) else "") or ""
+            ).strip() or "كرتونة"
+            if pack_name == base.unit_name:
+                raise LedgerError(
+                    f"اسم العلبة مطابق لوحدة الأساس — اختر اسم مختلف عن "
+                    f"'{base.unit_name}'."
+                )
+            raw_price = (
+                pack_prices[i] if i < len(pack_prices) else "") or ""
+            sale_price = (_safe_float(raw_price, 0)
+                          if str(raw_price).strip() else None)
+            try:
+                unit = create_unit(
+                    p, unit_name=pack_name, conversion_factor=pieces,
+                    sale_price=sale_price,
+                )
+            except UnitError as e:
+                raise LedgerError(str(e))
+            unit_id = unit.id
+        return v, wh, unit_id
 
     # Otherwise: existing variant
     v_id_raw = variants_in[i] if i < len(variants_in) else ""
     if not v_id_raw:
-        raise LedgerError("سطر مخزون يحتاج اختيار variant أو إنشاء منتج جديد")
+        raise LedgerError("سطر مخزون يحتاج اختيار صنف أو إنشاء منتج جديد")
     v = db.session.get(ProductVariant, int(v_id_raw))
     if not v or v.company_id != company_id:
-        raise LedgerError("الـ variant غير صحيح")
-    return v, wh
+        raise LedgerError("الصنف المختار غير صحيح")
+    return v, wh, None
 
 
 def _populate_from_form(bill, form):
@@ -315,11 +392,32 @@ def _populate_from_form(bill, form):
             ).first()
             if row:
                 sc_id = row.id
+        # MARSOUD-BILL-SPLIT — the inventory form shows no account
+        # picker (there is only ever one valid account), so resolve it
+        # server-side. Also stops a blank account on any line type from
+        # blowing up with a bare ValueError from int("").
+        acc_raw = (accounts[i] if i < len(accounts) else "") or ""
+        acc_raw = str(acc_raw).strip()
+        if acc_raw:
+            try:
+                acc_id = int(acc_raw)
+            except (TypeError, ValueError):
+                raise LedgerError(f"حساب البند غير صحيح: {desc.strip()}")
+        elif lt == BillLineType.INVENTORY:
+            inv_accounts = get_allowed_accounts_for_line_type(
+                bill.company_id, BillLineType.INVENTORY)
+            if not inv_accounts:
+                raise LedgerError(
+                    "حساب المخزون (1300) غير موجود — راجع شجرة الحسابات"
+                )
+            acc_id = inv_accounts[0].id
+        else:
+            raise LedgerError(f"اختر حساباً للبند: {desc.strip()}")
         item = VendorBillItem(
             bill_id=bill.id,
             description=desc.strip(),
             line_type=lt,
-            account_id=int(accounts[i]),
+            account_id=acc_id,
             # MARSOUD-FIX-VENDOR-BILL-FLOAT (Abdelhamid 2026-07-25) —
             # raw form values that came in as whitespace-only or
             # comma-formatted ("1,000") used to crash the whole save
@@ -339,21 +437,85 @@ def _populate_from_form(bill, form):
         elif lt == BillLineType.INVENTORY:
             # MARSOUD-50.3 — resolve variant + warehouse for INVENTORY lines.
             # Inline-creates a Product+Variant if the row supplied a new name.
-            v, wh = _resolve_inventory_target(form, i, bill.company_id)
+            v, wh, new_unit_id = _resolve_inventory_target(
+                form, i, bill.company_id)
             item.variant_id = v.id
             item.warehouse_id = wh.id
+            # MARSOUD-BILL-SPLIT — a freshly created pack unit isn't in
+            # the row's unit picker (that list is built from existing
+            # products), so take the one we just made. The quantity the
+            # user typed is in packs, and convert_to_base() turns it
+            # into pieces at posting time.
+            if new_unit_id:
+                item.unit_id = new_unit_id
         db.session.add(item)
     db.session.flush()
     bill.items = VendorBillItem.query.filter_by(bill_id=bill.id).all()
     bill.recalc()
 
 
-@bp.route("/new", methods=["GET", "POST"])
+# MARSOUD-BILL-SPLIT — the three entry points. One line type per bill:
+# each type filters a completely different set of accounts and produces
+# a different posting (plain expense / FixedAsset / stock receipt), so a
+# single form with a per-row type dropdown just invited mistakes.
+# URL slug → BillLineType.
+_KIND_SLUGS = {
+    "expense": BillLineType.EXPENSE,
+    "asset": BillLineType.FIXED_ASSET,
+    "inventory": BillLineType.INVENTORY,
+}
+_SLUG_FOR_TYPE = {v: k for k, v in _KIND_SLUGS.items()}
+
+
+@bp.route("/new")
 @login_required
 @require_permission("vendor_bills.create")
 def new():
+    """Chooser: pick which kind of bill you're recording.
+
+    Kept on the old URL so every existing "فاتورة جديدة" link still
+    works (bills list, dashboard, inventory page).
+    """
     if not g.active_company:
         return redirect(url_for("companies.new"))
+
+    # MARSOUD-RECURRING-PAY — ?from_recurring=<id> used to land straight
+    # on the combined form. Send single-type templates to their own
+    # form; a mixed template stops here, since each card now prefills
+    # only the lines it owns.
+    recurring_id = request.args.get("from_recurring", type=int)
+    prefill = _prefill_from_recurring(recurring_id)
+    mixed_prefill = False
+    if prefill:
+        kinds = {it["line_type"] for it in prefill["items"]}
+        if len(kinds) == 1:
+            only = kinds.pop()
+            try:
+                slug = _SLUG_FOR_TYPE[BillLineType[only]]
+            except KeyError:
+                slug = None
+            if slug:
+                return redirect(url_for("vendor_bills.new_typed", kind=slug,
+                                        from_recurring=recurring_id))
+        elif len(kinds) > 1:
+            mixed_prefill = True
+
+    return render_template(
+        "vendor_bills/new_choose.html",
+        prefill=prefill, mixed_prefill=mixed_prefill,
+        recurring_id=recurring_id,
+    )
+
+
+@bp.route("/new/<kind>", methods=["GET", "POST"])
+@login_required
+@require_permission("vendor_bills.create")
+def new_typed(kind):
+    if not g.active_company:
+        return redirect(url_for("companies.new"))
+    line_type = _KIND_SLUGS.get(kind)
+    if not line_type:
+        return redirect(url_for("vendor_bills.new"))
     vendors = Vendor.query.filter_by(company_id=g.active_company.id, is_active=True).order_by(Vendor.name).all()
 
     if request.method == "POST":
@@ -384,16 +546,16 @@ def new():
             db.session.rollback()
             flash(f"خطأ: {e}", "error")
 
-    # MARSOUD-RECURRING-PAY — support ?from_recurring=<id> to prefill the
-    # form from a recurring-bill template. The user still has to click
-    # save; nothing is written until they do. Date defaults to today
-    # (the JS init at the bottom of the template) so the new occurrence
-    # is dated correctly out of the box.
+    # Prefill keeps only the lines this form can actually represent.
     prefill = _prefill_from_recurring(
         request.args.get("from_recurring", type=int))
+    if prefill:
+        prefill = dict(prefill)
+        prefill["items"] = [it for it in prefill["items"]
+                            if it["line_type"] == line_type.value]
     return render_template(
-        "vendor_bills/form.html", bill=None, vendors=vendors,
-        prefill=prefill,
+        "vendor_bills/new_typed.html", bill=None, vendors=vendors,
+        prefill=prefill, kind=line_type.value, kind_slug=kind,
     )
 
 
