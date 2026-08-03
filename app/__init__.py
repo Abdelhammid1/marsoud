@@ -557,23 +557,29 @@ def create_app(config_class=Config):
     CLIENT_ALLOWED_ENDPOINTS = (
         "portal.", "notifications.", "auth.", "static",
         "invitations.",   # accept-invitation pages
-        # MARSOUD-PORTAL-403-FIX — help + support are invariants in every
-        # other before_request gate in this file (_FLAG_ALLOWLIST,
-        # _CHOOSE_PLAN_ALLOWLIST, _TERMS_ALLOWLIST). They were missing
-        # here only, so the "?" help icon and the الدعم الفني link
-        # rendered by base.html handed portal users a bare 403.
-        "help.", "support.",
+        # MARSOUD-PORTAL-403-FIX — help + support + public are invariants in
+        # every other before_request gate in this file (_VERIFY_ALLOWLIST,
+        # _FLAG_ALLOWLIST, _CHOOSE_PLAN_ALLOWLIST, _TERMS_ALLOWLIST). They
+        # were missing here only, so the "?" help icon and the الدعم الفني
+        # link rendered by base.html handed portal users a bare 403.
+        #
+        # `public.` matters most: require_current_terms_version redirects to
+        # /re-accept-terms, and that page links to /terms and /privacy —
+        # both `public.` endpoints. Without this a portal user is ordered to
+        # accept terms they are then forbidden from reading.
+        "help.", "support.", "public.",
     )
     # HR-SS — employees only see their own portal + invariants (notifications,
     # auth, static, invitation acceptance). Everything else 403s.
     EMPLOYEE_ALLOWED_ENDPOINTS = (
         "portal_emp.", "notifications.", "auth.", "static",
         "invitations.",
-        # MARSOUD-PORTAL-403-FIX — same invariants as the client list,
-        # plus user_files: /files/ is the user's OWN folder (scoped by
-        # user_id in user_files._get_or_403), so an employee reaching it
-        # sees nothing but their own uploads.
-        "help.", "support.", "user_files.",
+        # MARSOUD-PORTAL-403-FIX — same invariants as the client list
+        # (see the note there on why `public.` is not optional), plus
+        # user_files: /files/ is the user's OWN folder (scoped by user_id
+        # in user_files._get_or_403), so an employee reaching it sees
+        # nothing but their own uploads.
+        "help.", "support.", "public.", "user_files.",
     )
     # MARSOUD-PORTAL-403-FIX — endpoints that must bounce a confined user
     # to their portal instead of 403-ing. `dashboard.landing` is the site

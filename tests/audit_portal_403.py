@@ -29,6 +29,7 @@ Sections:
 """
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -85,9 +86,22 @@ def _setup():
     db.session.add(co)
     db.session.flush()
 
+    # MARSOUD-PORTAL-403-FIX — fixture users must already satisfy every
+    # OTHER global before_request gate, or that gate hijacks the run and
+    # this audit reports nonsense. require_current_terms_version is the one
+    # that bit us: it short-circuits when no legal doc is published (so a
+    # fresh dev DB never sees it), but on any DB where the super-admin HAS
+    # published terms, every fixture user is redirected to /re-accept-terms
+    # before reaching a single portal route — producing 17 failures that
+    # look like the portal gate broke. Stamp the current terms version so
+    # the users arrive already-accepted.
+    from app.services.legal import get_terms_version
+    terms_now = get_terms_version()
+
     users = {}
     for role in ALL_SIDEBAR_ROLES + ["client"]:
-        u = User(email=f"__p403_{role}@audit.local", full_name=f"A {role}")
+        u = User(email=f"__p403_{role}@audit.local", full_name=f"A {role}",
+                 terms_version=terms_now, terms_accepted_at=datetime.utcnow())
         u.set_password("Passw0rd!audit1")
         db.session.add(u)
         db.session.flush()
@@ -100,7 +114,8 @@ def _setup():
                             name="مبرمج", job_title="مبرمج"))
 
     # Same role, NO Employee row — the redirect-loop case.
-    ghost = User(email="__p403_ghost@audit.local", full_name="A ghost")
+    ghost = User(email="__p403_ghost@audit.local", full_name="A ghost",
+                 terms_version=terms_now, terms_accepted_at=datetime.utcnow())
     ghost.set_password("Passw0rd!audit1")
     db.session.add(ghost)
     db.session.flush()
@@ -109,7 +124,8 @@ def _setup():
     users["ghost"] = ghost.id
 
     # A second employee, to prove /files/ stays scoped to your own folder.
-    other = User(email="__p403_other@audit.local", full_name="A other")
+    other = User(email="__p403_other@audit.local", full_name="A other",
+                 terms_version=terms_now, terms_accepted_at=datetime.utcnow())
     other.set_password("Passw0rd!audit1")
     db.session.add(other)
     db.session.flush()
@@ -505,6 +521,26 @@ def _():
     return f"{len(ALL_SIDEBAR_ROLES)} roles checked; button only for {yes}"
 
 
+@check("E8. portal roles can read /terms + /privacy (the consent trap)")
+def _():
+    # require_current_terms_version sends users to /re-accept-terms, and
+    # that page links to /terms and /privacy — both `public.` endpoints.
+    # `public.` was missing from the portal allowlists, so an employee or
+    # client was ordered to accept terms they were then forbidden to read.
+    # Every other gate in app/__init__.py already treats public. as an
+    # invariant; this one didn't.
+    for role in ("employee", "client"):
+        for url in ("/terms", "/privacy"):
+            r = _get(role, url, follow=True)
+            assert r.status_code == 200, \
+                f"{role} got {r.status_code} on {url}"
+    # /re-accept-terms itself must be reachable too (auth. prefix).
+    for role in ("employee", "client"):
+        r = _get(role, "/re-accept-terms")
+        assert r.status_code != 403, f"{role} 403 on /re-accept-terms"
+    return "employee + client can open /terms, /privacy, /re-accept-terms"
+
+
 @check("E5. every URL rule still builds (no template/url_for breakage)")
 def _():
     app = _STATE["app"]
@@ -542,17 +578,42 @@ def _preflight_session(app):
         print(f"NOTE  SESSION_COOKIE_DOMAIN={domain!r} overridden to None "
               f"for this run\n      (a domain-scoped cookie is never sent "
               f"to the localhost test client).")
+    # Any OTHER global before_request gate that intercepts the fixture makes
+    # every 403-vs-302 assertion below meaningless. Name the specific gate
+    # rather than emitting 17 failures that read as a security regression.
+    HIJACKERS = {
+        "/login": ("fixture session is NOT authenticated",
+                   "SESSION_COOKIE_DOMAIN (a domain-scoped cookie is never "
+                   "sent to the localhost test client), SECRET_KEY "
+                   "stability, Flask-Login wiring"),
+        "/re-accept-terms": ("require_current_terms_version intercepted the "
+                             "fixture",
+                             "fixture users need terms_version set to "
+                             "legal.get_terms_version() — see _setup()"),
+        "/choose-plan": ("require_plan_selection intercepted the fixture",
+                         "the fixture company needs plan_id or "
+                         "intended_plan_id set — see _setup()"),
+        "/verify-email": ("block_until_email_verified intercepted the "
+                          "fixture",
+                          "fixture users must not be PENDING_VERIFICATION"),
+    }
     r = _client_for("owner").get("/home", follow_redirects=False)
     landed = r.headers.get("Location", "") if r.status_code in (301, 302) else ""
-    if "/login" in landed:
-        print("\nABORT  fixture session is NOT authenticated — GET /home as "
-              "the owner redirected to /login.")
-        print("       Every 403-vs-302 assertion below would be meaningless, "
-               "so the run is stopping here.")
-        print("       This is an environment problem, not a code failure. "
-              "Check SESSION_COOKIE_DOMAIN,")
-        print("       SECRET_KEY stability, and that Flask-Login is wired "
-              "before re-reading any result.")
+    for path, (what, fix) in HIJACKERS.items():
+        if path in landed:
+            print(f"\nABORT  {what} — GET /home as the owner redirected to "
+                  f"{landed}.")
+            print("       Every 403-vs-302 assertion below would be "
+                  "meaningless, so the run is stopping here.")
+            print("       This is a fixture/environment problem, not a "
+                  "portal-gate failure.")
+            print(f"       Fix: {fix}.")
+            return False
+    if landed:
+        print(f"\nABORT  unexpected redirect for the owner: GET /home → "
+              f"{landed}.")
+        print("       Some global before_request gate is intercepting the "
+              "fixture; identify it before trusting any result below.")
         return False
     return True
 
