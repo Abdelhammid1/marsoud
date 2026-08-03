@@ -62,6 +62,8 @@ _SOURCE_TYPES = {
     # entries that were also falling into the "قيد يدوي" default.
     "stock_adjustment":        ("تسوية مخزون",          None, None),
     "audit_seed":              ("قيد اختبار (تجربة)",   None, None),
+    # MARSOUD-ADVANCES (2026-08-03) — employee advances.
+    "employee_advance":        ("صرف سلفة موظف",        None, None),
 }
 
 

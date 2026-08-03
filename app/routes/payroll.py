@@ -213,12 +213,20 @@ def employee_profile(employee_id):
     # original amount), so partial payments correctly reduce the
     # displayed balance.
     outstanding = sum(a.remaining for a in open_accruals)
+    # MARSOUD-ADVANCES — open advance + the employee's advance history.
+    from app.models import EmployeeAdvance
+    from app.services.advances import active_advance_for
+    advance_history = EmployeeAdvance.query.filter_by(
+        employee_id=emp.id,
+    ).order_by(EmployeeAdvance.disbursed_on.desc()).limit(20).all()
     return render_template(
         "payroll/employee_profile.html",
         employee=emp, payslips=payslips,
         termination_reasons=TerminationReason,
         open_accruals=open_accruals, settled_accruals=settled_accruals,
         outstanding=outstanding,
+        active_advance=active_advance_for(emp.id),
+        advance_history=advance_history,
     )
 
 
@@ -394,12 +402,17 @@ def run():
     # Prefill the form for "this month" (or whatever was in the query string)
     year = int(request.args.get("year", today.year))
     month = int(request.args.get("month", today.month))
+    # MARSOUD-ADVANCES — prefill the سُلَف column from each employee's
+    # open advance instead of leaving it at 0 for the accountant to
+    # remember. Still editable.
+    from app.services.advances import installment_due_for
     return render_template(
         "payroll/run_form.html",
         employees=employees, today=today,
         year=year, month=month,
         billable_days=billable_days_in_period,
         auto_attendance=auto_absence_late_for,
+        advance_due=installment_due_for,
     )
 
 

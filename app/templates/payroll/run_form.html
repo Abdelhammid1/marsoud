@@ -74,6 +74,7 @@
         {% for e in employees %}
         {% set default_days = billable_days(e, year, month) if billable_days else 30 %}
         {% set auto_abs, auto_late_amt, has_ex, auto_abs_count = (auto_attendance(e, year, month) if auto_attendance else (0.0, 0.0, False, 0)) %}
+        {% set adv_due = advance_due(e) if advance_due else 0.0 %}
         <tr>
           <td>
             <div class="font-semibold">{{ e.name }}</div>
@@ -83,6 +84,9 @@
             {% endif %}
             {% if has_ex %}
             <div class="text-xs text-emerald-700 mt-1">✓ محسوب تلقائياً من سجل الحضور</div>
+            {% endif %}
+            {% if adv_due > 0 %}
+            <div class="text-xs text-amber-700 mt-1">💵 قسط سلفة مستحق: {{ "%.2f"|format(adv_due) }}</div>
             {% endif %}
           </td>
           <td><input type="number" name="working_days_{{ e.id }}" value="{{ default_days }}" min="0" max="31" class="input w-full text-sm font-mono"></td>
@@ -101,11 +105,15 @@
                    class="input w-full text-sm font-mono {% if has_ex %}bg-emerald-50{% endif %}"
                    {% if has_ex %}title="افتراضي محسوب من سجل الحضور — يمكنك تعديله للاستبدال اليدوي"{% endif %}>
           </td>
-          <td><input type="number" name="advance_{{ e.id }}" step="0.01" value="0" class="input w-full text-sm font-mono"></td>
+          <td>
+            <input type="number" name="advance_{{ e.id }}" step="0.01" value="{{ "%.2f"|format(adv_due) }}"
+                   class="input w-full text-sm font-mono {% if adv_due > 0 %}bg-amber-50{% endif %}"
+                   {% if adv_due > 0 %}title="قسط السلفة المستحق هذا الشهر — يمكنك تعديله"{% endif %}>
+          </td>
           <td><input type="number" name="amount_paid_{{ e.id }}" step="0.01" value="{{ e.net|default(0) }}" required class="input w-full text-sm font-mono"></td>
         </tr>
         {% else %}
-        <tr><td colspan="8" class="text-center text-slate-400 py-6">لا يوجد موظفون نشطون</td></tr>
+        <tr><td colspan="10" class="text-center text-slate-400 py-6">لا يوجد موظفون نشطون</td></tr>
         {% endfor %}
       </tbody>
     </table>

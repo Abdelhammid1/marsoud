@@ -54,6 +54,7 @@ _PREFIX_TO_MODULE = {
     # hr
     "hr.": "hr",
     "payroll.": "hr",
+    "advances.": "hr",
     # MARSOUD-EMPLOYEE-DAILY-REPORTS — own coarse module so plans can
     # ship without it (the ticket wants Super Admin control per package).
     "employee_reports.": "employee_reports",

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block page_title %}سلفة جديدة{% endblock %}
+{% block content %}
+<div class="card p-6 max-w-2xl">
+  <h2 class="font-bold text-navy-900 mb-4">سلفة جديدة</h2>
+  <form method="POST" class="space-y-4">
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">الموظف</label>
+      <select name="employee_id" required class="select">
+        <option value="">— اختر موظف —</option>
+        {% for e in employees %}
+        <option value="{{ e.id }}">{{ e.name }} {% if e.job_title %}— {{ e.job_title }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">المبلغ</label>
+        <input type="number" name="amount" step="0.01" min="0.01" required class="input font-mono">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">عدد شهور التقسيط</label>
+        <input type="number" name="months" step="1" min="1" value="1" required class="input font-mono">
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">تاريخ الصرف</label>
+        <input type="date" name="disbursed_on" required value="{{ today }}" class="input">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">تُصرف من</label>
+        <select name="payment_method_id" class="select">
+          <option value="">نقدي (الصندوق)</option>
+          {% for pm in payment_methods %}
+          <option value="{{ pm.id }}" {% if pm.is_default %}selected{% endif %}>{{ pm.name_ar or pm.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">ملاحظة (اختياري)</label>
+      <textarea name="note" rows="2" class="textarea"></textarea>
+    </div>
+    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600">
+      <p>تُسجَّل السلفة معتمدة فوراً بدون مرحلة "طلب"، ويُنشأ قيد الصرف في الحال (من الخزنة/البنك إلى حساب الموظف الفرعي).</p>
+      <p class="mt-1">القسط الشهري = المبلغ ÷ عدد الشهور، ويُخصم تلقائياً في كل تشغيل رواتب حتى يصل الرصيد إلى صفر.</p>
+      <p class="mt-1">لا يمكن أن تكون للموظف أكثر من سلفة نشطة في نفس الوقت.</p>
+    </div>
+    <div class="flex justify-end gap-2">
+      <a href="{{ url_for('advances.index') }}" class="btn-secondary">إلغاء</a>
+      <button type="submit" class="btn-primary">صرف السلفة</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

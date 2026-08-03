@@ -1,5 +1,5 @@
 """Double-entry posting service. Every accounting event flows through here."""
-from datetime import date
+from datetime import date, datetime
 from app import db
 from app.models import JournalEntry, JournalLine, Account
 from app.services.numbering import next_number
@@ -165,7 +165,7 @@ def reverse_journal(entry_id, created_by=None):
     # ─── Domain side-effects: undo the action the original posted ──────
     # If we ever post more journal types via services (vendor-bill payment,
     # invoice payment, etc.), add their reversal here too.
-    _undo_source_side_effects(original)
+    _undo_source_side_effects(original, reversal=entry)
 
     db.session.commit()
     try:
@@ -188,10 +188,10 @@ def reverse_journal(entry_id, created_by=None):
     return entry
 
 
-def _undo_source_side_effects(original):
+def _undo_source_side_effects(original, reversal=None):
     """Inspect original.source_type / source_id and roll back the matching
-    domain row. Currently only `accrual_settle` is handled — that's the
-    one MARSOUD-28 reported. Add more cases as needed.
+    domain row. `reversal` is the reversing entry, for sources that want
+    to record which entry undid them. Add more cases as needed.
     """
     src_type = original.source_type
     src_id = original.source_id
@@ -207,6 +207,21 @@ def _undo_source_side_effects(original):
         if accrual and accrual.settled_at is not None:
             accrual.settled_at = None
             accrual.settlement_journal_entry_id = None
+
+    elif src_type == "employee_advance":
+        # MARSOUD-ADVANCES — the original journal disbursed an advance.
+        # Reversing it (whether from advances.cancel_advance or straight
+        # from the /journals page) must also stop the payroll deduction,
+        # otherwise the ledger says the advance never happened while
+        # payroll keeps recovering it.
+        from app.models.advances import EmployeeAdvance, AdvanceStatus
+        adv = db.session.get(EmployeeAdvance, src_id)
+        if adv and adv.status == AdvanceStatus.ACTIVE:
+            adv.status = AdvanceStatus.CANCELLED
+            adv.remaining = 0
+            adv.cancelled_at = datetime.utcnow()
+            if reversal is not None:
+                adv.reversal_entry_id = reversal.id
 
 
 def get_account_by_code(company_id, code):

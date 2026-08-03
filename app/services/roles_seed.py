@@ -53,6 +53,10 @@ PERMISSION_CATALOG = {
     "hr.manage":            ("الموارد البشرية", "HR: أقسام + بيانات الموظف", "edit"),
     # MARSOUD-EVALUATIONS-PRO-GATING (Batch 5 Ticket 6, 2026-07-29).
     "evaluations.manage":   ("الموارد البشرية", "تقييم الأداء: دورات + أهداف + مكافآت", "edit"),
+    # MARSOUD-ADVANCES (2026-08-03) — approving an advance disburses cash
+    # and posts a journal, so it sits with the financial permissions
+    # (same role list as payroll.accruals), not with hr.manage.
+    "advances.manage":      ("الموارد البشرية", "السلف: اعتماد + إضافة مباشرة + إلغاء", "edit"),
 
     # ─── العمليات والمبيعات ─────────────────────────────────────────────
     "leads.view":           ("العمليات والمبيعات", "العملاء المحتملون: عرض المسند لي فقط", "view"),
