@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block page_title %}العمليات المحاسبية{% endblock %}
+{% block content %}
+
+{# MARSOUD-ACCOUNTING-OPS — every card is generated from the OPERATIONS
+   registry, so a new operation appears here automatically. #}
+
+<div class="mb-5">
+  <h2 class="font-bold text-navy-900 text-lg">🧮 العمليات المحاسبية</h2>
+  <p class="text-sm text-slate-500 mt-1">
+    اختر العملية وأدخل بياناتها فقط — النظام يجهّز القيد المحاسبي الصحيح تلقائيًا.
+  </p>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  {% for op in operations %}
+  <a href="{{ url_for('accounting_ops.run', op_key=op.key) }}"
+     class="card p-6 block hover:border-brand-400 hover:shadow-md transition border-2 border-transparent">
+    <div class="text-3xl mb-3">{{ op.icon }}</div>
+    <h3 class="font-bold text-navy-900 mb-1">{{ op.title }}</h3>
+    <p class="text-xs text-slate-500 leading-relaxed">{{ op.description }}</p>
+    {% if op.effect %}
+    <p class="text-xs text-slate-400 mt-3">{{ op.effect }}</p>
+    {% endif %}
+    <span class="inline-block mt-4 text-xs font-semibold text-brand-600">تنفيذ ←</span>
+  </a>
+  {% else %}
+  <div class="card p-6 text-center text-slate-400 md:col-span-3">لا توجد عمليات متاحة.</div>
+  {% endfor %}
+</div>
+
+<div class="mt-5 rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">
+  العمليات اللي ليها شاشة خاصة بيها — الفواتير، المشتريات، الرواتب، الأصول الثابتة،
+  المخزون، المرتجعات — بتتسجل من الموديول بتاعها، مش من هنا.
+</div>
+
+{% endblock %}

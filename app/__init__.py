@@ -76,6 +76,7 @@ def create_app(config_class=Config):
     from app.routes.companies import bp as companies_bp
     from app.routes.accounts import bp as accounts_bp
     from app.routes.journals import bp as journals_bp
+    from app.routes.accounting_ops import bp as accounting_ops_bp
     from app.routes.invoices import bp as invoices_bp
     from app.routes.customers import bp as customers_bp
     from app.routes.vendors import bp as vendors_bp
@@ -138,6 +139,7 @@ def create_app(config_class=Config):
     app.register_blueprint(companies_bp, url_prefix="/companies")
     app.register_blueprint(accounts_bp, url_prefix="/accounts")
     app.register_blueprint(journals_bp, url_prefix="/journals")
+    app.register_blueprint(accounting_ops_bp, url_prefix="/accounting-ops")
     app.register_blueprint(invoices_bp, url_prefix="/invoices")
     app.register_blueprint(customers_bp, url_prefix="/customers")
     app.register_blueprint(vendors_bp, url_prefix="/vendors")
