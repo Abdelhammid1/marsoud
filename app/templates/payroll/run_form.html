@@ -67,8 +67,10 @@
         <th style="width:6rem">بونص</th>
         <th style="width:6rem">أيام غياب</th><th style="width:8rem">غياب (مبلغ)</th>
         <th style="width:7rem">تأخير</th>
-        <th style="width:6rem">سُلَف</th>
-        <th style="width:6rem">المدفوع فعلياً</th>
+        {# MARSOUD-ADVANCES — 6rem fitted the old hardcoded "0" but clips a
+           real installment ("1000.00" rendered as ".00"). Match تأخير. #}
+        <th style="width:8rem">سُلَف</th>
+        <th style="width:7rem">المدفوع فعلياً</th>
       </tr></thead>
       <tbody>
         {% for e in employees %}
