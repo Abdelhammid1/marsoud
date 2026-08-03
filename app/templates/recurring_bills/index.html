@@ -40,7 +40,7 @@
                class="font-mono text-emerald-700 hover:underline">{{ rb.source_bill.number }}</a>
             {% else %}—{% endif %}
           </td>
-          <td class="font-mono">{{ "%.2f"|format(rb.amount|float) }} <span class="text-xs text-slate-500">{{ rb.currency }}</span></td>
+          <td class="font-mono">{{ "%.2f"|format(rb.amount|float) }} <span class="text-xs text-slate-500">{{ rb.currency|currency_ar }}</span></td>
           <td class="text-xs">{{ rb.label_ar }}</td>
           <td class="font-mono text-xs">{{ rb.start_date.isoformat() }}</td>
           <td class="font-mono text-xs">{% if rb.end_date %}{{ rb.end_date.isoformat() }}{% else %}<span class="text-slate-400">مفتوح</span>{% endif %}</td>

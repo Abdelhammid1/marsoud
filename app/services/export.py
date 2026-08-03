@@ -15,6 +15,9 @@ from reportlab.pdfbase.ttfonts import TTFont
 import arabic_reshaper
 from flask import render_template
 from app import db
+# MARSOUD-CURRENCY-AR — the ReportLab renderers build strings in Python,
+# so they can't use the `currency_ar` Jinja filter.
+from app.services.currency import currency_name_ar
 
 _export_logger = logging.getLogger("ledgeros.export")
 from bidi.algorithm import get_display
@@ -409,7 +412,7 @@ def _export_invoice_pdf_legacy(invoice):
     p.setFont(_FONT_REGULAR, 9)
     p.drawString(11.4 * cm, y - 1.1 * cm, f"Issued: {invoice.issue_date.isoformat()}")
     p.drawString(11.4 * cm, y - 1.5 * cm, f"Due:    {invoice.due_date.isoformat()}")
-    p.drawString(11.4 * cm, y - 1.9 * cm, f"Currency: {invoice.currency}")
+    p.drawString(11.4 * cm, y - 1.9 * cm, f"Currency: {currency_name_ar(invoice.currency)}")
 
     y -= card_h + 0.8 * cm
 
@@ -455,10 +458,10 @@ def _export_invoice_pdf_legacy(invoice):
     if getattr(invoice, "invoice_discount_amount", 0) and float(invoice.invoice_discount_amount) > 0:
         rows.append(("Discount", f"-{float(invoice.invoice_discount_amount):,.2f}", False))
     rows.append((f"VAT ({float(invoice.tax_rate):.0f}%)", f"{float(invoice.tax_amount):,.2f}", False))
-    rows.append(("Total",     f"{float(invoice.total):,.2f} {invoice.currency}",  True))
+    rows.append(("Total",     f"{float(invoice.total):,.2f} {currency_name_ar(invoice.currency)}",  True))
     if invoice.paid_amount and float(invoice.paid_amount) > 0:
         rows.append(("Paid",    f"{float(invoice.paid_amount):,.2f}",              False))
-        rows.append(("Balance Due", f"{float(invoice.balance):,.2f} {invoice.currency}", True))
+        rows.append(("Balance Due", f"{float(invoice.balance):,.2f} {currency_name_ar(invoice.currency)}", True))
 
     card_h = 0.7 * cm * len(rows) + 0.3 * cm
     p.setFillColor(colors.HexColor("#F8FAFC"))
@@ -618,7 +621,7 @@ def _export_payslip_pdf_legacy(employee, line, run):
     p.drawString(1.5 * cm, y - 0.65 * cm, "NET PAY")
     p.setFont(_FONT_BOLD, 22)
     p.drawRightString(19.5 * cm, y - 0.7 * cm,
-                      f"{float(line.net):,.2f} {employee.company.base_currency}")
+                      f"{float(line.net):,.2f} {currency_name_ar(employee.company.base_currency)}")
 
     # Footer
     p.setFillColor(colors.HexColor("#94A3B8"))
@@ -645,7 +648,7 @@ def export_journal_entry_pdf(entry):
     p = canvas.Canvas(buf, pagesize=A4)
     title = ar(f"قيد يومية — {entry.number or '#' + str(entry.id)}")
     _pdf_header(p, entry.company, title,
-                ar(f"التاريخ: {entry.date}  ·  {entry.currency}"))
+                ar(f"التاريخ: {entry.date}  ·  {currency_name_ar(entry.currency)}"))
 
     y = 24 * cm
     p.setFillColor(colors.HexColor("#475569"))
@@ -871,7 +874,7 @@ def export_payroll_run_pdf(run):
     p.setFillColor(colors.white)
     p.setFont(_FONT_BOLD, 12)
     p.drawString(1.3 * cm, y - 0.15 * cm, "TOTAL NET")
-    p.drawRightString(19.5 * cm, y - 0.15 * cm, f"{float(run.total_net):,.2f} {run.company.base_currency}")
+    p.drawRightString(19.5 * cm, y - 0.15 * cm, f"{float(run.total_net):,.2f} {currency_name_ar(run.company.base_currency)}")
 
     p.showPage()
     p.save()
@@ -1194,7 +1197,7 @@ def export_vat_report(company, fmt, start, end):
             p.setFont(_FONT_BOLD, 12)
             p.drawString(1.5 * cm, y - 0.8 * cm, ar(label))
             p.setFont(_FONT_BOLD, 16)
-            p.drawRightString(19.5 * cm, y - 0.8 * cm, f"{amount:,.2f} {company.base_currency}")
+            p.drawRightString(19.5 * cm, y - 0.8 * cm, f"{amount:,.2f} {currency_name_ar(company.base_currency)}")
             y -= 2 * cm
 
         p.setFillColor(NAVY)
@@ -1203,7 +1206,7 @@ def export_vat_report(company, fmt, start, end):
         p.setFont(_FONT_BOLD, 13)
         p.drawString(1.5 * cm, y - 0.8 * cm, ar("NET DUE TO GOVERNMENT"))
         p.setFont(_FONT_BOLD, 18)
-        p.drawRightString(19.5 * cm, y - 0.8 * cm, f"{data['net']:,.2f} {company.base_currency}")
+        p.drawRightString(19.5 * cm, y - 0.8 * cm, f"{data['net']:,.2f} {currency_name_ar(company.base_currency)}")
 
         p.showPage()
         p.save()

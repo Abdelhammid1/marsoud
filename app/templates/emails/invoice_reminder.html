@@ -23,7 +23,7 @@
 
 <div style="background:linear-gradient(135deg,#0A2540 0%,#1B3A5C 100%);color:#fff;border-radius:14px;padding:20px;margin:0 0 16px;text-align:center">
   <div style="font-size:11px;color:#94A3B8;letter-spacing:1px">المبلغ المتبقي</div>
-  <div style="font-size:32px;font-weight:bold;font-family:monospace;margin-top:4px">{{ "%.2f"|format(invoice.balance) }} <span style="font-size:16px;color:#94A3B8">{{ invoice.currency }}</span></div>
+  <div style="font-size:32px;font-weight:bold;font-family:monospace;margin-top:4px">{{ "%.2f"|format(invoice.balance) }} <span style="font-size:16px;color:#94A3B8">{{ invoice.currency|currency_ar }}</span></div>
 </div>
 
 {# MARSOUD-OVERDUE-REMINDER — every field the ticket listed:
@@ -37,8 +37,8 @@
     {% set _n = days_label.split('_',1)[1] %}
     <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">أيام التأخير</td><td style="padding:8px 12px;text-align:left;font-family:monospace;color:#B91C1C;font-weight:bold;border-bottom:1px solid #F1F5F9">{{ _n }} يوم</td></tr>
   {% endif %}
-  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">إجمالي الفاتورة</td><td style="padding:8px 12px;text-align:left;font-family:monospace;border-bottom:1px solid #F1F5F9">{{ "%.2f"|format(invoice.total|float) }} {{ invoice.currency }}</td></tr>
-  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">المبلغ المدفوع</td><td style="padding:8px 12px;text-align:left;font-family:monospace;border-bottom:1px solid #F1F5F9">{{ "%.2f"|format(invoice.paid_amount|float) }} {{ invoice.currency }}</td></tr>
+  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">إجمالي الفاتورة</td><td style="padding:8px 12px;text-align:left;font-family:monospace;border-bottom:1px solid #F1F5F9">{{ "%.2f"|format(invoice.total|float) }} {{ invoice.currency|currency_ar }}</td></tr>
+  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">المبلغ المدفوع</td><td style="padding:8px 12px;text-align:left;font-family:monospace;border-bottom:1px solid #F1F5F9">{{ "%.2f"|format(invoice.paid_amount|float) }} {{ invoice.currency|currency_ar }}</td></tr>
   <tr><td style="padding:8px 12px;color:#94A3B8">الحالة</td><td style="padding:8px 12px;text-align:left">{{ invoice.status.value }}</td></tr>
 </table>
 

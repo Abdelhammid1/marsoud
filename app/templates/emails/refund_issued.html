@@ -9,7 +9,7 @@
 <table style="width:100%;border-collapse:collapse;margin:24px 0;background:#F8FAFC;border-radius:12px;overflow:hidden">
   <tr><td style="padding:12px 16px;color:#64748B">رقم الفاتورة</td><td style="padding:12px 16px;text-align:left;font-family:monospace;font-weight:bold">{{ invoice.number }}</td></tr>
   <tr><td style="padding:12px 16px;color:#64748B">نوع الاسترداد</td><td style="padding:12px 16px;text-align:left">{% if refund.type.value == 'FULL' %}كامل{% elif refund.type.value == 'PARTIAL' %}جزئي{% else %}إشعار دائن{% endif %}</td></tr>
-  <tr><td style="padding:12px 16px;color:#64748B">قيمة الاسترداد</td><td style="padding:12px 16px;text-align:left;color:#B45309;font-weight:bold;font-family:monospace">{{ "%.2f"|format(refund.amount) }} {{ invoice.currency }}</td></tr>
+  <tr><td style="padding:12px 16px;color:#64748B">قيمة الاسترداد</td><td style="padding:12px 16px;text-align:left;color:#B45309;font-weight:bold;font-family:monospace">{{ "%.2f"|format(refund.amount) }} {{ invoice.currency|currency_ar }}</td></tr>
   {% if refund.reason %}
   <tr><td style="padding:12px 16px;color:#64748B">السبب</td><td style="padding:12px 16px;text-align:left">{{ refund.reason }}</td></tr>
   {% endif %}

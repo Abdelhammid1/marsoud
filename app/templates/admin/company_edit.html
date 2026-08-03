@@ -12,8 +12,8 @@
       <div>
         <label class="block text-sm text-ink-200 mb-1">العملة الأساسية</label>
         <select name="base_currency" class="select">
-          {% for code in ['SAR','EGP','USD','EUR','AED'] %}
-          <option value="{{ code }}" {% if company.base_currency==code %}selected{% endif %}>{{ code }}</option>
+          {% for code in currency_codes %}
+          <option value="{{ code }}" {% if company.base_currency==code %}selected{% endif %}>{{ code }} — {{ code|currency_ar }}</option>
           {% endfor %}
         </select>
       </div>

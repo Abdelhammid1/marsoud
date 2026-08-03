@@ -118,7 +118,7 @@
         {% endfor %}
           <tr><td colspan="5" class="text-left font-semibold py-2">المجموع قبل الضريبة</td><td class="text-left font-mono">{{ "%.2f"|format(bill.subtotal) }}</td></tr>
           <tr><td colspan="5" class="text-left py-2">الضريبة</td><td class="text-left font-mono">{{ "%.2f"|format(bill.tax_amount) }}</td></tr>
-          <tr class="border-t-2 border-navy-900"><td colspan="5" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold text-lg">{{ "%.2f"|format(bill.total) }} {{ bill.currency }}</td></tr>
+          <tr class="border-t-2 border-navy-900"><td colspan="5" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold text-lg">{{ "%.2f"|format(bill.total) }} {{ bill.currency|currency_ar }}</td></tr>
         </tbody>
       </table>
     </div>

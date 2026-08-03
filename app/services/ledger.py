@@ -15,7 +15,7 @@ def post_journal(
     lines,
     entry_date=None,
     reference=None,
-    currency="SAR",
+    currency=None,
     exchange_rate=1.0,
     created_by=None,
     source_type=None,
@@ -25,9 +25,19 @@ def post_journal(
     """Post a balanced journal entry.
 
     lines: list of dicts: {account_id, debit, credit, memo?}
+
+    currency: omit to inherit the company's base_currency. This used to
+    default to a hardcoded "SAR", and roughly half the callers omit it —
+    so an EGP company had most of its journals stamped SAR. Passing an
+    explicit currency still wins (multi-currency invoices rely on that).
     """
     if not lines or len(lines) < 2:
         raise LedgerError("القيد يجب أن يحتوي على سطرين على الأقل")
+
+    if not currency:
+        from app.models import Company
+        _co = db.session.get(Company, company_id)
+        currency = (_co.base_currency if _co else None) or "SAR"
 
     if float(exchange_rate or 0) <= 0:
         raise LedgerError("سعر الصرف يجب أن يكون أكبر من صفر")

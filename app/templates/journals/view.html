@@ -8,7 +8,7 @@
         <div class="text-xs text-slate-500 mb-1 font-mono">{{ entry.number or '#' + entry.id|string }}</div>
         <h2 class="text-xl font-bold text-navy-900">{{ entry.description }}</h2>
         <div class="text-sm text-slate-500 mt-1">
-          {{ entry.date.isoformat() }} · {{ entry.currency }}
+          {{ entry.date.isoformat() }} · {{ entry.currency|currency_ar }}
           {% if entry.reference %} · مرجع: {{ entry.reference }}{% endif %}
         </div>
         <div class="flex gap-2 mt-2">

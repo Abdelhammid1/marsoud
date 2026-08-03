@@ -58,7 +58,7 @@
       <td>
         <a href="{{ url_for('superadmin.company_detail', company_id=r.company.id) }}"
            class="text-slate-900 font-semibold hover:underline">{{ r.company.name }}</a>
-        <div class="text-xs text-ink-200">{{ r.company.base_currency }} · ضريبة {{ r.company.vat_rate }}%</div>
+        <div class="text-xs text-ink-200">{{ r.company.base_currency|currency_ar }} · ضريبة {{ r.company.vat_rate }}%</div>
       </td>
       <td class="font-mono text-xs">{{ r.company.created_at | company_dt('%Y-%m-%d') if r.company.created_at else '—' }}</td>
       <td>{{ r.users }}</td>

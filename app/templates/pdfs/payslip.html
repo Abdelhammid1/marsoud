@@ -99,7 +99,7 @@ table.items tr.total td:first-child { font-family: 'Cairo', sans-serif; }
     {# ─── EARNINGS ─────────────────────────────────────────── #}
     <div class="section-title">الإضافات</div>
     <table class="items">
-      <thead><tr><th>البند</th><th class="l">المبلغ ({{ employee.company.base_currency }})</th></tr></thead>
+      <thead><tr><th>البند</th><th class="l">المبلغ ({{ employee.company.base_currency|currency_ar }})</th></tr></thead>
       <tbody>
         {% if basic > 0 %}
         <tr><td>الراتب الأساسي</td><td class="l">{{ "%.2f"|format(basic) }}</td></tr>
@@ -126,7 +126,7 @@ table.items tr.total td:first-child { font-family: 'Cairo', sans-serif; }
     {# ─── DEDUCTIONS ───────────────────────────────────────── #}
     <div class="section-title">الخصومات</div>
     <table class="items">
-      <thead><tr><th>البند</th><th class="l">المبلغ ({{ employee.company.base_currency }})</th></tr></thead>
+      <thead><tr><th>البند</th><th class="l">المبلغ ({{ employee.company.base_currency|currency_ar }})</th></tr></thead>
       <tbody>
         {% if commissions < 0 %}
         <tr><td>تسوية عمولات (استرجاع سابق)</td><td class="l">{{ "%.2f"|format(-commissions) }}</td></tr>
@@ -152,7 +152,7 @@ table.items tr.total td:first-child { font-family: 'Cairo', sans-serif; }
 
     {# ─── NET + PAYMENT METHOD ─────────────────────────────── #}
     <table class="net-kv">
-      <tr><td class="k">صافي الراتب</td><td class="c">:</td><td class="v net">{{ "%.2f"|format(line.net|float) }} {{ employee.company.base_currency }}</td></tr>
+      <tr><td class="k">صافي الراتب</td><td class="c">:</td><td class="v net">{{ "%.2f"|format(line.net|float) }} {{ employee.company.base_currency|currency_ar }}</td></tr>
       
     </table>
 

@@ -64,7 +64,7 @@
           {% for inv in outstanding %}
             <div class="text-xs">
               <span class="font-mono">{{ inv.number }}</span>
-              — <b>{{ inv.total|int }}</b> {{ inv.currency }}
+              — <b>{{ inv.total|int }}</b> {{ inv.currency|currency_ar }}
               (مستحقة {{ inv.due_date | company_dt('%Y-%m-%d') }})
             </div>
           {% endfor %}

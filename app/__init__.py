@@ -659,6 +659,7 @@ def create_app(config_class=Config):
     def inject_globals():
         from datetime import datetime
         from app.services.permissions import has_permission, get_user_role
+        from app.services.currency import CURRENCY_ORDER
         active_company = g.get("active_company")
         current_role = None
         if active_company:
@@ -707,6 +708,10 @@ def create_app(config_class=Config):
             "subscription": sub_state,
             "subitem_allowed": _subitem_allowed_template,
             "my_employee_here": my_employee_here,
+            # MARSOUD-CURRENCY-AR — every currency <select> in the app
+            # renders from this one list instead of its own hardcoded
+            # copy, so the dictionary really is the single source.
+            "currency_codes": CURRENCY_ORDER,
         }
 
     @app.errorhandler(500)
@@ -826,6 +831,14 @@ def create_app(config_class=Config):
             return f"{float(value):,.2f}"
         except (TypeError, ValueError):
             return str(value)
+
+    # MARSOUD-CURRENCY-AR — the app stores ISO codes but must show Arabic
+    # names. One dictionary in app/services/currency.py backs both this
+    # filter and the ReportLab exports that can't use a filter.
+    @app.template_filter("currency_ar")
+    def currency_ar_filter(code):
+        from app.services.currency import currency_name_ar
+        return currency_name_ar(code)
 
     @app.template_filter("mentions")
     def _mentions_filter(text):

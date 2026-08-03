@@ -38,6 +38,8 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
 from app import db
+# MARSOUD-CURRENCY-AR — xlsx cells are built in Python, no Jinja filter.
+from app.services.currency import currency_name_ar
 from app.models import (
     Company, Account, JournalEntry, JournalLine,
     Customer, Vendor, Product,
@@ -98,7 +100,7 @@ def _sheet_company(wb, company):
         ["البيان", "القيمة"],
         [
             ("الاسم", company.name),
-            ("العملة الأساسية", company.base_currency),
+            ("العملة الأساسية", currency_name_ar(company.base_currency)),
             ("الرقم الضريبي", getattr(company, "tax_number", "") or ""),
             ("الحالة", getattr(company, "status", "ACTIVE") or "ACTIVE"),
             ("تم الإنشاء", company.created_at),

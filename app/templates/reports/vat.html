@@ -46,7 +46,7 @@
 
   <div class="mt-6 text-center text-xs text-slate-500">
     {% if data.net > 0 %}
-      💰 يجب سداد <span class="font-bold text-navy-900">{{ "%.2f"|format(data.net) }}</span> {{ active_company.base_currency }} للجهات الضريبية
+      💰 يجب سداد <span class="font-bold text-navy-900">{{ "%.2f"|format(data.net) }}</span> {{ active_company.base_currency|currency_ar }} للجهات الضريبية
     {% elif data.net < 0 %}
       ↩ مبلغ مسترد منتظر من الجهات الضريبية: <span class="font-bold">{{ "%.2f"|format(data.net|abs) }}</span>
     {% else %}

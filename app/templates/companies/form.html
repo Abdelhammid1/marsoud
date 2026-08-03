@@ -37,11 +37,9 @@
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">العملة الأساسية</label>
         <select name="base_currency" class="select" {% if company %}disabled{% endif %}>
-          <option value="SAR" {% if company and company.base_currency == 'SAR' %}selected{% endif %}>SAR — ريال سعودي</option>
-          <option value="EGP" {% if company and company.base_currency == 'EGP' %}selected{% endif %}>EGP — جنيه مصري</option>
-          <option value="AED" {% if company and company.base_currency == 'AED' %}selected{% endif %}>AED — درهم إماراتي</option>
-          <option value="USD" {% if company and company.base_currency == 'USD' %}selected{% endif %}>USD — دولار</option>
-          <option value="EUR" {% if company and company.base_currency == 'EUR' %}selected{% endif %}>EUR — يورو</option>
+          {% for code in currency_codes %}
+          <option value="{{ code }}" {% if company and company.base_currency == code %}selected{% endif %}>{{ code }} — {{ code|currency_ar }}</option>
+          {% endfor %}
         </select>
       </div>
       <div>
