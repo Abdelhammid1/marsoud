@@ -41,9 +41,9 @@
         {% set currency = company.base_currency or 'EGP' %}
         {% set price_m = plan.price_for(currency, 'monthly') %}
         {% set price_y = plan.price_for(currency, 'yearly') %}
-        {% set currency_label = {'EGP': 'جنيه', 'SAR': 'ر.س',
-                                  'AED': 'د.إ', 'USD': '$',
-                                  'EUR': '€'}.get(currency, currency) %}
+        {# MARSOUD-CURRENCY-AR — was a third inline currency map. Uses the
+           one dictionary now, like every other currency display. #}
+        {% set currency_label = currency|currency_ar %}
         {% if price_m %}
         <div class="text-3xl font-bold text-emerald-700 mb-1">
           {{ price_m|int }}
