@@ -414,7 +414,13 @@ def post_vendor_bill_refund(bill, refund_type, amount=None,
 
     if bill.status not in (VendorBillStatus.PAID,
                             VendorBillStatus.POSTED,
-                            VendorBillStatus.PARTIALLY_PAID):
+                            VendorBillStatus.PARTIALLY_PAID,
+                            # MARSOUD-VBILL-REFUND-STATUS — a partial
+                            # refund now moves the bill to
+                            # PARTIALLY_REFUNDED. Without this, the
+                            # second partial refund on the same bill
+                            # would start failing, which used to work.
+                            VendorBillStatus.PARTIALLY_REFUNDED):
         raise LedgerError(
             f"لا يمكن عمل مرتجع لفاتورة بحالة {bill.status.value}"
         )
@@ -507,6 +513,13 @@ def post_vendor_bill_refund(bill, refund_type, amount=None,
     ap = party_ap_account(bill) if bill.vendor_id else None
     debit_line = None
     receiving_account = None
+    # MARSOUD-VBILL-REFUND-STATUS — these two were defined only inside
+    # the `else` branch below and then read back through a
+    # `'journal_ap_leg' in locals()` test. Initialise them up-front so
+    # the flow is explicit and cash_return is readable afterwards (it
+    # drives the paid_amount adjustment at the end of the function).
+    cash_return = 0.0
+    journal_ap_leg = None
     if refund_type == VendorRefundType.DEBIT_NOTE or paid < 0.01:
         if not ap:
             raise LedgerError(
@@ -546,15 +559,12 @@ def post_vendor_bill_refund(bill, refund_type, amount=None,
                 "account_id": ap.id, "debit": credit_owed, "credit": 0,
                 "memo": "خفض ذمم المورد بالمتبقي",
             }
-        else:
-            journal_ap_leg = None
 
     # Assemble the journal. Number the refund first so the reference
     # matches what shows in the ledger.
     ref_no = next_number(bill.company_id, "PURCHASE_REFUND")
     lines = credit_lines + [debit_line]
-    if refund_type != VendorRefundType.DEBIT_NOTE and paid >= 0.01 \
-            and 'journal_ap_leg' in locals() and journal_ap_leg:
+    if journal_ap_leg:
         lines.append(journal_ap_leg)
 
     vendor_name = bill.vendor.name if bill.vendor else "مورد"
@@ -622,6 +632,26 @@ def post_vendor_bill_refund(bill, refund_type, amount=None,
             reason=reason,
         )
         db.session.add(dn)
+
+    # MARSOUD-VBILL-REFUND-STATUS — the bill itself was never touched by
+    # a refund: the journal was right but the row still looked live, so
+    # its full value kept inflating the purchases totals and AP aging.
+    #
+    # Money that actually came back reduces what we've paid, mirroring
+    # invoice.paid_amount -= amount in issue_refund() (invoicing.py).
+    # cash_return is 0 for a DEBIT_NOTE and for an unpaid bill, so this
+    # is a no-op in exactly the cases where no cash moved.
+    if cash_return > 0.001:
+        bill.paid_amount = float(bill.paid_amount or 0) - cash_return
+
+    # Status, mirroring issue_refund() exactly. DEBIT_NOTE deliberately
+    # leaves the status alone — the credit sits on the vendor's balance,
+    # not on this bill's lifecycle (same as CREDIT_NOTE on the sales
+    # side).
+    if refund_type == VendorRefundType.FULL:
+        bill.status = VendorBillStatus.REFUNDED
+    elif refund_type == VendorRefundType.PARTIAL:
+        bill.status = VendorBillStatus.PARTIALLY_REFUNDED
 
     db.session.commit()
     try:

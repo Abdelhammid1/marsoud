@@ -315,7 +315,16 @@ def ap_aging_report(company_id, as_of=None):
     for v in vendors:
         buckets = {"current": 0.0, "d30": 0.0, "d60": 0.0, "d90": 0.0, "d90plus": 0.0}
         for bill in v.bills:
-            if bill.status in (VendorBillStatus.PAID, VendorBillStatus.CANCELLED, VendorBillStatus.DRAFT):
+            # MARSOUD-VBILL-REFUND-STATUS — this is an EXCLUSION list, so
+            # a newly added status is counted as payable unless named
+            # here. A fully refunded bill owes the vendor nothing (its
+            # balance only looks non-zero because paid_amount dropped
+            # when the cash came back), so it must not age.
+            # PARTIALLY_REFUNDED stays in, at its real balance.
+            if bill.status in (VendorBillStatus.PAID,
+                                VendorBillStatus.CANCELLED,
+                                VendorBillStatus.DRAFT,
+                                VendorBillStatus.REFUNDED):
                 continue
             bal = bill.balance
             if bal <= 0.01:
