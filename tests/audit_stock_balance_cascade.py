@@ -198,15 +198,30 @@ def _():
 @check("4. the orphan sweep now finds nothing to purge")
 def _():
     """The report that opened the ticket was the sweep cleaning up after
-    the purge. With the purge complete, the sweep must be a no-op."""
-    from app.services.orphan_sweep import sweep_orphans
+    the purge. With the purge complete, the sweep must be a no-op.
+
+    The ticket asks specifically for `tests/_orphan_sweep.py` preflight()
+    — the script whose output ("orphan_sweep purged rows:
+    {'stock_balances': 5}") started this — so run that one, then the
+    runtime twin that fires on every boot."""
     assert _STATE.get("purged"), "check 3 must run first"
+
+    before = _count("SELECT COUNT(*) FROM stock_balances")
+    from tests._orphan_sweep import preflight
+    preflight()
+    after = _count("SELECT COUNT(*) FROM stock_balances")
+    assert before == after, (
+        f"preflight() still had to delete {before - after} "
+        "stock_balances row(s) after a clean purge")
+
+    from app.services.orphan_sweep import sweep_orphans
     purged = sweep_orphans(db.engine)
     stock = {k: v for k, v in (purged or {}).items()
              if k.startswith("stock_")}
     assert not stock, (
-        f"the sweep still had to clean inventory rows: {stock}")
-    return f"sweep purged nothing from inventory (report: {purged or '{}'})"
+        f"the boot sweep still had to clean inventory rows: {stock}")
+    return (f"preflight() deleted 0 rows; boot sweep report: "
+            f"{purged or '{}'}")
 
 
 @check("5. the sweep checks the warehouse side, which it never did")

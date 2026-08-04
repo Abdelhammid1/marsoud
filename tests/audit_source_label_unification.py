@@ -229,6 +229,43 @@ def _():
     return " · ".join(f"{s}→{_SOURCE_TYPES[s][0]}" for s in TICKET_TYPES)
 
 
+@check("2b. an EMPLOYEE's ledger carrying a سلفة is all-Arabic too")
+def _():
+    """The ticket names two screens by hand: «كشف حساب 1110 وحساب موظف
+    عليه سلفة». Check 2 covers 1110; this covers the second, on the
+    employee's own subsidiary account under 2130 rather than on cash,
+    because that is the account an advance actually lands on."""
+    from app.models import Employee
+    from app.services.subsidiary import party_payroll_account
+    from app.services.ledger import post_journal, get_account_by_code
+    from app.services.source_reference import _SOURCE_TYPES
+
+    cid = _STATE["cid"]
+    emp = Employee(company_id=cid, name="موظف اختبار", basic_salary=5000)
+    db.session.add(emp)
+    db.session.flush()
+    emp_acc = party_payroll_account(emp)
+    db.session.commit()
+
+    post_journal(
+        company_id=cid, description="قيد اختبار للمراجعة",
+        lines=[{"account_id": emp_acc.id, "debit": 500, "credit": 0},
+               {"account_id": get_account_by_code(cid, "1110").id,
+                "debit": 0, "credit": 500}],
+        entry_date=date.today(), created_by=_STATE["uid"],
+        source_type="employee_advance", source_id=1,
+    )
+
+    r = _client().get(f"/accounts/{emp_acc.id}/ledger")
+    assert r.status_code == 200, f"employee ledger returned {r.status_code}"
+    html = r.get_data(as_text=True)
+    assert "employee_advance" not in html, \
+        "the employee ledger still prints the RAW key 'employee_advance'"
+    label = _SOURCE_TYPES["employee_advance"][0]
+    assert label in html, f"missing the Arabic label '{label}'"
+    return f"{emp_acc.code} ({emp.name}) → {label}"
+
+
 @check("3. the rendered account ledger contains no raw source_type key")
 def _():
     from app.services.source_reference import _SOURCE_TYPES
@@ -319,6 +356,53 @@ def _():
 
 
 # ─── 8-9. coverage ──────────────────────────────────────────────────────
+@check("7b. NOT ONE working link from the old map was lost")
+def _():
+    """The ticket's explicit condition: «أي فرق في الروابط بين الخريطتين
+    يتراعى في التوحيد — التوحيد ميضيّعش أي رابط شغال دلوقتي».
+
+    So: the deleted SOURCE_LABELS_AR, verbatim as it stood at
+    693b531^, and every entry that produced a link must still produce
+    one. Keys that had no link are listed too, so a future edit that
+    drops one of them from the map is caught as well."""
+    from flask import current_app
+    from app.routes.accounts import _resolve_source
+    from app.services.source_reference import _SOURCE_TYPES
+
+    OLD_MAP = {
+        "invoice": "invoices.view",
+        "invoice_cogs": "invoices.view",
+        "refund": "invoices.view",
+        "refund_cogs": "invoices.view",
+        "credit_note": "invoices.view",
+        "vendor_bill": "vendor_bills.view",
+        "vendor_bill_payment": "vendor_bills.view",
+        "payment": "invoices.view",
+        "asset": None,
+        "depreciation": None,
+        "payroll": "payroll.view",       # resolved to payroll.index
+        "opening_balance": None,
+        "stock_receipt": None,
+        "stock_adjustment": None,
+        "manual": "journals.view",       # source_type IS NULL
+    }
+    lost, unlabelled = [], []
+    with current_app.test_request_context():
+        for st, endpoint in OLD_MAP.items():
+            entry = _FakeEntry(None if st == "manual" else st,
+                               source_id=7, entry_id=42)
+            label, link = _resolve_source(entry)
+            if st != "manual" and st not in _SOURCE_TYPES:
+                unlabelled.append(st)
+            if endpoint and not link:
+                lost.append(f"{st} (was → {endpoint})")
+    assert not unlabelled, \
+        f"keys dropped from the map entirely: {unlabelled}"
+    assert not lost, f"links lost in the unification: {lost}"
+    linked = sum(1 for e in OLD_MAP.values() if e)
+    return f"all {linked} linked keys still link; {len(OLD_MAP)} keys kept"
+
+
 @check("8. types emitted by services but in NEITHER map are now covered")
 def _():
     from flask import current_app
@@ -352,19 +436,35 @@ def _():
     found = sorted({r[0] for r in rows if r[0]})
     if not found:
         return "skipped: no source_type rows in DB"
+
+    def _english(label, st):
+        # A label that still contains the raw key, or any latin letters
+        # at all, is English leaking to the user. "بيع POS" is the one
+        # legitimate exception in the map.
+        return label == st or (re.search(r"[A-Za-z]", label)
+                               and label != "بيع POS")
+
+    from app.services.source_reference import (
+        resolve_reference, build_reference_map,
+    )
     english = []
     with current_app.test_request_context():
         for st in found:
-            label, _ = _resolve_source(_FakeEntry(st))
-            # A label that still contains the raw key, or any latin
-            # letters at all, is English leaking to the user. "بيع POS"
-            # is the one legitimate exception in the map.
-            if label == st or (re.search(r"[A-Za-z]", label)
-                               and label != "بيع POS"):
-                english.append(f"{st}→{label}")
+            # "في أي شاشة" — all three renderers, not just one.
+            acct, _ = _resolve_source(_FakeEntry(st))
+            party = resolve_reference(st, 1)["label"]
+            stock = build_reference_map(
+                [{"source_type": st, "source_id": 1}],
+                _STATE["cid"])[(st, 1)]["label"]
+            for screen, label in (("كشف حساب", acct),
+                                   ("كشف طرف", party),
+                                   ("حركات مخزون", stock)):
+                if _english(label, st):
+                    english.append(f"{st}→{label} ({screen})")
     assert not english, \
         f"{len(english)} source_types render as English: {english}"
-    return f"all {len(found)} distinct source_types render in Arabic"
+    return (f"all {len(found)} distinct source_types render in Arabic "
+            f"on all 3 screens")
 
 
 @check("10. no source-reference renderer hardcodes the fallback string")

@@ -192,6 +192,49 @@ def _():
     return "menu present, logout is a POST"
 
 
+@check("1b. a user WITH an HR record gets all three menu entries")
+def _():
+    """The ticket asks for a dropdown holding حسابي, تقاريري and
+    تسجيل الخروج. حسابي/تقاريري are gated on my_employee_here, exactly as
+    the top-bar icons they replaced were — linking them for a user with
+    no Employee row would just flash «هذه الصفحة للموظفين المرتبطين بسجل
+    HR فقط» and bounce back. So: verify both states."""
+    from app.models import Employee
+    html_before = _home()
+    assert "/my/account" not in html_before, \
+        "حسابي is offered to a user with no Employee record"
+
+    from sqlalchemy import text
+    emp = Employee(company_id=_STATE["cid"], name="مالك الشركة",
+                   user_id=_STATE["uid"], basic_salary=0)
+    db.session.add(emp)
+    db.session.commit()
+    emp_id = emp.id
+    try:
+        html = _home()
+        for url, label in (("/my/account", "حسابي"),
+                           ("/my/daily-reports", "تقاريري اليومية")):
+            assert url in html, f"{label} missing from the menu"
+            assert label in html, f"{label} label missing"
+        assert "تسجيل الخروج" in html, "logout missing"
+        # All three must live INSIDE the menu, not scattered in the
+        # top bar the way حسابي/تقاريري used to be.
+        menu = html.split('id="user-menu"', 1)[1].split("</details>", 1)[0]
+        for probe in ("/my/account", "/my/daily-reports", "logout"):
+            assert probe in menu, f"{probe} is outside the user menu"
+    finally:
+        # Raw DELETE, not session.delete(): the dev DB carries orphaned
+        # payroll_lines from older runs, and SQLite reuses ids, so the
+        # ORM cascade tries to null out an employee_id that is NOT NULL
+        # and blows up. Those orphans predate this suite and are left
+        # exactly as found.
+        db.session.expunge_all()
+        db.session.execute(text("DELETE FROM employees WHERE id=:i"),
+                           {"i": emp_id})
+        db.session.commit()
+    return "all 3 entries present, all inside the menu"
+
+
 @check("2. the agent button and its slide-over panel are gone")
 def _():
     html = _home()
