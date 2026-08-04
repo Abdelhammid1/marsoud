@@ -55,9 +55,31 @@ the check numbering.
       transfer nets to zero regardless of what it is called.
   27. a transfer onto the same account is refused
   28. a failed two-sided operation leaves no orphan row behind
+
+§5 — hard boundaries
+  Both of these produce a journal that BALANCES, which is why they need a
+  guard: nothing downstream objects and the damage surfaces later, in a
+  report nobody reconciles.
+  29. an operation can refuse a party, and does
+  30. an operation can refuse tax, and does
+  31. the guards do not fire on ordinary submissions — a guard that
+      refuses everything is worse than no guard
+  32. an unknown boundary is refused at build time
+  33. forbidding a party while ASKING for one is a build-time error
+  34. InvoiceStatus.WRITTEN_OFF exists and is excluded from AR aging
+  35. a WRITTEN_OFF invoice really stops ageing (1000 -> 0)
+  36. every status is either excluded or aged ON PURPOSE — the guard that
+      stops the next one slipping through an exclusion list silently
+
+  HONEST SCOPE, as planned: §5's acceptance criterion is about the GENERIC
+  expense/revenue operations, which this ticket does not build. The guards
+  land now so those inherit them; today they are demonstrated on the
+  accrual pair. Likewise the write-off OPERATION is out of scope — the
+  status and its exclusion are in, because the tuples fail silently.
 """
 import re
 import sys
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -435,6 +457,15 @@ def _run(key, cid, **form):
     from datetime import date as _date
     form.setdefault("date", _date.today().isoformat())
     return run_operation(_op(key), cid, form, actor_id=_STATE.get("uid"))
+
+
+def _aged_total(report, customer_name):
+    """What the aging report says one customer owes, in total."""
+    for row in report["rows"]:
+        if row.get("customer") == customer_name or \
+                row.get("name") == customer_name:
+            return round(float(row.get("total") or 0), 2)
+    return 0.0
 
 
 def _balance(account_id):
@@ -829,6 +860,181 @@ def _():
     after = OpenItem.query.filter_by(company_id=cid).count()
     assert after == before, f"{after - before} orphan item(s) survived"
     return f"{before} items before and after the failure"
+
+
+# ─── §5 hard boundaries ─────────────────────────────────────────────────
+@check("29. an operation can refuse a party, and does")
+def _():
+    """An expense with a supplier belongs in the bills module, which drives
+    the vendor sub-account under 2110. Posted straight to cash the journal
+    still BALANCES — nothing objects, and the vendor's statement quietly
+    disagrees with the ledger from then on."""
+    from app.services.accounting_ops import OperationError, get_operation
+    from app.services.ledger import postable_under
+    cid = _STATE["plain_id"]
+    op = get_operation("accrue-expense")
+    assert "party" in op.forbids, "the expense wizard declares no party boundary"
+    exp = str(postable_under(cid, "5000")[0].id)
+    refused = []
+    for key in ("party", "vendor_id", "supplier_id"):
+        try:
+            _run("accrue-expense", cid, amount="10",
+                 expense_account_id=exp, **{key: "7"})
+            raise AssertionError(f"{key} was accepted")
+        except OperationError as e:
+            assert "المورد" in str(e), f"{key}: unhelpful message {e}"
+            refused.append(key)
+    return "refused: " + ", ".join(refused)
+
+
+@check("30. an operation can refuse tax, and does")
+def _():
+    """Input VAT belongs in purchases, which drives 1280. Post the gross to
+    the expense account instead and the entry balances, the expense is
+    overstated, and the reclaimable VAT is simply gone."""
+    from app.services.accounting_ops import OperationError, get_operation
+    from app.services.ledger import postable_under
+    cid = _STATE["plain_id"]
+    assert "tax" in get_operation("accrue-expense").forbids
+    exp = str(postable_under(cid, "5000")[0].id)
+    refused = []
+    for key in ("tax", "tax_amount", "vat"):
+        try:
+            _run("accrue-expense", cid, amount="10",
+                 expense_account_id=exp, **{key: "1.5"})
+            raise AssertionError(f"{key} was accepted")
+        except OperationError as e:
+            assert "ضريبة" in str(e), f"{key}: unhelpful message {e}"
+            refused.append(key)
+    return "refused: " + ", ".join(refused)
+
+
+@check("31. the guards do not fire on ordinary submissions")
+def _():
+    """A guard that refuses everything is worse than no guard. The normal
+    path must stay open, and an EMPTY stray field must not trip it."""
+    from app.services.ledger import postable_under
+    cid = _STATE["plain_id"]
+    exp = str(postable_under(cid, "5000")[0].id)
+    entry = _run("accrue-expense", cid, amount="10",
+                 expense_account_id=exp, vendor_id="", tax="")
+    assert entry is not None
+    return f"blank stray fields ignored; {entry.number} posted"
+
+
+@check("32. an unknown boundary is refused at build time")
+def _():
+    from app.services.accounting_ops import Operation, Field
+    try:
+        Operation(key="x", title="x", icon="x", description="x",
+                  source_type="capital_injection",
+                  fields=[Field("amount", "المبلغ", "amount")],
+                  build=lambda *a, **k: None, cashflow_category="OPERATING",
+                  forbids=("sparkles",))
+        raise AssertionError("an unknown boundary was accepted")
+    except ValueError as e:
+        assert "sparkles" in str(e)
+    return "unknown boundary rejected"
+
+
+@check("33. forbidding a party while ASKING for one is a build-time error")
+def _():
+    """Otherwise the operation refuses every submission it receives, and
+    the contradiction only shows up as a user complaint."""
+    from app.services.accounting_ops import Operation, Field
+    try:
+        Operation(key="x", title="x", icon="x", description="x",
+                  source_type="capital_injection",
+                  fields=[Field("party_id", "الطرف", "party")],
+                  build=lambda *a, **k: None, cashflow_category="OPERATING",
+                  forbids=("party",))
+        raise AssertionError("the contradiction was accepted")
+    except ValueError as e:
+        assert "party_id" in str(e)
+    return "contradiction caught at import time"
+
+
+# ─── §5.3 the write-off status ──────────────────────────────────────────
+@check("34. InvoiceStatus.WRITTEN_OFF exists and is excluded from AR aging")
+def _():
+    """The aging tuple is an EXCLUSION list, so a status added without
+    touching it ages forever — the report keeps claiming money already
+    given up on, and nothing fails. The status and its exclusion land
+    together for exactly that reason.
+
+    HONEST SCOPE: the write-off OPERATION is not in this ticket."""
+    from app.models import InvoiceStatus
+    from app.models.invoice import NON_RECEIVABLE_STATUSES
+    assert hasattr(InvoiceStatus, "WRITTEN_OFF")
+    assert InvoiceStatus.WRITTEN_OFF in NON_RECEIVABLE_STATUSES, (
+        "WRITTEN_OFF is not excluded from receivables — a forgiven debt "
+        "would age forever")
+    # It must be distinct from the statuses that already exist: a written
+    # off invoice is not cancelled (the sale happened) and not refunded
+    # (no money went back).
+    for other in ("CANCELLED", "REFUNDED", "VOIDED", "PAID"):
+        assert InvoiceStatus.WRITTEN_OFF is not getattr(InvoiceStatus, other)
+    src = (ROOT / "app/services/reports.py").read_text(encoding="utf-8")
+    assert "NON_RECEIVABLE_STATUSES" in src, (
+        "the aging report is back on an inline tuple — the whole point is "
+        "that the set is named in one place")
+    return f"{len(NON_RECEIVABLE_STATUSES)} statuses owe nothing"
+
+
+@check("35. a WRITTEN_OFF invoice does not age")
+def _():
+    """Proved against the report, not against the tuple."""
+    from datetime import timedelta
+    from app.models import Customer, Invoice, InvoiceStatus
+    from app.services.reports import aging_report
+    cid = _STATE["plain_id"]
+    cust = Customer(company_id=cid, name="__OPSFOUND writeoff__")
+    db.session.add(cust)
+    db.session.flush()
+    inv = Invoice(
+        company_id=cid, customer_id=cust.id, number="__WO-1__",
+        issue_date=date.today() - timedelta(days=120),
+        due_date=date.today() - timedelta(days=90),
+        subtotal=1000, total=1000, paid_amount=0,
+        status=InvoiceStatus.SENT)
+    db.session.add(inv)
+    db.session.commit()
+
+    aged = _aged_total(aging_report(cid), cust.name)
+    assert aged >= 1000.0, (
+        f"an unpaid overdue invoice is not ageing at all ({aged}) — this "
+        "check cannot prove anything")
+
+    inv.status = InvoiceStatus.WRITTEN_OFF
+    db.session.commit()
+    after = _aged_total(aging_report(cid), cust.name)
+    assert after == 0.0, (
+        f"a written-off invoice is still ageing at {after} — the report is "
+        "claiming money that was forgiven")
+    return f"aged {aged:.0f} while SENT, {after:.0f} once written off"
+
+
+@check("36. every invoice status is either excluded or aged on purpose")
+def _():
+    """The guard the ticket actually asks for: the next status added must
+    be a decision, not an accident. If this fails, name the new status in
+    NON_RECEIVABLE_STATUSES or in AGED_ON_PURPOSE below."""
+    from app.models import InvoiceStatus
+    from app.models.invoice import NON_RECEIVABLE_STATUSES
+    AGED_ON_PURPOSE = {
+        "DRAFT",              # not sent, but its balance is real if it is
+        "SENT",
+        "PARTIALLY_PAID",
+        "OVERDUE",
+        "PARTIALLY_REFUNDED",  # ages at its remaining balance
+    }
+    excluded = {s.name for s in NON_RECEIVABLE_STATUSES}
+    unaccounted = {s.name for s in InvoiceStatus} - excluded - AGED_ON_PURPOSE
+    assert not unaccounted, (
+        f"status(es) {sorted(unaccounted)} are neither excluded from AR "
+        "aging nor listed as deliberately aged — decide which, because an "
+        "exclusion list fails silently")
+    return f"{len(excluded)} excluded, {len(AGED_ON_PURPOSE)} aged on purpose"
 
 
 def main():

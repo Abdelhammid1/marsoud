@@ -473,6 +473,7 @@ def fixed_assets_report(company_id):
 def aging_report(company_id, as_of=None):
     """Customer aging report: 0-30, 31-60, 61-90, 90+ days overdue."""
     from app.models import Invoice, InvoiceStatus, Customer
+    from app.models.invoice import NON_RECEIVABLE_STATUSES
     as_of = as_of or date.today()
     customers = Customer.query.filter_by(company_id=company_id, is_active=True).all()
     rows = []
@@ -485,10 +486,16 @@ def aging_report(company_id, as_of=None):
             # ledger balance is zero. Excluding them here keeps the
             # aging report consistent with the trial balance / 1130
             # account balance shown at the bottom of the report.
-            if inv.status in (InvoiceStatus.PAID,
-                              InvoiceStatus.CANCELLED,
-                              InvoiceStatus.REFUNDED,
-                              InvoiceStatus.VOIDED):
+            #
+            # MARSOUD-OPS-FOUNDATION §5.3 (2026-08-05) — WRITTEN_OFF added
+            # WITH the status, not after it. This is an EXCLUSION list: a
+            # written-off invoice keeps its balance (the debt was
+            # forgiven, not paid), so leaving it out of this tuple would
+            # age it forever and the report would keep claiming money we
+            # have already given up on. See audit_ops_foundation for the
+            # check that every status is either excluded here or aged on
+            # purpose.
+            if inv.status in NON_RECEIVABLE_STATUSES:
                 continue
             bal = inv.balance
             if bal <= 0.01:

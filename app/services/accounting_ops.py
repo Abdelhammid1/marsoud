@@ -106,9 +106,67 @@ class Field:
 CASHFLOW_CATEGORIES = ("OPERATING", "INVESTING", "FINANCING", "NONCASH")
 
 
+# ─── Hard boundaries (MARSOUD-OPS-FOUNDATION §5) ────────────────────────
+# Two things a quick wizard must never be allowed to do, because in both
+# cases the journal still BALANCES — nothing looks wrong, no error is
+# raised, and the damage only surfaces later in a report nobody
+# reconciles.
+#
+#   party  an expense with a supplier belongs in the bills module, which
+#          drives the vendor sub-account under 2110. Posting it straight
+#          to cash leaves the vendor's statement understating what was
+#          paid — the supplier balance and the ledger disagree.
+#
+#   tax    an expense carrying input VAT belongs in purchases, which
+#          drives 1280. Posting the gross to the expense account inflates
+#          the expense and loses the reclaimable VAT entirely.
+#
+# HONEST SCOPE NOTE: the ticket's acceptance criterion is about the
+# GENERIC expense/revenue operations, which this ticket does not build.
+# The guards and their tests land now so that those operations inherit
+# them the day they are written; today they are demonstrated on the
+# accrual pair. The criterion cannot be fully shown until the generic
+# operations exist.
+BOUNDARIES = ("party", "tax")
+
+# Field names that mean "a counterparty is involved" / "tax is involved".
+# Matched as substrings of the submitted key, so vendor_id, supplier_id
+# and party both trip the party guard.
+_BOUNDARY_KEYS = {
+    "party": ("party", "vendor", "supplier", "customer", "employee"),
+    "tax": ("tax", "vat"),
+}
+
+_BOUNDARY_MESSAGES = {
+    "party": ("هذه العملية لا تقبل طرفًا (مورد/عميل). المصروف المرتبط "
+              "بمورد يُسجَّل من «فواتير الموردين» حتى يظهر في كشف حساب "
+              "المورد."),
+    "tax": ("هذه العملية لا تقبل ضريبة. المصروف الذي يحمل ضريبة قيمة "
+            "مضافة يُسجَّل من «المشتريات» حتى تُرحَّل الضريبة إلى حسابها."),
+}
+
+
+def enforce_boundaries(op, data):
+    """Refuse a submission that carries something the operation forbids.
+
+    Checked on the SUBMITTED DATA, not just on the declared fields: the
+    form never offers these, so the only way one arrives is a crafted
+    POST — which is exactly the case worth refusing.
+    """
+    for boundary in op.forbids:
+        for key in data.keys():
+            low = key.lower()
+            if any(t in low for t in _BOUNDARY_KEYS[boundary]):
+                # An empty value is someone's stray form field, not an
+                # attempt to book a party or tax. Only a real value is a
+                # boundary crossing.
+                if (data.get(key) or "").strip():
+                    raise OperationError(_BOUNDARY_MESSAGES[boundary])
+
+
 class Operation:
     def __init__(self, key, title, icon, description, source_type, fields,
-                 build, cashflow_category, effect=None):
+                 build, cashflow_category, effect=None, forbids=()):
         self.key = key
         self.title = title
         self.icon = icon
@@ -144,6 +202,24 @@ class Operation:
         self.cashflow_category = cashflow_category
         # One line shown on the form explaining the accounting effect.
         self.effect = effect
+
+        # MARSOUD-OPS-FOUNDATION §5 — the boundaries this operation
+        # refuses to cross. Validated here so a typo is a startup error
+        # rather than a guard that silently never fires.
+        for boundary in forbids:
+            if boundary not in BOUNDARIES:
+                raise ValueError(
+                    f"operation {key!r}: unknown boundary {boundary!r} — "
+                    f"expected one of {BOUNDARIES}")
+        if "party" in forbids:
+            # Refusing a party while ASKING for one would refuse every
+            # submission. Catch the contradiction at build time.
+            party_fields = [f.name for f in fields if f.kind == "party"]
+            if party_fields:
+                raise ValueError(
+                    f"operation {key!r} forbids a party but declares "
+                    f"{party_fields} — it would refuse every submission")
+        self.forbids = tuple(forbids)
 
 
 class OperationError(Exception):
@@ -610,6 +686,10 @@ OPERATIONS = [
             Field("notes", "ملاحظات (اختياري)", "textarea"),
         ],
         build=_build_accrue_expense,
+        # §5 — an accrued expense owed to a NAMED supplier belongs in the
+        # bills module, and one carrying input VAT belongs in purchases.
+        # Both would post a journal that balances perfectly.
+        forbids=("party", "tax"),
     ),
     Operation(
         key="settle-accrued-expense",
@@ -636,6 +716,9 @@ OPERATIONS = [
             Field("notes", "ملاحظات (اختياري)", "textarea"),
         ],
         build=_build_settle_accrued_expense,
+        # Same boundary on the paying side: a payment to a named supplier
+        # must drive that supplier's sub-account, not bare cash.
+        forbids=("party", "tax"),
     ),
 ]
 
@@ -655,6 +738,9 @@ def run_operation(op, company_id, data, actor_id=None):
     entry no matter what it builds.
     """
     entry_date = _date(data)
+    # §5 — before anything is built or posted. Both of these produce a
+    # journal that balances, so nothing downstream would object.
+    enforce_boundaries(op, data)
     try:
         built = _as_built(op.build(company_id, data, actor_id))
         entry = post_journal(
