@@ -17,6 +17,44 @@ the check numbering.
   6.  dry-run is the default and writes nothing; --apply writes
   7.  running twice adds nothing the second time
   8.  --company-id touches only that company
+
+§2 — the cash-flow statement
+  9.  THE BUG the ticket did not know about: cash was resolved as
+      `code IN ("1110","1120")`, but 1120 is a non-postable HEADER no
+      journal line can hit — every bank movement was invisible
+  10. the dashboard liquidity KPI had the same literal, same bug
+  11. every operation declares its cash-flow category
+  12. an operation that omits it is refused at build time
+  13. the declared category reaches the journal entry
+
+§3 — the new input kinds
+  14. every declared kind is one the template can render, through ONE
+      shared select branch rather than a branch per kind
+  15. an unknown kind is refused at build time
+  16. every account picker offers POSTABLE accounts only — enforced once
+      in ledger.postable_under, not re-implemented per kind
+  17. a crafted POST cannot reach an account the picker never showed
+      (header / wrong root / another tenant)
+  18. the party picker returns the party's SUB-account, never the header
+
+§4 — the open item
+  19. a two-sided operation writes its row and links it both ways;
+      run_operation never passed source_id before this ticket, so
+      reversal could not find anything
+  20. the settle wizard has no free amount box — it settles an ITEM
+  21. the picker offers open items only, each labelled with its remainder
+  22. an item cannot be settled beyond its remainder
+  23. a settled item cannot be settled again, and every leg is kept
+      separately (EmployeeAccrual overwrites one column and loses them)
+  24. reversing a settlement reopens the item and keeps the leg
+  25. reversing the creating journal cancels the item
+  26. a transfer moves real money and appears nowhere in the statement
+  26b THE ONE THAT BITES: the accrual payable is 2160, so inference says
+      FINANCING; the operation declares OPERATING and 500 of real cash
+      lands in the right section. This is what §2 actually buys — the
+      transfer nets to zero regardless of what it is called.
+  27. a transfer onto the same account is refused
+  28. a failed two-sided operation leaves no orphan row behind
 """
 import re
 import sys
@@ -384,6 +422,413 @@ def _():
         f"entry carries {row.cashflow_category!r}, operation declares "
         f"{op.cashflow_category!r} — run_operation is not forwarding it")
     return f"entry {row.number} stamped {row.cashflow_category}"
+
+
+# ─── §3 the new field kinds ─────────────────────────────────────────────
+def _op(key):
+    from app.services.accounting_ops import get_operation
+    return get_operation(key)
+
+
+def _run(key, cid, **form):
+    from app.services.accounting_ops import run_operation
+    from datetime import date as _date
+    form.setdefault("date", _date.today().isoformat())
+    return run_operation(_op(key), cid, form, actor_id=_STATE.get("uid"))
+
+
+def _balance(account_id):
+    """Net debit-minus-credit on one account, straight from the lines."""
+    from app.models import JournalEntry, JournalLine
+    rows = (db.session.query(JournalLine)
+            .join(JournalEntry, JournalLine.entry_id == JournalEntry.id)
+            .filter(JournalLine.account_id == account_id,
+                    JournalEntry.is_active.is_(True)).all())
+    return round(sum(float(r.debit_base) - float(r.credit_base)
+                     for r in rows), 2)
+
+
+def _money(cid, code="1110"):
+    from app.services.ledger import get_account_by_code
+    return str(get_account_by_code(cid, code).id)
+
+
+@check("14. every declared field kind is one the template can render")
+def _():
+    """A typo in a kind used to fall through to a plain text input and ship
+    a broken wizard silently. Field now refuses an unknown kind — and the
+    template must handle every kind that exists, not merely the ones in
+    use today."""
+    from app.services.accounting_ops import (
+        FIELD_KINDS, SELECT_KINDS, OPERATIONS,
+    )
+    tpl = (ROOT / "app/templates/accounting_ops/run.html").read_text(
+        encoding="utf-8")
+    assert SELECT_KINDS <= FIELD_KINDS, "SELECT_KINDS has a kind Field rejects"
+    for kind in FIELD_KINDS - SELECT_KINDS:
+        assert kind in tpl, f"template cannot render kind {kind!r}"
+    # And the selects go through ONE branch, not one per kind.
+    assert "select_kinds" in tpl, (
+        "the template branches per select kind instead of using the shared "
+        "set — every new picker would need a template edit")
+    used = {f.kind for op in OPERATIONS for f in op.fields}
+    return f"{len(FIELD_KINDS)} kinds, {len(used)} in use, one select branch"
+
+
+@check("15. an unknown field kind is refused at build time")
+def _():
+    from app.services.accounting_ops import Field
+    try:
+        Field("x", "س", "sparkle_account")
+        raise AssertionError("Field accepted an unknown kind")
+    except ValueError as e:
+        assert "sparkle_account" in str(e)
+    return "unknown kind rejected"
+
+
+@check("16. every account picker offers POSTABLE accounts only")
+def _():
+    """Enforced once in ledger.postable_under, not re-implemented per kind.
+    A header refuses journal lines, so offering one is a guaranteed error
+    at save time with a message the user cannot act on."""
+    from app.models import Account
+    from app.services.accounting_ops import (
+        OPERATIONS, field_choices, ACCOUNT_KIND_ROOTS,
+    )
+    cid = _STATE["plain_id"]
+    seen = 0
+    for op in OPERATIONS:
+        ch = field_choices(op, cid)
+        for f in op.fields:
+            if f.kind not in ACCOUNT_KIND_ROOTS and f.kind not in (
+                    "financial_account", "financial_account_to"):
+                continue
+            ids = [v for _, opts in ch.get(f.name, []) for v, _ in opts]
+            assert ids, f"{op.key}.{f.name}: picker is empty"
+            for aid in ids:
+                a = db.session.get(Account, aid)
+                assert a.is_postable, (
+                    f"{op.key}.{f.name} offers {a.code} which is a header")
+                assert a.company_id == cid, "picker leaked another tenant"
+                seen += 1
+    return f"{seen} offered accounts, all postable, all in-tenant"
+
+
+@check("17. a crafted POST cannot reach an account the picker never showed")
+def _():
+    """resolve_* validates against the OFFERED SET, not merely "is this an
+    account of mine" — otherwise a hand-edited form posts an expense
+    straight onto a bank, or onto a header."""
+    from app.services.accounting_ops import OperationError
+    from app.services.ledger import get_account_by_code
+    cid = _STATE["plain_id"]
+    header = get_account_by_code(cid, "1120")          # non-postable
+    revenue = get_account_by_code(cid, "4100")         # wrong root
+    foreign = get_account_by_code(_STATE["custom_id"], "1110")   # other tenant
+    blocked = []
+    for label, bad in (("header", header.id), ("wrong root", revenue.id),
+                       ("other tenant", foreign.id)):
+        try:
+            _run("accrue-expense", cid, amount="10", expense_account_id=bad)
+            raise AssertionError(f"accrue-expense accepted a {label} account")
+        except OperationError:
+            blocked.append(label)
+    for label, bad in (("header", header.id), ("other tenant", foreign.id)):
+        try:
+            _run("capital", cid, amount="10", account_id=bad)
+            raise AssertionError(f"capital accepted a {label} money account")
+        except OperationError:
+            pass
+    return "refused: " + ", ".join(blocked)
+
+
+@check("18. the party picker returns the SUB-account, never the header")
+def _():
+    from app.models import Customer
+    from app.services.accounting_ops import party_choices, resolve_party
+    from app.services.ledger import get_account_by_code
+    cid = _STATE["plain_id"]
+    c = Customer(company_id=cid, name="__OPSFOUND cust__")
+    db.session.add(c)
+    db.session.commit()
+    groups = party_choices(cid)
+    values = [v for _, opts in groups for v, _ in opts]
+    assert f"customer:{c.id}" in values, "the new customer is not offered"
+    party, account, label = resolve_party(cid, f"customer:{c.id}")
+    header = get_account_by_code(cid, "1130")
+    assert account.id != header.id, "resolve_party returned the 1130 header"
+    assert account.is_postable, "the party sub-account is not postable"
+    assert account.parent_id == header.id, (
+        "the sub-account does not sit under 1130")
+    return f"{label} -> {account.code} (postable, under 1130)"
+
+
+# ─── §4 the open item ───────────────────────────────────────────────────
+@check("19. a two-sided operation writes its row and links it both ways")
+def _():
+    """run_operation never passed source_id before this ticket, so
+    _undo_source_side_effects could never fire for an operation."""
+    from app.models import JournalEntry, OpenItem
+    from app.services.ledger import postable_under
+    cid = _STATE["plain_id"]
+    exp = postable_under(cid, "5000")[0]
+    entry = _run("accrue-expense", cid, amount="1000",
+                 expense_account_id=str(exp.id), notes="audit")
+    row = db.session.get(JournalEntry, entry.id)
+    assert row.source_type == "open_item", f"source_type {row.source_type!r}"
+    assert row.source_id, "the journal carries no source_id — reversal is blind"
+    item = db.session.get(OpenItem, row.source_id)
+    assert item is not None and item.company_id == cid
+    assert item.journal_entry_id == row.id, "the item does not link back"
+    assert float(item.original_amount) == 1000.0
+    assert item.remaining == 1000.0 and item.status.value == "OPEN"
+    _STATE["item_id"] = item.id
+    return f"item {item.id} <-> entry {row.number}, remaining {item.remaining}"
+
+
+@check("20. the settle wizard has no free amount box — it settles an ITEM")
+def _():
+    op = _op("settle-accrued-expense")
+    kinds = {f.name: f.kind for f in op.fields}
+    assert kinds.get("open_item_id") == "open_item", (
+        "the settle wizard does not pick an item — a payment not tied to "
+        "what it settles is how the same accrual gets paid twice")
+    assert [f for f in op.fields if f.name == "open_item_id"][0].required
+    return "settlement is tied to an open item"
+
+
+@check("21. the picker offers open items only, and shows the remainder")
+def _():
+    from app.services.accounting_ops import field_choices
+    from app.services.open_items import open_items_for
+    cid = _STATE["plain_id"]
+    ch = field_choices(_op("settle-accrued-expense"), cid)
+    offered = [(v, lbl) for _, opts in ch["open_item_id"] for v, lbl in opts]
+    ids = [v for v, _ in offered]
+    assert _STATE["item_id"] in ids, "the open accrual is not offered"
+    for _, lbl in offered:
+        assert "متبق" in lbl, (
+            f"the label {lbl!r} omits the remainder — two accruals with the "
+            "same description would be indistinguishable")
+    live = {i.id for i in open_items_for(cid, kind="accrued_expense")}
+    assert set(ids) == live, "the picker and the open set disagree"
+    return f"{len(offered)} open item(s), each labelled with its remainder"
+
+
+@check("22. an item cannot be settled beyond its remainder")
+def _():
+    from app.models import OpenItem
+    from app.services.accounting_ops import OperationError
+    cid = _STATE["plain_id"]
+    iid = _STATE["item_id"]
+    _run("settle-accrued-expense", cid, amount="400",
+         open_item_id=str(iid), account_id=_money(cid))
+    item = db.session.get(OpenItem, iid)
+    db.session.refresh(item)
+    assert item.remaining == 600.0, f"remaining {item.remaining} after 400"
+    assert item.status.value == "PARTIALLY_SETTLED", item.status
+    try:
+        _run("settle-accrued-expense", cid, amount="600.01",
+             open_item_id=str(iid), account_id=_money(cid))
+        raise AssertionError("over-settlement was allowed")
+    except OperationError as e:
+        msg = str(e)
+    db.session.refresh(item)
+    assert item.remaining == 600.0, "the refused settlement still moved money"
+    return f"400 of 1000 settled; 600.01 refused ({msg[:40]})"
+
+
+@check("23. a fully settled item cannot be settled again")
+def _():
+    from app.models import OpenItem
+    from app.services.accounting_ops import OperationError
+    from app.services.open_items import open_items_for
+    cid = _STATE["plain_id"]
+    iid = _STATE["item_id"]
+    _run("settle-accrued-expense", cid, amount="600",
+         open_item_id=str(iid), account_id=_money(cid))
+    item = db.session.get(OpenItem, iid)
+    db.session.refresh(item)
+    assert item.status.value == "SETTLED" and item.remaining == 0.0, (
+        f"{item.status} remaining {item.remaining}")
+    assert iid not in {i.id for i in open_items_for(cid)}, (
+        "a closed item is still on offer in the picker")
+    try:
+        _run("settle-accrued-expense", cid, amount="1",
+             open_item_id=str(iid), account_id=_money(cid))
+        raise AssertionError("a closed item was settled again")
+    except OperationError:
+        pass
+    assert len([s for s in item.settlements if not s.reversed_at]) == 2, (
+        "the settlement legs were not kept individually — EmployeeAccrual "
+        "overwrites one column and loses the earlier payments")
+    return "closed, off the picker, 2 legs kept separately"
+
+
+@check("24. reversing a settlement reopens the item and keeps the leg")
+def _():
+    from app.models import OpenItem
+    from app.services.ledger import reverse_journal
+    item = db.session.get(OpenItem, _STATE["item_id"])
+    leg = [s for s in item.settlements if not s.reversed_at][-1]
+    reverse_journal(leg.journal_entry_id)
+    db.session.refresh(item)
+    db.session.refresh(leg)
+    assert item.status.value == "PARTIALLY_SETTLED", (
+        f"a settled item whose journal was reversed stayed {item.status}")
+    assert item.remaining == 600.0, f"remaining {item.remaining}, expected 600"
+    assert leg.reversed_at is not None, "the leg was not stamped reversed"
+    assert leg in item.settlements, (
+        "the leg was deleted — the money did move once and that is history")
+    return f"reopened to {item.status.value}, remaining {item.remaining}"
+
+
+@check("25. reversing the creating journal cancels the item")
+def _():
+    from app.models import OpenItem
+    from app.services.ledger import reverse_journal
+    from app.services.open_items import open_items_for
+    cid = _STATE["plain_id"]
+    item = db.session.get(OpenItem, _STATE["item_id"])
+    reverse_journal(item.journal_entry_id)
+    db.session.refresh(item)
+    assert item.status.value == "CANCELLED", (
+        f"the item survived its own reversal as {item.status}")
+    assert item.reversal_entry_id, "the reversal entry was not recorded"
+    assert item.id not in {i.id for i in open_items_for(cid)}, (
+        "a cancelled item is still settleable")
+    return "cancelled, off the picker, reversal entry recorded"
+
+
+@check("26. a transfer really moves the money, and shows up nowhere in the "
+       "cash-flow statement")
+def _():
+    """Both legs land on cash accounts, so cash_flow nets the entry to zero
+    before the category is ever consulted — the statement cannot see it
+    whatever it is called. NONCASH is therefore the honest label rather
+    than the mechanism; what this check pins is that the SHAPE holds. If a
+    future edit ever gave the transfer a non-cash leg (a bank fee, say),
+    the entry would stop netting out and the category would start to
+    matter — the two-cash-legs assertion is what would catch that."""
+    from app.models import JournalEntry
+    from app.services.ledger import cash_account_ids
+    from app.services.reports import cash_flow
+    cid = _STATE["plain_id"]
+    src = int(_money(cid, "1110"))
+    dst = int(_money(cid, "1122"))
+    before = cash_flow(cid)
+    src_before = _balance(src)
+    dst_before = _balance(dst)
+
+    entry = _run("transfer", cid, amount="900",
+                 account_id=str(src), account_id_to=str(dst))
+    row = db.session.get(JournalEntry, entry.id)
+    assert row.cashflow_category == "NONCASH", row.cashflow_category
+
+    # The money genuinely moved.
+    assert round(_balance(src) - src_before, 2) == -900.0, "source"
+    assert round(_balance(dst) - dst_before, 2) == 900.0, "destination"
+
+    # Every leg is a cash account — this is why it nets out.
+    ids = set(cash_account_ids(cid))
+    assert all(l.account_id in ids for l in row.lines), (
+        "a transfer leg landed outside the cash set — the entry no longer "
+        "nets to zero and its category now changes the statement")
+
+    after = cash_flow(cid)
+    for key in ("operating", "investing", "financing"):
+        moved = float(after[key]) - float(before[key])
+        assert abs(moved) < 0.005, (
+            f"a transfer moved {key} by {moved} — it must appear nowhere "
+            "in the statement")
+    return "900 moved 1110 -> 1122; both legs cash; statement unchanged"
+
+
+@check("26b. THE ONE THAT BITES: settling an accrual is OPERATING, which "
+       "inference gets wrong")
+def _():
+    """This is what §2's «every operation declares its category» actually
+    buys. The accrued-expense payable is 2160, and the classifier's rule is
+    `code.startswith("21") -> FINANCING`. So a cash payment of an accrued
+    operating expense would be reported as a FINANCING outflow — real
+    money in the wrong section of the statement. Measured on the seeded
+    tree: inference FINANCING, declared OPERATING, 500 of cash."""
+    from app.models import JournalEntry
+    from app.services.ledger import (
+        post_journal, get_account_by_code, cash_account_ids, postable_under,
+    )
+    from app.services.reports import _classify_cashflow_entry, cash_flow
+    cid = _STATE["plain_id"]
+    ids = cash_account_ids(cid)
+
+    # What inference alone would have said about this exact journal.
+    payable = get_account_by_code(cid, "2160")
+    probe = post_journal(
+        company_id=cid, description="__inference probe__",
+        lines=[{"account_id": payable.id, "debit": 500, "credit": 0},
+               {"account_id": int(_money(cid)), "debit": 0, "credit": 500}])
+    inferred = _classify_cashflow_entry(probe, ids)
+    probe.is_active = False          # keep the probe out of the statement
+    db.session.commit()
+    assert inferred == "FINANCING", (
+        f"inference now says {inferred}, not FINANCING — this check's "
+        "premise has changed and its numbers need rechecking")
+
+    # What the operation actually produces.
+    exp = postable_under(cid, "5000")[0]
+    acc = _run("accrue-expense", cid, amount="500",
+               expense_account_id=str(exp.id))
+    item_id = db.session.get(JournalEntry, acc.id).source_id
+    before = cash_flow(cid)
+    entry = _run("settle-accrued-expense", cid, amount="500",
+                 open_item_id=str(item_id), account_id=_money(cid))
+    row = db.session.get(JournalEntry, entry.id)
+    assert row.cashflow_category == "OPERATING", row.cashflow_category
+    after = cash_flow(cid)
+
+    op_moved = round(float(after["operating"]) - float(before["operating"]), 2)
+    fin_moved = round(float(after["financing"]) - float(before["financing"]), 2)
+    assert op_moved == -500.0, (
+        f"operating moved {op_moved}, expected -500 — the declared category "
+        "is not reaching the statement")
+    assert fin_moved == 0.0, (
+        f"financing moved {fin_moved} — the payment is being reported as a "
+        "financing activity, which is the bug the explicit category fixes")
+    return (f"inference={inferred}, declared=OPERATING; "
+            f"operating {op_moved}, financing {fin_moved}")
+
+
+@check("27. a transfer to the same account is refused")
+def _():
+    from app.services.accounting_ops import OperationError
+    cid = _STATE["plain_id"]
+    try:
+        _run("transfer", cid, amount="10", account_id=_money(cid),
+             account_id_to=_money(cid))
+        raise AssertionError("a transfer onto itself was allowed")
+    except OperationError as e:
+        return str(e)
+
+
+@check("28. a failed two-sided operation leaves no orphan row behind")
+def _():
+    """The builder flushes the item BEFORE post_journal runs. If posting
+    fails, that flushed row is still pending in the session, and the next
+    unrelated commit would persist an open item whose journal never
+    existed."""
+    from app.models import OpenItem
+    from app.services.accounting_ops import OperationError
+    cid = _STATE["plain_id"]
+    before = OpenItem.query.filter_by(company_id=cid).count()
+    try:
+        _run("accrue-expense", cid, amount="50", expense_account_id="999999")
+        raise AssertionError("an invalid expense account was accepted")
+    except OperationError:
+        pass
+    db.session.commit()          # anything left pending would land here
+    after = OpenItem.query.filter_by(company_id=cid).count()
+    assert after == before, f"{after - before} orphan item(s) survived"
+    return f"{before} items before and after the failure"
 
 
 def main():

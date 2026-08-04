@@ -21,8 +21,8 @@ from flask_login import login_required, current_user
 
 from app.services.accounting_ops import (
     OPERATIONS, get_operation, run_operation, OperationError,
+    field_choices, SELECT_KINDS, EMPTY_PICKER_MESSAGES,
 )
-from app.services.ledger import cash_and_bank_accounts
 from app.services.permissions import require_permission
 
 
@@ -56,9 +56,13 @@ def run(op_key):
         except OperationError as e:
             flash(str(e), "error")
 
-    # The cash + bank accounts themselves, grouped — not payment methods.
-    # See the note on _money_account in services/accounting_ops.py.
+    # MARSOUD-OPS-FOUNDATION (2026-08-05) — one call builds every picker
+    # on the form, whatever kinds it uses. The route no longer knows that
+    # cash accounts exist; adding a picker kind touches the registry and
+    # field_choices, never this file.
     return render_template(
         "accounting_ops/run.html", op=op,
-        financial_groups=cash_and_bank_accounts(g.active_company.id),
+        choices=field_choices(op, g.active_company.id),
+        select_kinds=SELECT_KINDS,
+        empty_messages=EMPTY_PICKER_MESSAGES,
     )

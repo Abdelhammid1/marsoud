@@ -158,21 +158,39 @@ def _():
 def _():
     from app.models import JournalEntry
     from app.services.accounting_ops import get_operation, run_operation
+    from app.services.ledger import postable_under
     cid = _STATE["cid"]
-    expected = {
-        "capital":        ("1110", "3100"),   # (debit code, credit code)
-        "opening-balance": ("1110", "3900"),
-        "owner-drawings": ("3200", "1110"),
-    }
+    cash, bank = str(_acc("1110").id), str(_acc("1121").id)
+    # MARSOUD-FINANCIAL-ACCOUNT-FIELD — the wizards take the account
+    # itself, not a payment method, and it is required.
+    money = {"account_id": cash}
+    expense = postable_under(cid, "5000")[0]
+
+    # MARSOUD-OPS-FOUNDATION — every registered operation is exercised,
+    # not a hardcoded three. `extra` carries whatever pickers the
+    # operation adds beyond the money account; ORDER MATTERS, the settle
+    # wizard needs the accrual that precedes it to exist.
+    expected = [
+        ("capital",                ("1110", "3100"), money),
+        ("opening-balance",        ("1110", "3900"), money),
+        ("owner-drawings",         ("3200", "1110"), money),
+        ("transfer",               ("1121", "1110"),
+         {"account_id": cash, "account_id_to": bank}),
+        ("accrue-expense",         (expense.code, "2160"),
+         {"expense_account_id": str(expense.id)}),
+        ("settle-accrued-expense", ("2160", "1110"), None),
+    ]
     out = []
-    for key, (dr_code, cr_code) in expected.items():
+    for key, (dr_code, cr_code), extra in expected:
         op = get_operation(key)
-        entry = run_operation(op, cid, {
-            "amount": "500", "date": date.today().isoformat(),
-            # MARSOUD-FINANCIAL-ACCOUNT-FIELD — the wizards now take the
-            # account itself, not a payment method, and it is required.
-            "account_id": str(_acc("1110").id), "notes": "audit",
-        }, actor_id=_STATE["uid"])
+        if extra is None:                       # settle the accrual above
+            from app.services.open_items import open_items_for
+            items = open_items_for(cid, kind="accrued_expense")
+            assert items, "the accrual wizard left nothing to settle"
+            extra = {"account_id": cash, "open_item_id": str(items[-1].id)}
+        entry = run_operation(op, cid, dict(
+            extra, amount="500", date=date.today().isoformat(),
+            notes="audit"), actor_id=_STATE["uid"])
         e = db.session.get(JournalEntry, entry.id)
         d = sum(float(l.debit) for l in e.lines)
         c = sum(float(l.credit) for l in e.lines)
@@ -251,17 +269,30 @@ def _():
     here outright. It is now a legitimate field: which cash or bank
     account the money moved through. What must still never appear is a
     DEBIT/CREDIT account picker — the wizard picks the double entry."""
-    from app.services.accounting_ops import OPERATIONS
+    from app.services.accounting_ops import OPERATIONS, SELECT_KINDS
     for op in OPERATIONS:
         body = _client().get(f"/accounting-ops/{op.key}").get_data(as_text=True)
         for probe in ('name="debit', 'name="credit',
                       'name="debit_account', 'name="credit_account'):
             assert probe not in body, f"{op.key}: form exposes {probe}"
         assert 'name="amount"' in body, f"{op.key}: no amount field"
-        # Exactly one account field, and it is the money account.
-        assert body.count('name="account_id"') == 1, \
-            f"{op.key}: expected exactly one account field"
-    return "one money-account field, no debit/credit pickers"
+        # MARSOUD-OPS-FOUNDATION — an operation may now legitimately ask
+        # for more than one account (a transfer has two). What must hold
+        # is that EVERY account field is a picker the registry built, so
+        # none is a free-text GL number and none can reach an account the
+        # picker never offered.
+        for f in op.fields:
+            if f.kind not in SELECT_KINDS:
+                assert "account" not in f.name, (
+                    f"{op.key}.{f.name}: an account field that is not a "
+                    f"picker (kind={f.kind})")
+                continue
+            marker = f'name="{f.name}"'
+            assert marker in body, f"{op.key}: {f.name} missing from form"
+            i = body.index(marker)
+            assert body.rfind("<select", 0, i) > body.rfind("<input", 0, i), (
+                f"{op.key}: {f.name} renders as a free input, not a picker")
+    return "every account field is a registry-built picker"
 
 
 # ─── Currency ───────────────────────────────────────────────────────────

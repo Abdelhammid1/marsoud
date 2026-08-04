@@ -232,7 +232,15 @@ def _():
 @check("5. the rendered form shows the groups, with no hardcoded نقدي option")
 def _():
     from app.services.accounting_ops import OPERATIONS
+    # MARSOUD-OPS-FOUNDATION — an operation that moves no money has no
+    # money picker to show. إثبات مصروف مستحق is exactly that: the
+    # payment side is a separate wizard. Only the ones that touch cash
+    # are checked here.
+    shown = 0
     for op in OPERATIONS:
+        if not [f for f in op.fields if f.kind == "financial_account"]:
+            continue
+        shown += 1
         body = _client().get(f"/accounting-ops/{op.key}").get_data(as_text=True)
         assert '<optgroup label="الصندوق"' in body, f"{op.key}: no cash group"
         assert '<optgroup label="البنوك"' in body, f"{op.key}: no banks group"
@@ -281,14 +289,24 @@ def _():
     from app.services.accounting_ops import OPERATIONS
     money_fields = 0
     for op in OPERATIONS:
+        # MARSOUD-OPS-FOUNDATION — zero is allowed now (a pure accrual
+        # moves no money); two is not, because the builders read one
+        # `account_id` and a second would be silently ignored. The
+        # transfer's destination is its own kind, financial_account_to.
         fields = [f for f in op.fields if f.kind == "financial_account"]
-        assert len(fields) == 1, \
-            f"{op.key}: expected exactly one financial_account field"
-        f = fields[0]
-        assert f.name == "account_id", \
-            f"{op.key}: field name is {f.name!r}, the builders read account_id"
-        assert f.required, f"{op.key}: the account field must be required"
-        money_fields += 1
+        assert len(fields) <= 1, (
+            f"{op.key}: {len(fields)} financial_account fields, expected 0 or 1")
+        for f in fields:
+            assert f.name == "account_id", (
+                f"{op.key}: field name is {f.name!r}, the builders read "
+                "account_id")
+            assert f.required, f"{op.key}: the account field must be required"
+            money_fields += 1
+        for f in [x for x in op.fields if x.kind == "financial_account_to"]:
+            assert f.name == "account_id_to", (
+                f"{op.key}: destination field is {f.name!r}, the transfer "
+                "builder reads account_id_to")
+            assert f.required, f"{op.key}: the destination must be required"
         assert not [x for x in op.fields if x.kind == "payment_method"], \
             f"{op.key}: still declares a payment_method field"
     return f"{money_fields}/{len(OPERATIONS)} wizards on the shared field"

@@ -218,6 +218,26 @@ def _undo_source_side_effects(original, reversal=None):
             accrual.settled_at = None
             accrual.settlement_journal_entry_id = None
 
+    elif src_type == "open_item":
+        # MARSOUD-OPS-FOUNDATION — the creating journal of a two-sided
+        # operation. Reversing it means the obligation never existed.
+        from app.models import OpenItem
+        from app.services.open_items import cancel_open_item
+        item = db.session.get(OpenItem, src_id)
+        if item is not None:
+            cancel_open_item(
+                item, reversal_entry_id=reversal.id if reversal else None)
+
+    elif src_type == "open_item_settle":
+        # A settlement leg. Reversing it puts the amount back and reopens
+        # the item — a settled item whose journal was reversed must not
+        # stay settled.
+        from app.models import OpenItemSettlement
+        from app.services.open_items import reverse_settlement
+        leg = db.session.get(OpenItemSettlement, src_id)
+        if leg is not None:
+            reverse_settlement(leg)
+
     elif src_type == "employee_advance":
         # MARSOUD-ADVANCES — the original journal disbursed an advance.
         # Reversing it (whether from advances.cancel_advance or straight
@@ -269,6 +289,55 @@ def cash_accounts(company_id, active_only=False):
 def cash_account_ids(company_id, active_only=False):
     """Just the ids — what report queries filter journal lines on."""
     return [a.id for a in cash_accounts(company_id, active_only=active_only)]
+
+
+def postable_under(company_id, root_code, active_only=True):
+    """Every postable account beneath `root_code`, ordered by code.
+
+    MARSOUD-OPS-FOUNDATION (2026-08-05) — the generic form of what the
+    money picker was doing for 1110/1120. Every account picker in the
+    operations centre goes through here, so "postable only" is a property
+    of ONE function rather than a rule each new picker has to remember.
+    That matters: a header account is refused by post_journal, so a picker
+    that offers one lets the user fill in a whole form and only then be
+    told no.
+
+    Returns [] when the root is missing, so a company with a pruned chart
+    of accounts gets an empty picker and a clear message rather than a
+    crash.
+    """
+    root = get_account_by_code(company_id, root_code)
+    if not root:
+        return []
+    return _collect_postable(root, active_only=active_only)
+
+
+def resolve_account_under(company_id, root_code, account_id,
+                          missing_msg="اختر الحساب",
+                          invalid_msg="الحساب المختار غير صالح",
+                          empty_msg=None):
+    """Validate a submitted id against what `postable_under` would offer.
+
+    The same shape as resolve_financial_account, and for the same reason:
+    re-checking against the OFFERED SET rather than merely "is this an
+    account of mine" is what stops a hand-crafted POST landing money on an
+    account the picker never showed.
+    """
+    allowed = {a.id: a for a in postable_under(company_id, root_code)}
+    if not allowed:
+        raise LedgerError(
+            empty_msg or f"لا يوجد حساب قابل للترحيل تحت {root_code} — "
+            "راجع شجرة الحسابات")
+    try:
+        aid = int(account_id or 0)
+    except (TypeError, ValueError):
+        aid = 0
+    if not aid:
+        raise LedgerError(missing_msg)
+    acc = allowed.get(aid)
+    if acc is None:
+        raise LedgerError(invalid_msg)
+    return acc, (acc.name_ar or acc.name)
 
 
 def cash_and_bank_accounts(company_id):
