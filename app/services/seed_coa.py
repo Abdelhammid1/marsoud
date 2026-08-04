@@ -34,6 +34,14 @@ DEFAULT_COA = [
     ("1140", "Notes Receivable", "أوراق قبض", AccountType.ASSET, "1100", True),
     ("1150", "Prepaid Expenses", "مصروفات مدفوعة مقدماً", AccountType.ASSET, "1100", True),
     ("1160", "Employee Advances", "سلف ومستحقات الموظفين (مدين)", AccountType.ASSET, "1100", True),
+    # MARSOUD-OPS-FOUNDATION (2026-08-05) — revenue earned but not yet
+    # billed or collected. The code MUST stay in the 11xx range: the
+    # cash-flow classifier infers the category from the account code, and
+    # `code.startswith("12") and code != "1290"` means INVESTING
+    # (services/reports.py). A 12xx code here would report every accrued
+    # revenue as an investing activity in every company's cash-flow
+    # statement. 1280 below is already caught by exactly that rule.
+    ("1170", "Accrued Revenue", "إيرادات مستحقة", AccountType.ASSET, "1100", True),
     ("1280", "Input VAT (Recoverable)", "ضريبة المدخلات القابلة للخصم", AccountType.ASSET, "1100", True),
     # Inventory — 1300 stays the trading-goods account (code posts to it)
     ("1300", "Inventory", "المخزون", AccountType.ASSET, "1100", True),
@@ -131,6 +139,12 @@ DEFAULT_COA = [
     ("5910", "Bad Debts", "ديون معدومة", AccountType.EXPENSE, "5900", True),
     ("5920", "Currency Exchange Losses", "خسائر فروق عملة", AccountType.EXPENSE, "5900", True),
     ("5930", "Other Misc Expenses", "مصروفات متنوعة أخرى", AccountType.EXPENSE, "5900", True),
+    # MARSOUD-OPS-FOUNDATION — interest and financing charges, for the loan
+    # instalment operation. Under 5900 «مصروفات أخرى» rather than beside
+    # 5270 «عمولات ومصاريف بنكية»: a finance cost is not an operating
+    # expense, and 5200 is the operating subtotal. 5270 is a different
+    # line (account fees, transfer charges), not a substitute for this.
+    ("5940", "Interest & Financing Charges", "فوائد وأعباء تمويلية", AccountType.EXPENSE, "5900", True),
 ]
 
 

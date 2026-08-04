@@ -1022,6 +1022,15 @@ def create_app(config_class=Config):
     from scripts.backfill_role_sync import backfill_cli as _role_sync_cli
     app.cli.add_command(_role_sync_cli)
 
+    # MARSOUD-OPS-FOUNDATION (2026-08-05) — CLI:
+    #   flask backfill-ops-accounts              (dry-run)
+    #   flask backfill-ops-accounts --apply      (write)
+    # Adds 1170 + 5940 to companies created before those accounts existed.
+    # seed_default_coa only runs at company creation, so without this the
+    # new operations work for new tenants and fail for old ones.
+    from scripts.backfill_ops_accounts import backfill_cli as _ops_acc_cli
+    app.cli.add_command(_ops_acc_cli)
+
     # ASMAA-FIX 2026-07-03 — CLI: re-sync system role permissions.
     # After the P dict is edited (e.g. broadening tasks.manage), run:
     #   flask resync-system-roles
