@@ -163,16 +163,26 @@ def cash_flow(company_id, start_date=None, end_date=None):
     """Cash Flow Statement using cash account movements categorized by account-code inference.
 
     Categories: OPERATING / INVESTING / FINANCING. NONCASH entries (e.g., depreciation
-    that doesn't touch 1110/1120) are naturally excluded because they don't hit a cash
+    that doesn't touch cash) are naturally excluded because they don't hit a cash
     account at all. If an entry that touches cash is marked NONCASH (rare — only when
-    the user overrides), it's still excluded.
+    the user overrides or an operation declares it), it's still excluded.
+
+    MARSOUD-OPS-FOUNDATION (2026-08-05) — this used to resolve cash as
+    `code IN ("1110", "1120")`. The COA rebuild made 1120 «البنوك» a
+    non-postable HEADER, and post_journal refuses lines on headers, so no
+    journal line could ever hit it: **every bank movement was invisible in
+    this statement** and it silently reported the cash box alone. The real
+    bank accounts are the leaves beneath it (1121-1125, plus any the
+    company added itself).
+
+    It now walks the postable descendants of both roots, reusing the same
+    helper the money picker uses, so "which accounts are cash" is answered
+    in one place and a company that adds a sixth bank is covered with no
+    code change.
     """
     end_date = end_date or date.today()
-    cash_codes = ["1110", "1120"]
-    cash_accounts = Account.query.filter(
-        Account.company_id == company_id, Account.code.in_(cash_codes)
-    ).all()
-    cash_ids = [a.id for a in cash_accounts]
+    from app.services.ledger import cash_account_ids
+    cash_ids = cash_account_ids(company_id)
 
     operating = 0.0
     investing = 0.0
@@ -673,9 +683,15 @@ def dashboard_metrics(company_id, period="month"):
     )
 
     # ─── Cash position (current) ─────────────────────────────────────
-    cash_position = _account_balance_as_of(company_id, ["1110", "1120"], today)
+    # MARSOUD-OPS-FOUNDATION — same bug as the cash-flow statement: this
+    # asked for codes 1110 + 1120, but 1120 is a non-postable header with
+    # no journal lines of its own, so «السيولة المتاحة» on the dashboard
+    # was reporting the cash box and none of the banks.
+    from app.services.ledger import cash_accounts as _cash_accounts
+    _cash_codes = [a.code for a in _cash_accounts(company_id)]
+    cash_position = _account_balance_as_of(company_id, _cash_codes, today)
     cash_position_prev = _account_balance_as_of(
-        company_id, ["1110", "1120"], prev_month_end,
+        company_id, _cash_codes, prev_month_end,
     )
 
     # ─── Invoices (open + overdue) ───────────────────────────────────

@@ -59,9 +59,15 @@ class Field:
         self.help_text = help_text
 
 
+# Valid values for Operation.cashflow_category — the same four the
+# classifier accepts (services/reports.py) and the manual journal form
+# offers.
+CASHFLOW_CATEGORIES = ("OPERATING", "INVESTING", "FINANCING", "NONCASH")
+
+
 class Operation:
     def __init__(self, key, title, icon, description, source_type, fields,
-                 build, effect=None):
+                 build, cashflow_category, effect=None):
         self.key = key
         self.title = title
         self.icon = icon
@@ -69,6 +75,19 @@ class Operation:
         self.source_type = source_type
         self.fields = fields
         self.build = build
+        # MARSOUD-OPS-FOUNDATION (2026-08-05) — REQUIRED, and positional
+        # on purpose so a new operation cannot forget it.
+        #
+        # The classifier falls back to guessing from account codes when an
+        # entry says nothing, and the three original operations happened to
+        # guess right. That is luck, not design: a transfer between two
+        # money accounts guesses OPERATING and would add imaginary cash to
+        # the statement on every transfer. Every operation states its own.
+        if cashflow_category not in CASHFLOW_CATEGORIES:
+            raise ValueError(
+                f"operation {key!r}: cashflow_category must be one of "
+                f"{CASHFLOW_CATEGORIES}, got {cashflow_category!r}")
+        self.cashflow_category = cashflow_category
         # One line shown on the form explaining the accounting effect.
         self.effect = effect
 
@@ -191,6 +210,8 @@ OPERATIONS = [
         description="عند ضخ المالك أموالاً جديدة داخل الشركة. يمكن تنفيذها أكثر من مرة.",
         effect="يزيد النقدية/البنك ويزيد رأس المال (3100).",
         source_type="capital_injection",
+        # owner puts money in — a financing activity
+        cashflow_category="FINANCING",
         fields=[
             Field("amount", "المبلغ", "amount", required=True),
             Field("date", "تاريخ العملية", "date", required=True),
@@ -208,6 +229,8 @@ OPERATIONS = [
         description="لتسجيل أرصدة شركة كانت تعمل قبل بدء استخدام مرصود.",
         effect="يزيد النقدية/البنك مقابل حساب الافتتاح (3900).",
         source_type="opening_balance",
+        # opening equity — financing, same as capital
+        cashflow_category="FINANCING",
         fields=[
             Field("amount", "المبلغ", "amount", required=True),
             Field("date", "التاريخ", "date", required=True),
@@ -225,6 +248,8 @@ OPERATIONS = [
         description="عند سحب المالك أموالاً من الشركة لاستخدامه الشخصي.",
         effect="يخفض حقوق الملكية عبر جاري الشركاء (3200) ويخفض النقدية/البنك.",
         source_type="owner_drawings",
+        # owner takes money out — a financing activity
+        cashflow_category="FINANCING",
         fields=[
             Field("amount", "المبلغ", "amount", required=True),
             Field("date", "التاريخ", "date", required=True),
@@ -263,6 +288,7 @@ def run_operation(op, company_id, data, actor_id=None):
             reference=op.key.upper(),
             created_by=actor_id,
             source_type=op.source_type,
+            cashflow_category=op.cashflow_category,
         )
     except LedgerError as e:
         # Surface ledger complaints as the wizard's own error type so the

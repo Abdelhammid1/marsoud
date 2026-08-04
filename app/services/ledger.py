@@ -243,6 +243,34 @@ CASH_CODE = "1110"
 BANKS_HEADER_CODE = "1120"
 
 
+def cash_accounts(company_id, active_only=False):
+    """Every postable account that actually holds money — cash + banks.
+
+    MARSOUD-OPS-FOUNDATION (2026-08-05) — reports used to ask for
+    `code IN ("1110", "1120")`. 1120 «البنوك» is a non-postable HEADER, so
+    no journal line can ever hit it, and every report built on that literal
+    silently saw the cash box alone: the cash-flow statement and the
+    dashboard's «السيولة المتاحة» KPI were both missing every bank
+    movement.
+
+    `active_only=False` by DEFAULT here, unlike the picker. A report must
+    still show what moved through a bank account that has since been
+    deactivated — dropping it would rewrite history. The picker wants the
+    opposite, so it passes True.
+    """
+    out = []
+    for code in (CASH_CODE, BANKS_HEADER_CODE):
+        root = get_account_by_code(company_id, code)
+        if root:
+            out.extend(_collect_postable(root, active_only=active_only))
+    return out
+
+
+def cash_account_ids(company_id, active_only=False):
+    """Just the ids — what report queries filter journal lines on."""
+    return [a.id for a in cash_accounts(company_id, active_only=active_only)]
+
+
 def cash_and_bank_accounts(company_id):
     """The accounts money can actually enter or leave, grouped for a
     <select>: [(group_label_ar, [Account, ...]), ...].
@@ -265,19 +293,23 @@ def cash_and_bank_accounts(company_id):
     groups = []
     cash_root = get_account_by_code(company_id, CASH_CODE)
     if cash_root:
-        cash = _collect_postable(cash_root)
+        cash = _collect_postable(cash_root, active_only=True)
         if cash:
             groups.append(("الصندوق", cash))
     banks_root = get_account_by_code(company_id, BANKS_HEADER_CODE)
     if banks_root:
-        banks = _collect_postable(banks_root)
+        banks = _collect_postable(banks_root, active_only=True)
         if banks:
             groups.append(("البنوك", banks))
     return groups
 
 
-def _collect_postable(root):
-    """Active, postable accounts in `root`'s subtree, ordered by code."""
+def _collect_postable(root, active_only=True):
+    """Postable accounts in `root`'s subtree, ordered by code.
+
+    `active_only` is True for pickers (don't offer a disabled account) and
+    False for reports (a deactivated bank's past movements are still real).
+    """
     found = []
     stack = [root]
     seen = set()
@@ -286,7 +318,8 @@ def _collect_postable(root):
         if node.id in seen:
             continue
         seen.add(node.id)
-        if getattr(node, "is_postable", True) and node.is_active:
+        if getattr(node, "is_postable", True) and (
+                node.is_active or not active_only):
             found.append(node)
         stack.extend(node.children or [])
     return sorted(found, key=lambda a: (a.code or ""))

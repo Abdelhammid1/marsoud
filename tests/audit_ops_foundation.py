@@ -295,6 +295,97 @@ def _():
             f"unscoped saw {res_all['companies']}")
 
 
+# ─── §2 — cash-flow classification ──────────────────────────────────────
+@check("9. THE BUG: a bank movement now appears in the cash-flow statement")
+def _():
+    """cash_flow() resolved cash as `code IN ("1110","1120")`, but 1120 is a
+    non-postable header no journal line can ever hit — so the statement saw
+    the cash box alone and every bank movement was invisible."""
+    from app.services.ledger import (
+        post_journal, get_account_by_code, cash_accounts,
+    )
+    from app.services.reports import cash_flow
+    cid = _STATE["plain_id"]
+
+    codes = [a.code for a in cash_accounts(cid)]
+    assert "1110" in codes, f"cash box missing from the cash set: {codes}"
+    assert "1122" in codes, (
+        f"the banks are still invisible to the reports: {codes} — this is "
+        "the bug")
+    assert "1120" not in codes, \
+        "1120 is a header; it can hold no lines and must not be counted"
+
+    before = cash_flow(cid)["financing"]
+    bank = get_account_by_code(cid, "1122")
+    cap = get_account_by_code(cid, "3100")
+    post_journal(company_id=cid, description="ops-foundation bank probe",
+                 lines=[{"account_id": bank.id, "debit": 5000, "credit": 0},
+                        {"account_id": cap.id, "debit": 0, "credit": 5000}],
+                 cashflow_category="FINANCING")
+    after = cash_flow(cid)["financing"]
+    assert round(after - before, 2) == 5000.0, (
+        f"a 5000 bank receipt moved financing by {after - before} — the "
+        "statement still cannot see the banks")
+    return f"{len(codes)} cash accounts; a bank receipt now shows ({before} → {after})"
+
+
+@check("10. the dashboard liquidity KPI sees the banks too")
+def _():
+    """Same literal, same bug: _account_balance_as_of sums journal LINES,
+    and a header has none, so «السيولة المتاحة» was cash-box-only."""
+    from app.services.reports import dashboard_metrics
+    cid = _STATE["plain_id"]
+    m = dashboard_metrics(cid)
+    # Check 9 posted 5000 into a bank against this same company.
+    assert float(m["cash_position"]) >= 5000.0, (
+        f"cash_position is {m['cash_position']} — it is missing the 5000 "
+        "sitting in the bank")
+    return f"cash_position = {m['cash_position']}"
+
+
+@check("11. every operation declares its cash-flow category, explicitly")
+def _():
+    from app.services.accounting_ops import OPERATIONS, CASHFLOW_CATEGORIES
+    for op in OPERATIONS:
+        assert op.cashflow_category in CASHFLOW_CATEGORIES, (
+            f"{op.key}: {op.cashflow_category!r}")
+    return " · ".join(f"{o.key}={o.cashflow_category}" for o in OPERATIONS)
+
+
+@check("12. an operation that omits the category is refused at build time")
+def _():
+    """A rule that lives in a docstring is a rule that gets skipped."""
+    from app.services.accounting_ops import Operation
+    for bad in (None, "", "OPERATIONAL", "financing"):
+        try:
+            Operation(key="probe", title="t", icon="i", description="d",
+                      source_type="s", fields=[], build=lambda c, d: None,
+                      cashflow_category=bad)
+        except ValueError:
+            continue
+        raise AssertionError(f"cashflow_category={bad!r} was accepted")
+    return "None, '', a typo and wrong-case all refused"
+
+
+@check("13. the category reaches the journal entry, not just the registry")
+def _():
+    from app.models import JournalEntry
+    from app.services.accounting_ops import get_operation, run_operation
+    from app.services.ledger import get_account_by_code
+    from datetime import date as _date
+    cid = _STATE["plain_id"]
+    op = get_operation("capital")
+    entry = run_operation(op, cid, {
+        "amount": "250", "date": _date.today().isoformat(),
+        "account_id": str(get_account_by_code(cid, "1110").id),
+    })
+    row = db.session.get(JournalEntry, entry.id)
+    assert row.cashflow_category == op.cashflow_category, (
+        f"entry carries {row.cashflow_category!r}, operation declares "
+        f"{op.cashflow_category!r} — run_operation is not forwarding it")
+    return f"entry {row.number} stamped {row.cashflow_category}"
+
+
 def main():
     app = create_app()
     _STATE["app"] = app
