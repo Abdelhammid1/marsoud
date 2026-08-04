@@ -164,9 +164,26 @@ def enforce_boundaries(op, data):
                     raise OperationError(_BOUNDARY_MESSAGES[boundary])
 
 
+# ─── Page groups (MARSOUD-OPS-FOUNDATION §6) ────────────────────────────
+# The index was a flat wall of cards. Six is already hard to scan and the
+# next wave makes it worse, so operations declare which family they belong
+# to and the page renders the families in this order. A group with no
+# operations the user may run is not rendered at all.
+GROUPS = (
+    ("cash",      "حركات نقدية"),
+    ("expense",   "مصروفات وإيرادات"),
+    ("accrual",   "استحقاقات وتسويات"),
+    ("equity",    "حقوق الملكية"),
+    ("debt",      "ديون وقروض"),
+)
+GROUP_KEYS = tuple(k for k, _ in GROUPS)
+GROUP_LABELS = dict(GROUPS)
+
+
 class Operation:
     def __init__(self, key, title, icon, description, source_type, fields,
-                 build, cashflow_category, effect=None, forbids=()):
+                 build, cashflow_category, group, permission,
+                 effect=None, forbids=()):
         self.key = key
         self.title = title
         self.icon = icon
@@ -220,6 +237,20 @@ class Operation:
                     f"operation {key!r} forbids a party but declares "
                     f"{party_fields} — it would refuse every submission")
         self.forbids = tuple(forbids)
+
+        # §6 — both REQUIRED and positional, for the same reason as the
+        # cash-flow category: a new operation that forgets its permission
+        # would silently inherit whatever the route happened to check.
+        if group not in GROUP_KEYS:
+            raise ValueError(
+                f"operation {key!r}: group must be one of {GROUP_KEYS}, "
+                f"got {group!r}")
+        if not permission or not isinstance(permission, str):
+            raise ValueError(
+                f"operation {key!r}: permission is required — an operation "
+                "without one cannot be gated at the route")
+        self.group = group
+        self.permission = permission
 
 
 class OperationError(Exception):
@@ -604,6 +635,10 @@ OPERATIONS = [
             Field("notes", "ملاحظات (اختياري)", "textarea"),
         ],
         build=_build_capital,
+        # The three original operations keep journals.create so nobody
+        # loses access on deploy day.
+        group="equity",
+        permission="journals.create",
     ),
     Operation(
         key="opening-balance",
@@ -623,6 +658,8 @@ OPERATIONS = [
             Field("notes", "ملاحظات (اختياري)", "textarea"),
         ],
         build=_build_opening_balance,
+        group="equity",
+        permission="journals.create",
     ),
     Operation(
         key="owner-drawings",
@@ -642,6 +679,8 @@ OPERATIONS = [
             Field("notes", "ملاحظات (اختياري)", "textarea"),
         ],
         build=_build_owner_drawings,
+        group="equity",
+        permission="journals.create",
     ),
 
     # ── MARSOUD-OPS-FOUNDATION (2026-08-05) ────────────────────────────
@@ -666,6 +705,10 @@ OPERATIONS = [
             Field("notes", "ملاحظات (اختياري)", "textarea"),
         ],
         build=_build_transfer,
+        # Moving money between the company's own accounts is a
+        # narrower thing than posting arbitrary journals.
+        group="cash",
+        permission="ops.transfer",
     ),
     Operation(
         key="accrue-expense",
@@ -686,6 +729,9 @@ OPERATIONS = [
             Field("notes", "ملاحظات (اختياري)", "textarea"),
         ],
         build=_build_accrue_expense,
+        # Recording what is owed moves no money.
+        group="accrual",
+        permission="ops.accruals",
         # §5 — an accrued expense owed to a NAMED supplier belongs in the
         # bills module, and one carrying input VAT belongs in purchases.
         # Both would post a journal that balances perfectly.
@@ -716,6 +762,10 @@ OPERATIONS = [
             Field("notes", "ملاحظات (اختياري)", "textarea"),
         ],
         build=_build_settle_accrued_expense,
+        # Settling DOES move money out, so it is a separate grant
+        # from merely recording the obligation.
+        group="accrual",
+        permission="ops.settle",
         # Same boundary on the paying side: a payment to a named supplier
         # must drive that supplier's sub-account, not bare cash.
         forbids=("party", "tax"),

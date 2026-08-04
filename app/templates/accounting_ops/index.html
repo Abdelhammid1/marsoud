@@ -3,7 +3,14 @@
 {% block content %}
 
 {# MARSOUD-ACCOUNTING-OPS — every card is generated from the OPERATIONS
-   registry, so a new operation appears here automatically. #}
+   registry, so a new operation appears here automatically.
+
+   MARSOUD-OPS-FOUNDATION §6 — and it appears under its own family. The
+   route hands over `groups` already filtered to what this user may run,
+   with empty families dropped, so this file never asks about permissions
+   or knows which groups exist.
+
+   NB: Jinja comments do not nest and cannot sit inside an expression. #}
 
 <div class="mb-5">
   <h2 class="font-bold text-navy-900 text-lg">🧮 العمليات المحاسبية</h2>
@@ -12,22 +19,31 @@
   </p>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-  {% for op in operations %}
-  <a href="{{ url_for('accounting_ops.run', op_key=op.key) }}"
-     class="card p-6 block hover:border-brand-400 hover:shadow-md transition border-2 border-transparent">
-    <div class="text-3xl mb-3">{{ op.icon }}</div>
-    <h3 class="font-bold text-navy-900 mb-1">{{ op.title }}</h3>
-    <p class="text-xs text-slate-500 leading-relaxed">{{ op.description }}</p>
-    {% if op.effect %}
-    <p class="text-xs text-slate-400 mt-3">{{ op.effect }}</p>
-    {% endif %}
-    <span class="inline-block mt-4 text-xs font-semibold text-brand-600">تنفيذ ←</span>
-  </a>
-  {% else %}
-  <div class="card p-6 text-center text-slate-400 md:col-span-3">لا توجد عمليات متاحة.</div>
-  {% endfor %}
+{% for group_label, group_ops in groups %}
+<div class="mb-6">
+  <h3 class="text-sm font-bold text-slate-600 mb-3 pb-2 border-b border-slate-200">
+    {{ group_label }}
+    <span class="text-xs font-normal text-slate-400">({{ group_ops|length }})</span>
+  </h3>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    {% for op in group_ops %}
+    <a href="{{ url_for('accounting_ops.run', op_key=op.key) }}"
+       class="card p-6 block hover:border-brand-400 hover:shadow-md transition border-2 border-transparent">
+      <div class="text-3xl mb-3">{{ op.icon }}</div>
+      <h3 class="font-bold text-navy-900 mb-1">{{ op.title }}</h3>
+      <p class="text-xs text-slate-500 leading-relaxed">{{ op.description }}</p>
+      {% if op.effect %}
+      <p class="text-xs text-slate-400 mt-3">{{ op.effect }}</p>
+      {% endif %}
+      <span class="inline-block mt-4 text-xs font-semibold text-brand-600">تنفيذ ←</span>
+    </a>
+    {% endfor %}
+  </div>
 </div>
+{% else %}
+<div class="card p-6 text-center text-slate-400">لا توجد عمليات متاحة لك.</div>
+{% endfor %}
 
 <div class="mt-5 rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">
   العمليات اللي ليها شاشة خاصة بيها — الفواتير، المشتريات، الرواتب، الأصول الثابتة،

@@ -107,6 +107,15 @@ PERMISSION_CATALOG = {
     "crm.contacts.view":    ("العمليات والمبيعات", "CRM: جهات الاتصال", "view"),
     "crm.analytics.view":   ("العمليات والمبيعات", "CRM: تحليلات المسار البيعي", "view"),
     "party_ledger.view":    ("المالية والمحاسبة", "كشف حساب طرف (عميل/مورد/موظف)", "view"),
+
+    # ─── MARSOUD-OPS-FOUNDATION §6 ──────────────────────────────────────
+    # One gate for every wizard meant granting the till-to-bank transfer
+    # also granted capital injections. Implied by journals.create (see
+    # _IMPLIES) so existing roles keep working untouched; these entries
+    # exist so an owner can RESTRICT one wizard on its own.
+    "ops.transfer":         ("المالية والمحاسبة", "العمليات المحاسبية: تحويل بين الحسابات المالية", "add"),
+    "ops.accruals":         ("المالية والمحاسبة", "العمليات المحاسبية: إثبات الالتزامات المستحقة", "add"),
+    "ops.settle":           ("المالية والمحاسبة", "العمليات المحاسبية: سداد الالتزامات المستحقة", "edit"),
     "api_tokens.manage":    ("النظام", "مفاتيح الـ API: إدارة", "edit"),
     "activity_log.view":    ("النظام", "سجل نشاط الموظفين", "view"),
     "backup.download":      ("النظام", "نسخة احتياطية (Excel)", "run"),

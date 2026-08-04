@@ -76,6 +76,26 @@ the check numbering.
   land now so those inherit them; today they are demonstrated on the
   accrual pair. Likewise the write-off OPERATION is out of scope — the
   status and its exclusion are in, because the tuples fail silently.
+
+§6 — permissions and grouping
+  Every wizard sat behind ONE gate, journals.create, so "let the cashier
+  move money from the till to the bank" was indistinguishable from "let
+  the cashier inject capital and record owner drawings".
+  37. every operation declares a permission and a group
+  38. a new permission is in ALL THREE places — P, PERMISSION_CATALOG and
+      _IMPLIES. Miss the catalog and an owner cannot grant it; miss
+      _IMPLIES and every CUSTOM role loses the wizard on deploy, because
+      roles_seed never re-syncs a custom role
+  39. the three original operations did not change gate — nobody loses
+      access on deploy day
+  40. opening an operation's URL without its permission is refused, for
+      GET and for POST. Hiding the card is presentation; this is the
+      protection
+  41. and with the permission every operation still renders — a gate that
+      denies everyone would pass 40 and be useless
+  42. the index renders the groups, hardcodes none of them, and omits the
+      families that are empty
+  43. an unknown group or a missing permission is a build-time error
 """
 import re
 import sys
@@ -159,9 +179,46 @@ def _setup():
                   noparent_id=noparent.id,
                   deleted_on_purpose=deleted_on_purpose)
 
+    # ─── §6 needs real requests ─────────────────────────────────────────
+    # An owner of the plain company, on a plan that actually allows
+    # journals.create — plan_allows has no trial bypass, so on the wrong
+    # plan every request would redirect and §6's checks would "pass"
+    # without ever reaching the permission code they are testing.
+    #
+    # NB the Flask-Login trap this repo keeps hitting: inside ONE
+    # app_context every test-client request answers as the FIRST user to
+    # log in, because g._login_user is cached. There is exactly one user
+    # here. Do not add a second and expect it to work.
+    from datetime import datetime
+    from app.models import Plan, User
+    from app.services.roles_seed import ensure_roles_ready_for_company
+    from app.services.roles import set_membership_role
+    from app.services.legal import get_terms_version
+    from app.services.plan_gating import plan_allows
+
+    for pl in Plan.query.order_by(Plan.id).all():
+        plain.plan_id = pl.id
+        plain.intended_plan_id = pl.id
+        db.session.flush()
+        if plan_allows("journals.create", plain):
+            break
+    db.session.commit()
+    ensure_roles_ready_for_company(plain.id)
+
+    u = User(email="__opsfound@audit.local", full_name="OpsFound Owner",
+             is_active=True, terms_version=get_terms_version(),
+             terms_accepted_at=datetime.utcnow())
+    u.set_password("Passw0rd!audit1")
+    db.session.add(u)
+    db.session.flush()
+    db.session.commit()
+    set_membership_role(u.id, plain.id, "owner")
+
+    _STATE.update(uid=u.id, cid=plain.id)
+
 
 def _teardown():
-    from app.models import Company
+    from app.models import Company, User
     from sqlalchemy import text, inspect
     db.session.rollback()
     insp = inspect(db.engine)
@@ -182,6 +239,12 @@ def _teardown():
         db.session.execute(text("DELETE FROM companies WHERE id=:c"),
                            {"c": cid})
         db.session.commit()
+    for u in User.query.filter(
+            User.email.like("__opsfound@audit.local")).all():
+        db.session.execute(text("DELETE FROM user_companies WHERE user_id=:u"),
+                           {"u": u.id})
+        db.session.execute(text("DELETE FROM users WHERE id=:u"), {"u": u.id})
+    db.session.commit()
 
 
 def _codes(company_id):
@@ -420,7 +483,8 @@ def _():
         try:
             Operation(key="probe", title="t", icon="i", description="d",
                       source_type="s", fields=[], build=lambda c, d: None,
-                      cashflow_category=bad)
+                      cashflow_category=bad,
+                      group="equity", permission="journals.create")
         except ValueError:
             continue
         raise AssertionError(f"cashflow_category={bad!r} was accepted")
@@ -466,6 +530,15 @@ def _aged_total(report, customer_name):
                 row.get("name") == customer_name:
             return round(float(row.get("total") or 0), 2)
     return 0.0
+
+
+def _client():
+    c = _STATE["app"].test_client()
+    with c.session_transaction() as sess:
+        sess["_user_id"] = str(_STATE["uid"])
+        sess["_fresh"] = True
+        sess["active_company_id"] = _STATE["cid"]
+    return c
 
 
 def _balance(account_id):
@@ -930,6 +1003,7 @@ def _():
                   source_type="capital_injection",
                   fields=[Field("amount", "المبلغ", "amount")],
                   build=lambda *a, **k: None, cashflow_category="OPERATING",
+                  group="equity", permission="journals.create",
                   forbids=("sparkles",))
         raise AssertionError("an unknown boundary was accepted")
     except ValueError as e:
@@ -947,6 +1021,7 @@ def _():
                   source_type="capital_injection",
                   fields=[Field("party_id", "الطرف", "party")],
                   build=lambda *a, **k: None, cashflow_category="OPERATING",
+                  group="equity", permission="journals.create",
                   forbids=("party",))
         raise AssertionError("the contradiction was accepted")
     except ValueError as e:
@@ -1035,6 +1110,161 @@ def _():
         "aging nor listed as deliberately aged — decide which, because an "
         "exclusion list fails silently")
     return f"{len(excluded)} excluded, {len(AGED_ON_PURPOSE)} aged on purpose"
+
+
+# ─── §6 permissions and grouping ────────────────────────────────────────
+@check("37. every operation declares a permission and a group")
+def _():
+    from app.services.accounting_ops import OPERATIONS, GROUP_KEYS
+    from app.services.permissions import P
+    seen = {}
+    for op in OPERATIONS:
+        assert op.permission, f"{op.key}: no permission"
+        assert op.group in GROUP_KEYS, f"{op.key}: group {op.group!r}"
+        assert op.permission in P, (
+            f"{op.key}: permission {op.permission!r} is not in the legacy "
+            "role map — has_permission would deny everyone with a role "
+            "that predates the DB permission rows")
+        seen.setdefault(op.permission, []).append(op.key)
+    return " · ".join(f"{k}: {len(v)}" for k, v in seen.items())
+
+
+@check("38. a new permission is registered in ALL THREE places")
+def _():
+    """Miss the catalog and the owner cannot grant it. Miss _IMPLIES and
+    every CUSTOM role loses the wizard on deploy, because roles_seed never
+    re-syncs a custom role."""
+    from app.services.accounting_ops import OPERATIONS
+    from app.services.permissions import P, _IMPLIES
+    from app.services.roles_seed import PERMISSION_CATALOG
+    new = {op.permission for op in OPERATIONS} - {"journals.create"}
+    assert new, "no per-operation permission was actually introduced"
+    for code in sorted(new):
+        assert code in P, f"{code} missing from P (permissions.py)"
+        assert code in PERMISSION_CATALOG, (
+            f"{code} missing from PERMISSION_CATALOG — an owner cannot "
+            "grant a permission that the roles screen never lists")
+        assert _IMPLIES.get(code) == "journals.create", (
+            f"{code} is not implied by journals.create — every role that "
+            "could run these wizards yesterday would lose them today")
+    return f"{len(new)} codes in P + catalog + _IMPLIES"
+
+
+@check("39. the three original operations did not change gate")
+def _():
+    """Nobody loses access on deploy day."""
+    from app.services.accounting_ops import get_operation
+    for key in ("capital", "opening-balance", "owner-drawings"):
+        op = get_operation(key)
+        assert op.permission == "journals.create", (
+            f"{key} moved to {op.permission!r} — existing roles would lose "
+            "an operation they have today")
+    return "capital / opening-balance / owner-drawings still journals.create"
+
+
+@check("40. opening an operation URL without its permission is refused")
+def _():
+    """The load-bearing one. Hiding a card is presentation; the URL is
+    guessable, so the check has to live in the route."""
+    from app.services import permissions as perms
+    from app.services.accounting_ops import OPERATIONS
+    client = _client()
+
+    real = perms.has_permission
+    denied = {"ops.transfer"}
+
+    def fake(action, user=None, company=None):
+        if action in denied:
+            return False
+        return real(action, user=user, company=company)
+
+    perms.has_permission = fake
+    # The route imported the name directly, so patch it there too.
+    import app.routes.accounting_ops as route_mod
+    route_real = route_mod.has_permission
+    route_mod.has_permission = fake
+    try:
+        r = client.get("/accounting-ops/transfer", follow_redirects=False)
+        assert r.status_code in (301, 302), (
+            f"GET on a forbidden operation returned {r.status_code}, not a "
+            "redirect — the wizard rendered for someone without the "
+            "permission")
+        r = client.post("/accounting-ops/transfer",
+                        data={"amount": "10"}, follow_redirects=False)
+        assert r.status_code in (301, 302), (
+            f"POST on a forbidden operation returned {r.status_code} — the "
+            "journal may have been posted")
+        # And the card is gone from the index.
+        body = client.get("/accounting-ops/").get_data(as_text=True)
+        assert "/accounting-ops/transfer" not in body, (
+            "the index still links an operation the user cannot run")
+        # while the ones they DO have are still there
+        assert "/accounting-ops/capital" in body, (
+            "filtering the index removed operations the user still has")
+    finally:
+        perms.has_permission = real
+        route_mod.has_permission = route_real
+    return "GET redirected, POST redirected, card hidden, others intact"
+
+
+@check("41. with permission, every operation is reachable")
+def _():
+    """The other half of check 40 — a gate that denies everyone passes 40
+    and is useless."""
+    from app.services.accounting_ops import OPERATIONS
+    client = _client()
+    for op in OPERATIONS:
+        r = client.get(f"/accounting-ops/{op.key}")
+        assert r.status_code == 200, (
+            f"{op.key} returned {r.status_code} for a user who HAS "
+            f"{op.permission}")
+        assert op.title in r.get_data(as_text=True)
+    return f"all {len(OPERATIONS)} wizards render for a permitted user"
+
+
+@check("42. the index renders the groups, and hardcodes none of them")
+def _():
+    from app.services.accounting_ops import OPERATIONS, GROUP_LABELS
+    body = _client().get("/accounting-ops/").get_data(as_text=True)
+    used = {op.group for op in OPERATIONS}
+    for key in used:
+        assert GROUP_LABELS[key] in body, (
+            f"group «{GROUP_LABELS[key]}» is not on the page")
+    # An unused group must NOT be rendered as an empty heading.
+    for key, label in GROUP_LABELS.items():
+        if key not in used:
+            assert label not in body, (
+                f"empty group «{label}» is rendered with nothing in it")
+    tpl = (ROOT / "app/templates/accounting_ops/index.html").read_text(
+        encoding="utf-8")
+    for label in GROUP_LABELS.values():
+        assert label not in tpl, (
+            f"«{label}» is hardcoded in the template — the page must stay "
+            "registry-driven")
+    assert "has_permission" not in tpl, (
+        "the template is asking about permissions; the route hands it an "
+        "already-filtered list")
+    return f"{len(used)} groups rendered, {len(GROUP_LABELS) - len(used)} empty ones omitted"
+
+
+@check("43. an unknown group or a missing permission is a build-time error")
+def _():
+    from app.services.accounting_ops import Operation, Field
+    base = dict(key="x", title="x", icon="x", description="x",
+                source_type="capital_injection",
+                fields=[Field("amount", "المبلغ", "amount")],
+                build=lambda *a, **k: None, cashflow_category="OPERATING")
+    for label, kwargs in (
+        ("unknown group", dict(group="sparkles", permission="journals.create")),
+        ("blank permission", dict(group="equity", permission="")),
+        ("no permission", dict(group="equity", permission=None)),
+    ):
+        try:
+            Operation(**base, **kwargs)
+            raise AssertionError(f"{label} was accepted")
+        except ValueError:
+            pass
+    return "unknown group, blank and missing permission all refused"
 
 
 def main():
