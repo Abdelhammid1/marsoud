@@ -356,6 +356,32 @@ def _():
             + "; ".join(f"{k}→{v}" for k, v in mapped.items()))
 
 
+@check("11. no Jinja comment leaks into the rendered shell")
+def _():
+    """Caught in the browser, not by this suite: a comment written as
+
+        {# ... no {# #} comments in here ... #}
+
+    ends at the FIRST `#}`, because Jinja comments do not nest. The rest
+    spilled into the sidebar as visible text while the page still
+    returned 200, so every existing check passed. A leaked comment always
+    leaves its closing delimiter behind, which is a cheap thing to
+    assert."""
+    html = _home()
+    assert "#}" not in html, (
+        "a Jinja comment leaked into the page — text after a stray '#}' "
+        "is rendering to the user")
+    assert "{#" not in html, "an unopened Jinja comment is rendering"
+    # The tag we prefix internal notes with must not reach visible text.
+    # <style>, <script> and <!-- --> are excluded: CSS, JS and HTML
+    # comments legitimately carry these tags and are never displayed.
+    body = re.sub(r"<(style|script)\b[\s\S]*?</\1>", "", html)
+    body = re.sub(r"<!--[\s\S]*?-->", "", body)
+    assert "MARSOUD-" not in body, \
+        "an internal MARSOUD-* note is visible in the rendered page"
+    return "no comment fragments in the rendered shell"
+
+
 def main():
     app = create_app()
     _STATE["app"] = app

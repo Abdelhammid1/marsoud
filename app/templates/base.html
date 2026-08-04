@@ -550,9 +550,12 @@ tailwind.config = {
            in any template at all. الرئيسية gained agent.index, which the
            top-bar button used to cover.
 
-           NB: no {# #} comments inside the list literal below — Jinja
-           cannot parse a comment inside an expression, and it fails as a
-           500 on every authenticated page. #}
+           NB: do not put a Jinja comment inside the list literal below.
+           Jinja cannot parse one inside an expression and it fails as a
+           500 on every authenticated page. Note also that Jinja comments
+           do NOT nest, so writing the comment delimiters themselves in
+           here closes this block early and dumps the rest as visible
+           text into the sidebar. #}
         {% set sections = [
           ('الرئيسية', '🏠', [
             ('dashboard.index', 'لوحة المعلومات', '📊'),
