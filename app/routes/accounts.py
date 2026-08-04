@@ -5,6 +5,7 @@ from app import db
 from app.models import Account, AccountType, NormalSide, JournalEntry, JournalLine
 from app.models.account import NORMAL_SIDE_FOR_TYPE
 from app.services.permissions import require_permission
+from app.services.source_reference import resolve_reference
 
 
 TYPE_DEFAULT_CODES = {
@@ -309,43 +310,28 @@ def delete(account_id):
 
 
 # ─── MARSOUD-55: account ledger (detailed account movement) ────────────
-SOURCE_LABELS_AR = {
-    "invoice": ("فاتورة بيع", "invoices.view"),
-    "invoice_cogs": ("تكلفة بضاعة مباعة", "invoices.view"),
-    "refund": ("إرجاع", "invoices.view"),
-    "refund_cogs": ("عكس تكلفة إرجاع", "invoices.view"),
-    "credit_note": ("إشعار دائن", "invoices.view"),
-    "vendor_bill": ("فاتورة مورد", "vendor_bills.view"),
-    "vendor_bill_payment": ("سداد لمورد", "vendor_bills.view"),
-    "payment": ("سداد فاتورة", "invoices.view"),
-    "asset": ("أصل ثابت", None),
-    "depreciation": ("استهلاك", None),
-    "payroll": ("راتب", "payroll.view"),
-    "opening_balance": ("رصيد افتتاحي", None),
-    "stock_receipt": ("استلام مخزون", None),
-    "stock_adjustment": ("تسوية مخزون", None),
-    "manual": ("قيد يدوي", "journals.view"),
-}
-
-
 def _resolve_source(entry):
-    """Return (label_ar, link_url_or_None) for a JournalEntry's source."""
-    st = entry.source_type or "manual"
-    label, view_endpoint = SOURCE_LABELS_AR.get(st, (st, None))
-    link = None
-    if view_endpoint and entry.source_id:
+    """Return (label_ar, link_url_or_None) for a JournalEntry's source.
+
+    MARSOUD-SOURCE-LABEL-UNIFY (2026-08-04) — this used to consult a
+    local SOURCE_LABELS_AR dict, a second copy of the map in
+    app/services/source_reference.py. New source_types kept landing in
+    one and not the other, and the fallback here was `(st, None)` — the
+    RAW English key as the label, so `capital_injection` was printed to
+    the user. There is now one map; this reads it.
+
+    The one thing the local map did that resolve_reference can't: link a
+    manual entry (source_type IS NULL) to its own journal entry, which
+    needs entry.id rather than source_id. That stays here, in the caller.
+    """
+    ref = resolve_reference(entry.source_type, entry.source_id)
+    link = ref["url"]
+    if not link and not entry.source_type:
         try:
-            if "vendor_bills" in view_endpoint:
-                link = url_for(view_endpoint, bill_id=entry.source_id)
-            elif "invoices" in view_endpoint:
-                link = url_for(view_endpoint, invoice_id=entry.source_id)
-            elif view_endpoint == "journals.view":
-                link = url_for(view_endpoint, entry_id=entry.id)
-            elif view_endpoint == "payroll.view":
-                link = url_for("payroll.index")
+            link = url_for("journals.view", entry_id=entry.id)
         except Exception:
             link = None
-    return label, link
+    return ref["label"], link
 
 
 @bp.route("/<int:account_id>/ledger")

@@ -2,9 +2,21 @@
 
 Convert (source_type, source_id) pairs on JournalEntry /
 StockMovement rows into a human-readable label + a URL for the
-source document. Called from party_ledger + inventory/movements
-so users can jump straight from a ledger row to the underlying
-invoice / bill / adjustment / etc.
+source document. Called from party_ledger + inventory/movements +
+the account ledger so users can jump straight from a ledger row to
+the underlying invoice / bill / adjustment / etc.
+
+THE ONLY MAP. MARSOUD-SOURCE-LABEL-UNIFY (2026-08-04) — there used
+to be a second one, SOURCE_LABELS_AR in app/routes/accounts.py, and
+every new source_type got registered here and forgotten there. It
+happened three times: 6 types (154 mislabeled rows), then
+stock_adjustment/audit_seed, then capital_injection /
+owner_drawings / employee_advance, which the account ledger printed
+as raw English in an RTL Arabic table. Registering a new type in
+`_SOURCE_TYPES` below is now the whole job — the account ledger,
+party statement and stock movements all read from here. Do not add
+a second map; tests/audit_source_label_unification.py fails if one
+appears.
 
   · SAFE: every URL is built server-side using Flask url_for so a
     stale source_id can't be used to XSS through a template.
@@ -43,7 +55,7 @@ _SOURCE_TYPES = {
     "stock_transfer":     ("تحويل بين المخازن", "inventory.transfers",  None),
     "pos_sale":           ("بيع POS",           "invoices.view",         "invoice_id"),
     "opening_balance":    ("رصيد افتتاحي",     None,                    None),
-    "payroll":            ("قيد رواتب",         None,                    None),
+    "payroll":            ("قيد رواتب",         "payroll.index",         None),
     "sales_commission":   ("عمولة مبيعات",     None,                    None),
     "manufacturing_order": ("أمر إنتاج",       None,                    None),
     # MARSOUD-SOURCE-REFERENCE-01 pt 2 (Abdelhamid 2026-07-29) —
@@ -70,11 +82,45 @@ _SOURCE_TYPES = {
     # and emitted by nothing, so the wizard claims it.)
     "capital_injection":       ("إضافة رأس مال",        None, None),
     "owner_drawings":          ("مسحوبات المالك",       None, None),
+    # MARSOUD-SOURCE-LABEL-UNIFY (2026-08-04) — folding
+    # accounts.SOURCE_LABELS_AR in here surfaced source_types that were
+    # written by services but registered in NEITHER map, so they showed
+    # as raw English on the account ledger and "قيد يدوي" everywhere
+    # else. Found by scanning every post_journal / apply_stock_movement
+    # call site, not by scanning one DB.
+    # source_id is the bill id (services/vendor_bills.py:358), same as
+    # vendor_bill_payment — so it links to the bill, not to a list.
+    "vendor_payment":          ("سداد لمورد",           "vendor_bills.view", "bill_id"),
+    "work_order":              ("أمر إنتاج",            None, None),
+    "work_order_consumption":  ("صرف مكونات إنتاج",     None, None),
+    "work_order_receipt":      ("استلام إنتاج تام",     None, None),
+    # Legacy keys that only ever lived in accounts.SOURCE_LABELS_AR.
+    # Nothing writes them today, but historical rows may carry them and
+    # dropping the label would be a regression on old ledgers.
+    "asset":                   ("أصل ثابت",             None, None),
+    "stock_receipt":           ("استلام مخزون",         None, None),
 }
 
 
-# Fallback label when we've never seen the source_type before.
-_UNKNOWN_LABEL = "قيد يدوي"
+# Fallback label when we've never seen the source_type before. Public:
+# callers that render their own no-reference cell must use THIS, not a
+# hardcoded copy — three copies of the string is how the maps drifted.
+UNKNOWN_LABEL = "قيد يدوي"
+_UNKNOWN_LABEL = UNKNOWN_LABEL  # backwards-compatible alias
+
+
+# Which source_types hang off which parent document, for the batched
+# doc_number lookup below. These were spelled out three times each
+# inside build_reference_map — the same "two copies drift apart" bug
+# this module exists to prevent, one scope down.
+_INVOICE_TYPES = (
+    "invoice", "invoice_item", "invoice_cogs", "payment",
+    "refund", "refund_cogs", "credit_note", "pos_sale",
+)
+_BILL_TYPES = (
+    "vendor_bill", "vendor_bill_item", "vendor_bill_payment",
+    "vendor_bill_refund", "vendor_payment", "asset_purchase",
+)
 
 
 def resolve_reference(source_type, source_id, doc_number=None,
@@ -139,20 +185,11 @@ def build_reference_map(rows, company_id):
     # invoice + vendor_bill have numbers today — extending is a
     # one-line change.
     numbers = {}
-    if ids_by_type.get("invoice") or \
-            ids_by_type.get("invoice_item") or \
-            ids_by_type.get("invoice_cogs") or \
-            ids_by_type.get("payment") or \
-            ids_by_type.get("refund") or \
-            ids_by_type.get("refund_cogs") or \
-            ids_by_type.get("credit_note") or \
-            ids_by_type.get("pos_sale"):
+    if any(ids_by_type.get(t) for t in _INVOICE_TYPES):
         from app.models import Invoice
         from app import db
         inv_ids = set()
-        for t in ("invoice", "invoice_item", "invoice_cogs",
-                   "payment", "refund", "refund_cogs",
-                   "credit_note", "pos_sale"):
+        for t in _INVOICE_TYPES:
             inv_ids.update(ids_by_type.get(t, set()))
         if inv_ids:
             q = db.session.query(Invoice.id, Invoice.number).filter(
@@ -162,16 +199,11 @@ def build_reference_map(rows, company_id):
             for _id, _num in q.all():
                 numbers[("invoice", _id)] = _num
 
-    if any(ids_by_type.get(t) for t in (
-        "vendor_bill", "vendor_bill_item", "vendor_bill_payment",
-        "vendor_bill_refund", "asset_purchase",
-    )):
+    if any(ids_by_type.get(t) for t in _BILL_TYPES):
         from app.models import VendorBill
         from app import db
         bill_ids = set()
-        for t in ("vendor_bill", "vendor_bill_item",
-                   "vendor_bill_payment", "vendor_bill_refund",
-                   "asset_purchase"):
+        for t in _BILL_TYPES:
             bill_ids.update(ids_by_type.get(t, set()))
         if bill_ids:
             q = db.session.query(VendorBill.id, VendorBill.number).filter(
@@ -191,13 +223,8 @@ def build_reference_map(rows, company_id):
                                                   company_id=company_id)
             continue
         # Look up doc_number under the "logical parent" type.
-        parent_type = "invoice" if st in (
-            "invoice", "invoice_item", "invoice_cogs", "payment",
-            "refund", "refund_cogs", "credit_note", "pos_sale",
-        ) else ("vendor_bill" if st in (
-            "vendor_bill", "vendor_bill_item", "vendor_bill_payment",
-            "vendor_bill_refund", "asset_purchase",
-        ) else None)
+        parent_type = "invoice" if st in _INVOICE_TYPES else (
+            "vendor_bill" if st in _BILL_TYPES else None)
         doc_num = numbers.get((parent_type, sid)) if parent_type else None
         out[(st, sid)] = resolve_reference(st, sid, doc_number=doc_num,
                                               company_id=company_id)
