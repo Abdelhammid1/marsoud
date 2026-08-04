@@ -493,13 +493,75 @@ def hierarchy():
     # this template.
     from app.services.category_visibility import MODULES, MODULE_ICONS
     vis_modules = [
-        (col, label, MODULE_ICONS.get(key, ""))
+        (key, col, label, MODULE_ICONS.get(key, ""))
         for key, (col, label) in MODULES.items()
     ]
+    # pt 2 — the screen renders the RESOLVED state per category, so it never
+    # re-implements the COALESCE rule itself.
+    from app.services.category_visibility import effective_flags
+    eff = {c.id: effective_flags(c)
+           for grp in groups for c in grp.categories}
     return render_template(
         "products/hierarchy.html", groups=groups, counts=counts,
-        vis_modules=vis_modules,
+        vis_modules=vis_modules, effective=eff,
     )
+
+
+@bp.route("/hierarchy/visibility", methods=["POST"])
+@login_required
+@require_permission("products.manage")
+def hierarchy_visibility():
+    """MARSOUD-CATEGORY-VISIBILITY-01 pt 2 — save ONE switch, immediately.
+
+    The screen has no save button for these: changing a control posts here
+    and the change is live on the next request. A row-level 💾 would have
+    meant a visibility change could be silently lost by navigating away,
+    which is a bad trade for a setting that hides products from the
+    cashier.
+
+    Body: {"level": "group"|"category", "id": int, "module": str,
+           "value": true|false|null}   (null = inherit, categories only)
+    Returns the resolved state so the caller can update every inheriting
+    sibling without a reload.
+    """
+    from app.services.category_visibility import (
+        MODULES, effective_flag, _col_name,
+    )
+    cid = g.active_company.id
+    data = request.get_json(silent=True) or {}
+    level = data.get("level")
+    module = data.get("module")
+    if module not in MODULES or level not in ("group", "category"):
+        return jsonify({"error": "طلب غير صالح"}), 400
+    try:
+        row_id = int(data.get("id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "طلب غير صالح"}), 400
+
+    col = _col_name(module)
+    value = data.get("value")
+    if level == "group":
+        row = ProductGroup.query.get(row_id)
+        if not row or row.company_id != cid:
+            abort(404)
+        # The group is where inheritance bottoms out — it must hold a real
+        # answer, never NULL.
+        setattr(row, col, bool(value))
+    else:
+        row = ProductCategory.query.get(row_id)
+        if not row or row.company_id != cid:
+            abort(404)
+        setattr(row, col, None if value is None else bool(value))
+    db.session.commit()
+
+    if level == "group":
+        resolved = {
+            str(c.id): effective_flag(c, module)[0] for c in row.categories
+        }
+        return jsonify({"ok": True, "group_value": bool(getattr(row, col)),
+                        "categories": resolved})
+    value_now, inherited = effective_flag(row, module)
+    return jsonify({"ok": True, "value": value_now, "inherited": inherited})
 
 
 @bp.route("/hierarchy/groups", methods=["POST"])
@@ -514,7 +576,11 @@ def group_create():
     if ProductGroup.query.filter_by(company_id=cid, name=name).first():
         flash("مجموعة بنفس الاسم موجودة", "error")
         return redirect(url_for("products.hierarchy"))
-    db.session.add(ProductGroup(company_id=cid, name=name))
+    # MARSOUD-CATEGORY-VISIBILITY-01 pt 2 — the group is where the four
+    # switches live now; its categories inherit from here.
+    from app.services.category_visibility import group_flags_from_form
+    db.session.add(ProductGroup(company_id=cid, name=name,
+                                **group_flags_from_form(request.form)))
     db.session.commit()
     flash("تم إنشاء المجموعة", "success")
     return redirect(url_for("products.hierarchy"))
@@ -533,6 +599,13 @@ def group_edit(group_id):
         flash("الاسم مطلوب", "error")
         return redirect(url_for("products.hierarchy"))
     g_row.name = name
+    # MARSOUD-CATEGORY-VISIBILITY-01 pt 2 — checkboxes read by PRESENCE; an
+    # unticked box is not submitted at all, so .get() could never turn one
+    # off. The auto-save endpoint is the usual path, this covers a plain
+    # non-JS submit.
+    from app.services.category_visibility import group_flags_from_form
+    for col, value in group_flags_from_form(request.form).items():
+        setattr(g_row, col, value)
     db.session.commit()
     flash("تم التحديث", "success")
     return redirect(url_for("products.hierarchy"))
@@ -583,10 +656,10 @@ def category_create():
     # MARSOUD-CATEGORY-VISIBILITY-01 — the four module switches. The form
     # ships them pre-ticked, so the normal path creates a category that
     # behaves like every existing one.
-    from app.services.category_visibility import flags_from_form
+    from app.services.category_visibility import category_flags_from_form
     db.session.add(ProductCategory(
         company_id=cid, group_id=group_id, name=name,
-        **flags_from_form(request.form),
+        **category_flags_from_form(request.form),
     ))
     db.session.commit()
     flash("تم إنشاء الفئة", "success")
@@ -610,8 +683,8 @@ def category_edit(cat_id):
     # form, so one 💾 saves both. flags_from_form reads PRESENCE, because
     # an unticked checkbox is not submitted at all; reading .get() would
     # make unticking impossible to save.
-    from app.services.category_visibility import flags_from_form
-    for col, value in flags_from_form(request.form).items():
+    from app.services.category_visibility import category_flags_from_form
+    for col, value in category_flags_from_form(request.form).items():
         setattr(c, col, value)
     db.session.commit()
     flash("تم التحديث", "success")

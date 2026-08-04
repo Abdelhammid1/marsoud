@@ -1,28 +1,41 @@
 #!/usr/bin/env python3
-"""MARSOUD-CATEGORY-VISIBILITY-01 (2026-08-04).
+"""MARSOUD-CATEGORY-VISIBILITY-01 (2026-08-04, pt 2 2026-08-05).
 
 Raw materials bought for manufacturing were showing up on the POS cashier
-screen. Visibility is now per CATEGORY, with four independent switches:
-POS, manufacturing, vendor bills, customer invoices.
+screen. Visibility is decided per module — POS, manufacturing, vendor
+bills, customer invoices.
+
+pt 2, from review: the decision lives on the GROUP and every category
+under it INHERITS, unless that category overrides — per module, not
+all-or-nothing. The category columns are a tri-state where NULL means
+"inherit"; resolution is COALESCE(category, group).
 
 The load-bearing checks are 3 (the barcode hole the ticket names by hand —
 hiding a category from the grid is worthless if the product is still
-scannable) and 2 (all switches on ⇒ byte-identical behaviour, which is how
-"nothing disappears on deploy" is guaranteed rather than hoped for).
+scannable), 2 (all switches on => byte-identical behaviour, which is how
+"nothing disappears on deploy" is guaranteed rather than hoped for), and
+13-15 (the inheritance contract).
 
 Checks, mapped to the ticket's acceptance criteria:
-  1.  The four columns exist, default True, nothing is hidden today  (AC4)
-  2.  All switches on ⇒ every entry point returns what it did before (AC4)
-  3.  Hide POS ⇒ gone from the grid, the tab, AND the barcode/SKU scan (AC1)
+  1.  Group columns NOT NULL, category columns nullable, nothing hidden (AC4)
+  2.  All switches on => every entry point returns what it did before  (AC4)
+  3.  Hide POS => gone from the grid, the tab, AND the barcode/SKU scan (AC1)
   4.  ...while still visible in manufacturing and vendor bills          (AC2)
   5.  A switch takes effect immediately, no cache                       (AC3)
   6.  The products catalog still lists everything                       (AC5)
   7.  A product with no category stays visible in all four
   8.  Hiding in one company does not affect another
-  9.  The category screen renders all four checkboxes
- 10.  Create saves the switches
- 11.  Edit saves them, INCLUDING unticking (the absent-field case)
+  9.  The category screen renders every control
+ 10.  A new category starts out inheriting
+ 11.  Edit saves the tri-state, including back to inherit
  12.  Every module in the registry is actually wired to a call site
+ 13.  A category with no opinion inherits its group          (pt 2)
+ 14.  An override beats the group, in both directions        (pt 2)
+ 15.  Override is per module, not per category               (pt 2)
+ 16.  The auto-save endpoint persists and reports resolution (pt 2)
+ 17.  An inheriting control shows the RESOLVED value         (pt 2)
+ 18.  The auto-save endpoint refuses a role without products.manage
+ 19.  The group form still saves without JS
 """
 import re
 import sys
@@ -37,6 +50,7 @@ CHECKS = []
 COMPANY_NAME = "__CAT_VIS_AUDIT__"
 OTHER_NAME = "__CAT_VIS_OTHER__"
 EMAIL = "cat-vis-audit@x.test"
+VIEWER_EMAIL = "cat-vis-viewer@x.test"
 _STATE = {}
 
 ALL_FLAGS = ("visible_in_pos", "visible_in_manufacturing",
@@ -158,7 +172,8 @@ def _setup():
     db.session.commit()
     _STATE.update(company_id=c.id, other_company_id=o.id,
                   warehouse_id=wh.id, vendor_id=vendor.id, user_id=u.id,
-                  group_id=grp.id, raw_cat_id=raw.id, sell_cat_id=sell.id,
+                  group_id=grp.id, other_group_id=ogrp.id,
+                  raw_cat_id=raw.id, sell_cat_id=sell.id,
                   other_cat_id=ocat.id,
                   raw_variant_id=raw_v.id, sell_variant_id=sell_v.id,
                   orphan_variant_id=orphan_v.id)
@@ -191,8 +206,8 @@ def _teardown_company(company_id):
                     {"c": company_id})
         conn.execute(text("DELETE FROM companies WHERE id = :c"),
                      {"c": company_id})
-        conn.execute(text("DELETE FROM users WHERE email = :e"),
-                     {"e": EMAIL})
+        conn.execute(text("DELETE FROM users WHERE email IN (:e, :v)"),
+                     {"e": EMAIL, "v": VIEWER_EMAIL})
         for t in ("stock_balances", "stock_movements", "stock_lots"):
             conn.execute(text(
                 f"DELETE FROM {t} WHERE variant_id NOT IN "
@@ -208,8 +223,18 @@ def _teardown():
 
 
 def _reset_g():
+    """Clear the per-context caches between test clients.
+
+    `_login_user` is the one that matters and the one that is easy to
+    miss: Flask-Login caches the resolved user on `g`, and every check in
+    this suite runs inside ONE app context, so without clearing it a
+    second client answers as the FIRST user who logged in. That silently
+    turns a permission check into a check of whoever ran before it —
+    exactly how a "bug" was nearly reported here that did not exist.
+    """
     from flask import g
-    for k in ("active_company", "_active_company", "active_company_id"):
+    for k in ("active_company", "_active_company", "active_company_id",
+              "_login_user"):
         if hasattr(g, k):
             try:
                 delattr(g, k)
@@ -237,18 +262,39 @@ def _set_flags(cat_id, **flags):
 
 
 def _reset_flags():
+    """Back to the shipped default: groups visible, categories inheriting.
+
+    pt 2 — a category's neutral state is NULL, not True. Resetting them to
+    True would make every check run against four explicit overrides and
+    quietly stop testing inheritance at all.
+    """
+    from app.models import ProductGroup
     for cid_ in (_STATE["raw_cat_id"], _STATE["sell_cat_id"],
                  _STATE["other_cat_id"]):
-        _set_flags(cid_, **{f: True for f in ALL_FLAGS})
+        _set_flags(cid_, **{f: None for f in ALL_FLAGS})
+    for gid in (_STATE["group_id"], _STATE["other_group_id"]):
+        grp = db.session.get(ProductGroup, gid)
+        for f in ALL_FLAGS:
+            setattr(grp, f, True)
+    db.session.commit()
 
 
 # ─── What each module actually returns ──────────────────────────────────
 def _pos_grid_skus():
-    """Every SKU the cashier grid would render."""
-    body = _client().get("/pos/").get_data(as_text=True)
+    """Every SKU the cashier grid would render.
+
+    The grid block only renders when at least one category is visible for
+    POS (`{% if categories %}` in register.html). With every category
+    hidden there is legitimately no grid, which is an EMPTY set — not a
+    parse failure. Conflating the two made a real check blow up with a
+    TypeError instead of asserting.
+    """
+    r = _client().get("/pos/")
+    assert r.status_code == 200, f"/pos/ returned {r.status_code}"
+    body = r.get_data(as_text=True)
     m = re.search(r"var data = (\{.*?\});", body, re.S)
     if not m:
-        return None, body
+        return set(), body
     import json
     data = json.loads(m.group(1))
     return {p["sku"] for items in data.values() for p in items}, body
@@ -276,24 +322,36 @@ def _bom_picker_skus():
 
 
 # ─── 1-2. defaults ──────────────────────────────────────────────────────
-@check("1. the four switches exist, default True, nothing hidden today")
+@check("1. the switches live on the GROUP; the category is a tri-state")
 def _():
-    from app.models import ProductCategory
-    cols = ProductCategory.__table__.c
+    """pt 2 — the decision moved up. The group always holds a real answer
+    (NOT NULL, it is where inheritance bottoms out); the category may hold
+    NULL, which is the only value that can mean "inherit"."""
+    from app.models import ProductCategory, ProductGroup
+    gcols = ProductGroup.__table__.c
+    ccols = ProductCategory.__table__.c
     for f in ALL_FLAGS:
-        assert f in cols, f"{f} missing from product_categories"
-        assert not cols[f].nullable, f"{f} must be NOT NULL"
-    # Every category in the WHOLE database — the real dev data, not just
-    # the fixture — must be visible everywhere. This is the ticket's
-    # "nothing disappeared after deploy" criterion.
-    from sqlalchemy import text, or_
-    hidden = db.session.query(ProductCategory).filter(or_(*[
-        getattr(ProductCategory, f).is_(False) for f in ALL_FLAGS
-    ])).count()
-    assert hidden == 0, \
-        f"{hidden} categories already have a switch off after migration"
-    total = db.session.query(ProductCategory).count()
-    return f"4 NOT NULL columns; all {total} categories visible everywhere"
+        assert f in gcols, f"{f} missing from product_groups"
+        assert not gcols[f].nullable, \
+            f"group.{f} must be NOT NULL — inheritance has to bottom out"
+        assert f in ccols, f"{f} missing from product_categories"
+        assert ccols[f].nullable, \
+            f"category.{f} must be NULLABLE — NULL is how 'inherit' is said"
+
+    # The whole database, not just the fixture: after the migration nothing
+    # may resolve to hidden. This is the original ticket's "nothing
+    # disappeared after deploy" criterion, re-proved through the change.
+    from sqlalchemy import or_
+    groups_off = db.session.query(ProductGroup).filter(or_(*[
+        getattr(ProductGroup, f).is_(False) for f in ALL_FLAGS])).count()
+    cats_off = db.session.query(ProductCategory).filter(or_(*[
+        getattr(ProductCategory, f).is_(False) for f in ALL_FLAGS])).count()
+    assert groups_off == 0, f"{groups_off} groups already have a switch off"
+    assert cats_off == 0, f"{cats_off} categories already override to hidden"
+    n_g = db.session.query(ProductGroup).count()
+    n_c = db.session.query(ProductCategory).count()
+    return (f"group NOT NULL, category nullable; {n_g} groups + {n_c} "
+            "categories all resolve visible")
 
 
 @check("2. all switches on ⇒ every entry point returns what it did before")
@@ -311,7 +369,6 @@ def _():
             f"{module}: a clause is applied even though nothing is "
             "hidden — the default path is not a no-op")
     grid, _ = _pos_grid_skus()
-    assert grid is not None, "could not parse the POS grid payload"
     assert {"RAW-1", "SELL-1"} <= grid, f"POS grid: {grid}"
     assert "قماش قطن" in _invoice_picker_names()
     assert {"RAW-1", "SELL-1"} <= _bill_picker_skus()
@@ -437,55 +494,267 @@ def _():
     return f"{len(MODULES)} checkboxes on edit + create"
 
 
-@check("10. creating a category saves the switches")
+@check("10. a new category starts out inheriting from its group")
 def _():
+    """pt 2 — the create form no longer offers the four switches: the group
+    already carries the decision, so a new category has nothing to choose."""
     from app.models import ProductCategory
     _client().post("/products/hierarchy/categories", data={
         "group_id": str(_STATE["group_id"]), "name": "فئة جديدة للاختبار",
-        # Only two ticked — the other two are simply absent, as a browser
-        # would send them.
-        "visible_in_manufacturing": "1", "visible_in_vendor_bills": "1",
     })
     c = ProductCategory.query.filter_by(
         company_id=_STATE["company_id"], name="فئة جديدة للاختبار").first()
     assert c is not None, "category was not created"
     try:
-        assert c.visible_in_manufacturing is True
-        assert c.visible_in_vendor_bills is True
-        assert c.visible_in_pos is False, "unticked POS was saved as True"
-        assert c.visible_in_customer_invoices is False
+        for f in ALL_FLAGS:
+            assert getattr(c, f) is None, \
+                f"{f} was set to {getattr(c, f)!r}; a new category inherits"
+        from app.services.category_visibility import effective_flag
+        assert effective_flag(c, "pos") == (True, True)
     finally:
         db.session.delete(c)
         db.session.commit()
-    return "ticked saved True, absent saved False"
+    return "all four NULL — inheriting, and resolving through the group"
 
 
-@check("11. editing saves the switches, including UNTICKING")
+@check("11. editing saves the tri-state, including back to inherit")
 def _():
     from app.models import ProductCategory
     _reset_flags()
     cat_id = _STATE["raw_cat_id"]
-    # Untick everything: a browser omits all four fields entirely.
-    _client().post(f"/products/hierarchy/categories/{cat_id}/edit",
-                   data={"name": "مواد خام"})
+    # A <select> always submits, so unlike the old checkboxes every field
+    # is present. Override two, leave two inheriting.
+    _client().post(f"/products/hierarchy/categories/{cat_id}/edit", data={
+        "name": "مواد خام",
+        "visible_in_pos": "0",
+        "visible_in_customer_invoices": "0",
+        "visible_in_manufacturing": "inherit",
+        "visible_in_vendor_bills": "inherit",
+    })
+    db.session.expire_all()
+    c = db.session.get(ProductCategory, cat_id)
+    assert c.visible_in_pos is False, "override-hide did not save"
+    assert c.visible_in_customer_invoices is False
+    assert c.visible_in_manufacturing is None, "'inherit' saved as a value"
+    assert c.visible_in_vendor_bills is None
+    assert c.name == "مواد خام", "the name was lost while saving switches"
+
+    # Back to inherit — the case a two-state control could never express.
+    _client().post(f"/products/hierarchy/categories/{cat_id}/edit", data={
+        "name": "مواد خام",
+        **{f: "inherit" for f in ALL_FLAGS},
+    })
     db.session.expire_all()
     c = db.session.get(ProductCategory, cat_id)
     for f in ALL_FLAGS:
-        assert getattr(c, f) is False, (
-            f"{f} stayed True after unticking — the route reads .get() "
-            "instead of presence, so a box can never be turned off")
-    # Tick two back on.
-    _client().post(f"/products/hierarchy/categories/{cat_id}/edit",
-                   data={"name": "مواد خام",
-                         "visible_in_manufacturing": "1",
-                         "visible_in_vendor_bills": "1"})
-    db.session.expire_all()
-    c = db.session.get(ProductCategory, cat_id)
-    assert c.visible_in_manufacturing is True
-    assert c.visible_in_pos is False
-    assert c.name == "مواد خام", "the name was lost while saving switches"
+        assert getattr(c, f) is None, f"{f} could not be returned to inherit"
     _reset_flags()
-    return "unticking persists; re-ticking persists; name preserved"
+    return "override and inherit both persist; name preserved"
+
+
+def _set_group(module_col, value):
+    from app.models import ProductGroup
+    grp = db.session.get(ProductGroup, _STATE["group_id"])
+    setattr(grp, module_col, value)
+    db.session.commit()
+
+
+@check("13. a category with no opinion INHERITS its group")
+def _():
+    _reset_flags()
+    # Group off ⇒ both categories under it go dark, without touching them.
+    _set_group("visible_in_customer_invoices", False)
+    names = _invoice_picker_names()
+    assert "قماش قطن" not in names, "inheriting category ignored its group"
+    assert "قميص جاهز" not in names, "the sibling ignored it too"
+    # ...and back on.
+    _set_group("visible_in_customer_invoices", True)
+    assert "قماش قطن" in _invoice_picker_names(), \
+        "turning the group back on did not restore its categories"
+    return "group flip moves every inheriting category with it"
+
+
+@check("14. a category override beats its group, in both directions")
+def _():
+    _reset_flags()
+    # Group OFF, one category overrides back ON.
+    _set_group("visible_in_customer_invoices", False)
+    _set_flags(_STATE["sell_cat_id"], visible_in_customer_invoices=True)
+    names = _invoice_picker_names()
+    assert "قميص جاهز" in names, "override-show lost to a group that is off"
+    assert "قماش قطن" not in names, "the inheriting sibling leaked through"
+
+    # Group ON, one category overrides OFF.
+    _set_group("visible_in_customer_invoices", True)
+    _set_flags(_STATE["sell_cat_id"], visible_in_customer_invoices=None)
+    _set_flags(_STATE["raw_cat_id"], visible_in_customer_invoices=False)
+    names = _invoice_picker_names()
+    assert "قماش قطن" not in names, "override-hide lost to a group that is on"
+    assert "قميص جاهز" in names, "the inheriting sibling was dragged down"
+    return "override wins over the group both ways"
+
+
+@check("15. override is PER MODULE — inherit one, override another")
+def _():
+    """The review asked for per-module override, not all-or-nothing: a
+    category can follow its group for POS while overriding invoices."""
+    _reset_flags()
+    _set_group("visible_in_pos", False)
+    _set_flags(_STATE["raw_cat_id"], visible_in_customer_invoices=False)
+    from app.services.category_visibility import effective_flag
+    from app.models import ProductCategory
+    cat = db.session.get(ProductCategory, _STATE["raw_cat_id"])
+    pos_val, pos_inh = effective_flag(cat, "pos")
+    inv_val, inv_inh = effective_flag(cat, "customer_invoices")
+    assert (pos_val, pos_inh) == (False, True), \
+        f"POS should be inherited-and-off, got {(pos_val, pos_inh)}"
+    assert (inv_val, inv_inh) == (False, False), \
+        f"invoices should be an explicit override, got {(inv_val, inv_inh)}"
+    # And the untouched modules still inherit ON.
+    assert effective_flag(cat, "manufacturing") == (True, True)
+    grid, _ = _pos_grid_skus()
+    assert "RAW-1" not in grid, "POS should follow the group here"
+    assert "RAW-1" in _bom_picker_skus(), "manufacturing was not touched"
+    return "POS inherited-off, invoices overridden-off, manufacturing on"
+
+
+@check("16. the auto-save endpoint persists, and is guarded")
+def _():
+    from app.models import ProductCategory, ProductGroup
+    _reset_flags()
+    c = _client()
+
+    # category → override to hidden
+    r = c.post("/products/hierarchy/visibility", json={
+        "level": "category", "id": _STATE["raw_cat_id"],
+        "module": "customer_invoices", "value": False})
+    assert r.status_code == 200, f"category save returned {r.status_code}"
+    body = r.get_json()
+    assert body["value"] is False and body["inherited"] is False, body
+    db.session.expire_all()
+    assert db.session.get(
+        ProductCategory, _STATE["raw_cat_id"]).visible_in_customer_invoices is False
+
+    # category → back to inherit
+    r = c.post("/products/hierarchy/visibility", json={
+        "level": "category", "id": _STATE["raw_cat_id"],
+        "module": "customer_invoices", "value": None})
+    assert r.get_json()["inherited"] is True, r.get_json()
+    db.session.expire_all()
+    assert db.session.get(
+        ProductCategory, _STATE["raw_cat_id"]).visible_in_customer_invoices is None
+
+    # group → off, and the reply reports every category's new resolution
+    r = c.post("/products/hierarchy/visibility", json={
+        "level": "group", "id": _STATE["group_id"],
+        "module": "pos", "value": False})
+    body = r.get_json()
+    assert body["group_value"] is False, body
+    assert body["categories"][str(_STATE["raw_cat_id"])] is False, body
+    db.session.expire_all()
+    assert db.session.get(ProductGroup, _STATE["group_id"]).visible_in_pos is False
+
+    # a bad module is refused, not silently ignored
+    assert c.post("/products/hierarchy/visibility", json={
+        "level": "category", "id": _STATE["raw_cat_id"],
+        "module": "nope", "value": False}).status_code == 400
+    # cross-tenant
+    assert c.post("/products/hierarchy/visibility", json={
+        "level": "category", "id": _STATE["other_cat_id"],
+        "module": "pos", "value": False}).status_code == 404
+    _reset_flags()
+    return "saves both levels, reports resolution, refuses bad input"
+
+
+@check("17. the screen shows the RESOLVED value on an inheriting control")
+def _():
+    _reset_flags()
+    body = _client().get("/products/hierarchy").get_data(as_text=True)
+    assert "وراثة (ظاهرة)" in body, "inheriting control does not show its value"
+    assert body.count('data-vis-level="group"') == len(ALL_FLAGS), \
+        "the group is missing its switches"
+    _set_group("visible_in_pos", False)
+    body = _client().get("/products/hierarchy").get_data(as_text=True)
+    assert "وراثة (مخفية)" in body, \
+        "an inheriting control still claims visible after the group went off"
+    _reset_flags()
+    return "«وراثة» reports the effective answer, both ways"
+
+
+@check("18. the auto-save endpoint refuses a role without products.manage")
+def _():
+    """The endpoint writes settings that hide products from the cashier, so
+    it needs the same gate as the screen it serves. Uses a viewer — a real
+    role that can see the app but not manage products."""
+    from app.models import User, UserStatus, ProductGroup
+    from app.models.user import user_companies
+    from app.services.legal import get_terms_version
+    from werkzeug.security import generate_password_hash
+    from datetime import datetime as _dt
+
+    _reset_flags()
+    v = User(email=VIEWER_EMAIL,
+             password_hash=generate_password_hash("x", method="pbkdf2:sha256"),
+             full_name="CatVis Viewer", is_active=True,
+             status=UserStatus.ACTIVE.value,
+             terms_version=get_terms_version(),
+             terms_accepted_at=_dt.utcnow())
+    db.session.add(v)
+    db.session.flush()
+    db.session.execute(user_companies.insert().values(
+        user_id=v.id, company_id=_STATE["company_id"], role="viewer"))
+    db.session.commit()
+    try:
+        _reset_g()
+        c = _STATE["app"].test_client()
+        with c.session_transaction() as s:
+            s["_user_id"] = str(v.id)
+            s["_fresh"] = True
+            s["active_company_id"] = _STATE["company_id"]
+        r = c.post("/products/hierarchy/visibility", json={
+            "level": "group", "id": _STATE["group_id"],
+            "module": "pos", "value": False})
+        assert r.status_code != 200, \
+            "a viewer was allowed to change product visibility"
+        db.session.expire_all()
+        assert db.session.get(
+            ProductGroup, _STATE["group_id"]).visible_in_pos is True, \
+            "the refused request still wrote to the group"
+    finally:
+        db.session.execute(
+            db.text("DELETE FROM user_companies WHERE user_id = :u"),
+            {"u": v.id})
+        db.session.execute(db.text("DELETE FROM users WHERE email = :e"),
+                            {"e": VIEWER_EMAIL})
+        db.session.commit()
+        _reset_g()
+    return "viewer refused, nothing written"
+
+
+@check("19. the group form still saves without JS (checkbox presence)")
+def _():
+    """The auto-save endpoint is the normal path, but the form must keep
+    working on its own — and an unticked checkbox is not submitted at all,
+    so this is the case a `.get()` read could never turn off."""
+    from app.models import ProductGroup
+    _reset_flags()
+    gid = _STATE["group_id"]
+    r = _client().post(f"/products/hierarchy/groups/{gid}/edit", data={
+        "name": "مجموعة الاختبار",
+        "visible_in_manufacturing": "1", "visible_in_vendor_bills": "1",
+    })
+    assert r.status_code in (301, 302), f"form POST returned {r.status_code}"
+    assert "hierarchy" in r.headers.get("Location", ""), \
+        f"bounced to {r.headers.get('Location')!r} — the owner was refused"
+    db.session.expire_all()
+    grp = db.session.get(ProductGroup, gid)
+    assert grp.visible_in_manufacturing is True
+    assert grp.visible_in_vendor_bills is True
+    assert grp.visible_in_pos is False, "unticked POS was not turned off"
+    assert grp.visible_in_customer_invoices is False
+    assert grp.name == "مجموعة الاختبار", "the name was lost"
+    _reset_flags()
+    return "ticked saved, unticked cleared, name preserved"
 
 
 @check("12. every module in the registry is wired to a real call site")
