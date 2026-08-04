@@ -274,6 +274,57 @@ def _():
     return "derived 10 / 20 kept; posted 8888 / 9999 ignored"
 
 
+@check("10. a product created before this ticket edits without damage")
+def _():
+    # Every product already in production is a "legacy" one: pack
+    # columns NULL, per-piece values typed directly, possibly a pack
+    # unit left with no sale_price. Backfilling them is out of scope,
+    # so the least this must do is open and re-save without zeroing a
+    # price or losing a unit.
+    from app.models import Product, ProductVariant
+    from app.services.units import ensure_base_unit, create_unit
+    cid = _STATE["cid"]
+    p = Product(company_id=cid, name="منتج قديم", is_tracked=True,
+                sku="LEGACY-1", category_id=_STATE["cat_id"],
+                default_price=3)
+    db.session.add(p)
+    db.session.flush()
+    v = ProductVariant(company_id=cid, product_id=p.id, sku="LEGACY-1",
+                       name="", unit_cost=2.5)
+    db.session.add(v)
+    db.session.flush()
+    ensure_base_unit(p)
+    create_unit(p, unit_name="كرتونة", conversion_factor=24, sale_price=None)
+    db.session.commit()
+    pid = p.id
+    assert p.pack_pieces in (None, 1) and p.pack_purchase_price is None
+
+    body = _client().get(f"/products/{pid}/edit").get_data(as_text=True)
+    assert "pack_sale_price" in body, "edit page failed to render a legacy product"
+    m = re.search(r'name="pack_sale_price"[^>]*value="([^"]*)"', body)
+    assert m and abs(float(m.group(1)) - 3.0) < 1e-6, \
+        f"legacy sale price prefilled as {m and m.group(1)}, expected 3.0"
+
+    before_units = {u.unit_name: float(u.conversion_factor) for u in p.units}
+    r = _client().post(f"/products/{pid}/edit", data={
+        "name": "منتج قديم", "category_id": str(_STATE["cat_id"]),
+        "is_active": "on", "pieces_per_pack": "1",
+        "pack_purchase_price": "2.5", "pack_sale_price": "3.0",
+        "pack_unit_name": "كرتونة",
+    }, follow_redirects=True)
+    assert r.status_code == 200
+    db.session.expire_all()
+    p = db.session.get(Product, pid)
+    assert abs(float(p.default_price) - 3.0) < 1e-6, \
+        f"legacy price changed to {p.default_price}"
+    assert abs(float(p.default_variant.unit_cost) - 2.5) < 1e-6, \
+        f"legacy cost changed to {p.default_variant.unit_cost}"
+    after_units = {u.unit_name: float(u.conversion_factor) for u in p.units}
+    assert after_units == before_units, \
+        f"units changed: {before_units} → {after_units}"
+    return "opens, prefills 3.0, re-saves with price/cost/units intact"
+
+
 @check("9. a box name colliding with the base unit is rejected")
 def _():
     # Carried over from audit_product_pack_pricing.py check 5 (the one
