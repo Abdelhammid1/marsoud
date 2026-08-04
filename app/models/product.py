@@ -18,6 +18,20 @@ class ProductGroup(db.Model):
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # MARSOUD-CATEGORY-VISIBILITY-01 pt 2 (2026-08-04) — the decision lives
+    # HERE, and every category under this group inherits it unless it
+    # overrides. Raw materials are usually a whole group, so setting it once
+    # covers everything beneath instead of repeating four choices per
+    # category. Always a real answer (NOT NULL) — the group is where
+    # inheritance bottoms out.
+    visible_in_pos = db.Column(db.Boolean, default=True, nullable=False)
+    visible_in_manufacturing = db.Column(db.Boolean, default=True,
+                                          nullable=False)
+    visible_in_vendor_bills = db.Column(db.Boolean, default=True,
+                                         nullable=False)
+    visible_in_customer_invoices = db.Column(db.Boolean, default=True,
+                                              nullable=False)
+
     company = db.relationship("Company")
     categories = db.relationship(
         "ProductCategory", back_populates="group",
@@ -44,26 +58,30 @@ class ProductCategory(db.Model):
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # MARSOUD-CATEGORY-VISIBILITY-01 (2026-08-04) — which operational
-    # modules the products in this category show up in. Raw materials are
-    # bought and consumed but never sold, and they were appearing on the
-    # cashier screen because visibility was all-or-nothing.
+    # MARSOUD-CATEGORY-VISIBILITY-01 — which operational modules the products
+    # in this category show up in. Raw materials are bought and consumed but
+    # never sold, and they were appearing on the cashier screen because
+    # visibility was all-or-nothing.
     #
-    # All four default to True: a category that existed before this
-    # migration keeps showing everywhere it already showed. The filter
-    # helper treats "no category has a flag off" as a no-op, so the
-    # default state is not just equivalent to the old behaviour, it runs
-    # the identical query. See app/services/category_visibility.py.
+    # pt 2 (2026-08-04) — these are now a TRI-STATE, because the decision
+    # moved up to the group:
+    #
+    #     NULL   inherit from my group   ← the default for every category
+    #     True   override: show
+    #     False  override: hide
+    #
+    # NULL is the whole mechanism. It is the only value that can mean "no
+    # opinion", and it needs no second `overrides_visibility` column that
+    # could drift out of sync with the values it guards. Resolution is
+    # COALESCE(category, group) and lives in one place —
+    # app/services/category_visibility.py.
     #
     # The catalog screen (products.index) is deliberately NOT gated by
     # these — an admin must always see every product they own.
-    visible_in_pos = db.Column(db.Boolean, default=True, nullable=False)
-    visible_in_manufacturing = db.Column(db.Boolean, default=True,
-                                          nullable=False)
-    visible_in_vendor_bills = db.Column(db.Boolean, default=True,
-                                         nullable=False)
-    visible_in_customer_invoices = db.Column(db.Boolean, default=True,
-                                              nullable=False)
+    visible_in_pos = db.Column(db.Boolean, nullable=True)
+    visible_in_manufacturing = db.Column(db.Boolean, nullable=True)
+    visible_in_vendor_bills = db.Column(db.Boolean, nullable=True)
+    visible_in_customer_invoices = db.Column(db.Boolean, nullable=True)
 
     company = db.relationship("Company")
     group = db.relationship("ProductGroup", back_populates="categories")

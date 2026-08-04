@@ -135,9 +135,33 @@ def _setup():
                             name="زميل", job_title="مبرمج"))
     users["other"] = other.id
 
+    # MARSOUD-PERMISSION-BOUNCE — one row of real business data.
+    #
+    # Without it every list page renders its empty state, so the D-checks
+    # never follow a single DETAIL link and never see the action buttons
+    # that live there. That blind spot is why D6 missed
+    # customers/view.html's «✎ تعديل» — an ungated link to a
+    # partners.manage route — which had to be found by reading the
+    # template instead. A crawl over empty tables only proves the empty
+    # states are healthy.
+    from datetime import date as _date
+    from app.models import Customer, Lead, Project
+    cust = Customer(company_id=co.id, name="عميل التدقيق")
+    db.session.add(cust)
+    db.session.flush()
+    db.session.add(Lead(
+        company_id=co.id, client_name="عميل محتمل للتدقيق",
+        phone="0100000000", service_needed="اختبار",
+        assigned_to_id=users["sales_rep"]))
+    db.session.add(Project(
+        company_id=co.id, name="مشروع التدقيق", customer_id=cust.id,
+        type="OTHER", manager_id=users["project_manager"],
+        start_date=_date.today(), end_date=_date.today()))
+
     db.session.commit()
     _STATE["company_id"] = co.id
     _STATE["plan_id"] = plan.id
+    _STATE["customer_id"] = cust.id
     _STATE["users"] = users
 
 
@@ -367,6 +391,103 @@ def _():
         report.append(f"{role}:{len(links)}")
     assert not bad_total, f"dead links per role: {bad_total}"
     return "links checked → " + ", ".join(report)
+
+
+PERMISSION_FLASH = "ليس لديك صلاحية لهذا الإجراء"
+
+
+@check("D6. no rendered link bounces a role with the permission flash")
+def _():
+    """The bug class D1/D2 are structurally blind to.
+
+    A route guarded by @require_permission does not 403 — it flashes
+    «ليس لديك صلاحية لهذا الإجراء» and redirects to /home
+    (services/permissions.py:417). D1/D2 crawl with follow_redirects=True,
+    land on the dashboard, see 200, and call the link healthy. A sales rep
+    reported exactly this: /customers/ rendered «+ عميل جديد» with no
+    guard, pointing at a route needing partners.manage, so every click
+    bounced them to the dashboard under a red banner.
+
+    D1/D2 also only crawl the LANDING page. This bug lived one page
+    deeper — the dashboard never links to the customers page's buttons —
+    so this check goes two levels: the landing, then every page it
+    reaches, then the links on THOSE pages.
+
+    Detection is on the flash text, not the status code, and each request
+    follows redirects so the flash is consumed immediately and cannot be
+    misattributed to a later link.
+    """
+    PER_ROLE_CAP = 260          # keep the suite usable
+    DEPTH = 3                   # sidebar → list → detail → its buttons
+
+    def _html(resp):
+        """Body as text, or None when the response isn't HTML.
+
+        Some crawled links are downloads — barcode PNGs, xlsx/pdf exports
+        — and decoding those as utf-8 raises. A binary response cannot be
+        carrying a flash anyway.
+        """
+        if "html" not in (resp.mimetype or ""):
+            return None
+        try:
+            return resp.get_data(as_text=True)
+        except (UnicodeDecodeError, ValueError):
+            return None
+
+    offenders = {}
+    report = []
+    total_pages = 0
+    for role in ALL_SIDEBAR_ROLES:
+        c = _client_for(role)
+        r = c.get(_landing_for(role), follow_redirects=True)
+        landing = _html(r)
+        # A broken landing must FAIL, not be skipped. The first version of
+        # this check treated a non-200 as "nothing to crawl" and reported
+        # a clean pass while every role was 500ing on a template error.
+        assert r.status_code == 200 and landing is not None, (
+            f"{role}: landing {_landing_for(role)} returned "
+            f"{r.status_code} — cannot crawl, and a broken landing is "
+            "itself a failure")
+
+        # Breadth-first to DEPTH, testing every page as it is visited.
+        #
+        # Depth 3 is not arbitrary. The action buttons that carry their own
+        # permission live on DETAIL pages, and a detail page is already two
+        # hops away: sidebar → /customers/ → /customers/<id> → «✎ تعديل».
+        # A two-level crawl reaches the detail page but never opens its
+        # buttons, which is exactly how the customers edit link stayed
+        # hidden from this check until it was found by reading the template.
+        seen = set()
+        frontier = _hrefs(landing)
+        bad = []
+        for _depth in range(DEPTH):
+            nxt = []
+            for url in frontier:
+                if url in seen or len(seen) >= PER_ROLE_CAP:
+                    continue
+                seen.add(url)
+                body = _html(c.get(url, follow_redirects=True))
+                if body is None:
+                    continue
+                if PERMISSION_FLASH in body:
+                    bad.append(url)
+                    continue        # denied: nothing useful to crawl on /home
+                nxt.extend(h for h in _hrefs(body) if h not in seen)
+            frontier = nxt
+            if not frontier:
+                break
+        if bad:
+            offenders[role] = sorted(set(bad))
+        total_pages += len(seen)
+        report.append(f"{role}:{len(seen)}")
+
+    assert not offenders, (
+        "these links are rendered to a role that cannot open them — each "
+        "one bounces to the dashboard under a red permission banner:\n"
+        + "\n".join(f"        {role} → {', '.join(urls)}"
+                    for role, urls in sorted(offenders.items())))
+    return (f"depth-{DEPTH} crawl, {total_pages} pages, 0 permission "
+            "bounces → " + ", ".join(report))
 
 
 @check("D3. employee sidebar shows the portal links, not the owner sidebar")

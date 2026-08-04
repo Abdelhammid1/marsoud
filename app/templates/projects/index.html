@@ -65,7 +65,11 @@
         <td class="text-xs font-mono whitespace-nowrap">{{ p.start_date.isoformat() }} → {{ p.end_date.isoformat() }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="7" class="text-center text-slate-400 py-6">لا توجد مشاريع. حوّل عميلاً محتملاً من <a href="{{ url_for('leads.index') }}" class="text-brand-600 hover:underline">الـ CRM</a> أو أنشئ مشروعاً مباشرة.</td></tr>
+      {# MARSOUD-PERMISSION-BOUNCE — project_manager and team_member reach
+         this page but hold no leads.view, so the CRM suggestion bounced
+         them to the dashboard under a red banner. Offer it only to someone
+         who can follow it; the empty state still reads correctly without. #}
+      <tr><td colspan="7" class="text-center text-slate-400 py-6">لا توجد مشاريع.{% if has_permission('leads.view') %} حوّل عميلاً محتملاً من <a href="{{ url_for('leads.index') }}" class="text-brand-600 hover:underline">الـ CRM</a> أو أنشئ مشروعاً مباشرة.{% else %} أنشئ مشروعاً جديداً للبدء.{% endif %}</td></tr>
     {% endfor %}
     </tbody>
   </table>

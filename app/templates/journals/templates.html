@@ -7,7 +7,9 @@
       <h2 class="font-bold text-navy-900">قوالب القيود</h2>
       <p class="text-sm text-slate-500 mt-1">قوالب جاهزة للقيود اللي بتتكرر بنفس الحسابات</p>
     </div>
+    {% if has_permission('journals.create') %}
     <a href="{{ url_for('journals.templates_new') }}" class="btn-primary">+ قالب جديد</a>
+    {% endif %}
   </div>
   <table class="data-table">
     <thead><tr><th>الاسم</th><th>الوصف</th><th>عدد السطور</th><th></th></tr></thead>

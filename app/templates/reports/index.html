@@ -58,13 +58,25 @@
     ('profitability', 'تقرير الربحية', 'Profitability Report', 'ربحية المنتجات والعملاء — إيراد − تكلفة البضاعة المباعة', '💰'),
     ('cashier_sales', 'مبيعات الكاشيرز', 'Cashier Sales Report', 'مبيعات كل كاشير + الوردية — من نقطة البيع', '🧑‍💻'),
   ] %}
+  {# MARSOUD-PERMISSION-BOUNCE — most reports ride on the financial-role
+     gate, but these two carry their own @require_permission. The cards
+     were rendered unconditionally, so an accountant or ceo clicking them
+     got «ليس لديك صلاحية لهذا الإجراء» and was bounced to the dashboard.
+     A card is only shown when its own permission allows it. #}
+  {% set report_perm = {
+    'vendor_sub_categories': 'vendor_bills.create',
+    'metric_logs': 'users.manage',
+  } %}
   {% for endpoint, title_ar, title_en, desc, icon in modules %}
+  {% set _need = report_perm.get(endpoint) %}
+  {% if not _need or has_permission(_need) %}
   <a href="{{ url_for('reports.' + endpoint) }}" class="card p-6 hover:shadow-soft hover:-translate-y-0.5 transition-all border-2 border-transparent hover:border-brand-500">
     <div class="text-4xl mb-3">{{ icon }}</div>
     <h3 class="font-bold text-navy-900">{{ title_ar }}</h3>
     <p class="text-sm text-slate-500 mb-2">{{ title_en }}</p>
     <p class="text-xs text-slate-600">{{ desc }}</p>
   </a>
+  {% endif %}
   {% endfor %}
 </div>
 {% endblock %}
