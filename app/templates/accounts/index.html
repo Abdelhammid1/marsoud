@@ -7,7 +7,9 @@
       <h2 class="font-bold text-navy-900">شجرة الحسابات</h2>
       <p class="text-sm text-slate-500 mt-1">إجمالي {{ accounts|length }} حساب</p>
     </div>
+    {% if has_permission('accounts.manage') %}
     <a href="{{ url_for('accounts.new') }}" class="btn-primary">+ حساب جديد</a>
+    {% endif %}
   </div>
 
   <table class="data-table">

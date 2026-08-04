@@ -88,7 +88,9 @@
       <a href="{{ url_for('journals.export_filtered', fmt='pdf', **request.args) }}" class="btn-secondary text-sm">📄 PDF</a>
       <a href="{{ url_for('journals.templates_list') }}" class="btn-secondary text-sm">📋 القوالب</a>
       <a href="{{ url_for('journals.recurring_list') }}" class="btn-secondary text-sm">🔁 متكررة</a>
+      {% if has_permission('journals.create') %}
       <a href="{{ url_for('journals.new') }}" class="btn-primary text-sm">+ قيد جديد</a>
+      {% endif %}
     </div>
   </form>
 </div>

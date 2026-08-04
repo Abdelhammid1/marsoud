@@ -20,7 +20,9 @@
       <div class="flex items-center gap-2 flex-wrap shrink-0">
         <span class="badge {{ lead.status.badge_class }} text-base px-3 py-1.5">{{ lead.status.label_ar }}</span>
         {% if not lead.is_converted %}
+        {% if has_permission('leads.manage') %}
         <a href="{{ url_for('leads.edit', lead_id=lead.id) }}" class="btn-secondary text-sm">✎ تعديل</a>
+        {% endif %}
         {% endif %}
         {% if has_permission('leads.delete') and not lead.is_converted %}
         <form method="POST" action="{{ url_for('leads.delete', lead_id=lead.id) }}" class="inline"

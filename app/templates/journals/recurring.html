@@ -7,7 +7,9 @@
       <h2 class="font-bold text-navy-900">القيود المتكررة</h2>
       <p class="text-sm text-slate-500 mt-1">جداول تعمل تلقائياً عند هبوط cron tick — تستدرك جميع الفترات المفقودة دفعة واحدة</p>
     </div>
+    {% if has_permission('journals.recurring') %}
     <a href="{{ url_for('journals.recurring_new') }}" class="btn-primary">+ جدول تلقائي</a>
+    {% endif %}
   </div>
   <table class="data-table">
     <thead><tr><th>الاسم</th><th>القالب</th><th>التكرار</th><th>التشغيل القادم</th><th>الحالة</th><th>الإجراءات</th></tr></thead>

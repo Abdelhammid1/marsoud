@@ -29,7 +29,9 @@
        class="btn-secondary text-sm" title="تصدير Excel مقسّم حسب الحملة">
       🗂 تصدير حسب الحملة
     </a>
+    {% if has_permission('leads.manage') %}
     <a href="{{ url_for('leads.new') }}" class="btn-primary text-sm">+ عميل محتمل جديد</a>
+    {% endif %}
   </div>
 </div>
 

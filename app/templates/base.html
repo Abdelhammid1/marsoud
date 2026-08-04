@@ -659,7 +659,19 @@ tailwind.config = {
 
          MARSOUD-DASH-SHELL — every new nav row needs an entry here too: a
          missing one leaves `req` as None, which shows the link to every
-         logged-in user, including roles the route then 403s. #}
+         logged-in user, including roles the route then 403s.
+
+         MARSOUD-PERMISSION-BOUNCE (2026-08-04) — four rows were missing
+         exactly that entry (evaluations.index, evaluations.logs_index,
+         reports.metric_logs, reports.vendor_sub_categories). They rendered
+         for everyone; the route then refused with «ليس لديك صلاحية لهذا
+         الإجراء» and bounced the user to the dashboard, where the red
+         banner appeared over a page that had done nothing wrong. Each is
+         now mapped to the permission its route actually demands.
+
+         NB: no Jinja comment inside the dict literal below — a comment
+         cannot be parsed inside an expression and it 500s every
+         authenticated page. #}
       {% set permission_map = {
         'dashboard.index': None,
         'accounts.index': 'accounts.manage',
@@ -718,6 +730,10 @@ tailwind.config = {
         'companies.edit': 'users.manage',
         'settings_roles.index': 'users.manage',
         'settings_api_tokens.index': 'api_tokens.manage',
+        'evaluations.index': 'evaluations.manage',
+        'evaluations.logs_index': 'evaluations.manage',
+        'reports.metric_logs': 'users.manage',
+        'reports.vendor_sub_categories': 'vendor_bills.create',
         'tasks.archive_list': 'tasks.archive',
         'settings_activity.index': 'activity_log.view',
         'settings_backup.index': 'backup.download',

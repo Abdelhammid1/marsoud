@@ -18,7 +18,7 @@ bp = Blueprint("settings_api_tokens", __name__)
 
 @bp.route("/", methods=["GET"])
 @login_required
-@require_permission("users.manage")
+@require_permission("api_tokens.manage")
 def index():
     raw_token = request.args.get("show_raw")    # passed once after create
     raw_token_name = request.args.get("name")
@@ -36,7 +36,7 @@ def index():
 
 @bp.route("/new", methods=["POST"])
 @login_required
-@require_permission("users.manage")
+@require_permission("api_tokens.manage")
 def create():
     name = (request.form.get("name") or "").strip()
     if not name:
@@ -57,7 +57,7 @@ def create():
 
 @bp.route("/<int:token_id>/revoke", methods=["POST"])
 @login_required
-@require_permission("users.manage")
+@require_permission("api_tokens.manage")
 def revoke(token_id):
     tok = db.session.get(ApiToken, token_id)
     if not tok or tok.user_id != current_user.id:

@@ -4,7 +4,14 @@
 <div class="card p-6 max-w-3xl">
   {% if not customers %}
   <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-sm">
-    لا يوجد عملاء بعد — أنشئ <a href="{{ url_for('customers.index') }}" class="text-brand-600 font-bold hover:underline">عميل جديد</a> أو حوّل عميلاً محتملاً من الـ <a href="{{ url_for('leads.index') }}" class="text-brand-600 font-bold hover:underline">CRM</a>.
+    {# MARSOUD-PERMISSION-BOUNCE — a project_manager or team_member can open
+       this form but holds neither customers.view nor leads.view, so both
+       suggestions bounced them to the dashboard under a red banner. Each
+       half is offered only to someone who can actually follow it, and the
+       sentence still reads correctly with either or neither present. #}
+    لا يوجد عملاء بعد
+    {%- if has_permission('customers.view') %} — أنشئ <a href="{{ url_for('customers.index') }}" class="text-brand-600 font-bold hover:underline">عميل جديد</a>{% endif %}
+    {%- if has_permission('leads.view') %}{% if has_permission('customers.view') %} أو{% else %} —{% endif %} حوّل عميلاً محتملاً من الـ <a href="{{ url_for('leads.index') }}" class="text-brand-600 font-bold hover:underline">CRM</a>{% endif %}.
   </div>
   {% endif %}
   <form method="POST" class="space-y-4">

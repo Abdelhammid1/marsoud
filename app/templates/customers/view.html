@@ -16,7 +16,11 @@
       <tbody>
       {% for p in customer_projects %}
         <tr>
-          <td><a href="{{ url_for('projects.detail', project_id=p.id) }}" class="font-semibold hover:text-brand-600">{{ p.name }}</a></td>
+          {# MARSOUD-PERMISSION-BOUNCE — accountant and viewer see a
+             customer's projects here but hold no projects.view, so the name
+             bounced them to the dashboard. Show the name either way; make it
+             a link only for someone who can open it. #}
+          <td>{% if has_permission('projects.view') %}<a href="{{ url_for('projects.detail', project_id=p.id) }}" class="font-semibold hover:text-brand-600">{{ p.name }}</a>{% else %}<span class="font-semibold">{{ p.name }}</span>{% endif %}</td>
           <td class="text-sm text-slate-500">{{ p.type }}</td>
           <td><span class="badge {{ p.status.badge_class }}">{{ p.status.label_ar }}</span></td>
           <td class="w-32">
@@ -170,7 +174,9 @@
   <div class="card p-6">
     <div class="flex items-center justify-between mb-3">
       <h3 class="font-bold text-navy-900">بيانات العميل</h3>
+      {% if has_permission('partners.manage') %}
       <a href="{{ url_for('customers.edit', customer_id=customer.id) }}" class="text-xs text-emerald-700 hover:underline">✎ تعديل</a>
+      {% endif %}
     </div>
     <div class="space-y-2 text-sm">
       <div><span class="text-slate-500">البريد:</span> <span dir="ltr">{{ customer.email or '—' }}</span></div>
