@@ -101,7 +101,7 @@ class ProductVariant(db.Model):
         if bal:
             return bal
         return StockBalance(variant_id=self.id, warehouse_id=warehouse.id,
-                            qty=0, value=0)
+                            company_id=self.company_id, qty=0, value=0)
 
     @property
     def total_qty(self):
@@ -142,8 +142,25 @@ class StockBalance(db.Model):
                            db.ForeignKey("product_variants.id",
                                          ondelete="CASCADE"),
                            primary_key=True)
-    warehouse_id = db.Column(db.Integer, db.ForeignKey("warehouses.id"),
+    warehouse_id = db.Column(db.Integer,
+                             db.ForeignKey("warehouses.id",
+                                           ondelete="CASCADE"),
                              primary_key=True)
+    # MARSOUD-STOCK-BALANCE-CASCADE (2026-08-04) — this table was the one
+    # inventory table without a company_id, and hard_delete_company()
+    # deletes company data by walking every table that HAS that column
+    # (services/lifecycle.py). So the purge wiped product_variants and
+    # warehouses and skipped this table entirely, orphaning every row on
+    # both FKs at once. The variant_id CASCADE was no help: SQLite does
+    # not enforce foreign keys without PRAGMA foreign_keys=ON, which this
+    # app never sets, and warehouse_id had no ondelete at all.
+    #
+    # Same fix as migration a6c9f2e5b8d1 applied to the invoice children
+    # for the identical bug.
+    company_id = db.Column(db.Integer,
+                           db.ForeignKey("companies.id",
+                                         ondelete="CASCADE"),
+                           nullable=False, index=True)
     qty = db.Column(db.Numeric(15, 2), default=0, nullable=False)
     value = db.Column(db.Numeric(15, 4), default=0, nullable=False)
     # MARSOUD-DUAL-UOM-WEIGHT-01 (Abdelhamid 2026-07-24) — parallel

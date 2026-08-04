@@ -36,6 +36,13 @@ ORPHAN_QUERIES = (
     ("stock_balances",
      "DELETE FROM stock_balances WHERE variant_id NOT IN "
      "(SELECT id FROM product_variants)"),
+    # MARSOUD-STOCK-BALANCE-CASCADE (2026-08-04) — the warehouse half.
+    # stock_balances has two FKs and only the variant one was ever swept,
+    # so a balance whose WAREHOUSE was deleted stayed invisible forever.
+    # hard_delete_company deleted warehouses and left these behind.
+    ("stock_balances_warehouse",
+     "DELETE FROM stock_balances WHERE warehouse_id NOT IN "
+     "(SELECT id FROM warehouses)"),
     ("stock_movements",
      "DELETE FROM stock_movements WHERE variant_id NOT IN "
      "(SELECT id FROM product_variants)"),

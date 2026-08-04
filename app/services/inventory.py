@@ -61,9 +61,15 @@ def _lock_balance(variant_id, warehouse_id):
     # under our SQLite dev DB; on Postgres an INSERT … ON CONFLICT DO
     # NOTHING would be slightly nicer but the current SQLAlchemy-level
     # insert + flush works because every caller is already inside a tx.
+    # company_id is denormalized onto the balance row so a company purge
+    # can find it — see the note on the column in models/inventory.py.
+    # Taken from the variant, which is the row's real owner.
+    variant = db.session.get(ProductVariant, variant_id)
+    if variant is None:
+        raise InventoryError("الصنف غير موجود")
     bal = StockBalance(
         variant_id=variant_id, warehouse_id=warehouse_id,
-        qty=0, value=0,
+        company_id=variant.company_id, qty=0, value=0,
     )
     db.session.add(bal)
     db.session.flush()
