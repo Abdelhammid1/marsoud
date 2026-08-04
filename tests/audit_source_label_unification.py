@@ -417,6 +417,23 @@ def _():
     return " · ".join(f"{s}→{_SOURCE_TYPES[s][0]}" for s in NEWLY_COVERED)
 
 
+@check("8b. NO label in the map contains Latin text, DB or no DB")
+def _():
+    """Check 9 only sees source_types that happen to exist in the DB it
+    is run against, so a label with an English acronym hides on any
+    environment where that type has never been posted. `pos_void`
+    ("إلغاء عملية POS") and `pos_sale` ("بيع POS") slipped through
+    exactly that way and only surfaced on a database that had POS
+    activity. Sweep the whole map instead."""
+    from app.services.source_reference import _SOURCE_TYPES
+    latin = {st: label for st, (label, _e, _k) in _SOURCE_TYPES.items()
+             if re.search(r"[A-Za-z]", label)}
+    assert not latin, (
+        "these labels show Latin text to an Arabic-speaking user: "
+        + ", ".join(f"{k}={v!r}" for k, v in sorted(latin.items())))
+    return f"all {len(_SOURCE_TYPES)} labels are Arabic-only"
+
+
 @check("9. DB coverage: every source_type in the DB renders in Arabic")
 def _():
     """Acceptance criterion 3 — the full sweep. Every distinct
@@ -437,17 +454,33 @@ def _():
     if not found:
         return "skipped: no source_type rows in DB"
 
-    def _english(label, st):
-        # A label that still contains the raw key, or any latin letters
-        # at all, is English leaking to the user. "بيع POS" is the one
-        # legitimate exception in the map.
-        return label == st or (re.search(r"[A-Za-z]", label)
-                               and label != "بيع POS")
-
     from app.services.source_reference import (
-        resolve_reference, build_reference_map,
+        resolve_reference, build_reference_map, _SOURCE_TYPES,
+        UNKNOWN_LABEL,
     )
-    english = []
+
+    def _fault(label, st):
+        """Why this label is not acceptable, or None.
+
+        The two failure modes are different problems with different
+        fixes, and an earlier version of this check reported both as
+        "renders as English". A reviewer read that as "pos_void is not
+        registered" when in fact it WAS registered and merely carried
+        the Latin acronym "POS" in its label. Name the actual fault.
+        """
+        if st not in _SOURCE_TYPES:
+            return "NOT REGISTERED in _SOURCE_TYPES"
+        if label == st:
+            return "renders the raw source_type key"
+        if label == UNKNOWN_LABEL:
+            return f"falls back to {UNKNOWN_LABEL!r}"
+        latin = "".join(sorted(set(re.findall(r"[A-Za-z]+", label))))
+        if latin:
+            return (f"label {label!r} contains Latin text ({latin}) — "
+                    "registered, but not Arabic")
+        return None
+
+    faults = []
     with current_app.test_request_context():
         for st in found:
             # "في أي شاشة" — all three renderers, not just one.
@@ -459,10 +492,12 @@ def _():
             for screen, label in (("كشف حساب", acct),
                                    ("كشف طرف", party),
                                    ("حركات مخزون", stock)):
-                if _english(label, st):
-                    english.append(f"{st}→{label} ({screen})")
-    assert not english, \
-        f"{len(english)} source_types render as English: {english}"
+                fault = _fault(label, st)
+                if fault:
+                    faults.append(f"[{screen}] {st}: {fault}")
+    assert not faults, (
+        f"{len(faults)} source_type/screen combinations are not clean "
+        "Arabic:\n        " + "\n        ".join(faults))
     return (f"all {len(found)} distinct source_types render in Arabic "
             f"on all 3 screens")
 
@@ -503,8 +538,31 @@ def _():
     return f"{len(renderers)} renderers all defer to UNKNOWN_LABEL"
 
 
+
+def _neutralise_session_cookie_domain(app):
+    """A domain-scoped session cookie is never sent to the test client.
+
+    Copied from tests/audit_portal_403.py (MARSOUD-SESSION-COOKIE-DEV-FIX).
+    A production-style .env sets SESSION_COOKIE_DOMAIN=.marsoud.com, which
+    scopes the cookie to that domain while the test client runs on
+    localhost — so the cookie is never sent back, every request answers
+    as anonymous, and @login_required bounces it to /login. The run then
+    reports 302s and 500s that read as real failures when in fact no
+    fixture session ever existed.
+
+    It is irrelevant to what these audits exercise, so neutralise it for
+    the run rather than depend on which .env is on the machine.
+    """
+    domain = app.config.get("SESSION_COOKIE_DOMAIN")
+    if domain:
+        app.config["SESSION_COOKIE_DOMAIN"] = None
+        print(f"NOTE  SESSION_COOKIE_DOMAIN={domain!r} overridden to None "
+              f"for this run -- a domain-scoped cookie is never sent "
+              f"to the localhost test client.")
+
 def main():
     app = create_app()
+    _neutralise_session_cookie_domain(app)
     _STATE["app"] = app
     with app.app_context():
         _setup()

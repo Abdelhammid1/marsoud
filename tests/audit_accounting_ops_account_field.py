@@ -355,8 +355,31 @@ def _():
     return "cross-tenant account refused"
 
 
+
+def _neutralise_session_cookie_domain(app):
+    """A domain-scoped session cookie is never sent to the test client.
+
+    Copied from tests/audit_portal_403.py (MARSOUD-SESSION-COOKIE-DEV-FIX).
+    A production-style .env sets SESSION_COOKIE_DOMAIN=.marsoud.com, which
+    scopes the cookie to that domain while the test client runs on
+    localhost — so the cookie is never sent back, every request answers
+    as anonymous, and @login_required bounces it to /login. The run then
+    reports 302s and 500s that read as real failures when in fact no
+    fixture session ever existed.
+
+    It is irrelevant to what these audits exercise, so neutralise it for
+    the run rather than depend on which .env is on the machine.
+    """
+    domain = app.config.get("SESSION_COOKIE_DOMAIN")
+    if domain:
+        app.config["SESSION_COOKIE_DOMAIN"] = None
+        print(f"NOTE  SESSION_COOKIE_DOMAIN={domain!r} overridden to None "
+              f"for this run -- a domain-scoped cookie is never sent "
+              f"to the localhost test client.")
+
 def main():
     app = create_app()
+    _neutralise_session_cookie_domain(app)
     _STATE["app"] = app
     with app.app_context():
         _setup()

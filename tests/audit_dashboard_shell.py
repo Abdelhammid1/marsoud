@@ -189,7 +189,27 @@ def _():
         "logout is not a POST form"
     assert not re.search(r'<a href="[^"]*/logout"', html), \
         "a GET logout link is still present"
-    return "menu present, logout is a POST"
+
+    # ...and it must actually WORK. This check used to stop at "the form
+    # says POST", which is why a real bug shipped: auth.logout was
+    # declared @bp.route("/logout") with no methods, i.e. GET only, so
+    # submitting the menu's form returned 405 and nobody could sign out.
+    # Abdelhamid caught it on the server (6798986). Asserting the markup
+    # without exercising the endpoint is not a test of logging out.
+    c = _client()
+    r = c.post("/logout", follow_redirects=False)
+    assert r.status_code != 405, (
+        "POST /logout returns 405 — the route does not accept the method "
+        "the menu submits")
+    assert r.status_code in (301, 302), \
+        f"POST /logout returned {r.status_code}, expected a redirect"
+    # And the session really is gone afterwards.
+    after = c.get("/home", follow_redirects=False)
+    assert after.status_code in (301, 302), \
+        "still authenticated after logging out"
+    assert "/login" in after.headers.get("Location", ""), \
+        f"post-logout /home went to {after.headers.get('Location')!r}"
+    return "menu present; POST /logout works and ends the session"
 
 
 @check("1b. a user WITH an HR record gets all three menu entries")
@@ -425,8 +445,31 @@ def _():
     return "no comment fragments in the rendered shell"
 
 
+
+def _neutralise_session_cookie_domain(app):
+    """A domain-scoped session cookie is never sent to the test client.
+
+    Copied from tests/audit_portal_403.py (MARSOUD-SESSION-COOKIE-DEV-FIX).
+    A production-style .env sets SESSION_COOKIE_DOMAIN=.marsoud.com, which
+    scopes the cookie to that domain while the test client runs on
+    localhost — so the cookie is never sent back, every request answers
+    as anonymous, and @login_required bounces it to /login. The run then
+    reports 302s and 500s that read as real failures when in fact no
+    fixture session ever existed.
+
+    It is irrelevant to what these audits exercise, so neutralise it for
+    the run rather than depend on which .env is on the machine.
+    """
+    domain = app.config.get("SESSION_COOKIE_DOMAIN")
+    if domain:
+        app.config["SESSION_COOKIE_DOMAIN"] = None
+        print(f"NOTE  SESSION_COOKIE_DOMAIN={domain!r} overridden to None "
+              f"for this run -- a domain-scoped cookie is never sent "
+              f"to the localhost test client.")
+
 def main():
     app = create_app()
+    _neutralise_session_cookie_domain(app)
     _STATE["app"] = app
     with app.app_context():
         _setup()

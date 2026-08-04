@@ -53,7 +53,7 @@ _SOURCE_TYPES = {
     "asset_purchase":     ("شراء أصل",         "vendor_bills.view",     "bill_id"),
     "manual_adjustment":  ("تسوية مخزون",      None,                    None),
     "stock_transfer":     ("تحويل بين المخازن", "inventory.transfers",  None),
-    "pos_sale":           ("بيع POS",           "invoices.view",         "invoice_id"),
+    "pos_sale":           ("بيع من نقطة البيع", "invoices.view",         "invoice_id"),
     "opening_balance":    ("رصيد افتتاحي",     None,                    None),
     "payroll":            ("قيد رواتب",         "payroll.index",         None),
     "sales_commission":   ("عمولة مبيعات",     None,                    None),
@@ -69,7 +69,12 @@ _SOURCE_TYPES = {
     "sales_commission_refund": ("عكس عمولة مبيعات",   None, None),
     "payroll_settlement":      ("سداد راتب مستحق",     None, None),
     "accrual_settle":          ("تسوية استحقاق راتب", None, None),
-    "pos_void":                ("إلغاء عملية POS",     None, None),
+    # MARSOUD-SOURCE-LABEL-UNIFY — "POS" is Latin text in front of an
+    # Arabic-speaking user, which is what the ticket's «مفيش أي نص
+    # إنجليزي» rules out. Both POS labels now say نقطة البيع, so the
+    # coverage audit can demand pure Arabic instead of carrying an
+    # exemption list.
+    "pos_void":                ("إلغاء عملية بيع",     None, None),
     # Discovered by the DB-coverage check (audit test 8). Legit
     # entries that were also falling into the "قيد يدوي" default.
     "stock_adjustment":        ("تسوية مخزون",          None, None),
