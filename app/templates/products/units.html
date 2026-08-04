@@ -35,25 +35,26 @@
     {% for u in units %}
       <tr {% if not u.is_base %}data-nonbase data-factor="{{ '%g'|format(u.conversion_factor|float) }}"{% endif %}>
         {% if u.is_base %}
-        {# MARSOUD-UOM-PRICE — base unit is still name+factor-locked
-           but its sale_price IS editable (and mirrors default_price
-           for backward compatibility). #}
-        <form method="POST" action="{{ url_for('products.unit_edit', product_id=product.id, unit_id=u.id) }}" class="contents">
-          <td class="font-semibold">
-            {{ u.unit_name }}
-            <span class="badge bg-emerald-100 text-emerald-700 mr-2">أساس</span>
-          </td>
-          <td class="text-left font-mono">1</td>
-          <td class="text-left">
-            <input type="number" name="sale_price" step="0.0001" min="0"
-                   value="{% if u.sale_price is not none %}{{ '%g'|format(u.sale_price|float) }}{% else %}{{ '%g'|format(product.default_price|float) }}{% endif %}"
-                   class="input text-sm font-mono" style="width:6rem">
-          </td>
-          <td class="text-sm text-slate-500">المرجع</td>
-          <td class="text-left whitespace-nowrap">
-            <button type="submit" class="text-xs text-brand-600 hover:underline">💾 حفظ السعر</button>
-          </td>
-        </form>
+        {# MARSOUD-PACK-ONLY-PRICING — the base unit's price IS the
+           per-piece price, and that is computed from سعر بيع العلبة on
+           the product page. Display-only here: an editable field would
+           be a second, contradictory way to set the same number — the
+           exact class of mistake this ticket exists to remove. #}
+        <td class="font-semibold">
+          {{ u.unit_name }}
+          <span class="badge bg-emerald-100 text-emerald-700 mr-2">أساس</span>
+        </td>
+        <td class="text-left font-mono">1</td>
+        <td class="text-left font-mono text-slate-700">
+          {{ '%g'|format(product.default_price|float) }}
+        </td>
+        <td class="text-sm text-slate-500">
+          محسوب من سعر بيع العلبة
+        </td>
+        <td class="text-left whitespace-nowrap">
+          <a href="{{ url_for('products.edit', product_id=product.id) }}"
+             class="text-xs text-brand-600 hover:underline">✎ عدّل من هنا</a>
+        </td>
         {% else %}
         {# MARSOUD-UNIT-CONVERSION-01 — inline edit form. The delete
            button uses formaction to submit the same row to a
@@ -72,6 +73,11 @@
                    placeholder="{{ '%g'|format((product.default_price|float) * (u.conversion_factor|float)) }}"
                    class="input text-sm font-mono" style="width:6rem"
                    title="اتركه فاضي عشان يتحسب تلقائياً">
+            {# MARSOUD-PACK-ONLY-PRICING — spell out the grain, the same
+               way the product form does. #}
+            <p class="text-xs text-slate-500 mt-1">
+              سعر بيع هذه الوحدة بالكامل — مش للقطعة الواحدة
+            </p>
           </td>
           <td class="text-sm text-slate-500">
             1 {{ u.unit_name }} = {{ '%g'|format(u.conversion_factor|float) }} {{ product.base_unit.unit_name if product.base_unit else '' }}
@@ -114,26 +120,13 @@
     <div class="flex items-end">
       <button type="submit" class="btn-primary">إضافة</button>
     </div>
-    {# MARSOUD-PACK-PRICING gap 3 — optional pack purchase cost. When
-       filled, the route writes it to the variant's unit_cost — provided
-       the product has exactly one active variant. Multi-variant
-       products should update cost from the /products/<id>/edit page. #}
-    <div class="md:col-span-4 rounded-lg border border-dashed border-emerald-200 bg-emerald-50/50 p-3">
-      <div class="flex items-center justify-between gap-3 mb-2">
-        <span class="text-xs font-bold text-emerald-800">📦 اختياري — تحديث تكلفة الشراء من سعر العلبة</span>
-        <span class="text-xs text-emerald-700" id="add-pack-cost-hint">&nbsp;</span>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <label class="block">
-          <span class="text-xs font-semibold text-slate-700">سعر شراء العلبة (اختياري)</span>
-          <input type="number" name="pack_purchase_price" id="add-pack-cost"
-                 step="0.01" min="0" class="input font-mono text-sm"
-                 placeholder="مثلاً 60">
-        </label>
-        <div class="text-xs text-slate-500 flex items-end">
-          لو ملّيت هذا الحقل، تكلفة الشراء لكل قطعة تتحدّث تلقائي على الـ variant الوحيد للمنتج.
-        </div>
-      </div>
+    {# MARSOUD-PACK-ONLY-PRICING — the "تحديث تكلفة الشراء من سعر العلبة"
+       helper that used to sit here is gone. Purchase cost has exactly
+       one owner now: سعر شراء العلبة on the product page. Two screens
+       writing the same number could only disagree. #}
+    <div class="md:col-span-4 text-xs text-slate-500">
+      تكلفة الشراء بتتحدد من <a href="{{ url_for('products.edit', product_id=product.id) }}"
+        class="text-brand-600 hover:underline">صفحة المنتج</a> — سعر شراء العلبة ÷ عدد القطع.
     </div>
   </form>
   <p class="text-xs text-slate-400 mt-3">
@@ -152,8 +145,6 @@
   var addFactor = document.getElementById('add-factor');
   var addSale   = document.getElementById('add-sale-price');
   var addSaleHint = document.getElementById('add-sale-hint');
-  var addPackCost = document.getElementById('add-pack-cost');
-  var addPackCostHint = document.getElementById('add-pack-cost-hint');
   function fmt(x) {
     return String(Math.round(x * 10000) / 10000);
   }
@@ -167,21 +158,8 @@
       addSaleHint.innerHTML = '&nbsp;';
     }
   }
-  function refreshAddPackCostHint() {
-    var f = parseFloat(addFactor.value);
-    var p = parseFloat(addPackCost.value);
-    if (f > 0 && p > 0) {
-      addPackCostHint.innerHTML = '= تكلفة القطعة <b>'
-        + fmt(p / f) + '</b>';
-    } else {
-      addPackCostHint.innerHTML = '&nbsp;';
-    }
-  }
   [addFactor, addSale].forEach(function(el) {
     if (el) el.addEventListener('input', refreshAddSaleHint);
-  });
-  [addFactor, addPackCost].forEach(function(el) {
-    if (el) el.addEventListener('input', refreshAddPackCostHint);
   });
 
   // Existing non-base rows: inject a per-piece hint span under each

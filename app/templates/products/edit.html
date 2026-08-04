@@ -25,10 +25,13 @@
         <label class="block text-sm font-semibold text-slate-700 mb-1">الوصف</label>
         <textarea name="description" rows="2" class="textarea">{{ product.description or '' }}</textarea>
       </div>
-      <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-1">السعر الافتراضي</label>
-        <input type="number" name="default_price" step="0.01" value="{{ product.default_price }}" class="input font-mono">
-      </div>
+      {# MARSOUD-PACK-ONLY-PRICING — the per-piece "السعر الافتراضي"
+         input is gone; the same shared block as the create form takes
+         box numbers and shows the per-piece result. Prefilled from the
+         stored box values so reopening a product never reprices it. #}
+      {% with is_goods = product.is_tracked, pack = pack %}
+        {% include "products/_pricing_block.html" %}
+      {% endwith %}
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-1">الضريبة % (اختياري)</label>
         <input type="number" name="default_tax_rate" step="0.01"

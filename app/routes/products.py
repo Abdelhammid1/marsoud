@@ -128,11 +128,20 @@ def new():
             if not cat or cat.company_id != cid:
                 raise ValueError("الفئة غير صحيحة")
 
+            # MARSOUD-PACK-ONLY-PRICING — parsed up-front so a bad
+            # pricing block fails before anything is written. There is
+            # no `default_price` / `unit_cost` form field any more; both
+            # are derived by apply_pack_pricing() below.
+            from app.services.product_pricing import (
+                parse_pack_input, apply_pack_pricing, PricingError,
+            )
+            pieces, pack_purchase, pack_sale, pack_unit_name = \
+                parse_pack_input(request.form, is_goods=is_tracked)
+
             p = Product(
                 company_id=cid,
                 name=name,
                 description=request.form.get("description", "").strip() or None,
-                default_price=float(request.form.get("default_price", 0) or 0),
                 default_tax_rate=float(request.form.get("default_tax_rate") or 0) or None,
                 sku=(request.form.get("sku") or "").strip() or None,
                 is_tracked=is_tracked,
@@ -166,64 +175,26 @@ def new():
                 ).first() is not None:
                     raise ValueError(f"الباركود '{barcode}' موجود بالفعل لمنتج آخر")
 
-                # MARSOUD-PACK-PRICING (Abdelhamid 2026-07-19) — allow
-                # the user to enter the pack purchase price + pieces-per-
-                # pack instead of pre-dividing to get the per-piece cost.
-                # If both are provided AND unit_cost wasn't filled by
-                # hand, derive unit_cost = pack_price / pieces. Also
-                # remember the pack info so we can create a matching
-                # ProductUnit AFTER the base unit exists (below).
-                raw_cost = (request.form.get("unit_cost") or "").strip()
-                pack_price = float(
-                    request.form.get("pack_purchase_price") or 0)
-                pieces_per_pack = float(
-                    request.form.get("pieces_per_pack") or 0)
-                pack_unit_name = (
-                    request.form.get("pack_unit_name") or "").strip()
-                if pack_price > 0 and pieces_per_pack > 0:
-                    derived = pack_price / pieces_per_pack
-                    # If the user didn't override unit_cost, take derived.
-                    if not raw_cost or float(raw_cost or 0) <= 0:
-                        unit_cost = derived
-                    else:
-                        unit_cost = float(raw_cost)
-                else:
-                    unit_cost = float(raw_cost or 0)
                 v = ProductVariant(
                     company_id=cid,
                     product_id=p.id,
                     sku=sku,
                     barcode=barcode,
                     name="",  # blank means "the product itself" in display_name logic
-                    unit_cost=unit_cost,
                 )
                 db.session.add(v)
                 db.session.flush()
 
-                # MARSOUD-UNIT-CONVERSION-01 — every tracked product
-                # gets a base unit at create time so POS + invoicing
-                # can pick it without a separate "define units" step.
-                from app.services.units import ensure_base_unit, create_unit
-                base_unit = ensure_base_unit(p)
-
-                # MARSOUD-PACK-PRICING — auto-create the pack ProductUnit
-                # so the pack (e.g. كرتونة) shows up natively on future
-                # vendor bills / POS without the user redoing the setup.
-                # Rejected only when the pack name would collide with the
-                # base unit's name — otherwise POS unit-picker rows would
-                # merge and cause mis-priced lines.
-                if pack_price > 0 and pieces_per_pack > 0:
-                    pack_name = pack_unit_name or "كرتونة"
-                    if pack_name == base_unit.unit_name:
-                        raise ValueError(
-                            "اسم العلبة مطابق لوحدة الأساس — "
-                            f"اختر اسم مختلف عن '{base_unit.unit_name}'."
-                        )
-                    create_unit(
-                        p, unit_name=pack_name,
-                        conversion_factor=pieces_per_pack,
-                        sale_price=None,
-                    )
+                # MARSOUD-PACK-ONLY-PRICING — the single place a
+                # per-piece cost/price can be set. Also creates the base
+                # unit and the pack unit (when the box holds more than
+                # one piece), replacing the old inline block below.
+                unit_cost, _unit_price = apply_pack_pricing(
+                    p, v, pieces=pieces, pack_purchase=pack_purchase,
+                    pack_sale=pack_sale, pack_name=pack_unit_name,
+                    is_goods=True,
+                )
+                pieces_per_pack = pieces
 
                 # Opening balance is optional. > 0 → post Dr 1140 / Cr 3900.
                 # MARSOUD-PACK-PRICING — the cashier may enter the qty in
@@ -271,6 +242,14 @@ def new():
                         actor_id=current_user.id, created_by=current_user.id,
                         reason="رصيد افتتاحي من شاشة إضافة المنتج",
                     )
+            else:
+                # A service has no variant and no units, but it still
+                # needs its selling price — same single code path.
+                apply_pack_pricing(
+                    p, None, pieces=1, pack_purchase=pack_purchase,
+                    pack_sale=pack_sale, pack_name=pack_unit_name,
+                    is_goods=False,
+                )
 
             db.session.commit()
             if is_tracked:
@@ -313,7 +292,19 @@ def edit(product_id):
                 raise ValueError("الاسم مطلوب")
             p.name = name
             p.description = (request.form.get("description") or "").strip() or None
-            p.default_price = float(request.form.get("default_price", 0) or 0)
+            # MARSOUD-PACK-ONLY-PRICING — default_price is derived from
+            # the box numbers now, never posted. Same single code path
+            # as create.
+            from app.services.product_pricing import (
+                parse_pack_input, apply_pack_pricing,
+            )
+            pieces, pack_purchase, pack_sale, pack_unit_name = \
+                parse_pack_input(request.form, is_goods=p.is_tracked)
+            apply_pack_pricing(
+                p, p.default_variant, pieces=pieces,
+                pack_purchase=pack_purchase, pack_sale=pack_sale,
+                pack_name=pack_unit_name, is_goods=p.is_tracked,
+            )
             raw_tax = request.form.get("default_tax_rate")
             p.default_tax_rate = float(raw_tax) if raw_tax not in (None, "", "None") else None
             p.sku = (request.form.get("sku") or "").strip() or None
@@ -351,9 +342,14 @@ def edit(product_id):
     categories = ProductCategory.query.filter_by(
         company_id=p.company_id, is_active=True,
     ).order_by(ProductCategory.name).all()
+    # MARSOUD-PACK-ONLY-PRICING — prefill the box fields with exactly
+    # what was entered, so reopening a product doesn't silently reprice
+    # it.
+    from app.services.product_pricing import pack_values_for
     return render_template(
         "products/edit.html", product=p, variant_qtys=variant_qtys,
         groups=groups, categories=categories,
+        pack=pack_values_for(p),
     )
 
 
@@ -652,29 +648,11 @@ def units(product_id):
                 request.form.get("conversion_factor"),
                 sale_price=request.form.get("sale_price"),
             )
-            # MARSOUD-PACK-PRICING gap 3 — optional pack purchase cost.
-            # If set, update variant.unit_cost = pack_price / factor.
-            # Only when the product has exactly one active variant —
-            # otherwise we'd have no way to know WHICH variant to
-            # update. Multi-variant products should use the edit page
-            # (which has its own per-variant pack helper via gap 1).
-            pack_price_raw = (request.form.get(
-                "pack_purchase_price") or "").strip()
-            if pack_price_raw:
-                pack_price = float(pack_price_raw)
-                if pack_price > 0:
-                    factor = float(new_unit.conversion_factor or 0)
-                    active_variants = ProductVariant.query.filter_by(
-                        product_id=p.id, is_active=True,
-                    ).all()
-                    if len(active_variants) != 1:
-                        raise UnitError(
-                            "المنتج فيه أكثر من variant — "
-                            "عدّل تكلفة الشراء من صفحة تعديل المنتج."
-                        )
-                    if factor <= 0:
-                        raise UnitError("معامل التحويل غير صحيح")
-                    active_variants[0].unit_cost = pack_price / factor
+            # MARSOUD-PACK-ONLY-PRICING — the pack-purchase-cost helper
+            # that used to live here (and rewrote variant.unit_cost from
+            # this page) is gone. Cost now has exactly one owner: the
+            # box purchase price on the product form. Two screens
+            # writing the same number could only disagree.
             db.session.commit()
             flash("تم إضافة الوحدة", "success")
         except UnitError as e:
@@ -735,20 +713,15 @@ def unit_edit(product_id, unit_id):
     # unit has movements.
     raw_price = request.form.get("sale_price")
     if u.is_base:
-        # Base unit: only price is editable (name + factor=1 are fixed).
-        try:
-            set_unit_sale_price(u, raw_price)
-            # Keep Product.default_price mirrored for legacy readers
-            # (backward compat: convert_to_base uses default_price when
-            # the unit has no explicit sale_price).
-            if u.sale_price is not None:
-                p.default_price = u.sale_price
-            db.session.commit()
-            flash("تم تحديث سعر الوحدة الأساس", "success")
-        except UnitError as e:
-            db.session.rollback()
-            flash(str(e), "error")
-        return redirect(url_for("products.units", product_id=p.id))
+        # MARSOUD-PACK-ONLY-PRICING — the base unit's price is the
+        # per-piece price, which is now derived from the box sale price
+        # on the product form. This branch used to write it back into
+        # Product.default_price, which would be a circular write against
+        # a computed value. The row is display-only on the units page;
+        # this only fires on a hand-crafted POST.
+        flash("سعر القطعة بيتحسب من سعر بيع العلبة — عدّله من صفحة المنتج.",
+              "warning")
+        return redirect(url_for("products.edit", product_id=p.id))
     if not can_edit_factor(u):
         # Even for a used unit we still allow sale_price mutation —
         # it doesn't rewrite any historical base_quantity snapshots.
