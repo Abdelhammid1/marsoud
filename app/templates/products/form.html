@@ -89,11 +89,15 @@
         g.addEventListener('change', refill);
       })();
     </script>
+    {# MARSOUD-PACK-ONLY-PRICING — "السعر الافتراضي" (per piece) is gone.
+       Pricing is entered by the box; the per-piece numbers are derived.
+       Lives outside #goods-section because a service is priced here too
+       (the block hides its own box fields for services). #}
+    {% with is_goods = True %}
+      {% include "products/_pricing_block.html" %}
+    {% endwith %}
+
     <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">السعر الافتراضي</label>
-        <input type="number" name="default_price" step="0.01" value="0" class="input font-mono">
-      </div>
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">الضريبة الافتراضية % (اختياري)</label>
         <input type="number" name="default_tax_rate" step="0.01" class="input font-mono" placeholder="يستخدم الشركة الافتراضية">
@@ -124,41 +128,10 @@
           </select>
         </div>
       </div>
-      {# MARSOUD-PACK-PRICING (Abdelhamid 2026-07-19) — customer buys
-         stock in cartons/packs and shouldn't have to divide by hand to
-         get the per-piece cost. If pack_purchase_price + pieces_per_pack
-         are BOTH filled, JS auto-fills tكلفة الوحدة (= price/pieces) +
-         converts opening balance from packs → pieces. On save the
-         backend also creates a ProductUnit(unit_name=<pack_unit_name>,
-         factor=pieces) so future vendor bills / POS can pick the pack
-         unit directly instead of the user redoing this every time. #}
-      <div class="rounded-lg border-2 border-dashed border-emerald-200 bg-emerald-50/50 p-4 space-y-3">
-        <div class="flex items-center justify-between gap-3">
-          <h4 class="font-bold text-emerald-800 text-sm">📦 الشراء بالعلبة (اختياري)</h4>
-          <span class="text-xs text-emerald-700" id="pack-status">— املأ الحقول لحساب تكلفة القطعة تلقائيًا</span>
-        </div>
-        <div class="grid grid-cols-3 gap-3">
-          <div>
-            <label class="block text-xs font-semibold mb-1">اسم العلبة</label>
-            <input type="text" name="pack_unit_name" value="كرتونة"
-                   class="input text-sm" placeholder="كرتونة">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold mb-1">سعر شراء العلبة</label>
-            <input type="number" name="pack_purchase_price" step="0.01" min="0"
-                   id="pack-price" class="input font-mono text-sm" placeholder="60">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold mb-1">عدد القطع في العلبة</label>
-            <input type="number" name="pieces_per_pack" step="1" min="1"
-                   id="pack-pieces" class="input font-mono text-sm" placeholder="24">
-          </div>
-        </div>
-        <p class="text-xs text-emerald-700 -mt-1">
-          مثال: كرتونة بـ 60 جنيه، فيها 24 قطعة → تكلفة القطعة تلقائيًا = 2.50 جنيه.
-        </p>
-      </div>
-
+      {# MARSOUD-PACK-ONLY-PRICING — the old "الشراء بالعلبة (اختياري)"
+         box and the per-piece "تكلفة الوحدة" input both lived here.
+         Pricing is now mandatory and lives in the shared block above;
+         the cost is derived from the box purchase price. #}
       <div class="grid grid-cols-2 gap-4">
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-2">الرصيد الافتتاحي (الكمية)</label>
@@ -172,12 +145,6 @@
             </select>
           </div>
           <p class="text-xs text-slate-500 mt-1" id="opening-qty-hint">اللي عندك من البضاعة دلوقتي.</p>
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-2">تكلفة الوحدة (لكل قطعة)</label>
-          <input type="number" name="unit_cost" step="0.0001" min="0" value="0"
-                 id="unit-cost" class="input font-mono">
-          <p class="text-xs text-slate-500 mt-1">سعر الشراء لكل قطعة — بيتحسب تلقائي لو ملّيت حقول العلبة أعلاه.</p>
         </div>
       </div>
     </div>
@@ -212,8 +179,13 @@
 
 <script>
 function toggleProductType(t) {
-  document.getElementById('goods-section').style.display = (t === 'goods') ? '' : 'none';
-  document.getElementById('sku-hint-goods').style.display = (t === 'goods') ? '' : 'none';
+  const goods = (t === 'goods');
+  document.getElementById('goods-section').style.display = goods ? '' : 'none';
+  document.getElementById('sku-hint-goods').style.display = goods ? '' : 'none';
+  // MARSOUD-PACK-ONLY-PRICING — the pricing block lives outside the
+  // goods section (a service is priced too) and hides its own box
+  // fields instead.
+  if (window._applyPricingMode) window._applyPricingMode(goods);
 }
 // Initialize from the checked radio (works on form re-render after error too)
 (function() {
@@ -221,40 +193,18 @@ function toggleProductType(t) {
   toggleProductType(checked ? checked.value : 'goods');
 })();
 
-// MARSOUD-PACK-PRICING — live derivation.
+// MARSOUD-PACK-ONLY-PRICING — the per-piece cost derivation moved into
+// the shared pricing block (it now only DISPLAYS the result; there is
+// no unit_cost input left to write into, and no manual-override latch,
+// which was the whole bug). What stays here is the opening-balance
+// hint, which needs the pieces field from that block.
 (function() {
-  const priceEl  = document.getElementById('pack-price');
   const piecesEl = document.getElementById('pack-pieces');
-  const costEl   = document.getElementById('unit-cost');
   const qtyEl    = document.getElementById('opening-qty');
   const unitEl   = document.getElementById('opening-qty-unit');
   const hintEl   = document.getElementById('opening-qty-hint');
-  const statusEl = document.getElementById('pack-status');
-  if (!priceEl || !piecesEl || !costEl) return;   // service view
-  // Track whether the user manually edited unit_cost — if so, stop
-  // overwriting it. Manual entry always wins.
-  let userTouchedCost = false;
-  costEl.addEventListener('input', () => { userTouchedCost = true; });
+  if (!piecesEl || !qtyEl || !unitEl || !hintEl) return;
 
-  function derivedPerPiece() {
-    const p = parseFloat(priceEl.value);
-    const n = parseFloat(piecesEl.value);
-    if (!(p > 0) || !(n > 0)) return null;
-    return p / n;
-  }
-  function recomputeCost() {
-    const per = derivedPerPiece();
-    if (per == null) {
-      statusEl.textContent = '— املأ الحقول لحساب تكلفة القطعة تلقائيًا';
-      return;
-    }
-    statusEl.textContent = 'تكلفة القطعة المحسوبة = '
-                           + per.toFixed(4).replace(/\.?0+$/, '');
-    if (!userTouchedCost) {
-      // .toFixed(4) then trim trailing zeros for a clean number.
-      costEl.value = String(Math.round(per * 10000) / 10000);
-    }
-  }
   function recomputeOpeningHint() {
     const raw = parseFloat(qtyEl.value) || 0;
     const isPack = unitEl.value === 'pack';
@@ -267,12 +217,7 @@ function toggleProductType(t) {
       hintEl.textContent = 'اللي عندك من البضاعة دلوقتي.';
     }
   }
-  [priceEl, piecesEl].forEach(el =>
-    el.addEventListener('input', () => {
-      recomputeCost();
-      recomputeOpeningHint();
-    }));
-  [qtyEl, unitEl].forEach(el =>
+  [piecesEl, qtyEl, unitEl].forEach(el =>
     el.addEventListener('input', recomputeOpeningHint));
   unitEl.addEventListener('change', recomputeOpeningHint);
 })();

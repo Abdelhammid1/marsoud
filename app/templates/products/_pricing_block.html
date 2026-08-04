@@ -1,0 +1,124 @@
+{# MARSOUD-PACK-ONLY-PRICING — the ONE pricing block, shared by the
+   create and edit screens so they can't drift apart.
+
+   There is deliberately no per-piece input here. The user types box
+   numbers; the per-piece cost and price are shown underneath as a
+   computed result. This exists because a box price typed into a piece
+   field sold an item at 2100 instead of 0.42.
+
+   Caller passes:
+     pack      dict from product_pricing.pack_values_for() (edit), or
+               omitted on create
+     is_goods  whether to show the box/purchase side at all #}
+
+{% set pk = pack if pack is defined and pack else none %}
+{% set _pieces = (pk.pieces if pk else 1) %}
+{% set _purchase = (pk.pack_purchase_price if pk else '') %}
+{% set _sale = (pk.pack_sale_price if pk else '') %}
+{% set _packname = (pk.pack_unit_name if pk else 'كرتونة') %}
+
+<div class="rounded-lg border-2 border-dashed border-emerald-200 bg-emerald-50/50 p-4 space-y-3"
+     id="pricing-block">
+  <h3 class="font-bold text-emerald-800 text-sm">💰 التسعير</h3>
+
+  <div class="grid grid-cols-3 gap-3" id="pack-goods-fields">
+    <div>
+      <label class="block text-xs font-semibold mb-1">عدد القطع في العلبة</label>
+      <input type="number" name="pieces_per_pack" step="1" min="1"
+             value="{{ _pieces }}" id="pack-pieces"
+             class="input font-mono text-sm">
+      <p class="text-xs text-slate-500 mt-1">
+        لو المنتج بيتباع قطعة قطعة من غير تعبئة، سيبها 1
+      </p>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold mb-1">سعر شراء العلبة</label>
+      <input type="number" name="pack_purchase_price" step="0.01" min="0"
+             value="{{ _purchase }}" id="pack-price"
+             class="input font-mono text-sm" placeholder="60">
+      <p class="text-xs text-slate-500 mt-1">
+        السعر اللي بتدفعه للمورد مقابل العلبة كاملة (مش القطعة)
+      </p>
+    </div>
+    <div id="pack-sale-wrap">
+      <label class="block text-xs font-semibold mb-1" id="pack-sale-label">سعر بيع العلبة</label>
+      <input type="number" name="pack_sale_price" step="0.01" min="0"
+             value="{{ _sale }}" id="pack-sale"
+             class="input font-mono text-sm" placeholder="72">
+      <p class="text-xs text-slate-500 mt-1" id="pack-sale-hint">
+        السعر اللي بتبيع بيه العلبة كاملة للعميل (مش القطعة)
+      </p>
+    </div>
+  </div>
+
+  <div id="pack-name-wrap" class="grid grid-cols-3 gap-3">
+    <div>
+      <label class="block text-xs font-semibold mb-1">اسم العلبة</label>
+      <input type="text" name="pack_unit_name" value="{{ _packname }}"
+             class="input text-sm" placeholder="كرتونة">
+      <p class="text-xs text-slate-500 mt-1">
+        الاسم اللي هيظهر في نقطة البيع والفواتير — يتجاهل لو عدد القطع 1
+      </p>
+    </div>
+  </div>
+
+  {# Live result — read-only, never an input. #}
+  <div class="rounded-md bg-white border border-emerald-200 px-3 py-2">
+    <span class="text-xs text-slate-500">النتيجة المحسوبة:</span>
+    <span class="text-sm font-bold text-emerald-800 font-mono" id="pack-derived">—</span>
+  </div>
+</div>
+
+<script>
+(function () {
+  var piecesEl = document.getElementById('pack-pieces');
+  var buyEl = document.getElementById('pack-price');
+  var sellEl = document.getElementById('pack-sale');
+  var out = document.getElementById('pack-derived');
+  if (!piecesEl || !buyEl || !sellEl || !out) return;
+
+  function fmt(n) { return (Math.round(n * 10000) / 10000).toFixed(2); }
+
+  function recompute() {
+    var pieces = parseFloat(piecesEl.value || 1);
+    if (!(pieces >= 1)) pieces = 1;
+    var buy = parseFloat(buyEl.value || 0);
+    var sell = parseFloat(sellEl.value || 0);
+    var parts = [];
+    // A service has no purchase side, so only report what applies.
+    if (window._pricingIsGoods !== false && buy > 0) {
+      parts.push('تكلفة القطعة = ' + fmt(buy / pieces));
+    }
+    if (sell > 0) {
+      parts.push('سعر بيع القطعة = ' + fmt(sell / pieces));
+    }
+    out.textContent = parts.length ? parts.join('  —  ')
+                                   : 'املأ الحقول عشان تشوف سعر وتكلفة القطعة';
+  }
+
+  // Show/hide the box side. A service has no box and nothing to buy —
+  // same screen, fewer fields, and the label stops saying "العلبة".
+  window._applyPricingMode = function (isGoods) {
+    window._pricingIsGoods = isGoods;
+    var grid = document.getElementById('pack-goods-fields');
+    var nameWrap = document.getElementById('pack-name-wrap');
+    piecesEl.parentElement.style.display = isGoods ? '' : 'none';
+    buyEl.parentElement.style.display = isGoods ? '' : 'none';
+    if (nameWrap) nameWrap.style.display = isGoods ? '' : 'none';
+    if (grid) grid.className = isGoods ? 'grid grid-cols-3 gap-3'
+                                       : 'grid grid-cols-1 gap-3';
+    document.getElementById('pack-sale-label').textContent =
+      isGoods ? 'سعر بيع العلبة' : 'سعر البيع';
+    document.getElementById('pack-sale-hint').textContent =
+      isGoods ? 'السعر اللي بتبيع بيه العلبة كاملة للعميل (مش القطعة)'
+              : 'سعر الخدمة للعميل';
+    if (!isGoods) piecesEl.value = 1;
+    recompute();
+  };
+
+  [piecesEl, buyEl, sellEl].forEach(function (el) {
+    el.addEventListener('input', recompute);
+  });
+  window._applyPricingMode({{ 'true' if is_goods else 'false' }});
+})();
+</script>

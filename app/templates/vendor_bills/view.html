@@ -10,7 +10,7 @@
         {% if bill.supplier_invoice_number %}<div class="text-xs text-slate-500">مرجع المورد: {{ bill.supplier_invoice_number }}</div>{% endif %}
       </div>
       <div class="flex items-center gap-2">
-        {% set sc = {'DRAFT':'badge-draft','POSTED':'badge-sent','PARTIALLY_PAID':'badge-partial','PAID':'badge-paid','OVERDUE':'badge-overdue','CANCELLED':'badge-cancelled'} %}
+        {% set sc = {'DRAFT':'badge-draft','POSTED':'badge-sent','PARTIALLY_PAID':'badge-partial','PAID':'badge-paid','OVERDUE':'badge-overdue','CANCELLED':'badge-cancelled','REFUNDED':'badge-refunded','PARTIALLY_REFUNDED':'badge-refunded'} %}
         <span class="badge {{ sc.get(bill.status.value, 'badge-draft') }} text-base px-3 py-1.5">{{ bill.status.value }}</span>
         {% if bill.status.value != 'CANCELLED' and has_permission('vendor_bills.create') %}
         <a href="{{ url_for('vendor_bills.edit', bill_id=bill.id) }}" class="btn-secondary text-sm">✎ تعديل</a>
@@ -163,7 +163,10 @@
     {% endif %}
 
     {# MARSOUD-REFUNDS-01 — issue a refund against a posted vendor bill. #}
-    {% if bill.status.value in ['POSTED', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'] and has_permission('vendor_bills.refund') %}
+    {# MARSOUD-VBILL-REFUND-STATUS — PARTIALLY_REFUNDED kept in the list
+       so a second partial refund stays reachable; before this ticket the
+       bill would still have read PAID/POSTED here. #}
+    {% if bill.status.value in ['POSTED', 'PARTIALLY_PAID', 'PAID', 'OVERDUE', 'PARTIALLY_REFUNDED'] and has_permission('vendor_bills.refund') %}
     <div class="card p-5 border-amber-200 bg-amber-50/40">
       <h3 class="font-bold text-navy-900 mb-3">↩️ مرتجع مشتريات</h3>
       <form method="POST" action="{{ url_for('vendor_bills.refund', bill_id=bill.id) }}" class="space-y-3"

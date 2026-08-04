@@ -105,8 +105,11 @@ def _():
     # needs current_user + tons of context), grep the template
     # source for the Batch 8 Ticket 4a fix pattern. If the string
     # is there, the fix landed.
+    # MARSOUD-BILL-SPLIT renamed vendor_bills/form.html to
+    # new_typed.html (the three-way entry: expense / asset / inventory).
+    # Same template, same tax_rate field — only the filename moved.
     tpl = (ROOT / "app" / "templates" / "vendor_bills"
-            / "form.html").read_text()
+            / "new_typed.html").read_text(encoding="utf-8")
     assert 'name="tax_rate"' in tpl
     # The fix should reference active_company.vat_rate — not the
     # old hardcoded value="0".

@@ -87,6 +87,20 @@ class Product(db.Model):
     category_id = db.Column(db.Integer,
                               db.ForeignKey("product_categories.id"),
                               nullable=True, index=True)
+    # MARSOUD-PACK-ONLY-PRICING — the box numbers exactly as the user
+    # typed them. default_price and ProductVariant.unit_cost are now
+    # derived from these (÷ pack_pieces) and are never entered by hand,
+    # so a box price can no longer be mistaken for a piece price.
+    #
+    # Stored rather than re-derived: recovering the box price from a
+    # 4-decimal per-piece value drifts (100/3 → 33.3333 → 99.9999), and
+    # the edit screen has to show back exactly what was entered.
+    # pack_pieces = 1 means the product is sold individually; there is
+    # no pack ProductUnit in that case and the box price IS the piece
+    # price. The box SALE price needs no column — it lives on the pack
+    # ProductUnit.sale_price, which is what POS already reads.
+    pack_pieces = db.Column(db.Integer, default=1)
+    pack_purchase_price = db.Column(db.Numeric(15, 4))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     company = db.relationship("Company", backref=db.backref("products", lazy="dynamic"))

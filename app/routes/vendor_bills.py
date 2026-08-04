@@ -56,7 +56,23 @@ def index():
         return redirect(url_for("companies.new"))
     update_overdue_vendor_bills(g.active_company.id)
 
-    q = VendorBill.query.filter_by(company_id=g.active_company.id).filter(VendorBill.deleted_at.is_(None))
+    q = VendorBill.query.filter_by(company_id=g.active_company.id)
+
+    # MARSOUD-VBILL-REFUND-STATUS — deleted bills used to be hidden by a
+    # hard `deleted_at.is_(None)` filter, so a deleted bill vanished
+    # instead of staying as a struck-through record. Same three-way
+    # visibility filter customer invoices got in MARSOUD-VOIDED-VISIBLE:
+    # `all` (default) keeps them listed with a 🗑️ badge, `active` hides
+    # them, `deleted` shows only them. The totals below already exclude
+    # them, so the KPI tiles don't inflate.
+    deleted_filter = request.args.get("deleted_filter", "all")
+    if deleted_filter == "active":
+        q = q.filter(VendorBill.deleted_at.is_(None))
+    elif deleted_filter == "deleted":
+        q = q.filter(VendorBill.deleted_at.isnot(None))
+    else:
+        deleted_filter = "all"
+
     status = request.args.get("status")
     if status:
         try:
@@ -111,15 +127,26 @@ def index():
 
     bills = q.order_by(VendorBill.issue_date.desc(), VendorBill.id.desc()).all()
 
-    total_invoiced = sum(float(b.total or 0) for b in bills)
-    total_paid = sum(float(b.paid_amount or 0) for b in bills)
-    total_outstanding = sum(b.balance for b in bills if b.status not in (VendorBillStatus.CANCELLED,))
+    # MARSOUD-VBILL-REFUND-STATUS — same exclusion pattern as the
+    # customer side (routes/invoices.py). Only `outstanding` used to
+    # exclude anything, so CANCELLED and refunded bills inflated
+    # إجمالي المشتريات and إجمالي المدفوع even though the money came back.
+    #
+    # `deleted_at` is checked as well as the status, which matters here
+    # in a way it doesn't for invoices: a soft-deleted DRAFT vendor bill
+    # keeps its DRAFT status, so a status list alone would let it into
+    # the totals now that deleted rows are visible.
+    _EXCLUDED = (VendorBillStatus.CANCELLED, VendorBillStatus.REFUNDED)
+    countable = [b for b in bills
+                 if b.deleted_at is None and b.status not in _EXCLUDED]
 
     totals = {
+        # Row count stays the full filtered list — the KPI tiles are
+        # billable-only, but users expect to see every row they filtered.
         "count": len(bills),
-        "invoiced": total_invoiced,
-        "paid": total_paid,
-        "outstanding": total_outstanding,
+        "invoiced": sum(float(b.total or 0) for b in countable),
+        "paid": sum(float(b.paid_amount or 0) for b in countable),
+        "outstanding": sum(b.balance for b in countable),
     }
     # Dropdown feeds — active vendors + sub-categories for the picked
     # vendor. When no vendor is selected we show sub-categories across
@@ -143,6 +170,7 @@ def index():
         vendors=vendors_dd, sub_categories=sub_cats_dd,
         vendor_filter=vendor_filter,
         sub_category_filter=sub_category_filter,
+        deleted_filter=deleted_filter,
     )
 
 

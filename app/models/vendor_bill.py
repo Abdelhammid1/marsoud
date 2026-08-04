@@ -10,6 +10,11 @@ class VendorBillStatus(enum.Enum):
     PAID = "PAID"
     OVERDUE = "OVERDUE"
     CANCELLED = "CANCELLED"
+    # MARSOUD-VBILL-REFUND-STATUS — a purchase return posted the journal
+    # but left the bill looking live, so its full value kept inflating
+    # إجمالي المشتريات. Mirrors InvoiceStatus on the customer side.
+    REFUNDED = "REFUNDED"
+    PARTIALLY_REFUNDED = "PARTIALLY_REFUNDED"
 
 
 class VendorBillPaymentMethod(enum.Enum):

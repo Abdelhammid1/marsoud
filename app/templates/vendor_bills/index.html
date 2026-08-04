@@ -69,6 +69,18 @@
         {% for s in statuses %}<option value="{{ s.name }}" {% if request.args.get('status') == s.name %}selected{% endif %}>{{ s.value }}</option>{% endfor %}
       </select>
     </div>
+    {# MARSOUD-VBILL-REFUND-STATUS — deleted bills stay on the list
+       (marked with a 🗑️ badge + strikethrough) instead of vanishing.
+       Same control customer invoices got in MARSOUD-VOIDED-VISIBLE.
+       Financial totals above already exclude them. #}
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">العرض</label>
+      <select name="deleted_filter" class="select text-sm">
+        <option value="all" {% if deleted_filter == 'all' %}selected{% endif %}>الكل (بما فيها المحذوفة)</option>
+        <option value="active" {% if deleted_filter == 'active' %}selected{% endif %}>النشطة فقط</option>
+        <option value="deleted" {% if deleted_filter == 'deleted' %}selected{% endif %}>المحذوفة فقط</option>
+      </select>
+    </div>
     <button type="submit" class="btn-primary text-sm">تطبيق</button>
     {% if request.args %}<a href="{{ url_for('vendor_bills.index') }}" class="text-sm text-slate-500 hover:text-red-600">مسح</a>{% endif %}
     <div class="flex-grow"></div>
@@ -106,10 +118,15 @@
       {% set lt_colors = {'EXPENSE':'bg-red-50 text-red-700','FIXED_ASSET':'bg-blue-50 text-blue-700','INVENTORY':'bg-emerald-50 text-emerald-700'} %}
       {% set lt_labels = {'EXPENSE':'مصروف','FIXED_ASSET':'أصل ثابت','INVENTORY':'مخزون'} %}
       {% for b in bills %}
-      {% set sc = {'DRAFT':'badge-draft','POSTED':'badge-sent','PARTIALLY_PAID':'badge-partial','PAID':'badge-paid','OVERDUE':'badge-overdue','CANCELLED':'badge-cancelled'} %}
-      <tr>
-        <td class="font-mono font-semibold text-navy-900">{{ b.number }}</td>
-        <td>{{ b.vendor.name if b.vendor else '—' }}</td>
+      {% set sc = {'DRAFT':'badge-draft','POSTED':'badge-sent','PARTIALLY_PAID':'badge-partial','PAID':'badge-paid','OVERDUE':'badge-overdue','CANCELLED':'badge-cancelled','REFUNDED':'badge-refunded','PARTIALLY_REFUNDED':'badge-refunded'} %}
+      {# MARSOUD-VBILL-REFUND-STATUS — deleted rows stay in the list but
+         are visually muted so they're not confused with live bills.
+         Financial totals already exclude them. Keyed on deleted_at
+         rather than the status because a soft-deleted DRAFT keeps its
+         DRAFT status. #}
+      <tr{% if b.deleted_at %} class="opacity-60 bg-slate-50/60"{% endif %}>
+        <td class="font-mono font-semibold text-navy-900 {% if b.deleted_at %}line-through decoration-rose-400{% endif %}">{{ b.number }}</td>
+        <td class="{% if b.deleted_at %}line-through decoration-rose-400 text-slate-500{% endif %}">{{ b.vendor.name if b.vendor else '—' }}</td>
         <td class="text-sm">
           {# MARSOUD-VBILL-SUBCAT-DISPLAY-FILTER — sub-cat pill next
              to the description so it's scannable from the list. #}
@@ -129,11 +146,17 @@
           {% for it in b.items %}<div class="truncate max-w-[12rem]" title="{{ it.account.code }} — {{ it.account.name_ar or it.account.name }}"><span class="font-mono text-slate-400">{{ it.account.code }}</span> {{ it.account.name_ar or it.account.name }}</div>{% else %}<span class="text-slate-400">—</span>{% endfor %}
         </td>
         <td class="text-sm">{{ b.issue_date.isoformat() }}</td>
-        <td class="text-sm {% if b.status.value == 'OVERDUE' %}text-red-600 font-semibold{% endif %}">{{ b.due_date.isoformat() }}</td>
+        <td class="text-sm {% if b.status.value == 'OVERDUE' and not b.deleted_at %}text-red-600 font-semibold{% endif %}">{{ b.due_date.isoformat() }}</td>
         <td class="text-xs">{{ b.payment_method.value }}</td>
-        <td class="text-left font-mono font-semibold">{{ "%.2f"|format(b.total) }}</td>
-        <td class="text-left font-mono {% if b.balance > 0 %}text-amber-600{% else %}text-emerald-600{% endif %}">{{ "%.2f"|format(b.balance) }}</td>
-        <td><span class="badge {{ sc.get(b.status.value, 'badge-draft') }}">{{ b.status.value }}</span></td>
+        <td class="text-left font-mono font-semibold {% if b.deleted_at %}line-through decoration-rose-400 text-slate-400{% endif %}">{{ "%.2f"|format(b.total) }}</td>
+        <td class="text-left font-mono {% if b.deleted_at %}line-through decoration-rose-400 text-slate-400{% elif b.balance > 0 %}text-amber-600{% else %}text-emerald-600{% endif %}">{{ "%.2f"|format(b.balance) }}</td>
+        <td>
+          {% if b.deleted_at %}
+          <span class="badge badge-cancelled" title="محذوفة — لا تدخل في أي حسابات مالية">🗑️ محذوفة</span>
+          {% else %}
+          <span class="badge {{ sc.get(b.status.value, 'badge-draft') }}">{{ b.status.value }}</span>
+          {% endif %}
+        </td>
         <td><a href="{{ url_for('vendor_bills.view', bill_id=b.id) }}" class="text-brand-600 hover:underline text-sm">عرض</a></td>
       </tr>
       {% else %}
