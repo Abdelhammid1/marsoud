@@ -383,24 +383,34 @@ def _():
     return "4 portal links present, 0 owner-sidebar leaks"
 
 
-@check("D4. «+ شركة جديدة» hidden from portal roles, kept for the rest")
+@check("D4. «+ شركة جديدة» is gone from the sidebar for every role")
 def _():
+    """MARSOUD-DASH-SHELL (2026-08-04) — this used to assert the link was
+    hidden from the portal roles and KEPT for everyone else. The link has
+    now been removed outright (the flow no longer works), so the original
+    concern — a portal role seeing a link that 403s on companies.* —
+    is satisfied more strongly: nobody sees it."""
     NEW_CO = 'href="/companies/new"'
-    emp = _get("employee", "/my/account").get_data(as_text=True)
-    cli = _get("client", "/portal/", follow=True).get_data(as_text=True)
-    own = _get("owner", "/home").get_data(as_text=True)
-    assert NEW_CO not in emp, "still shown to employee"
-    assert NEW_CO not in cli, "still shown to client"
-    assert NEW_CO in own, "wrongly hidden from owner"
-    return "hidden for employee+client, present for owner"
+    for role, url in (("employee", "/my/account"), ("client", "/portal/"),
+                      ("owner", "/home"), ("accountant", "/home")):
+        body = _get(role, url, follow=True).get_data(as_text=True)
+        assert NEW_CO not in body, f"still shown to {role}"
+    return "removed for all 4 roles checked"
 
 
-@check("D5. AI-agent button hidden from employee, kept for accountant")
+@check("D5. المحاسب الذكي hidden from employee, kept for accountant")
 def _():
+    """MARSOUD-DASH-SHELL — the top-bar button (an onclick, not a link)
+    became a sidebar row pointing at the full agent page. The rule it
+    encoded is unchanged: visible iff the role has agent.use."""
     emp = _get("employee", "/my/account").get_data(as_text=True)
     acc = _get("accountant", "/home").get_data(as_text=True)
-    assert "toggleAgent()" not in emp, "agent button still rendered for employee"
-    assert "toggleAgent()" in acc, "agent button wrongly hidden from accountant"
+    assert "toggleAgent()" not in acc, \
+        "the removed slide-over toggle is back"
+    assert 'href="/agent/"' not in emp, \
+        "agent link still rendered for employee"
+    assert 'href="/agent/"' in acc, \
+        "agent link wrongly hidden from accountant"
     return "hidden for employee, present for accountant"
 
 
@@ -490,13 +500,19 @@ def _():
     return "3 roles reach /agent/insights, agent.chat/index still 403"
 
 
-@check("E7. agent button renders iff the role actually has agent.use")
+@check("E7. the agent link renders iff the role actually has agent.use")
 def _():
-    # D1/D2 crawl href="" links; the AI-agent launcher is an onclick, so it
-    # slipped past them. It used to render for hr_manager / sales_manager /
-    # sales_rep / project_manager (403 on agent.chat via the financial
-    # block) and ceo / viewer (no agent.use grant → redirect) — a control
-    # that could only ever fail. base.html now keys off has_permission.
+    # D1/D2 crawl href="" links; the AI-agent launcher used to be an
+    # onclick, so it slipped past them. It rendered for hr_manager /
+    # sales_manager / sales_rep / project_manager (403 on agent.chat via
+    # the financial block) and ceo / viewer (no agent.use grant →
+    # redirect) — a control that could only ever fail. base.html keys off
+    # has_permission.
+    #
+    # MARSOUD-DASH-SHELL (2026-08-04) — the launcher is now an ordinary
+    # sidebar link to the full agent page, so the probe is an href. The
+    # invariant is identical, and it is now within reach of the D1/D2
+    # link crawlers too.
     from app.services.permissions import has_permission
     from app.models import User, Company
     # Read the permissions inside a SHORT-lived app context, then drop it
@@ -512,13 +528,13 @@ def _():
     mismatched = []
     for role in ALL_SIDEBAR_ROLES:
         r = _client_for(role).get(_landing_for(role), follow_redirects=True)
-        rendered = 'onclick="toggleAgent()"' in r.get_data(as_text=True)
+        rendered = 'href="/agent/"' in r.get_data(as_text=True)
         if rendered != allowed[role]:
             mismatched.append(
-                f"{role}: button={rendered} but agent.use={allowed[role]}")
-    assert not mismatched, f"dead/missing agent buttons: {mismatched}"
+                f"{role}: link={rendered} but agent.use={allowed[role]}")
+    assert not mismatched, f"dead/missing agent links: {mismatched}"
     yes = sorted(r for r in ALL_SIDEBAR_ROLES if allowed[r])
-    return f"{len(ALL_SIDEBAR_ROLES)} roles checked; button only for {yes}"
+    return f"{len(ALL_SIDEBAR_ROLES)} roles checked; link only for {yes}"
 
 
 @check("E8. portal roles can read /terms + /privacy (the consent trap)")

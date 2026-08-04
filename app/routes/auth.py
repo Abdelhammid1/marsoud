@@ -538,7 +538,7 @@ def verify_resend():
     return redirect(url_for("auth.verify_pending"))
 
 
-@bp.route("/logout")
+@bp.route("/logout", methods=["GET", "POST"])
 @login_required
 def logout():
     end_impersonation()

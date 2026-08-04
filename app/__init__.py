@@ -683,9 +683,33 @@ def create_app(config_class=Config):
                 sub_state = None
         # MARSOUD-58 — make the sub-item gate available to templates so
         # the sidebar can hide individual links the plan disabled.
-        from app.services.plan_gating import subitem_allowed
+        # MARSOUD-DASH-SHELL (2026-08-04) — route the sidebar gate
+        # through endpoint_to_subitem first, exactly as the request-time
+        # 403 gate does (see before_request above). Passing the RAW
+        # endpoint meant any endpoint absent from SUB_ITEM_CATALOG was
+        # hidden from the sidebar for tenants past their subscription
+        # window with a non-NULL allowed_subitems — even though the page
+        # itself loads fine for them. It was already silently hiding ~18
+        # existing rows, accounting_ops.index among them.
+        #
+        # This can only WIDEN sidebar visibility to match what the
+        # request gate already permits, so it cannot produce a 403. The
+        # alternative — adding new keys to SUB_ITEM_CATALOG — would 403
+        # every existing tenant until a super-admin re-saved each plan.
+        from app.services.plan_gating import (
+            subitem_allowed, endpoint_to_subitem,
+        )
         def _subitem_allowed_template(endpoint):
-            return subitem_allowed(endpoint, active_company)
+            si = endpoint_to_subitem(endpoint)
+            # None means "no sub-item gates this endpoint" — the
+            # before_request gate lets those through untouched
+            # (`if si and not subitem_allowed(si)`), so the sidebar must
+            # too. Falling back to the raw endpoint here instead would
+            # hide exactly the links the user can still open, which is
+            # the bug being fixed.
+            if si is None:
+                return True
+            return subitem_allowed(si, active_company)
         # MARSOUD-MC-EMPLOYEE — the sidebar 👤 icon must reflect whether
         # the CURRENT user has an Employee row in the ACTIVE company,
         # not whether users.employee_id is set globally (which broke for

@@ -22,7 +22,7 @@ from flask_login import login_required, current_user
 from app.services.accounting_ops import (
     OPERATIONS, get_operation, run_operation, OperationError,
 )
-from app.models import PaymentMethod
+from app.services.ledger import cash_and_bank_accounts
 from app.services.permissions import require_permission
 
 
@@ -56,9 +56,9 @@ def run(op_key):
         except OperationError as e:
             flash(str(e), "error")
 
-    payment_methods = PaymentMethod.query.filter_by(
-        company_id=g.active_company.id, is_active=True,
-    ).order_by(PaymentMethod.is_default.desc(), PaymentMethod.name).all()
+    # The cash + bank accounts themselves, grouped — not payment methods.
+    # See the note on _money_account in services/accounting_ops.py.
     return render_template(
-        "accounting_ops/run.html", op=op, payment_methods=payment_methods,
+        "accounting_ops/run.html", op=op,
+        financial_groups=cash_and_bank_accounts(g.active_company.id),
     )

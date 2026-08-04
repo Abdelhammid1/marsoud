@@ -79,6 +79,12 @@ tailwind.config = {
     to { opacity: 1; transform: translateY(0); }
   }
 
+  /* MARSOUD-DASH-SHELL — the top-bar user menu is a <details>. Tailwind's
+     list-none handles Firefox; WebKit needs its own marker killed, at
+     every width (not inside the mobile media query below). */
+  #user-menu > summary::-webkit-details-marker { display: none; }
+  #user-menu > summary::marker { content: ""; }
+
   .card { background: white; border: 1px solid #E2E8F0; border-radius: 16px; }
   .btn-primary {
     background: linear-gradient(135deg, #047857 0%, #059669 100%);
@@ -428,15 +434,12 @@ tailwind.config = {
 <body class="antialiased">
 
 {% if current_user.is_authenticated %}
-{# MARSOUD-PORTAL-403-FIX — one source of truth for "may this role use the
-   AI accountant agent". Ask the permission layer rather than hardcoding
-   roles: the old list excluded only client/team_member, so hr_manager,
-   sales_manager, sales_rep and project_manager still got a button whose
-   fetch('/agent/chat') is 403'd by block_non_financial_roles_from_financial,
-   and ceo/viewer got one that redirects (no agent.use grant). agent.use
-   already encodes all of it — including plan gating (a company without the
-   "agent" module gets no button) and any custom role the owner defines. #}
-{% set show_agent = has_permission('agent.use') %}
+{# MARSOUD-DASH-SHELL (2026-08-04) — `show_agent` used to gate the top-bar
+   agent button and its slide-over panel; both are gone and المحاسب الذكي
+   is now a sidebar row. The same rule still applies, via permission_map
+   ('agent.index': 'agent.use') — which is the point of asking the
+   permission layer rather than hardcoding roles: agent.use already encodes
+   the role list, the plan module and any custom role the owner defines. #}
 <div class="flex min-h-screen">
   {# MARSOUD-CHOOSE-PLAN-HIDE-SIDEBAR (Abdelhamid 2026-07-22) — a
      template can set `hide_sidebar = true` to render the whole page
@@ -536,10 +539,27 @@ tailwind.config = {
            workflow frequency. Each link is permission-filtered; sections
            with zero visible links are skipped entirely. Items may have an
            optional 4th tuple element with url_for kwargs (used for
-           companies.edit which needs company_id). #}
+           companies.edit which needs company_id).
+
+           MARSOUD-DASH-SHELL (2026-08-04) — المخزون gained five pages that
+           existed as routes with no way in from the nav:
+           products.hierarchy was reachable only from a small button inside
+           the products list; inventory.inventory_balance already had a
+           permission_map entry below with no matching row up here, which is
+           how it was spotted; inventory.barcodes_picker had no inbound link
+           in any template at all. الرئيسية gained agent.index, which the
+           top-bar button used to cover.
+
+           NB: do not put a Jinja comment inside the list literal below.
+           Jinja cannot parse one inside an expression and it fails as a
+           500 on every authenticated page. Note also that Jinja comments
+           do NOT nest, so writing the comment delimiters themselves in
+           here closes this block early and dumps the rest as visible
+           text into the sidebar. #}
         {% set sections = [
           ('الرئيسية', '🏠', [
             ('dashboard.index', 'لوحة المعلومات', '📊'),
+            ('agent.index', 'المحاسب الذكي', '🤖'),
             ('user_files.index', 'ملفاتي', '📁'),
             ('support.index', 'الدعم الفني', '🆘'),
           ]),
@@ -580,7 +600,12 @@ tailwind.config = {
             ('inventory.movements', 'حركة الأصناف', '🔄'),
             ('inventory.transfers', 'تحويل بين المخازن', '🚚'),
             ('inventory_counts.index', 'جرد المخزون', '📋'),
-            ('products.index', 'المنتجات والخدمات', '🏷️'),
+            ('inventory.adjust', 'تسوية جرد', '⚖️'),
+            ('inventory.opening_balance', 'رصيد افتتاحي مخزون', '📂'),
+            ('inventory.inventory_balance', 'رصيد المخزون', '📑'),
+            ('inventory.barcodes_picker', 'طباعة الباركود', '🏷️'),
+            ('products.index', 'المنتجات والخدمات', '🛍️'),
+            ('products.hierarchy', 'التصنيفات والفئات', '🧬'),
           ]),
           ('العملاء المحتملين (CRM)', '🤝', [
             ('leads.index', 'Leads', '🎯'),
@@ -630,7 +655,11 @@ tailwind.config = {
          Owners have every permission so see everything. Custom roles
          (cloned from sales_rep etc.) only see the links their granted
          permissions cover, instead of falling through to the full owner
-         sidebar. #}
+         sidebar.
+
+         MARSOUD-DASH-SHELL — every new nav row needs an entry here too: a
+         missing one leaves `req` as None, which shows the link to every
+         logged-in user, including roles the route then 403s. #}
       {% set permission_map = {
         'dashboard.index': None,
         'accounts.index': 'accounts.manage',
@@ -660,6 +689,10 @@ tailwind.config = {
         'inventory.movements': 'inventory.view',
         'inventory_counts.index': 'inventory.manage',
         'inventory.inventory_balance': 'inventory.view',
+        'inventory.adjust': 'inventory.manage',
+        'inventory.opening_balance': 'inventory.manage',
+        'inventory.barcodes_picker': 'inventory.manage',
+        'products.hierarchy': 'products.manage',
         'pos.index': 'pos.use',
         'pos.shifts': 'shifts.manage',
         'pos.history': 'pos.use',
@@ -823,23 +856,12 @@ tailwind.config = {
       {% endif %}
     </nav>
 
-    <div class="px-4 py-3 border-t border-slate-200">
-      {# MARSOUD-PORTAL-403-FIX — «+ شركة جديدة» was rendered for every
-         logged-in user, including the portal roles that
-         confine_client_to_portal 403s on `companies.*`. #}
-      {% if current_role not in ('client', 'employee') %}
-      <a href="{{ url_for('companies.new') }}" class="block text-center text-xs text-slate-500 hover:text-emerald-600 py-1.5">+ شركة جديدة</a>
-      {% endif %}
-      <div class="mt-3 flex items-center justify-between gap-2 bg-white/5 rounded-lg px-3 py-2">
-        <div class="text-xs">
-          <div class="text-white font-semibold leading-tight">{{ current_user.full_name }}</div>
-          <div class="text-slate-400">{{ current_user.email }}</div>
-        </div>
-        <a href="{{ url_for('auth.logout') }}" class="text-slate-400 hover:text-emerald-600" title="خروج">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-        </a>
-      </div>
-    </div>
+    {# MARSOUD-DASH-SHELL (2026-08-04) — the sidebar footer is gone.
+       «+ شركة جديدة» was removed (the flow no longer works), and the
+       email + logout row moved into the top-bar user menu. That row also
+       carried a long-standing bug worth recording: `text-white` on the
+       name over `bg-white/5` inside a `bg-slate-50` aside rendered it
+       white on near-white, i.e. invisible. #}
   </aside>
 
   <!-- MARSOUD-42 — backdrop shown only on mobile when sidebar is open -->
@@ -912,19 +934,6 @@ tailwind.config = {
             </button>
           </form>
           {% else %}
-          {# MARSOUD-57.1 — حسابي icon visible to any employee with a
-             linked HR record. Outside the sidebar per spec.
-             MARSOUD-MC-EMPLOYEE — my_employee_here is scoped to the
-             ACTIVE company; the old check followed a single scalar and
-             mis-rendered for multi-company owners. #}
-          {% if my_employee_here %}
-          <a href="{{ url_for('portal_emp.account') }}" class="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:border-emerald-500 hover:bg-emerald-50 transition" title="حسابي">
-            👤
-          </a>
-          <a href="{{ url_for('portal_emp.daily_reports_list') }}" class="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:border-emerald-500 hover:bg-emerald-50 transition" title="تقاريري اليومية">
-            📝
-          </a>
-          {% endif %}
           {# MARSOUD-HELP-CENTER-01 — contextual "?" icon. Only
              renders when the current blueprint has a published
              HelpArticle whose module_key matches. #}
@@ -941,12 +950,49 @@ tailwind.config = {
             <span class="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{{ notif_unread_count }}</span>
             {% endif %}
           </a>
-          {% if show_agent %}
-          <button onclick="toggleAgent()" class="btn-accent text-sm whitespace-nowrap" title="المحاسب الذكي" aria-label="المحاسب الذكي">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
-            <span class="hidden sm:inline">المحاسب الذكي</span>
-          </button>
-          {% endif %}
+          {# MARSOUD-DASH-SHELL (2026-08-04) — the user menu took this
+             spot from the المحاسب الذكي button, which moved to the
+             sidebar (🏠 الرئيسية) and now opens its own full page.
+             It gathers the three things that were scattered around the
+             shell: حسابي and تقاريري (top-bar icons, MARSOUD-57.1) and
+             تسجيل الخروج (buried in the sidebar footer under an
+             invisible white-on-white email).
+
+             <details> is the house pattern for a click-to-open menu —
+             there is no Alpine in this project — with a click-away and
+             Escape handler at the bottom of this file.
+
+             portal_emp.* is exempt from plan sub-item gating
+             (plan_gating.endpoint_to_subitem), so this menu is safe for
+             every tenant with no plan changes. #}
+          <details id="user-menu" class="relative">
+            <summary class="list-none cursor-pointer inline-flex items-center gap-2 h-9 px-2.5 rounded-lg border border-slate-200 bg-white hover:border-emerald-500 hover:bg-emerald-50 transition select-none"
+                     title="حسابي" aria-haspopup="true">
+              <span class="text-base leading-none">👤</span>
+              <span class="hidden sm:inline text-sm font-medium text-navy-900 max-w-[10rem] truncate">{{ current_user.full_name }}</span>
+              <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <div class="absolute left-0 mt-2 w-60 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-50">
+              <div class="px-3 py-2 border-b border-slate-100">
+                <div class="text-sm font-semibold text-navy-900 truncate">{{ current_user.full_name }}</div>
+                <div class="text-xs text-slate-500 truncate" dir="ltr">{{ current_user.email }}</div>
+              </div>
+              {% if my_employee_here %}
+              {# MARSOUD-MC-EMPLOYEE — scoped to the ACTIVE company. #}
+              <a href="{{ url_for('portal_emp.account') }}" class="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
+                <span>👤</span><span>حسابي</span>
+              </a>
+              <a href="{{ url_for('portal_emp.daily_reports_list') }}" class="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
+                <span>📝</span><span>تقاريري اليومية</span>
+              </a>
+              {% endif %}
+              <form method="POST" action="{{ url_for('auth.logout') }}" class="border-t border-slate-100 mt-1 pt-1">
+                <button type="submit" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-red-50 hover:text-red-700 text-right">
+                  <span>🚪</span><span>تسجيل الخروج</span>
+                </button>
+              </form>
+            </div>
+          </details>
           {% endif %}
         </div>
       </div>
@@ -969,84 +1015,13 @@ tailwind.config = {
     </div>
   </main>
 
-  <!-- Agent slide-over -->
-  {# MARSOUD-PORTAL-403-FIX — the launcher button was already role-gated but
-     the panel + its JS shipped to every role, so confined users still
-     carried dead markup wired to a 403 endpoint. Gate both on show_agent. #}
-  {% if show_agent %}
-  <div id="agent-panel" class="fixed inset-y-0 left-0 w-96 bg-white shadow-2xl border-l border-slate-200 transform -translate-x-full transition-transform duration-300 z-50 flex flex-col">
-    <div class="px-5 py-4 border-b border-slate-200 bg-navy-900 text-white">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-sm font-bold">🤖</div>
-          <div>
-            <div class="font-bold">محاسب نزاهة</div>
-            <div class="text-xs text-navy-200">مدعوم بـ Claude</div>
-          </div>
-        </div>
-        <button onclick="toggleAgent()" class="text-white/70 hover:text-white">
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
-      </div>
-    </div>
-    <div id="agent-messages" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50"></div>
-    <div class="p-3 border-t border-slate-200 bg-white">
-      <form id="agent-form" onsubmit="sendAgent(event)" class="flex gap-2">
-        <input id="agent-input" type="text" placeholder="اكتب طلبك… مثلاً: سجل فاتورة 5000 ريال لشركة الأمل"
-               class="input text-sm" autocomplete="off">
-        <button type="submit" id="agent-send" class="btn-primary px-3 py-2">إرسال</button>
-      </form>
-    </div>
-  </div>
-  {% endif %}
+  {# MARSOUD-DASH-SHELL (2026-08-04) — the agent slide-over lived here.
+     Its only trigger was the top-bar button, which the user menu
+     replaced, so the panel and its ~45 lines of fetch/render JS would
+     have been unreachable markup on every page. المحاسب الذكي is now a
+     sidebar item opening the full agent page (agent.index), which was
+     already built and already linked from the dashboard quick actions. #}
 </div>
-{% if show_agent %}
-<script>
-function toggleAgent() {
-  const p = document.getElementById('agent-panel');
-  p.classList.toggle('-translate-x-full');
-}
-async function sendAgent(e) {
-  e.preventDefault();
-  const input = document.getElementById('agent-input');
-  const text = input.value.trim();
-  if (!text) return;
-  const messages = document.getElementById('agent-messages');
-  messages.innerHTML += `<div class="flex justify-end"><div class="bg-navy-900 text-white rounded-2xl rounded-tl-sm px-4 py-2 max-w-[80%] text-sm">${escapeHtml(text)}</div></div>`;
-  input.value = '';
-  const loading = document.createElement('div');
-  loading.className = 'flex justify-start';
-  loading.innerHTML = '<div class="bg-white border border-slate-200 rounded-2xl rounded-tr-sm px-4 py-2 text-sm text-slate-500"><span class="inline-block animate-pulse">يفكر…</span></div>';
-  messages.appendChild(loading);
-  messages.scrollTop = messages.scrollHeight;
-  document.getElementById('agent-send').disabled = true;
-  try {
-    const res = await fetch('/agent/chat', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message: text}),
-    });
-    const data = await res.json();
-    loading.remove();
-    if (data.error) {
-      messages.innerHTML += `<div class="text-xs text-red-600 px-2">${escapeHtml(data.error)}</div>`;
-    } else {
-      messages.innerHTML += `<div class="flex justify-start"><div class="bg-white border border-slate-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">${escapeHtml(data.reply)}</div></div>`;
-      if (data.tools && data.tools.length) {
-        const toolsLabel = data.tools.map(t => t.tool).join(', ');
-        messages.innerHTML += `<div class="text-xs text-slate-400 px-2">🔧 استخدم: ${escapeHtml(toolsLabel)}</div>`;
-      }
-    }
-  } catch (err) {
-    loading.remove();
-    messages.innerHTML += `<div class="text-xs text-red-600 px-2">خطأ في الاتصال</div>`;
-  }
-  document.getElementById('agent-send').disabled = false;
-  messages.scrollTop = messages.scrollHeight;
-}
-function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-</script>
-{% endif %}
 {% else %}
   {% block guest_content %}{% endblock %}
 {% endif %}
@@ -1301,6 +1276,22 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 });
+
+// MARSOUD-DASH-SHELL — <details> opens on click but has no notion of
+// "click somewhere else to close", so a user menu built on it stays
+// stuck open. Same click-away + Escape shape as the mentions dropdown.
+(function () {
+  var menu = document.getElementById('user-menu');
+  if (!menu) return;
+  document.addEventListener('click', function (ev) {
+    if (!menu.open) return;
+    if (menu.contains(ev.target)) return;
+    menu.open = false;
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && menu.open) menu.open = false;
+  });
+})();
 
 // MARSOUD-42 — toggle the whole sidebar (separate from per-section
 // toggle). On desktop, hides the sidebar and expands the main content

@@ -125,6 +125,12 @@ def _sweep_orphans(conn, live):
         conn.execute(text(
             "DELETE FROM stock_balances WHERE variant_id NOT IN (SELECT id FROM product_variants)"
         ))
+        # MARSOUD-STOCK-BALANCE-CASCADE — the warehouse half, never swept
+        # before. stock_balances has two FKs; only one was checked.
+        if "warehouses" in live:
+            conn.execute(text(
+                "DELETE FROM stock_balances WHERE warehouse_id NOT IN (SELECT id FROM warehouses)"
+            ))
     if "stock_movements" in live:
         conn.execute(text(
             "DELETE FROM stock_movements WHERE variant_id NOT IN (SELECT id FROM product_variants)"
