@@ -52,16 +52,24 @@ def index():
     # MARSOUD-PRODUCT-HIERARCHY-01 — categories for the category-tabs
     # picker. Each product's default variant carries the sellable SKU.
     from app.models import ProductCategory, Product, ProductVariant
-    categories = ProductCategory.query.filter_by(
-        company_id=cid, is_active=True,
-    ).order_by(ProductCategory.name).all()
+    # MARSOUD-CATEGORY-VISIBILITY-01 — a category switched off for POS
+    # loses its tab as well as its products. Leaving the tab would open
+    # an empty panel, which reads as a bug rather than as a setting.
+    from app.services.category_visibility import (
+        visible_categories, product_visible_clause,
+    )
+    categories = visible_categories(cid, "pos")
     # Pre-compute per-category product cards so the picker renders
     # without additional queries. Only tracked products with an active
     # default variant show up (services can't be scanned).
     products_by_cat = {}
-    tracked = Product.query.filter_by(
+    tracked_q = Product.query.filter_by(
         company_id=cid, is_active=True, is_tracked=True,
-    ).all()
+    )
+    _vis = product_visible_clause(cid, "pos")
+    if _vis is not None:
+        tracked_q = tracked_q.filter(_vis)
+    tracked = tracked_q.all()
     for p in tracked:
         v = p.default_variant
         if not v or not v.is_active:
@@ -212,6 +220,19 @@ def lookup():
         v = ProductVariant.query.filter_by(
             company_id=cid, sku=q, is_active=True,
         ).first()
+    # MARSOUD-CATEGORY-VISIBILITY-01 — the hole the ticket names: hiding a
+    # category from the GRID is worthless if the same product is still
+    # scannable. Both branches above resolve a variant without ever
+    # touching Product, so the check goes here, after resolution, and
+    # answers with the same 404 an unknown barcode gets — a cashier
+    # should not be able to tell "hidden" from "does not exist".
+    #
+    # Deliberately NOT inside find_variant_by_barcode
+    # (services/inventory.py): the AI agent shares that helper and is out
+    # of scope for this ticket.
+    from app.services.category_visibility import is_product_visible
+    if v and not is_product_visible(v.product, "pos"):
+        v = None
     if not v:
         return jsonify({"error": f"الباركود/SKU '{q}' غير معروف"}), 404
     return jsonify({

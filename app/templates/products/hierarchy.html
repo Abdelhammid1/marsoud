@@ -38,15 +38,35 @@
 
   <div class="pl-8 space-y-2 mb-3">
     {% for cat in g_row.categories %}
-    <div class="flex items-center gap-2 py-2 border-b border-slate-50">
-      <span>📎</span>
-      <form method="POST" action="{{ url_for('products.category_edit', cat_id=cat.id) }}" class="flex items-center gap-2 flex-1">
-        <input type="text" name="name" value="{{ cat.name }}" class="input text-sm flex-1 max-w-md">
-        <button type="submit" class="text-xs text-brand-600 hover:underline">💾</button>
+    {# MARSOUD-CATEGORY-VISIBILITY-01 — the four switches sit on a second
+       line INSIDE the edit form, so the row's single 💾 saves the name and
+       the visibility together. The delete form stays a sibling: forms
+       cannot nest. #}
+    <div class="flex items-start gap-2 py-2 border-b border-slate-50">
+      <form method="POST" action="{{ url_for('products.category_edit', cat_id=cat.id) }}" class="flex-1 min-w-0">
+        <div class="flex items-center gap-2">
+          <span>📎</span>
+          <input type="text" name="name" value="{{ cat.name }}" class="input text-sm flex-1 max-w-md">
+          <button type="submit" class="text-xs text-brand-600 hover:underline">💾</button>
+          <div class="text-xs text-slate-500 whitespace-nowrap">{{ counts.get(cat.id, 0) }} منتج</div>
+        </div>
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 pr-7">
+          {# "تظهر في:" once, so each box reads as «تظهر في نقطة البيع»
+             without repeating the phrase four times across the row. #}
+          <span class="text-xs text-slate-400">تظهر في:</span>
+          {% for col, label, icon in vis_modules %}
+          <label class="inline-flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none"
+                 title="تظهر منتجات هذه الفئة في {{ label }}">
+            <input type="checkbox" name="{{ col }}" value="1"
+                   {% if cat|attr(col) %}checked{% endif %}
+                   class="rounded border-slate-300">
+            <span>{{ icon }} {{ label }}</span>
+          </label>
+          {% endfor %}
+        </div>
       </form>
-      <div class="text-xs text-slate-500">{{ counts.get(cat.id, 0) }} منتج</div>
       <form method="POST" action="{{ url_for('products.category_delete', cat_id=cat.id) }}"
-            onsubmit="return confirm('حذف الفئة {{ cat.name|e }}؟');">
+            onsubmit="return confirm('حذف الفئة {{ cat.name|e }}؟');" class="pt-1">
         <button type="submit" class="text-xs text-rose-600 hover:underline">🗑</button>
       </form>
     </div>
@@ -55,10 +75,24 @@
     {% endfor %}
   </div>
 
-  <form method="POST" action="{{ url_for('products.category_create') }}" class="flex gap-2 pt-2">
+  <form method="POST" action="{{ url_for('products.category_create') }}" class="pt-2">
     <input type="hidden" name="group_id" value="{{ g_row.id }}">
-    <input type="text" name="name" placeholder="+ فئة جديدة تحت {{ g_row.name }}" required class="input text-sm flex-1">
-    <button type="submit" class="btn-secondary text-sm">إضافة فئة</button>
+    <div class="flex gap-2">
+      <input type="text" name="name" placeholder="+ فئة جديدة تحت {{ g_row.name }}" required class="input text-sm flex-1">
+      <button type="submit" class="btn-secondary text-sm">إضافة فئة</button>
+    </div>
+    {# Pre-ticked: a new category behaves like every existing one until
+       the owner decides otherwise. #}
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
+      <span class="text-xs text-slate-400">تظهر في:</span>
+      {% for col, label, icon in vis_modules %}
+      <label class="inline-flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none"
+             title="تظهر منتجات هذه الفئة في {{ label }}">
+        <input type="checkbox" name="{{ col }}" value="1" checked class="rounded border-slate-300">
+        <span>{{ icon }} {{ label }}</span>
+      </label>
+      {% endfor %}
+    </div>
   </form>
 </div>
 {% else %}

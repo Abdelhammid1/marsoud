@@ -195,16 +195,22 @@ def api_inventory_targets():
     line picker needs. Scoped to active company. Only active tracked
     products show their variants."""
     cid = g.active_company.id
-    variants = (
+    # MARSOUD-CATEGORY-VISIBILITY-01 — the only product list behind the
+    # bill's inventory picker (new_typed.html fetches it once and reuses
+    # it for every row), so the vendor-bills switch is enforced here.
+    from app.services.category_visibility import product_visible_clause
+    q = (
         db.session.query(ProductVariant, Product)
         .join(Product, ProductVariant.product_id == Product.id)
         .filter(ProductVariant.company_id == cid,
                 ProductVariant.is_active.is_(True),
                 Product.is_active.is_(True),
                 Product.is_tracked.is_(True))
-        .order_by(Product.name, ProductVariant.sku)
-        .all()
     )
+    _vis = product_visible_clause(cid, "vendor_bills")
+    if _vis is not None:
+        q = q.filter(_vis)
+    variants = q.order_by(Product.name, ProductVariant.sku).all()
     warehouses = Warehouse.query.filter_by(
         company_id=cid, is_active=True,
     ).order_by(Warehouse.is_default.desc(), Warehouse.name).all()
