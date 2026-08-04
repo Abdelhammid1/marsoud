@@ -52,9 +52,23 @@ def boms_index():
 @require_permission("manufacturing.manage")
 def bom_new():
     cid = g.active_company.id
-    variants = ProductVariant.query.filter_by(
-        company_id=cid, is_active=True,
-    ).all()
+    # MARSOUD-CATEGORY-VISIBILITY-01 — one list feeds both the finished-
+    # good picker and every component row in bom_form.html, so a single
+    # filter covers both: a category switched off for manufacturing
+    # disappears from both, which is what the switch means. The query had
+    # no Product join at all, hence the explicit one here.
+    from app.models import Product
+    from app.services.category_visibility import product_visible_clause
+    _vq = (
+        ProductVariant.query
+        .join(Product, ProductVariant.product_id == Product.id)
+        .filter(ProductVariant.company_id == cid,
+                ProductVariant.is_active.is_(True))
+    )
+    _vis = product_visible_clause(cid, "manufacturing")
+    if _vis is not None:
+        _vq = _vq.filter(_vis)
+    variants = _vq.all()
     if request.method == "POST":
         name = (request.form.get("name") or "").strip()
         variant_id = request.form.get("product_variant_id", type=int)

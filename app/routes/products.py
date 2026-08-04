@@ -437,10 +437,20 @@ def variant_deactivate(product_id, variant_id):
 @bp.route("/api/list")
 @login_required
 def api_list():
-    """JSON endpoint for invoice form autocomplete."""
-    products = Product.query.filter_by(
-        company_id=g.active_company.id, is_active=True
-    ).order_by(Product.name).all()
+    """JSON endpoint for invoice form autocomplete.
+
+    MARSOUD-CATEGORY-VISIBILITY-01 — this is the ONLY entry point behind
+    the customer-invoice product picker (templates/invoices/form.html
+    fetches it once and builds every line's dropdown from the result), so
+    the customer-invoice switch is enforced here and nowhere else.
+    """
+    from app.services.category_visibility import product_visible_clause
+    cid = g.active_company.id
+    q = Product.query.filter_by(company_id=cid, is_active=True)
+    _vis = product_visible_clause(cid, "customer_invoices")
+    if _vis is not None:
+        q = q.filter(_vis)
+    products = q.order_by(Product.name).all()
     return jsonify([
         {
             "id": p.id, "name": p.name, "description": p.description or "",
@@ -478,8 +488,17 @@ def hierarchy():
     ).filter(Product.company_id == cid).group_by(
         Product.category_id,
     ).all())
+    # MARSOUD-CATEGORY-VISIBILITY-01 — the four switches, ordered and
+    # labelled from the registry so adding a module never means editing
+    # this template.
+    from app.services.category_visibility import MODULES, MODULE_ICONS
+    vis_modules = [
+        (col, label, MODULE_ICONS.get(key, ""))
+        for key, (col, label) in MODULES.items()
+    ]
     return render_template(
         "products/hierarchy.html", groups=groups, counts=counts,
+        vis_modules=vis_modules,
     )
 
 
@@ -561,8 +580,13 @@ def category_create():
     ).first():
         flash("فئة بنفس الاسم موجودة تحت هذه المجموعة", "error")
         return redirect(url_for("products.hierarchy"))
+    # MARSOUD-CATEGORY-VISIBILITY-01 — the four module switches. The form
+    # ships them pre-ticked, so the normal path creates a category that
+    # behaves like every existing one.
+    from app.services.category_visibility import flags_from_form
     db.session.add(ProductCategory(
         company_id=cid, group_id=group_id, name=name,
+        **flags_from_form(request.form),
     ))
     db.session.commit()
     flash("تم إنشاء الفئة", "success")
@@ -582,6 +606,13 @@ def category_edit(cat_id):
         flash("الاسم مطلوب", "error")
         return redirect(url_for("products.hierarchy"))
     c.name = name
+    # MARSOUD-CATEGORY-VISIBILITY-01 — the switches live in this same
+    # form, so one 💾 saves both. flags_from_form reads PRESENCE, because
+    # an unticked checkbox is not submitted at all; reading .get() would
+    # make unticking impossible to save.
+    from app.services.category_visibility import flags_from_form
+    for col, value in flags_from_form(request.form).items():
+        setattr(c, col, value)
     db.session.commit()
     flash("تم التحديث", "success")
     return redirect(url_for("products.hierarchy"))

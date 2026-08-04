@@ -44,6 +44,27 @@ class ProductCategory(db.Model):
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # MARSOUD-CATEGORY-VISIBILITY-01 (2026-08-04) — which operational
+    # modules the products in this category show up in. Raw materials are
+    # bought and consumed but never sold, and they were appearing on the
+    # cashier screen because visibility was all-or-nothing.
+    #
+    # All four default to True: a category that existed before this
+    # migration keeps showing everywhere it already showed. The filter
+    # helper treats "no category has a flag off" as a no-op, so the
+    # default state is not just equivalent to the old behaviour, it runs
+    # the identical query. See app/services/category_visibility.py.
+    #
+    # The catalog screen (products.index) is deliberately NOT gated by
+    # these — an admin must always see every product they own.
+    visible_in_pos = db.Column(db.Boolean, default=True, nullable=False)
+    visible_in_manufacturing = db.Column(db.Boolean, default=True,
+                                          nullable=False)
+    visible_in_vendor_bills = db.Column(db.Boolean, default=True,
+                                         nullable=False)
+    visible_in_customer_invoices = db.Column(db.Boolean, default=True,
+                                              nullable=False)
+
     company = db.relationship("Company")
     group = db.relationship("ProductGroup", back_populates="categories")
     products = db.relationship("Product", back_populates="category")
