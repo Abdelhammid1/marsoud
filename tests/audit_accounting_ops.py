@@ -169,7 +169,9 @@ def _():
         op = get_operation(key)
         entry = run_operation(op, cid, {
             "amount": "500", "date": date.today().isoformat(),
-            "payment_method_id": "", "notes": "audit",
+            # MARSOUD-FINANCIAL-ACCOUNT-FIELD — the wizards now take the
+            # account itself, not a payment method, and it is required.
+            "account_id": str(_acc("1110").id), "notes": "audit",
         }, actor_id=_STATE["uid"])
         e = db.session.get(JournalEntry, entry.id)
         d = sum(float(l.debit) for l in e.lines)
@@ -219,6 +221,11 @@ def _():
     try:
         run_operation(get_operation("capital"), _STATE["cid"], {
             "amount": "10", "date": date.today().isoformat(),
+            # A valid money account, so we reach the EQUITY lookup — the
+            # thing under test. Without it the (now required) account
+            # field errors first and this check passes for the wrong
+            # reason.
+            "account_id": str(_acc("1110").id),
         }, actor_id=_STATE["uid"])
         raise AssertionError("expected OperationError")
     except OperationError as e:
@@ -238,15 +245,23 @@ def _():
     return "302 → index"
 
 
-@check("6. the wizard form never asks for a debit/credit account")
+@check("6. the wizard form never asks which account to debit or credit")
 def _():
+    """MARSOUD-FINANCIAL-ACCOUNT-FIELD — `account_id` used to be banned
+    here outright. It is now a legitimate field: which cash or bank
+    account the money moved through. What must still never appear is a
+    DEBIT/CREDIT account picker — the wizard picks the double entry."""
     from app.services.accounting_ops import OPERATIONS
     for op in OPERATIONS:
         body = _client().get(f"/accounting-ops/{op.key}").get_data(as_text=True)
-        for probe in ('name="account_id', 'name="debit', 'name="credit'):
+        for probe in ('name="debit', 'name="credit',
+                      'name="debit_account', 'name="credit_account'):
             assert probe not in body, f"{op.key}: form exposes {probe}"
         assert 'name="amount"' in body, f"{op.key}: no amount field"
-    return "no account/debit/credit inputs on any wizard"
+        # Exactly one account field, and it is the money account.
+        assert body.count('name="account_id"') == 1, \
+            f"{op.key}: expected exactly one account field"
+    return "one money-account field, no debit/credit pickers"
 
 
 # ─── Currency ───────────────────────────────────────────────────────────

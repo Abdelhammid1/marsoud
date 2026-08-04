@@ -15,6 +15,11 @@ all — the index cards, the form, the POST handler, the routing and the
 sidebar are all driven from this registry, so no new page, route or sidebar
 item is ever needed.
 
+Operations that move money use `Field(..., "financial_account")`, which
+offers the cash account and every bank account the company actually has —
+postable ones only, so header 1120 can never be chosen and fail at post
+time. It is shared by every wizard, so a new one inherits it for free.
+
 Two things a new operation must not forget:
   1. a `source_type` of its own, registered in
      app/services/source_reference.py — otherwise the ledger labels the
@@ -29,9 +34,9 @@ payroll, assets, inventory, returns) stays in its own screen.
 """
 from datetime import date, datetime
 
-from app import db
-from app.models import PaymentMethod
-from app.services.ledger import post_journal, get_account_by_code, LedgerError
+from app.services.ledger import (
+    post_journal, get_account_by_code, resolve_financial_account, LedgerError,
+)
 
 
 # ─── Field spec ─────────────────────────────────────────────────────────
@@ -40,10 +45,10 @@ class Field:
 
     kind drives rendering in the shared template — a new operation that
     reuses these kinds needs no template change at all:
-      amount          numeric, > 0, required
-      date            date picker, defaults to today
-      payment_method  the PaymentMethod dropdown (cash / bank / …)
-      textarea        free notes
+      amount             numeric, > 0, required
+      date               date picker, defaults to today
+      financial_account  the cash/bank account the money moved through
+      textarea           free notes
     """
 
     def __init__(self, name, label, kind, required=False, help_text=None):
@@ -73,26 +78,25 @@ class OperationError(Exception):
 
 
 # ─── Shared helpers ─────────────────────────────────────────────────────
-def _money_account(company_id, payment_method_id):
-    """Resolve the cash/bank account behind the chosen payment method.
+def _money_account(company_id, account_id):
+    """Resolve the account the money actually moved through.
 
-    Same resolution the rest of the app uses for money in/out (see
-    app/services/advances.py) so these wizards land on the same accounts
-    as invoices, bills and advances.
+    MARSOUD-FINANCIAL-ACCOUNT-FIELD (2026-08-04) — this used to resolve a
+    PaymentMethod. Two things were wrong with that. A blank value fell
+    back to code 1110, and the seeded "نقدي" method points at 1110 too,
+    so the dropdown showed the same account twice under two names. And
+    the seeded "bank" method points at one hardcoded bank (1124/CIB,
+    because header 1120 refuses journal lines) — so capital injected into
+    بنك مصر was posted to CIB. That is a wrong balance, not a wrong label.
+
+    These operations have no customer, no supplier and no invoice; they
+    are not payments. The question is only "which account", so the field
+    asks that directly.
     """
-    if payment_method_id:
-        try:
-            pm = db.session.get(PaymentMethod, int(payment_method_id))
-        except (TypeError, ValueError):
-            pm = None
-        if not pm or pm.company_id != company_id or not pm.is_active:
-            raise OperationError("وسيلة الدفع غير صالحة")
-        return pm.account, (pm.name_ar or pm.name)
-    acc = get_account_by_code(company_id, "1110")
-    if not acc:
-        raise OperationError(
-            "حساب النقدية (1110) غير موجود — راجع شجرة الحسابات")
-    return acc, "نقدي"
+    try:
+        return resolve_financial_account(company_id, account_id)
+    except LedgerError as e:
+        raise OperationError(str(e))
 
 
 def _equity_account(company_id, code, label):
@@ -131,7 +135,7 @@ def _note(data, name="notes"):
 def _build_capital(company_id, data):
     """Dr cash/bank · Cr 3100 رأس المال."""
     amount = _amount(data)
-    money, money_label = _money_account(company_id, data.get("payment_method_id"))
+    money, money_label = _money_account(company_id, data.get("account_id"))
     capital = _equity_account(company_id, "3100", "رأس المال")
     note = _note(data)
     desc = f"إضافة رأس مال — {money_label}"
@@ -148,7 +152,7 @@ def _build_capital(company_id, data):
 def _build_opening_balance(company_id, data):
     """Dr cash/bank · Cr 3900 حساب الافتتاح."""
     amount = _amount(data)
-    money, money_label = _money_account(company_id, data.get("payment_method_id"))
+    money, money_label = _money_account(company_id, data.get("account_id"))
     opening = _equity_account(company_id, "3900", "حساب الافتتاح")
     note = _note(data)
     desc = f"رصيد افتتاحي — {money_label}"
@@ -165,7 +169,7 @@ def _build_opening_balance(company_id, data):
 def _build_owner_drawings(company_id, data):
     """Dr 3200 جاري الشركاء · Cr cash/bank — reduces equity."""
     amount = _amount(data)
-    money, money_label = _money_account(company_id, data.get("payment_method_id"))
+    money, money_label = _money_account(company_id, data.get("account_id"))
     drawings = _equity_account(company_id, "3200", "جاري الشركاء / المسحوبات")
     note = _note(data)
     desc = f"مسحوبات المالك — {money_label}"
@@ -190,8 +194,9 @@ OPERATIONS = [
         fields=[
             Field("amount", "المبلغ", "amount", required=True),
             Field("date", "تاريخ العملية", "date", required=True),
-            Field("payment_method_id", "وسيلة الإيداع", "payment_method",
-                  help_text="أين دخلت الأموال — الصندوق أو البنك"),
+            Field("account_id", "الحساب المالي", "financial_account",
+                  required=True,
+                  help_text="الحساب الذي دخلت فيه الأموال — الصندوق أو أحد البنوك"),
             Field("notes", "ملاحظات (اختياري)", "textarea"),
         ],
         build=_build_capital,
@@ -206,7 +211,8 @@ OPERATIONS = [
         fields=[
             Field("amount", "المبلغ", "amount", required=True),
             Field("date", "التاريخ", "date", required=True),
-            Field("payment_method_id", "الحساب المالي", "payment_method",
+            Field("account_id", "الحساب المالي", "financial_account",
+                  required=True,
                   help_text="الحساب الذي يحمل الرصيد الافتتاحي"),
             Field("notes", "ملاحظات (اختياري)", "textarea"),
         ],
@@ -222,7 +228,8 @@ OPERATIONS = [
         fields=[
             Field("amount", "المبلغ", "amount", required=True),
             Field("date", "التاريخ", "date", required=True),
-            Field("payment_method_id", "السحب من", "payment_method",
+            Field("account_id", "السحب من", "financial_account",
+                  required=True,
                   help_text="الحساب الذي خرجت منه الأموال"),
             Field("notes", "ملاحظات (اختياري)", "textarea"),
         ],

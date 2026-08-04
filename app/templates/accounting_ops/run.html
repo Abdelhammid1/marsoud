@@ -29,13 +29,29 @@
         <input type="date" name="{{ f.name }}" value="{{ today }}"
                {% if f.required %}required{% endif %} class="input">
 
-      {% elif f.kind == 'payment_method' %}
-        <select name="{{ f.name }}" class="select">
-          <option value="">نقدي (الصندوق)</option>
-          {% for pm in payment_methods %}
-          <option value="{{ pm.id }}" {% if pm.is_default %}selected{% endif %}>{{ pm.name_ar or pm.name }}</option>
+      {% elif f.kind == 'financial_account' %}
+        {# MARSOUD-FINANCIAL-ACCOUNT-FIELD — the real accounts, grouped.
+           There is deliberately no blank "نقدي (الصندوق)" option: it used
+           to resolve to 1110, which is also where the seeded "نقدي"
+           payment method pointed, so the list showed one account twice.
+           Postable accounts only — 1120 (البنوك) is a header and would be
+           refused after the user had filled in the whole form. #}
+        <select name="{{ f.name }}" class="select"
+                {% if f.required %}required{% endif %}>
+          <option value="">— اختر الحساب —</option>
+          {% for group_label, accounts in financial_groups %}
+          <optgroup label="{{ group_label }}">
+            {% for a in accounts %}
+            <option value="{{ a.id }}">{{ a.name_ar or a.name }}</option>
+            {% endfor %}
+          </optgroup>
           {% endfor %}
         </select>
+        {% if not financial_groups %}
+        <p class="text-xs text-rose-600 mt-1">
+          لا يوجد حساب نقدية أو بنك قابل للترحيل — راجع شجرة الحسابات.
+        </p>
+        {% endif %}
 
       {% elif f.kind == 'textarea' %}
         <textarea name="{{ f.name }}" rows="2" class="textarea"></textarea>

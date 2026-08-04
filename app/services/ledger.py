@@ -236,3 +236,83 @@ def _undo_source_side_effects(original, reversal=None):
 
 def get_account_by_code(company_id, code):
     return Account.query.filter_by(company_id=company_id, code=code).first()
+
+
+# ─── MARSOUD-FINANCIAL-ACCOUNT-FIELD (2026-08-04) ───────────────────────
+CASH_CODE = "1110"
+BANKS_HEADER_CODE = "1120"
+
+
+def cash_and_bank_accounts(company_id):
+    """The accounts money can actually enter or leave, grouped for a
+    <select>: [(group_label_ar, [Account, ...]), ...].
+
+    Used by the 🧮 accounting-operations wizards, which ask "which account
+    did the money go into" — not "which payment method", a question that
+    has no meaning without a customer or a supplier.
+
+    Two hard rules:
+      · POSTABLE ONLY. 1120 (البنوك) is a header; post_journal refuses it
+        (see the is_postable guard above), so offering it would let the
+        user fill in a whole form and only then be told no.
+      · Banks are found by walking parent_id down from 1120, not by a
+        `code LIKE '112%'` match, so banks a company added itself appear.
+
+    Empty groups are dropped — a company with no bank accounts sees only
+    الصندوق. Header accounts are skipped as options but still traversed,
+    because their children are the real accounts.
+    """
+    groups = []
+    cash_root = get_account_by_code(company_id, CASH_CODE)
+    if cash_root:
+        cash = _collect_postable(cash_root)
+        if cash:
+            groups.append(("الصندوق", cash))
+    banks_root = get_account_by_code(company_id, BANKS_HEADER_CODE)
+    if banks_root:
+        banks = _collect_postable(banks_root)
+        if banks:
+            groups.append(("البنوك", banks))
+    return groups
+
+
+def _collect_postable(root):
+    """Active, postable accounts in `root`'s subtree, ordered by code."""
+    found = []
+    stack = [root]
+    seen = set()
+    while stack:
+        node = stack.pop()
+        if node.id in seen:
+            continue
+        seen.add(node.id)
+        if getattr(node, "is_postable", True) and node.is_active:
+            found.append(node)
+        stack.extend(node.children or [])
+    return sorted(found, key=lambda a: (a.code or ""))
+
+
+def resolve_financial_account(company_id, account_id):
+    """Validate a submitted account id against `cash_and_bank_accounts`.
+
+    Returns (Account, label_ar). Raises LedgerError when the id is
+    missing, from another tenant, or simply not one of the offered
+    options — re-checking against the allowed SET, not merely "is this an
+    account", so a hand-crafted POST cannot land the money on an
+    arbitrary account such as revenue.
+    """
+    allowed = {a.id: a for _lbl, accs in cash_and_bank_accounts(company_id)
+               for a in accs}
+    if not allowed:
+        raise LedgerError(
+            "لا يوجد حساب نقدية أو بنك قابل للترحيل — راجع شجرة الحسابات")
+    try:
+        aid = int(account_id or 0)
+    except (TypeError, ValueError):
+        aid = 0
+    if not aid:
+        raise LedgerError("اختر الحساب المالي")
+    acc = allowed.get(aid)
+    if acc is None:
+        raise LedgerError("الحساب المالي غير صالح")
+    return acc, (acc.name_ar or acc.name)
