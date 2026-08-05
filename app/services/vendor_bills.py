@@ -12,7 +12,7 @@ The funding source determines the credit account:
   BANK   → 1120
   CREDIT → 2110 (Accounts Payable, vendor_id required)
 """
-from datetime import date
+from datetime import date, datetime
 from app import db
 from app.models import (
     VendorBill, VendorBillItem, VendorBillPayment, VendorBillStatus,
@@ -420,7 +420,20 @@ def post_vendor_bill_refund(bill, refund_type, amount=None,
                             # PARTIALLY_REFUNDED. Without this, the
                             # second partial refund on the same bill
                             # would start failing, which used to work.
-                            VendorBillStatus.PARTIALLY_REFUNDED):
+                            VendorBillStatus.PARTIALLY_REFUNDED,
+                            # MARSOUD-VBILL-OVERDUE-01 (2026-08-06) —
+                            # the "استثناء" action on the overdue
+                            # panel routes through the existing delete
+                            # flow, which calls this function. Without
+                            # accepting OVERDUE, the delete flashed
+                            # "cannot refund" and returned to the view
+                            # page without cancelling anything — the
+                            # bill stayed on the panel and no ledger
+                            # entry moved. OVERDUE is a POSTED bill
+                            # whose date has passed; the ledger shape
+                            # is identical, so the same reversal
+                            # applies.
+                            VendorBillStatus.OVERDUE):
         raise LedgerError(
             f"لا يمكن عمل مرتجع لفاتورة بحالة {bill.status.value}"
         )
@@ -673,14 +686,181 @@ def post_vendor_bill_refund(bill, refund_type, amount=None,
 
 
 def update_overdue_vendor_bills(company_id):
-    """Mark vendor bills as OVERDUE if past due_date and unpaid."""
+    """Mark vendor bills as OVERDUE if past due_date and unpaid.
+
+    MARSOUD-VBILL-OVERDUE-01 (2026-08-06) — also fires
+    NotificationKind.VENDOR_BILL_OVERDUE to every user with
+    vendor_bills.create permission on the company, ONCE per bill.
+    Since a bill can only flip POSTED/PARTIALLY_PAID → OVERDUE once
+    (the next cron run finds it already OVERDUE and the eligible set
+    is empty), the notification is intrinsically one-shot — no dedup
+    column is needed.
+    """
     today = date.today()
     bills = VendorBill.query.filter(
         VendorBill.company_id == company_id,
         VendorBill.status.in_([VendorBillStatus.POSTED, VendorBillStatus.PARTIALLY_PAID]),
         VendorBill.due_date < today,
     ).all()
+    if not bills:
+        return 0
+
     for b in bills:
         b.status = VendorBillStatus.OVERDUE
     db.session.commit()
+
+    # Emit bell notifications. Wrapped in a broad try so a notify
+    # subsystem hiccup cannot roll back the status flip — the status is
+    # the load-bearing state; the notification is a courtesy.
+    try:
+        from app.models.user import user_companies
+        from app.services.opsflow_extras import notify
+        from app.models import NotificationKind
+        # vendor_bills.create → owner, admin, accountant (per
+        # services/permissions.py PERMS dict).
+        rows = db.session.execute(
+            user_companies.select().where(
+                (user_companies.c.company_id == company_id) &
+                (user_companies.c.role.in_(
+                    ["owner", "admin", "accountant"]))
+            )
+        ).fetchall()
+        recipient_ids = {r.user_id for r in rows}
+        for b in bills:
+            days_late = (today - b.due_date).days if b.due_date else 0
+            vendor_name = b.vendor.name if b.vendor else "بدون مورد"
+            for uid in recipient_ids:
+                notify(uid, company_id=company_id,
+                       kind=NotificationKind.VENDOR_BILL_OVERDUE,
+                       title=f"⏰ فاتورة مورد متأخرة: {b.number}",
+                       body=f"{vendor_name} — متأخرة {days_late} يوم — "
+                            f"{float(b.balance):,.2f} {b.currency or ''}",
+                       link_url=f"/vendor-bills/{b.id}")
+    except Exception:
+        import logging
+        logging.getLogger("ledgeros.vendor_bills").exception(
+            "VENDOR_BILL_OVERDUE notify failed for company %s", company_id)
+
     return len(bills)
+
+
+def postpone_bill(bill, *, new_due_date, reason=None, actor_id=None):
+    """MARSOUD-VBILL-OVERDUE-01 (2026-08-06) — push a bill's due date
+    into the future and record who did it and why.
+
+    In-place update, not cancel-and-create: the JE stays intact, and the
+    audit fields (previous_due_date + postponed_at + postponed_by +
+    postpone_reason) tell the story. A second postpone overwrites
+    previous_due_date; the fine-grained history lives in the standard
+    UserActivityLog.
+
+    Refuses to postpone a PAID bill (nothing to reschedule) or a
+    CANCELLED / REFUNDED bill (there's no live obligation).
+    """
+    if new_due_date is None:
+        raise LedgerError("لازم تحدد تاريخ الاستحقاق الجديد")
+    if bill.status in (VendorBillStatus.PAID, VendorBillStatus.CANCELLED,
+                       VendorBillStatus.REFUNDED):
+        raise LedgerError("لا يمكن تأجيل فاتورة مدفوعة أو ملغاة")
+
+    bill.previous_due_date = bill.due_date
+    bill.due_date = new_due_date
+    bill.postpone_reason = (reason or "").strip() or None
+    bill.postponed_by = actor_id
+    bill.postponed_at = datetime.utcnow()
+
+    # If the new date is in the future, drag OVERDUE back to POSTED (or
+    # PARTIALLY_PAID) — the bill isn't overdue anymore. Uses today, not
+    # utcnow, to match update_overdue_vendor_bills' date semantics.
+    if bill.status == VendorBillStatus.OVERDUE and new_due_date >= date.today():
+        bill.status = (VendorBillStatus.PARTIALLY_PAID
+                       if float(bill.paid_amount or 0) > 0
+                       else VendorBillStatus.POSTED)
+
+    db.session.commit()
+    return bill
+
+
+def materialize_from_recurring(recurring_bill, occurrence_date, *,
+                               actor_id=None, status_target=None):
+    """MARSOUD-VBILL-OVERDUE-01 (2026-08-06) — turn one RecurringBill
+    occurrence into a real VendorBill.
+
+    Mirrors process_recurring_invoices on the customer side: build a
+    bill from the source bill's items, set the recurring linkage
+    columns, and POST it so the JE is written and the bill is
+    immediately visible in AP / overdue tracking.
+
+    Idempotency: the unique index on (recurring_bill_id,
+    recurring_occurrence_date) blocks a second insert for the same
+    (template, date). The caller catches IntegrityError and treats it
+    as a graceful skip, exactly like process_recurring_invoices at
+    services/recurring_invoices.py:59.
+
+    status_target controls what state the created bill lands in:
+      None or "POSTED"  → default, invokes post_vendor_bill() to write
+                          the JE (used by the cron materialiser).
+      "DRAFT"           → skip posting, used by the forecast-postpone
+                          flow so HR can review the amount before it
+                          hits the ledger.
+    """
+    from app.services.numbering import next_number
+    from app.models import VendorBill, VendorBillItem
+
+    src = recurring_bill.source_bill
+    if src is None:
+        raise LedgerError(
+            "الفاتورة المصدر للقالب الدوري غير موجودة")
+
+    number = next_number(recurring_bill.company_id, "VENDOR_BILL")
+
+    # Copy the source bill's shape. The vendor + payment_method + items
+    # are what determines the JE, so we clone them faithfully; recalc()
+    # then rebuilds totals from the items.
+    new = VendorBill(
+        company_id=recurring_bill.company_id,
+        number=number,
+        vendor_id=recurring_bill.vendor_id or src.vendor_id,
+        supplier_invoice_number=None,
+        issue_date=occurrence_date,
+        due_date=occurrence_date,
+        payment_method=src.payment_method,
+        currency=recurring_bill.currency or src.currency or "SAR",
+        tax_rate=src.tax_rate or 0,
+        status=VendorBillStatus.DRAFT,
+        notes=f"[متكررة] من قالب #{recurring_bill.id} — "
+              f"{src.notes or ''}"[:500] or None,
+        recurring_bill_id=recurring_bill.id,
+        recurring_occurrence_date=occurrence_date,
+    )
+    db.session.add(new); db.session.flush()
+
+    for src_item in src.items:
+        db.session.add(VendorBillItem(
+            bill_id=new.id,
+            description=src_item.description,
+            line_type=src_item.line_type,
+            account_id=src_item.account_id,
+            quantity=src_item.quantity,
+            unit_price=src_item.unit_price,
+            useful_life_years=src_item.useful_life_years,
+            salvage_value=src_item.salvage_value,
+            unit_id=src_item.unit_id,
+            base_quantity=src_item.base_quantity,
+            sub_category_id=src_item.sub_category_id,
+        ))
+    new.recalc()
+
+    # Commit the DRAFT + items + linkage FIRST, so the unique-index
+    # violation surfaces here (via IntegrityError) rather than mid-way
+    # through JE posting. A duplicate lands in this commit, not in the
+    # ledger, so the caller can rollback + skip cleanly.
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+
+    if (status_target or "POSTED") == "POSTED":
+        post_vendor_bill(new, created_by=actor_id)
+    return new

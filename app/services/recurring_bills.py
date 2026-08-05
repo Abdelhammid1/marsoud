@@ -202,3 +202,42 @@ def forecast(company_id, range_start, range_end):
 def get_due_within(company_id, days=7):
     today = date.today()
     return forecast(company_id, today, today + timedelta(days=days))
+
+
+# ─── MARSOUD-VBILL-OVERDUE-01 (2026-08-06) ──────────────────────────────
+def unmaterialised_past_due(company_id, *, as_of=None):
+    """Forecasts whose date has passed but which the cron has not yet
+    materialised into a real VendorBill.
+
+    Used by two callers:
+      · dashboard's late_vendor_bills metric — belt-and-suspenders so
+        a failed or not-yet-run cron does not silently drop a row.
+      · the cron materialiser — the exact set it needs to POST.
+
+    Reuses expand_occurrences via forecast(), then subtracts anything
+    already materialised (found via VendorBill.recurring_bill_id +
+    recurring_occurrence_date). A pure read — commits nothing.
+    """
+    as_of = as_of or date.today()
+    # Look 90 days back so a cron that hasn't run for weeks still
+    # catches everything; forecasts older than that are business-broken
+    # and would need HR to sort out anyway.
+    window_start = as_of - timedelta(days=90)
+    forecast_data = forecast(company_id, window_start, as_of)
+
+    # Every projected occurrence with date <= today.
+    past_due_rows = [r for r in forecast_data.get("rows", [])
+                     if r["date"] <= as_of]
+    if not past_due_rows:
+        return []
+
+    # Which (template, date) pairs are already materialised — one query.
+    materialised = {
+        (b.recurring_bill_id, b.recurring_occurrence_date)
+        for b in VendorBill.query.filter(
+            VendorBill.company_id == company_id,
+            VendorBill.recurring_bill_id.isnot(None),
+        ).all()
+    }
+    return [r for r in past_due_rows
+            if (r["recurring_bill_id"], r["date"]) not in materialised]

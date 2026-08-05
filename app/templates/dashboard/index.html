@@ -344,6 +344,97 @@
       {% endif %}
     </div>
 
+    {# MARSOUD-VBILL-OVERDUE-01 (2026-08-06) — vendor-side mirror of the
+       "فواتير عملاء متأخرة" panel above. Rows are real vendor bills
+       past their due_date OR recurring-bill forecasts whose date has
+       passed and the cron has not yet materialised (belt-and-
+       suspenders). Per-row action buttons route to existing endpoints:
+       pay/postpone need vendor_bills.create, exception/delete needs
+       vendor_bills.delete. Jinja auto-escaping is on for every field. #}
+    <div class="d-panel panel-red">
+      <div class="panel-head">
+        <div class="panel-head-l">
+          <div class="panel-ico i-red">💸</div>
+          <div>
+            <div class="panel-title">فواتير موردين متأخرة</div>
+            <div class="panel-meta">تحتاج قرار — لن تختفي حتى تتحرك</div>
+          </div>
+        </div>
+        {% if metrics.late_vendor_bills_count %}
+        <span class="pill pill-red">{{ metrics.late_vendor_bills_count }} فواتير</span>
+        {% endif %}
+      </div>
+      {% if metrics.late_vendor_bills %}
+        {% for b in metrics.late_vendor_bills %}
+        <div class="d-row" style="align-items:stretch">
+          <div class="row-l">
+            <div class="row-ava">{{ b.vendor_initials }}</div>
+            <div>
+              <div class="row-name">{{ b.vendor_name }}</div>
+              <div class="row-sub">
+                {{ b.title_for_display }}
+                {% if b.kind == 'forecast' %}
+                  <span class="row-tag tag-amber" style="margin-inline-start:6px">توقّع</span>
+                {% elif b.number %}
+                  <span style="opacity:.6;font-family:monospace;font-size:11px;margin-inline-start:6px">· {{ b.number }}</span>
+                {% endif %}
+              </div>
+              <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+                {% if b.kind == 'bill' %}
+                  {# Real overdue bill — pay opens the payment page. #}
+                  <a style="display:inline-block;padding:4px 10px;border-radius:6px;background:#10b981;color:#fff;font-size:11.5px;font-weight:600;border:0;cursor:pointer;text-decoration:none"
+                     href="{{ url_for('vendor_bills.view', bill_id=b.id) }}#pay">ادفع</a>
+                  <form method="POST"
+                        action="{{ url_for('vendor_bills.postpone', bill_id=b.id) }}"
+                        class="inline"
+                        onsubmit="var d=prompt('التاريخ الجديد (YYYY-MM-DD):');if(!d){return false;}this.new_due_date.value=d;this.reason.value=prompt('السبب (اختياري):')||'';">
+                    <input type="hidden" name="new_due_date">
+                    <input type="hidden" name="reason">
+                    <input type="hidden" name="next" value="{{ url_for('dashboard.index') }}">
+                    <button style="display:inline-block;padding:4px 10px;border-radius:6px;background:#f59e0b;color:#fff;font-size:11.5px;font-weight:600;border:0;cursor:pointer" type="submit">تأجيل</button>
+                  </form>
+                  <form method="POST"
+                        action="{{ url_for('vendor_bills.delete', bill_id=b.id) }}"
+                        class="inline"
+                        onsubmit="return confirm('استثناء = عكس الفاتورة نهائياً. متأكد؟');">
+                    <input type="hidden" name="reason" value="استثناء من لوحة المتأخرات">
+                    <button style="display:inline-block;padding:4px 10px;border-radius:6px;background:#e11d48;color:#fff;font-size:11.5px;font-weight:600;border:0;cursor:pointer" type="submit">استثناء</button>
+                  </form>
+                {% else %}
+                  {# Unmaterialised forecast. #}
+                  <form method="POST"
+                        action="{{ url_for('recurring_bills.materialize', rb_id=b.source_recurring_bill_id) }}"
+                        class="inline">
+                    <input type="hidden" name="occurrence_date" value="{{ b.occurrence_date.isoformat() }}">
+                    <button style="display:inline-block;padding:4px 10px;border-radius:6px;background:#10b981;color:#fff;font-size:11.5px;font-weight:600;border:0;cursor:pointer;text-decoration:none" type="submit">اعمل الفاتورة</button>
+                  </form>
+                  <form method="POST"
+                        action="{{ url_for('recurring_bills.override', rb_id=b.source_recurring_bill_id) }}"
+                        class="inline"
+                        onsubmit="return confirm('تخطي هذا التوقع نهائياً؟');">
+                    <input type="hidden" name="action" value="SKIP">
+                    <input type="hidden" name="occurrence_date" value="{{ b.occurrence_date.isoformat() }}">
+                    <button style="display:inline-block;padding:4px 10px;border-radius:6px;background:#e11d48;color:#fff;font-size:11.5px;font-weight:600;border:0;cursor:pointer" type="submit">استثناء</button>
+                  </form>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          <div class="row-r">
+            <div class="row-amt">{{ "{:,.0f}".format(b.amount) }}</div>
+            <div class="row-tag tag-red">متأخرة {{ b.days_late }} يوم</div>
+          </div>
+        </div>
+        {% endfor %}
+        <div class="panel-foot">
+          <div class="sum">الإجمالي المتأخر: <b>{{ cur|currency_ar }} {{ "{:,.0f}".format(metrics.late_vendor_bills_total) }}</b></div>
+          <a href="{{ url_for('vendor_bills.index') }}" style="color:var(--d-green-deep);font-weight:600;font-size:12.5px;text-decoration:none">فواتير الموردين →</a>
+        </div>
+      {% else %}
+        <div style="padding:34px 19px;text-align:center;color:var(--d-ink-3);font-size:13px">لا توجد فواتير موردين متأخرة ✅</div>
+      {% endif %}
+    </div>
+
     <!-- Upcoming bills -->
     <div class="d-panel panel-amber">
       <div class="panel-head">

@@ -56,14 +56,44 @@ class VendorBill(db.Model):
     deleted_at = db.Column(db.DateTime, nullable=True)
     deleted_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
 
+    # MARSOUD-VBILL-OVERDUE-01 (2026-08-06) — cron materialises recurring
+    # vendor-bill forecasts into real POSTED bills the moment their due
+    # date arrives, mirroring process_recurring_invoices on the customer
+    # side. These two columns are the idempotency guarantee: a unique
+    # index on (recurring_bill_id, recurring_occurrence_date) means the
+    # cron cannot double-post if it fires twice on the same day.
+    # NULL on both columns for hand-entered bills — SQLite + Postgres
+    # both treat NULL as distinct in UNIQUE, so those rows are exempt.
+    recurring_bill_id = db.Column(
+        db.Integer, db.ForeignKey("recurring_bills.id"),
+        nullable=True, index=True)
+    recurring_occurrence_date = db.Column(db.Date, nullable=True)
+
+    # Postpone audit trail — set by postpone_bill(). previous_due_date
+    # holds the ORIGINAL date the bill was moved off; a second postpone
+    # overwrites with the second-to-last date, which is fine because
+    # every postpone also stamps postponed_at, and the full history
+    # is in the standard UserActivityLog trail.
+    previous_due_date = db.Column(db.Date, nullable=True)
+    postpone_reason = db.Column(db.Text, nullable=True)
+    postponed_by = db.Column(db.Integer, db.ForeignKey("users.id"),
+                             nullable=True)
+    postponed_at = db.Column(db.DateTime, nullable=True)
+
     company = db.relationship("Company", backref=db.backref("vendor_bills", lazy="dynamic"))
     vendor = db.relationship("Vendor", backref=db.backref("bills", lazy="dynamic"))
     items = db.relationship("VendorBillItem", backref="bill", cascade="all, delete-orphan")
     payments = db.relationship("VendorBillPayment", backref="bill", cascade="all, delete-orphan")
     deleted_by = db.relationship("User", foreign_keys=[deleted_by_id])
+    postponer = db.relationship("User", foreign_keys=[postponed_by])
+    recurring_bill = db.relationship(
+        "RecurringBill", foreign_keys=[recurring_bill_id])
 
     __table_args__ = (
         db.UniqueConstraint("company_id", "number", name="uq_vendor_bill_number"),
+        db.Index("uq_vendor_bill_recurring_occurrence",
+                 "recurring_bill_id", "recurring_occurrence_date",
+                 unique=True),
     )
 
     @property

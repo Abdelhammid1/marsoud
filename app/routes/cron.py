@@ -33,6 +33,42 @@ def tick():
         overdue_total += update_overdue_statuses(c.id)
     summary["marked_overdue"] = overdue_total
 
+    # MARSOUD-VBILL-OVERDUE-01 (2026-08-06) — the vendor side of the
+    # same story. Previously, a vendor bill only flipped to OVERDUE
+    # when someone opened the vendor-bills index page; a company with
+    # no one browsing that page could carry unflagged overdue bills
+    # for weeks. Emits VENDOR_BILL_OVERDUE bell notifications inside
+    # the service, one-shot per bill (see the docstring for the
+    # dedup story).
+    vb_overdue_total = 0
+    try:
+        from app.services.vendor_bills import update_overdue_vendor_bills
+        for c in Company.query.filter_by(is_active=True).all():
+            vb_overdue_total += update_overdue_vendor_bills(c.id)
+        summary["vendor_bill_overdue"] = vb_overdue_total
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception(
+            "vendor bill overdue sweep failed: %s", e)
+        summary["vendor_bill_overdue"] = {"error": str(e)[:200]}
+
+    # MARSOUD-VBILL-OVERDUE-01 (2026-08-06) — materialise recurring
+    # vendor-bill forecasts into real POSTED bills the moment their
+    # date arrives. Idempotent via the unique index on
+    # (recurring_bill_id, recurring_occurrence_date) — a double-firing
+    # cron cannot double-post. Mirrors the customer side
+    # (process_recurring_invoices) as the ticket mandates.
+    try:
+        from app.services.recurring_vendor_bills import (
+            process_recurring_vendor_bills,
+        )
+        summary["recurring_vendor_bills"] = process_recurring_vendor_bills()
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception(
+            "recurring vendor bills failed: %s", e)
+        summary["recurring_vendor_bills"] = {"error": str(e)[:200]}
+
     # Send reminder emails
     summary["reminders"] = process_invoice_reminders()
 

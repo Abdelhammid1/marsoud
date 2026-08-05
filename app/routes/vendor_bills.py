@@ -54,7 +54,12 @@ def _safe_float(raw, default=0):
 def index():
     if not g.active_company:
         return redirect(url_for("companies.new"))
-    update_overdue_vendor_bills(g.active_company.id)
+    # MARSOUD-VBILL-OVERDUE-01 (2026-08-06) — the page-open OVERDUE
+    # sweep used to live here. It now runs from the daily cron
+    # (routes/cron.py), so a company with no one browsing this page
+    # still gets its bills flipped on time — which is the whole point
+    # of the ticket. Removing it here keeps the page fast and stops
+    # any per-request database write for a read-only listing.
 
     q = VendorBill.query.filter_by(company_id=g.active_company.id)
 
@@ -833,3 +838,34 @@ def pay(bill_id):
     except (LedgerError, ValueError) as e:
         flash(str(e), "error")
     return redirect(url_for("vendor_bills.view", bill_id=bill_id))
+
+
+@bp.route("/<int:bill_id>/postpone", methods=["POST"])
+@login_required
+@require_permission("vendor_bills.create")
+def postpone(bill_id):
+    """MARSOUD-VBILL-OVERDUE-01 (2026-08-06) — push the due date forward
+    on a live bill. Same permission as create/pay: the ticket says
+    "الدفع والتأجيل واعمل الفاتورة: نفس صلاحية vendor_bills.create".
+
+    Redirects back to the dashboard on success so the row disappears
+    from the overdue panel in the same page load. The `next` param
+    lets the vendor-bills view page redirect the user back to itself
+    when the button is clicked from there instead.
+    """
+    from app.services.vendor_bills import postpone_bill
+    bill = db.session.get(VendorBill, bill_id)
+    if not bill or bill.company_id != g.active_company.id:
+        return redirect(url_for("vendor_bills.index"))
+    try:
+        raw_date = (request.form.get("new_due_date") or "").strip()
+        new_due = datetime.strptime(raw_date, "%Y-%m-%d").date()
+        postpone_bill(bill, new_due_date=new_due,
+                      reason=request.form.get("reason"),
+                      actor_id=current_user.id)
+        flash(f"تم تأجيل الفاتورة {bill.number} إلى {new_due.isoformat()}",
+              "success")
+    except (LedgerError, ValueError, TypeError) as e:
+        flash(str(e) or "تاريخ الاستحقاق غير صالح", "error")
+    next_url = request.form.get("next") or url_for("dashboard.index")
+    return redirect(next_url)
