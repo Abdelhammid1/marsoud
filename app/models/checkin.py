@@ -17,6 +17,18 @@ rather than by a service remembering to look.
 Coordinates are nullable on purpose: the ticket says a refused browser
 permission must not block the check-in. Location is evidence when
 offered, never a gate.
+
+KNOWN LIMITATION — SHIFTS THAT CROSS MIDNIGHT. The row is keyed by
+calendar date, and check-out looks for TODAY's row. An employee who
+starts at 22:00 therefore cannot check out at 06:00 the next morning:
+their check-in belongs to yesterday and the service answers "you have
+not checked in today". Found by auditing rather than in use.
+
+Not fixed here, and not hidden either: no ticket in this batch mentions
+night shifts, and doing it properly means the POLICY has to say a shift
+crosses midnight — otherwise a 06:00 check-out is indistinguishable from
+someone arriving very early. That belongs with shift-aware policies, not
+with a widened lookup window that would guess.
 """
 from datetime import datetime
 

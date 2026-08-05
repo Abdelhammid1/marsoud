@@ -117,7 +117,8 @@ def _validate(scope, department_id, employee_id, policy_type,
 def create_policy(*, company_id, scope, policy_type, department_id=None,
                   employee_id=None, start_time=None, end_time=None,
                   work_days=None, earliest_checkin=None, latest_checkin=None,
-                  required_hours_per_day=None, created_by=None):
+                  required_hours_per_day=None, auto_absent_enabled=False,
+                  created_by=None):
     """One policy per (scope, target). A second one for the same target
     would make resolution depend on insertion order."""
     scope = _as_scope(scope)
@@ -141,6 +142,7 @@ def create_policy(*, company_id, scope, policy_type, department_id=None,
         work_days=work_days, earliest_checkin=earliest_checkin,
         latest_checkin=latest_checkin,
         required_hours_per_day=required_hours_per_day,
+        auto_absent_enabled=bool(auto_absent_enabled),
         created_by=created_by,
     )
     db.session.add(p)
@@ -186,6 +188,8 @@ def update_policy(policy, **fields):
         "required_hours_per_day", policy.required_hours_per_day)
     if "is_active" in fields:
         policy.is_active = bool(fields["is_active"])
+    if "auto_absent_enabled" in fields:
+        policy.auto_absent_enabled = bool(fields["auto_absent_enabled"])
     db.session.commit()
     return policy
 
@@ -369,6 +373,11 @@ def mark_absent_for_date(company_id, on_date, actor_id=None):
         policy = resolve_policy_for_employee(emp.id, on_date)
         if policy is None:
             skip("no policy")
+            continue
+        if not policy.auto_absent_enabled:
+            # Defining working hours must not, on its own, start deducting
+            # a day's pay from everyone who has not adopted check-in yet.
+            skip("auto-absence not enabled on the policy")
             continue
         if not policy.is_working_day(on_date):
             skip("not a working day")

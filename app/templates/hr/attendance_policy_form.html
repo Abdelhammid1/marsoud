@@ -103,6 +103,25 @@
     </div>
   </div>
 
+  <div class="bg-rose-50/50 border border-rose-200 rounded-lg p-3">
+    <label class="flex items-start gap-2 text-sm">
+      <input type="checkbox" name="auto_absent_enabled" class="mt-1"
+             {% if policy and policy.auto_absent_enabled %}checked{% endif %}>
+      <span>
+        <span class="font-semibold text-rose-900">تسجيل الغياب تلقائيًا</span>
+        <span class="block text-xs text-rose-700 mt-1">
+          فعّلها فقط بعد أن يبدأ الموظفون بتسجيل الحضور فعليًا. عند تفعيلها،
+          كل موظف لم يسجّل حضوره في يوم عمل يُسجَّل غيابًا تلقائيًا — أي خصم
+          يوم كامل من راتبه عن كل يوم.
+        </span>
+        <span class="block text-xs text-slate-500 mt-1">
+          احتساب التأخير يعمل دائمًا، ولا يتأثر بهذا الخيار — لأنه لا يحدث
+          إلا لموظف سجّل حضوره بالفعل.
+        </span>
+      </span>
+    </label>
+  </div>
+
   {% if policy %}
   <label class="flex items-center gap-2 text-sm">
     <input type="checkbox" name="is_active" {% if policy.is_active %}checked{% endif %}>

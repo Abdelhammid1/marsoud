@@ -393,8 +393,11 @@ def _():
 def _():
     from app.models import AttendanceException, AttendanceExceptionType
     from app.services.attendance import check_in, mark_absent_for_date
+    from app.services.attendance import update_policy
     _reset()
-    _policy(start="09:00")
+    # The sweep is off by default (check 18) — this check is about what it
+    # does once switched on.
+    update_policy(_policy(start="09:00"), auto_absent_enabled=True)
     yesterday = date.today() - timedelta(days=1)
     # employee "one" attended, "two" did not
     check_in(_emp("one"), now=_at(9, 0, yesterday))
@@ -430,9 +433,9 @@ def _():
     """Running against today would mark absent everyone who simply has
     not arrived yet."""
     from app.models import AttendanceException
-    from app.services.attendance import sweep_absences
+    from app.services.attendance import sweep_absences, update_policy
     _reset()
-    _policy(start="09:00")
+    update_policy(_policy(start="09:00"), auto_absent_enabled=True)
     summary = sweep_absences(now=date.today(), company_id=_STATE["cid"])
     assert summary["date"] == (date.today() - timedelta(days=1)).isoformat(), (
         f"the sweep targeted {summary['date']}, not yesterday")
@@ -547,6 +550,64 @@ def _():
         f"late_deduction {late}, expected {expected}")
     return (f"09:30 vs 09:00 -> 30 min -> payslip deduction {late:.2f} "
             f"(auto={line.attendance_auto_calculated})")
+
+
+# ─── Found by auditing the batch, not by building it ────────────────────
+@check("18. defining a policy does NOT start marking everyone absent")
+def _():
+    """Found by adversarial probe, and the worst thing in this batch.
+
+    Lateness is opt-in by behaviour — it can only fire for someone who
+    actually checked in, so writing the working hours down costs nothing.
+    ABSENCE is the opposite: it fires for everyone who did NOT check in,
+    which on day one is the whole company. Measured before the fix: three
+    employees, one fresh policy, zero check-ins produced three ABSENT
+    exceptions on the first sweep — a full day's pay each, and again
+    every working day after.
+
+    The realistic rollout is "write the hours down, then tell staff to
+    start checking in", and the cron sweep runs in the gap. So the sweep
+    now needs an explicit switch, defaulting to off.
+    """
+    from app.models import AttendanceException
+    from app.services.attendance import mark_absent_for_date, update_policy
+    _reset()
+    p = _policy(start="09:00")
+    assert p.auto_absent_enabled is False, (
+        "auto-absence defaults to ON — defining working hours would start "
+        "deducting a day's pay from everyone immediately")
+
+    yesterday = date.today() - timedelta(days=1)
+    res = mark_absent_for_date(_STATE["cid"], yesterday)
+    assert res["created"] == 0, (
+        f"{res['created']} absences created with the switch off")
+    assert AttendanceException.query.filter_by(date=yesterday).count() == 0
+    assert "auto-absence not enabled on the policy" in res["skipped"], (
+        f"the skip reason is not reported: {res}")
+
+    # and with it on, the sweep does its job
+    update_policy(p, auto_absent_enabled=True)
+    res2 = mark_absent_for_date(_STATE["cid"], yesterday)
+    assert res2["created"] == 2, (
+        f"{res2['created']} absences with the switch on, expected 2")
+    return ("off by default: 0 absences; switched on: "
+            f"{res2['created']} — a deliberate act either way")
+
+
+@check("19. lateness still works with the absence switch off")
+def _():
+    """The asymmetry is the point. Turning absence off must not turn
+    lateness off — a company can track punctuality from day one without
+    risking a mass deduction."""
+    from app.services.attendance import check_in
+    _reset()
+    p = _policy(start="09:00")
+    assert p.auto_absent_enabled is False
+    _row, exc = check_in(_emp(), now=_at(9, 45))
+    assert exc is not None, (
+        "lateness stopped being recorded when auto-absence is off")
+    assert round(float(exc.duration_hours) * 60) == 45
+    return "45 minutes late still recorded with absence disabled"
 
 
 def main():

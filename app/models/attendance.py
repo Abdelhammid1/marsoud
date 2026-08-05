@@ -76,6 +76,22 @@ class AttendancePolicy(db.Model):
 
     is_active = db.Column(db.Boolean, nullable=False, default=True,
                           index=True)
+
+    # MARSOUD-ATTENDANCE-AUTO — the absence sweep is OFF until switched on,
+    # and this asymmetry is deliberate.
+    #
+    # Lateness is opt-in by behaviour: it can only fire for an employee
+    # who actually checked in, so defining a policy costs nothing.
+    # ABSENCE is the opposite — it fires for everyone who did NOT check
+    # in, which on day one is the entire company. Measured: 3 employees,
+    # a fresh policy, zero check-ins produced 3 absences on the first
+    # sweep, a full day's pay each, and again every working day after.
+    #
+    # The realistic rollout is "write the hours down, then tell staff to
+    # start checking in", and the sweep runs between those two steps. So
+    # HR turns this on when attendance is actually being recorded.
+    auto_absent_enabled = db.Column(db.Boolean, nullable=False,
+                                    default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
 

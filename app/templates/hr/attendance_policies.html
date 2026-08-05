@@ -60,6 +60,9 @@
       <td>
         {% if p.is_active %}<span class="badge badge-paid">مفعّلة</span>
         {% else %}<span class="badge badge-cancelled">موقوفة</span>{% endif %}
+        {% if p.auto_absent_enabled %}
+        <span class="badge badge-sent" title="يُسجَّل الغياب تلقائيًا">غياب تلقائي</span>
+        {% endif %}
       </td>
       <td class="text-left whitespace-nowrap">
         <a href="{{ url_for('hr.attendance_policy_edit', policy_id=p.id) }}"

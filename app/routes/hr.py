@@ -458,6 +458,7 @@ def _policy_form_values(form):
         "earliest_checkin": _t("earliest_checkin"),
         "latest_checkin": _t("latest_checkin"),
         "required_hours_per_day": float(hours) if hours else None,
+        "auto_absent_enabled": "auto_absent_enabled" in form,
     }
 
 
