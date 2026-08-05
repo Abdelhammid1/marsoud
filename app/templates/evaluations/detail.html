@@ -213,7 +213,23 @@
           </td>
           <td class="text-xs text-slate-500">{{ t.notes or '—' }}</td>
           {% if cycle.is_editable %}
-          <td class="text-end">
+          <td class="text-end whitespace-nowrap">
+            {# MARSOUD-EVAL-TARGET-EDIT (2026-08-06) — the edit button
+               carries the row's raw values as data-* attributes rather
+               than making the JS parse the visible cells: numbers are
+               rendered with %g (drops trailing zeros — precision loss
+               on the round-trip), and category / aggregation are
+               localised to Arabic in the display. Data-attributes ship
+               the exact values the form needs. #}
+            <button type="button"
+                    class="text-xs text-emerald-700 hover:underline js-edit-target"
+                    data-emp="{{ emp.id }}"
+                    data-metric-key="{{ t.metric_key }}"
+                    data-category="{{ t.category }}"
+                    data-target-value="{{ t.target_value }}"
+                    data-weight-pct="{{ t.weight_pct }}"
+                    data-aggregation-method="{{ t.aggregation_method }}"
+                    data-notes="{{ t.notes or '' }}">✏️ تعديل</button>
             <form method="POST"
                   action="{{ url_for('evaluations.target_delete', cid=cycle.id, tid=t.id) }}"
                   onsubmit="return confirm('حذف هذا الهدف؟');"
@@ -230,11 +246,23 @@
     </table>
 
     {% if cycle.is_editable %}
-    <form method="POST"
+    {# MARSOUD-EVAL-TARGET-EDIT (2026-08-06) — this form does both add
+       and edit. The "✏️ تعديل" button on any row flips it into edit
+       mode via JS: the row's values fill the inputs, metric_key goes
+       readonly (upsert_target keys on it — changing it silently
+       creates a duplicate row, which is the exact bug this ticket
+       exists to close), the submit label swaps to "تحديث", and a
+       cancel button appears to return the form to add mode.
+
+       No backend change — target_upsert / upsert_target are already
+       symmetric on add and edit; the composite key
+       (cycle_id, employee_id, metric_key) does the routing. #}
+    <form method="POST" id="target-upsert-form"
           action="{{ url_for('evaluations.target_upsert', cid=cycle.id) }}"
-          class="grid grid-cols-1 md:grid-cols-7 gap-2 mt-3 items-end text-xs bg-slate-50 rounded p-3">
+          data-mode="add"
+          class="grid grid-cols-1 md:grid-cols-8 gap-2 mt-3 items-end text-xs bg-slate-50 rounded p-3">
       <input type="hidden" name="employee_id" value="{{ emp.id }}">
-      <div>
+      <div class="md:col-span-1">
         <label class="block font-semibold mb-1">المتريك</label>
         <input type="text" name="metric_key" required placeholder="نص حر (مثلاً leads_won)" class="input text-xs">
       </div>
@@ -268,7 +296,10 @@
         <label class="block font-semibold mb-1">ملاحظات</label>
         <input type="text" name="notes" class="input text-xs">
       </div>
-      <button type="submit" class="btn-primary text-xs">+ حفظ</button>
+      <div class="flex gap-1">
+        <button type="submit" class="btn-primary text-xs js-submit-btn">+ حفظ</button>
+        <button type="button" class="text-xs text-slate-500 hover:text-slate-700 hidden js-cancel-edit">إلغاء</button>
+      </div>
     </form>
     {% endif %}
   </details>
@@ -394,5 +425,61 @@
   مافيش موظفين نشطين في هذه الشركة بعد.
 </div>
 {% endfor %}
+
+{# MARSOUD-EVAL-TARGET-EDIT (2026-08-06) — one delegated handler for
+   the whole page. Each employee bucket renders its own upsert form
+   with id="target-upsert-form" (duplicate id inside the page —
+   acceptable because each is scoped to one bucket and the JS uses
+   closest() to find its form). The delegation from document is
+   simpler than wiring N buckets. #}
+<script>
+(function () {
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.js-edit-target');
+    if (btn) {
+      // The form for THIS bucket — walk up to the enclosing <details>
+      // and find its form. Same shape as the render tree above.
+      var container = btn.closest('details');
+      if (!container) { return; }
+      var form = container.querySelector('form[id="target-upsert-form"]');
+      if (!form) { return; }
+      form.dataset.mode = 'edit';
+      form.querySelector('[name="metric_key"]').value =
+        btn.dataset.metricKey || '';
+      form.querySelector('[name="category"]').value =
+        btn.dataset.category || 'TARGET_ACHIEVEMENT';
+      form.querySelector('[name="target_value"]').value =
+        btn.dataset.targetValue || '';
+      form.querySelector('[name="weight_pct"]').value =
+        btn.dataset.weightPct || '';
+      form.querySelector('[name="aggregation_method"]').value =
+        btn.dataset.aggregationMethod || 'SUM';
+      form.querySelector('[name="notes"]').value =
+        btn.dataset.notes || '';
+      // metric_key locked while editing — upsert_target keys on it.
+      var mkInput = form.querySelector('[name="metric_key"]');
+      mkInput.setAttribute('readonly', 'readonly');
+      mkInput.classList.add('bg-slate-200', 'cursor-not-allowed');
+      form.querySelector('.js-submit-btn').textContent = 'تحديث';
+      form.querySelector('.js-cancel-edit').classList.remove('hidden');
+      form.scrollIntoView({behavior: 'smooth', block: 'center'});
+      mkInput.blur();
+      return;
+    }
+    var cancel = e.target.closest('.js-cancel-edit');
+    if (cancel) {
+      var form = cancel.closest('form');
+      if (!form) { return; }
+      form.dataset.mode = 'add';
+      form.reset();
+      var mkInput = form.querySelector('[name="metric_key"]');
+      mkInput.removeAttribute('readonly');
+      mkInput.classList.remove('bg-slate-200', 'cursor-not-allowed');
+      form.querySelector('.js-submit-btn').textContent = '+ حفظ';
+      cancel.classList.add('hidden');
+    }
+  });
+})();
+</script>
 
 {% endblock %}
