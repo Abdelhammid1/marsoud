@@ -225,6 +225,27 @@ def _undo_source_side_effects(original, reversal=None):
         from app.services.open_items import cancel_open_item
         item = db.session.get(OpenItem, src_id)
         if item is not None:
+            # ...but only if nothing has been PAID against it yet.
+            #
+            # Measured: accrue 1000, settle 500, then reverse the accrual.
+            # The reversal debits 2160 by the full 1000 while the
+            # settlement had already debited it by 500, leaving 2160 at
+            # +500 — real money that left the bank, now stranded on a
+            # payable belonging to an item marked CANCELLED, which no
+            # screen will ever offer to clear. Both entries balance, so
+            # nothing downstream complains.
+            #
+            # The honest rule is the accounting one: you cannot un-accrue
+            # something you have already partly paid. Undo the payments
+            # first. Raised before reverse_journal commits, and the
+            # journals route already turns LedgerError into a flash.
+            live = [s for s in item.settlements if s.reversed_at is None]
+            if live:
+                paid = sum(float(s.amount or 0) for s in live)
+                raise LedgerError(
+                    f"لا يمكن عكس هذا القيد: البند مسدَّد بمبلغ "
+                    f"{paid:,.2f} في {len(live)} عملية سداد. "
+                    "اعكس قيود السداد أولًا ثم أعد المحاولة.")
             cancel_open_item(
                 item, reversal_entry_id=reversal.id if reversal else None)
 

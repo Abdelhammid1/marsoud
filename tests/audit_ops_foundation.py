@@ -789,11 +789,19 @@ def _():
 
 @check("25. reversing the creating journal cancels the item")
 def _():
-    from app.models import OpenItem
-    from app.services.ledger import reverse_journal
+    """A never-settled item. The partly-paid case is check 44: the guard
+    refuses it, because reversing an accrual that has already been paid
+    strands the paid amount on the payable."""
+    from app.models import OpenItem, JournalEntry
+    from app.services.ledger import reverse_journal, postable_under
     from app.services.open_items import open_items_for
     cid = _STATE["plain_id"]
-    item = db.session.get(OpenItem, _STATE["item_id"])
+    exp = str(postable_under(cid, "5000")[0].id)
+    entry = _run("accrue-expense", cid, amount="750",
+                 expense_account_id=exp, notes="never settled")
+    item = db.session.get(
+        OpenItem, db.session.get(JournalEntry, entry.id).source_id)
+    assert not item.settlements, "fixture error: this item should be clean"
     reverse_journal(item.journal_entry_id)
     db.session.refresh(item)
     assert item.status.value == "CANCELLED", (
@@ -1265,6 +1273,135 @@ def _():
         except ValueError:
             pass
     return "unknown group, blank and missing permission all refused"
+
+
+# ─── Found by auditing the batch, not by building it ────────────────────
+@check("44. reversing the creation of a PARTLY PAID item is refused")
+def _():
+    """Found by adversarial probe, not by the build.
+
+    Accrue 1000, settle 500, then reverse the accrual. The reversal
+    credits back the full 1000 while the settlement had already debited
+    2160 by 500 — leaving 2160 at +500. That is real money which left the
+    bank, now stranded on a payable whose item is marked CANCELLED, so no
+    screen will ever offer to clear it. BOTH journals balance, so nothing
+    downstream ever complains. Measured before the guard: 2160 = 500.00.
+
+    The rule is the accounting one: you cannot un-accrue what you have
+    already partly paid."""
+    from app.models import OpenItem
+    from app.services.ledger import (
+        reverse_journal, LedgerError, postable_under,
+    )
+    cid = _STATE["plain_id"]
+    exp = str(postable_under(cid, "5000")[0].id)
+    e = _run("accrue-expense", cid, amount="1000", expense_account_id=exp)
+    item = OpenItem.query.filter_by(journal_entry_id=e.id).first()
+    _run("settle-accrued-expense", cid, amount="500",
+         open_item_id=str(item.id), account_id=_money(cid))
+    db.session.refresh(item)
+    payable_before = _balance(item.account_id)
+
+    try:
+        reverse_journal(e.id)
+        raise AssertionError(
+            "reversing the creation of a partly-paid item was ALLOWED — "
+            "the amount already paid is now stranded on the payable")
+    except LedgerError as err:
+        msg = str(err)
+        assert "السداد" in msg, f"unhelpful message: {msg}"
+
+    db.session.rollback()
+    db.session.refresh(item)
+    assert item.status.value == "PARTIALLY_SETTLED", (
+        f"the refused reversal still changed the item to {item.status}")
+    assert round(_balance(item.account_id) - payable_before, 2) == 0.0, (
+        "the refused reversal still moved the payable")
+    return f"refused: {msg[:56]}"
+
+
+@check("45. and the RIGHT order still unwinds to zero")
+def _():
+    """The other half of 44 — a guard that refuses the correct sequence
+    too would pass 44 and make the operation unusable. Reverse the
+    settlement first, then the creation: both accounts must return to
+    where they started."""
+    from app.models import OpenItem
+    from app.services.ledger import reverse_journal, postable_under
+    cid = _STATE["plain_id"]
+    exp = str(postable_under(cid, "5000")[0].id)
+    cash_id = int(_money(cid))
+
+    from app.services.ledger import get_account_by_code
+    payable_start = _balance(get_account_by_code(cid, "2160").id)
+    cash_start = _balance(cash_id)
+
+    e = _run("accrue-expense", cid, amount="1000", expense_account_id=exp)
+    item = OpenItem.query.filter_by(journal_entry_id=e.id).first()
+
+    e2 = _run("settle-accrued-expense", cid, amount="500",
+              open_item_id=str(item.id), account_id=str(cash_id))
+    reverse_journal(e2.id)
+    db.session.refresh(item)
+    assert item.status.value == "OPEN", (
+        f"reversing the only settlement left the item {item.status}")
+
+    reverse_journal(e.id)
+    db.session.refresh(item)
+    assert item.status.value == "CANCELLED", item.status
+    assert round(_balance(item.account_id) - payable_start, 2) == 0.0, (
+        f"the payable did not return to {payable_start}")
+    assert round(_balance(cash_id) - cash_start, 2) == 0.0, (
+        f"cash did not return to {cash_start}")
+    return "settlement then creation: payable and cash both back to zero"
+
+
+@check("46. nan and inf are refused before they reach the database")
+def _():
+    """Found by adversarial probe. float() accepts "nan", and nan fails
+    EVERY comparison — `nan <= 0` is False — so it passed validation,
+    passed the over-settlement check, and was written to a NOT NULL
+    column. The user got a 500, not a message."""
+    from app.services.accounting_ops import _amount, OperationError
+    from app.services.open_items import _clean_amount, OpenItemError
+    refused = []
+    for raw in ("nan", "NaN", "inf", "-inf", "Infinity"):
+        for fn, exc in ((_amount, OperationError), (_clean_amount, OpenItemError)):
+            try:
+                fn({"amount": raw} if fn is _amount else raw)
+                raise AssertionError(f"{fn.__name__} accepted {raw!r}")
+            except exc:
+                pass
+        refused.append(raw)
+    # ...and an absurd magnitude, which Numeric(15,2) would silently
+    # truncate.
+    try:
+        _amount({"amount": "1e300"})
+        raise AssertionError("1e300 was accepted")
+    except OperationError:
+        pass
+    # while ordinary input, including Arabic-Indic digits, still works
+    assert _amount({"amount": "100"}) == 100.0
+    assert _amount({"amount": "١٠٠"}) == 100.0, (
+        "Arabic-Indic digits stopped working — this is an Arabic UI")
+    return f"refused {', '.join(refused)} + 1e300; ١٠٠ still reads as 100"
+
+
+@check("47. the model and the migration declare the same FKs")
+def _():
+    """A DB built by create_all() (fresh dev, some fixtures) and one built
+    by the migration must not diverge silently."""
+    mig = (ROOT / "migrations/versions/j0s3o6u9n4p5_open_items.py").read_text(
+        encoding="utf-8")
+    model = (ROOT / "app/models/open_item.py").read_text(encoding="utf-8")
+    assert mig.count('ondelete="CASCADE"') == model.count('ondelete="CASCADE"'), (
+        f"migration declares {mig.count(chr(39))} CASCADE FKs and the model "
+        f"declares a different number — the two schemas disagree")
+    from app.models import OpenItem, OpenItemSettlement
+    cols = {c.name for c in OpenItem.__table__.columns}
+    assert {"company_id", "kind", "account_id", "original_amount",
+            "settled_amount", "status", "journal_entry_id"} <= cols
+    return f"{mig.count('ondelete=\"CASCADE\"')} CASCADE FKs on both sides"
 
 
 def main():

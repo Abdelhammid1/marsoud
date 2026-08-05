@@ -16,6 +16,7 @@ item's id, so ledger._undo_source_side_effects can reopen it. A settled
 item whose journal was reversed must not stay settled.
 """
 from datetime import date, datetime
+from math import isfinite
 
 from app import db
 from app.models import (
@@ -33,14 +34,31 @@ SOURCE_CREATE = "open_item"
 SOURCE_SETTLE = "open_item_settle"
 
 
+def _clean_amount(raw):
+    """One place that decides what counts as a usable amount.
+
+    float() happily returns nan for "nan" and inf for "inf", and nan
+    fails EVERY comparison — `nan <= 0` is False — so an unguarded check
+    lets it through to a NOT NULL column and the user sees a 500 rather
+    than a message.
+    """
+    try:
+        amount = round(float(raw or 0), 2)
+    except (TypeError, ValueError):
+        raise OpenItemError("المبلغ غير صالح")
+    if not isfinite(amount):
+        raise OpenItemError("المبلغ غير صالح")
+    if amount <= 0:
+        raise OpenItemError("المبلغ يجب أن يكون أكبر من صفر")
+    return amount
+
+
 def create_open_item(company_id, kind, account_id, amount, *,
                      description=None, party_type=None, party_id=None,
                      due_date=None, created_by=None, note=None):
     """Record an amount that will be discharged later. Flushes, no commit —
     the caller posts the journal and owns the transaction."""
-    amount = round(float(amount or 0), 2)
-    if amount <= 0:
-        raise OpenItemError("المبلغ يجب أن يكون أكبر من صفر")
+    amount = _clean_amount(amount)
     item = OpenItem(
         company_id=company_id, kind=kind, account_id=account_id,
         description=description, party_type=party_type, party_id=party_id,
@@ -108,9 +126,7 @@ def settle_open_item(item, amount, *, journal_entry_id=None,
     Refuses the two mistakes a free-amount box makes possible: paying a
     closed item, and paying more than is left.
     """
-    amount = round(float(amount or 0), 2)
-    if amount <= 0:
-        raise OpenItemError("المبلغ يجب أن يكون أكبر من صفر")
+    amount = _clean_amount(amount)
     if item.status not in SETTLEABLE_STATUSES:
         raise OpenItemError(
             f"هذا البند {_status_ar(item.status)} — لا يمكن سداده مرة أخرى")

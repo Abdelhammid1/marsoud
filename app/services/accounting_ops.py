@@ -33,6 +33,7 @@ Out of scope, deliberately: anything with its own module (invoices, bills,
 payroll, assets, inventory, returns) stays in its own screen.
 """
 from datetime import date, datetime
+from math import isfinite
 
 from app import db
 from app.services.open_items import OpenItemError
@@ -412,8 +413,20 @@ def _amount(data, name="amount"):
         val = round(float(data.get(name) or 0), 2)
     except (TypeError, ValueError):
         raise OperationError("المبلغ غير صالح")
+    # float() accepts "nan" and "inf", and NEITHER is caught by the checks
+    # below: `nan <= 0` is False, and so is every other comparison against
+    # nan, so it sails through validation and reaches the database. The
+    # column is NOT NULL, SQLite refuses the value, and the user gets a
+    # 500 instead of a message. Measured on settle-accrued-expense with
+    # amount=nan before this guard existed.
+    if not isfinite(val):
+        raise OperationError("المبلغ غير صالح")
     if val <= 0:
         raise OperationError("المبلغ يجب أن يكون أكبر من صفر")
+    # A number this large is a typo or a probe, not a transaction, and it
+    # would silently lose precision once stored as Numeric(15, 2).
+    if val >= 10 ** 13:
+        raise OperationError("المبلغ أكبر من الحد المسموح به")
     return val
 
 

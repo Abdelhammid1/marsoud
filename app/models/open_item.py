@@ -52,7 +52,12 @@ class OpenItem(db.Model):
     __tablename__ = "open_items"
 
     id = db.Column(db.Integer, primary_key=True)
-    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"),
+    # ondelete matches migration j0s3o6u9n4p5. Without it here, a DB
+    # built by create_all() (fresh dev, some test fixtures) would keep
+    # orphan items after a company is deleted while a migrated DB would
+    # not — the two would diverge silently.
+    company_id = db.Column(db.Integer,
+                            db.ForeignKey("companies.id", ondelete="CASCADE"),
                             nullable=False, index=True)
 
     # Which operation family created it — "accrued_expense", "prepaid",
@@ -120,7 +125,8 @@ class OpenItemSettlement(db.Model):
     __tablename__ = "open_item_settlements"
 
     id = db.Column(db.Integer, primary_key=True)
-    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"),
+    company_id = db.Column(db.Integer,
+                            db.ForeignKey("companies.id", ondelete="CASCADE"),
                             nullable=False, index=True)
     open_item_id = db.Column(db.Integer,
                               db.ForeignKey("open_items.id",
