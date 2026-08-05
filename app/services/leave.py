@@ -10,6 +10,8 @@ in between needs a per-day attendance roster.
 import logging
 from calendar import monthrange
 from datetime import date, datetime, timedelta
+
+from sqlalchemy.exc import IntegrityError
 from decimal import Decimal
 from app import db
 from app.models import (
@@ -250,7 +252,24 @@ def create_exception(*, company_id, employee_id, date_, type_, duration_hours=No
         leave_request_id=leave_request_id, created_by=created_by,
     )
     db.session.add(ex)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        # MARSOUD-EXCEPTION-AUDIT — the duplicate check above only sees
+        # ACTIVE rows, but the table's UNIQUE(employee_id, date) counts
+        # cancelled ones too. So a day whose exception was cancelled
+        # still refuses a replacement, and it refused it as a raw
+        # IntegrityError — which no caller catches. Every one of them
+        # handles LeaveError, so this surfaced as a 500 on the check-in
+        # endpoint and would have killed the nightly absence sweep.
+        #
+        # Converted here rather than at each call site: the constraint is
+        # the database's, so the service that talks to it is what should
+        # translate it.
+        db.session.rollback()
+        raise LeaveError(
+            "يوجد استثناء ملغى لهذا اليوم — لا يمكن تسجيل استثناء جديد "
+            "لنفس اليوم قبل معالجته.")
     return ex
 
 

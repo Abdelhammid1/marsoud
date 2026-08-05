@@ -365,6 +365,11 @@ def mark_absent_for_date(company_id, on_date, actor_id=None):
         r.employee_id for r in AttendanceCheckin.query.filter_by(
             company_id=company_id, date=on_date).all()
         if r.check_in_time is not None}
+    # MARSOUD-EXCEPTION-AUDIT — a RAW query on purpose: cancelled rows
+    # count here. The table's UNIQUE(employee_id, date) counts them too,
+    # so a day whose exception was cancelled cannot take a new one, and
+    # skipping the employee is the honest answer rather than attempting
+    # an insert the database will refuse.
     already = {
         e.employee_id for e in AttendanceException.query.filter_by(
             company_id=company_id, date=on_date).all()}

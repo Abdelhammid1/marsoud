@@ -273,8 +273,9 @@ def _():
     usability gap, and it is written down rather than discovered by an
     HR manager mid-correction.
     """
-    from app.models import AttendanceExceptionType
-    from app.services.leave import cancel_exception, create_exception
+    from app.models import AttendanceExceptionType, AttendanceException
+    from app.services.leave import (cancel_exception, create_exception,
+                                    LeaveError)
     _reset()
     day = date(2026, 5, 6)
     wrong = _absence(day)
@@ -284,16 +285,20 @@ def _():
             company_id=_STATE["cid"], employee_id=_STATE["emp"], date_=day,
             type_=AttendanceExceptionType.LATE, duration_hours=1.5,
             note="التصحيح")
-        db.session.rollback()
         raise AssertionError(
             "the day is now re-recordable — the unique constraint was "
             "relaxed, so this check and the note in models/leave.py "
             "should both be updated")
-    except Exception as e:
-        db.session.rollback()
-        assert "UNIQUE" in str(e).upper() or "unique" in str(e), (
-            f"refused for an unexpected reason: {type(e).__name__}: {e}")
-    return "re-recording refused by UNIQUE(employee_id, date) — documented"
+    except LeaveError as e:
+        # A CLEAN refusal, which is check 12's subject. Before that fix
+        # this came back as a raw IntegrityError and took the request
+        # with it.
+        assert "ملغى" in str(e), f"unclear message: {e}"
+    rows = AttendanceException.query.filter_by(
+        employee_id=_STATE["emp"], date=day).all()
+    assert len(rows) == 1 and rows[0].is_cancelled, (
+        "the refused insert left something behind")
+    return "re-recording refused cleanly by UNIQUE(employee_id, date)"
 
 
 @check("7. a cancelled row is invisible to the reporting queries")
@@ -397,6 +402,58 @@ def _():
     assert "is_cancelled" in sql, (
         f"active_exceptions() does not filter on is_cancelled: {sql}")
     return f"one raw query (the helper), filter confirmed in its SQL"
+
+
+@check("12. a refused replacement is a clean error, not a 500")
+def _():
+    """Found by auditing. The duplicate check inside create_exception only
+    sees ACTIVE rows, but the table's UNIQUE(employee_id, date) counts
+    cancelled ones — so a cancelled day refused its replacement as a raw
+    IntegrityError. Every caller catches LeaveError and none catches
+    that, so it surfaced as a 500 on the check-in endpoint and would
+    have killed the nightly absence sweep on its first bad day."""
+    from app.models import AttendanceExceptionType, AttendanceCheckin
+    from app.services.leave import (create_exception, cancel_exception,
+                                    LeaveError)
+    from app.services.attendance import create_policy, check_in
+    from datetime import datetime, time as _time
+    _reset()
+    day = date(2026, 5, 20)
+    ex = _absence(day)
+    cancel_exception(ex, reason="إلغاء", actor_id=_STATE["uid"])
+
+    try:
+        create_exception(
+            company_id=_STATE["cid"], employee_id=_STATE["emp"], date_=day,
+            type_=AttendanceExceptionType.LATE, duration_hours=1)
+        raise AssertionError(
+            "the replacement was accepted — the unique constraint was "
+            "relaxed, so check 6 and this one both need revisiting")
+    except LeaveError as e:
+        msg = str(e)
+    assert "ملغى" in msg, f"the message does not explain why: {msg}"
+
+    # the session must still be usable, or the whole request dies anyway
+    other = create_exception(
+        company_id=_STATE["cid"], employee_id=_STATE["emp"],
+        date_=date(2026, 5, 21), type_=AttendanceExceptionType.ABSENT)
+    assert other.id is not None, "the session was left unusable"
+
+    # and the reachable path that found it: a late check-in on a
+    # cancelled day must not 500
+    AttendanceCheckin.query.delete()
+    db.session.commit()
+    today_ex = _absence(date.today())
+    cancel_exception(today_ex, reason="إلغاء", actor_id=_STATE["uid"])
+    create_policy(company_id=_STATE["cid"], scope="COMPANY",
+                  policy_type="FIXED", start_time=_time(9, 0),
+                  end_time=_time(17, 0), work_days="0,1,2,3,4,5,6")
+    from app.models import Employee
+    emp = db.session.get(Employee, _STATE["emp"])
+    row, exc = check_in(emp, now=datetime.combine(date.today(), _time(10, 0)))
+    assert row is not None, "the check-in itself failed"
+    assert exc is None, "an exception was created on a day that refuses one"
+    return f"clean LeaveError; session survives; late check-in did not 500"
 
 
 def main():
