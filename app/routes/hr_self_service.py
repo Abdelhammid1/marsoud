@@ -733,3 +733,80 @@ def attendance_checkin():
 @login_required
 def attendance_checkout():
     return _attendance_action("out")
+
+
+# ─── MARSOUD-MY-ATTENDANCE (2026-08-05) — ticket 7 ──────────────────────
+@portal_emp_bp.route("/attendance")
+@login_required
+def attendance():
+    """One page that answers "what has attendance recorded for me this
+    month, and how much margin do I have left?" — read-only.
+
+    Actions live on their existing endpoints: check-in/out and the
+    permission button are on /my/account under the same #attendance
+    fragment. This page links back to them rather than duplicating.
+
+    Cross-tenant safety: _my_employee() scopes by (active_company_id,
+    current_user.id), so every query below is also company-scoped by
+    virtue of filtering on the resolved emp.id.
+    """
+    from app.models import AttendanceCheckin, LatePermissionRequest, PermissionStatus
+    from app.services.leave import exceptions_in_period
+    from app.services.violation import (
+        resolve_violation_policy_for_employee, approved_permissions_for,
+    )
+    from app.services.payroll import late_month_breakdown
+
+    emp = _my_employee()
+    if not emp:
+        return _no_employee_record_response()
+
+    today = date.today()
+    y, m = today.year, today.month
+    month_start = date(y, m, 1)
+
+    checkins = (AttendanceCheckin.query
+                .filter_by(employee_id=emp.id)
+                .filter(AttendanceCheckin.date >= month_start)
+                .order_by(AttendanceCheckin.date.desc()).all())
+    exceptions = exceptions_in_period(
+        emp.company_id, y, m, employee_id=emp.id)  # active-only by default
+    permits = (LatePermissionRequest.query
+               .filter_by(employee_id=emp.id)
+               .filter(LatePermissionRequest.request_date >= month_start)
+               .order_by(LatePermissionRequest.request_date.desc()).all())
+
+    policy = resolve_violation_policy_for_employee(emp.id)
+
+    # Remaining free-late margin + permission count. Both are resolved
+    # through the same helper the payroll engine uses so the number the
+    # employee reads on this page is exactly the residual payroll would
+    # see when it runs — no drift is possible between the two paths.
+    remaining_pool = None
+    used_permits = 0
+    remaining_perms = None
+    if policy is not None:
+        used_permits = len(approved_permissions_for(emp.id, y, m))
+        remaining_perms = max(
+            0, int(policy.permission_count_per_month or 0) - used_permits)
+
+        breakdown = late_month_breakdown(emp.id, y, m, policy=policy)
+        remaining_pool = int(round(breakdown["pool_remaining"]))
+
+    balances = LeaveBalance.query.filter_by(
+        employee_id=emp.id, year=y).all()
+
+    return render_template(
+        "portal_emp/attendance.html",
+        employee=emp,
+        month_label=f"{y}-{m:02d}",
+        checkins=checkins,
+        exceptions=exceptions,
+        permits=permits,
+        permit_statuses=PermissionStatus,
+        policy=policy,
+        remaining_pool=remaining_pool,
+        remaining_perms=remaining_perms,
+        used_permits=used_permits,
+        balances=balances,
+    )
