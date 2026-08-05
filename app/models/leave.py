@@ -120,6 +120,20 @@ class AttendanceException(db.Model):
     cancelled_at = db.Column(db.DateTime)
     cancel_reason = db.Column(db.Text)
 
+    # MARSOUD-VIOLATION-POLICY (2026-08-05) — only READ for ABSENT and
+    # UNPAID_LEAVE, and only when a violation policy has been resolved.
+    # Ticket 6 lets HR set two different rates: an excused absence (a
+    # documented emergency, a sick day without a certificate) may cost
+    # less than an unexcused one. With no policy, this flag is IGNORED
+    # and the deduction stays at the pre-batch 1.0 day either way — the
+    # column exists but does not change any number until a policy is in
+    # place. That is the byte-for-byte regression guarantee.
+    #
+    # LATE ignores this flag entirely: forgiveness for lateness runs
+    # through LatePermissionRequest and the per-day / monthly pool, not
+    # through a per-row boolean.
+    is_excused = db.Column(db.Boolean, nullable=False, default=False)
+
     company = db.relationship("Company")
     employee = db.relationship("Employee", backref=db.backref("attendance_exceptions", lazy="dynamic"))
     leave_request = db.relationship("LeaveRequest", backref=db.backref("exceptions", lazy="dynamic"))

@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block page_title %}{{ 'تعديل سياسة الانتهاكات' if policy else 'سياسة انتهاكات جديدة' }}{% endblock %}
+{% block content %}
+
+{# MARSOUD-VIOLATION-POLICY (2026-08-05) — mirrors attendance_policy_form.html.
+   All numeric fields default to their "no allowance" values on the server side,
+   so leaving them blank is safe. #}
+
+<div class="mb-5">
+  <h2 class="font-bold text-navy-900 text-lg">
+    ⚖️ {{ 'تعديل سياسة الانتهاكات' if policy else 'سياسة انتهاكات جديدة' }}
+  </h2>
+</div>
+
+<form method="POST" class="card p-6 max-w-2xl space-y-4">
+
+  <div>
+    <label class="block text-sm font-semibold text-slate-700 mb-1">النطاق</label>
+    <select name="scope" id="scope" class="input" onchange="syncScope()">
+      {% set sc = policy.scope.value if policy else 'COMPANY' %}
+      <option value="COMPANY"    {% if sc == 'COMPANY' %}selected{% endif %}>الشركة كلها</option>
+      <option value="DEPARTMENT" {% if sc == 'DEPARTMENT' %}selected{% endif %}>قسم معيّن</option>
+      <option value="EMPLOYEE"   {% if sc == 'EMPLOYEE' %}selected{% endif %}>موظف معيّن</option>
+    </select>
+    <p class="text-xs text-slate-400 mt-1">الأخص يغلب: الموظف ← القسم ← الشركة.</p>
+  </div>
+
+  <div id="dept-row" class="hidden">
+    <label class="block text-sm font-semibold text-slate-700 mb-1">القسم</label>
+    <select name="department_id" class="input">
+      <option value="">— اختر —</option>
+      {% for d in departments %}
+      <option value="{{ d.id }}" {% if policy and policy.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div id="emp-row" class="hidden">
+    <label class="block text-sm font-semibold text-slate-700 mb-1">الموظف</label>
+    <select name="employee_id" class="input">
+      <option value="">— اختر —</option>
+      {% for e in employees %}
+      <option value="{{ e.id }}" {% if policy and policy.employee_id == e.id %}selected{% endif %}>{{ e.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="border-t border-slate-200 pt-4">
+    <div class="text-sm font-semibold text-slate-700 mb-2">خصم الغياب</div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">غياب مبرر (يوم)</label>
+        <input type="number" step="0.25" min="0" name="absence_excused_deduction_days" class="input" dir="ltr"
+               value="{{ '%.2f'|format(policy.absence_excused_deduction_days) if policy else '1.00' }}">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">غياب غير مبرر (يوم)</label>
+        <input type="number" step="0.25" min="0" name="absence_unexcused_deduction_days" class="input" dir="ltr"
+               value="{{ '%.2f'|format(policy.absence_unexcused_deduction_days) if policy else '1.00' }}">
+      </div>
+    </div>
+    <p class="text-xs text-slate-400 mt-1">القيمة الافتراضية 1.00 لكليهما — نفس السلوك الحالي.</p>
+  </div>
+
+  <div class="border-t border-slate-200 pt-4">
+    <div class="text-sm font-semibold text-slate-700 mb-2">سماح التأخير</div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">دقائق مسموحة/يوم</label>
+        <input type="number" step="1" min="0" name="daily_free_late_minutes_cap" class="input" dir="ltr"
+               value="{{ policy.daily_free_late_minutes_cap if policy else '0' }}">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">مجموع دقائق/شهر</label>
+        <input type="number" step="1" min="0" name="monthly_free_late_minutes" class="input" dir="ltr"
+               value="{{ policy.monthly_free_late_minutes if policy else '0' }}">
+      </div>
+    </div>
+    <p class="text-xs text-slate-400 mt-1">
+      يُطبَّق السماح اليومي أولًا، ثم يُخصم الباقي من الرصيد الشهري.
+    </p>
+  </div>
+
+  <div class="border-t border-slate-200 pt-4">
+    <div class="text-sm font-semibold text-slate-700 mb-2">طلبات الاستئذان</div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">عدد الطلبات/شهر</label>
+        <input type="number" step="1" min="0" name="permission_count_per_month" class="input" dir="ltr"
+               value="{{ policy.permission_count_per_month if policy else '0' }}">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">أقصى ساعات للطلب الواحد</label>
+        <input type="number" step="0.5" min="0" name="permission_max_hours" class="input" dir="ltr"
+               value="{{ '%.2f'|format(policy.permission_max_hours) if policy else '0.00' }}">
+      </div>
+    </div>
+    <p class="text-xs text-slate-400 mt-1">
+      اترك العدد 0 لتعطيل ميزة الاستئذان.
+    </p>
+  </div>
+
+  {% if policy %}
+  <label class="flex items-center gap-2 text-sm border-t border-slate-200 pt-4">
+    <input type="checkbox" name="is_active" {% if policy.is_active %}checked{% endif %}>
+    السياسة مفعّلة
+  </label>
+  {% endif %}
+
+  <div class="flex gap-2 pt-2">
+    <button class="btn-primary text-sm">{{ 'حفظ' if policy else 'إنشاء' }}</button>
+    <a href="{{ url_for('hr.violation_policies') }}" class="text-sm text-slate-500 self-center">إلغاء</a>
+  </div>
+</form>
+
+<script>
+function syncScope() {
+  var v = document.getElementById('scope').value;
+  document.getElementById('dept-row').classList.toggle('hidden', v !== 'DEPARTMENT');
+  document.getElementById('emp-row').classList.toggle('hidden', v !== 'EMPLOYEE');
+}
+syncScope();
+</script>
+
+{% endblock %}

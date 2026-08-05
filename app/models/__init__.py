@@ -100,6 +100,10 @@ from app.models.department import Department
 from app.models.attendance import (
     AttendancePolicy, PolicyScope, PolicyType,
 )
+from app.models.violation import (
+    AttendanceViolationPolicy,
+    LatePermissionRequest, PermissionStatus,
+)
 from app.models.checkin import AttendanceCheckin
 from app.models.leave import (
     LeaveType, LeaveBalance,
@@ -213,6 +217,8 @@ __all__ = [
     "AttendancePolicy", "PolicyScope", "PolicyType",
     "AttendanceCheckin",
     "LeaveRequest", "LeaveRequestStatus",
+    "AttendanceViolationPolicy",
+    "LatePermissionRequest", "PermissionStatus",
     "Lead", "LeadStatus", "LeadType", "LeadSource", "LeadStatusEvent",
     "Campaign", "LeadContact", "LeadActivity", "LeadActivityType",
     "Project", "ProjectStatus", "ProjectMember", "Milestone", "ProjectStatusEvent",

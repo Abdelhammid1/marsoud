@@ -62,6 +62,122 @@ def billable_days_in_period(employee, year, month, override=None):
     return natural_billable
 
 
+def late_month_breakdown(employee_id, year, month, *, policy=None):
+    """MARSOUD-VIOLATION-POLICY (2026-08-05) — ticket 6.
+
+    The month's lateness resolved against a violation policy. Returns a
+    dict with:
+
+      charged_days      — the days of pay run_payroll will deduct
+      pool_used_minutes — how much of the monthly pool was consumed
+      pool_remaining    — pool_total - pool_used (>= 0)
+
+    This is the single source of truth for the late math. Both
+    compute_late_deduction (payroll) and /my/attendance (T7 employee
+    overview) resolve their numbers here, so a change to the algorithm
+    lands once and cannot drift between what the employee is TOLD they
+    have left and what payroll actually bills.
+
+    Order of application (fixed by the spec):
+      1. approved LatePermissionRequests clear their day's minutes,
+      2. daily_free_late_minutes_cap forgives the first N minutes of
+         every remaining day (use it or lose it),
+      3. monthly_free_late_minutes pool absorbs what is left, drawn
+         earliest-day-first,
+      4. whatever remains is charged as minutes / 60 / 8.
+
+    NO POLICY BRANCH: charged_days is exactly what pre-batch
+    attendance_deductions() would have computed — the sum of
+    ex.deduction_days() across the month's active LATE rows, rounded
+    identically. Pool figures are None because there is no pool to
+    speak of. That is the byte-for-byte regression guarantee.
+    """
+    from collections import defaultdict
+    from calendar import monthrange
+    from datetime import date as _date
+    from app.services.leave import active_exceptions
+    from app.models import AttendanceException, AttendanceExceptionType
+
+    days_in_month = monthrange(year, month)[1]
+    start = _date(year, month, 1)
+    end = _date(year, month, days_in_month)
+
+    late_rows = active_exceptions().filter(
+        AttendanceException.employee_id == employee_id,
+        AttendanceException.type == AttendanceExceptionType.LATE,
+        AttendanceException.date >= start,
+        AttendanceException.date <= end,
+    ).all()
+
+    if policy is None:
+        return {
+            "charged_days": round(
+                sum(ex.deduction_days() for ex in late_rows), 2),
+            "pool_used_minutes": None,
+            "pool_remaining": None,
+        }
+
+    # 1. Aggregate the raw lateness per day (a day cannot have two LATE
+    #    rows — create_exception refuses a duplicate — but a defaultdict
+    #    keeps the code trivial and future-proofs a partial-index fix.)
+    day_minutes = defaultdict(float)
+    for ex in late_rows:
+        day_minutes[ex.date] += float(ex.duration_hours or 0) * 60.0
+
+    # 2. Subtract approved permissions for each day. Permissions clear
+    #    lateness before any allowance is charged, so an employee who
+    #    had a legitimate emergency does not spend their monthly pool
+    #    to cover it.
+    from app.services.violation import approved_permissions_for
+    for p in approved_permissions_for(employee_id, year, month):
+        day_minutes[p.request_date] = max(
+            0.0,
+            day_minutes[p.request_date] - float(p.hours_count or 0) * 60.0)
+
+    # 3. Per-day cap — the first N minutes of every day are free. This
+    #    is a per-day allowance (use it or lose it), not a bucket that
+    #    accumulates across days.
+    cap = int(policy.daily_free_late_minutes_cap or 0)
+    if cap:
+        day_minutes = {d: max(0.0, m - cap) for d, m in day_minutes.items()}
+
+    # 4. Draw remainder from the monthly pool, earliest-day-first. A day
+    #    that fully consumes what is left of the pool still charges the
+    #    remainder — the pool is not "absorb this day or none of it".
+    pool_total = int(policy.monthly_free_late_minutes or 0)
+    pool = pool_total
+    total_billable = 0.0
+    for d in sorted(day_minutes):
+        m = day_minutes[d]
+        if pool >= m:
+            pool -= m
+        else:
+            total_billable += m - pool
+            pool = 0
+
+    return {
+        "charged_days": round(total_billable / 60.0 / 8.0, 2),
+        "pool_used_minutes": pool_total - pool,
+        "pool_remaining": pool,
+    }
+
+
+def compute_late_deduction(employee_id, year, month, *, policy=None):
+    """Days of pay to deduct for the month's lateness. Thin wrapper
+    around late_month_breakdown — kept as the public entry point that
+    services/leave.py and run_payroll use, so callers that only care
+    about the number do not pull the dict apart at every call site.
+
+    Placed in services/payroll.py rather than services/violation.py
+    because payroll is where deductions live and services/leave.py
+    already imports payroll; putting it here means the call graph does
+    not gain a new hop through violation just to reach a number the
+    payroll layer owns.
+    """
+    return late_month_breakdown(
+        employee_id, year, month, policy=policy)["charged_days"]
+
+
 def auto_absence_late_for(employee, year, month):
     """HR-07 — convert AttendanceException rows into monetary absence + late
     amounts for a payroll line.

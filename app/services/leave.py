@@ -431,7 +431,21 @@ def attendance_deductions(employee_id, year, month):
     {absence_days, late_days, approved_days, paid_leave}.
 
     HR-07 plugs this into run_payroll.
+
+    MARSOUD-VIOLATION-POLICY (2026-08-05) — ticket 6. Absence rates and
+    late-minute forgiveness now come from AttendanceViolationPolicy.
+
+    THE NO-POLICY BRANCH IS UNCHANGED FROM PRE-BATCH BEHAVIOUR. A
+    company that has never defined a violation policy resolves to None,
+    each ABSENT / UNPAID_LEAVE still counts 1.0 day, late_days still
+    aggregates ex.deduction_days() the same way, and the dict returned
+    is byte-for-byte what run_payroll saw before this edit. That is the
+    acceptance criterion. Any change to the values in the None branch
+    breaks the guarantee — leave them alone.
     """
+    from app.services.violation import resolve_violation_policy_for_employee
+    from app.services.payroll import compute_late_deduction
+
     days_in_month = monthrange(year, month)[1]
     start = date(year, month, 1)
     end = date(year, month, days_in_month)
@@ -441,20 +455,31 @@ def attendance_deductions(employee_id, year, month):
         AttendanceException.date <= end,
     ).all()
 
+    policy = resolve_violation_policy_for_employee(employee_id)
+
     absence_days = 0.0
-    late_days = 0.0
     approved_days = 0.0
     has_any = False
     for ex in rows:
         has_any = True
-        if ex.type == AttendanceExceptionType.ABSENT:
-            absence_days += 1.0
-        elif ex.type == AttendanceExceptionType.UNPAID_LEAVE:
-            absence_days += 1.0
-        elif ex.type == AttendanceExceptionType.LATE:
-            late_days += ex.deduction_days()
+        if ex.type in (AttendanceExceptionType.ABSENT,
+                       AttendanceExceptionType.UNPAID_LEAVE):
+            if policy is None:
+                absence_days += 1.0                     # pre-batch value
+            elif ex.is_excused:
+                absence_days += float(
+                    policy.absence_excused_deduction_days or 0)
+            else:
+                absence_days += float(
+                    policy.absence_unexcused_deduction_days or 0)
         elif ex.type == AttendanceExceptionType.APPROVED_LEAVE:
             approved_days += 1.0
+        # LATE rows are aggregated by compute_late_deduction below; they
+        # still count for has_exceptions via the loop above.
+
+    late_days = compute_late_deduction(
+        employee_id, year, month, policy=policy)
+
     return {
         "absence_days": round(absence_days, 2),
         "late_days": round(late_days, 2),

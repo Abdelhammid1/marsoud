@@ -653,3 +653,221 @@ def leave_request_cancel(req_id):
     except LeaveError as e:
         flash(str(e), "error")
     return redirect(url_for("hr.leave_requests"))
+
+
+# ─── MARSOUD-VIOLATION-POLICY (2026-08-05) — ticket 6 ────────────────────
+# Same shape as the attendance-policies screens above. Nothing consumes
+# these policies at read time yet either — attendance_deductions() in
+# services/leave.py resolves them and services/payroll.py applies them.
+def _vp_form_values(form):
+    """Parse the violation-policy form into create/update kwargs. Blank
+    numeric fields come back as None so the service applies the "no
+    allowance" defaults rather than tripping on an empty string."""
+    def _get(name):
+        raw = (form.get(name) or "").strip()
+        return raw if raw != "" else None
+    return {
+        "scope": form.get("scope"),
+        "department_id": form.get("department_id", type=int),
+        "employee_id": form.get("employee_id", type=int),
+        "absence_unexcused_deduction_days": _get("absence_unexcused_deduction_days"),
+        "absence_excused_deduction_days": _get("absence_excused_deduction_days"),
+        "monthly_free_late_minutes": _get("monthly_free_late_minutes"),
+        "daily_free_late_minutes_cap": _get("daily_free_late_minutes_cap"),
+        "permission_count_per_month": _get("permission_count_per_month"),
+        "permission_max_hours": _get("permission_max_hours"),
+    }
+
+
+@bp.route("/violation-policies")
+@login_required
+@hr_required
+def violation_policies():
+    from app.services.violation import violation_policies_for_company
+    return render_template(
+        "hr/violation_policies.html",
+        policies=violation_policies_for_company(g.active_company.id))
+
+
+@bp.route("/violation-policies/new", methods=["GET", "POST"])
+@login_required
+@hr_required
+def violation_policy_new():
+    from app.services.violation import create_violation_policy, ViolationError
+    if request.method == "POST":
+        try:
+            create_violation_policy(company_id=g.active_company.id,
+                                    created_by=current_user.id,
+                                    **_vp_form_values(request.form))
+            flash("تم إنشاء سياسة الانتهاكات", "success")
+            return redirect(url_for("hr.violation_policies"))
+        except (ViolationError, ValueError) as e:
+            flash(str(e), "error")
+    return render_template("hr/violation_policy_form.html", policy=None,
+                           **_policy_form_context())
+
+
+@bp.route("/violation-policies/<int:policy_id>/edit", methods=["GET", "POST"])
+@login_required
+@hr_required
+def violation_policy_edit(policy_id):
+    from app.models import AttendanceViolationPolicy
+    from app.services.violation import update_violation_policy, ViolationError
+    p = db.session.get(AttendanceViolationPolicy, policy_id)
+    if not p or p.company_id != g.active_company.id:
+        flash("غير موجود", "error")
+        return redirect(url_for("hr.violation_policies"))
+    if request.method == "POST":
+        try:
+            values = _vp_form_values(request.form)
+            values["is_active"] = "is_active" in request.form
+            update_violation_policy(p, **values)
+            flash("تم الحفظ", "success")
+            return redirect(url_for("hr.violation_policies"))
+        except (ViolationError, ValueError) as e:
+            flash(str(e), "error")
+    return render_template("hr/violation_policy_form.html", policy=p,
+                           **_policy_form_context())
+
+
+@bp.route("/violation-policies/<int:policy_id>/delete", methods=["POST"])
+@login_required
+@hr_required
+def violation_policy_delete(policy_id):
+    from app.models import AttendanceViolationPolicy
+    from app.services.violation import delete_violation_policy
+    p = db.session.get(AttendanceViolationPolicy, policy_id)
+    if not p or p.company_id != g.active_company.id:
+        flash("غير موجود", "error")
+        return redirect(url_for("hr.violation_policies"))
+    delete_violation_policy(p)
+    flash("تم حذف السياسة", "success")
+    return redirect(url_for("hr.violation_policies"))
+
+
+# ─── Permission requests — mirrors /hr/leave-requests ───────────────────
+@bp.route("/permission-requests")
+@login_required
+@hr_required
+def permission_requests():
+    from app.models import LatePermissionRequest, PermissionStatus
+    cid = g.active_company.id
+    status_filter = request.args.get("status", "ALL")
+    q = LatePermissionRequest.query.filter_by(company_id=cid)
+    if status_filter and status_filter != "ALL":
+        try:
+            q = q.filter_by(status=PermissionStatus[status_filter])
+        except KeyError:
+            pass
+    rows = q.order_by(LatePermissionRequest.created_at.desc()).limit(200).all()
+    return render_template("hr/permission_requests.html",
+                           requests=rows, status_filter=status_filter,
+                           statuses=PermissionStatus)
+
+
+@bp.route("/permission-requests/new", methods=["GET", "POST"])
+@login_required
+@hr_required
+def permission_request_new():
+    from app.services.violation import (
+        submit_permission_request, ViolationError,
+    )
+    from datetime import time as _time
+
+    cid = g.active_company.id
+    employees = Employee.query.filter_by(
+        company_id=cid, status=EmployeeStatus.ACTIVE,
+    ).order_by(Employee.name).all()
+
+    def _t(name):
+        raw = (request.form.get(name) or "").strip()
+        if not raw:
+            return None
+        try:
+            hh, mm = raw.split(":")[:2]
+            return _time(int(hh), int(mm))
+        except (TypeError, ValueError):
+            return None
+
+    if request.method == "POST":
+        try:
+            emp_id = int(request.form.get("employee_id"))
+            req_date = _parse_date(request.form.get("request_date"))
+            if not req_date:
+                raise ViolationError("تاريخ الاستئذان مطلوب")
+            submit_permission_request(
+                company_id=cid, employee_id=emp_id,
+                request_date=req_date,
+                hours_count=request.form.get("hours_count"),
+                start_time=_t("start_time"),
+                end_time=_t("end_time"),
+                reason=request.form.get("reason"),
+                created_by=current_user.id,
+            )
+            flash("تم تقديم طلب الاستئذان — يحتاج اعتماد", "success")
+            return redirect(url_for("hr.permission_requests"))
+        except (ViolationError, ValueError, TypeError) as e:
+            flash(str(e), "error")
+    return render_template("hr/permission_request_form.html",
+                           employees=employees,
+                           today=date.today().isoformat())
+
+
+@bp.route("/permission-requests/<int:req_id>/approve", methods=["POST"])
+@login_required
+@hr_required
+def permission_request_approve(req_id):
+    from app.models import LatePermissionRequest
+    from app.services.violation import approve_permission_request, ViolationError
+    req = db.session.get(LatePermissionRequest, req_id)
+    if not req or req.company_id != g.active_company.id:
+        flash("الطلب غير موجود", "error")
+        return redirect(url_for("hr.permission_requests"))
+    try:
+        approve_permission_request(
+            req, reviewer_id=current_user.id,
+            review_note=request.form.get("review_note"))
+        flash("تم اعتماد طلب الاستئذان", "success")
+    except ViolationError as e:
+        flash(str(e), "error")
+    return redirect(url_for("hr.permission_requests"))
+
+
+@bp.route("/permission-requests/<int:req_id>/reject", methods=["POST"])
+@login_required
+@hr_required
+def permission_request_reject(req_id):
+    from app.models import LatePermissionRequest
+    from app.services.violation import reject_permission_request, ViolationError
+    req = db.session.get(LatePermissionRequest, req_id)
+    if not req or req.company_id != g.active_company.id:
+        flash("الطلب غير موجود", "error")
+        return redirect(url_for("hr.permission_requests"))
+    try:
+        reject_permission_request(
+            req, reviewer_id=current_user.id,
+            review_note=request.form.get("review_note"))
+        flash("تم رفض الطلب", "success")
+    except ViolationError as e:
+        flash(str(e), "error")
+    return redirect(url_for("hr.permission_requests"))
+
+
+@bp.route("/permission-requests/<int:req_id>/cancel", methods=["POST"])
+@login_required
+@hr_required
+def permission_request_cancel(req_id):
+    from app.models import LatePermissionRequest
+    from app.services.violation import cancel_permission_request, ViolationError
+    req = db.session.get(LatePermissionRequest, req_id)
+    if not req or req.company_id != g.active_company.id:
+        flash("الطلب غير موجود", "error")
+        return redirect(url_for("hr.permission_requests"))
+    try:
+        cancel_permission_request(
+            req, reviewer_id=current_user.id,
+            review_note=request.form.get("review_note"))
+        flash("تم إلغاء الطلب", "success")
+    except ViolationError as e:
+        flash(str(e), "error")
+    return redirect(url_for("hr.permission_requests"))

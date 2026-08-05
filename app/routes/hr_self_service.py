@@ -499,6 +499,73 @@ def leave_new():
     return redirect(url_for("portal_emp.account") + "#leaves")
 
 
+@portal_emp_bp.route("/permission/new", methods=["POST"])
+@login_required
+def permission_new():
+    """MARSOUD-VIOLATION-POLICY (2026-08-05) — ticket 6.
+
+    Employee-side counterpart to hr.permission_request_new. Same shape
+    as leave_new: _my_employee() scopes to the active company and 403s
+    anyone without an HR record; the service catches invalid caps or
+    monthly-count-exceeded and turns them into flash errors.
+    """
+    from datetime import time as _time
+    from app.services.violation import (
+        submit_permission_request, ViolationError,
+    )
+    emp = _my_employee()
+    if not emp:
+        abort(403)
+
+    def _t(name):
+        raw = (request.form.get(name) or "").strip()
+        if not raw:
+            return None
+        try:
+            hh, mm = raw.split(":")[:2]
+            return _time(int(hh), int(mm))
+        except (TypeError, ValueError):
+            return None
+
+    try:
+        req_date = datetime.strptime(
+            request.form.get("request_date"), "%Y-%m-%d").date()
+        submit_permission_request(
+            company_id=emp.company_id, employee_id=emp.id,
+            request_date=req_date,
+            hours_count=request.form.get("hours_count"),
+            start_time=_t("start_time"),
+            end_time=_t("end_time"),
+            reason=request.form.get("reason"),
+            created_by=current_user.id,
+        )
+        # Notify HR — same pattern as leave_new.
+        try:
+            from app.services.opsflow_extras import notify
+            from app.models import NotificationKind
+            rows = db.session.execute(
+                user_companies.select().where(
+                    (user_companies.c.company_id == emp.company_id) &
+                    (user_companies.c.role.in_(
+                        ["owner", "admin", "hr_manager"]))
+                )
+            ).fetchall()
+            for r in rows:
+                notify(r.user_id, company_id=emp.company_id,
+                       kind=NotificationKind.TASK_ASSIGNED,
+                       title=f"🕐 طلب استئذان جديد: {emp.name}",
+                       body=f"{req_date.isoformat()} — "
+                            f"{request.form.get('hours_count')} ساعة",
+                       link_url=url_for("hr.permission_requests"))
+        except Exception:
+            from flask import current_app
+            current_app.logger.exception("permission request notify failed")
+        flash("تم إرسال طلب الاستئذان للاعتماد.", "success")
+    except (ViolationError, ValueError, TypeError, KeyError) as e:
+        flash(str(e), "error")
+    return redirect(url_for("portal_emp.account") + "#attendance")
+
+
 @portal_emp_bp.route("/advance/new", methods=["POST"])
 @login_required
 def advance_new():
