@@ -167,10 +167,30 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
             and abs(late - auto_late) < 0.01
         )
 
-        # MARSOUD-ADVANCES — the form prefills this from the employee's
-        # open advance, but the accountant can still override it, so the
-        # submitted number stays authoritative for the payslip.
-        advance = float(inputs.get("advance", 0) or 0)
+        # MARSOUD-ADVANCE-INSTALMENTS (2026-08-05) — `or 0` used to be
+        # here, and it was the whole bug: a missing field became a zero
+        # deduction, so the automation only worked when the payroll FORM
+        # had filled the box. Any other caller deducted nothing and the
+        # advance stayed open forever.
+        #
+        # None now means "the service works it out from the open
+        # balance". An explicit 0 still means a deliberate skip, and a
+        # typed number is still respected — silence is the only thing
+        # whose meaning changed.
+        #
+        # The real amount is known only after apply_advance_deduction
+        # runs (it is capped by the remaining balance), so the line is
+        # created with a provisional figure and corrected below.
+        advance_input = inputs.get("advance")
+        if advance_input is None or str(advance_input).strip() == "":
+            advance_input = None
+            from app.services.advances import installment_due_for
+            advance = installment_due_for(emp)
+        else:
+            try:
+                advance = round(float(advance_input), 2)
+            except (TypeError, ValueError):
+                advance = 0.0
 
         basic_full = float(emp.basic_salary or 0)
         prorated_basic = (basic_full / 30.0) * max(0, working_days)
@@ -236,9 +256,18 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
         # open advance and remember how much actually landed against a
         # tracked balance. A number typed by hand with no advance behind
         # it applies 0 and keeps the old ledger behaviour.
+        #
+        # MARSOUD-ADVANCE-INSTALMENTS — the run and the period go in so
+        # the service can write the instalment row and refuse to recover
+        # the same period twice. `advance_input` is passed rather than
+        # `advance`: None still means "work it out", which is the whole
+        # point of the change.
         try:
             from app.services.advances import apply_advance_deduction
-            advance_applied[emp.id] = apply_advance_deduction(emp, advance)
+            applied = apply_advance_deduction(
+                emp, advance_input, run=run,
+                period_year=year, period_month=month, payroll_line=line)
+            advance_applied[emp.id] = applied
         except Exception:
             import logging
             logging.getLogger("ledgeros.payroll").exception(
@@ -246,6 +275,26 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
                 emp.name,
             )
             advance_applied[emp.id] = 0.0
+            applied = 0.0
+
+        # The line was built from the REQUESTED figure, but the service
+        # caps it at the remaining balance and returns nothing at all
+        # when the period was already recovered. Correct the payslip to
+        # what actually happened, or it claims a deduction the employee
+        # never had — but only when there is a tracked advance behind it,
+        # so a hand-typed number with no advance keeps showing as before.
+        if advance_input is None and abs(applied - advance) > 0.005:
+            delta = round(advance - applied, 2)
+            line.advance_deduction = applied
+            line.net = round(float(line.net) + delta, 2)
+            if "amount_paid" not in inputs or inputs["amount_paid"] in (None, ""):
+                line.amount_paid = line.net
+                accrued = 0.0
+            else:
+                accrued = round(float(line.net) - float(line.amount_paid), 2)
+            net = float(line.net)
+            amount_paid = float(line.amount_paid)
+            db.session.flush()
 
         if accrued > 0.005:
             accruals_to_create.append((emp, line, accrued))

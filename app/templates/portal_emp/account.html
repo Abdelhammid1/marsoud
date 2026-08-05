@@ -203,6 +203,39 @@
     — مقسّطة على {{ advance.months }} {{ 'شهر' if advance.months == 1 else 'شهور' }}.
     لا يمكن طلب سلفة جديدة قبل سداد الحالية.
   </p>
+
+  {# MARSOUD-ADVANCE-INSTALMENTS (2026-08-05) — «المسدد حتى الآن» above
+     was a subtraction with nothing behind it. Every instalment now has
+     a row, so the employee can see which month each one came out of
+     instead of having to trust one number. #}
+  {% if advance_repayments %}
+  <div class="mt-3">
+    <div class="text-xs font-semibold text-slate-600 mb-2">الأقساط المخصومة</div>
+    <table class="w-full text-xs">
+      <thead>
+        <tr class="text-slate-500 border-b border-slate-200">
+          <th class="text-right py-1">الشهر</th>
+          <th class="text-right py-1">المبلغ</th>
+          <th class="text-right py-1">كشف الرواتب</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in advance_repayments %}
+        <tr class="border-b border-slate-100">
+          <td class="py-1 font-mono">{{ r.period_year }}-{{ "%02d"|format(r.period_month) }}</td>
+          <td class="py-1 font-mono {{ 'text-slate-400' if r.amount|float < 0.005 else 'text-navy-900 font-bold' }}">
+            {{ "%.2f"|format(r.amount) }}
+            {% if r.amount|float < 0.005 %}<span class="text-[10px]">(لم يُخصم)</span>{% endif %}
+          </td>
+          <td class="py-1 text-slate-500">
+            {{ r.payroll_run.number if r.payroll_run else '—' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
   {% else %}
   <details class="bg-amber-50/40 border border-amber-200 rounded-lg p-3">
     <summary class="cursor-pointer text-sm font-semibold text-amber-800">+ طلب سلفة جديدة</summary>

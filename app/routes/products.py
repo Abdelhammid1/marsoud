@@ -252,6 +252,14 @@ def new():
                 )
 
             db.session.commit()
+            # MARSOUD-METRIC-AUTOMATION (2026-08-05) — see customers.new.
+            try:
+                from app.services.activity import log_action
+                log_action(action_type="CREATE", entity_type="product",
+                           entity_id=p.id, entity_label=p.name,
+                           company_id=p.company_id)
+            except Exception:
+                pass
             if is_tracked:
                 flash(f"تم إضافة البضاعة: {p.name}", "success")
             else:

@@ -107,6 +107,16 @@ def new():
                                              customer=None, reps=reps)
 
         db.session.commit()
+        # MARSOUD-METRIC-AUTOMATION (2026-08-05) — the metric job reads
+        # the unified activity log and nothing else, so a new customer
+        # has to leave a row here to be scorable at all.
+        try:
+            from app.services.activity import log_action
+            log_action(action_type="CREATE", entity_type="customer",
+                       entity_id=c.id, entity_label=c.name,
+                       company_id=c.company_id)
+        except Exception:
+            pass
         flash("تم إضافة العميل", "success")
         return redirect(url_for("customers.index"))
     return render_template("customers/form.html", customer=None, reps=reps)
@@ -195,9 +205,17 @@ def view(customer_id):
 
 # MARSOUD-CUSTOMER-DEPOSIT-01 UI (Abdelhamid 2026-07-24) —
 # post + refund actions.
+#
+# MARSOUD-DEPOSIT-PERMS (2026-08-05) — both of these were gated on
+# `customers.view`, a READ permission held by seven roles including
+# `viewer`. Taking cash from a customer and refunding cash to them are
+# not read actions: each posts a balanced journal entry, so nothing
+# downstream ever looks wrong. `partners.manage` (owner/admin/accountant)
+# is the write-side gate the rest of this file already uses — see `new`
+# and `edit` above.
 @bp.route("/<int:customer_id>/deposits", methods=["POST"])
 @login_required
-@require_permission("customers.view")
+@require_permission("partners.manage")
 def receive_deposit(customer_id):
     from datetime import datetime as _dt
     from app.services.deposits import record_deposit, DepositError
@@ -236,7 +254,7 @@ def receive_deposit(customer_id):
 
 @bp.route("/deposits/<int:deposit_id>/refund", methods=["POST"])
 @login_required
-@require_permission("customers.view")
+@require_permission("partners.manage")   # MARSOUD-DEPOSIT-PERMS — see above
 def refund_deposit(deposit_id):
     from app.services.deposits import refund, DepositError
     from app.models import CustomerDeposit

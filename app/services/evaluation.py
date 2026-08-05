@@ -453,7 +453,8 @@ def targets_for(cycle, employee_id):
 
 
 def log_metric_entry(*, company_id, cycle, employee_id, metric_key,
-                        entry_date, value, entered_by_id):
+                        entry_date, value, entered_by_id,
+                        source_activity_id=None):
     """Record one raw datapoint. Legal at any point while the cycle
     is not LOCKED — SUBMITTED cycles still accept logs so a manager
     can correct an entry before final sign-off. LOCKED is the only
@@ -493,6 +494,9 @@ def log_metric_entry(*, company_id, cycle, employee_id, metric_key,
         entry_date=entry_date,
         value=val,
         entered_by_id=entered_by_id,
+        # MARSOUD-METRIC-AUTOMATION — set by the cron job, NULL for the
+        # manual path, which is unchanged.
+        source_activity_id=source_activity_id,
     )
     db.session.add(row)
     db.session.commit()

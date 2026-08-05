@@ -191,4 +191,29 @@ def tick():
             "daily digest failed: %s", e)
         summary["daily_digests"] = {"error": str(e)[:200]}
 
+    # MARSOUD-METRIC-AUTOMATION (2026-08-05) — two jobs, in this order
+    # on purpose: the cycle has to exist (and its targets with it) before
+    # anything can be scored into it. On the 1st of the month the cycle
+    # opens and the same tick starts awarding against it.
+    #
+    # Both are idempotent, so a cron that double-fires — or a retry after
+    # a timeout — creates nothing extra.
+    try:
+        from app.services.metric_automation import open_monthly_cycles
+        summary["evaluation_cycles"] = open_monthly_cycles()
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception(
+            "monthly cycle open failed: %s", e)
+        summary["evaluation_cycles"] = {"error": str(e)[:200]}
+
+    try:
+        from app.services.metric_automation import award_metric_entries
+        summary["metric_entries"] = award_metric_entries()
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception(
+            "metric awarding failed: %s", e)
+        summary["metric_entries"] = {"error": str(e)[:200]}
+
     return jsonify(summary)

@@ -131,3 +131,75 @@ class EmployeeAdvance(db.Model):
             return 0.0
         return round(min(float(self.monthly_installment or 0),
                          float(self.remaining or 0)), 2)
+
+
+class AdvanceRepayment(db.Model):
+    """MARSOUD-ADVANCE-INSTALMENTS (2026-08-05) — one row per instalment.
+
+    Before this, recovering an instalment was `adv.remaining -= applied`
+    and nothing else. Three things followed from having no row:
+
+      · a payroll run redone for the same month deducted a SECOND time
+        from the same balance, with nothing to notice
+      · "how much have I paid so far?" had no answer but subtraction
+      · no link at all between an advance and the payslip that took it
+
+    Modelled on SalesCommission (models/sales_commission.py), which is
+    already settled inside run_payroll and linked back with
+    payroll_run_id — the same shape, one row per event instead of a
+    status flip, because an advance is recovered many times.
+
+    The unique constraint IS the no-double-deduction rule, not a comment
+    about it: one repayment per advance per run.
+
+    A ZERO-amount row is meaningful and expected — it records that the
+    accountant deliberately typed 0 to skip this month, which is
+    different from the month never having been run.
+    """
+    __tablename__ = "advance_repayments"
+    __table_args__ = (
+        db.UniqueConstraint("advance_id", "payroll_run_id",
+                            name="uq_advance_repayment_run"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer,
+                           db.ForeignKey("companies.id", ondelete="CASCADE"),
+                           nullable=False, index=True)
+    advance_id = db.Column(db.Integer,
+                           db.ForeignKey("employee_advances.id",
+                                         ondelete="CASCADE"),
+                           nullable=False, index=True)
+
+    payroll_run_id = db.Column(db.Integer,
+                               db.ForeignKey("payroll_runs.id",
+                                             ondelete="CASCADE"),
+                               nullable=False, index=True)
+    payroll_line_id = db.Column(db.Integer,
+                                db.ForeignKey("payroll_lines.id",
+                                              ondelete="SET NULL"))
+
+    # Denormalised from the run so the employee's history reads without a
+    # join, and so "was this month already deducted?" is answerable even
+    # if a run is later renumbered.
+    period_year = db.Column(db.Integer, nullable=False, index=True)
+    period_month = db.Column(db.Integer, nullable=False, index=True)
+
+    amount = db.Column(db.Numeric(15, 2), nullable=False, default=0)
+    # True when the amount came from the accountant rather than from the
+    # open balance — so a surprising number on the payslip can be traced
+    # to a person instead of to the automation.
+    manual = db.Column(db.Boolean, nullable=False, default=False)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    advance = db.relationship(
+        "EmployeeAdvance",
+        backref=db.backref("repayments", lazy="selectin",
+                           order_by="AdvanceRepayment.id.asc()",
+                           cascade="all, delete-orphan"))
+    payroll_run = db.relationship("PayrollRun", foreign_keys=[payroll_run_id])
+
+    def __repr__(self):                                  # pragma: no cover
+        return (f"<AdvanceRepayment adv={self.advance_id} "
+                f"{self.period_year}-{self.period_month:02d} {self.amount}>")

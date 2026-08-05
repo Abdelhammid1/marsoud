@@ -54,6 +54,40 @@ def ensure_primary_contact(lead):
 
 
 # ─── Leads ───────────────────────────────────────────────────────────────
+# ─── MARSOUD-METRIC-AUTOMATION (2026-08-05) ─────────────────────────────
+def _log_status_change(entity_type, obj, *, from_status, to_status,
+                       actor_id, company_id, label=None, extra=None):
+    """Write a status transition to the unified activity log.
+
+    The metric job reads UserActivityLog and NOTHING else — no direct
+    reads from Lead or Task — so everything it needs to score the event
+    has to be on the row itself. That means the from/to statuses go in
+    extra_data; entity_id alone would force the job back into the source
+    table, and the row would then describe whatever the lead looks like
+    TODAY rather than what happened at the time.
+
+    Wrapped so a logging failure can never break a status change, which
+    is the same contract log_action itself keeps.
+    """
+    try:
+        from app.services.activity import log_action
+        payload = {
+            "from_status": from_status.name if from_status else None,
+            "to_status": to_status.name if to_status else None,
+        }
+        if extra:
+            payload.update({k: v for k, v in extra.items() if v is not None})
+        log_action(
+            action_type="UPDATE", entity_type=entity_type,
+            entity_id=obj.id, entity_label=label,
+            extra_data=payload, company_id=company_id, user_id=actor_id,
+        )
+    except Exception:
+        import logging
+        logging.getLogger("ledgeros.crm").exception(
+            "activity log failed for %s %s", entity_type, getattr(obj, "id", "?"))
+
+
 def change_lead_status(lead, new_status, *, changed_by_id, note=None,
                        lost_reason=None):
     """Transition a lead to a new status + record an event row."""
@@ -77,6 +111,20 @@ def change_lead_status(lead, new_status, *, changed_by_id, note=None,
         changed_by_id=changed_by_id, note=(note or "").strip() or None,
     ))
     db.session.commit()
+
+    # MARSOUD-METRIC-AUTOMATION (2026-08-05) — the unified activity log
+    # is the ONLY source the metric job reads; it never touches the Lead
+    # table. So the transition itself has to be legible from the log row,
+    # which is why the statuses go into extra_data rather than being
+    # implied by entity_id.
+    #
+    # changed_by_id, not lead.assigned_to_id: the points belong to
+    # whoever actually moved the lead, which the ticket calls out for
+    # WON in particular.
+    _log_status_change(
+        "lead", lead, from_status=old, to_status=new_status,
+        actor_id=changed_by_id, company_id=lead.company_id,
+        label=lead.client_name)
 
     # Notify the assigned rep if someone else moved it
     try:
@@ -232,6 +280,25 @@ def set_task_status(task, new_status, *, by_user_id=None):
     if project:
         project.recompute_progress()
     db.session.commit()
+
+    # MARSOUD-METRIC-AUTOMATION — as for leads. `on_time` is decided
+    # here, while the due date and completion time are both in hand;
+    # the metric job must not have to re-derive it from the Task table.
+    on_time = None
+    if new_status == TaskStatus.DONE:
+        due = task.deadline
+        done_on = (task.completed_at.date() if task.completed_at
+                   else date.today())
+        # No deadline means nothing to be late for.
+        on_time = True if not due else done_on <= due
+    _log_status_change(
+        "task", task, from_status=old, to_status=new_status,
+        actor_id=by_user_id, company_id=task.company_id,
+        label=task.title,
+        # assignee_ids is Task.all_assignees flattened (models/crm.py:500)
+        # — the ticket splits the points across whoever was actually on
+        # the task, and the job must not go back to the table to find out.
+        extra={"on_time": on_time, "assignee_ids": task.assignee_ids})
 
     # Notify every watcher (assignees + creator) + project manager,
     # skipping the actor. MARSOUD-TASK-NOTIFY-CREATOR: the creator

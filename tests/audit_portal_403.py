@@ -535,6 +535,224 @@ def _():
     return "hidden for employee, present for accountant"
 
 
+PARTNERS_WRITE_ROLES = ("owner", "admin", "accountant")
+
+
+# NB these push their OWN short-lived app context and return plain
+# values, never ORM objects. The checks run with no context pushed (see
+# the note in main()), and an object detached from its session would blow
+# up the moment an attribute is touched.
+def _deposit_counts():
+    """(deposits, journal entries) in the fixture company."""
+    from app.models import CustomerDeposit, JournalEntry
+    cid = _STATE["company_id"]
+    with _STATE["app"].app_context():
+        return (CustomerDeposit.query.filter_by(company_id=cid).count(),
+                JournalEntry.query.filter_by(company_id=cid).count())
+
+
+def _a_payment_method_id():
+    """A usable payment method, seeding the chart of accounts on demand.
+
+    The fixture company deliberately has no COA — this audit is about the
+    confinement gate, and every page it crawls renders fine without one.
+    Recording a deposit does need one (Dr the method's cash account, Cr
+    the customer's AR sub-account), so it is seeded HERE rather than in
+    _setup: every link-crawling D-check runs before this one, and giving
+    them a populated ledger would change what they crawl for reasons that
+    have nothing to do with this audit.
+    """
+    from app.models import PaymentMethod
+    from app.services.seed_coa import seed_default_coa
+    cid = _STATE["company_id"]
+    with _STATE["app"].app_context():
+        pm = PaymentMethod.query.filter_by(
+            company_id=cid, is_active=True).first()
+        if pm is None:
+            seed_default_coa(cid)
+            db.session.commit()
+            pm = PaymentMethod.query.filter_by(
+                company_id=cid, is_active=True).first()
+        return pm.id if pm else None
+
+
+def _latest_deposit():
+    """(id, status) of the newest deposit in the fixture company."""
+    from app.models import CustomerDeposit
+    with _STATE["app"].app_context():
+        d = (CustomerDeposit.query
+             .filter_by(company_id=_STATE["company_id"])
+             .order_by(CustomerDeposit.id.desc()).first())
+        return (d.id, d.status) if d else (None, None)
+
+
+def _deposit_status(deposit_id):
+    from app.models import CustomerDeposit
+    with _STATE["app"].app_context():
+        d = db.session.get(CustomerDeposit, deposit_id)
+        return d.status if d else None
+
+
+def _seed_active_deposit(amount=100):
+    """An ACTIVE deposit, posted through the service rather than the route.
+
+    D8 needs one to exist: the استرداد button only renders for an ACTIVE
+    deposit, and by the time D8 runs D7 has already refunded the one it
+    made — so without this the button is absent for EVERY role and D8's
+    'hidden from viewer' assertion would pass while proving nothing.
+    """
+    from app.models import Customer, PaymentMethod
+    from app.services.deposits import record_deposit
+    cid = _STATE["company_id"]
+    pm_id = _a_payment_method_id()
+    with _STATE["app"].app_context():
+        cust = db.session.get(Customer, _STATE["customer_id"])
+        dep = record_deposit(
+            company_id=cid, customer=cust, amount=amount,
+            payment_method=db.session.get(PaymentMethod, pm_id),
+            actor_id=_STATE["users"]["owner"])
+        db.session.commit()
+        return dep.id
+
+
+@check("D7. taking and refunding a customer deposit needs the WRITE gate")
+def _():
+    """MARSOUD-DEPOSIT-PERMS (2026-08-05).
+
+    Both routes were gated on `customers.view`, a READ permission held by
+    seven roles including `viewer`. Receiving a deposit posts Dr cash /
+    Cr customer AR and refunding it sends the cash back out — each writes
+    a BALANCED journal entry, so no report ever looks wrong and nothing
+    downstream objects.
+
+    The row counts are the real assertion here, not the status code: a
+    redirect proves the request bounced, only the counts prove the money
+    stayed put. (`require_permission` flashes and redirects — it never
+    403s; the genuine 403s in E1/E2 come from the portal before_request
+    hook, a different mechanism.)
+    """
+    cust_id = _STATE["customer_id"]
+    pm_id = _a_payment_method_id()
+    assert pm_id, "fixture has no payment method to post with"
+    form = {"amount": "250", "payment_method_id": str(pm_id)}
+
+    # ── the READ-ONLY roles must be refused, and change nothing ────────
+    before = _deposit_counts()
+    refused = []
+    for role in ("sales_rep", "viewer", "ceo", "sales_manager"):
+        r = _client_for(role).post(f"/customers/{cust_id}/deposits",
+                                    data=form, follow_redirects=False)
+        assert r.status_code in (301, 302), (
+            f"{role}: POST returned {r.status_code} — the deposit form was "
+            "accepted by a role with read-level permission only")
+        refused.append(role)
+    after = _deposit_counts()
+    assert after == before, (
+        f"a refused deposit still wrote to the database: "
+        f"(deposits, journals) {before} -> {after}")
+
+    # ── the WRITE roles must still be able to do it ───────────────────
+    # A gate that refuses everyone would satisfy every assertion above.
+    r = _client_for("accountant").post(f"/customers/{cust_id}/deposits",
+                                        data=form, follow_redirects=False)
+    assert r.status_code in (301, 302), f"accountant got {r.status_code}"
+    posted = _deposit_counts()
+    assert posted[0] == before[0] + 1, (
+        f"accountant could not record a deposit ({before} -> {posted}) — "
+        "the gate is too tight")
+    assert posted[1] > before[1], "no journal entry was posted for it"
+
+    # ── refunding is the same story on the way out ────────────────────
+    dep_id, status = _latest_deposit()
+    assert status == "ACTIVE", f"the new deposit is {status}, not ACTIVE"
+    for role in ("sales_rep", "viewer"):
+        r = _client_for(role).post(f"/customers/deposits/{dep_id}/refund",
+                                    follow_redirects=False)
+        assert r.status_code in (301, 302), (
+            f"{role}: refund POST returned {r.status_code}")
+        assert _deposit_status(dep_id) == "ACTIVE", (
+            f"{role} refunded a deposit with read-level permission only")
+
+    _client_for("accountant").post(f"/customers/deposits/{dep_id}/refund",
+                                    follow_redirects=False)
+    assert _deposit_status(dep_id) == "REFUNDED", (
+        f"accountant could not refund (deposit is {_deposit_status(dep_id)})"
+        " — the gate is too tight")
+
+    return (f"refused {', '.join(refused)} with 0 rows written; "
+            "accountant can still receive + refund")
+
+
+@check("D8. the deposit buttons are hidden from roles that cannot use them")
+def _():
+    """The route is the protection; this is the other half. Leaving the
+    form visible means a sales_rep clicks and gets bounced with the
+    permission flash — the bug class fixed in 62de12f, and the same
+    template that already hid «✎ تعديل» behind partners.manage.
+
+    Only roles that actually RENDER the page are judged. hr_manager,
+    project_manager and team_member are bounced off /customers/<id>
+    entirely (302) and employee is confined (403), so for them "the form
+    is absent" is true of every page in the app and proves nothing. The
+    four that matter — ceo, sales_manager, sales_rep, viewer — do render
+    it, and MUST_SEE_PAGE below fails if that ever stops being true,
+    rather than letting this check go quietly vacuous.
+    """
+    # Roles that hold customers.view, reach the page, and must NOT be
+    # offered the deposit controls. If one of these stops rendering the
+    # page this check has lost its teeth and should fail loudly.
+    MUST_SEE_PAGE = ("ceo", "sales_manager", "sales_rep", "viewer")
+
+    cust_id = _STATE["customer_id"]
+    url = f"/customers/{cust_id}"
+    # The استرداد button only renders for an ACTIVE deposit, and D7 left
+    # its own refunded. Without a live one this check would find no button
+    # for anybody and "hidden from viewer" would be true for the wrong
+    # reason.
+    dep_id = _seed_active_deposit()
+    assert _deposit_status(dep_id) == "ACTIVE"
+    refund_action = f"/customers/deposits/{dep_id}/refund"
+    hidden_from, shown_to, unreachable = [], [], []
+    for role in ALL_SIDEBAR_ROLES:
+        r = _get(role, url)
+        body = r.get_data(as_text=True)
+        rendered = r.status_code == 200 and "بيانات العميل" in body
+        if not rendered:
+            assert role not in MUST_SEE_PAGE, (
+                f"{role} can no longer open the customer page "
+                f"({r.status_code}) — this check would silently stop "
+                "proving anything about the deposit controls")
+            unreachable.append(role)
+            continue
+
+        has_form = f"/customers/{cust_id}/deposits" in body
+        # Scoped to THIS deposit's refund endpoint. A bare "/refund"
+        # also matches the /refunds/ sidebar link, which every role has.
+        has_refund = refund_action in body
+        if role in PARTNERS_WRITE_ROLES:
+            assert has_form, (
+                f"{role} MAY take deposits but the form is hidden from them")
+            assert has_refund, (
+                f"{role} MAY refund but the استرداد button is hidden from "
+                "them — the gate is too tight")
+            shown_to.append(role)
+        else:
+            assert not has_form, (
+                f"{role} is shown the deposit form but the route refuses "
+                "them — a door they cannot open")
+            assert not has_refund, (
+                f"{role} is shown the استرداد button but cannot use it")
+            hidden_from.append(role)
+
+    for role in MUST_SEE_PAGE:
+        assert role in hidden_from, (
+            f"{role} was never actually checked — it must reach the page "
+            "and be denied the controls")
+    assert shown_to, "no role was shown the controls — nothing was proven"
+    return (f"shown to {', '.join(shown_to)}; hidden from "
+            f"{', '.join(hidden_from)}; {len(unreachable)} never reach the page")
+
+
 # ═══ E. Confinement invariants that must still hold ════════════════════
 @check("E1. employee still 403s on the financial + business modules")
 def _():

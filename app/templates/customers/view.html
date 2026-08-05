@@ -71,6 +71,13 @@
         {% endif %}
       </div>
 
+      {# MARSOUD-DEPOSIT-PERMS (2026-08-05) — the form is only shown to
+         roles that may actually post it. The route is the protection;
+         this is so nobody is offered a button that bounces them with
+         «ليس لديك صلاحية لهذا الإجراء». Same gate the edit link uses
+         further down. The deposits LIST below stays visible to everyone
+         with customers.view — reading the history is not the problem. #}
+      {% if has_permission('partners.manage') %}
       <div class="bg-emerald-50/40 border border-emerald-200 rounded-lg p-4 mb-4">
         <form method="POST" action="{{ url_for('customers.receive_deposit', customer_id=customer.id) }}"
               class="grid grid-cols-1 md:grid-cols-4 gap-2">
@@ -94,6 +101,7 @@
                   class="border rounded px-2 py-1 text-sm md:col-span-4">
         </form>
       </div>
+      {% endif %}
 
       {% if deposits %}
       <table class="data-table">
@@ -128,7 +136,9 @@
               {% else %}—{% endif %}
             </td>
             <td class="text-sm">
-              {% if d.status == 'ACTIVE' %}
+              {# MARSOUD-DEPOSIT-PERMS — refunding sends cash back out, so
+                 the button follows the same gate as the form above. #}
+              {% if d.status == 'ACTIVE' and has_permission('partners.manage') %}
                 <form method="POST" action="{{ url_for('customers.refund_deposit', deposit_id=d.id) }}"
                       onsubmit="return confirm('استرجاع {{ d.amount }} من العربون؟')">
                   <button class="text-xs text-red-600 hover:underline">استرداد</button>
