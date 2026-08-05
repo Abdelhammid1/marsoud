@@ -90,6 +90,36 @@ class AttendanceException(db.Model):
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # MARSOUD-EXCEPTION-AUDIT (2026-08-05) — deleting one of these used to
+    # remove the row outright, with no record of who or why. It deducts a
+    # day's pay, so it is cancelled rather than deleted now.
+    #
+    # EVERY QUERY THAT FEEDS PAYROLL MUST EXCLUDE is_cancelled, or a
+    # cancelled exception goes on costing the employee. See
+    # `active_exceptions()` in services/leave.py — use it rather than
+    # writing the filter again.
+    #
+    # KNOWN GAP, found by auditing. The table carries a DATABASE-LEVEL
+    # UNIQUE(employee_id, date), so a cancelled row still occupies its
+    # day: HR cannot cancel a wrong ABSENT and then record the LATE that
+    # should have been there. They must correct the day BEFORE
+    # cancelling, or leave it empty.
+    #
+    # Not fixed here because the constraint is declared inline in the
+    # original CREATE TABLE, so removing it means rebuilding the table —
+    # and batch_alter_table refuses this one ("Constraint must have a
+    # name") because the `type` Enum column generates an unnamed CHECK
+    # that it cannot copy. The proper fix is a partial unique index
+    # (WHERE is_cancelled = false), which both Postgres and SQLite
+    # support, done as its own migration with an explicit copy_from.
+    #
+    # None of ticket 5's acceptance criteria depend on re-recording a
+    # cancelled day; this is a usability gap, not a broken requirement.
+    is_cancelled = db.Column(db.Boolean, nullable=False, default=False)
+    cancelled_by = db.Column(db.Integer, db.ForeignKey("users.id"))
+    cancelled_at = db.Column(db.DateTime)
+    cancel_reason = db.Column(db.Text)
+
     company = db.relationship("Company")
     employee = db.relationship("Employee", backref=db.backref("attendance_exceptions", lazy="dynamic"))
     leave_request = db.relationship("LeaveRequest", backref=db.backref("exceptions", lazy="dynamic"))

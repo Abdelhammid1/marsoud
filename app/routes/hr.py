@@ -317,7 +317,10 @@ def attendance():
     emp_id_raw = request.args.get("employee_id") or None
     emp_id = int(emp_id_raw) if emp_id_raw else None
 
-    exceptions = exceptions_in_period(cid, year, month, employee_id=emp_id)
+    # include_cancelled — the audit trail is the reason this screen
+    # exists; a cancelled row shows struck through and marked ملغى.
+    exceptions = exceptions_in_period(cid, year, month, employee_id=emp_id,
+                                      include_cancelled=True)
     employees = Employee.query.filter_by(
         company_id=cid, status=EmployeeStatus.ACTIVE,
     ).order_by(Employee.name).all()
@@ -402,8 +405,11 @@ def attendance_delete(ex_id):
         flash("الاستثناء غير موجود", "error")
         return redirect(url_for("hr.attendance"))
     try:
-        delete_exception(ex)
-        flash("تم حذف الاستثناء", "success")
+        # MARSOUD-EXCEPTION-AUDIT — cancelled, not deleted, and the
+        # reason is required. The row stays visible marked ملغى.
+        delete_exception(ex, reason=request.form.get("cancel_reason"),
+                         actor_id=current_user.id)
+        flash("تم إلغاء الاستثناء", "success")
     except LeaveError as e:
         flash(str(e), "error")
     return redirect(url_for("hr.attendance",

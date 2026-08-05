@@ -9,7 +9,7 @@ in between needs a per-day attendance roster.
 """
 import logging
 from calendar import monthrange
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from app import db
 from app.models import (
@@ -230,7 +230,7 @@ def create_exception(*, company_id, employee_id, date_, type_, duration_hours=No
         except KeyError:
             raise LeaveError("نوع الاستثناء غير صالح")
 
-    existing = AttendanceException.query.filter_by(
+    existing = active_exceptions().filter_by(
         employee_id=employee_id, date=date_,
     ).first()
     if existing:
@@ -310,7 +310,7 @@ def create_exception_range(*, company_id, employee_id, date_from,
         if day.weekday() in rest:
             skipped_weekend += 1
         else:
-            already = AttendanceException.query.filter_by(
+            already = active_exceptions().filter_by(
                 employee_id=employee_id, date=day).first()
             if already:
                 skipped_existing += 1
@@ -334,18 +334,56 @@ def create_exception_range(*, company_id, employee_id, date_from,
             "dates_created": dates_created}
 
 
-def delete_exception(exception):
-    """Refuse to delete if attached to a LeaveRequest — the user must cancel
-    the request instead (which deletes its exceptions as a side effect)."""
+# ─── MARSOUD-EXCEPTION-AUDIT (2026-08-05) ───────────────────────────────
+def active_exceptions():
+    """Every query that feeds payroll goes through here.
+
+    A cancelled exception must stop costing the employee money. The
+    filter is one line, which is exactly why it needs a single home —
+    scattered copies are how one of them ends up missing and a cancelled
+    absence quietly keeps deducting a day's pay.
+
+    The UI deliberately does NOT use this: a cancelled row stays visible
+    in the attendance screen marked ملغى, because hiding it would defeat
+    the audit trail this ticket exists to create.
+    """
+    return AttendanceException.query.filter(
+        AttendanceException.is_cancelled.is_(False))
+
+
+def cancel_exception(exception, *, reason, actor_id=None):
+    """Soft-delete: stamp who cancelled it, when, and why.
+
+    Replaces the old hard delete. A reason is required — "someone removed
+    a day's deduction and nobody knows why" is the exact situation this
+    ticket is about.
+    """
+    reason = (reason or "").strip()
+    if not reason:
+        raise LeaveError("سبب الإلغاء مطلوب")
     if exception.leave_request_id:
         raise LeaveError(
             "هذا الاستثناء مرتبط بطلب إجازة معتمد — ألغِ الطلب أولاً ليحذف معه."
         )
-    db.session.delete(exception)
+    if exception.is_cancelled:
+        raise LeaveError("هذا الاستثناء ملغى بالفعل")
+    exception.is_cancelled = True
+    exception.cancel_reason = reason
+    exception.cancelled_by = actor_id
+    exception.cancelled_at = datetime.utcnow()
     db.session.commit()
+    return exception
 
 
-def exceptions_in_period(company_id, year, month, employee_id=None):
+def delete_exception(exception, *, reason=None, actor_id=None):
+    """MARSOUD-EXCEPTION-AUDIT — no longer deletes. Kept under the old
+    name so existing callers keep working, but it now cancels, which
+    means a reason is required."""
+    return cancel_exception(exception, reason=reason, actor_id=actor_id)
+
+
+def exceptions_in_period(company_id, year, month, employee_id=None,
+                         include_cancelled=False):
     """Return all AttendanceException rows that fall within (year, month) for
     the given company (optionally narrowed to one employee).
 
@@ -354,7 +392,12 @@ def exceptions_in_period(company_id, year, month, employee_id=None):
     days_in_month = monthrange(year, month)[1]
     start = date(year, month, 1)
     end = date(year, month, days_in_month)
-    q = AttendanceException.query.filter(
+    # MARSOUD-EXCEPTION-AUDIT — excluding cancelled rows is the DEFAULT,
+    # so any future report is safe without thinking about it. The HR
+    # attendance screen opts in, because the whole point of cancelling
+    # rather than deleting is that the row stays visible.
+    q = (AttendanceException.query if include_cancelled
+         else active_exceptions()).filter(
         AttendanceException.company_id == company_id,
         AttendanceException.date >= start,
         AttendanceException.date <= end,
@@ -373,7 +416,7 @@ def attendance_deductions(employee_id, year, month):
     days_in_month = monthrange(year, month)[1]
     start = date(year, month, 1)
     end = date(year, month, days_in_month)
-    rows = AttendanceException.query.filter(
+    rows = active_exceptions().filter(
         AttendanceException.employee_id == employee_id,
         AttendanceException.date >= start,
         AttendanceException.date <= end,
@@ -458,7 +501,7 @@ def submit_leave_request(*, company_id, employee_id, leave_type_id,
     ).first()
     if overlap:
         raise LeaveError("يوجد طلب آخر في فترة متداخلة")
-    exception_clash = AttendanceException.query.filter(
+    exception_clash = active_exceptions().filter(
         AttendanceException.employee_id == employee_id,
         AttendanceException.date >= start_date,
         AttendanceException.date <= end_date,
@@ -534,7 +577,7 @@ def approve_leave_request(req, *, reviewer_id, review_note=None):
         # Be tolerant: if for any reason an exception already exists on this
         # day, skip it (we'd already refused the request earlier — this is
         # defensive only).
-        exists = AttendanceException.query.filter_by(
+        exists = active_exceptions().filter_by(
             employee_id=req.employee_id, date=d,
         ).first()
         if not exists:
@@ -588,6 +631,13 @@ def cancel_leave_request(req, *, reviewer_id, review_note=None):
             bal.used_days = Decimal(str(round(new_used, 2)))
 
     if was_approved:
+        # MARSOUD-EXCEPTION-AUDIT — still a HARD delete, deliberately.
+        # These rows were generated BY the approval, not entered by a
+        # person, so removing them is the exact inverse of creating them
+        # and there is no human judgement to record. The LeaveRequest
+        # itself carries the audit trail (status, reviewer, timestamp).
+        # Soft-cancelling them would also leave them blocking the day
+        # against a future exception for no reason.
         AttendanceException.query.filter_by(leave_request_id=req.id).delete()
 
     req.status = LeaveRequestStatus.CANCELLED
