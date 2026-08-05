@@ -97,6 +97,9 @@ from app.models.advances import (
     EmployeeAdvance, AdvanceStatus, AdvanceSource, AdvanceRepayment,
 )
 from app.models.department import Department
+from app.models.attendance import (
+    AttendancePolicy, PolicyScope, PolicyType,
+)
 from app.models.leave import (
     LeaveType, LeaveBalance,
     AttendanceException, AttendanceExceptionType,
@@ -206,6 +209,7 @@ __all__ = [
     "Department",
     "LeaveType", "LeaveBalance",
     "AttendanceException", "AttendanceExceptionType",
+    "AttendancePolicy", "PolicyScope", "PolicyType",
     "LeaveRequest", "LeaveRequestStatus",
     "Lead", "LeadStatus", "LeadType", "LeadSource", "LeadStatusEvent",
     "Campaign", "LeadContact", "LeadActivity", "LeadActivityType",

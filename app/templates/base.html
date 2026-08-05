@@ -483,6 +483,7 @@ tailwind.config = {
           ('hr.leave_requests', 'طلبات الإجازة', '📝'),
           ('hr.leave_types', 'أنواع الإجازات', '📂'),
           ('hr.attendance', 'سجل الحضور', '📅'),
+          ('hr.attendance_policies', 'سياسات الدوام', '🕐'),
           ('payroll.index', 'الرواتب (عرض)', '💼'),
         ] %}
       {% elif current_role in ('sales_manager', 'sales_rep') %}
@@ -624,6 +625,7 @@ tailwind.config = {
             ('hr.index', 'الموظفين', '👤'),
             ('payroll.index', 'الرواتب', '💼'),
             ('hr.attendance', 'الحضور والإجازات', '📅'),
+            ('hr.attendance_policies', 'سياسات الدوام', '🕐'),
             ('advances.index', 'سلف الموظفين', '💵'),
             ('hr_ss.index', 'حسابات الموظفين', '🔑'),
             ('reports.employees_index', 'تقارير الموظفين اليومية', '📝'),
@@ -723,6 +725,7 @@ tailwind.config = {
         'audit_log.index': 'users.view',
         'hr.index': 'hr.manage',
         'hr.attendance': 'hr.manage',
+        'hr.attendance_policies': 'hr.manage',
         'advances.index': 'advances.manage',
         'hr_ss.index': 'users.manage',
         'payroll.index': 'employees.view',

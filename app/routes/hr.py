@@ -28,6 +28,7 @@ from app.services.leave import (
     reject_leave_request, cancel_leave_request,
     LeaveError,
 )
+from app.services.attendance import AttendanceError
 from app.services.permissions import hr_required
 
 
@@ -410,6 +411,122 @@ def attendance_delete(ex_id):
 
 
 # ─── HR-06: Leave requests ───────────────────────────────────────────────
+# ─── MARSOUD-ATTENDANCE-POLICY (2026-08-05) ─────────────────────────────
+# Same shape as the leave-types screens above. Nothing consumes these
+# policies yet — ticket 4 is what compares a real check-in against one.
+def _policy_form_context():
+    """Departments and employees for the scope pickers."""
+    cid = g.active_company.id
+    from app.models import Department, Employee, EmployeeStatus
+    return {
+        "departments": Department.query.filter_by(
+            company_id=cid, is_active=True).order_by(Department.name).all(),
+        "employees": Employee.query.filter_by(
+            company_id=cid, status=EmployeeStatus.ACTIVE
+        ).order_by(Employee.name).all(),
+    }
+
+
+def _policy_form_values(form):
+    """Parse the submitted form into create/update kwargs.
+
+    Blank times come back as None rather than "" so the service's own
+    validation produces the Arabic message instead of a ValueError.
+    """
+    from datetime import time as _time
+
+    def _t(name):
+        raw = (form.get(name) or "").strip()
+        if not raw:
+            return None
+        try:
+            hh, mm = raw.split(":")[:2]
+            return _time(int(hh), int(mm))
+        except (ValueError, TypeError):
+            raise AttendanceError("صيغة الوقت غير صحيحة")
+
+    days = form.getlist("work_days")
+    hours = (form.get("required_hours_per_day") or "").strip()
+    return {
+        "scope": form.get("scope"),
+        "policy_type": form.get("policy_type"),
+        "department_id": form.get("department_id", type=int),
+        "employee_id": form.get("employee_id", type=int),
+        "start_time": _t("start_time"),
+        "end_time": _t("end_time"),
+        "work_days": ",".join(d for d in days if d.isdigit()) or None,
+        "earliest_checkin": _t("earliest_checkin"),
+        "latest_checkin": _t("latest_checkin"),
+        "required_hours_per_day": float(hours) if hours else None,
+    }
+
+
+@bp.route("/attendance-policies")
+@login_required
+@hr_required
+def attendance_policies():
+    from app.services.attendance import policies_for_company
+    return render_template(
+        "hr/attendance_policies.html",
+        policies=policies_for_company(g.active_company.id))
+
+
+@bp.route("/attendance-policies/new", methods=["GET", "POST"])
+@login_required
+@hr_required
+def attendance_policy_new():
+    from app.services.attendance import create_policy
+    if request.method == "POST":
+        try:
+            create_policy(company_id=g.active_company.id,
+                          created_by=current_user.id,
+                          **_policy_form_values(request.form))
+            flash("تم إنشاء سياسة الدوام", "success")
+            return redirect(url_for("hr.attendance_policies"))
+        except (AttendanceError, ValueError) as e:
+            flash(str(e), "error")
+    return render_template("hr/attendance_policy_form.html", policy=None,
+                           **_policy_form_context())
+
+
+@bp.route("/attendance-policies/<int:policy_id>/edit", methods=["GET", "POST"])
+@login_required
+@hr_required
+def attendance_policy_edit(policy_id):
+    from app.models import AttendancePolicy
+    from app.services.attendance import update_policy
+    p = db.session.get(AttendancePolicy, policy_id)
+    if not p or p.company_id != g.active_company.id:
+        flash("غير موجود", "error")
+        return redirect(url_for("hr.attendance_policies"))
+    if request.method == "POST":
+        try:
+            values = _policy_form_values(request.form)
+            values["is_active"] = "is_active" in request.form
+            update_policy(p, **values)
+            flash("تم الحفظ", "success")
+            return redirect(url_for("hr.attendance_policies"))
+        except (AttendanceError, ValueError) as e:
+            flash(str(e), "error")
+    return render_template("hr/attendance_policy_form.html", policy=p,
+                           **_policy_form_context())
+
+
+@bp.route("/attendance-policies/<int:policy_id>/delete", methods=["POST"])
+@login_required
+@hr_required
+def attendance_policy_delete(policy_id):
+    from app.models import AttendancePolicy
+    from app.services.attendance import delete_policy
+    p = db.session.get(AttendancePolicy, policy_id)
+    if not p or p.company_id != g.active_company.id:
+        flash("غير موجود", "error")
+        return redirect(url_for("hr.attendance_policies"))
+    delete_policy(p)
+    flash("تم حذف السياسة", "success")
+    return redirect(url_for("hr.attendance_policies"))
+
+
 @bp.route("/leave-requests")
 @login_required
 @hr_required

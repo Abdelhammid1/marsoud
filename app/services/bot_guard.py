@@ -19,10 +19,18 @@ Multi-layer defense against automated fake company signups:
   4. (Not here — separate module) Cloudflare Turnstile widget on
      the register form validated server-side.
 
+  5. Math challenge — MARSOUD-ATTENDANCE-ANTIBOT (2026-08-05). A
+     two-number sum or difference the user answers before an
+     attendance check-in is accepted. Deliberately arithmetic and
+     not visual: image captchas were ruled out for this product.
+     Lives here rather than in a new module because this file is
+     already the one place bot defences are described.
+
 All three checks run BEFORE any DB write. `honeypot_tripped()`
 returns True silently so the caller can early-return a 200 without
 inserting anything.
 """
+import random
 import re
 import threading
 import time
@@ -174,3 +182,61 @@ def client_ip(request):
     if fwd:
         return fwd.split(",")[0].strip()
     return request.remote_addr or "?"
+
+
+# ─── 5. Math challenge (MARSOUD-ATTENDANCE-ANTIBOT, 2026-08-05) ──
+# The answer lives in the session, never in the form, so a bot
+# cannot read it off the page it is posting. It is CONSUMED on the
+# first verification: a correct answer works exactly once, which is
+# what stops a script solving one challenge by hand and then
+# replaying that same answer twice a day forever.
+_MATH_SESSION_KEY = "attendance_math_answer"
+
+# Small numbers on purpose. This is a liveness check, not a test —
+# an employee stabbing at a phone before their shift should clear it
+# in one attempt.
+_MATH_MAX = 9
+
+
+def generate_math_challenge():
+    """Return (question_text, ) and stash the answer in the session.
+
+    Subtraction is ordered so the answer is never negative — an
+    employee typing "-3" because the UI asked for 2-5 would be a
+    failure of the challenge, not of the person.
+    """
+    from flask import session
+    a = random.randint(1, _MATH_MAX)
+    b = random.randint(1, _MATH_MAX)
+    if random.choice((True, False)):
+        question, answer = f"{a} + {b}", a + b
+    else:
+        hi, lo = max(a, b), min(a, b)
+        question, answer = f"{hi} - {lo}", hi - lo
+    session[_MATH_SESSION_KEY] = answer
+    return question
+
+
+def verify_math_challenge(submitted):
+    """True when `submitted` matches the pending challenge.
+
+    Consumes the challenge either way. A wrong answer therefore
+    forces a fresh question rather than letting a script brute-force
+    the same one — there are only 19 possible answers, so a reusable
+    challenge would be worth nothing.
+    """
+    from flask import session
+    expected = session.pop(_MATH_SESSION_KEY, None)
+    if expected is None:
+        return False
+    try:
+        return int(str(submitted).strip()) == int(expected)
+    except (TypeError, ValueError):
+        return False
+
+
+def math_challenge_pending():
+    """Whether a challenge is currently outstanding. For templates that
+    need to know whether to re-render the question."""
+    from flask import session
+    return _MATH_SESSION_KEY in session

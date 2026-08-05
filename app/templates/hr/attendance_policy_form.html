@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block page_title %}{{ 'تعديل سياسة الدوام' if policy else 'سياسة دوام جديدة' }}{% endblock %}
+{% block content %}
+
+{# MARSOUD-ATTENDANCE-POLICY (2026-08-05) — mirrors leave_type_form.html.
+   The scope and type pickers show/hide their own fields in plain JS; the
+   server validates independently, so a client with JS off still gets a
+   correct Arabic error rather than a broken row. #}
+
+<div class="mb-5">
+  <h2 class="font-bold text-navy-900 text-lg">
+    🕐 {{ 'تعديل سياسة الدوام' if policy else 'سياسة دوام جديدة' }}
+  </h2>
+</div>
+
+<form method="POST" class="card p-6 max-w-2xl space-y-4">
+
+  <div>
+    <label class="block text-sm font-semibold text-slate-700 mb-1">النطاق</label>
+    <select name="scope" id="scope" class="input" onchange="syncScope()">
+      {% set sc = policy.scope.value if policy else 'COMPANY' %}
+      <option value="COMPANY"    {% if sc == 'COMPANY' %}selected{% endif %}>الشركة كلها</option>
+      <option value="DEPARTMENT" {% if sc == 'DEPARTMENT' %}selected{% endif %}>قسم معيّن</option>
+      <option value="EMPLOYEE"   {% if sc == 'EMPLOYEE' %}selected{% endif %}>موظف معيّن</option>
+    </select>
+    <p class="text-xs text-slate-400 mt-1">الأخص يغلب: الموظف ← القسم ← الشركة.</p>
+  </div>
+
+  <div id="dept-row" class="hidden">
+    <label class="block text-sm font-semibold text-slate-700 mb-1">القسم</label>
+    <select name="department_id" class="input">
+      <option value="">— اختر —</option>
+      {% for d in departments %}
+      <option value="{{ d.id }}" {% if policy and policy.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div id="emp-row" class="hidden">
+    <label class="block text-sm font-semibold text-slate-700 mb-1">الموظف</label>
+    <select name="employee_id" class="input">
+      <option value="">— اختر —</option>
+      {% for e in employees %}
+      <option value="{{ e.id }}" {% if policy and policy.employee_id == e.id %}selected{% endif %}>{{ e.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div>
+    <label class="block text-sm font-semibold text-slate-700 mb-1">نوع الدوام</label>
+    <select name="policy_type" id="ptype" class="input" onchange="syncType()">
+      {% set pt = policy.policy_type.value if policy else 'FIXED' %}
+      <option value="FIXED"    {% if pt == 'FIXED' %}selected{% endif %}>ثابت — مواعيد بداية ونهاية محددة</option>
+      <option value="FLEXIBLE" {% if pt == 'FLEXIBLE' %}selected{% endif %}>مرن — نافذة حضور وعدد ساعات</option>
+    </select>
+  </div>
+
+  <div id="fixed-rows" class="grid grid-cols-2 gap-3">
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">بداية الدوام</label>
+      <input type="time" name="start_time" class="input" dir="ltr"
+             value="{{ policy.start_time.strftime('%H:%M') if policy and policy.start_time else '09:00' }}">
+    </div>
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">نهاية الدوام</label>
+      <input type="time" name="end_time" class="input" dir="ltr"
+             value="{{ policy.end_time.strftime('%H:%M') if policy and policy.end_time else '17:00' }}">
+    </div>
+  </div>
+
+  <div id="flex-rows" class="grid grid-cols-3 gap-3 hidden">
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">أبكر حضور</label>
+      <input type="time" name="earliest_checkin" class="input" dir="ltr"
+             value="{{ policy.earliest_checkin.strftime('%H:%M') if policy and policy.earliest_checkin else '' }}">
+    </div>
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">أقصى حضور</label>
+      <input type="time" name="latest_checkin" class="input" dir="ltr"
+             value="{{ policy.latest_checkin.strftime('%H:%M') if policy and policy.latest_checkin else '' }}">
+      <p class="text-xs text-slate-400 mt-1">بعده يُحتسب تأخيرًا.</p>
+    </div>
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">ساعات مطلوبة/يوم</label>
+      <input type="number" step="0.5" min="0" name="required_hours_per_day" class="input" dir="ltr"
+             value="{{ policy.required_hours_per_day if policy and policy.required_hours_per_day else '' }}">
+    </div>
+  </div>
+
+  <div>
+    <label class="block text-sm font-semibold text-slate-700 mb-2">أيام العمل</label>
+    {% set day_names = {6: 'الأحد', 0: 'الإثنين', 1: 'الثلاثاء', 2: 'الأربعاء',
+                        3: 'الخميس', 4: 'الجمعة', 5: 'السبت'} %}
+    {% set selected = policy.work_day_numbers if policy else [6, 0, 1, 2, 3] %}
+    <div class="flex flex-wrap gap-3">
+      {% for num in [6, 0, 1, 2, 3, 4, 5] %}
+      <label class="flex items-center gap-1 text-sm">
+        <input type="checkbox" name="work_days" value="{{ num }}"
+               {% if num in selected %}checked{% endif %}>
+        {{ day_names[num] }}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if policy %}
+  <label class="flex items-center gap-2 text-sm">
+    <input type="checkbox" name="is_active" {% if policy.is_active %}checked{% endif %}>
+    السياسة مفعّلة
+  </label>
+  {% endif %}
+
+  <div class="flex gap-2 pt-2">
+    <button class="btn-primary text-sm">{{ 'حفظ' if policy else 'إنشاء' }}</button>
+    <a href="{{ url_for('hr.attendance_policies') }}" class="text-sm text-slate-500 self-center">إلغاء</a>
+  </div>
+</form>
+
+<script>
+function syncScope() {
+  var v = document.getElementById('scope').value;
+  document.getElementById('dept-row').classList.toggle('hidden', v !== 'DEPARTMENT');
+  document.getElementById('emp-row').classList.toggle('hidden', v !== 'EMPLOYEE');
+}
+function syncType() {
+  var flex = document.getElementById('ptype').value === 'FLEXIBLE';
+  document.getElementById('fixed-rows').classList.toggle('hidden', flex);
+  document.getElementById('flex-rows').classList.toggle('hidden', !flex);
+}
+syncScope(); syncType();
+</script>
+
+{% endblock %}
