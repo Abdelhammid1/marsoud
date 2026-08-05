@@ -126,6 +126,17 @@ def _teardown():
     insp = inspect(db.engine)
     for co in Company.query.filter(Company.name.like(f"{PREFIX}%")).all():
         cid = co.id
+        # journal_lines and payroll_lines have NO company_id, so the
+        # generic sweep below never touched them. Orphan lines survived
+        # every run and were then counted against whatever account ids
+        # got recycled next — which showed up as audit_payroll_ledger
+        # reporting "should have 2 movements, got 4".
+        db.session.execute(text(
+            "DELETE FROM journal_lines WHERE entry_id IN "
+            "(SELECT id FROM journal_entries WHERE company_id=:c)"), {"c": cid})
+        db.session.execute(text(
+            "DELETE FROM payroll_lines WHERE run_id IN "
+            "(SELECT id FROM payroll_runs WHERE company_id=:c)"), {"c": cid})
         for tbl in reversed(db.metadata.sorted_tables):
             cols = {c["name"] for c in insp.get_columns(tbl.name)}
             if "company_id" in cols:

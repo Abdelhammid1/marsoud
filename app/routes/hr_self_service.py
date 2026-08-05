@@ -329,6 +329,15 @@ def account():
         employee_id=emp.id,
     ).order_by(LeaveRequest.created_at.desc()).limit(50).all()
 
+    # MARSOUD-ATTENDANCE-CHECKIN — today's row drives which button shows,
+    # and a fresh math challenge is minted per render so the answer on the
+    # page is never the one already used.
+    from app.services.attendance import checkin_for
+    from app.services.bot_guard import generate_math_challenge
+    from datetime import date as _date
+    today_checkin = checkin_for(emp.id, _date.today())
+    math_question = generate_math_challenge()
+
     # MARSOUD-ADVANCES — current advance balance + own request history.
     # MARSOUD-ADVANCE-INSTALMENTS — plus the instalments themselves, so
     # "المسدد حتى الآن" stops being a subtraction the employee has to
@@ -367,6 +376,8 @@ def account():
         bal_by_type=bal_by_type,
         requests=requests,
         statuses=LeaveRequestStatus,
+        today_checkin=today_checkin,
+        math_question=math_question,
         advance=advance,
         advance_repayments=advance_repayments,
         advance_requests=advance_requests,
@@ -586,3 +597,72 @@ def daily_report_detail(report_id):
         ))
     return render_template("portal_emp/daily_report_detail.html",
                              emp=emp, report=r)
+
+
+# ─── MARSOUD-ATTENDANCE-CHECKIN (tickets 2 + 3, 2026-08-05) ─────────────
+def _coord(name):
+    """A browser coordinate, or None. A refused location permission must
+    not block the check-in — the ticket is explicit that location is
+    evidence when offered, never a gate."""
+    raw = (request.form.get(name) or "").strip()
+    if not raw:
+        return None
+    try:
+        val = float(raw)
+    except (TypeError, ValueError):
+        return None
+    # Anything outside real coordinates is a broken client, not a place.
+    if name.endswith("lat") and not (-90 <= val <= 90):
+        return None
+    if name.endswith("lng") and not (-180 <= val <= 180):
+        return None
+    return val
+
+
+def _attendance_action(kind):
+    """Shared body of check-in and check-out.
+
+    The math challenge is verified BEFORE anything is written. It is
+    consumed either way, so a wrong answer costs the employee a fresh
+    question rather than letting a script retry the same one.
+    """
+    from app.services.bot_guard import verify_math_challenge
+    from app.services.attendance import check_in, check_out, AttendanceError
+
+    emp = _my_employee()
+    if not emp:
+        abort(403)
+
+    if not verify_math_challenge(request.form.get("math_answer")):
+        flash("إجابة السؤال الحسابي غير صحيحة — حاول مرة أخرى.", "error")
+        return redirect(url_for("portal_emp.account") + "#attendance")
+
+    lat = _coord("check_lat")
+    lng = _coord("check_lng")
+    try:
+        if kind == "in":
+            _row, exc = check_in(emp, lat=lat, lng=lng)
+            if exc is not None:
+                # Told now, not discovered on the payslip.
+                flash("تم تسجيل الحضور — وسُجّل تأخير اليوم تلقائيًا "
+                      "حسب سياسة الدوام.", "warning")
+            else:
+                flash("تم تسجيل الحضور.", "success")
+        else:
+            check_out(emp, lat=lat, lng=lng)
+            flash("تم تسجيل الانصراف.", "success")
+    except AttendanceError as e:
+        flash(str(e), "error")
+    return redirect(url_for("portal_emp.account") + "#attendance")
+
+
+@portal_emp_bp.route("/attendance/checkin", methods=["POST"])
+@login_required
+def attendance_checkin():
+    return _attendance_action("in")
+
+
+@portal_emp_bp.route("/attendance/checkout", methods=["POST"])
+@login_required
+def attendance_checkout():
+    return _attendance_action("out")

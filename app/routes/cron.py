@@ -191,6 +191,20 @@ def tick():
             "daily digest failed: %s", e)
         summary["daily_digests"] = {"error": str(e)[:200]}
 
+    # MARSOUD-ATTENDANCE-AUTO (2026-08-05) — mark absent anyone who never
+    # checked in. Looks at YESTERDAY, never today: a day can only be
+    # judged once it is over, or everyone who has not arrived yet would
+    # be marked absent. Idempotent — create_exception refuses a second
+    # exception for the same day.
+    try:
+        from app.services.attendance import sweep_absences
+        summary["attendance_absences"] = sweep_absences()
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception(
+            "absence sweep failed: %s", e)
+        summary["attendance_absences"] = {"error": str(e)[:200]}
+
     # MARSOUD-METRIC-AUTOMATION (2026-08-05) — two jobs, in this order
     # on purpose: the cycle has to exist (and its targets with it) before
     # anything can be scored into it. On the 1st of the month the cycle

@@ -100,6 +100,7 @@ from app.models.department import Department
 from app.models.attendance import (
     AttendancePolicy, PolicyScope, PolicyType,
 )
+from app.models.checkin import AttendanceCheckin
 from app.models.leave import (
     LeaveType, LeaveBalance,
     AttendanceException, AttendanceExceptionType,
@@ -210,6 +211,7 @@ __all__ = [
     "LeaveType", "LeaveBalance",
     "AttendanceException", "AttendanceExceptionType",
     "AttendancePolicy", "PolicyScope", "PolicyType",
+    "AttendanceCheckin",
     "LeaveRequest", "LeaveRequestStatus",
     "Lead", "LeadStatus", "LeadType", "LeadSource", "LeadStatusEvent",
     "Campaign", "LeadContact", "LeadActivity", "LeadActivityType",

@@ -13,6 +13,8 @@ late, nothing is automatically absent, and HR carries on entering
 exceptions by hand. That is what makes this whole batch safe to deploy
 to existing tenants.
 """
+from datetime import date, datetime, timedelta
+
 from app import db
 from app.models.attendance import AttendancePolicy, PolicyScope
 
@@ -210,3 +212,209 @@ def _as_type(value):
         return PolicyType(str(value))
     except ValueError:
         raise AttendanceError("نوع الدوام غير صالح")
+
+
+# ═══ MARSOUD-ATTENDANCE-CHECKIN (ticket 2) ══════════════════════════════
+def _today_row(employee, on_date):
+    from app.models import AttendanceCheckin
+    return AttendanceCheckin.query.filter_by(
+        employee_id=employee.id, date=on_date).first()
+
+
+def check_in(employee, *, lat=None, lng=None, now=None):
+    """Record an arrival. One per employee per day.
+
+    Returns (row, exception_or_None) — the second element is whatever
+    ticket 4's evaluation produced, so the caller can tell the employee
+    they were marked late instead of leaving them to find out on the
+    payslip.
+    """
+    from app.models import AttendanceCheckin
+
+    now = now or datetime.now()
+    on_date = now.date()
+    existing = _today_row(employee, on_date)
+    if existing is not None and existing.check_in_time is not None:
+        raise AttendanceError(
+            "سجّلت حضورك اليوم بالفعل الساعة "
+            + existing.check_in_time.strftime("%H:%M"))
+
+    row = existing or AttendanceCheckin(
+        company_id=employee.company_id, employee_id=employee.id,
+        date=on_date)
+    row.check_in_time = now
+    row.check_in_lat = lat
+    row.check_in_lng = lng
+    db.session.add(row)
+    db.session.commit()
+
+    return row, evaluate_checkin(row)
+
+
+def check_out(employee, *, lat=None, lng=None, now=None):
+    """Record a departure against today's check-in."""
+    now = now or datetime.now()
+    row = _today_row(employee, now.date())
+    if row is None or row.check_in_time is None:
+        raise AttendanceError("لم تسجّل حضورك اليوم بعد")
+    if row.check_out_time is not None:
+        raise AttendanceError(
+            "سجّلت انصرافك اليوم بالفعل الساعة "
+            + row.check_out_time.strftime("%H:%M"))
+    if now < row.check_in_time:
+        raise AttendanceError("وقت الانصراف قبل وقت الحضور")
+
+    row.check_out_time = now
+    row.check_out_lat = lat
+    row.check_out_lng = lng
+    db.session.commit()
+    return row
+
+
+def checkin_for(employee_id, on_date):
+    from app.models import AttendanceCheckin
+    return AttendanceCheckin.query.filter_by(
+        employee_id=employee_id, date=on_date).first()
+
+
+# ═══ MARSOUD-ATTENDANCE-AUTO (ticket 4) ═════════════════════════════════
+def evaluate_checkin(checkin):
+    """Turn a late arrival into an AttendanceException. Returns it, or None.
+
+    THE EXCEPTION RECORDS THE RAW FACT. An employee 30 minutes late gets
+    an exception of 30 minutes, even where a policy allows 20 minutes
+    free — every allowance is applied later, when the deduction is
+    computed (ticket 6). Netting the grace off here would make the
+    attendance record disagree with what actually happened, and would
+    then be subtracted a second time at payroll.
+
+    Routed through the EXISTING create_exception() rather than inserting
+    directly, so its duplicate-per-day validation keeps working — the
+    ticket is explicit about this, and it is what stops a manual entry
+    and an automatic one colliding.
+
+    No policy → None. That is the whole backward-compatibility story: a
+    company that has defined nothing keeps recording nothing
+    automatically.
+    """
+    from app.models import AttendanceExceptionType
+    from app.services.leave import create_exception, LeaveError
+
+    policy = resolve_policy_for_employee(checkin.employee_id, checkin.date)
+    if policy is None:
+        return None
+    if not policy.is_working_day(checkin.date):
+        return None
+
+    expected = policy.expected_arrival
+    if expected is None or checkin.check_in_time is None:
+        return None
+
+    arrived = checkin.check_in_time
+    threshold = datetime.combine(checkin.date, expected)
+    if arrived <= threshold:
+        return None
+
+    minutes_late = (arrived - threshold).total_seconds() / 60.0
+    if minutes_late < 1:
+        return None
+
+    try:
+        return create_exception(
+            company_id=checkin.company_id,
+            employee_id=checkin.employee_id,
+            date_=checkin.date,
+            type_=AttendanceExceptionType.LATE,
+            duration_hours=round(minutes_late / 60.0, 2),
+            note=("تلقائي: حضور " + arrived.strftime("%H:%M")
+                  + " بدل " + expected.strftime("%H:%M")),
+        )
+    except LeaveError:
+        # A day already carrying an exception — a manual entry, or an
+        # approved leave — wins. The employee is not marked late for a
+        # day HR has already ruled on.
+        return None
+
+
+def mark_absent_for_date(company_id, on_date, actor_id=None):
+    """Create ABSENT for anyone who never checked in on a working day.
+
+    Runs from /cron/tick after the day is over. Idempotent twice over:
+    employees who already have an exception are skipped before we get
+    there, and create_exception refuses a second one anyway.
+    """
+    from app.models import (Employee, EmployeeStatus, AttendanceCheckin,
+                            AttendanceException, AttendanceExceptionType)
+    from app.services.leave import create_exception, LeaveError
+
+    created, skipped = 0, {}
+
+    def skip(reason):
+        skipped[reason] = skipped.get(reason, 0) + 1
+
+    employees = Employee.query.filter_by(
+        company_id=company_id, status=EmployeeStatus.ACTIVE).all()
+    if not employees:
+        return {"created": 0, "skipped": {"no active employees": 1}}
+
+    checked_in = {
+        r.employee_id for r in AttendanceCheckin.query.filter_by(
+            company_id=company_id, date=on_date).all()
+        if r.check_in_time is not None}
+    already = {
+        e.employee_id for e in AttendanceException.query.filter_by(
+            company_id=company_id, date=on_date).all()}
+
+    for emp in employees:
+        policy = resolve_policy_for_employee(emp.id, on_date)
+        if policy is None:
+            skip("no policy")
+            continue
+        if not policy.is_working_day(on_date):
+            skip("not a working day")
+            continue
+        if emp.start_date and on_date < emp.start_date:
+            skip("before the employee started")
+            continue
+        if emp.id in checked_in:
+            skip("attended")
+            continue
+        if emp.id in already:
+            skip("already has an exception")
+            continue
+        try:
+            create_exception(
+                company_id=company_id, employee_id=emp.id, date_=on_date,
+                type_=AttendanceExceptionType.ABSENT,
+                note="تلقائي: لا يوجد تسجيل حضور",
+                created_by=actor_id)
+            created += 1
+        except LeaveError:
+            skip("refused by create_exception")
+
+    return {"created": created, "skipped": skipped}
+
+
+def sweep_absences(now=None, company_id=None):
+    """The /cron/tick job. Looks at YESTERDAY, never today.
+
+    A day is only judged once it is over — running against today would
+    mark absent everyone who simply has not arrived yet.
+    """
+    from app.models import Company
+
+    now = now or date.today()
+    target = now - timedelta(days=1)
+    summary = {"date": target.isoformat(), "created": 0, "companies": 0,
+               "skipped": {}}
+
+    companies = ([db.session.get(Company, company_id)] if company_id
+                 else Company.query.filter_by(is_active=True).all())
+    for co in [c for c in companies if c is not None]:
+        res = mark_absent_for_date(co.id, target)
+        summary["created"] += res["created"]
+        if res["created"]:
+            summary["companies"] += 1
+        for reason, n in res["skipped"].items():
+            summary["skipped"][reason] = summary["skipped"].get(reason, 0) + n
+    return summary
