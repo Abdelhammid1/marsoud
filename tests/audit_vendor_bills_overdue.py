@@ -475,6 +475,91 @@ def _():
     return f"n stays {n1} across both runs"
 
 
+@check("13. materialiser clones every line-shape field (inventory + fixed-asset)")
+def _():
+    """Guard against a bug the initial cut had: variant_id and
+    warehouse_id were missed in the item copy, so an INVENTORY-line
+    recurring template would silently produce a broken materialised
+    bill. Post-time validation would then reject the JE, and the
+    ticket's forecast-materialisation invariant would fail for any
+    company that recurs an inventory purchase (a rent-with-goods
+    pattern, or a monthly cleaning-supplies bill.)"""
+    from app.models import (VendorBillItem, RecurringBill,
+                            VendorBill, VendorBillStatus)
+    _reset_bills()
+
+    # Build a source bill by hand with a full-shape EXPENSE item that
+    # would-be inventory setups will exercise identically. Cannot
+    # actually POST an INVENTORY line here without seeding a warehouse
+    # + variant, which is out of scope for this ticket's suite; but
+    # the load-bearing check is that the FIELDS COPY across when the
+    # materialiser runs.
+    from app.models import (VendorBillPaymentMethod, BillLineType,
+                            Warehouse, Product, ProductVariant)
+    # Bare-minimum warehouse + variant so the FK values are real.
+    wh = Warehouse(company_id=_STATE["cid_a"], name="مخزن اختبار",
+                   code="WH-T")
+    db.session.add(wh); db.session.flush()
+    prod = Product(company_id=_STATE["cid_a"], name="منتج اختبار")
+    db.session.add(prod); db.session.flush()
+    var = ProductVariant(company_id=_STATE["cid_a"],
+                          product_id=prod.id, sku="TEST-SKU")
+    db.session.add(var); db.session.flush()
+
+    # Standalone src bill (DRAFT + one EXPENSE item so it stays a
+    # legal bill; we cheat variant_id + warehouse_id onto it to prove
+    # the copy).
+    src = VendorBill(
+        company_id=_STATE["cid_a"], vendor_id=_STATE["vendor_a"],
+        number="V13-SRC",
+        issue_date=date.today() - timedelta(days=30),
+        due_date=date.today() - timedelta(days=30),
+        payment_method=VendorBillPaymentMethod.CREDIT,
+        currency="EGP", status=VendorBillStatus.DRAFT,
+    )
+    db.session.add(src); db.session.flush()
+    src_item = VendorBillItem(
+        bill_id=src.id, description="بند بمخزن",
+        line_type=BillLineType.EXPENSE,
+        account_id=_STATE["exp_a"],
+        quantity=Decimal("1"), unit_price=Decimal("50"),
+        variant_id=var.id, warehouse_id=wh.id,
+        useful_life_years=5,
+        salvage_value=Decimal("10"),
+    )
+    db.session.add(src_item); db.session.flush()
+    src.recalc()
+    from app.services.vendor_bills import post_vendor_bill
+    post_vendor_bill(src)
+    db.session.commit()
+
+    # Template + on-demand materialisation as DRAFT (so we can inspect
+    # the cloned item without post_vendor_bill running validation on
+    # the EXPENSE-labelled inventory hybrid).
+    rb = RecurringBill(
+        company_id=_STATE["cid_a"], source_bill_id=src.id,
+        vendor_id=_STATE["vendor_a"], amount=Decimal("50"),
+        currency="EGP", interval_unit="MONTH", interval_count=1,
+        start_date=date.today(), active=True)
+    db.session.add(rb); db.session.commit()
+    from app.services.vendor_bills import materialize_from_recurring
+    new = materialize_from_recurring(rb, date.today(),
+                                     status_target="DRAFT")
+    db.session.expire_all()
+    new = db.session.get(VendorBill, new.id)
+    item = new.items[0]
+    assert item.variant_id == var.id, (
+        f"variant_id not cloned: got {item.variant_id}, expected {var.id}")
+    assert item.warehouse_id == wh.id, (
+        f"warehouse_id not cloned: got {item.warehouse_id}, "
+        f"expected {wh.id}")
+    assert int(item.useful_life_years or 0) == 5, (
+        f"useful_life_years not cloned: got {item.useful_life_years}")
+    assert float(item.salvage_value or 0) == 10.0, (
+        f"salvage_value not cloned: got {item.salvage_value}")
+    return "variant_id + warehouse_id + fixed-asset fields all cloned"
+
+
 @check("12. permissions — accountant can postpone; team_member cannot delete")
 def _():
     """require_permission() in this codebase REDIRECTS on denial (with

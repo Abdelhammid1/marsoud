@@ -836,6 +836,13 @@ def materialize_from_recurring(recurring_bill, occurrence_date, *,
     db.session.add(new); db.session.flush()
 
     for src_item in src.items:
+        # ALL cloneable columns — an INVENTORY line without variant_id
+        # + warehouse_id would fail post-time validation and materialise
+        # a broken bill; a FIXED_ASSET line without useful_life_years
+        # would fail asset creation. Copy every column that describes
+        # WHAT the line is, and only omit the ones that describe outcomes
+        # of the ORIGINAL post (line_total gets recomputed, and
+        # created_asset_id is set by the new post).
         db.session.add(VendorBillItem(
             bill_id=new.id,
             description=src_item.description,
@@ -845,6 +852,8 @@ def materialize_from_recurring(recurring_bill, occurrence_date, *,
             unit_price=src_item.unit_price,
             useful_life_years=src_item.useful_life_years,
             salvage_value=src_item.salvage_value,
+            variant_id=src_item.variant_id,
+            warehouse_id=src_item.warehouse_id,
             unit_id=src_item.unit_id,
             base_quantity=src_item.base_quantity,
             sub_category_id=src_item.sub_category_id,
