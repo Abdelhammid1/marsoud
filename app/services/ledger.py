@@ -135,6 +135,31 @@ def reverse_journal(entry_id, created_by=None):
     if original.is_reversal:
         raise LedgerError("لا يمكن عكس قيد عكسي")
 
+    # MARSOUD-REVERSE-ONCE (2026-08-05) — the guard above refuses to
+    # reverse a REVERSAL, but nothing asked whether THIS entry had
+    # already been reversed. Reversing twice posted a second reversing
+    # entry, leaving the accounts at -1x the original instead of zero,
+    # and nothing complained: both entries balance.
+    #
+    # It also re-entered _undo_source_side_effects, so a source row was
+    # rolled back twice — an open item cancelled again, an accrual
+    # un-settled again. The route offers the button on an already
+    # reversed entry, so this was reachable by a double click.
+    #
+    # is_active is in the filter deliberately, though the branch is
+    # UNREACHABLE through the UI today: pause_entry (services/journals.py:15)
+    # refuses to pause a reversal, and it is the only thing that sets
+    # is_active=False on an entry. So in practice every reversal here is
+    # active. It stays because the alternative — matching any reversal,
+    # active or not — would make an entry permanently un-reversible if a
+    # bad reversal were ever deactivated by a data fix or a future
+    # feature, with no way back.
+    existing = JournalEntry.query.filter_by(
+        reversal_of=original.id, is_active=True).first()
+    if existing:
+        raise LedgerError(
+            f"هذا القيد معكوس بالفعل بالقيد {existing.number or existing.id}")
+
     reversed_lines = [
         {
             "account_id": l.account_id,
