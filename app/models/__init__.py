@@ -89,6 +89,9 @@ from app.models.payroll import (
     ContractType, EmployeeStatus, TerminationReason, Gender,
     EmployeeHistory, EmployeeChangeType,
 )
+from app.models.open_item import (
+    OpenItem, OpenItemSettlement, OpenItemStatus, SETTLEABLE_STATUSES,
+)
 from app.models.advances import (
     AdvanceRequest, AdvanceRequestStatus,
     EmployeeAdvance, AdvanceStatus, AdvanceSource,
@@ -197,6 +200,8 @@ __all__ = [
     "EmployeeHistory", "EmployeeChangeType",
     "AdvanceRequest", "AdvanceRequestStatus",
     "EmployeeAdvance", "AdvanceStatus", "AdvanceSource",
+    "OpenItem", "OpenItemSettlement", "OpenItemStatus",
+    "SETTLEABLE_STATUSES",
     "Department",
     "LeaveType", "LeaveBalance",
     "AttendanceException", "AttendanceExceptionType",

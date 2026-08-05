@@ -218,6 +218,47 @@ def _undo_source_side_effects(original, reversal=None):
             accrual.settled_at = None
             accrual.settlement_journal_entry_id = None
 
+    elif src_type == "open_item":
+        # MARSOUD-OPS-FOUNDATION — the creating journal of a two-sided
+        # operation. Reversing it means the obligation never existed.
+        from app.models import OpenItem
+        from app.services.open_items import cancel_open_item
+        item = db.session.get(OpenItem, src_id)
+        if item is not None:
+            # ...but only if nothing has been PAID against it yet.
+            #
+            # Measured: accrue 1000, settle 500, then reverse the accrual.
+            # The reversal debits 2160 by the full 1000 while the
+            # settlement had already debited it by 500, leaving 2160 at
+            # +500 — real money that left the bank, now stranded on a
+            # payable belonging to an item marked CANCELLED, which no
+            # screen will ever offer to clear. Both entries balance, so
+            # nothing downstream complains.
+            #
+            # The honest rule is the accounting one: you cannot un-accrue
+            # something you have already partly paid. Undo the payments
+            # first. Raised before reverse_journal commits, and the
+            # journals route already turns LedgerError into a flash.
+            live = [s for s in item.settlements if s.reversed_at is None]
+            if live:
+                paid = sum(float(s.amount or 0) for s in live)
+                raise LedgerError(
+                    f"لا يمكن عكس هذا القيد: البند مسدَّد بمبلغ "
+                    f"{paid:,.2f} في {len(live)} عملية سداد. "
+                    "اعكس قيود السداد أولًا ثم أعد المحاولة.")
+            cancel_open_item(
+                item, reversal_entry_id=reversal.id if reversal else None)
+
+    elif src_type == "open_item_settle":
+        # A settlement leg. Reversing it puts the amount back and reopens
+        # the item — a settled item whose journal was reversed must not
+        # stay settled.
+        from app.models import OpenItemSettlement
+        from app.services.open_items import reverse_settlement
+        leg = db.session.get(OpenItemSettlement, src_id)
+        if leg is not None:
+            reverse_settlement(leg)
+
     elif src_type == "employee_advance":
         # MARSOUD-ADVANCES — the original journal disbursed an advance.
         # Reversing it (whether from advances.cancel_advance or straight
@@ -243,6 +284,83 @@ CASH_CODE = "1110"
 BANKS_HEADER_CODE = "1120"
 
 
+def cash_accounts(company_id, active_only=False):
+    """Every postable account that actually holds money — cash + banks.
+
+    MARSOUD-OPS-FOUNDATION (2026-08-05) — reports used to ask for
+    `code IN ("1110", "1120")`. 1120 «البنوك» is a non-postable HEADER, so
+    no journal line can ever hit it, and every report built on that literal
+    silently saw the cash box alone: the cash-flow statement and the
+    dashboard's «السيولة المتاحة» KPI were both missing every bank
+    movement.
+
+    `active_only=False` by DEFAULT here, unlike the picker. A report must
+    still show what moved through a bank account that has since been
+    deactivated — dropping it would rewrite history. The picker wants the
+    opposite, so it passes True.
+    """
+    out = []
+    for code in (CASH_CODE, BANKS_HEADER_CODE):
+        root = get_account_by_code(company_id, code)
+        if root:
+            out.extend(_collect_postable(root, active_only=active_only))
+    return out
+
+
+def cash_account_ids(company_id, active_only=False):
+    """Just the ids — what report queries filter journal lines on."""
+    return [a.id for a in cash_accounts(company_id, active_only=active_only)]
+
+
+def postable_under(company_id, root_code, active_only=True):
+    """Every postable account beneath `root_code`, ordered by code.
+
+    MARSOUD-OPS-FOUNDATION (2026-08-05) — the generic form of what the
+    money picker was doing for 1110/1120. Every account picker in the
+    operations centre goes through here, so "postable only" is a property
+    of ONE function rather than a rule each new picker has to remember.
+    That matters: a header account is refused by post_journal, so a picker
+    that offers one lets the user fill in a whole form and only then be
+    told no.
+
+    Returns [] when the root is missing, so a company with a pruned chart
+    of accounts gets an empty picker and a clear message rather than a
+    crash.
+    """
+    root = get_account_by_code(company_id, root_code)
+    if not root:
+        return []
+    return _collect_postable(root, active_only=active_only)
+
+
+def resolve_account_under(company_id, root_code, account_id,
+                          missing_msg="اختر الحساب",
+                          invalid_msg="الحساب المختار غير صالح",
+                          empty_msg=None):
+    """Validate a submitted id against what `postable_under` would offer.
+
+    The same shape as resolve_financial_account, and for the same reason:
+    re-checking against the OFFERED SET rather than merely "is this an
+    account of mine" is what stops a hand-crafted POST landing money on an
+    account the picker never showed.
+    """
+    allowed = {a.id: a for a in postable_under(company_id, root_code)}
+    if not allowed:
+        raise LedgerError(
+            empty_msg or f"لا يوجد حساب قابل للترحيل تحت {root_code} — "
+            "راجع شجرة الحسابات")
+    try:
+        aid = int(account_id or 0)
+    except (TypeError, ValueError):
+        aid = 0
+    if not aid:
+        raise LedgerError(missing_msg)
+    acc = allowed.get(aid)
+    if acc is None:
+        raise LedgerError(invalid_msg)
+    return acc, (acc.name_ar or acc.name)
+
+
 def cash_and_bank_accounts(company_id):
     """The accounts money can actually enter or leave, grouped for a
     <select>: [(group_label_ar, [Account, ...]), ...].
@@ -265,19 +383,23 @@ def cash_and_bank_accounts(company_id):
     groups = []
     cash_root = get_account_by_code(company_id, CASH_CODE)
     if cash_root:
-        cash = _collect_postable(cash_root)
+        cash = _collect_postable(cash_root, active_only=True)
         if cash:
             groups.append(("الصندوق", cash))
     banks_root = get_account_by_code(company_id, BANKS_HEADER_CODE)
     if banks_root:
-        banks = _collect_postable(banks_root)
+        banks = _collect_postable(banks_root, active_only=True)
         if banks:
             groups.append(("البنوك", banks))
     return groups
 
 
-def _collect_postable(root):
-    """Active, postable accounts in `root`'s subtree, ordered by code."""
+def _collect_postable(root, active_only=True):
+    """Postable accounts in `root`'s subtree, ordered by code.
+
+    `active_only` is True for pickers (don't offer a disabled account) and
+    False for reports (a deactivated bank's past movements are still real).
+    """
     found = []
     stack = [root]
     seen = set()
@@ -286,7 +408,8 @@ def _collect_postable(root):
         if node.id in seen:
             continue
         seen.add(node.id)
-        if getattr(node, "is_postable", True) and node.is_active:
+        if getattr(node, "is_postable", True) and (
+                node.is_active or not active_only):
             found.append(node)
         stack.extend(node.children or [])
     return sorted(found, key=lambda a: (a.code or ""))

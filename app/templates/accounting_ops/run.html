@@ -29,27 +29,31 @@
         <input type="date" name="{{ f.name }}" value="{{ today }}"
                {% if f.required %}required{% endif %} class="input">
 
-      {% elif f.kind == 'financial_account' %}
-        {# MARSOUD-FINANCIAL-ACCOUNT-FIELD — the real accounts, grouped.
-           There is deliberately no blank "نقدي (الصندوق)" option: it used
-           to resolve to 1110, which is also where the seeded "نقدي"
-           payment method pointed, so the list showed one account twice.
-           Postable accounts only — 1120 (البنوك) is a header and would be
-           refused after the user had filled in the whole form. #}
+      {% elif f.kind in select_kinds %}
+        {# MARSOUD-OPS-FOUNDATION — ONE branch for every picker. The route
+           hands each field a uniform [(group_label, [(value, label)…])…]
+           list, so adding a new picker kind is a registry + resolver
+           change with no template edit at all. That is the whole point of
+           the shared form.
+
+           Postable accounts only, and the party picker yields the party's
+           sub-account — both enforced server-side in ledger.postable_under
+           and accounting_ops.resolve_party, not here. #}
+        {% set groups = choices.get(f.name) or [] %}
         <select name="{{ f.name }}" class="select"
                 {% if f.required %}required{% endif %}>
-          <option value="">— اختر الحساب —</option>
-          {% for group_label, accounts in financial_groups %}
+          <option value="">— اختر —</option>
+          {% for group_label, options in groups %}
           <optgroup label="{{ group_label }}">
-            {% for a in accounts %}
-            <option value="{{ a.id }}">{{ a.name_ar or a.name }}</option>
+            {% for value, option_label in options %}
+            <option value="{{ value }}">{{ option_label }}</option>
             {% endfor %}
           </optgroup>
           {% endfor %}
         </select>
-        {% if not financial_groups %}
+        {% if not groups %}
         <p class="text-xs text-rose-600 mt-1">
-          لا يوجد حساب نقدية أو بنك قابل للترحيل — راجع شجرة الحسابات.
+          {{ empty_messages.get(f.kind, 'لا توجد خيارات متاحة — راجع الإعدادات.') }}
         </p>
         {% endif %}
 

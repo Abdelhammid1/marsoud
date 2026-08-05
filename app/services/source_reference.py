@@ -86,6 +86,10 @@ _SOURCE_TYPES = {
     # (`opening_balance` above is the third one — it was already registered
     # and emitted by nothing, so the wizard claims it.)
     "capital_injection":       ("إضافة رأس مال",        None, None),
+    # MARSOUD-OPS-FOUNDATION (2026-08-05)
+    "money_transfer":          ("تحويل بين الحسابات",    None, None),
+    "open_item":               ("إثبات التزام",          None, None),
+    "open_item_settle":        ("سداد التزام",           None, None),
     "owner_drawings":          ("مسحوبات المالك",       None, None),
     # MARSOUD-SOURCE-LABEL-UNIFY (2026-08-04) — folding
     # accounts.SOURCE_LABELS_AR in here surfaced source_types that were

@@ -51,6 +51,17 @@ P = {
     "journals.pause":       {"owner", "admin", "accountant"},
     "journals.reverse":     {"owner", "admin", "accountant"},
     "journals.recurring":   {"owner", "admin", "accountant"},
+
+    # MARSOUD-OPS-FOUNDATION §6 (2026-08-05) — the operations centre used
+    # ONE gate (journals.create) for every wizard, so granting a cashier
+    # the ability to move money between the till and the bank also handed
+    # them capital injections and owner drawings. Same role list as
+    # journals.create today, so nobody gains or loses anything on deploy;
+    # the point is that an owner can now RESTRICT one wizard without
+    # revoking the ledger.
+    "ops.transfer":         {"owner", "admin", "accountant"},
+    "ops.accruals":         {"owner", "admin", "accountant"},
+    "ops.settle":           {"owner", "admin", "accountant"},
     # MARSOUD — read access to the general ledger. Was missing entirely,
     # which left /journals/* routes wide-open to any logged-in user. Same
     # role list as the financial-reports gate (+ accountant explicitly).
@@ -312,6 +323,13 @@ _IMPLIES = {
     "crm.contacts.view":   "leads.view",
     "crm.analytics.view":  "leads.view",
     "party_ledger.view":   "reports.view",
+    # MARSOUD-OPS-FOUNDATION §6 — anyone who could already run these
+    # wizards (they were all behind journals.create) keeps running them
+    # with no re-seed. roles_seed never re-syncs a custom role, so a
+    # company that built its own would otherwise lose the whole page.
+    "ops.transfer":        "journals.create",
+    "ops.accruals":        "journals.create",
+    "ops.settle":          "journals.create",
     "api_tokens.manage":   "users.manage",
     "activity_log.view":   "users.manage",
     "backup.download":     "users.manage",

@@ -13,6 +13,39 @@ class InvoiceStatus(enum.Enum):
     REFUNDED = "REFUNDED"
     PARTIALLY_REFUNDED = "PARTIALLY_REFUNDED"
     VOIDED = "VOIDED"   # ERP-02 — POS order fully reversed
+    # MARSOUD-OPS-FOUNDATION §5.3 (2026-08-05) — the debt is forgiven, not
+    # collected. Distinct from CANCELLED (the sale never happened) and
+    # from REFUNDED (the money came back): the customer keeps the goods
+    # and we stop expecting payment.
+    #
+    # The write-off OPERATION is not in this ticket. This member and its
+    # aging exclusion are, because the aging tuples are EXCLUSION lists —
+    # a status added later without touching them keeps ageing forever,
+    # which is precisely the lying report the ticket describes.
+    WRITTEN_OFF = "WRITTEN_OFF"
+
+
+# MARSOUD-OPS-FOUNDATION §5.3 (2026-08-05) — statuses that owe nothing.
+#
+# The AR aging report used an inline tuple. Inline exclusion lists are how
+# a new status ends up ageing forever: nothing fails, the report simply
+# keeps claiming money that will never arrive. Naming the set gives the
+# next status one obvious place to be considered.
+#
+# STILL INLINE ELSEWHERE, and worth revisiting when the write-off
+# OPERATION is built (it is not part of this ticket): app/routes/
+# invoices.py:107, app/routes/reports.py:185, app/services/export.py:1585,
+# app/services/reminders.py:134, app/services/installments.py:77 and the
+# agent tools. A written-off invoice must stop counting as revenue and as
+# receivable in every one of them.
+NON_RECEIVABLE_STATUSES = (
+    InvoiceStatus.PAID,          # collected
+    InvoiceStatus.CANCELLED,     # the sale never happened
+    InvoiceStatus.REFUNDED,      # the money went back
+    InvoiceStatus.VOIDED,        # reversed by a JE, ledger balance is zero
+    InvoiceStatus.WRITTEN_OFF,   # forgiven — the balance stays, the claim
+                                 # does not
+)
 
 
 class DiscountType(enum.Enum):
