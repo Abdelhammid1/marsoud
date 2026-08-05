@@ -421,6 +421,88 @@ def _():
     return "answer consumed on first use, right or wrong"
 
 
+# ─── Found by auditing the batch, not by building it ────────────────────
+@check("15. a crafted POST cannot target another company's employee")
+def _():
+    """Found by adversarial probe. The form only offers own-company
+    targets, but nothing checked — so a hand-crafted POST created a policy
+    in this company pointing at ANOTHER company's employee, and the
+    listing renders p.employee.name. A foreign employee's name appeared on
+    this company's screen, from a page with no text input at all."""
+    from app.models import AttendancePolicy, Employee, Department
+    from app.services.attendance import create_policy, AttendanceError
+    _clear_policies()
+
+    foreign_emp = db.session.get(Employee, _STATE["other_emp"])
+    foreign_dept = Department(company_id=_STATE["other_cid"],
+                              name="قسم الشركة الأخرى", is_active=True)
+    db.session.add(foreign_dept)
+    db.session.commit()
+
+    for label, kwargs in (
+        ("foreign employee",
+         {"scope": "EMPLOYEE", "employee_id": foreign_emp.id}),
+        ("foreign department",
+         {"scope": "DEPARTMENT", "department_id": foreign_dept.id}),
+        ("employee that does not exist",
+         {"scope": "EMPLOYEE", "employee_id": 99999999}),
+    ):
+        try:
+            create_policy(company_id=_STATE["cid"], policy_type="FIXED",
+                          start_time=time(9, 0), end_time=time(17, 0),
+                          created_by=_STATE["uid"], **kwargs)
+            raise AssertionError(f"a policy was created targeting a {label}")
+        except AttendanceError:
+            pass
+
+    assert AttendancePolicy.query.filter_by(
+        company_id=_STATE["cid"]).count() == 0, "a refused policy was written"
+
+    # and the same through the HTTP route, which is how it was found
+    c = _client()
+    c.post("/hr/attendance-policies/new", data={
+        "scope": "EMPLOYEE", "policy_type": "FIXED",
+        "employee_id": str(foreign_emp.id),
+        "start_time": "09:00", "end_time": "17:00", "work_days": "0",
+    })
+    assert AttendancePolicy.query.filter_by(
+        employee_id=foreign_emp.id).count() == 0, (
+        "the route accepted a foreign employee even though the service "
+        "refuses it")
+    body = c.get("/hr/attendance-policies").get_data(as_text=True)
+    assert foreign_emp.name not in body, (
+        "another company's employee name is rendered on this screen")
+    return "foreign employee, foreign department and unknown id all refused"
+
+
+@check("16. resolution is deterministic when two policies share a scope")
+def _():
+    """create_policy refuses a duplicate, but a direct insert — a data
+    fix, an import — can still make two, and .first() with no ordering
+    would resolve to whichever row the database felt like returning."""
+    from app.models import AttendancePolicy, PolicyScope, PolicyType
+    from app.services.attendance import resolve_policy_for_employee
+    _clear_policies()
+    made = []
+    for start in (time(8, 0), time(10, 0)):
+        row = AttendancePolicy(
+            company_id=_STATE["cid"], scope=PolicyScope.COMPANY,
+            policy_type=PolicyType.FIXED, start_time=start,
+            end_time=time(17, 0), work_days="6,0,1,2,3", is_active=True)
+        db.session.add(row)
+        db.session.flush()
+        made.append(row.id)
+    db.session.commit()
+
+    seen = {resolve_policy_for_employee(_STATE["emps"]["none"],
+                                        date.today()).id for _ in range(5)}
+    assert len(seen) == 1, f"resolution wandered between {seen}"
+    assert seen == {max(made)}, (
+        f"resolved {seen}, expected the newest row {max(made)} — the "
+        "ordering must be stated, not left to the database")
+    return f"5 calls, always the newest row ({max(made)})"
+
+
 def main():
     app = create_app()
     app.config["WTF_CSRF_ENABLED"] = False

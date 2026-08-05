@@ -35,8 +35,14 @@ def resolve_policy_for_employee(employee_id, on_date=None):
     if emp is None:
         return None
 
-    base = AttendancePolicy.query.filter_by(
-        company_id=emp.company_id, is_active=True)
+    # order_by is not decoration. create_policy refuses a duplicate at the
+    # same scope, but a direct insert — a data fix, an import — can still
+    # make two, and .first() with no ordering would then resolve to
+    # whichever row the database felt like returning. Newest wins, stated
+    # rather than left to chance.
+    base = (AttendancePolicy.query
+            .filter_by(company_id=emp.company_id, is_active=True)
+            .order_by(AttendancePolicy.id.desc()))
 
     own = base.filter_by(scope=PolicyScope.EMPLOYEE,
                          employee_id=emp.id).first()
@@ -60,14 +66,39 @@ def policies_for_company(company_id):
                       AttendancePolicy.id.asc()).all())
 
 
+def _validate_target(company_id, scope, department_id, employee_id):
+    """The department/employee must belong to THIS company.
+
+    Found by auditing: the form only offers own-company targets, but
+    nothing checked, so a hand-crafted POST created a policy in company A
+    pointing at company B's employee — and the listing renders
+    `p.employee.name`, which put B's employee name on A's screen. A
+    cross-tenant leak from a screen that never shows a text field.
+
+    Same rule as the account pickers in the operations centre: validate
+    against what the form WOULD have offered, not merely against the id
+    being a number.
+    """
+    from app.models import Department, Employee
+
+    if scope == PolicyScope.DEPARTMENT:
+        if not department_id:
+            raise AttendanceError("اختر القسم الذي تنطبق عليه السياسة")
+        dept = db.session.get(Department, department_id)
+        if dept is None or dept.company_id != company_id:
+            raise AttendanceError("القسم المختار غير صالح")
+
+    if scope == PolicyScope.EMPLOYEE:
+        if not employee_id:
+            raise AttendanceError("اختر الموظف الذي تنطبق عليه السياسة")
+        emp = db.session.get(Employee, employee_id)
+        if emp is None or emp.company_id != company_id:
+            raise AttendanceError("الموظف المختار غير صالح")
+
+
 def _validate(scope, department_id, employee_id, policy_type,
               start_time, end_time, latest_checkin):
     from app.models.attendance import PolicyType
-
-    if scope == PolicyScope.DEPARTMENT and not department_id:
-        raise AttendanceError("اختر القسم الذي تنطبق عليه السياسة")
-    if scope == PolicyScope.EMPLOYEE and not employee_id:
-        raise AttendanceError("اختر الموظف الذي تنطبق عليه السياسة")
 
     if policy_type == PolicyType.FIXED:
         if not start_time or not end_time:
@@ -91,6 +122,7 @@ def create_policy(*, company_id, scope, policy_type, department_id=None,
     policy_type = _as_type(policy_type)
     department_id = department_id if scope == PolicyScope.DEPARTMENT else None
     employee_id = employee_id if scope == PolicyScope.EMPLOYEE else None
+    _validate_target(company_id, scope, department_id, employee_id)
     _validate(scope, department_id, employee_id, policy_type,
               start_time, end_time, latest_checkin)
 
@@ -125,6 +157,7 @@ def update_policy(policy, **fields):
     start_time = fields.get("start_time", policy.start_time)
     end_time = fields.get("end_time", policy.end_time)
     latest_checkin = fields.get("latest_checkin", policy.latest_checkin)
+    _validate_target(policy.company_id, scope, department_id, employee_id)
     _validate(scope, department_id, employee_id, policy_type,
               start_time, end_time, latest_checkin)
 
