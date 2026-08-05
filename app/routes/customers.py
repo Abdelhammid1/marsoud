@@ -107,6 +107,16 @@ def new():
                                              customer=None, reps=reps)
 
         db.session.commit()
+        # MARSOUD-METRIC-AUTOMATION (2026-08-05) — the metric job reads
+        # the unified activity log and nothing else, so a new customer
+        # has to leave a row here to be scorable at all.
+        try:
+            from app.services.activity import log_action
+            log_action(action_type="CREATE", entity_type="customer",
+                       entity_id=c.id, entity_label=c.name,
+                       company_id=c.company_id)
+        except Exception:
+            pass
         flash("تم إضافة العميل", "success")
         return redirect(url_for("customers.index"))
     return render_template("customers/form.html", customer=None, reps=reps)

@@ -1031,6 +1031,16 @@ def create_app(config_class=Config):
     from scripts.backfill_ops_accounts import backfill_cli as _ops_acc_cli
     app.cli.add_command(_ops_acc_cli)
 
+    # MARSOUD-METRIC-AUTOMATION (2026-08-05) — CLI:
+    #   flask open-cycle-now                 (dry-run)
+    #   flask open-cycle-now --apply         (write)
+    # The ticket's one-off: August 2026's cycle starts on the day this
+    # deploys, not the 1st, and no earlier data is backfilled. That date
+    # is not knowable from the code, so it is a command run on the day.
+    # From September the cron job handles it.
+    from scripts.open_evaluation_cycle import backfill_cli as _open_cycle_cli
+    app.cli.add_command(_open_cycle_cli)
+
     # ASMAA-FIX 2026-07-03 — CLI: re-sync system role permissions.
     # After the P dict is edited (e.g. broadening tasks.manage), run:
     #   flask resync-system-roles

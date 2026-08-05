@@ -315,6 +315,12 @@ class MetricLogEntry(db.Model):
     metric_key = db.Column(db.String(120), nullable=False)
     entry_date = db.Column(db.Date, nullable=False)
     value = db.Column(db.Numeric(15, 4), nullable=False, default=0)
+    # MARSOUD-METRIC-AUTOMATION (2026-08-05) — which UserActivityLog row
+    # produced this entry. NULL for anything logged by hand, which stays
+    # supported unchanged. Unique per cycle, which is what makes a second
+    # cron tick a no-op instead of a double score.
+    source_activity_id = db.Column(db.Integer, nullable=True, index=True)
+
     entered_by_id = db.Column(db.Integer, db.ForeignKey("users.id"),
                                 nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow,
