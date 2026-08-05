@@ -39,6 +39,12 @@
       <a href="#password" class="flex-1 text-center px-4 py-3 rounded-lg bg-slate-50 text-slate-700 font-semibold hover:bg-slate-100 transition">
         🔒 تغيير كلمة السر
       </a>
+      {# MARSOUD-PORTAL-MY-ACTIVITY-01 (2026-08-06) — the tab is a link
+         to its own page, not an in-page anchor, so /my/account stays
+         fast and the activity log gets its own screen. #}
+      <a href="{{ url_for('portal_emp.activity') }}" class="flex-1 text-center px-4 py-3 rounded-lg bg-slate-50 text-slate-700 font-semibold hover:bg-slate-100 transition">
+        📜 سجل نشاطي
+      </a>
     </nav>
   </div>
 </div>

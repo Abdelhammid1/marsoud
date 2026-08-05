@@ -810,3 +810,59 @@ def attendance():
         used_permits=used_permits,
         balances=balances,
     )
+
+
+# ─── MARSOUD-PORTAL-MY-ACTIVITY-01 (2026-08-06) ─────────────────────────
+@portal_emp_bp.route("/activity")
+@login_required
+def activity():
+    """The employee's own login history + actions. Read-only, last 90
+    days, active company only.
+
+    The entire security story is one line — the OVERWRITE of user_id
+    below _parse_filters(). A crafted ?user_id=5 would otherwise land
+    in the filter dict and _apply_filters would answer for that user;
+    the overwrite happens after parse and before filter, so no request
+    parameter can widen the query beyond the current user.
+
+    Reuses the owner page's _parse_filters + _apply_filters + the
+    _activity_page.html partial rather than cloning them — a
+    portal-only copy would drift the moment either page grew a new
+    filter, and the shared partial already knows every column shape.
+    """
+    from app.routes.activity_views import _parse_filters, _apply_filters
+    from app.models import UserActivityLog, UserSession, ACTION_TYPES
+    from datetime import timedelta as _td
+
+    emp = _my_employee()
+    if not emp:
+        return _no_employee_record_response()
+
+    f = _parse_filters()
+    # LOAD-BEARING. Overwrite whatever the URL supplied.
+    f["user_id"] = current_user.id
+
+    # 90-day hard floor. The range dropdown maxes at 90d, but a crafted
+    # ?from=2020-01-01 would otherwise widen the window; clamp it
+    # server-side too so the spec's "آخر 90 يوم" holds regardless of
+    # how the request was constructed.
+    hard_floor = datetime.utcnow() - _td(days=90)
+    if f["_start"] < hard_floor:
+        f["_start"] = hard_floor
+
+    activity_q = UserActivityLog.query
+    sessions_q = UserSession.query
+    activity_q, sessions_q = _apply_filters(
+        activity_q, sessions_q, f, company_scope=g.active_company.id)
+
+    activities = activity_q.order_by(
+        UserActivityLog.created_at.desc()).limit(500).all()
+    sessions = sessions_q.order_by(
+        UserSession.login_at.desc()).limit(200).all()
+
+    return render_template(
+        "portal_emp/activity.html",
+        activities=activities, sessions=sessions,
+        users=[], actions=list(ACTION_TYPES), entity_types=[],
+        filters=f, is_portal=True,
+    )
