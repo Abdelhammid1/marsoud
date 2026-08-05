@@ -593,6 +593,28 @@ def _deposit_status(deposit_id):
         return d.status if d else None
 
 
+def _seed_active_deposit(amount=100):
+    """An ACTIVE deposit, posted through the service rather than the route.
+
+    D8 needs one to exist: the استرداد button only renders for an ACTIVE
+    deposit, and by the time D8 runs D7 has already refunded the one it
+    made — so without this the button is absent for EVERY role and D8's
+    'hidden from viewer' assertion would pass while proving nothing.
+    """
+    from app.models import Customer, PaymentMethod
+    from app.services.deposits import record_deposit
+    cid = _STATE["company_id"]
+    pm_id = _a_payment_method_id()
+    with _STATE["app"].app_context():
+        cust = db.session.get(Customer, _STATE["customer_id"])
+        dep = record_deposit(
+            company_id=cid, customer=cust, amount=amount,
+            payment_method=db.session.get(PaymentMethod, pm_id),
+            actor_id=_STATE["users"]["owner"])
+        db.session.commit()
+        return dep.id
+
+
 @check("D7. taking and refunding a customer deposit needs the WRITE gate")
 def _():
     """MARSOUD-DEPOSIT-PERMS (2026-08-05).
@@ -666,20 +688,53 @@ def _():
     """The route is the protection; this is the other half. Leaving the
     form visible means a sales_rep clicks and gets bounced with the
     permission flash — the bug class fixed in 62de12f, and the same
-    template that already hid «✎ تعديل» behind partners.manage."""
+    template that already hid «✎ تعديل» behind partners.manage.
+
+    Only roles that actually RENDER the page are judged. hr_manager,
+    project_manager and team_member are bounced off /customers/<id>
+    entirely (302) and employee is confined (403), so for them "the form
+    is absent" is true of every page in the app and proves nothing. The
+    four that matter — ceo, sales_manager, sales_rep, viewer — do render
+    it, and MUST_SEE_PAGE below fails if that ever stops being true,
+    rather than letting this check go quietly vacuous.
+    """
+    # Roles that hold customers.view, reach the page, and must NOT be
+    # offered the deposit controls. If one of these stops rendering the
+    # page this check has lost its teeth and should fail loudly.
+    MUST_SEE_PAGE = ("ceo", "sales_manager", "sales_rep", "viewer")
+
     cust_id = _STATE["customer_id"]
     url = f"/customers/{cust_id}"
-    hidden_from, shown_to = [], []
+    # The استرداد button only renders for an ACTIVE deposit, and D7 left
+    # its own refunded. Without a live one this check would find no button
+    # for anybody and "hidden from viewer" would be true for the wrong
+    # reason.
+    dep_id = _seed_active_deposit()
+    assert _deposit_status(dep_id) == "ACTIVE"
+    refund_action = f"/customers/deposits/{dep_id}/refund"
+    hidden_from, shown_to, unreachable = [], [], []
     for role in ALL_SIDEBAR_ROLES:
-        if role == "employee":                 # confined, cannot reach it
+        r = _get(role, url)
+        body = r.get_data(as_text=True)
+        rendered = r.status_code == 200 and "بيانات العميل" in body
+        if not rendered:
+            assert role not in MUST_SEE_PAGE, (
+                f"{role} can no longer open the customer page "
+                f"({r.status_code}) — this check would silently stop "
+                "proving anything about the deposit controls")
+            unreachable.append(role)
             continue
-        body = _get(role, url).get_data(as_text=True)
+
         has_form = f"/customers/{cust_id}/deposits" in body
-        has_refund = "/deposits/" in body and "/refund" in body
-        may = role in PARTNERS_WRITE_ROLES
-        if may:
+        # Scoped to THIS deposit's refund endpoint. A bare "/refund"
+        # also matches the /refunds/ sidebar link, which every role has.
+        has_refund = refund_action in body
+        if role in PARTNERS_WRITE_ROLES:
             assert has_form, (
                 f"{role} MAY take deposits but the form is hidden from them")
+            assert has_refund, (
+                f"{role} MAY refund but the استرداد button is hidden from "
+                "them — the gate is too tight")
             shown_to.append(role)
         else:
             assert not has_form, (
@@ -688,8 +743,14 @@ def _():
             assert not has_refund, (
                 f"{role} is shown the استرداد button but cannot use it")
             hidden_from.append(role)
-    return (f"shown to {', '.join(shown_to)}; "
-            f"hidden from {len(hidden_from)} other roles")
+
+    for role in MUST_SEE_PAGE:
+        assert role in hidden_from, (
+            f"{role} was never actually checked — it must reach the page "
+            "and be denied the controls")
+    assert shown_to, "no role was shown the controls — nothing was proven"
+    return (f"shown to {', '.join(shown_to)}; hidden from "
+            f"{', '.join(hidden_from)}; {len(unreachable)} never reach the page")
 
 
 # ═══ E. Confinement invariants that must still hold ════════════════════
