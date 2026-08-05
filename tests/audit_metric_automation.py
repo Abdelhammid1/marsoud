@@ -119,6 +119,17 @@ def _teardown():
         db.session.execute(text(
             "DELETE FROM journal_lines WHERE entry_id IN "
             "(SELECT id FROM journal_entries WHERE company_id=:c)"), {"c": cid})
+        # EmployeeTarget has NO company_id, so the generic sweep below
+        # never touched it. Rows survived every run, and a later
+        # Employee or EvaluationCycle reusing an id inherited them —
+        # which showed up as "11 targets for 2 employees x 5 metrics".
+        db.session.execute(text(
+            "DELETE FROM employee_targets WHERE cycle_id IN "
+            "(SELECT id FROM evaluation_cycles WHERE company_id=:c)"),
+            {"c": cid})
+        db.session.execute(text(
+            "DELETE FROM employee_targets WHERE employee_id IN "
+            "(SELECT id FROM employees WHERE company_id=:c)"), {"c": cid})
         for tbl in reversed(db.metadata.sorted_tables):
             cols = {c["name"] for c in insp.get_columns(tbl.name)}
             if "company_id" in cols:
@@ -439,6 +450,145 @@ def _():
         "a hand-logged entry was given a source event")
     assert float(row.value) == 7.0
     return "manual entry recorded, source_activity_id NULL"
+
+
+# ─── Found by auditing the batch, not by building it ────────────────────
+@check("15. a task split across two assignees writes BOTH entries")
+def _():
+    """Found by adversarial probe. The first version made
+    (cycle_id, source_activity_id) unique — but ONE event legitimately
+    produces SEVERAL entries when a task's points split across its
+    assignees, and every one carries the same source row. The second
+    insert died with
+
+        UNIQUE constraint failed:
+        metric_log_entries.cycle_id, metric_log_entries.source_activity_id
+
+    so only the first assignee was ever credited, and the failure was
+    swallowed as a skip. Invisible because the task rule awards 0 today:
+    the path is not reached until someone sets a real number, which is
+    exactly when it would have broken. The key is now
+    (cycle_id, source_activity_id, employee_id).
+
+    This check sets a real value temporarily so the write actually
+    happens — check 6 only proved the arithmetic."""
+    import app.services.metric_automation as ma
+    from app.models import Task, TaskStatus, User, MetricLogEntry
+    from app.services.crm import set_task_status
+    from app.services.metric_automation import award_metric_entries
+
+    t = Task(company_id=_STATE["cid"], title="مهمة مشتركة",
+             status=TaskStatus.TODO,
+             assigned_to_id=_STATE["users"]["rep"],
+             deadline=date.today() + timedelta(days=5))
+    db.session.add(t)
+    db.session.flush()
+    t.assignees.append(db.session.get(User, _STATE["users"]["mate"]))
+    db.session.commit()
+    set_task_status(t, "DONE", by_user_id=_STATE["users"]["rep"])
+
+    saved = ma.POINTS[("task", "DONE_ON_TIME")]
+    ma.POINTS[("task", "DONE_ON_TIME")] = 12
+    try:
+        summary = award_metric_entries(company_id=_STATE["cid"])
+        # Scoped to THIS task's source event. Checks 2 and 3 already
+        # closed tasks of their own, and those score too the moment the
+        # rule has a value.
+        act_ids = [r.id for r in _acts("task") if r.entity_id == t.id]
+        rows = [r for r in MetricLogEntry.query.filter_by(
+                    company_id=_STATE["cid"], metric_key="tasks_done").all()
+                if r.source_activity_id in act_ids]
+        assert len(rows) == 2, (
+            f"{len(rows)} entries for a 2-assignee task, expected 2 — "
+            f"summary={summary}")
+        assert sorted(float(r.value) for r in rows) == [6.0, 6.0], (
+            f"points did not split evenly: "
+            f"{sorted(float(r.value) for r in rows)}")
+        assert len({r.employee_id for r in rows}) == 2, (
+            "both entries landed on the same employee")
+        assert len({r.source_activity_id for r in rows}) == 1, (
+            "the two entries do not share one source event")
+        assert not summary["skipped"].get("error"), (
+            f"an insert errored: {summary['skipped']}")
+    finally:
+        ma.POINTS[("task", "DONE_ON_TIME")] = saved
+    return "12 points -> 6.0 + 6.0, one source event, two employees"
+
+
+@check("16. an employee hired mid-cycle still scores")
+def _():
+    """Found by adversarial probe. Targets are seeded when a cycle OPENS,
+    so anyone hired afterwards had none — and log_metric_entry refuses an
+    entry with no target. A new joiner scored NOTHING for their whole
+    first month, reported only as a skip reason nobody reads. The target
+    is now created on demand at award time."""
+    from datetime import datetime
+    from app.models import (Employee, User, Lead, LeadStatus, MetricLogEntry,
+                            EmployeeTarget)
+    from app.services.crm import change_lead_status
+    from app.services.metric_automation import award_metric_entries
+    from app.services.legal import get_terms_version
+    from app.services.roles import set_membership_role
+
+    u = User(email=f"{PREFIX}late@audit.local", full_name="late joiner",
+             is_active=True, terms_version=get_terms_version(),
+             terms_accepted_at=datetime.utcnow())
+    u.set_password("Passw0rd!audit1")
+    db.session.add(u)
+    db.session.flush()
+    set_membership_role(u.id, _STATE["cid"], "sales_rep")
+    emp = Employee(company_id=_STATE["cid"], name="موظف جديد",
+                   basic_salary=4000, status="ACTIVE",
+                   start_date=date.today(), user_id=u.id)
+    db.session.add(emp)
+    db.session.commit()
+
+    assert EmployeeTarget.query.filter_by(
+        cycle_id=_STATE["cycle_id"], employee_id=emp.id).count() == 0, (
+        "fixture error: the late joiner already has targets")
+
+    lead = _mk_lead("عميل الموظف الجديد")
+    lead.assigned_to_id = u.id
+    db.session.commit()
+    change_lead_status(lead, "WON", changed_by_id=u.id)
+    award_metric_entries(company_id=_STATE["cid"])
+
+    rows = MetricLogEntry.query.filter_by(
+        company_id=_STATE["cid"], employee_id=emp.id).all()
+    assert rows, (
+        "an employee hired after the cycle opened scored nothing — the "
+        "target was never created for them")
+    assert float(rows[0].value) == 15.0, (
+        f"WON scored {rows[0].value} for the new joiner, expected 15")
+    return f"late joiner scored {float(rows[0].value)} on a target made on demand"
+
+
+@check("17. a cycle whose end date has passed stops absorbing events")
+def _():
+    """Checked because the row filter has no upper bound: it selects
+    activity from start_date onwards. What stops a stale OPEN cycle from
+    swallowing next month's work is the CYCLE lookup, which requires
+    end_date >= today. Pinned so that stays true."""
+    from app.models import EvaluationCycle, MetricLogEntry
+    from app.services.crm import change_lead_status
+    from app.services.metric_automation import award_metric_entries
+    cyc = db.session.get(EvaluationCycle, _STATE["cycle_id"])
+    saved = cyc.end_date
+    cyc.end_date = date.today() - timedelta(days=1)
+    db.session.commit()
+
+    lead = _mk_lead("عميل بعد نهاية الدورة")
+    change_lead_status(lead, "WON", changed_by_id=_STATE["users"]["rep"])
+    before = MetricLogEntry.query.filter_by(company_id=_STATE["cid"]).count()
+    summary = award_metric_entries(company_id=_STATE["cid"])
+    after = MetricLogEntry.query.filter_by(company_id=_STATE["cid"]).count()
+    assert after == before, (
+        f"a cycle that ended yesterday still absorbed {after - before} entries")
+    assert "no open cycle" in summary["skipped"]
+
+    cyc.end_date = saved
+    db.session.commit()
+    return "expired cycle takes nothing, reported as 'no open cycle'"
 
 
 def main():

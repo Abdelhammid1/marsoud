@@ -267,12 +267,46 @@ def award_metric_entries(company_id=None, now=None):
     return summary
 
 
+def _ensure_target(cycle, employee_id, metric_key):
+    """Make sure the employee has a target for this metric in this cycle.
+
+    Found by auditing: targets are seeded when a cycle OPENS, so anyone
+    hired afterwards had none — and log_metric_entry refuses an entry
+    without one. A mid-cycle joiner therefore scored NOTHING for their
+    whole first month, silently, reported only as a skip reason nobody
+    reads.
+
+    Seeding on demand costs one query on the miss path and makes the
+    join date irrelevant.
+    """
+    from app.models import EmployeeTarget
+    from app.services.evaluation import upsert_target, EvaluationError
+    exists = EmployeeTarget.query.filter_by(
+        cycle_id=cycle.id, employee_id=employee_id,
+        metric_key=metric_key).first()
+    if exists:
+        return True
+    category = dict(SEEDED_TARGETS).get(metric_key)
+    if not category:
+        return False
+    try:
+        upsert_target(cycle=cycle, employee_id=employee_id,
+                      metric_key=metric_key, target_value=0,
+                      weight_pct=0, category=category)
+        return True
+    except EvaluationError:
+        # A SUBMITTED/LOCKED cycle refuses new targets. Nothing to do —
+        # log_metric_entry will refuse the entry too, with a reason.
+        return False
+
+
 def _write(company, cycle, employee, row, value, summary, skip):
     from app.services.evaluation import log_metric_entry, EvaluationError
     key = METRIC_KEYS.get((row.entity_type or "").lower())
     if not key:
         skip("no metric key")
         return False
+    _ensure_target(cycle, employee.id, key)
     try:
         log_metric_entry(
             company_id=company.id, cycle=cycle, employee_id=employee.id,
