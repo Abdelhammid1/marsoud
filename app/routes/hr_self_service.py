@@ -330,8 +330,12 @@ def account():
     ).order_by(LeaveRequest.created_at.desc()).limit(50).all()
 
     # MARSOUD-ADVANCES — current advance balance + own request history.
-    from app.services.advances import active_advance_for
+    # MARSOUD-ADVANCE-INSTALMENTS — plus the instalments themselves, so
+    # "المسدد حتى الآن" stops being a subtraction the employee has to
+    # take on trust.
+    from app.services.advances import active_advance_for, repayments_for
     advance = active_advance_for(emp.id)
+    advance_repayments = repayments_for(advance.id) if advance else []
     advance_requests = AdvanceRequest.query.filter_by(
         employee_id=emp.id,
     ).order_by(AdvanceRequest.created_at.desc()).limit(50).all()
@@ -364,6 +368,7 @@ def account():
         requests=requests,
         statuses=LeaveRequestStatus,
         advance=advance,
+        advance_repayments=advance_repayments,
         advance_requests=advance_requests,
         advance_statuses=AdvanceRequestStatus,
         tenure_label=tenure_label,

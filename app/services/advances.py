@@ -285,38 +285,125 @@ def cancel_advance(adv, *, actor_id, reason=None):
 
 
 # ─── Payroll hook ───────────────────────────────────────────────────────
-def apply_advance_deduction(employee, amount):
-    """Draw `amount` down from the employee's open advance.
+def apply_advance_deduction(employee, amount, *, run=None,
+                            period_year=None, period_month=None,
+                            payroll_line=None):
+    """Recover an instalment from the employee's open advance.
 
-    Returns how much was ACTUALLY applied to a tracked advance — which
-    may be 0.0 when the accountant typed a number by hand with no
-    advance behind it. run_payroll uses the returned value (not the raw
-    input) to decide how much to add back to the salary-payable credit,
-    so untracked manual deductions keep behaving exactly as before.
+    MARSOUD-ADVANCE-INSTALMENTS (2026-08-05) — two things changed here.
+
+    1. `amount=None` means "work it out", not "deduct nothing". The
+       caller used to pass `inputs.get("advance", 0) or 0`, so the whole
+       automation lived in the payroll FORM: any other path — a script,
+       the agent, a future importer — deducted zero and the advance
+       stayed open forever. The balance is the source of truth now; the
+       form merely displays what this will do.
+
+       amount is None  → the instalment, from the open balance
+       amount == 0     → a deliberate skip, recorded as a zero row
+       amount > 0      → respected exactly as typed
+
+    2. Every instalment writes an AdvanceRepayment row linked to the run
+       and stamped with the period. That row is what makes a redone
+       payroll safe: the unique constraint on (advance_id, run_id) plus
+       the check below mean the same advance cannot be recovered twice
+       for the same run.
+
+    Returns how much was ACTUALLY applied to a tracked advance — 0.0
+    when there is no advance behind the number. run_payroll uses the
+    return value, not the raw input, to decide how much to add back to
+    the salary-payable credit, so untracked manual deductions keep
+    behaving exactly as before.
 
     Does not commit — run_payroll's own commit covers it.
     """
-    try:
-        amount = round(float(amount or 0), 2)
-    except (TypeError, ValueError):
-        return 0.0
-    if amount <= 0 or employee is None:
+    if employee is None:
         return 0.0
 
     adv = active_advance_for(employee.id)
     if not adv:
+        # Nothing tracked. A hand-typed number still shows on the payslip
+        # (run_payroll put it on the line); it just has no balance to
+        # draw from, which is the pre-existing behaviour.
         return 0.0
 
-    applied = min(amount, round(float(adv.remaining or 0), 2))
-    if applied <= 0:
-        return 0.0
+    manual = amount is not None and str(amount).strip() != ""
+    if manual:
+        try:
+            requested = round(float(amount), 2)
+        except (TypeError, ValueError):
+            return 0.0
+        if requested < 0:
+            return 0.0
+    else:
+        requested = adv.next_installment
 
-    adv.remaining = round(float(adv.remaining) - applied, 2)
-    if float(adv.remaining) < 0.005:
-        adv.remaining = 0
-        adv.status = AdvanceStatus.SETTLED
-        adv.settled_at = datetime.utcnow()
+    # Idempotency, keyed on the PERIOD rather than the run.
+    #
+    # Today run_payroll already refuses a second run for a period
+    # ("كشف رواتب {month}/{year} موجود بالفعل") and there is no delete
+    # path for a run anywhere in the app — no route, no service — so a
+    # literal re-run cannot happen through the UI. What IS reachable is
+    # the service being called twice by a script, the agent, or any
+    # future caller, which is the same gap that let the form own the
+    # automation in the first place.
+    #
+    # Keying on (year, month) rather than run_id covers both: a second
+    # call for a period that already has an instalment returns what was
+    # taken instead of taking it again, whichever run it came from. The
+    # unique constraint on (advance_id, payroll_run_id) backs it at the
+    # database level.
+    year = period_year if period_year is not None else (
+        run.period_year if run is not None else None)
+    month = period_month if period_month is not None else (
+        run.period_month if run is not None else None)
+    if year is not None and month is not None:
+        from app.models import AdvanceRepayment
+        already = AdvanceRepayment.query.filter_by(
+            advance_id=adv.id, period_year=year, period_month=month).first()
+        if already is not None:
+            return float(already.amount or 0)
+
+    applied = min(requested, round(float(adv.remaining or 0), 2))
+    if applied < 0:
+        applied = 0.0
+
+    if applied > 0:
+        adv.remaining = round(float(adv.remaining) - applied, 2)
+        if float(adv.remaining) < 0.005:
+            adv.remaining = 0
+            adv.status = AdvanceStatus.SETTLED
+            adv.settled_at = datetime.utcnow()
+
+    # The row is written even for a zero instalment: "the accountant
+    # skipped this month" and "this month was never run" are different
+    # facts, and only a row can tell them apart.
+    if run is not None:
+        from app.models import AdvanceRepayment
+        db.session.add(AdvanceRepayment(
+            company_id=adv.company_id,
+            advance_id=adv.id,
+            payroll_run_id=run.id,
+            payroll_line_id=payroll_line.id if payroll_line else None,
+            period_year=year,
+            period_month=month,
+            amount=applied,
+            manual=manual,
+        ))
+        db.session.flush()
+
     return applied
+
+
+def repayments_for(advance_id):
+    """Every instalment taken against one advance, oldest first."""
+    from app.models import AdvanceRepayment
+    return (AdvanceRepayment.query
+            .filter_by(advance_id=advance_id)
+            .order_by(AdvanceRepayment.period_year.asc(),
+                      AdvanceRepayment.period_month.asc(),
+                      AdvanceRepayment.id.asc())
+            .all())
 
 
 # ─── Notifications ──────────────────────────────────────────────────────

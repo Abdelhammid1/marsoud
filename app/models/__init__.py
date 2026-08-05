@@ -94,7 +94,7 @@ from app.models.open_item import (
 )
 from app.models.advances import (
     AdvanceRequest, AdvanceRequestStatus,
-    EmployeeAdvance, AdvanceStatus, AdvanceSource,
+    EmployeeAdvance, AdvanceStatus, AdvanceSource, AdvanceRepayment,
 )
 from app.models.department import Department
 from app.models.leave import (
@@ -200,6 +200,7 @@ __all__ = [
     "EmployeeHistory", "EmployeeChangeType",
     "AdvanceRequest", "AdvanceRequestStatus",
     "EmployeeAdvance", "AdvanceStatus", "AdvanceSource",
+    "AdvanceRepayment",
     "OpenItem", "OpenItemSettlement", "OpenItemStatus",
     "SETTLEABLE_STATUSES",
     "Department",

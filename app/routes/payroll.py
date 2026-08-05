@@ -215,7 +215,8 @@ def employee_profile(employee_id):
     outstanding = sum(a.remaining for a in open_accruals)
     # MARSOUD-ADVANCES — open advance + the employee's advance history.
     from app.models import EmployeeAdvance
-    from app.services.advances import active_advance_for
+    from app.services.advances import active_advance_for, repayments_for
+    _active = active_advance_for(emp.id)
     advance_history = EmployeeAdvance.query.filter_by(
         employee_id=emp.id,
     ).order_by(EmployeeAdvance.disbursed_on.desc()).limit(20).all()
@@ -225,7 +226,10 @@ def employee_profile(employee_id):
         termination_reasons=TerminationReason,
         open_accruals=open_accruals, settled_accruals=settled_accruals,
         outstanding=outstanding,
-        active_advance=active_advance_for(emp.id),
+        active_advance=_active,
+        # MARSOUD-ADVANCE-INSTALMENTS — the instalments behind the
+        # remaining balance, for the same reason as the employee's page.
+        advance_repayments=repayments_for(_active.id) if _active else [],
         advance_history=advance_history,
     )
 
