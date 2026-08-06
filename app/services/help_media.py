@@ -135,6 +135,7 @@ BLUEPRINT_TO_MODULE_KEY = {
     "user_files":        "user_files",
     "companies":         "companies",
     "portal_emp":        "attendance",
+    "support":           "support",
 }
 
 
