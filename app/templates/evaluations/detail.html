@@ -257,10 +257,10 @@
        No backend change — target_upsert / upsert_target are already
        symmetric on add and edit; the composite key
        (cycle_id, employee_id, metric_key) does the routing. #}
-    <form method="POST" id="target-upsert-form"
+    <form method="POST"
           action="{{ url_for('evaluations.target_upsert', cid=cycle.id) }}"
           data-mode="add"
-          class="grid grid-cols-1 md:grid-cols-8 gap-2 mt-3 items-end text-xs bg-slate-50 rounded p-3">
+          class="js-target-upsert-form grid grid-cols-1 md:grid-cols-8 gap-2 mt-3 items-end text-xs bg-slate-50 rounded p-3">
       <input type="hidden" name="employee_id" value="{{ emp.id }}">
       <div class="md:col-span-1">
         <label class="block font-semibold mb-1">المتريك</label>
@@ -428,10 +428,10 @@
 
 {# MARSOUD-EVAL-TARGET-EDIT (2026-08-06) — one delegated handler for
    the whole page. Each employee bucket renders its own upsert form
-   with id="target-upsert-form" (duplicate id inside the page —
-   acceptable because each is scoped to one bucket and the JS uses
-   closest() to find its form). The delegation from document is
-   simpler than wiring N buckets. #}
+   with class="js-target-upsert-form" (class not id — duplicate IDs
+   would be invalid HTML across N employee buckets). The JS finds
+   the bucket's form via the enclosing <details>, so wiring stays
+   local to the row that was clicked. #}
 <script>
 (function () {
   document.addEventListener('click', function (e) {
@@ -441,7 +441,7 @@
       // and find its form. Same shape as the render tree above.
       var container = btn.closest('details');
       if (!container) { return; }
-      var form = container.querySelector('form[id="target-upsert-form"]');
+      var form = container.querySelector('form.js-target-upsert-form');
       if (!form) { return; }
       form.dataset.mode = 'edit';
       form.querySelector('[name="metric_key"]').value =

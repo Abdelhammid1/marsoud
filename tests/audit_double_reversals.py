@@ -378,10 +378,15 @@ def _():
     assert r.status_code == 200, f"customer view status={r.status_code}"
     body = r.get_data(as_text=True)
     assert dep.doc_number in body, "deposit not on the page"
-    # The legacy row renders استرد: — followed by the dash. Any
-    # traceback would return 500, which the status check above already
-    # rejects.
-    return "legacy row renders without crash"
+    # "استرد" line appears (status is REFUNDED); refunded_by is NULL,
+    # so the template's fallback "—" renders next to it. Two positive
+    # signals so a template rewrite that dropped the whole line would
+    # trip check.
+    assert "استرد" in body, (
+        "المنفّذ column dropped the refund line for a REFUNDED row")
+    assert "استلم" in body, (
+        "المنفّذ column dropped the reception line")
+    return "legacy row: استلم + استرد both rendered, refunded_by shows —"
 
 
 def main():
