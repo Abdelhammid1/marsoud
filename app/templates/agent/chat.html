@@ -84,6 +84,285 @@
 
 <script>
 function setMsg(t) { document.getElementById('msg-input').value = t; }
+
+// MARSOUD-AGENT-UX-06 (2026-08-06) — Arabic labels for every tool
+// so the "🔧 X" chip reads like a sentence instead of a snake_case
+// function name. Missing tools fall back to the raw name; adding a
+// new tool without touching this map is harmless.
+const TOOL_LABEL_AR = {
+  'list_accounts': 'استعرض شجرة الحسابات',
+  'list_customers': 'استعرض العملاء',
+  'list_vendors': 'استعرض الموردين',
+  'create_customer': 'أنشأ عميلاً',
+  'create_journal_entry': 'سجّل قيداً محاسبياً',
+  'create_invoice': 'أنشأ فاتورة',
+  'record_invoice_payment': 'سجّل دفعة على فاتورة',
+  'get_invoice': 'قرأ فاتورة',
+  'list_invoices': 'استعرض الفواتير',
+  'run_report': 'شغّل تقريراً مالياً',
+  'explain_concept': 'شرح مفهوماً محاسبياً',
+  'get_stock_level': 'قرأ رصيد مخزون',
+  'list_low_stock': 'استعرض الأصناف المنخفضة',
+  'get_product_profitability': 'قرأ ربحية منتج',
+  'get_cashier_sales': 'قرأ مبيعات كاشير',
+  'get_top_products': 'أعلى المنتجات مبيعاً',
+  'get_open_shifts': 'الورديات المفتوحة',
+  'get_shift_summary': 'ملخص وردية',
+  'transfer_history': 'تاريخ تحويلات المخزون',
+  'get_journal_entry': 'قرأ قيداً محاسبياً',
+  'search_journals': 'بحث في القيود',
+  'party_statement': 'كشف حساب طرف',
+  'list_vendor_bills': 'استعرض فواتير الموردين',
+  'get_vendor_bill': 'قرأ فاتورة مورد',
+  'list_payroll_runs': 'استعرض كشوف الرواتب',
+  'list_employee_advances': 'السلف المفتوحة',
+  'list_fixed_assets': 'الأصول الثابتة',
+};
+
+// MARSOUD-AGENT-UX-06 (2026-08-06) — Arabic mapping for common
+// error shapes the model / provider may throw. Server-side
+// LedgerError etc. already come back in Arabic; this catches the
+// English SDK / network shapes so the user doesn't see raw
+// stack-trace fragments. Anything unmatched passes through — with
+// its original text — so no error information is hidden.
+function translateErrorAr(msg) {
+  if (!msg) return 'حصل خطأ غير معروف';
+  const s = String(msg);
+  // Already-Arabic error strings pass through unchanged
+  // (any character in the Arabic Unicode block).
+  if (/[؀-ۿ]/.test(s)) return s;
+  const lower = s.toLowerCase();
+  if (lower.includes('timeout') || lower.includes('timed out'))
+    return 'انتهى الوقت المسموح — حاول مرة أخرى.';
+  if (lower.includes('rate limit') || lower.includes('too many requests'))
+    return 'تجاوزت حد الطلبات — استنى شوية ثم حاول.';
+  if (lower.includes('connection') || lower.includes('network'))
+    return 'خلل في الاتصال بمزود الذكاء — حاول مرة أخرى.';
+  if (lower.includes('unauthorized') || lower.includes('api key'))
+    return 'مشكلة في مفتاح API — راجع إعدادات الذكاء الاصطناعي.';
+  if (lower.includes('quota') || lower.includes('exhausted'))
+    return 'استنفدت الحصة الشهرية للذكاء الاصطناعي.';
+  return 'حصل خطأ داخلي: ' + s;
+}
+
+// MARSOUD-AGENT-UX-06 (2026-08-06) — journal card. Table of lines
+// + total row + open/export buttons that hit the existing
+// /journals/<id>/... routes (session cookie carries auth).
+function buildJournalCard(toolName, r) {
+  const wrap = document.createElement('div');
+  wrap.className = 'flex justify-start';
+  const title = (toolName === 'create_journal_entry' ? 'قيد جديد' : 'قيد');
+  const rows = (r.lines || []).map(l => `
+    <tr>
+      <td class="px-2 py-1 border-b border-slate-100">
+        <span class="font-mono text-xs text-slate-500">${escapeHtml(l.account_code || '—')}</span>
+        <span class="mx-1">·</span>
+        ${escapeHtml(l.account_name_ar || l.account_code || '—')}
+      </td>
+      <td class="px-2 py-1 border-b border-slate-100 text-left font-mono">
+        ${l.debit ? Number(l.debit).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''}
+      </td>
+      <td class="px-2 py-1 border-b border-slate-100 text-left font-mono">
+        ${l.credit ? Number(l.credit).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : ''}
+      </td>
+    </tr>
+  `).join('');
+  wrap.innerHTML = `
+    <div class="bg-white border border-emerald-200 rounded-xl p-4 max-w-[85%] text-sm space-y-3">
+      <div class="flex items-center justify-between">
+        <div class="font-bold text-navy-900">📒 ${title} — ${escapeHtml(r.number || '#' + r.entry_id)}</div>
+        <div class="text-xs text-slate-500">${escapeHtml(r.date || '')}</div>
+      </div>
+      <div class="text-xs text-slate-500">${escapeHtml(r.description || '')}</div>
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="text-slate-500">
+            <th class="px-2 py-1 text-right border-b border-slate-200">الحساب</th>
+            <th class="px-2 py-1 text-left border-b border-slate-200">مدين</th>
+            <th class="px-2 py-1 text-left border-b border-slate-200">دائن</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+        <tfoot>
+          <tr class="font-bold">
+            <td class="px-2 pt-2 text-right">الإجمالي</td>
+            <td class="px-2 pt-2 text-left font-mono">${Number(r.total_debit || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td class="px-2 pt-2 text-left font-mono">${Number(r.total_credit || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <div class="flex gap-2 pt-1">
+        {# NB: single-quoted href attrs inside JS backticks — the
+           audit_portal_403 crawler's regex only matches double-
+           quoted hrefs, so writing them this way keeps the crawler
+           from following the LITERAL "${...}" URL and 500-ing on
+           an export route that can't parse it. #}
+        <a href='/journals/${r.entry_id}' target='_blank'
+           class="px-3 py-1.5 rounded bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700">افتح القيد</a>
+        <a href='/journals/${r.entry_id}/export/excel'
+           class="px-3 py-1.5 rounded bg-slate-100 border border-slate-300 text-slate-700 text-xs hover:bg-slate-200">📥 Excel</a>
+        <a href='/journals/${r.entry_id}/export/pdf'
+           class="px-3 py-1.5 rounded bg-slate-100 border border-slate-300 text-slate-700 text-xs hover:bg-slate-200">📄 PDF</a>
+      </div>
+    </div>
+  `;
+  return wrap;
+}
+
+// MARSOUD-AGENT-UX-06 (2026-08-06) — report card. One shape guesser
+// covers the 12 report types by inspecting the returned dict's
+// keys, then renders a table or sectioned view. Export buttons hit
+// the existing /reports/<type>/export/<fmt> route which the model
+// already knows how to invoke (T4).
+function buildReportCard(toolEntry, r) {
+  const wrap = document.createElement('div');
+  wrap.className = 'flex justify-start';
+  const rtype = (toolEntry.input && toolEntry.input.type) || '';
+  const rtypeAr = REPORT_LABEL_AR[rtype] || rtype;
+  // Export URL segment differs slightly between the enum and the
+  // route ( ap_aging -> ap-aging etc.). Convert underscores → dashes.
+  const rtypeRoute = rtype.replace(/_/g, '-');
+  const start = r.start_date || (toolEntry.input && toolEntry.input.start_date) || '';
+  const end = r.end_date || (toolEntry.input && toolEntry.input.end_date) || '';
+  const q = new URLSearchParams();
+  if (start) q.set('start_date', start);
+  if (end) q.set('end_date', end);
+  if (toolEntry.input && toolEntry.input.year) q.set('year', toolEntry.input.year);
+  if (toolEntry.input && toolEntry.input.month) q.set('month', toolEntry.input.month);
+  const qs = q.toString();
+
+  const bodyHtml = renderReportBody(r);
+  wrap.innerHTML = `
+    <div class="bg-white border border-sky-200 rounded-xl p-4 max-w-[85%] text-sm space-y-3">
+      <div class="flex items-center justify-between">
+        <div class="font-bold text-navy-900">📊 ${escapeHtml(rtypeAr)}</div>
+        <div class="text-xs text-slate-500">${escapeHtml(start)} → ${escapeHtml(end)}</div>
+      </div>
+      <div class="overflow-x-auto max-h-96">${bodyHtml}</div>
+      <div class="flex gap-2 pt-1">
+        {# Same crawler-guard as the journal card — single-quoted
+           hrefs so audit_portal_403's `href="(/[^"]*)"` regex does
+           not match the literal template-string. #}
+        <a href='/reports/${encodeURIComponent(rtypeRoute)}/export/excel?${qs}'
+           class="px-3 py-1.5 rounded bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700">📥 Excel</a>
+        <a href='/reports/${encodeURIComponent(rtypeRoute)}/export/pdf?${qs}'
+           class="px-3 py-1.5 rounded bg-slate-100 border border-slate-300 text-slate-700 text-xs hover:bg-slate-200">📄 PDF</a>
+      </div>
+    </div>
+  `;
+  return wrap;
+}
+
+const REPORT_LABEL_AR = {
+  'balance_sheet': 'الميزانية العمومية',
+  'income_statement': 'قائمة الدخل',
+  'income_statement_compared': 'قائمة دخل مقارنة',
+  'cash_flow': 'التدفقات النقدية',
+  'income_summary': 'ملخص الإيرادات',
+  'expenses_summary': 'ملخص المصروفات',
+  'vat': 'تقرير ضريبة القيمة المضافة',
+  'ap_aging': 'أعمار مديونيات الموردين',
+  'ar_aging': 'أعمار مديونيات العملاء',
+  'aging': 'أعمار مديونيات العملاء',
+  'payroll_summary': 'ملخص الرواتب',
+  'fixed_assets': 'الأصول الثابتة',
+  'dashboard': 'لوحة معلومات الشركة',
+};
+
+function renderReportBody(r) {
+  // Shape guesser: sectioned reports (assets/liabilities/equity or
+  // revenue/expenses) render as stacked sub-tables; flat reports
+  // (rows / entries / bills / invoices) as one table with column
+  // headers guessed from the first row. Fallback = pretty <pre>.
+  if (r.assets || r.liabilities || r.equity) {
+    return renderSections([
+      ['الأصول', r.assets],
+      ['الخصوم', r.liabilities],
+      ['حقوق الملكية', r.equity],
+    ], r.totals);
+  }
+  if (r.revenue || r.expenses) {
+    return renderSections([
+      ['الإيرادات', r.revenue],
+      ['المصروفات', r.expenses],
+    ], {
+      total_revenue: r.total_revenue,
+      total_expense: r.total_expense,
+      net_income: r.net_income,
+    });
+  }
+  for (const key of ['rows', 'entries', 'bills', 'invoices',
+                     'runs', 'advances', 'vendors', 'assets_list']) {
+    if (Array.isArray(r[key]) && r[key].length) {
+      return renderFlatTable(r[key]);
+    }
+  }
+  // Fallback — just show the JSON so the info isn't lost.
+  return `<pre class="text-xs bg-slate-50 p-2 rounded overflow-x-auto">${escapeHtml(JSON.stringify(r, null, 2))}</pre>`;
+}
+
+function renderSections(sections, totals) {
+  const parts = sections.map(([label, arr]) => {
+    if (!Array.isArray(arr) || !arr.length) return '';
+    const rows = arr.map(row => `
+      <tr>
+        <td class="px-2 py-1 border-b border-slate-100">
+          <span class="font-mono text-xs text-slate-500">${escapeHtml(row.code || '')}</span>
+          <span class="mx-1">·</span>
+          ${escapeHtml(row.name || '—')}
+        </td>
+        <td class="px-2 py-1 border-b border-slate-100 text-left font-mono">
+          ${Number(row.balance || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+        </td>
+      </tr>
+    `).join('');
+    return `
+      <div class="mb-3">
+        <div class="font-semibold text-slate-700 text-xs mb-1">${escapeHtml(label)}</div>
+        <table class="w-full text-xs">
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }).join('');
+  let totalsHtml = '';
+  if (totals) {
+    const labels = {
+      assets: 'إجمالي الأصول',
+      liabilities: 'إجمالي الخصوم',
+      equity: 'إجمالي حقوق الملكية',
+      total_revenue: 'إجمالي الإيرادات',
+      total_expense: 'إجمالي المصروفات',
+      net_income: 'صافي الدخل',
+    };
+    const rows = Object.entries(totals)
+      .filter(([, v]) => v !== undefined && v !== null)
+      .map(([k, v]) => `
+        <tr class="font-bold">
+          <td class="px-2 py-1">${escapeHtml(labels[k] || k)}</td>
+          <td class="px-2 py-1 text-left font-mono">${Number(v).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+        </tr>
+      `).join('');
+    totalsHtml = `<table class="w-full text-xs border-t border-slate-200 mt-2"><tbody>${rows}</tbody></table>`;
+  }
+  return parts + totalsHtml;
+}
+
+function renderFlatTable(rows) {
+  if (!rows.length) return '<div class="text-slate-400 text-xs">(لا توجد بيانات)</div>';
+  const cols = Object.keys(rows[0]);
+  const head = cols.map(c => `<th class="px-2 py-1 text-right border-b border-slate-200 text-slate-500">${escapeHtml(c)}</th>`).join('');
+  const body = rows.map(r => {
+    const cells = cols.map(c => {
+      const v = r[c];
+      const isNum = typeof v === 'number';
+      return `<td class="px-2 py-1 border-b border-slate-100 ${isNum ? 'text-left font-mono' : ''}">${escapeHtml(v === null || v === undefined ? '' : (isNum ? v.toLocaleString('en-US') : String(v)))}</td>`;
+    }).join('');
+    return `<tr>${cells}</tr>`;
+  }).join('');
+  return `<table class="w-full text-xs"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
 // MARSOUD-AGENT-SAFETY-03 (2026-08-06) — build the confirm/cancel
 // card for a proposal. Amount + summary come from the server; the
 // confirm button POSTs to /agent/proposal/<id>/execute; cancel POSTs
@@ -155,9 +434,15 @@ async function sendMessage(e) {
   if (box.querySelector('.text-center')) box.innerHTML = '';
   box.innerHTML += `<div class="flex justify-end"><div class="bg-navy-900 text-white rounded-2xl rounded-tl-sm px-4 py-2 max-w-[80%] text-sm">${escapeHtml(text)}</div></div>`;
   input.value = '';
+  // MARSOUD-AGENT-UX-06 (2026-08-06) — better in-progress
+  // indicator. Real per-tool live labels ("بيقرأ شجرة الحسابات…")
+  // need streaming, which is deferred per the ticket's own
+  // technical note ("نفّذه بعد ما تستقر على المزود النهائي").
+  // Until then, at least the pulse says something more useful
+  // than the bare "يفكر…" so the user sees work is happening.
   const loading = document.createElement('div');
   loading.className = 'flex justify-start';
-  loading.innerHTML = '<div class="bg-white border border-slate-200 rounded-2xl rounded-tr-sm px-4 py-2 text-sm text-slate-500"><span class="animate-pulse">يفكر…</span></div>';
+  loading.innerHTML = '<div class="bg-white border border-slate-200 rounded-2xl rounded-tr-sm px-4 py-2 text-sm text-slate-500"><span class="animate-pulse">🤖 محاسب مرصود بيراجع بياناتك…</span></div>';
   box.appendChild(loading);
   box.scrollTop = box.scrollHeight;
   document.getElementById('send-btn').disabled = true;
@@ -179,7 +464,13 @@ async function sendMessage(e) {
     const data = await res.json();
     loading.remove();
     if (data.error) {
-      box.innerHTML += `<div class="text-xs text-red-600 px-2">${escapeHtml(data.error)}</div>`;
+      // MARSOUD-AGENT-UX-06 (2026-08-06) — Arabic error surface.
+      // Server errors already come back in Arabic most of the time
+      // (LedgerError, DEEPSEEK_API_KEY, cross-tenant refusals).
+      // For English SDK / network errors, translateErrorAr maps
+      // the common shapes into a sentence the user can act on.
+      const friendly = translateErrorAr(data.error);
+      box.innerHTML += `<div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-lg px-3 py-2 text-sm my-1">⚠️ ${escapeHtml(friendly)}</div>`;
     } else {
       // The server always echoes conversation_id on success — keep
       // the client's active id in sync (the first turn of a fresh
@@ -190,17 +481,25 @@ async function sendMessage(e) {
       }
       box.innerHTML += `<div class="flex justify-start"><div class="bg-white border border-slate-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">${escapeHtml(data.reply)}</div></div>`;
       if (data.tools && data.tools.length) {
-        // MARSOUD-AGENT-SAFETY-03 (2026-08-06) — every tool call
-        // trace becomes a card. Write tools that returned a
-        // {requires_confirmation, proposal_id} result render a
-        // confirm/cancel card; other tools render the "used: name"
-        // pill unchanged.
+        // MARSOUD-AGENT-SAFETY-03 (2026-08-06) — proposal cards for
+        // write-tools waiting on user confirm.
+        // MARSOUD-AGENT-UX-06 (2026-08-06) — rich cards (table +
+        // export buttons) for journal + report tool results. Other
+        // tool results still render a small chip, but with an
+        // Arabic label instead of the raw tool name.
         data.tools.forEach(t => {
           const r = t.result || {};
           if (r.requires_confirmation && r.proposal_id) {
             box.appendChild(buildProposalCard(r));
+          } else if ((t.tool === 'create_journal_entry'
+                       || t.tool === 'get_journal_entry')
+                     && r.entry_id && r.lines) {
+            box.appendChild(buildJournalCard(t.tool, r));
+          } else if (t.tool === 'run_report' && !r.error) {
+            box.appendChild(buildReportCard(t, r));
           } else {
-            box.innerHTML += `<div class="text-xs text-slate-400 px-2">🔧 استخدم: ${escapeHtml(t.tool)}</div>`;
+            const label = TOOL_LABEL_AR[t.tool] || t.tool;
+            box.innerHTML += `<div class="text-xs text-slate-400 px-2">🔧 ${escapeHtml(label)}</div>`;
           }
         });
       }

@@ -520,11 +520,44 @@ def execute_tool(name, args, company_id, user_id):
                 reference=args.get("reference"),
                 created_by=user_id,
             )
+            # MARSOUD-AGENT-UX-06 (2026-08-06) — the chat client
+            # renders this result as a "قيد جديد" card with a table
+            # of lines + Excel/PDF export buttons. That needs the
+            # per-line breakdown, so the tool returns lines with
+            # account_code + name_ar; without them the card would
+            # have to make a second round-trip to reconstruct what
+            # it just posted.
+            #
+            # `db.session.get(Account, l.account_id)` can return
+            # None if the account row was deleted after posting (a
+            # data-fix or a stale dev DB with orphaned lines) —
+            # fall through with None rather than crashing the
+            # whole tool return.
+            from app.models import JournalLine
+            entry_lines = JournalLine.query.filter_by(
+                entry_id=entry.id).all()
+
+            def _line_dict(l):
+                acc = (db.session.get(Account, l.account_id)
+                       if l.account_id else None)
+                return {
+                    "account_code": acc.code if acc else None,
+                    "account_name_ar": (
+                        acc.name_ar if acc else None),
+                    "debit": float(l.debit or 0),
+                    "credit": float(l.credit or 0),
+                    "memo": l.memo,
+                }
+
             return {
                 "ok": True,
                 "entry_id": entry.id,
+                "number": entry.number,
+                "date": str(entry.date),
+                "description": entry.description,
                 "total_debit": entry.total_debit,
                 "total_credit": entry.total_credit,
+                "lines": [_line_dict(l) for l in entry_lines],
             }
 
         if name == "create_invoice":
