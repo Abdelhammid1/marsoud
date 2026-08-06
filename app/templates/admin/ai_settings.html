@@ -1,0 +1,85 @@
+{% extends "admin/base.html" %}
+{% block page_title %}إعدادات الذكاء الاصطناعي{% endblock %}
+{% block content %}
+
+{# MARSOUD-AGENT-DEEPSEEK-02 (2026-08-06) — runtime knobs for the
+   accountant agent's provider and model. Saved settings land on the
+   NEXT agent turn — no app restart. Insights agent has its own knobs
+   (unchanged by this ticket). #}
+
+<div class="card p-6 max-w-3xl">
+  <h2 class="font-bold text-navy-900 mb-1">🧠 إعدادات الذكاء الاصطناعي</h2>
+  <p class="text-sm text-slate-500 mb-5">
+    التحكم في المزود والموديل المستخدَمَين للمحاسب الذكي على مستوى المنصة.
+    أي تغيير هنا ينزل على المحادثة التالية بدون إعادة تشغيل.
+  </p>
+
+  {# High-stakes warning banner — the agent moves real money. #}
+  <div class="bg-amber-50 border border-amber-300 rounded-lg p-4 mb-6 text-sm">
+    <div class="font-bold text-amber-900 mb-1">⚠️ تحذير</div>
+    <div class="text-amber-800 leading-relaxed">
+      المحاسب الذكي ينفّذ عمليات مالية فعلية (يكتب قيود وفواتير ودفعات في الدفاتر).
+      أي تبديل للمزود أو الموديل لازم يتجرّب على شركة تجريبية قبل ما يتساب شغال في الإنتاج.
+    </div>
+  </div>
+
+  <form method="POST" class="space-y-6">
+    {# ─── Provider picker ────────────────────────────────────────── #}
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">
+        مزود المحاسب الذكي
+      </label>
+      <div class="flex gap-4">
+        {% for p in providers %}
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="radio" name="accountant_provider" value="{{ p }}"
+                 {% if current_provider == p %}checked{% endif %}
+                 class="text-navy-600">
+          <span class="text-sm font-mono">{{ p }}</span>
+        </label>
+        {% endfor %}
+      </div>
+      <p class="text-xs text-slate-500 mt-2">
+        الافتراضي: <span class="font-mono">anthropic</span> —
+        نُبقي هذا التبديل تحت سيطرة المشغّل لضمان الرجوع الفوري
+        لو أداء المزود الجديد ما كانش مرضي.
+      </p>
+    </div>
+
+    {# ─── Model input ────────────────────────────────────────────── #}
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">
+        موديل المحاسب الذكي
+      </label>
+      <input type="text" name="accountant_model"
+             value="{{ current_model }}"
+             class="input font-mono" dir="ltr"
+             placeholder="e.g. deepseek-reasoner">
+      <p class="text-xs text-slate-500 mt-1">
+        اترك الحقل فارغًا لاستخدام الافتراضي حسب المزود:
+        <span class="font-mono">{{ provider_defaults['anthropic'] }}</span>
+        لـ anthropic،
+        <span class="font-mono">{{ provider_defaults['deepseek'] }}</span>
+        لـ deepseek (وهو أقوى موديل reasoning عند DeepSeek —
+        ليس موديل الـ flash المستخدم في وكيل التحليلات).
+      </p>
+    </div>
+
+    {# ─── DeepSeek env-var note ──────────────────────────────────── #}
+    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600">
+      <div class="font-semibold text-slate-700 mb-1">ملاحظة تقنية</div>
+      لتشغيل DeepSeek لازم يكون
+      <span class="font-mono">DEEPSEEK_API_KEY</span>
+      مضبوطاً في ملف <span class="font-mono">.env</span> على السيرفر.
+      لو الاختيار deepseek والمفتاح ناقص، أول محادثة هترجّع رسالة خطأ واضحة.
+    </div>
+
+    <div class="flex gap-2">
+      <button type="submit" class="btn btn-primary">حفظ</button>
+      <a href="{{ url_for('superadmin.ai_usage') }}"
+         class="btn btn-secondary">عرض الاستهلاك</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

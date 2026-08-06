@@ -1577,3 +1577,56 @@ def ai_usage():
     from app.services.superadmin import ai_usage_overview
     rows = ai_usage_overview()
     return render_template("admin/ai_usage.html", rows=rows)
+
+
+# ─── MARSOUD-AGENT-DEEPSEEK-02 (2026-08-06) ────────────────────────────
+_ACCOUNTANT_PROVIDERS = ("anthropic", "deepseek")
+
+
+@bp.route("/ai-settings", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def ai_settings():
+    """Runtime knobs for the accountant agent — provider and model.
+
+    Two PlatformSetting keys read on every accountant turn (see
+    app/agent/base.py::get_accountant_provider_and_model). No app
+    restart needed after a save. Insights persona is a separate
+    ticket — this screen only touches the accountant.
+    """
+    from app.services.subscription import _set_setting_raw
+    from app.agent.base import (
+        get_accountant_provider_and_model,
+        _ACCOUNTANT_DEFAULT_MODEL_BY_PROVIDER,
+    )
+
+    if request.method == "POST":
+        provider = (request.form.get("accountant_provider")
+                    or "").strip().lower()
+        if provider not in _ACCOUNTANT_PROVIDERS:
+            flash("مزود غير معروف — اختر anthropic أو deepseek",
+                  "error")
+            return redirect(url_for("superadmin.ai_settings"))
+
+        model = (request.form.get("accountant_model") or "").strip()
+        # An empty model falls back to the per-provider default on
+        # read — safer than saving an empty string that would then
+        # be used verbatim by the provider SDK.
+        _set_setting_raw("accountant_provider", provider)
+        _set_setting_raw("accountant_model", model or "")
+        db.session.commit()
+        log_platform_action(
+            "ai_settings_update",
+            actor_id=current_user.id,
+            details=f"accountant_provider={provider} model={model or '(default)'}")
+        flash("تم حفظ إعدادات الذكاء الاصطناعي", "success")
+        return redirect(url_for("superadmin.ai_settings"))
+
+    provider, model = get_accountant_provider_and_model()
+    return render_template(
+        "admin/ai_settings.html",
+        current_provider=provider,
+        current_model=model,
+        providers=_ACCOUNTANT_PROVIDERS,
+        provider_defaults=_ACCOUNTANT_DEFAULT_MODEL_BY_PROVIDER,
+    )
