@@ -56,11 +56,15 @@ def chat():
     messages = [{"role": m.role, "content": m.content}
                 for m in history if m.role in ("user", "assistant")]
 
-    company_context = (
-        f"اسم الشركة: {g.active_company.name}\n"
-        f"العملة الأساسية: {g.active_company.base_currency}\n"
-        f"نسبة الضريبة: {g.active_company.vat_rate}%\n"
-    )
+    # MARSOUD-AGENT-CONTEXT-01 (2026-08-06) — the three-line block
+    # this replaced didn't tell the agent what "today" was in the
+    # company's timezone (so after-midnight-Riyadh queries returned
+    # yesterday's rows), didn't say which modules the plan enabled,
+    # and didn't surface the ACTUAL account codes for this company —
+    # letting the prompt fall back to hardcoded DEFAULT_COA codes
+    # that were wrong for any tenant who edited their tree.
+    from app.agent.company_context import build_company_context
+    company_context = build_company_context(g.active_company)
 
     try:
         reply, _, tool_trace = run_agent(

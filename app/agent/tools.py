@@ -3,11 +3,26 @@ from datetime import datetime, date, timedelta
 from app import db
 from app.models import (
     Account, Customer, Vendor, Invoice, InvoiceItem, InvoiceStatus,
-    Employee, FixedAsset, JournalEntry,
+    Employee, FixedAsset, JournalEntry, Company,
 )
 from app.services.ledger import post_journal, get_account_by_code, LedgerError
 from app.services.invoicing import post_invoice_to_ledger, record_payment
 from app.services.reports import balance_sheet, income_statement, cash_flow, aging_report, dashboard_metrics
+
+
+# MARSOUD-AGENT-CONTEXT-01 (2026-08-06) — every "today" the agent
+# tools compute for a filter default MUST be today in the COMPANY's
+# timezone, not the server's. Otherwise a call at 01:30 Riyadh
+# (22:30 UTC the day before) returns yesterday's invoices under the
+# label "اليوم". The context block in the prompt now names today
+# correctly; these helpers make sure the tool defaults match.
+def _today(company=None):
+    """today() in the company's timezone if company is passed, else
+    server-local. Always pass company from execute_tool()."""
+    if company is None:
+        return date.today()
+    from app.services.time import today_in_company_tz
+    return today_in_company_tz(company)
 
 
 TOOL_SCHEMAS = [
@@ -244,9 +259,15 @@ TOOL_SCHEMAS = [
 ]
 
 
-def _parse_date(s, default=None):
+def _parse_date(s, default=None, company=None):
+    """Parse a date string. Missing/empty falls back to `default`, or
+    to today-in-company-tz if `company` is provided, else server today.
+
+    Old signature (s, default) still works — the third parameter is
+    kwarg-only in the intent though not enforced (Python-style), and
+    every existing external caller passes only the first two args."""
     if not s:
-        return default or date.today()
+        return default or _today(company)
     if isinstance(s, date):
         return s
     return datetime.strptime(s, "%Y-%m-%d").date()
@@ -254,6 +275,12 @@ def _parse_date(s, default=None):
 
 def execute_tool(name, args, company_id, user_id):
     """Dispatch a tool call. Returns a JSON-serializable result dict."""
+    # MARSOUD-AGENT-CONTEXT-01 (2026-08-06) — resolve the Company ONCE
+    # at the top so every date default below uses the tenant's local
+    # timezone instead of server-UTC. Falling back to None (which
+    # produces server-today) preserves behaviour for the edge case of
+    # a tool call with company_id=0/None.
+    company = db.session.get(Company, company_id) if company_id else None
     try:
         if name == "list_accounts":
             q = Account.query.filter_by(company_id=company_id, is_active=True)
@@ -307,8 +334,13 @@ def execute_tool(name, args, company_id, user_id):
             }
 
         if name == "create_invoice":
-            from app.models import Company
-            company = db.session.get(Company, company_id)
+            # `company` already resolved at the top of execute_tool.
+            # A local `from app.models import Company` used to live
+            # here — after MARSOUD-AGENT-CONTEXT-01 hoisted the same
+            # import to module-level, the inner one turned every
+            # reference to `Company` in this function into a local
+            # (Python's scoping quirk), which UnboundLocalError'd on
+            # the new hoisted resolve. Removed.
             from app.routes.invoices import _next_number
             due_days = args.get("due_days", 30)
             # MARSOUD-INVOICE-TAX-ZERO (Batch 9 Ticket 1, 2026-08-01)
@@ -322,8 +354,8 @@ def execute_tool(name, args, company_id, user_id):
                 company_id=company_id,
                 number=_next_number(company_id),
                 customer_id=args["customer_id"],
-                issue_date=date.today(),
-                due_date=date.today() + timedelta(days=due_days),
+                issue_date=_today(company),
+                due_date=_today(company) + timedelta(days=due_days),
                 currency=company.base_currency,
                 tax_rate=tax_rate,
                 status=InvoiceStatus.DRAFT,
@@ -394,8 +426,8 @@ def execute_tool(name, args, company_id, user_id):
 
         if name == "list_invoices":
             from app.models import InvoiceStatus as _InvStatus
-            start = _parse_date(args.get("start_date"), date.today())
-            end = _parse_date(args.get("end_date"), date.today())
+            start = _parse_date(args.get("start_date"), _today(company))
+            end = _parse_date(args.get("end_date"), _today(company))
             limit = args.get("limit", 20)
             q = Invoice.query.filter(
                 Invoice.company_id == company_id,
@@ -448,8 +480,9 @@ def execute_tool(name, args, company_id, user_id):
 
         if name == "run_report":
             rtype = args["type"]
-            start = _parse_date(args.get("start_date"), date.today().replace(day=1))
-            end = _parse_date(args.get("end_date"), date.today())
+            start = _parse_date(args.get("start_date"),
+                                _today(company).replace(day=1))
+            end = _parse_date(args.get("end_date"), _today(company))
             if rtype == "balance_sheet":
                 return balance_sheet(company_id, as_of=end)
             if rtype == "income_statement":
@@ -523,9 +556,10 @@ def execute_tool(name, args, company_id, user_id):
             }
 
         if name == "get_product_profitability":
-            from app.models import (
-                ProductVariant, Invoice, InvoiceItem, InvoiceStatus,
-            )
+            # Only ProductVariant is not at module level; the other
+            # three would shadow the module imports and hit the same
+            # UnboundLocalError trap other branches did.
+            from app.models import ProductVariant
             q = (args.get("query") or "").strip()
             v = ProductVariant.query.filter(
                 ProductVariant.company_id == company_id,
@@ -543,8 +577,8 @@ def execute_tool(name, args, company_id, user_id):
             if not v:
                 return {"error": f"لم يُعثر على صنف بـ '{q}'"}
             start = _parse_date(args.get("from_date"),
-                                date.today().replace(day=1))
-            end = _parse_date(args.get("to_date"), date.today())
+                                _today(company).replace(day=1))
+            end = _parse_date(args.get("to_date"), _today(company))
             rows = (
                 db.session.query(InvoiceItem, Invoice)
                 .join(Invoice, InvoiceItem.invoice_id == Invoice.id)
@@ -583,8 +617,13 @@ def execute_tool(name, args, company_id, user_id):
             }
 
         if name == "get_cashier_sales":
-            from app.models import Invoice, InvoiceStatus, User
-            day = _parse_date(args.get("date"), date.today())
+            # Invoice + InvoiceStatus already hoisted at module top;
+            # importing them locally here made every reference to
+            # them in execute_tool local (Python scoping), which
+            # UnboundLocalError'd once the top-of-function
+            # `company = db.session.get(Company, ...)` was added.
+            from app.models import User
+            day = _parse_date(args.get("date"), _today(company))
             rows = Invoice.query.filter(
                 Invoice.company_id == company_id,
                 Invoice.source == "POS",
@@ -690,10 +729,12 @@ def execute_tool(name, args, company_id, user_id):
             }
 
         if name == "get_top_products":
-            from app.models import InvoiceItem, Invoice, InvoiceStatus
+            # See the get_cashier_sales comment — same shadowing
+            # trap. Invoice / InvoiceItem / InvoiceStatus are all
+            # module-level imports; do not re-import them locally.
             start = _parse_date(args.get("from_date"),
-                                date.today().replace(day=1))
-            end = _parse_date(args.get("to_date"), date.today())
+                                _today(company).replace(day=1))
+            end = _parse_date(args.get("to_date"), _today(company))
             limit = int(args.get("limit") or 10)
             rows = (
                 db.session.query(InvoiceItem, Invoice)
