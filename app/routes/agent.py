@@ -71,15 +71,55 @@ def chat():
             messages, g.active_company.id, current_user.id,
             company_context=company_context,
         )
+        # MARSOUD-AGENT-SAFETY-03 (2026-08-06) — persist the tool
+        # trace on the assistant message so a later audit can
+        # answer "what did the agent actually do?" — the exact
+        # question that had no answer during the company-37
+        # incident. Legacy rows stay NULL.
+        import json as _json
         db.session.add(AgentMessage(
             company_id=g.active_company.id, user_id=current_user.id,
             role="assistant", content=reply,
             agent_type="accountant",
+            tool_trace=_json.dumps(
+                tool_trace or [], ensure_ascii=False, default=str),
         ))
         db.session.commit()
         return jsonify({"reply": reply, "tools": tool_trace})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ─── MARSOUD-AGENT-SAFETY-03 (2026-08-06) — proposal execute/cancel ───
+@bp.route("/proposal/<int:pid>/execute", methods=["POST"])
+@login_required
+@require_permission("agent.write")
+def proposal_execute(pid):
+    """Confirm a pending write proposal. gated on agent.write
+    (separate from agent.use — a read-only agent user hits 403 here
+    without losing chat access)."""
+    from app.services.agent_safety import execute_proposal
+    if not g.active_company:
+        return jsonify({"error": "لا توجد شركة نشطة"}), 400
+    result, status = execute_proposal(
+        pid, actor_user_id=current_user.id,
+        active_company_id=g.active_company.id)
+    return jsonify(result), status
+
+
+@bp.route("/proposal/<int:pid>/cancel", methods=["POST"])
+@login_required
+@require_permission("agent.use")
+def proposal_cancel(pid):
+    """Cancel a pending proposal. Same gate as chat itself — anyone
+    who can use the agent can cancel proposals they created."""
+    from app.services.agent_safety import cancel_proposal
+    if not g.active_company:
+        return jsonify({"error": "لا توجد شركة نشطة"}), 400
+    result, status = cancel_proposal(
+        pid, actor_user_id=current_user.id,
+        active_company_id=g.active_company.id)
+    return jsonify(result), status
 
 
 @bp.route("/clear", methods=["POST"])

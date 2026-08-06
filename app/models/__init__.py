@@ -166,6 +166,12 @@ from app.models.manufacturing import (
 )
 from app.models.invitation import Invitation
 from app.models.agent_chat import AgentMessage
+from app.models.agent_proposal import (
+    AgentProposal, AgentDailyWriteCount,
+    PROPOSAL_PENDING, PROPOSAL_EXECUTED,
+    PROPOSAL_CANCELLED, PROPOSAL_EXPIRED,
+    PROPOSAL_STATUSES,
+)
 from app.models.numbering import NumberSequence
 from app.models.platform_audit import PlatformAuditLog, SuperadminImpersonation, PlatformError
 from app.models.api_token import ApiToken
@@ -252,6 +258,10 @@ __all__ = [
     "WorkOrder", "WorkOrderStatus", "WorkOrderConsumption",
     "Invitation",
     "AgentMessage",
+    "AgentProposal", "AgentDailyWriteCount",
+    "PROPOSAL_PENDING", "PROPOSAL_EXECUTED",
+    "PROPOSAL_CANCELLED", "PROPOSAL_EXPIRED",
+    "PROPOSAL_STATUSES",
     "NumberSequence",
     "Product", "ProductGroup", "ProductCategory", "ProductUnit",
     "PaymentMethod",

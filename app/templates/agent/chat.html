@@ -72,6 +72,68 @@
 
 <script>
 function setMsg(t) { document.getElementById('msg-input').value = t; }
+// MARSOUD-AGENT-SAFETY-03 (2026-08-06) — build the confirm/cancel
+// card for a proposal. Amount + summary come from the server; the
+// confirm button POSTs to /agent/proposal/<id>/execute; cancel POSTs
+// to /agent/proposal/<id>/cancel. Buttons disable after click so a
+// double-click doesn't submit twice.
+function buildProposalCard(r) {
+  const wrap = document.createElement('div');
+  wrap.className = 'flex justify-start';
+  wrap.innerHTML = `
+    <div class="border border-amber-300 bg-amber-50 rounded-xl p-4 max-w-[85%] text-sm space-y-3" data-proposal-id="${r.proposal_id}">
+      <div class="font-semibold text-amber-900">⚠️ يحتاج تأكيدك قبل التنفيذ</div>
+      <div class="whitespace-pre-wrap text-slate-800">${escapeHtml(r.summary_ar || r.tool || '')}</div>
+      ${r.amount_readable ? `<div class="font-mono font-bold text-navy-900">${escapeHtml(r.amount_readable)}</div>` : ''}
+      <div class="flex gap-2 pt-1">
+        <button class="js-confirm px-3 py-1.5 rounded bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700">تأكيد ونفّذ</button>
+        <button class="js-cancel px-3 py-1.5 rounded bg-white border border-slate-300 text-slate-700 text-xs hover:bg-slate-50">إلغاء</button>
+        <span class="js-status text-xs text-slate-500 self-center"></span>
+      </div>
+    </div>
+  `;
+  const card = wrap.querySelector('[data-proposal-id]');
+  const pid = card.dataset.proposalId;
+  const status = card.querySelector('.js-status');
+
+  card.querySelector('.js-confirm').addEventListener('click', async () => {
+    disableCard(card);
+    status.textContent = 'جاري التنفيذ…';
+    try {
+      const res = await fetch(`/agent/proposal/${pid}/execute`, {method: 'POST'});
+      const data = await res.json();
+      if (data.ok) {
+        status.textContent = 'تم التنفيذ ✓';
+        status.className = 'js-status text-xs text-emerald-700 self-center font-semibold';
+      } else {
+        status.textContent = data.error || 'تعذّر التنفيذ';
+        status.className = 'js-status text-xs text-rose-600 self-center';
+        enableCancelOnly(card);
+      }
+    } catch (err) {
+      status.textContent = 'خطأ في الاتصال';
+      status.className = 'js-status text-xs text-rose-600 self-center';
+      enableCancelOnly(card);
+    }
+  });
+  card.querySelector('.js-cancel').addEventListener('click', async () => {
+    disableCard(card);
+    status.textContent = 'تم الإلغاء';
+    status.className = 'js-status text-xs text-slate-500 self-center';
+    try { await fetch(`/agent/proposal/${pid}/cancel`, {method: 'POST'}); } catch {}
+  });
+  return wrap;
+}
+function disableCard(card) {
+  card.querySelectorAll('button').forEach(b => b.disabled = true);
+  card.querySelectorAll('button').forEach(b => b.classList.add('opacity-50', 'cursor-not-allowed'));
+}
+function enableCancelOnly(card) {
+  const cancel = card.querySelector('.js-cancel');
+  cancel.disabled = false;
+  cancel.classList.remove('opacity-50', 'cursor-not-allowed');
+}
+
 async function sendMessage(e) {
   e.preventDefault();
   const input = document.getElementById('msg-input');
@@ -100,8 +162,19 @@ async function sendMessage(e) {
     } else {
       box.innerHTML += `<div class="flex justify-start"><div class="bg-white border border-slate-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">${escapeHtml(data.reply)}</div></div>`;
       if (data.tools && data.tools.length) {
-        const usedTools = data.tools.map(t => t.tool).join(', ');
-        box.innerHTML += `<div class="text-xs text-slate-400 px-2">🔧 استخدم: ${escapeHtml(usedTools)}</div>`;
+        // MARSOUD-AGENT-SAFETY-03 (2026-08-06) — every tool call
+        // trace becomes a card. Write tools that returned a
+        // {requires_confirmation, proposal_id} result render a
+        // confirm/cancel card; other tools render the "used: name"
+        // pill unchanged.
+        data.tools.forEach(t => {
+          const r = t.result || {};
+          if (r.requires_confirmation && r.proposal_id) {
+            box.appendChild(buildProposalCard(r));
+          } else {
+            box.innerHTML += `<div class="text-xs text-slate-400 px-2">🔧 استخدم: ${escapeHtml(t.tool)}</div>`;
+          }
+        });
       }
     }
   } catch (err) {

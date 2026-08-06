@@ -1614,19 +1614,41 @@ def ai_settings():
         # be used verbatim by the provider SDK.
         _set_setting_raw("accountant_provider", provider)
         _set_setting_raw("accountant_model", model or "")
+
+        # MARSOUD-AGENT-SAFETY-03 (2026-08-06) — two new knobs land on
+        # the same form: the confirmation toggle and the daily write
+        # cap. Silently skipped when the field is missing so an older
+        # POST (pre-T3) doesn't blow away a saved value.
+        conf_raw = request.form.get("agent_require_confirmation")
+        if conf_raw is not None:
+            _set_setting_raw("agent_require_confirmation",
+                              "true" if conf_raw == "on" else "false")
+        cap_raw = (request.form.get("agent_daily_write_cap")
+                    or "").strip()
+        if cap_raw.isdigit() and 0 <= int(cap_raw) <= 10_000:
+            _set_setting_raw("agent_daily_write_cap", str(int(cap_raw)))
+
         db.session.commit()
         log_platform_action(
             "ai_settings_update",
             actor_id=current_user.id,
-            details=f"accountant_provider={provider} model={model or '(default)'}")
+            details=(f"accountant_provider={provider} "
+                     f"model={model or '(default)'} "
+                     f"require_confirmation={conf_raw or 'unchanged'} "
+                     f"daily_cap={cap_raw or 'unchanged'}"))
         flash("تم حفظ إعدادات الذكاء الاصطناعي", "success")
         return redirect(url_for("superadmin.ai_settings"))
 
     provider, model = get_accountant_provider_and_model()
+    from app.services.agent_safety import (
+        require_confirmation_enabled, daily_write_cap,
+    )
     return render_template(
         "admin/ai_settings.html",
         current_provider=provider,
         current_model=model,
         providers=_ACCOUNTANT_PROVIDERS,
         provider_defaults=_ACCOUNTANT_DEFAULT_MODEL_BY_PROVIDER,
+        require_confirmation=require_confirmation_enabled(),
+        daily_write_cap=daily_write_cap(),
     )

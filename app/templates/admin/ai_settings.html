@@ -74,6 +74,43 @@
       لو الاختيار deepseek والمفتاح ناقص، أول محادثة هترجّع رسالة خطأ واضحة.
     </div>
 
+    {# ─── MARSOUD-AGENT-SAFETY-03 (2026-08-06): confirmation + cap ── #}
+    <div class="border-t border-slate-200 pt-5 mt-2">
+      <h3 class="font-bold text-navy-900 mb-3">🛡 أمان الكتابة</h3>
+
+      <label class="flex items-start gap-2 mb-4 cursor-pointer">
+        <input type="checkbox" name="agent_require_confirmation"
+               {% if require_confirmation %}checked{% endif %}
+               class="mt-1">
+        <span class="text-sm">
+          <span class="font-semibold text-slate-700">
+            تأكيد قبل تنفيذ أي عملية كتابة
+          </span>
+          <span class="block text-xs text-slate-500 mt-1">
+            لما مفعّل، أدوات الكتابة (إنشاء عميل / قيد / فاتورة / دفعة)
+            تعرض العملية على المستخدم أولاً بزراريّ تأكيد وإلغاء.
+            لو معطّل، الأدوات تنفّذ فوراً — مايتعطّلش إلا لو تعرف تحديداً
+            أنك محتاج الوضع القديم.
+          </span>
+        </span>
+      </label>
+
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">
+          سقف عمليات الكتابة اليومي لكل مستخدم
+        </label>
+        <input type="number" name="agent_daily_write_cap"
+               value="{{ daily_write_cap }}"
+               min="0" max="10000"
+               class="input font-mono w-32" dir="ltr">
+        <p class="text-xs text-slate-500 mt-1">
+          الحد الأقصى لعدد العمليات المكتوبة (create/…) اللي المستخدم
+          الواحد يقدر يعملها خلال يوم واحد بتوقيت الشركة.
+          <span class="font-mono">0</span> يعني بلا حد.
+        </p>
+      </div>
+    </div>
+
     <div class="flex gap-2">
       <button type="submit" class="btn btn-primary">حفظ</button>
       <a href="{{ url_for('superadmin.ai_usage') }}"

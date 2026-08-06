@@ -274,13 +274,41 @@ def _parse_date(s, default=None, company=None):
 
 
 def execute_tool(name, args, company_id, user_id):
-    """Dispatch a tool call. Returns a JSON-serializable result dict."""
-    # MARSOUD-AGENT-CONTEXT-01 (2026-08-06) — resolve the Company ONCE
-    # at the top so every date default below uses the tenant's local
-    # timezone instead of server-UTC. Falling back to None (which
-    # produces server-today) preserves behaviour for the edge case of
-    # a tool call with company_id=0/None.
+    """Dispatch a tool call. Returns a JSON-serializable result dict.
+
+    MARSOUD-AGENT-CONTEXT-01 (2026-08-06) — resolve the Company ONCE
+    at the top so every date default below uses the tenant's local
+    timezone instead of server-UTC. Falling back to None (which
+    produces server-today) preserves behaviour for the edge case of
+    a tool call with company_id=0/None.
+
+    MARSOUD-AGENT-SAFETY-03 (2026-08-06) — WRITE tools (create_customer,
+    create_journal_entry, create_invoice, record_payment) return a
+    PROPOSAL by default; the actual write happens when the user
+    confirms via /agent/proposal/<id>/execute, which re-invokes this
+    function with args["_confirmed_proposal_id"] set. The propose-vs-
+    execute branch is entered at the top of each write tool's block.
+    Read tools bypass the check entirely and run instantly. The
+    require_confirmation super-admin toggle can disable the propose
+    path for tenants who want the old behaviour.
+    """
     company = db.session.get(Company, company_id) if company_id else None
+
+    # MARSOUD-AGENT-SAFETY-03 — proposal short-circuit. Only for WRITE
+    # tools, only when confirmation is on, only when the caller did
+    # not already pass the confirmed-proposal marker.
+    from app.services.agent_safety import (
+        WRITE_TOOL_NAMES, require_confirmation_enabled,
+        create_proposal, summarize_write_call,
+    )
+    if (name in WRITE_TOOL_NAMES
+            and require_confirmation_enabled()
+            and not args.get("_confirmed_proposal_id")):
+        summary, amount = summarize_write_call(name, args, company)
+        return create_proposal(
+            tool_name=name, args=args,
+            company_id=company_id, user_id=user_id,
+            summary_ar=summary, amount_readable=amount)
     try:
         if name == "list_accounts":
             q = Account.query.filter_by(company_id=company_id, is_active=True)
@@ -342,6 +370,18 @@ def execute_tool(name, args, company_id, user_id):
             # (Python's scoping quirk), which UnboundLocalError'd on
             # the new hoisted resolve. Removed.
             from app.routes.invoices import _next_number
+
+            # MARSOUD-AGENT-SAFETY-03 (2026-08-06) — validate the
+            # customer belongs to THIS company. The pre-ticket code
+            # used args["customer_id"] verbatim, which was the exact
+            # cross-tenant hole other tools (create_customer,
+            # record_payment) already guarded against. The prompt
+            # cannot be trusted to only pass same-tenant IDs; the
+            # model has visibility of numbers from earlier turns.
+            cust = db.session.get(Customer, args.get("customer_id"))
+            if not cust or cust.company_id != company_id:
+                return {"error": "العميل غير موجود في هذه الشركة"}
+
             due_days = args.get("due_days", 30)
             # MARSOUD-INVOICE-TAX-ZERO (Batch 9 Ticket 1, 2026-08-01)
             # — respect a saved vat_rate of 0 (falsy in Python's
@@ -353,7 +393,7 @@ def execute_tool(name, args, company_id, user_id):
             invoice = Invoice(
                 company_id=company_id,
                 number=_next_number(company_id),
-                customer_id=args["customer_id"],
+                customer_id=cust.id,
                 issue_date=_today(company),
                 due_date=_today(company) + timedelta(days=due_days),
                 currency=company.base_currency,

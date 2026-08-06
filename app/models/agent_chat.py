@@ -15,4 +15,13 @@ class AgentMessage(db.Model):
     # backfilled to "accountant" by the migration.
     agent_type = db.Column(db.String(20), nullable=False,
                             default="accountant", index=True)
+    # MARSOUD-AGENT-SAFETY-03 (2026-08-06) — JSON list of tool calls
+    # this assistant message emitted. Each entry:
+    #   {"tool": name, "input": {...}, "result": {...}}
+    # Null on user messages and on legacy assistant messages
+    # written before this ticket. The chat log used to store only
+    # the assistant's final text, which meant company-37's mystery
+    # was unreproducible: "what did the agent actually do?" had no
+    # answer. It does now.
+    tool_trace = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)

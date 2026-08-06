@@ -148,6 +148,12 @@ P = {
     "assets.manage":        {"owner", "admin", "accountant"},
 
     "agent.use":            {"owner", "admin", "accountant"},   # agent can post journals → not viewer
+    # MARSOUD-AGENT-SAFETY-03 (2026-08-06) — separated from agent.use
+    # so a company can grant "read-only agent access" to a wider group
+    # (add them to agent.use only). Default identical to agent.use so
+    # no behaviour change for existing tenants; the split becomes
+    # meaningful when someone edits the roles.
+    "agent.write":          {"owner", "admin", "accountant"},
     # MARSOUD-INSIGHTS-AGENT-01 (Batch 9 Ticket 6, 2026-08-01)
     # — read-only analyst agent. Broader default than agent.use
     # because it can't post journals; owner can still restrict

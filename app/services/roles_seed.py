@@ -95,6 +95,13 @@ PERMISSION_CATALOG = {
     "company.edit":         ("النظام", "إعدادات الشركة", "edit"),
     "company.create":       ("النظام", "إنشاء شركة جديدة", "add"),
     "agent.use":            ("النظام", "المحاسب الذكي (AI)", "run"),
+    # MARSOUD-AGENT-SAFETY-03 (2026-08-06) — separate grant so a
+    # company can give a staff member READ-ONLY agent access
+    # (agent.use without agent.write). Without this catalog entry the
+    # DB-backed permission check returns False for owner/admin/
+    # accountant on the .write action, blocking the proposal-execute
+    # route even though the legacy P-dict grants it.
+    "agent.write":          ("النظام", "المحاسب الذكي — كتابة", "run"),
     "insights.use":         ("النظام", "المحلل الذكي (تحليلات وقراءة)", "run"),
 
     # ─── MARSOUD-PERM-EXPAND — new sidebar items (per-endpoint) ─────────
