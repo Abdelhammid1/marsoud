@@ -1628,6 +1628,16 @@ def ai_settings():
         if cap_raw.isdigit() and 0 <= int(cap_raw) <= 10_000:
             _set_setting_raw("agent_daily_write_cap", str(int(cap_raw)))
 
+        # MARSOUD-AGENT-MEMORY-05 (2026-08-06) — retention days for
+        # agent conversations. 0 means never expire (deliberate
+        # non-destructive default when the field is fat-fingered).
+        ret_raw = (request.form.get(
+            "agent_conversation_retention_days") or "").strip()
+        if ret_raw.isdigit() and 0 <= int(ret_raw) <= 3650:
+            _set_setting_raw(
+                "agent_conversation_retention_days",
+                str(int(ret_raw)))
+
         db.session.commit()
         log_platform_action(
             "ai_settings_update",
@@ -1643,6 +1653,7 @@ def ai_settings():
     from app.services.agent_safety import (
         require_confirmation_enabled, daily_write_cap,
     )
+    from app.services.agent_conversations import retention_days
     return render_template(
         "admin/ai_settings.html",
         current_provider=provider,
@@ -1651,4 +1662,5 @@ def ai_settings():
         provider_defaults=_ACCOUNTANT_DEFAULT_MODEL_BY_PROVIDER,
         require_confirmation=require_confirmation_enabled(),
         daily_write_cap=daily_write_cap(),
+        conversation_retention_days=retention_days(),
     )

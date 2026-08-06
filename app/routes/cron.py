@@ -266,4 +266,19 @@ def tick():
             "metric awarding failed: %s", e)
         summary["metric_entries"] = {"error": str(e)[:200]}
 
+    # MARSOUD-AGENT-MEMORY-05 (2026-08-06) — hard-delete conversations
+    # older than the PlatformSetting retention window (default 90;
+    # 0 = never expire). Cheap read + one bulk delete per company,
+    # runs on every tick — the cutoff advances by seconds per tick,
+    # not per hour, so idempotency is automatic (nothing to delete
+    # on the second pass).
+    try:
+        from app.services.agent_conversations import expire_old_conversations
+        summary["agent_conversation_expiry"] = expire_old_conversations()
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception(
+            "agent conversation expiry failed: %s", e)
+        summary["agent_conversation_expiry"] = {"error": str(e)[:200]}
+
     return jsonify(summary)

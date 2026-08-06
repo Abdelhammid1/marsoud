@@ -166,6 +166,7 @@ from app.models.manufacturing import (
 )
 from app.models.invitation import Invitation
 from app.models.agent_chat import AgentMessage
+from app.models.agent_conversation import AgentConversation
 from app.models.agent_proposal import (
     AgentProposal, AgentDailyWriteCount,
     PROPOSAL_PENDING, PROPOSAL_EXECUTED,
@@ -258,6 +259,7 @@ __all__ = [
     "WorkOrder", "WorkOrderStatus", "WorkOrderConsumption",
     "Invitation",
     "AgentMessage",
+    "AgentConversation",
     "AgentProposal", "AgentDailyWriteCount",
     "PROPOSAL_PENDING", "PROPOSAL_EXECUTED",
     "PROPOSAL_CANCELLED", "PROPOSAL_EXPIRED",

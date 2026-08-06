@@ -109,6 +109,25 @@
           <span class="font-mono">0</span> يعني بلا حد.
         </p>
       </div>
+
+      {# MARSOUD-AGENT-MEMORY-05 (2026-08-06) — retention days for
+         auto-delete of old agent conversations. Non-destructive
+         default (0 = never expire) is deliberate. #}
+      <div class="mt-4">
+        <label class="block text-sm font-semibold text-slate-700 mb-1">
+          مدة الاحتفاظ بمحادثات المحاسب الذكي (بالأيام)
+        </label>
+        <input type="number" name="agent_conversation_retention_days"
+               value="{{ conversation_retention_days }}"
+               min="0" max="3650"
+               class="input font-mono w-32" dir="ltr">
+        <p class="text-xs text-slate-500 mt-1">
+          المحادثات الأقدم من ده تتحذف تلقائياً من الـ cron اليومي مع كل رسائلها.
+          <span class="font-mono">0</span> يعني بلا حذف.
+          الافتراضي <span class="font-mono">90</span> يوم — كافي لمراجعة ربع سنة،
+          ويقصر ذيل الأرشيف للتينانتات المهجورة.
+        </p>
+      </div>
     </div>
 
     <div class="flex gap-2">

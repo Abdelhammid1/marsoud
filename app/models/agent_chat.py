@@ -24,4 +24,13 @@ class AgentMessage(db.Model):
     # was unreproducible: "what did the agent actually do?" had no
     # answer. It does now.
     tool_trace = db.Column(db.Text, nullable=True)
+    # MARSOUD-AGENT-MEMORY-05 (2026-08-06) — the conversation this
+    # message belongs to. Nullable in the schema so the migration
+    # can add the column before the backfill runs; the backfill
+    # then fills every legacy row with its (company, user,
+    # agent_type)-bucketed AgentConversation. Every new message
+    # written after this ticket has a non-null value.
+    conversation_id = db.Column(
+        db.Integer, db.ForeignKey("agent_conversations.id"),
+        nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)

@@ -1,18 +1,33 @@
-from flask import Blueprint, render_template, request, jsonify, g
+from flask import Blueprint, render_template, request, jsonify, g, abort
 from flask_login import login_required, current_user
 from app import db
-from app.models import AgentMessage
+from app.models import AgentMessage, AgentConversation
 from app.agent.accountant import run_agent
 from app.services.permissions import require_permission
 
 bp = Blueprint("agent", __name__)
 
 
-# ─── Shared history loader (agent_type aware) ─────────────────
-def _load_history(company_id, user_id, agent_type, limit=20):
-    """MARSOUD-INSIGHTS-AGENT-01 (Batch 9 Ticket 6, 2026-08-01)
-    — filter by agent_type so the accountant and insights
-    conversations never mix."""
+# ─── MARSOUD-AGENT-MEMORY-05 (2026-08-06) — history loading ────
+# Every load now scopes to a SPECIFIC conversation, not the last N
+# messages per user. This is the load-bearing fix — a two-month-old
+# topic can no longer bleed into today's turn because it's in a
+# different conversation. The legacy "last 20 per user" function is
+# gone; if anything else in this codebase relied on it, it needs to
+# resolve a conversation first.
+def _load_conversation_history(conversation_id, limit=40):
+    q = AgentMessage.query.filter_by(
+        conversation_id=conversation_id,
+    ).order_by(AgentMessage.created_at.desc()).limit(limit)
+    rows = list(q)
+    rows.reverse()
+    return rows
+
+
+def _load_history_legacy(company_id, user_id, agent_type, limit=20):
+    """Legacy shape kept for the insights route only — insights hasn't
+    been migrated to conversations yet (deferred per T5's Not-Included
+    section). Delete when insights adopts the sidebar."""
     q = AgentMessage.query.filter_by(
         company_id=company_id, user_id=user_id,
         agent_type=agent_type,
@@ -22,15 +37,33 @@ def _load_history(company_id, user_id, agent_type, limit=20):
     return rows
 
 
+def _load_history(company_id, user_id, agent_type, limit=20):
+    """Backwards-compat wrapper for callers that still expect the
+    pre-T5 shape (the insights route). New code uses
+    _load_conversation_history."""
+    return _load_history_legacy(company_id, user_id, agent_type, limit)
+
+
 # ─── Accountant (existing) ─────────────────────────────────────
 @bp.route("/")
 @login_required
 def index():
-    history = _load_history(
-        g.active_company.id, current_user.id,
-        "accountant", limit=40,
+    """Accountant chat page. Loads the user's most recent open
+    conversation as the initial view; the sidebar lists the rest."""
+    from app.services.agent_conversations import (
+        get_or_create_current_conversation, list_conversations_for,
     )
-    return render_template("agent/chat.html", history=history)
+    conv = get_or_create_current_conversation(
+        current_user.id, g.active_company.id, "accountant")
+    history = _load_conversation_history(conv.id, limit=40)
+    conversations = list_conversations_for(
+        current_user.id, g.active_company.id, "accountant")
+    return render_template(
+        "agent/chat.html",
+        history=history,
+        conversations=conversations,
+        active_conversation_id=conv.id,
+    )
 
 
 @bp.route("/chat", methods=["POST"])
@@ -43,15 +76,38 @@ def chat():
     if not g.active_company:
         return jsonify({"error": "لا توجد شركة نشطة"}), 400
 
-    # Persist user message (agent_type='accountant' via column default).
+    # MARSOUD-AGENT-MEMORY-05 (2026-08-06) — resolve the conversation
+    # first. The client sends conversation_id when it has one; the
+    # first turn (or a stale client) sends nothing and we
+    # get-or-create the current one. Cross-user + cross-tenant
+    # verified here before anything else touches the row.
+    from app.services.agent_conversations import (
+        get_or_create_current_conversation, touch_conversation,
+    )
+    cid_from_body = (request.json or {}).get("conversation_id")
+    conv = None
+    if cid_from_body:
+        conv = db.session.get(AgentConversation, int(cid_from_body))
+        if (not conv
+                or conv.user_id != current_user.id
+                or conv.company_id != g.active_company.id
+                or conv.agent_type != "accountant"
+                or conv.is_archived):
+            return jsonify({"error": "المحادثة غير موجودة"}), 404
+    if conv is None:
+        conv = get_or_create_current_conversation(
+            current_user.id, g.active_company.id, "accountant")
+
+    # Persist user message with conversation_id.
     db.session.add(AgentMessage(
         company_id=g.active_company.id, user_id=current_user.id,
         role="user", content=user_msg, agent_type="accountant",
+        conversation_id=conv.id,
     ))
     db.session.commit()
+    touch_conversation(conv, first_user_text=user_msg)
 
-    history = _load_history(
-        g.active_company.id, current_user.id, "accountant")
+    history = _load_conversation_history(conv.id, limit=40)
 
     messages = [{"role": m.role, "content": m.content}
                 for m in history if m.role in ("user", "assistant")]
@@ -81,13 +137,99 @@ def chat():
             company_id=g.active_company.id, user_id=current_user.id,
             role="assistant", content=reply,
             agent_type="accountant",
+            conversation_id=conv.id,
             tool_trace=_json.dumps(
                 tool_trace or [], ensure_ascii=False, default=str),
         ))
         db.session.commit()
-        return jsonify({"reply": reply, "tools": tool_trace})
+        touch_conversation(conv)
+        return jsonify({
+            "reply": reply,
+            "tools": tool_trace,
+            "conversation_id": conv.id,
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ─── MARSOUD-AGENT-MEMORY-05 (2026-08-06) — conversation endpoints ───
+def _resolve_own_conversation(conv_id):
+    """Fetch a conversation but ONLY if it belongs to the current
+    user + active company + accountant agent_type. Returns the row
+    or aborts 404. Same isolation shape AgentMessage would refuse."""
+    c = db.session.get(AgentConversation, conv_id)
+    if (not c
+            or c.user_id != current_user.id
+            or c.company_id != g.active_company.id
+            or c.agent_type != "accountant"):
+        abort(404)
+    return c
+
+
+@bp.route("/conversations", methods=["GET"])
+@login_required
+@require_permission("agent.use")
+def conversations_list():
+    from app.services.agent_conversations import list_conversations_for
+    convs = list_conversations_for(
+        current_user.id, g.active_company.id, "accountant")
+    return jsonify({
+        "conversations": [
+            {"id": c.id,
+             "title": c.title or "محادثة جديدة",
+             "last_message_at": c.last_message_at.isoformat()
+             if c.last_message_at else None,
+             "created_at": c.created_at.isoformat()
+             if c.created_at else None}
+            for c in convs
+        ],
+    })
+
+
+@bp.route("/conversations/new", methods=["POST"])
+@login_required
+@require_permission("agent.use")
+def conversations_new():
+    from app.services.agent_conversations import create_conversation
+    if not g.active_company:
+        return jsonify({"error": "لا توجد شركة نشطة"}), 400
+    conv = create_conversation(
+        current_user.id, g.active_company.id, "accountant")
+    return jsonify({"id": conv.id, "title": conv.title or "محادثة جديدة"})
+
+
+@bp.route("/conversations/<int:conv_id>/messages", methods=["GET"])
+@login_required
+@require_permission("agent.use")
+def conversations_messages(conv_id):
+    conv = _resolve_own_conversation(conv_id)
+    msgs = _load_conversation_history(conv.id, limit=200)
+    import json as _json
+    return jsonify({
+        "id": conv.id,
+        "title": conv.title or "محادثة جديدة",
+        "messages": [
+            {"role": m.role, "content": m.content,
+             "tool_trace": _json.loads(m.tool_trace)
+             if m.tool_trace else None,
+             "created_at": m.created_at.isoformat()
+             if m.created_at else None}
+            for m in msgs
+        ],
+    })
+
+
+@bp.route("/conversations/<int:conv_id>", methods=["DELETE"])
+@login_required
+@require_permission("agent.use")
+def conversations_delete(conv_id):
+    """Soft-delete — mark archived. Retention cron hard-deletes
+    later. Two-step so a future 'restore archive' feature is
+    reachable without changing the delete path."""
+    from app.services.agent_conversations import archive_conversation
+    conv = _resolve_own_conversation(conv_id)
+    archive_conversation(conv)
+    return jsonify({"ok": True, "id": conv.id, "archived": True})
 
 
 # ─── MARSOUD-AGENT-SAFETY-03 (2026-08-06) — proposal execute/cancel ───
@@ -126,12 +268,21 @@ def proposal_cancel(pid):
 @login_required
 @require_permission("agent.use")
 def clear():
-    AgentMessage.query.filter_by(
-        company_id=g.active_company.id, user_id=current_user.id,
-        agent_type="accountant",
-    ).delete()
-    db.session.commit()
-    return jsonify({"ok": True})
+    """MARSOUD-AGENT-MEMORY-05 (2026-08-06) — reinterpreted.
+    Pre-T5 this deleted every message the user had ever sent to
+    the accountant. That is a nuclear button; the ticket asked for
+    a "new conversation" button instead — archive the current
+    conversation so it drops off the sidebar and the next message
+    lands in a fresh one. The archive-sweep cron eventually
+    hard-deletes; the user's history is preserved until then and
+    the sidebar shows every non-archived chat."""
+    from app.services.agent_conversations import (
+        get_or_create_current_conversation, archive_conversation,
+    )
+    conv = get_or_create_current_conversation(
+        current_user.id, g.active_company.id, "accountant")
+    archive_conversation(conv)
+    return jsonify({"ok": True, "archived_conversation_id": conv.id})
 
 
 # ─── Insights (new, DeepSeek) ──────────────────────────────────
