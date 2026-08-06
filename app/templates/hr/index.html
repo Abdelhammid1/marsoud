@@ -20,9 +20,19 @@
   </div>
   <div class="card p-5">
     <div class="text-xs text-slate-500 mb-1">الحضور</div>
-    <a href="{{ url_for('hr.attendance') }}" class="text-xs text-brand-600 hover:underline mt-2 inline-block">سجل الاستثناءات ←</a>
+    <div class="flex flex-col gap-1 mt-2">
+      <a href="{{ url_for('hr.attendance') }}" class="text-xs text-brand-600 hover:underline">سجل الاستثناءات ←</a>
+      <a href="{{ url_for('hr.attendance_policies') }}" class="text-xs text-brand-600 hover:underline">سياسات الحضور ←</a>
+      <a href="{{ url_for('hr.permission_requests') }}" class="text-xs text-brand-600 hover:underline">طلبات الاستئذان ←</a>
+    </div>
     <div class="mt-1">
       <a href="{{ url_for('payroll.new_employee') }}" class="btn-primary inline-block mt-2 text-xs">+ موظف</a>
+    </div>
+  </div>
+  <div class="card p-5">
+    <div class="text-xs text-slate-500 mb-1">المخالفات</div>
+    <div class="flex flex-col gap-1 mt-2">
+      <a href="{{ url_for('hr.violation_policies') }}" class="text-xs text-brand-600 hover:underline">سياسات المخالفات ←</a>
     </div>
   </div>
   {% if has_permission('advances.manage') %}
