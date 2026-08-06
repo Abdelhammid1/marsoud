@@ -151,16 +151,50 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "run_report",
-        "description": "شغّل تقرير مالي.",
+        # MARSOUD-AGENT-TOOLS-04 (2026-08-06) — enum expanded from 5
+        # to 12 report types. Every report function in
+        # services/reports.py is now callable. Each option's
+        # description names WHAT the report shows so the agent
+        # picks the right one — the model does not read our source
+        # code, so a bare enum value is useless without an Arabic
+        # sentence explaining it.
+        "description": (
+            "شغّل تقرير مالي جاهز. اختر النوع المناسب حسب سؤال المستخدم. "
+            "الأنواع المتاحة:\n"
+            "· balance_sheet — الميزانية العمومية (الأصول والخصوم وحقوق الملكية) لحظة زمنية\n"
+            "· income_statement — قائمة الدخل (الإيرادات مطروحاً منها المصروفات) لفترة\n"
+            "· income_statement_compared — قائمة دخل مقارنة بالفترة السابقة\n"
+            "· cash_flow — التدفقات النقدية (تشغيل / استثمار / تمويل)\n"
+            "· income_summary — ملخص الإيرادات مصنّفة بالحسابات\n"
+            "· expenses_summary — ملخص المصروفات مصنّفة بالحسابات\n"
+            "· vat — تقرير ضريبة القيمة المضافة: مخرجات، مدخلات، صافي المستحق\n"
+            "· ap_aging — أعمار الديون المستحقة للموردين\n"
+            "· ar_aging — أعمار الديون المستحقة على العملاء\n"
+            "· payroll_summary — ملخص الرواتب لشهر معيّن (يحتاج year + month)\n"
+            "· fixed_assets — الأصول الثابتة، القيمة الدفترية، والإهلاك المتراكم\n"
+            "· dashboard — لوحة معلومات الشركة (أرقام سريعة)"
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
                 "type": {
                     "type": "string",
-                    "enum": ["balance_sheet", "income_statement", "cash_flow", "aging", "dashboard"],
+                    "enum": [
+                        "balance_sheet", "income_statement",
+                        "income_statement_compared", "cash_flow",
+                        "income_summary", "expenses_summary",
+                        "vat", "ap_aging", "ar_aging",
+                        "payroll_summary", "fixed_assets", "dashboard",
+                    ],
                 },
-                "start_date": {"type": "string", "description": "YYYY-MM-DD"},
-                "end_date": {"type": "string", "description": "YYYY-MM-DD (افتراضي اليوم)"},
+                "start_date": {"type": "string",
+                               "description": "YYYY-MM-DD (افتراضي بداية الشهر)"},
+                "end_date": {"type": "string",
+                             "description": "YYYY-MM-DD (افتراضي اليوم)"},
+                "year": {"type": "integer",
+                         "description": "للـ payroll_summary فقط"},
+                "month": {"type": "integer",
+                          "description": "للـ payroll_summary فقط (1-12)"},
             },
             "required": ["type"],
         },
@@ -254,6 +288,138 @@ TOOL_SCHEMAS = [
                 "limit": {"type": "integer", "description": "افتراضي 20"},
             },
             "required": ["query"],
+        },
+    },
+
+    # ─── MARSOUD-AGENT-TOOLS-04 (2026-08-06) — Phase 2 read tools ───
+    {
+        "name": "get_journal_entry",
+        "description": (
+            "اعرض قيداً محاسبياً كاملاً بأطرافه وحساباته وقيم المدين والدائن. "
+            "يقبل رقم القيد (number) أو المعرّف الرقمي (entry_id)."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "number": {"type": "string",
+                           "description": "رقم القيد كما يظهر في الشاشة"},
+                "entry_id": {"type": "integer",
+                             "description": "معرّف القيد في قاعدة البيانات"},
+            },
+        },
+    },
+    {
+        "name": "search_journals",
+        "description": (
+            "ابحث في القيود اليومية بفترة أو نص أو حساب. "
+            "مفيد للأسئلة زي «القيود اللي فيها 'إيجار' الشهر ده» "
+            "أو «كل القيود بين تاريخين»."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "start_date": {"type": "string",
+                                "description": "YYYY-MM-DD (افتراضي بداية الشهر)"},
+                "end_date": {"type": "string",
+                              "description": "YYYY-MM-DD (افتراضي اليوم)"},
+                "text": {"type": "string",
+                          "description": "نص في الوصف أو المرجع"},
+                "account_code": {"type": "string",
+                                  "description": "كود حساب — يرجع القيود اللي فيها هذا الحساب"},
+                "limit": {"type": "integer",
+                           "description": "افتراضي 20"},
+            },
+        },
+    },
+    {
+        "name": "party_statement",
+        "description": (
+            "كشف حساب طرف (عميل أو مورد) لفترة زمنية — يعرض كل الحركات "
+            "الدائنة والمدينة على حساب هذا الطرف."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "kind": {"type": "string", "enum": ["customer", "vendor"]},
+                "party_id": {"type": "integer"},
+                "start_date": {"type": "string"},
+                "end_date": {"type": "string"},
+            },
+            "required": ["kind", "party_id"],
+        },
+    },
+    {
+        "name": "list_vendors",
+        "description": "اعرض الموردين النشطين في الشركة مع أرصدتهم المستحقة.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "search": {"type": "string",
+                            "description": "نص للبحث في اسم المورد (اختياري)"},
+            },
+        },
+    },
+
+    # ─── Phase 3 — read-only modules ───
+    {
+        "name": "list_vendor_bills",
+        "description": (
+            "اعرض فواتير الموردين خلال فترة، مع الإجمالي والمتبقّي. "
+            "تستبعد تلقائياً المسودات والملغاة والمعدومة (مثل list_invoices)."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "start_date": {"type": "string"},
+                "end_date": {"type": "string"},
+                "status": {"type": "string",
+                            "description": "POSTED / PAID / PARTIALLY_PAID / OVERDUE / DRAFT / CANCELLED"},
+                "vendor_id": {"type": "integer"},
+                "limit": {"type": "integer", "description": "افتراضي 20"},
+                "include_all_statuses": {"type": "boolean"},
+            },
+        },
+    },
+    {
+        "name": "get_vendor_bill",
+        "description": "اعرض فاتورة مورد كاملة ببنودها ودفعاتها. يقبل bill_id أو number.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "bill_id": {"type": "integer"},
+                "number": {"type": "string"},
+            },
+        },
+    },
+    {
+        "name": "list_payroll_runs",
+        "description": "اعرض كشوف الرواتب للشركة، مع إمكانية الفلترة بسنة و/أو شهر.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "year": {"type": "integer"},
+                "month": {"type": "integer",
+                          "description": "1-12 (اختياري)"},
+                "limit": {"type": "integer", "description": "افتراضي 20"},
+            },
+        },
+    },
+    {
+        "name": "list_employee_advances",
+        "description": (
+            "السلف المفتوحة (المستحقة) على الموظفين مع المتبقّي على كل واحد. "
+            "بالافتراضي ترجع السلف النشطة فقط؛ يمكن تمرير status لعرض المسدَّدة أو الملغاة."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "status": {"type": "string",
+                            "description": "ACTIVE (افتراضي) / SETTLED / CANCELLED"},
+            },
+        },
+    },
+    {
+        "name": "list_fixed_assets",
+        "description": (
+            "اعرض الأصول الثابتة للشركة مع القيمة الدفترية والإهلاك المتراكم."),
+        "input_schema": {
+            "type": "object",
+            "properties": {},
         },
     },
 ]
@@ -519,6 +685,15 @@ def execute_tool(name, args, company_id, user_id):
             }
 
         if name == "run_report":
+            # MARSOUD-AGENT-TOOLS-04 (2026-08-06) — dispatch expanded
+            # to the full report catalog in services/reports.py.
+            # Every branch below is a one-line delegation; no new
+            # accounting logic in the agent layer.
+            from app.services.reports import (
+                vat_report, expenses_summary, income_summary,
+                income_statement_compared, ap_aging_report,
+                payroll_summary_report, fixed_assets_report,
+            )
             rtype = args["type"]
             start = _parse_date(args.get("start_date"),
                                 _today(company).replace(day=1))
@@ -527,12 +702,37 @@ def execute_tool(name, args, company_id, user_id):
                 return balance_sheet(company_id, as_of=end)
             if rtype == "income_statement":
                 return income_statement(company_id, start_date=start, end_date=end)
+            if rtype == "income_statement_compared":
+                return income_statement_compared(
+                    company_id, start_date=start, end_date=end)
             if rtype == "cash_flow":
                 return cash_flow(company_id, start_date=start, end_date=end)
-            if rtype == "aging":
+            if rtype == "income_summary":
+                return income_summary(
+                    company_id, start_date=start, end_date=end)
+            if rtype == "expenses_summary":
+                return expenses_summary(
+                    company_id, start_date=start, end_date=end)
+            if rtype == "vat":
+                return vat_report(
+                    company_id, start_date=start, end_date=end)
+            if rtype == "ap_aging":
+                return ap_aging_report(company_id, as_of=end)
+            if rtype in ("aging", "ar_aging"):
+                # Keep the legacy "aging" alias so old messages in
+                # a running chat don't break; new callers should
+                # use "ar_aging" for symmetry with "ap_aging".
                 return aging_report(company_id, as_of=end)
+            if rtype == "payroll_summary":
+                yr = args.get("year") or _today(company).year
+                mo = args.get("month") or _today(company).month
+                return payroll_summary_report(
+                    company_id, year=int(yr), month=int(mo))
+            if rtype == "fixed_assets":
+                return fixed_assets_report(company_id)
             if rtype == "dashboard":
                 return dashboard_metrics(company_id)
+            return {"error": f"نوع تقرير غير معروف: {rtype}"}
 
         if name == "explain_concept":
             # The agent itself does the explaining; this just confirms which concept.
@@ -812,6 +1012,325 @@ def execute_tool(name, args, company_id, user_id):
                 "from": start.isoformat(), "to": end.isoformat(),
                 "items": top,
             }
+
+        # ─── MARSOUD-AGENT-TOOLS-04 (2026-08-06) — Phase 2 read tools ───
+
+        if name == "get_journal_entry":
+            # Look up by number OR entry_id. Cross-tenant guard: after
+            # loading the entry, verify company_id matches. Same
+            # shape record_payment already uses on its invoice arg.
+            entry = None
+            num = (args.get("number") or "").strip()
+            if num:
+                entry = JournalEntry.query.filter_by(
+                    company_id=company_id, number=num).first()
+            elif args.get("entry_id"):
+                entry = db.session.get(JournalEntry, args["entry_id"])
+                if entry and entry.company_id != company_id:
+                    entry = None
+            if entry is None:
+                return {"error": "القيد غير موجود في هذه الشركة"}
+            # Account is already at module level — importing it
+            # locally would shadow it into a function-scope name and
+            # UnboundLocalError anywhere the module-level Account is
+            # referenced later in execute_tool (Python scoping trap
+            # from T1's fix). Only bring in JournalLine.
+            from app.models import JournalLine
+            lines = JournalLine.query.filter_by(entry_id=entry.id).all()
+            return {
+                "entry_id": entry.id,
+                "number": entry.number,
+                "date": str(entry.date),
+                "description": entry.description,
+                "reference": entry.reference,
+                "is_reversal": bool(entry.is_reversal),
+                "reversal_of": entry.reversal_of,
+                "total_debit": round(
+                    sum(float(l.debit or 0) for l in lines), 2),
+                "total_credit": round(
+                    sum(float(l.credit or 0) for l in lines), 2),
+                "lines": [
+                    {
+                        "account_code": (db.session.get(
+                            Account, l.account_id).code
+                            if l.account_id else None),
+                        "account_name_ar": (db.session.get(
+                            Account, l.account_id).name_ar
+                            if l.account_id else None),
+                        "debit": float(l.debit or 0),
+                        "credit": float(l.credit or 0),
+                        "memo": l.memo,
+                    } for l in lines
+                ],
+            }
+
+        if name == "search_journals":
+            # Account is already at module level — importing it
+            # locally would shadow it into a function-scope name and
+            # UnboundLocalError anywhere the module-level Account is
+            # referenced later in execute_tool (Python scoping trap
+            # from T1's fix). Only bring in JournalLine.
+            from app.models import JournalLine
+            start = _parse_date(args.get("start_date"),
+                                _today(company).replace(day=1))
+            end = _parse_date(args.get("end_date"), _today(company))
+            limit = int(args.get("limit") or 20)
+            q = JournalEntry.query.filter(
+                JournalEntry.company_id == company_id,
+                JournalEntry.date >= start,
+                JournalEntry.date <= end,
+            )
+            text = (args.get("text") or "").strip()
+            if text:
+                like = f"%{text}%"
+                q = q.filter(db.or_(
+                    JournalEntry.description.ilike(like),
+                    JournalEntry.reference.ilike(like)))
+            code = (args.get("account_code") or "").strip()
+            if code:
+                acc = Account.query.filter_by(
+                    company_id=company_id, code=code).first()
+                if not acc:
+                    return {"error": f"لا يوجد حساب بالكود {code}"}
+                entry_ids = [r[0] for r in db.session.query(
+                    JournalLine.entry_id).filter(
+                    JournalLine.account_id == acc.id).distinct()]
+                q = q.filter(JournalEntry.id.in_(entry_ids))
+            entries = q.order_by(
+                JournalEntry.date.desc(), JournalEntry.id.desc()
+            ).limit(limit).all()
+            return {
+                "count": len(entries),
+                "start_date": str(start), "end_date": str(end),
+                "entries": [
+                    {"entry_id": e.id, "number": e.number,
+                     "date": str(e.date),
+                     "description": e.description,
+                     "reference": e.reference}
+                    for e in entries
+                ],
+            }
+
+        if name == "party_statement":
+            from app.services.party_ledger import party_ledger
+            kind_str = (args.get("kind") or "").lower()
+            # Cross-tenant guard: verify the party belongs to THIS
+            # company before we hand its id to party_ledger.
+            # party_ledger has its own cross-tenant check that raises
+            # ValueError, but we prefer to return a specific Arabic
+            # error dict instead of letting a ValueError bubble.
+            if kind_str == "customer":
+                p = db.session.get(Customer, args.get("party_id"))
+                if not p or p.company_id != company_id:
+                    return {"error": "العميل غير موجود في هذه الشركة"}
+            elif kind_str == "vendor":
+                p = db.session.get(Vendor, args.get("party_id"))
+                if not p or p.company_id != company_id:
+                    return {"error": "المورد غير موجود في هذه الشركة"}
+            else:
+                return {"error": "kind لازم يكون customer أو vendor"}
+            start = _parse_date(args.get("start_date"),
+                                _today(company).replace(day=1))
+            end = _parse_date(args.get("end_date"), _today(company))
+            # party_ledger takes kind as a lowercase string
+            # ("customer" / "vendor") — see _KIND_MAP in
+            # services/party_ledger.py.
+            result = party_ledger(company_id, kind_str,
+                                   args["party_id"],
+                                   start_date=start, end_date=end)
+            # The returned dict may contain date objects — JSON dump
+            # via the outer serializer handles them, but be explicit
+            # about a couple fields for the model's readability.
+            if isinstance(result, dict):
+                for k in ("start_date", "end_date"):
+                    if hasattr(result.get(k), "isoformat"):
+                        result[k] = result[k].isoformat()
+            return result
+
+        if name == "list_vendors":
+            q = Vendor.query.filter_by(
+                company_id=company_id, is_active=True)
+            search = (args.get("search") or "").strip()
+            if search:
+                like = f"%{search}%"
+                q = q.filter(Vendor.name.ilike(like))
+            vendors = q.order_by(Vendor.name).limit(100).all()
+            return {
+                "vendors": [
+                    {"id": v.id, "name": v.name,
+                     "email": v.email,
+                     "phone": getattr(v, "phone", None),
+                     "balance": round(v.balance, 2)}
+                    for v in vendors
+                ],
+            }
+
+        # ─── Phase 3 — read-only modules ───
+
+        if name == "list_vendor_bills":
+            from app.models import VendorBill, VendorBillStatus
+            start = _parse_date(args.get("start_date"),
+                                _today(company).replace(day=1))
+            end = _parse_date(args.get("end_date"), _today(company))
+            limit = int(args.get("limit") or 20)
+            q = VendorBill.query.filter(
+                VendorBill.company_id == company_id,
+                VendorBill.deleted_at.is_(None),
+                VendorBill.issue_date >= start,
+                VendorBill.issue_date <= end,
+            )
+            status = args.get("status")
+            excluded = []
+            if status:
+                try:
+                    q = q.filter(VendorBill.status
+                                  == VendorBillStatus[status])
+                except KeyError:
+                    return {"error": f"حالة غير معروفة: {status}"}
+            elif not args.get("include_all_statuses"):
+                # Match list_invoices: drafts/cancelled/refunded are
+                # not real obligations. Toggle via include_all_statuses
+                # if the user asks explicitly.
+                excluded = ["DRAFT", "CANCELLED", "REFUNDED"]
+                q = q.filter(~VendorBill.status.in_([
+                    VendorBillStatus.DRAFT,
+                    VendorBillStatus.CANCELLED,
+                    VendorBillStatus.REFUNDED,
+                ]))
+            vid = args.get("vendor_id")
+            if vid:
+                # Cross-tenant: refuse a vendor_id belonging to B.
+                v = db.session.get(Vendor, vid)
+                if not v or v.company_id != company_id:
+                    return {"error": "المورد غير موجود في هذه الشركة"}
+                q = q.filter(VendorBill.vendor_id == vid)
+            bills = q.order_by(
+                VendorBill.issue_date.desc(),
+                VendorBill.id.desc()).all()
+            total = sum(float(b.total or 0) for b in bills)
+            outstanding = sum(float(b.balance or 0) for b in bills)
+            return {
+                "count": len(bills),
+                "total": round(total, 2),
+                "outstanding": round(outstanding, 2),
+                "start_date": str(start), "end_date": str(end),
+                "excluded_statuses": excluded,
+                "bills": [
+                    {"bill_id": b.id, "number": b.number,
+                     "vendor": (b.vendor.name if b.vendor else None),
+                     "issue_date": str(b.issue_date),
+                     "due_date": str(b.due_date) if b.due_date else None,
+                     "total": float(b.total or 0),
+                     "balance": float(b.balance or 0),
+                     "status": b.status.value}
+                    for b in bills[:limit]
+                ],
+            }
+
+        if name == "get_vendor_bill":
+            from app.models import VendorBill
+            bill = None
+            num = (args.get("number") or "").strip()
+            if num:
+                bill = VendorBill.query.filter_by(
+                    company_id=company_id, number=num).first()
+            elif args.get("bill_id"):
+                bill = db.session.get(VendorBill, args["bill_id"])
+                if bill and bill.company_id != company_id:
+                    bill = None
+            if bill is None:
+                return {"error": "الفاتورة غير موجودة في هذه الشركة"}
+            return {
+                "bill_id": bill.id, "number": bill.number,
+                "vendor": (bill.vendor.name if bill.vendor else None),
+                "issue_date": str(bill.issue_date),
+                "due_date": str(bill.due_date) if bill.due_date else None,
+                "currency": bill.currency,
+                "subtotal": float(bill.subtotal or 0),
+                "tax_amount": float(bill.tax_amount or 0),
+                "total": float(bill.total or 0),
+                "paid_amount": float(bill.paid_amount or 0),
+                "balance": float(bill.balance or 0),
+                "status": bill.status.value,
+                "items": [
+                    {"description": i.description,
+                     "quantity": float(i.quantity or 0),
+                     "unit_price": float(i.unit_price or 0),
+                     "line_total": float(i.line_total or 0),
+                     "line_type": i.line_type.value}
+                    for i in bill.items
+                ],
+                "payments": [
+                    {"amount": float(p.amount or 0),
+                     "payment_date": str(p.payment_date),
+                     "method": p.method}
+                    for p in bill.payments
+                ],
+            }
+
+        if name == "list_payroll_runs":
+            from app.models import PayrollRun, PayrollLine
+            q = PayrollRun.query.filter_by(company_id=company_id)
+            year = args.get("year")
+            month = args.get("month")
+            if year:
+                q = q.filter(PayrollRun.period_year == int(year))
+            if month:
+                q = q.filter(PayrollRun.period_month == int(month))
+            limit = int(args.get("limit") or 20)
+            runs = q.order_by(
+                PayrollRun.period_year.desc(),
+                PayrollRun.period_month.desc()).limit(limit).all()
+            out = []
+            for r in runs:
+                lines = PayrollLine.query.filter_by(run_id=r.id).all()
+                out.append({
+                    "run_id": r.id,
+                    "number": r.number,
+                    "year": r.period_year,
+                    "month": r.period_month,
+                    "employees": len(lines),
+                    "total_net": round(
+                        sum(float(l.net or 0) for l in lines), 2),
+                    "total_paid": round(
+                        sum(float(l.amount_paid or 0) for l in lines), 2),
+                })
+            return {"runs": out, "count": len(out)}
+
+        if name == "list_employee_advances":
+            from app.models import EmployeeAdvance, AdvanceStatus, Employee
+            status_str = (args.get("status") or "ACTIVE").upper()
+            try:
+                status = AdvanceStatus[status_str]
+            except KeyError:
+                return {"error": f"حالة غير معروفة: {status_str}"}
+            # Scope by company via the employee. EmployeeAdvance has
+            # employee_id → Employee.company_id.
+            q = db.session.query(EmployeeAdvance, Employee).join(
+                Employee, EmployeeAdvance.employee_id == Employee.id
+            ).filter(
+                Employee.company_id == company_id,
+                EmployeeAdvance.status == status,
+            ).order_by(EmployeeAdvance.id.desc())
+            rows = q.all()
+            return {
+                "count": len(rows),
+                "status": status_str,
+                "advances": [
+                    {"advance_id": a.id,
+                     "employee_id": e.id,
+                     "employee_name": e.name,
+                     "amount": float(a.amount or 0),
+                     "remaining": float(a.remaining or 0)}
+                    for a, e in rows
+                ],
+            }
+
+        if name == "list_fixed_assets":
+            # Delegate to the existing report — it already computes
+            # book value + accumulated depreciation per asset.
+            from app.services.reports import fixed_assets_report
+            return fixed_assets_report(company_id)
 
         return {"error": f"أداة غير معروفة: {name}"}
     except LedgerError as e:
