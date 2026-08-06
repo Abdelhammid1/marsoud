@@ -17,6 +17,7 @@ from app.agent.base import (
     run_agent_turn, accountant_persona,
     get_accountant_provider_and_model,
 )
+import os
 from app.agent.tools import TOOL_SCHEMAS, execute_tool
 from app.services.ai_providers import AnthropicProvider, DeepseekProvider
 
@@ -25,9 +26,14 @@ def _provider_for(key):
     """Instantiate the provider matching a PlatformSetting value.
     DeepseekProvider raises RuntimeError inside __init__ when
     DEEPSEEK_API_KEY is not set — the caller (chat route) surfaces
-    that as a specific Arabic flash message."""
+    that as a specific Arabic flash message.
+    MARSOUD-AGENT-DEEPSEEK-KEY-SPLIT (2026-08-06) — the accountant
+    agent uses its own DeepSeek key (DEEPSEEK_API_KEY_ACCOUNTANT),
+    separate from the insights agent's DEEPSEEK_API_KEY, so usage
+    and billing can be tracked and capped independently."""
     if key == "deepseek":
-        return DeepseekProvider()
+        accountant_key = os.environ.get("DEEPSEEK_API_KEY_ACCOUNTANT")
+        return DeepseekProvider(api_key=accountant_key)
     return AnthropicProvider()
 
 
