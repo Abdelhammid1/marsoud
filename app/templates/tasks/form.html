@@ -27,14 +27,21 @@
     </div>
     <div class="grid grid-cols-2 gap-4">
       <div>
+        {# MARSOUD-TASK-EDIT-PROJECT-STAGE (2026-08-06) — the select
+           used to be `{% if task %}disabled{% endif %}` in edit mode
+           with a sibling hidden input that re-submitted the current
+           value. That combo locked a task's project to whatever it
+           was created with — a task made without a project could
+           never gain one. Both are gone: the field is now editable
+           whenever the user has `tasks.manage`, and the route
+           validates the value the same way new() does. #}
         <label class="block text-sm font-semibold text-slate-700 mb-2">المشروع (اختياري)</label>
-        <select name="project_id" id="task-project-select" class="select" {% if task %}disabled{% endif %}>
+        <select name="project_id" id="task-project-select" class="select">
           <option value="">— بدون مشروع (مهمة مستقلة) —</option>
           {% for p in projects %}
           <option value="{{ p.id }}" {% if (task and task.project_id == p.id) or (selected_project and selected_project == p.id|string) %}selected{% endif %}>{{ p.name }}</option>
           {% endfor %}
         </select>
-        {% if task %}<input type="hidden" name="project_id" value="{{ task.project_id or '' }}">{% endif %}
         <p class="text-xs text-slate-500 mt-1">يمكنك إنشاء مهمة بدون مشروع لمتابعة شخصية أو عمل لا يتبع لخطة محددة.</p>
       </div>
       <div>
@@ -165,8 +172,10 @@
 </div>
 
 {# When the user changes the project select, swap the milestone options
-   to match. The map is server-rendered (one fetch, no AJAX). Edit-mode
-   doesn't pass a map → script no-ops safely. #}
+   to match. The map is server-rendered (one fetch, no AJAX). Both
+   new() and edit() now pass the map (edit() gained it in
+   MARSOUD-TASK-EDIT-PROJECT-STAGE, 2026-08-06); if a future caller
+   doesn't, the {% if %} still no-ops safely. #}
 {% if milestones_by_project is defined and milestones_by_project %}
 <script id="task-milestones-data" type="application/json">{{ milestones_by_project|tojson }}</script>
 <script>
