@@ -144,6 +144,11 @@ def current_module_key():
     from flask import request
     if not request or not request.endpoint:
         return None
+    # MARSOUD-HELP-VIOLATIONS-01 — violation-policy views live inside
+    # the "hr" blueprint, but deserve their own help article rather
+    # than surfacing the general HR one.
+    if request.endpoint.startswith("hr.violation"):
+        return "violations"
     bp = request.endpoint.split(".", 1)[0]
     return BLUEPRINT_TO_MODULE_KEY.get(bp)
 
