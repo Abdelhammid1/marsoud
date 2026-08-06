@@ -51,6 +51,13 @@ class CustomerDeposit(db.Model):
                               nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow,
                            nullable=False)
+    # MARSOUD-DEPOSIT-AUDIT-01 (2026-08-06) — the reception side
+    # already has a trail (created_by_id above); the refund side used
+    # to have none. Both nullable so pre-fix deposits stay NULL; every
+    # future refund_deposit() stamps both fields.
+    refunded_by_id = db.Column(db.Integer, db.ForeignKey("users.id"),
+                               nullable=True)
+    refunded_at = db.Column(db.DateTime, nullable=True)
 
     company = db.relationship("Company")
     customer = db.relationship("Customer",
@@ -64,6 +71,7 @@ class CustomerDeposit(db.Model):
     refund_journal_entry = db.relationship(
         "JournalEntry", foreign_keys=[refund_journal_entry_id])
     created_by = db.relationship("User", foreign_keys=[created_by_id])
+    refunded_by = db.relationship("User", foreign_keys=[refunded_by_id])
 
     @property
     def is_active(self):

@@ -108,7 +108,14 @@
         <thead>
           <tr>
             <th>رقم</th><th>التاريخ</th><th>القيمة</th>
-            <th>طريقة الدفع</th><th>الحالة</th><th>مربوط بفاتورة</th><th></th>
+            <th>طريقة الدفع</th><th>الحالة</th><th>مربوط بفاتورة</th>
+            {# MARSOUD-DEPOSIT-AUDIT-01 (2026-08-06) — reception was
+               already logged via created_by_id; refund had no matching
+               column. Both users shown here so an incident predating
+               the permission fix has a name attached going forward.
+               Old rows render "—" — accepted by the ticket. #}
+            <th>المنفّذ</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -134,6 +141,16 @@
                   {{ d.applied_invoice.number if d.applied_invoice else d.applied_invoice_id }}
                 </a>
               {% else %}—{% endif %}
+            </td>
+            <td class="text-xs text-slate-600">
+              {% if d.created_by %}
+                <span>استلم: {{ d.created_by.full_name or d.created_by.email }}</span>
+              {% else %}—{% endif %}
+              {% if d.status == 'REFUNDED' %}
+                <br><span>استرد:
+                  {% if d.refunded_by %}{{ d.refunded_by.full_name or d.refunded_by.email }}{% else %}—{% endif %}
+                </span>
+              {% endif %}
             </td>
             <td class="text-sm">
               {# MARSOUD-DEPOSIT-PERMS — refunding sends cash back out, so
