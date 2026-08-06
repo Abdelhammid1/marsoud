@@ -1577,3 +1577,90 @@ def ai_usage():
     from app.services.superadmin import ai_usage_overview
     rows = ai_usage_overview()
     return render_template("admin/ai_usage.html", rows=rows)
+
+
+# ─── MARSOUD-AGENT-DEEPSEEK-02 (2026-08-06) ────────────────────────────
+_ACCOUNTANT_PROVIDERS = ("anthropic", "deepseek")
+
+
+@bp.route("/ai-settings", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def ai_settings():
+    """Runtime knobs for the accountant agent — provider and model.
+
+    Two PlatformSetting keys read on every accountant turn (see
+    app/agent/base.py::get_accountant_provider_and_model). No app
+    restart needed after a save. Insights persona is a separate
+    ticket — this screen only touches the accountant.
+    """
+    from app.services.subscription import _set_setting_raw
+    from app.agent.base import (
+        get_accountant_provider_and_model,
+        _ACCOUNTANT_DEFAULT_MODEL_BY_PROVIDER,
+    )
+
+    if request.method == "POST":
+        provider = (request.form.get("accountant_provider")
+                    or "").strip().lower()
+        if provider not in _ACCOUNTANT_PROVIDERS:
+            flash("مزود غير معروف — اختر anthropic أو deepseek",
+                  "error")
+            return redirect(url_for("superadmin.ai_settings"))
+
+        model = (request.form.get("accountant_model") or "").strip()
+        # An empty model falls back to the per-provider default on
+        # read — safer than saving an empty string that would then
+        # be used verbatim by the provider SDK.
+        _set_setting_raw("accountant_provider", provider)
+        _set_setting_raw("accountant_model", model or "")
+
+        # MARSOUD-AGENT-SAFETY-03 (2026-08-06) — two new knobs land on
+        # the same form: the confirmation toggle and the daily write
+        # cap. Silently skipped when the field is missing so an older
+        # POST (pre-T3) doesn't blow away a saved value.
+        conf_raw = request.form.get("agent_require_confirmation")
+        if conf_raw is not None:
+            _set_setting_raw("agent_require_confirmation",
+                              "true" if conf_raw == "on" else "false")
+        cap_raw = (request.form.get("agent_daily_write_cap")
+                    or "").strip()
+        if cap_raw.isdigit() and 0 <= int(cap_raw) <= 10_000:
+            _set_setting_raw("agent_daily_write_cap", str(int(cap_raw)))
+
+        # MARSOUD-AGENT-MEMORY-05 (2026-08-06) — retention days for
+        # agent conversations. 0 means never expire (deliberate
+        # non-destructive default when the field is fat-fingered).
+        ret_raw = (request.form.get(
+            "agent_conversation_retention_days") or "").strip()
+        if ret_raw.isdigit() and 0 <= int(ret_raw) <= 3650:
+            _set_setting_raw(
+                "agent_conversation_retention_days",
+                str(int(ret_raw)))
+
+        db.session.commit()
+        log_platform_action(
+            "ai_settings_update",
+            actor_id=current_user.id,
+            details=(f"accountant_provider={provider} "
+                     f"model={model or '(default)'} "
+                     f"require_confirmation={conf_raw or 'unchanged'} "
+                     f"daily_cap={cap_raw or 'unchanged'}"))
+        flash("تم حفظ إعدادات الذكاء الاصطناعي", "success")
+        return redirect(url_for("superadmin.ai_settings"))
+
+    provider, model = get_accountant_provider_and_model()
+    from app.services.agent_safety import (
+        require_confirmation_enabled, daily_write_cap,
+    )
+    from app.services.agent_conversations import retention_days
+    return render_template(
+        "admin/ai_settings.html",
+        current_provider=provider,
+        current_model=model,
+        providers=_ACCOUNTANT_PROVIDERS,
+        provider_defaults=_ACCOUNTANT_DEFAULT_MODEL_BY_PROVIDER,
+        require_confirmation=require_confirmation_enabled(),
+        daily_write_cap=daily_write_cap(),
+        conversation_retention_days=retention_days(),
+    )

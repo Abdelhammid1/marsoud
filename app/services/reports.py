@@ -884,6 +884,74 @@ def dashboard_metrics(company_id, period="month"):
         ),
     } for i in late_sorted]
 
+    # MARSOUD-VBILL-OVERDUE-01 (2026-08-06) — the vendor-side mirror of
+    # late_invoices. Merges (1) real vendor bills past due_date with
+    # (2) recurring-bill forecasts whose date has passed but that the
+    # cron has not yet materialised. The second half is belt-and-
+    # suspenders: if cron fails on a given day, the row still surfaces
+    # as red with an "اعمل الفاتورة" button instead of disappearing.
+    late_vendor_bills = []
+    late_vendor_total = 0.0
+    try:
+        from app.models import VendorBill, VendorBillStatus
+        from app.services.recurring_bills import unmaterialised_past_due
+
+        real_overdue = VendorBill.query.filter(
+            VendorBill.company_id == company_id,
+            VendorBill.deleted_at.is_(None),
+            VendorBill.status.in_([
+                VendorBillStatus.OVERDUE,
+                VendorBillStatus.POSTED,
+                VendorBillStatus.PARTIALLY_PAID,
+            ]),
+            VendorBill.due_date < today,
+        ).order_by(VendorBill.due_date.asc()).all()
+
+        for b in real_overdue:
+            days_late = (today - b.due_date).days if b.due_date else 0
+            vendor_name = b.vendor.name if b.vendor else "—"
+            title = (b.notes.strip()[:60] if b.notes and b.notes.strip()
+                     else b.number)
+            amt = float(b.balance or 0)
+            late_vendor_total += amt
+            late_vendor_bills.append({
+                "kind": "bill",
+                "id": b.id,
+                "number": b.number,
+                "vendor_name": vendor_name,
+                "vendor_initials": _initials_for(vendor_name),
+                "amount": amt,
+                "days_late": days_late,
+                "title_for_display": title,
+                "source_recurring_bill_id": None,
+                "occurrence_date": None,
+            })
+
+        for row in unmaterialised_past_due(company_id, as_of=today):
+            days_late = (today - row["date"]).days
+            amt = float(row.get("amount") or 0)
+            late_vendor_total += amt
+            late_vendor_bills.append({
+                "kind": "forecast",
+                "id": None,
+                "number": None,
+                "vendor_name": row.get("vendor_name") or "—",
+                "vendor_initials": _initials_for(row.get("vendor_name")),
+                "amount": amt,
+                "days_late": days_late,
+                "title_for_display": (
+                    row.get("template_label") or "توقع فاتورة دورية"),
+                "source_recurring_bill_id": row["recurring_bill_id"],
+                "occurrence_date": row["date"],
+            })
+
+        # Most-overdue first (real + forecast unified).
+        late_vendor_bills.sort(key=lambda r: r["days_late"], reverse=True)
+    except Exception:
+        # Never crash the dashboard on a downstream problem; the panel
+        # just goes empty instead.
+        pass
+
     # Upcoming bills via the MARSOUD-65 forecast helper.
     upcoming_bills = []
     upcoming_total = 0.0
@@ -1072,6 +1140,10 @@ def dashboard_metrics(company_id, period="month"):
         "late_invoices": late_invoices,
         "late_invoices_total": overdue_total,
         "late_invoices_count": len(overdue),
+        # MARSOUD-VBILL-OVERDUE-01 (2026-08-06)
+        "late_vendor_bills": late_vendor_bills,
+        "late_vendor_bills_total": late_vendor_total,
+        "late_vendor_bills_count": len(late_vendor_bills),
         "upcoming_bills": upcoming_bills,
         "upcoming_bills_total": upcoming_total,
         "upcoming_bills_count": len(upcoming_bills),

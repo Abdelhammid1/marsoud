@@ -155,5 +155,10 @@ def refund(deposit, *, actor_id=None):
     )
     deposit.status = DEPOSIT_REFUNDED
     deposit.refund_journal_entry_id = entry.id
+    # MARSOUD-DEPOSIT-AUDIT-01 (2026-08-06) — record who refunded and
+    # when. Reception's audit trail was already on created_by_id from
+    # record_deposit; refund had no matching column until this ticket.
+    deposit.refunded_by_id = actor_id
+    deposit.refunded_at = datetime.utcnow()
     db.session.commit()
     return deposit

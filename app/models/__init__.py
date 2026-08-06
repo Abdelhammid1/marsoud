@@ -97,6 +97,14 @@ from app.models.advances import (
     EmployeeAdvance, AdvanceStatus, AdvanceSource, AdvanceRepayment,
 )
 from app.models.department import Department
+from app.models.attendance import (
+    AttendancePolicy, PolicyScope, PolicyType,
+)
+from app.models.violation import (
+    AttendanceViolationPolicy,
+    LatePermissionRequest, PermissionStatus,
+)
+from app.models.checkin import AttendanceCheckin
 from app.models.leave import (
     LeaveType, LeaveBalance,
     AttendanceException, AttendanceExceptionType,
@@ -158,6 +166,13 @@ from app.models.manufacturing import (
 )
 from app.models.invitation import Invitation
 from app.models.agent_chat import AgentMessage
+from app.models.agent_conversation import AgentConversation
+from app.models.agent_proposal import (
+    AgentProposal, AgentDailyWriteCount,
+    PROPOSAL_PENDING, PROPOSAL_EXECUTED,
+    PROPOSAL_CANCELLED, PROPOSAL_EXPIRED,
+    PROPOSAL_STATUSES,
+)
 from app.models.numbering import NumberSequence
 from app.models.platform_audit import PlatformAuditLog, SuperadminImpersonation, PlatformError
 from app.models.api_token import ApiToken
@@ -206,7 +221,11 @@ __all__ = [
     "Department",
     "LeaveType", "LeaveBalance",
     "AttendanceException", "AttendanceExceptionType",
+    "AttendancePolicy", "PolicyScope", "PolicyType",
+    "AttendanceCheckin",
     "LeaveRequest", "LeaveRequestStatus",
+    "AttendanceViolationPolicy",
+    "LatePermissionRequest", "PermissionStatus",
     "Lead", "LeadStatus", "LeadType", "LeadSource", "LeadStatusEvent",
     "Campaign", "LeadContact", "LeadActivity", "LeadActivityType",
     "Project", "ProjectStatus", "ProjectMember", "Milestone", "ProjectStatusEvent",
@@ -240,6 +259,11 @@ __all__ = [
     "WorkOrder", "WorkOrderStatus", "WorkOrderConsumption",
     "Invitation",
     "AgentMessage",
+    "AgentConversation",
+    "AgentProposal", "AgentDailyWriteCount",
+    "PROPOSAL_PENDING", "PROPOSAL_EXECUTED",
+    "PROPOSAL_CANCELLED", "PROPOSAL_EXPIRED",
+    "PROPOSAL_STATUSES",
     "NumberSequence",
     "Product", "ProductGroup", "ProductCategory", "ProductUnit",
     "PaymentMethod",

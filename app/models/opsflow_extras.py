@@ -59,6 +59,11 @@ class NotificationKind(str, enum.Enum):
     BROADCAST = "BROADCAST"
     # MARSOUD-PUBLIC-CONTACT-FORM-01 (Abdelhamid 2026-07-24)
     NEW_LEAD = "NEW_LEAD"
+    # MARSOUD-VBILL-OVERDUE-01 (2026-08-06) — fires ONCE per bill when
+    # cron flips POSTED/PARTIALLY_PAID → OVERDUE. The second cron run
+    # finds the bill already OVERDUE and the "just flipped" set is
+    # empty, so no dedup column is needed.
+    VENDOR_BILL_OVERDUE = "VENDOR_BILL_OVERDUE"
 
 
 class Notification(db.Model):

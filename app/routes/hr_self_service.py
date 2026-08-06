@@ -329,6 +329,15 @@ def account():
         employee_id=emp.id,
     ).order_by(LeaveRequest.created_at.desc()).limit(50).all()
 
+    # MARSOUD-ATTENDANCE-CHECKIN — today's row drives which button shows,
+    # and a fresh math challenge is minted per render so the answer on the
+    # page is never the one already used.
+    from app.services.attendance import checkin_for
+    from app.services.bot_guard import generate_math_challenge
+    from datetime import date as _date
+    today_checkin = checkin_for(emp.id, _date.today())
+    math_question = generate_math_challenge()
+
     # MARSOUD-ADVANCES — current advance balance + own request history.
     # MARSOUD-ADVANCE-INSTALMENTS — plus the instalments themselves, so
     # "المسدد حتى الآن" stops being a subtraction the employee has to
@@ -367,6 +376,8 @@ def account():
         bal_by_type=bal_by_type,
         requests=requests,
         statuses=LeaveRequestStatus,
+        today_checkin=today_checkin,
+        math_question=math_question,
         advance=advance,
         advance_repayments=advance_repayments,
         advance_requests=advance_requests,
@@ -488,6 +499,73 @@ def leave_new():
     return redirect(url_for("portal_emp.account") + "#leaves")
 
 
+@portal_emp_bp.route("/permission/new", methods=["POST"])
+@login_required
+def permission_new():
+    """MARSOUD-VIOLATION-POLICY (2026-08-05) — ticket 6.
+
+    Employee-side counterpart to hr.permission_request_new. Same shape
+    as leave_new: _my_employee() scopes to the active company and 403s
+    anyone without an HR record; the service catches invalid caps or
+    monthly-count-exceeded and turns them into flash errors.
+    """
+    from datetime import time as _time
+    from app.services.violation import (
+        submit_permission_request, ViolationError,
+    )
+    emp = _my_employee()
+    if not emp:
+        abort(403)
+
+    def _t(name):
+        raw = (request.form.get(name) or "").strip()
+        if not raw:
+            return None
+        try:
+            hh, mm = raw.split(":")[:2]
+            return _time(int(hh), int(mm))
+        except (TypeError, ValueError):
+            return None
+
+    try:
+        req_date = datetime.strptime(
+            request.form.get("request_date"), "%Y-%m-%d").date()
+        submit_permission_request(
+            company_id=emp.company_id, employee_id=emp.id,
+            request_date=req_date,
+            hours_count=request.form.get("hours_count"),
+            start_time=_t("start_time"),
+            end_time=_t("end_time"),
+            reason=request.form.get("reason"),
+            created_by=current_user.id,
+        )
+        # Notify HR — same pattern as leave_new.
+        try:
+            from app.services.opsflow_extras import notify
+            from app.models import NotificationKind
+            rows = db.session.execute(
+                user_companies.select().where(
+                    (user_companies.c.company_id == emp.company_id) &
+                    (user_companies.c.role.in_(
+                        ["owner", "admin", "hr_manager"]))
+                )
+            ).fetchall()
+            for r in rows:
+                notify(r.user_id, company_id=emp.company_id,
+                       kind=NotificationKind.TASK_ASSIGNED,
+                       title=f"🕐 طلب استئذان جديد: {emp.name}",
+                       body=f"{req_date.isoformat()} — "
+                            f"{request.form.get('hours_count')} ساعة",
+                       link_url=url_for("hr.permission_requests"))
+        except Exception:
+            from flask import current_app
+            current_app.logger.exception("permission request notify failed")
+        flash("تم إرسال طلب الاستئذان للاعتماد.", "success")
+    except (ViolationError, ValueError, TypeError, KeyError) as e:
+        flash(str(e), "error")
+    return redirect(url_for("portal_emp.account") + "#attendance")
+
+
 @portal_emp_bp.route("/advance/new", methods=["POST"])
 @login_required
 def advance_new():
@@ -586,3 +664,205 @@ def daily_report_detail(report_id):
         ))
     return render_template("portal_emp/daily_report_detail.html",
                              emp=emp, report=r)
+
+
+# ─── MARSOUD-ATTENDANCE-CHECKIN (tickets 2 + 3, 2026-08-05) ─────────────
+def _coord(name):
+    """A browser coordinate, or None. A refused location permission must
+    not block the check-in — the ticket is explicit that location is
+    evidence when offered, never a gate."""
+    raw = (request.form.get(name) or "").strip()
+    if not raw:
+        return None
+    try:
+        val = float(raw)
+    except (TypeError, ValueError):
+        return None
+    # Anything outside real coordinates is a broken client, not a place.
+    if name.endswith("lat") and not (-90 <= val <= 90):
+        return None
+    if name.endswith("lng") and not (-180 <= val <= 180):
+        return None
+    return val
+
+
+def _attendance_action(kind):
+    """Shared body of check-in and check-out.
+
+    The math challenge is verified BEFORE anything is written. It is
+    consumed either way, so a wrong answer costs the employee a fresh
+    question rather than letting a script retry the same one.
+    """
+    from app.services.bot_guard import verify_math_challenge
+    from app.services.attendance import check_in, check_out, AttendanceError
+
+    emp = _my_employee()
+    if not emp:
+        abort(403)
+
+    if not verify_math_challenge(request.form.get("math_answer")):
+        flash("إجابة السؤال الحسابي غير صحيحة — حاول مرة أخرى.", "error")
+        return redirect(url_for("portal_emp.account") + "#attendance")
+
+    lat = _coord("check_lat")
+    lng = _coord("check_lng")
+    try:
+        if kind == "in":
+            _row, exc = check_in(emp, lat=lat, lng=lng)
+            if exc is not None:
+                # Told now, not discovered on the payslip.
+                flash("تم تسجيل الحضور — وسُجّل تأخير اليوم تلقائيًا "
+                      "حسب سياسة الدوام.", "warning")
+            else:
+                flash("تم تسجيل الحضور.", "success")
+        else:
+            check_out(emp, lat=lat, lng=lng)
+            flash("تم تسجيل الانصراف.", "success")
+    except AttendanceError as e:
+        flash(str(e), "error")
+    return redirect(url_for("portal_emp.account") + "#attendance")
+
+
+@portal_emp_bp.route("/attendance/checkin", methods=["POST"])
+@login_required
+def attendance_checkin():
+    return _attendance_action("in")
+
+
+@portal_emp_bp.route("/attendance/checkout", methods=["POST"])
+@login_required
+def attendance_checkout():
+    return _attendance_action("out")
+
+
+# ─── MARSOUD-MY-ATTENDANCE (2026-08-05) — ticket 7 ──────────────────────
+@portal_emp_bp.route("/attendance")
+@login_required
+def attendance():
+    """One page that answers "what has attendance recorded for me this
+    month, and how much margin do I have left?" — read-only.
+
+    Actions live on their existing endpoints: check-in/out and the
+    permission button are on /my/account under the same #attendance
+    fragment. This page links back to them rather than duplicating.
+
+    Cross-tenant safety: _my_employee() scopes by (active_company_id,
+    current_user.id), so every query below is also company-scoped by
+    virtue of filtering on the resolved emp.id.
+    """
+    from app.models import AttendanceCheckin, LatePermissionRequest, PermissionStatus
+    from app.services.leave import exceptions_in_period
+    from app.services.violation import (
+        resolve_violation_policy_for_employee, approved_permissions_for,
+    )
+    from app.services.payroll import late_month_breakdown
+
+    emp = _my_employee()
+    if not emp:
+        return _no_employee_record_response()
+
+    today = date.today()
+    y, m = today.year, today.month
+    month_start = date(y, m, 1)
+
+    checkins = (AttendanceCheckin.query
+                .filter_by(employee_id=emp.id)
+                .filter(AttendanceCheckin.date >= month_start)
+                .order_by(AttendanceCheckin.date.desc()).all())
+    exceptions = exceptions_in_period(
+        emp.company_id, y, m, employee_id=emp.id)  # active-only by default
+    permits = (LatePermissionRequest.query
+               .filter_by(employee_id=emp.id)
+               .filter(LatePermissionRequest.request_date >= month_start)
+               .order_by(LatePermissionRequest.request_date.desc()).all())
+
+    policy = resolve_violation_policy_for_employee(emp.id)
+
+    # Remaining free-late margin + permission count. Both are resolved
+    # through the same helper the payroll engine uses so the number the
+    # employee reads on this page is exactly the residual payroll would
+    # see when it runs — no drift is possible between the two paths.
+    remaining_pool = None
+    used_permits = 0
+    remaining_perms = None
+    if policy is not None:
+        used_permits = len(approved_permissions_for(emp.id, y, m))
+        remaining_perms = max(
+            0, int(policy.permission_count_per_month or 0) - used_permits)
+
+        breakdown = late_month_breakdown(emp.id, y, m, policy=policy)
+        remaining_pool = int(round(breakdown["pool_remaining"]))
+
+    balances = LeaveBalance.query.filter_by(
+        employee_id=emp.id, year=y).all()
+
+    return render_template(
+        "portal_emp/attendance.html",
+        employee=emp,
+        month_label=f"{y}-{m:02d}",
+        checkins=checkins,
+        exceptions=exceptions,
+        permits=permits,
+        permit_statuses=PermissionStatus,
+        policy=policy,
+        remaining_pool=remaining_pool,
+        remaining_perms=remaining_perms,
+        used_permits=used_permits,
+        balances=balances,
+    )
+
+
+# ─── MARSOUD-PORTAL-MY-ACTIVITY-01 (2026-08-06) ─────────────────────────
+@portal_emp_bp.route("/activity")
+@login_required
+def activity():
+    """The employee's own login history + actions. Read-only, last 90
+    days, active company only.
+
+    The entire security story is one line — the OVERWRITE of user_id
+    below _parse_filters(). A crafted ?user_id=5 would otherwise land
+    in the filter dict and _apply_filters would answer for that user;
+    the overwrite happens after parse and before filter, so no request
+    parameter can widen the query beyond the current user.
+
+    Reuses the owner page's _parse_filters + _apply_filters + the
+    _activity_page.html partial rather than cloning them — a
+    portal-only copy would drift the moment either page grew a new
+    filter, and the shared partial already knows every column shape.
+    """
+    from app.routes.activity_views import _parse_filters, _apply_filters
+    from app.models import UserActivityLog, UserSession, ACTION_TYPES
+    from datetime import timedelta as _td
+
+    emp = _my_employee()
+    if not emp:
+        return _no_employee_record_response()
+
+    f = _parse_filters()
+    # LOAD-BEARING. Overwrite whatever the URL supplied.
+    f["user_id"] = current_user.id
+
+    # 90-day hard floor. The range dropdown maxes at 90d, but a crafted
+    # ?from=2020-01-01 would otherwise widen the window; clamp it
+    # server-side too so the spec's "آخر 90 يوم" holds regardless of
+    # how the request was constructed.
+    hard_floor = datetime.utcnow() - _td(days=90)
+    if f["_start"] < hard_floor:
+        f["_start"] = hard_floor
+
+    activity_q = UserActivityLog.query
+    sessions_q = UserSession.query
+    activity_q, sessions_q = _apply_filters(
+        activity_q, sessions_q, f, company_scope=g.active_company.id)
+
+    activities = activity_q.order_by(
+        UserActivityLog.created_at.desc()).limit(500).all()
+    sessions = sessions_q.order_by(
+        UserSession.login_at.desc()).limit(200).all()
+
+    return render_template(
+        "portal_emp/activity.html",
+        activities=activities, sessions=sessions,
+        users=[], actions=list(ACTION_TYPES), entity_types=[],
+        filters=f, is_portal=True,
+    )

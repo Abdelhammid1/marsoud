@@ -135,14 +135,66 @@ def run_agent_turn(*, messages, company_id, user_id, persona,
 
 
 # ─── Persona registry ──────────────────────────────────────────
+# MARSOUD-AGENT-DEEPSEEK-02 (2026-08-06) — the accountant used to be
+# hardwired to AnthropicProvider + ANTHROPIC_MODEL from Flask config.
+# A super-admin can now flip provider + model via PlatformSetting
+# without a code change or a restart. Same shape the insights agent
+# already uses (accountant reuses insights' knob mechanism, not the
+# other way around — accountant is the higher-stakes agent so we
+# want the RUNTIME rollback path available first).
+
+_ACCOUNTANT_DEFAULT_MODEL_BY_PROVIDER = {
+    "anthropic": "claude-sonnet-4-5",
+    # DeepSeek's strongest reasoning model — Zyad flagged by name in
+    # T2's ticket text: "أقوى موديل reasoning عند DeepSeek، مش موديل
+    # الـ flash المستخدم في التحليلات". The setting-page lets the
+    # operator type a different name if DeepSeek renames it.
+    "deepseek": "deepseek-reasoner",
+}
+
+
+def get_accountant_provider_and_model():
+    """Return (provider_key, model) from PlatformSetting.
+
+    Defaults: provider = "anthropic" (no behaviour change on deploy;
+    a fresh install must NOT flip to DeepSeek by accident).
+    model = ANTHROPIC_MODEL from Flask config when provider is
+    anthropic, else the per-provider default above.
+    """
+    from app.models.platform_setting import PlatformSetting
+
+    prov_row = PlatformSetting.query.filter_by(
+        key="accountant_provider").first()
+    provider = (prov_row.value if prov_row else None) or "anthropic"
+    if provider not in _ACCOUNTANT_DEFAULT_MODEL_BY_PROVIDER:
+        # Anything the settings page could not have written — a data
+        # fix, a stale value — falls back to anthropic. Safer than
+        # picking whichever the string alphabetises to first.
+        provider = "anthropic"
+
+    model_row = PlatformSetting.query.filter_by(
+        key="accountant_model").first()
+    model = (model_row.value if model_row else None)
+    if not model:
+        if provider == "anthropic":
+            model = current_app.config.get(
+                "ANTHROPIC_MODEL",
+                _ACCOUNTANT_DEFAULT_MODEL_BY_PROVIDER["anthropic"])
+        else:
+            model = _ACCOUNTANT_DEFAULT_MODEL_BY_PROVIDER[provider]
+    return provider, model
+
+
 def accountant_persona():
-    """The existing 17-tool accountant persona (Anthropic)."""
+    """The 17-tool accountant persona. Model resolved via
+    get_accountant_provider_and_model() so a super-admin flip lands
+    on the NEXT turn without a restart."""
     from app.agent.prompts import SYSTEM_PROMPT
+    _prov, model = get_accountant_provider_and_model()
     return {
         "key": "accountant",
         "system_prompt": SYSTEM_PROMPT,
-        "model": current_app.config.get(
-            "ANTHROPIC_MODEL", "claude-sonnet-4-5"),
+        "model": model,
     }
 
 

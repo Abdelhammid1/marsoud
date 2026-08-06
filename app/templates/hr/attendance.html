@@ -1,5 +1,17 @@
 {% extends "base.html" %}
-{% block page_title %}سجل الحضور والاستثناءات{% endblock %}
+{% block page_title %}سجل الحضور والاستثناءات<script>
+// MARSOUD-EXCEPTION-AUDIT — the reason is required. The server refuses a
+// blank one too, so a client with JS off gets an Arabic error rather
+// than a silent no-op.
+function promptReason(form) {
+  var why = window.prompt('سبب إلغاء الاستثناء (مطلوب):');
+  if (!why || !why.trim()) { return false; }
+  form.querySelector('input[name="cancel_reason"]').value = why.trim();
+  return true;
+}
+</script>
+
+{% endblock %}
 {% block content %}
 <div class="flex items-center justify-between mb-4">
   <div>
@@ -89,9 +101,12 @@
     {% for emp_id, row in grid.items() %}
       {% for d, ex in row|dictsort %}
         {% set seen_any = true %}
-        <tr>
-          <td class="font-mono text-xs">{{ ex.date.isoformat() }}</td>
-          <td>{{ ex.employee.name }}</td>
+        {# MARSOUD-EXCEPTION-AUDIT — a cancelled exception STAYS here,
+           struck through and marked ملغى. Hiding it would defeat the
+           audit trail this change exists to create. #}
+        <tr {% if ex.is_cancelled %}class="opacity-60"{% endif %}>
+          <td class="font-mono text-xs {% if ex.is_cancelled %}line-through{% endif %}">{{ ex.date.isoformat() }}</td>
+          <td class="{% if ex.is_cancelled %}line-through{% endif %}">{{ ex.employee.name }}</td>
           <td>
             {% if ex.type.value == 'ABSENT' %}<span class="badge badge-overdue">غياب</span>
             {% elif ex.type.value == 'LATE' %}<span class="badge badge-partial">تأخير</span>
@@ -100,11 +115,19 @@
           </td>
           <td class="font-mono text-xs">{{ "%.2f"|format(ex.duration_hours) if ex.duration_hours else '—' }}</td>
           <td class="text-sm text-slate-500">{{ ex.note or '—' }}</td>
-          <td class="text-xs">{% if ex.leave_request_id %}من طلب إجازة #{{ ex.leave_request_id }}{% else %}يدوي{% endif %}</td>
+          <td class="text-xs">
+            {% if ex.leave_request_id %}من طلب إجازة #{{ ex.leave_request_id }}{% else %}يدوي{% endif %}
+            {% if ex.is_cancelled %}
+            <span class="badge badge-cancelled">ملغى</span>
+            <span class="block text-slate-400 mt-1">{{ ex.cancel_reason }}</span>
+            {% endif %}
+          </td>
           <td>
-            {% if not ex.leave_request_id %}
-            <form method="POST" action="{{ url_for('hr.attendance_delete', ex_id=ex.id) }}" onsubmit="return confirm('حذف الاستثناء؟')">
-              <button type="submit" class="text-rose-600 hover:underline text-xs">حذف</button>
+            {% if not ex.leave_request_id and not ex.is_cancelled %}
+            <form method="POST" action="{{ url_for('hr.attendance_delete', ex_id=ex.id) }}"
+                  onsubmit="return promptReason(this)">
+              <input type="hidden" name="cancel_reason">
+              <button type="submit" class="text-rose-600 hover:underline text-xs">إلغاء</button>
             </form>
             {% endif %}
           </td>

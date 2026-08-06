@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block page_title %}سجل نشاطي{% endblock %}
+{% block content %}
+
+{# MARSOUD-PORTAL-MY-ACTIVITY-01 (2026-08-06) — the employee's own
+   activity log. Includes the same _activity_page.html partial the
+   owner + super-admin pages use; the is_portal flag inside that
+   partial hides the columns and filters that only make sense when
+   more than one user is on the page. #}
+
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h2 class="font-bold text-navy-900 text-lg">📜 سجل نشاطي</h2>
+    <p class="text-xs text-slate-500 mt-1">
+      جلساتك والعمليات اللي عملتها — قراءة فقط، آخر 90 يوم بحد أقصى، ولحسابك أنت فقط.
+    </p>
+  </div>
+  <a href="{{ url_for('portal_emp.account') }}"
+     class="text-sm text-slate-500 self-center hover:text-navy-900">↪ العودة لحسابي</a>
+</div>
+
+{% include "_activity_page.html" %}
+
+{% endblock %}

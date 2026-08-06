@@ -108,6 +108,43 @@ def override(rb_id):
     return redirect(url_for("recurring_bills.index"))
 
 
+@bp.route("/<int:rb_id>/materialize", methods=["POST"])
+@login_required
+@require_permission("vendor_bills.create")
+def materialize(rb_id):
+    """MARSOUD-VBILL-OVERDUE-01 (2026-08-06) — on-demand version of the
+    daily cron materialiser. Wired to the "اعمل الفاتورة" button on the
+    dashboard's overdue-bills panel for the case where cron hasn't run
+    yet or failed on this particular forecast.
+
+    Idempotent by the same unique index the cron relies on; a double-
+    click here surfaces the IntegrityError from
+    materialize_from_recurring as an Arabic "already materialised"
+    flash.
+    """
+    from app.models import RecurringBill
+    from app.services.vendor_bills import materialize_from_recurring
+
+    rb = db.session.get(RecurringBill, rb_id)
+    if not rb or rb.company_id != g.active_company.id:
+        return redirect(url_for("dashboard.index"))
+    occ = _parse_date(request.form.get("occurrence_date"))
+    if not occ:
+        flash("تاريخ التوقّع غير صالح", "error")
+        return redirect(url_for("dashboard.index"))
+    try:
+        bill = materialize_from_recurring(rb, occ, actor_id=current_user.id)
+        flash(f"تم إنشاء الفاتورة {bill.number}", "success")
+    except Exception as e:
+        msg = str(e)
+        if "UNIQUE" in msg.upper() or "recurring_bill" in msg:
+            flash("هذا التوقع تم تحويله لفاتورة بالفعل", "info")
+        else:
+            flash(msg or "تعذر إنشاء الفاتورة", "error")
+        db.session.rollback()
+    return redirect(url_for("dashboard.index"))
+
+
 # Forecast page lives under a separate URL prefix (/forecast)
 forecast_bp = Blueprint("forecast", __name__)
 

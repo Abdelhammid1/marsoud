@@ -278,6 +278,96 @@ def _():
         return str(e)
 
 
+@check("8. reversing a SETTLEMENT twice does not double-reopen the item")
+def _():
+    """MARSOUD-DOUBLE-REVERSAL-EXPAND (2026-08-06) — the specific
+    scenario the follow-up ticket calls out. Check 4 already pins the
+    accrual path (reversing the entry that CREATES an open item does
+    not double-cancel it); this pins the settlement path (reversing
+    the entry that CLOSES a settlement does not double-reopen the
+    item).
+
+    The MARSOUD-REVERSE-ONCE guard covers both — but only check 4
+    proved it for the source_type=open_item branch of
+    _undo_source_side_effects. This proves it for the source_type=
+    open_item_settle branch (which calls reverse_settlement, which
+    reopens the item and rewrites settled_amount/status/closed_at)."""
+    from app.models import (OpenItem, OpenItemSettlement, OpenItemStatus,
+                            JournalEntry)
+    from app.services.ledger import reverse_journal, LedgerError, postable_under
+    from app.services.accounting_ops import get_operation, run_operation
+    from datetime import date
+
+    cid = _STATE["cid"]
+    exp = postable_under(cid, "5000")[0]
+    money = postable_under(cid, "1110")[0]
+
+    # 1. Accrue an obligation for 1000.
+    accrual_entry = run_operation(
+        get_operation("accrue-expense"), cid,
+        {"amount": "1000", "date": date.today().isoformat(),
+         "expense_account_id": str(exp.id)}, actor_id=_STATE["uid"])
+    item_id = db.session.get(JournalEntry, accrual_entry.id).source_id
+
+    # 2. Settle it in full. This produces the open_item_settle
+    #    journal the ticket wants us to double-reverse.
+    settle_entry = run_operation(
+        get_operation("settle-accrued-expense"), cid,
+        {"amount": "1000", "date": date.today().isoformat(),
+         "open_item_id": str(item_id),
+         "account_id": str(money.id)}, actor_id=_STATE["uid"])
+    leg_id = db.session.get(JournalEntry, settle_entry.id).source_id
+
+    item = db.session.get(OpenItem, item_id)
+    db.session.refresh(item)
+    assert item.status == OpenItemStatus.SETTLED, (
+        f"prep: item did not settle, status={item.status}")
+
+    # 3. First reversal of the settlement — must reopen the item.
+    reverse_journal(settle_entry.id, created_by=_STATE["uid"])
+    db.session.refresh(item)
+    leg = db.session.get(OpenItemSettlement, leg_id)
+    db.session.refresh(leg)
+    assert item.status in (OpenItemStatus.OPEN,
+                            OpenItemStatus.PARTIALLY_SETTLED), (
+        f"after first reversal item.status={item.status}")
+    assert leg.reversed_at is not None, (
+        "first reversal did not stamp reversed_at on the settlement leg")
+
+    # 4. Snapshot every mutable field on the item + leg BEFORE the
+    #    second (refused) attempt.
+    snap_status = item.status
+    snap_settled_amount = item.settled_amount
+    snap_closed_at = item.closed_at
+    snap_leg_reversed_at = leg.reversed_at
+
+    # 5. Second reversal — MUST refuse before any effect.
+    try:
+        reverse_journal(settle_entry.id, created_by=_STATE["uid"])
+        raise AssertionError(
+            "the settlement journal was reversed TWICE — the item "
+            "state was rewritten a second time")
+    except LedgerError:
+        pass
+
+    # 6. Nothing on the item or leg moved. Byte-for-byte identical.
+    db.session.refresh(item)
+    db.session.refresh(leg)
+    assert item.status == snap_status, (
+        f"item status moved after refused reversal: "
+        f"{snap_status} -> {item.status}")
+    assert item.settled_amount == snap_settled_amount, (
+        f"settled_amount moved after refused reversal: "
+        f"{snap_settled_amount} -> {item.settled_amount}")
+    assert item.closed_at == snap_closed_at, (
+        f"closed_at moved after refused reversal: "
+        f"{snap_closed_at} -> {item.closed_at}")
+    assert leg.reversed_at == snap_leg_reversed_at, (
+        f"leg reversed_at moved after refused reversal: "
+        f"{snap_leg_reversed_at} -> {leg.reversed_at}")
+    return "settlement reversed exactly once; item + leg unchanged"
+
+
 def main():
     app = create_app()
     _STATE["app"] = app

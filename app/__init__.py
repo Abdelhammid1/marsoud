@@ -1041,6 +1041,17 @@ def create_app(config_class=Config):
     from scripts.open_evaluation_cycle import backfill_cli as _open_cycle_cli
     app.cli.add_command(_open_cycle_cli)
 
+    # MARSOUD-DOUBLE-REVERSAL-DIAG (2026-08-06) — CLI:
+    #   flask audit-double-reversals                  # all companies
+    #   flask audit-double-reversals --company-id 8   # one company
+    # Read-only report on journal entries that carry MORE THAN ONE
+    # active reversal — the aftermath of double-reverse bugs from
+    # before the MARSOUD-REVERSE-ONCE guard. No --apply flag by
+    # design; the ticket is explicit that repair is a separate
+    # decision per case.
+    from scripts.audit_double_reversals import audit_cli as _dblrev_cli
+    app.cli.add_command(_dblrev_cli)
+
     # ASMAA-FIX 2026-07-03 — CLI: re-sync system role permissions.
     # After the P dict is edited (e.g. broadening tasks.manage), run:
     #   flask resync-system-roles

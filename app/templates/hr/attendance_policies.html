@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block page_title %}سياسات الدوام{% endblock %}
+{% block content %}
+
+{# MARSOUD-ATTENDANCE-POLICY (2026-08-05) — same shape as leave_types.html.
+   NB: Jinja comments do not nest and cannot sit inside an expression. #}
+
+<div class="flex items-center justify-between mb-5">
+  <div>
+    <h2 class="font-bold text-navy-900 text-lg">🕐 سياسات الدوام</h2>
+    <p class="text-sm text-slate-500 mt-1">
+      تحدد مواعيد العمل الرسمية. الأخص يغلب: سياسة الموظف ← سياسة القسم ← سياسة الشركة.
+    </p>
+  </div>
+  <a href="{{ url_for('hr.attendance_policy_new') }}" class="btn-primary text-sm">+ سياسة جديدة</a>
+</div>
+
+{% if policies %}
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>النطاق</th>
+      <th>يطبَّق على</th>
+      <th>نوع الدوام</th>
+      <th>المواعيد</th>
+      <th>أيام العمل</th>
+      <th>الحالة</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% set day_names = {0: 'الإثنين', 1: 'الثلاثاء', 2: 'الأربعاء', 3: 'الخميس',
+                        4: 'الجمعة', 5: 'السبت', 6: 'الأحد'} %}
+    {% for p in policies %}
+    <tr>
+      <td>
+        {% if p.scope.value == 'EMPLOYEE' %}<span class="badge badge-paid">موظف</span>
+        {% elif p.scope.value == 'DEPARTMENT' %}<span class="badge badge-sent">قسم</span>
+        {% else %}<span class="badge">الشركة</span>{% endif %}
+      </td>
+      <td class="text-sm">
+        {% if p.scope.value == 'EMPLOYEE' %}{{ p.employee.name if p.employee else '—' }}
+        {% elif p.scope.value == 'DEPARTMENT' %}{{ p.department.name if p.department else '—' }}
+        {% else %}كل الموظفين{% endif %}
+      </td>
+      <td class="text-sm">{{ 'مرن' if p.policy_type.value == 'FLEXIBLE' else 'ثابت' }}</td>
+      <td class="text-sm font-mono" dir="ltr">
+        {% if p.policy_type.value == 'FLEXIBLE' %}
+          {{ p.earliest_checkin.strftime('%H:%M') if p.earliest_checkin else '—' }}
+          — {{ p.latest_checkin.strftime('%H:%M') if p.latest_checkin else '—' }}
+          {% if p.required_hours_per_day %}({{ "%.1f"|format(p.required_hours_per_day) }}h){% endif %}
+        {% else %}
+          {{ p.start_time.strftime('%H:%M') if p.start_time else '—' }}
+          — {{ p.end_time.strftime('%H:%M') if p.end_time else '—' }}
+        {% endif %}
+      </td>
+      <td class="text-xs text-slate-500">
+        {% for d in p.work_day_numbers|sort %}{{ day_names[d] }}{% if not loop.last %} · {% endif %}{% endfor %}
+      </td>
+      <td>
+        {% if p.is_active %}<span class="badge badge-paid">مفعّلة</span>
+        {% else %}<span class="badge badge-cancelled">موقوفة</span>{% endif %}
+        {% if p.auto_absent_enabled %}
+        <span class="badge badge-sent" title="يُسجَّل الغياب تلقائيًا">غياب تلقائي</span>
+        {% endif %}
+      </td>
+      <td class="text-left whitespace-nowrap">
+        <a href="{{ url_for('hr.attendance_policy_edit', policy_id=p.id) }}"
+           class="text-xs text-emerald-700 hover:underline">✎ تعديل</a>
+        <form method="POST" class="inline mr-2"
+              action="{{ url_for('hr.attendance_policy_delete', policy_id=p.id) }}"
+              onsubmit="return confirm('حذف هذه السياسة؟');">
+          <button class="text-xs text-rose-600 hover:underline">حذف</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="card p-8 text-center">
+  <div class="text-3xl mb-2">🕐</div>
+  <p class="text-slate-500 text-sm mb-1">لا توجد سياسات دوام بعد.</p>
+  <p class="text-xs text-slate-400">
+    بدون سياسة، يظل النظام يعمل كما هو الآن — الغياب والتأخير يُسجَّلان يدويًا من شاشة الاستثناءات.
+  </p>
+</div>
+{% endif %}
+
+{% endblock %}
