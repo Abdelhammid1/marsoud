@@ -2,6 +2,44 @@
 {% block page_title %}بوابتي الشخصية{% endblock %}
 {% block content %}
 
+{# MARSOUD-CUSTODY-BUGS-01 (2026-08-08) — cross-portal quick-access
+   tiles at the top of the employee home. Employees never reach the
+   main /dashboard (bounced by confine_client_to_portal), and the
+   sidebar rows for these features are small and easy to miss on
+   first login. Big obvious tiles make the "طلب عهدة نقدية" the
+   ticket asked for immediately reachable. Every endpoint here is
+   already in EMPLOYEE_ALLOWED_ENDPOINTS so no permission gate
+   needed. #}
+<div class="card p-6 mb-4">
+  <h3 class="font-bold text-navy-900 mb-3">🚀 روابط سريعة</h3>
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <a href="{{ url_for('portal_emp.custody_list') }}"
+       class="block bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg p-4 text-center transition">
+      <div class="text-3xl mb-1">💵</div>
+      <div class="font-bold text-emerald-800">عهدتي النقدية</div>
+      <div class="text-xs text-slate-500 mt-1">اطلب عهدة أو تصفح المفتوحة</div>
+    </a>
+    <a href="{{ url_for('portal_emp.items_list') }}"
+       class="block bg-violet-50 hover:bg-violet-100 border border-violet-200 rounded-lg p-4 text-center transition">
+      <div class="text-3xl mb-1">📦</div>
+      <div class="font-bold text-violet-800">عهدي العينية</div>
+      <div class="text-xs text-slate-500 mt-1">المعدات والأصول المُسلّمة لك</div>
+    </a>
+    <a href="{{ url_for('portal_emp.daily_reports_list') }}"
+       class="block bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-lg p-4 text-center transition">
+      <div class="text-3xl mb-1">📝</div>
+      <div class="font-bold text-sky-800">تقاريري اليومية</div>
+      <div class="text-xs text-slate-500 mt-1">أضف تقرير أو راجع تقارير سابقة</div>
+    </a>
+    <a href="{{ url_for('user_files.index') }}"
+       class="block bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg p-4 text-center transition">
+      <div class="text-3xl mb-1">📁</div>
+      <div class="font-bold text-amber-800">ملفاتي</div>
+      <div class="text-xs text-slate-500 mt-1">المستندات والملفات الشخصية</div>
+    </a>
+  </div>
+</div>
+
 <!-- ─── Profile card ──────────────────────────────────────────────── -->
 <div class="card p-6 mb-4">
   <div class="flex items-start gap-4 flex-wrap">
