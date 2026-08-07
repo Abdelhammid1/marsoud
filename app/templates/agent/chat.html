@@ -66,7 +66,7 @@
             {{ c.title or 'محادثة جديدة' }}
           </div>
           <div class="text-xs text-slate-500">
-            {{ c.last_message_at.strftime('%Y-%m-%d %H:%M') if c.last_message_at else '' }}
+            {{ c.last_message_at | company_dt('%Y-%m-%d %H:%M') if c.last_message_at else '' }}
           </div>
         </div>
         <button onclick="deleteConversation(event, {{ c.id }})"
