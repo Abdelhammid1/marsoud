@@ -1,4 +1,7 @@
-from flask import Blueprint, render_template, request, jsonify, g, abort
+from flask import (
+    Blueprint, render_template, request, jsonify, g, abort,
+    current_app,
+)
 from flask_login import login_required, current_user
 from app import db
 from app.models import AgentMessage, AgentConversation
@@ -331,6 +334,14 @@ def insights_chat():
             INSIGHTS_TOOL_SCHEMAS, execute_insights_tool,
         )
         from app.services.ai_providers import DeepseekProvider
+        # MARSOUD-INSIGHTS-AGENT-PROFESSIONAL (2026-08-06) —
+        # max_iters bumped from 5 → 8 (matches accountant). With
+        # ~40 tools + 3 composites, a legitimate drill-down (open
+        # composite → cross-check on one atomic → close) needs 6+
+        # provider turns. The old 5-cap was silently truncating
+        # those chains: the loop reset `final_text = ""` on the
+        # last non-terminating iter and the user got an empty
+        # reply. See app/agent/base.py:130.
         reply, _, tool_trace = run_agent_turn(
             messages=messages,
             company_id=g.active_company.id,
@@ -340,17 +351,35 @@ def insights_chat():
             tools=INSIGHTS_TOOL_SCHEMAS,
             execute_tool_fn=execute_insights_tool,
             company_context=company_context,
-            max_iters=5,
+            max_iters=8,
         )
+        # MARSOUD-INSIGHTS-AGENT-PROFESSIONAL — persist tool_trace
+        # on the assistant row (accountant already does this; the
+        # insights route was just missing it). Enables the audit
+        # + latency dashboard to answer "what did the analyst run
+        # yesterday? how long did each tool take?".
+        import json as _json
         db.session.add(AgentMessage(
             company_id=g.active_company.id,
             user_id=current_user.id, role="assistant",
             content=reply, agent_type="insights",
+            tool_trace=(_json.dumps(tool_trace, default=str,
+                                    ensure_ascii=False)
+                        if tool_trace else None),
         ))
         db.session.commit()
         return jsonify({"reply": reply, "tools": tool_trace})
     except Exception as e:  # noqa: BLE001
         # A DeepSeek failure MUST NOT affect the accountant.
+        # Log the traceback so dev doesn't lose it — the Arabic
+        # response body swallows it otherwise.
+        try:
+            current_app.logger.exception(
+                "insights turn failed for co=%s user=%s",
+                g.active_company.id if g.active_company else None,
+                current_user.id)
+        except Exception:
+            pass
         return jsonify({
             "error": ("حصل خطأ في مزوّد الذكاء الاصطناعي — "
                       "المحاسب الذكي مايتأثرش. حاول تاني بعد شوية. "

@@ -18,6 +18,7 @@ Design notes:
 """
 from __future__ import annotations
 import json
+import time
 from flask import current_app
 from app import db
 
@@ -54,6 +55,16 @@ def run_agent_turn(*, messages, company_id, user_id, persona,
 
     tool_trace = []
     final_text = ""
+    # MARSOUD-INSIGHTS-AGENT-PROFESSIONAL (2026-08-06) — timing
+    # wrappers land in every trace entry so the audit / dashboard
+    # can distinguish "provider was slow" from "one tool was slow"
+    # from "we ran 8 tools in one turn". Also enables the
+    # scripts/measure_insights_latency.py before/after harness.
+    turn_start = time.perf_counter()
+    provider_ms_total = 0.0
+    tool_ms_total = 0.0
+    provider_iters = 0
+    tool_iters = 0
 
     for _ in range(max_iters):
         # Quota pre-flight (kept identical to old accountant.py
@@ -74,10 +85,14 @@ def run_agent_turn(*, messages, company_id, user_id, persona,
         except Exception:
             pass
 
+        _prov_t0 = time.perf_counter()
         result, usage = provider.run_turn(
             system=system, messages=messages, tools=tools,
             model=model,
         )
+        _prov_ms = (time.perf_counter() - _prov_t0) * 1000
+        provider_ms_total += _prov_ms
+        provider_iters += 1
 
         # Log actual token usage — provider_key + model land in
         # AiTokenUsage so the super-admin dashboard can split
@@ -110,15 +125,20 @@ def run_agent_turn(*, messages, company_id, user_id, persona,
         # Execute each tool and feed results back.
         tool_results = []
         for tu in result["tool_uses"]:
+            _tool_t0 = time.perf_counter()
             try:
                 data = execute_tool_fn(
                     tu["name"], tu["input"],
                     company_id, user_id)
             except Exception as e:  # noqa: BLE001
                 data = {"error": str(e)[:400]}
+            _tool_ms = (time.perf_counter() - _tool_t0) * 1000
+            tool_ms_total += _tool_ms
+            tool_iters += 1
             tool_trace.append({"tool": tu["name"],
                                 "input": tu["input"],
-                                "result": data})
+                                "result": data,
+                                "ms": round(_tool_ms, 1)})
             tool_results.append({
                 "type": "tool_result",
                 "tool_use_id": tu["id"],
@@ -131,6 +151,26 @@ def run_agent_turn(*, messages, company_id, user_id, persona,
         # last iteration only.
         final_text = ""
 
+    # Trailing summary — the UI can skip entries with "summary"
+    # key; the audit + latency script read them.
+    total_ms = (time.perf_counter() - turn_start) * 1000
+    tool_trace.append({"summary": {
+        "total_ms": round(total_ms, 1),
+        "provider_ms": round(provider_ms_total, 1),
+        "tool_ms": round(tool_ms_total, 1),
+        "provider_iters": provider_iters,
+        "tool_iters": tool_iters,
+    }})
+    try:
+        current_app.logger.info(
+            "agent[%s co=%s user=%s] total_ms=%.0f "
+            "provider_ms=%.0f tool_ms=%.0f tools=%d iters=%d",
+            persona.get("key", "?"), company_id, user_id,
+            total_ms, provider_ms_total, tool_ms_total,
+            tool_iters, provider_iters,
+        )
+    except Exception:
+        pass
     return final_text, messages, tool_trace
 
 

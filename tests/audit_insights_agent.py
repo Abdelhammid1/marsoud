@@ -59,6 +59,21 @@ def _teardown():
     db.session.remove()
     insp = inspect(db.engine)
     with db.engine.begin() as conn:
+        # MARSOUD-INSIGHTS-AGENT-PROFESSIONAL — sweep orphan
+        # task_assignees + task_activity_logs first. Same SQLite
+        # id-reuse trap the tasks-edit ticket hit: a stale
+        # (task_id=1, user_id=X) row survives a company DELETE
+        # and UNIQUE-constraint-fails the next run's fresh task
+        # under the same id.
+        conn.execute(text(
+            "DELETE FROM task_assignees WHERE task_id NOT IN "
+            "(SELECT id FROM tasks)"))
+        try:
+            conn.execute(text(
+                "DELETE FROM task_activity_logs WHERE task_id "
+                "NOT IN (SELECT id FROM tasks)"))
+        except Exception:
+            pass
         cids = [r[0] for r in conn.execute(text(
             "SELECT id FROM companies WHERE name LIKE '__IA_%__'"))]
         for cid in cids:
@@ -108,7 +123,7 @@ def _seed_owner(suffix, employees_perm=True):
              full_name=f"ia-{suffix}", is_active=True,
              status=UserStatus.ACTIVE.value,
              email_verified_at=datetime.utcnow(),
-             terms_version="TEST")
+             terms_version="v1.0")
     db.session.add(u); db.session.flush()
     db.session.execute(user_companies.insert().values(
         user_id=u.id, company_id=c.id, role=role))
@@ -385,6 +400,303 @@ def _():
                     and m.role == "user"
                     for m in acc_msgs)
     return "insights crashed cleanly; accountant path untouched"
+
+
+# ═══════════════════════════════════════════════════════════════
+# MARSOUD-INSIGHTS-AGENT-PROFESSIONAL (2026-08-06) — checks 11-18
+# cover the new registry, the details-in-returns fix, the three
+# composites, and the security acceptance criteria (cross-tenant,
+# per-tool perm-gate returns a note NOT data, write refusal).
+# ═══════════════════════════════════════════════════════════════
+
+# ─── 11. Registry — tool count grew + each schema well-formed ─
+@check("11. Registry exposes 40+ tools, each with Arabic description + valid schema")
+def _():
+    from app.agent.insights_tools import (
+        INSIGHTS_TOOL_SCHEMAS, registered_tool_names,
+        registered_tool,
+    )
+    from app.services.permissions import P
+    names = registered_tool_names()
+    assert len(names) >= 40, (
+        f"expected ≥40 tools after professional pass, got "
+        f"{len(names)} — batch modules may have failed to import")
+    # Each schema well-formed.
+    for s in INSIGHTS_TOOL_SCHEMAS:
+        assert set(s.keys()) >= {"name", "description", "input_schema"}
+        assert s["description"], f"empty description: {s['name']}"
+    # Each declared perm exists in P.
+    bad = []
+    for n in names:
+        e = registered_tool(n)
+        perm = e.get("permission")
+        if perm is not None and perm not in P:
+            bad.append((n, perm))
+    assert not bad, f"tools declare unknown perms: {bad}"
+    return f"{len(names)} tools registered, all schemas + perms valid"
+
+
+# ─── 12. overdue_items now returns individual owners ───────────
+@check("12. overdue_items returns per-item owner names, not just counts")
+def _():
+    """The ticket's headline example: was 'you have 12 overdue',
+    now must be 'أحمد → task X, سارة → task Y'."""
+    from datetime import date, timedelta
+    from app.models import (
+        Task, TaskStatus, TaskPriority, task_assignees,
+    )
+    from app.agent.insights_tools import _overdue_items
+    _teardown()
+    c, u = _seed_owner("OI")
+    # Create a task past deadline assigned to the owner user.
+    t = Task(
+        company_id=c.id, title="متأخرة", assigned_to_id=u.id,
+        created_by_id=u.id, priority=TaskPriority.MEDIUM,
+        status=TaskStatus.IN_PROGRESS,
+        deadline=date.today() - timedelta(days=3),
+    )
+    db.session.add(t); db.session.flush()
+    db.session.execute(task_assignees.insert().values(
+        task_id=t.id, user_id=u.id, assigned_by_id=u.id))
+    db.session.commit()
+
+    r = _overdue_items({}, c.id, u.id)
+    # Old shape was {overdue_tasks: int}; new shape has tasks list.
+    assert "tasks" in r and isinstance(r["tasks"], list), (
+        f"expected tasks list, got {list(r.keys())}")
+    assert len(r["tasks"]) == 1, (
+        f"expected 1 task, got {len(r['tasks'])}")
+    row = r["tasks"][0]
+    for key in ("id", "title", "deadline", "days_late",
+                "assigned_to_id", "assigned_to_name"):
+        assert key in row, f"missing {key} in row: {row}"
+    assert row["assigned_to_name"] == u.full_name, (
+        f"owner name missing: {row['assigned_to_name']!r}")
+    # And the totals block is still there for summaries.
+    assert r.get("totals", {}).get("overdue_tasks") == 1
+    return f"task→{row['assigned_to_name']} ({row['days_late']}d late)"
+
+
+# ─── 13. employees_performance returns richer rows ─────────────
+@check("13. employees_performance rows carry tasks_by_status + on_time_rate")
+def _():
+    from datetime import date, timedelta
+    from app.models import Employee, EmployeeStatus, ContractType
+    from app.agent.insights_tools import _employees_performance
+    _teardown()
+    c, u = _seed_owner("EP")
+    # Attach an Employee to the owner user.
+    e = Employee(company_id=c.id, name="tester", user_id=u.id,
+                 status=EmployeeStatus.ACTIVE.value,
+                 contract_type=ContractType.FULL_TIME.value,
+                 start_date=date.today() - timedelta(days=200))
+    db.session.add(e); db.session.commit()
+
+    r = _employees_performance({}, c.id, u.id)
+    assert r.get("rows") and len(r["rows"]) >= 1, r
+    row = r["rows"][0]
+    for key in ("tasks_by_status", "on_time_rate"):
+        assert key in row, f"missing {key}: {row}"
+    # tasks_by_status is a dict keyed by TaskStatus values.
+    assert isinstance(row["tasks_by_status"], dict)
+    return f"row has {sorted(row.keys())}"
+
+
+# ─── 14. analyze_employee composite returns all axes ──────────
+@check("14. analyze_employee returns profile + attendance + tasks + advances slices")
+def _():
+    from datetime import date, timedelta
+    from app.models import Employee, EmployeeStatus, ContractType
+    from app.agent.insights_batches.composites import analyze_employee
+    _teardown()
+    c, u = _seed_owner("AE")
+    e = Employee(company_id=c.id, name="أحمد التجريبي", user_id=u.id,
+                 status=EmployeeStatus.ACTIVE.value,
+                 contract_type=ContractType.FULL_TIME.value,
+                 start_date=date.today() - timedelta(days=100),
+                 email="ahmed@ae.test")
+    db.session.add(e); db.session.commit()
+    # By fuzzy name.
+    r = analyze_employee({"employee": "أحمد"}, c.id, u.id)
+    for key in ("employee", "period", "attendance", "tasks",
+                "advances", "evaluation"):
+        assert key in r, f"missing {key}: {list(r.keys())}"
+    assert r["employee"]["id"] == e.id
+    assert r["employee"]["name"] == "أحمد التجريبي"
+    # By id.
+    r2 = analyze_employee({"employee": str(e.id)}, c.id, u.id)
+    assert r2["employee"]["id"] == e.id
+    return "profile + 4 slices returned"
+
+
+# ─── 15. analyze_department returns per-member rows + rollup ──
+@check("15. analyze_department returns member rows + rollup + highlights")
+def _():
+    from datetime import date, timedelta
+    from app.models import (
+        Department, Employee, EmployeeStatus, ContractType,
+    )
+    from app.agent.insights_batches.composites import analyze_department
+    _teardown()
+    c, u = _seed_owner("AD")
+    d = Department(company_id=c.id, name="القسم التجريبي",
+                    is_active=True)
+    db.session.add(d); db.session.flush()
+    for name in ("Alice", "Bob", "Carol"):
+        db.session.add(Employee(
+            company_id=c.id, name=name, department_id=d.id,
+            status=EmployeeStatus.ACTIVE.value,
+            contract_type=ContractType.FULL_TIME.value,
+            start_date=date.today() - timedelta(days=50)))
+    db.session.commit()
+    r = analyze_department({"department": str(d.id)}, c.id, u.id)
+    for key in ("department", "period", "member_count",
+                "rollup", "members", "highlights"):
+        assert key in r, f"missing {key}: {list(r.keys())}"
+    assert r["member_count"] == 3
+    assert len(r["members"]) == 3
+    return f"{r['member_count']} members + rollup + highlights"
+
+
+# ─── 16. compare_period returns current + prior + delta ───────
+@check("16. compare_period yields current + prior + delta with signed pct")
+def _():
+    from datetime import date, timedelta
+    from app.agent.insights_batches.composites import compare_period
+    _teardown()
+    c, u = _seed_owner("CP")
+    today = date.today()
+    r = compare_period({
+        "report_type": "income_statement",
+        "curr_start": (today - timedelta(days=15)).isoformat(),
+        "curr_end": today.isoformat(),
+    }, c.id, u.id)
+    for key in ("current_period", "prior_period",
+                "current", "prior", "delta"):
+        assert key in r, f"missing {key}: {list(r.keys())}"
+    # No data → delta might be empty but not error.
+    return "current + prior + delta blocks present"
+
+
+# ─── 17. Cross-tenant leakage — composites don't leak across ──
+@check("17. analyze_employee refuses employees from another company")
+def _():
+    from datetime import date, timedelta
+    from app.models import Employee, EmployeeStatus, ContractType
+    from app.agent.insights_batches.composites import analyze_employee
+    _teardown()
+    c_a, u_a = _seed_owner("XA")
+    c_b, u_b = _seed_owner("XB")
+    e_a = Employee(company_id=c_a.id, name="محمد A",
+                   status=EmployeeStatus.ACTIVE.value,
+                   contract_type=ContractType.FULL_TIME.value,
+                   start_date=date.today() - timedelta(days=30))
+    db.session.add(e_a); db.session.commit()
+    # Ask company B's user to look up A's employee — by A's id.
+    r = analyze_employee({"employee": str(e_a.id)}, c_b.id, u_b.id)
+    # Must NOT return A's profile.
+    assert "employee" not in r, (
+        f"cross-tenant leak: {r}")
+    # And the error is a clear "not found", not a mysterious 500.
+    assert "error" in r or "note" in r
+    return "cross-tenant lookup refused cleanly"
+
+
+# ─── 18. Per-tool permission → note, NOT data ─────────────────
+@check("18. Permission-gated tool returns note payload, not real data")
+def _():
+    """A caller who lacks the outer gate on analyze_employee
+    (employees.view) gets a note payload back — NOT the profile
+    data. This is the ticket's acceptance for 'permission-gated
+    data refused clearly, not translated to generic error or
+    (worse) actual data'.
+
+    The caller here is `sales_rep`, which does not carry
+    `employees.view` in the default role map (permissions.py:110)."""
+    from datetime import date, timedelta
+    from app.models import Employee, EmployeeStatus, ContractType
+    from app.agent.insights_batches.composites import analyze_employee
+    _teardown()
+    c, u = _seed_owner("PG", employees_perm=False)  # sales_rep
+
+    e = Employee(company_id=c.id, name="secret salary",
+                 basic_salary=99999, user_id=None,
+                 status=EmployeeStatus.ACTIVE.value,
+                 contract_type=ContractType.FULL_TIME.value,
+                 start_date=date.today() - timedelta(days=10))
+    db.session.add(e); db.session.commit()
+
+    r = analyze_employee({"employee": str(e.id)}, c.id, u.id)
+    # perm_denied shape: {"rows": [], "note": "…صلاحية غير كافية…"}
+    assert r.get("rows") == [], (
+        f"non-empty rows despite missing perm: {r}")
+    assert "employees.view" in (r.get("note") or ""), (
+        f"note doesn't name the missing perm: {r}")
+    # Critical: the actual employee profile did NOT surface.
+    assert "employee" not in r, (
+        f"employee profile leaked despite perm gate: {r}")
+    # And no salary figure anywhere in the payload.
+    assert "99999" not in str(r), (
+        f"salary figure leaked: {r}")
+    return f"refused with perm note; no data returned"
+
+
+# ─── 19. Write refusal — registry contains ZERO writes ────────
+@check("19. Registry contains no tool named in agent_safety.WRITE_TOOL_NAMES")
+def _():
+    from app.agent.insights_tools import registered_tool_names
+    from app.services.agent_safety import WRITE_TOOL_NAMES
+    names = set(registered_tool_names())
+    intersection = names & WRITE_TOOL_NAMES
+    assert not intersection, (
+        f"analyst registry exposes write tools: {intersection}")
+    # Also check for actual dispatch names that are writes
+    # (agent_safety has a naming-drift bug — see explore notes —
+    # but the accountant's true write dispatch names are these).
+    accountant_writes = {"create_customer", "create_journal_entry",
+                          "create_invoice", "record_invoice_payment"}
+    intersection2 = names & accountant_writes
+    assert not intersection2, (
+        f"analyst exposes accountant writes: {intersection2}")
+    return f"{len(names)} tools registered, 0 writes"
+
+
+# ─── 20. Prompt stays short + static + rule 1 verbatim ────────
+@check("20. INSIGHTS_SYSTEM_PROMPT stays short, static, and preserves rule 1")
+def _():
+    from app.agent.insights_prompt import INSIGHTS_SYSTEM_PROMPT
+    # Under 3000 bytes → roughly 40 lines of Arabic — keeps DeepSeek
+    # prompt-cache budget predictable.
+    size = len(INSIGHTS_SYSTEM_PROMPT.encode("utf-8"))
+    assert size < 3000, (
+        f"prompt grew to {size} bytes — risks blowing DeepSeek "
+        f"prompt cache. Trim before merging.")
+    # Rule 1 must stay verbatim (any softening = model starts
+    # returning invented numbers).
+    rule_1 = ("كل رقم بتقوله لازم ييجي من أداة (tool). ممنوع "
+              "تخمّن أي رقم أو تحسب في دماغك.")
+    assert rule_1 in INSIGHTS_SYSTEM_PROMPT, (
+        "rule 1 was edited — that is a security regression")
+    # Rule 4 (write refusal + accountant redirect) preserved.
+    assert "المحاسب الذكي بدلك" in INSIGHTS_SYSTEM_PROMPT
+    return f"{size} bytes, rule 1 + rule 4 verbatim"
+
+
+# ─── 21. Latency instrumentation is present in base loop ─────
+@check("21. run_agent_turn emits per-tool ms + turn summary in tool_trace")
+def _():
+    """Structural check on base.py — the audit + latency script
+    both depend on tool_trace carrying `ms` per entry and a
+    trailing summary. Break the shape → both silently regress."""
+    from pathlib import Path
+    src = (ROOT / "app" / "agent" / "base.py").read_text(
+        encoding="utf-8")
+    for token in ('time.perf_counter', '"ms"',
+                  '"summary"', 'total_ms', 'provider_ms',
+                  'tool_ms', 'tool_iters', 'provider_iters'):
+        assert token in src, (
+            f"latency instrumentation missing token: {token!r}")
+    return "timing wrappers + summary present"
 
 
 def main():

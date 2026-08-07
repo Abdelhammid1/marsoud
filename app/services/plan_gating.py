@@ -132,6 +132,13 @@ def plan_allows(action, company):
 SUB_ITEM_CATALOG = {
     "main": [
         ("dashboard.index", "لوحة المعلومات", "📊"),
+        # MARSOUD-INSIGHTS-AGENT-PROFESSIONAL follow-up (2026-08-06) —
+        # the analyst tab was added to the sidebar under المحاسب الذكي
+        # but plan-managed companies (subitems list explicit) were
+        # hiding the row because the endpoint wasn't in the catalog.
+        # Add it here so super-admin can opt each plan into it via
+        # the admin/plans nested-checkbox UI.
+        ("agent.insights_index", "المحلل الذكي", "🔍"),
     ],
     "accounting": [
         ("journals.index", "القيود اليومية", "📒"),
