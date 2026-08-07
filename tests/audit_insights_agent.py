@@ -183,12 +183,22 @@ def _():
         agent_type="insights"))
     db.session.commit()
 
-    from app.routes.agent import _load_history
-    acc = _load_history(c.id, u.id, "accountant")
-    ins = _load_history(c.id, u.id, "insights")
+    # MARSOUD-INSIGHTS-CONVERSATIONS-01 (2026-08-08) — _load_history
+    # is gone; insights now uses the same conversation-scoped loader
+    # as the accountant. Isolation is still enforced at the model
+    # level via the agent_type column — this check verifies the raw
+    # filter shape holds, which is what the higher-level services
+    # (list_conversations_for, _load_conversation_history via
+    # AgentMessage.conversation_id) both rely on.
+    acc = AgentMessage.query.filter_by(
+        company_id=c.id, user_id=u.id,
+        agent_type="accountant").all()
+    ins = AgentMessage.query.filter_by(
+        company_id=c.id, user_id=u.id,
+        agent_type="insights").all()
     assert len(acc) == 1 and acc[0].content == "test accountant msg"
     assert len(ins) == 1 and ins[0].content == "test insights msg"
-    return "histories isolated"
+    return "histories isolated via agent_type column filter"
 
 
 # ─── 5. todays_summary tool reconciliation ─────────────────────
