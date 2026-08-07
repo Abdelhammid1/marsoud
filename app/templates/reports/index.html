@@ -49,6 +49,7 @@
   {% set modules = [
     ('ar_aging', 'أعمار الديون — العملاء', 'AR Aging', 'فواتير غير مسددة مقسمة 30/60/90+', '⏳'),
     ('ap_aging', 'أعمار الديون — الموردين', 'AP Aging', 'مستحقات للموردين مقسمة', '📥'),
+    ('open_custody', 'العهد النقدية المفتوحة', 'Open Custody', 'كل عهدة نقدية لم تُسوَّ بعد + عدد الأيام + المتأخر', ' 💵'),
     ('vat', 'تقرير الضرائب', 'VAT Report', 'محصلة − مدفوعة = المستحق للحكومة', '🏛️'),
     ('payroll', 'تقرير الرواتب', 'Payroll Report', 'كل موظف بالتفصيل + إجماليات', '💼'),
     ('fixed_assets', 'تقرير الأصول الثابتة', 'Fixed Assets', 'تكلفة + إهلاك + قيمة دفترية', '🏗️'),
@@ -66,6 +67,7 @@
   {% set report_perm = {
     'vendor_sub_categories': 'vendor_bills.create',
     'metric_logs': 'users.manage',
+    'open_custody': 'custody.manage',
   } %}
   {% for endpoint, title_ar, title_en, desc, icon in modules %}
   {% set _need = report_perm.get(endpoint) %}

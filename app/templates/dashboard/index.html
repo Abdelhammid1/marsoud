@@ -288,6 +288,24 @@
       </div>
     </a>
     {% endif %}
+    {# MARSOUD-CASH-CUSTODY-01 (slice 3, 2026-08-07) — the ops
+       tile for open cash custody. Counts ISSUED + PARTIALLY_SETTLED;
+       overdue subset drives the red nudge. Gated on custody.manage
+       so plans/roles that don't have custody don't see a bounce. #}
+    {% if has_permission('custody.manage') %}
+    <a class="op" href="{{ url_for('custody.index') }}" title="العهد النقدية">
+      <div class="op-ico i-amber">💵</div>
+      <div>
+        <div class="op-val">{{ metrics.ops.cash_custody_open or 0 }}</div>
+        <div class="op-label">عهدة نقدية مفتوحة</div>
+        {% if metrics.ops.cash_custody_overdue %}
+        <div class="op-extra tag-red">⏰ {{ metrics.ops.cash_custody_overdue }} متأخرة</div>
+        {% else %}
+        <div class="op-extra tag-green">في الميعاد</div>
+        {% endif %}
+      </div>
+    </a>
+    {% endif %}
   </div>
   {% endif %}
 
@@ -643,6 +661,12 @@
     {% endif %}
     {% if has_permission('tasks.manage') %}
     <a class="q" href="{{ url_for('tasks.new') }}"><span class="q-ico">📋</span><span class="q-label">مهمة جديدة</span></a>
+    {# MARSOUD-CASH-CUSTODY-01 (slice 3, 2026-08-07) — quick-action
+       to /custody/new for the accountant-side flow. Employees see
+       their /my/custody entry via the sidebar. #}
+    {% if has_permission('custody.manage') %}
+    <a class="q" href="{{ url_for('custody.new') }}"><span class="q-ico">💵</span><span class="q-label">عهدة نقدية</span></a>
+    {% endif %}
     {% endif %}
     {% if can_finance %}
     <a class="q" href="{{ url_for('reports.index') }}"><span class="q-ico">📊</span><span class="q-label">التقارير</span></a>

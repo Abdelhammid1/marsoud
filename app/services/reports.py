@@ -619,6 +619,37 @@ def open_custody_report(company_id, as_of=None):
     return {"rows": rows, "totals": totals, "as_of": as_of}
 
 
+def _cash_custody_metrics(company_id):
+    """MARSOUD-CASH-CUSTODY-01 (slice 3, 2026-08-07) — one query
+    for the dashboard tile. Returns the two counts the ops tile
+    keys off:
+        cash_custody_open      — ISSUED + PARTIALLY_SETTLED total
+        cash_custody_overdue   — subset past settlement_due_date
+
+    Wrapped in try so a company on a plan without the cash_custody
+    module (tables not on the schema yet, or the model file failed
+    to import) doesn't 500 the whole dashboard — 0 is safe."""
+    try:
+        from app.models import CashCustody, CustodyStatus
+        from datetime import date as _date
+        today = _date.today()
+        open_rows = CashCustody.query.filter(
+            CashCustody.company_id == company_id,
+            CashCustody.status.in_((CustodyStatus.ISSUED,
+                                    CustodyStatus.PARTIALLY_SETTLED)),
+        ).all()
+        return {
+            "cash_custody_open": len(open_rows),
+            "cash_custody_overdue": sum(
+                1 for c in open_rows
+                if c.settlement_due_date
+                and c.settlement_due_date < today),
+        }
+    except Exception:
+        return {"cash_custody_open": 0,
+                "cash_custody_overdue": 0}
+
+
 def _month_range(year, month):
     """Return (first_of_month, last_of_month) date objects."""
     from calendar import monthrange
@@ -1235,6 +1266,13 @@ def dashboard_metrics(company_id, period="month"):
             "customers_new_month": new_customers_count,
             "customers_new_prev": new_customers_prev,
             "customers_delta": new_customers_count - new_customers_prev,
+            # MARSOUD-CASH-CUSTODY-01 (slice 3, 2026-08-07) — backs
+            # the dashboard's "العهد النقدية" tile. Open = ISSUED
+            # or PARTIALLY_SETTLED; overdue subset drives the red
+            # nudge tag. Wrapped in try so a company on a plan
+            # without cash_custody doesn't 500 the whole dashboard
+            # if the tables aren't there — 0 is safe.
+            **_cash_custody_metrics(company_id),
         },
         "late_invoices": late_invoices,
         "late_invoices_total": overdue_total,
