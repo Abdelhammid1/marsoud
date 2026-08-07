@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block page_title %}المحاسب الذكي{% endblock %}
 {% block content %}
+{# MARSOUD-INSIGHTS-CONVERSATIONS-01 (2026-08-08) — shared JS
+   helpers (escapeHtml + renderMarkdownTables). The insights
+   template loads the same file so table-rendering + XSS-escape
+   behavior stays consistent across both agents. #}
+<script src="{{ url_for('static', filename='js/agent-common.js') }}"></script>
 <div class="grid grid-cols-3 gap-4 h-[calc(100vh-9rem)]">
   <div class="card p-6 col-span-2 flex flex-col">
     <div class="flex items-center justify-between mb-4">
@@ -479,7 +484,7 @@ async function sendMessage(e) {
         document.getElementById('conversations-list')
                 .dataset.activeId = data.conversation_id;
       }
-      box.innerHTML += `<div class="flex justify-start"><div class="bg-white border border-slate-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">${escapeHtml(data.reply)}</div></div>`;
+      box.innerHTML += `<div class="flex justify-start"><div class="bg-white border border-slate-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">${renderMarkdownTables(data.reply)}</div></div>`;
       if (data.tools && data.tools.length) {
         // MARSOUD-AGENT-SAFETY-03 (2026-08-06) — proposal cards for
         // write-tools waiting on user confirm.
@@ -549,7 +554,7 @@ async function loadConversation(cid) {
     if (m.role === 'user') {
       box.innerHTML += `<div class="flex justify-end"><div class="bg-navy-900 text-white rounded-2xl rounded-tl-sm px-4 py-2 max-w-[80%] text-sm">${escapeHtml(m.content)}</div></div>`;
     } else {
-      box.innerHTML += `<div class="flex justify-start"><div class="bg-white border border-slate-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">${escapeHtml(m.content)}</div></div>`;
+      box.innerHTML += `<div class="flex justify-start"><div class="bg-white border border-slate-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">${renderMarkdownTables(m.content)}</div></div>`;
     }
   });
   document.getElementById('conversations-list').dataset.activeId = cid;
@@ -569,7 +574,9 @@ async function deleteConversation(ev, cid) {
   location.reload();
 }
 
-function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// escapeHtml moved to app/static/js/agent-common.js as of
+// MARSOUD-INSIGHTS-CONVERSATIONS-01 — the <script src=...> at the
+// top of this template loads window.escapeHtml + window.renderMarkdownTables.
 document.getElementById('chat-messages').scrollTop = 99999;
 </script>
 {% endblock %}

@@ -13,11 +13,14 @@ bp = Blueprint("agent", __name__)
 
 # ─── MARSOUD-AGENT-MEMORY-05 (2026-08-06) — history loading ────
 # Every load now scopes to a SPECIFIC conversation, not the last N
-# messages per user. This is the load-bearing fix — a two-month-old
-# topic can no longer bleed into today's turn because it's in a
-# different conversation. The legacy "last 20 per user" function is
-# gone; if anything else in this codebase relied on it, it needs to
-# resolve a conversation first.
+# messages per user. Load-bearing fix — a two-month-old topic can no
+# longer bleed into today's turn because it's in a different
+# conversation.
+#
+# MARSOUD-INSIGHTS-CONVERSATIONS-01 (2026-08-08) — the legacy
+# `_load_history_legacy` / `_load_history` shims that used to keep
+# the pre-T5 shape alive for insights are gone; the insights route
+# now uses the same conversation-scoped loader as the accountant.
 def _load_conversation_history(conversation_id, limit=40):
     q = AgentMessage.query.filter_by(
         conversation_id=conversation_id,
@@ -27,24 +30,34 @@ def _load_conversation_history(conversation_id, limit=40):
     return rows
 
 
-def _load_history_legacy(company_id, user_id, agent_type, limit=20):
-    """Legacy shape kept for the insights route only — insights hasn't
-    been migrated to conversations yet (deferred per T5's Not-Included
-    section). Delete when insights adopts the sidebar."""
-    q = AgentMessage.query.filter_by(
-        company_id=company_id, user_id=user_id,
-        agent_type=agent_type,
-    ).order_by(AgentMessage.created_at.desc()).limit(limit)
-    rows = list(q)
-    rows.reverse()
-    return rows
+def _backfill_orphan_insights_messages(user_id, company_id):
+    """MARSOUD-INSIGHTS-CONVERSATIONS-01 (2026-08-08) — one-shot
+    per-user rescue for insights messages that pre-date this ticket.
 
-
-def _load_history(company_id, user_id, agent_type, limit=20):
-    """Backwards-compat wrapper for callers that still expect the
-    pre-T5 shape (the insights route). New code uses
-    _load_conversation_history."""
-    return _load_history_legacy(company_id, user_id, agent_type, limit)
+    Before this ticket the insights route wrote AgentMessage rows
+    with `conversation_id = NULL`, so those rows are invisible in the
+    new sidebar. Rather than a full migration touching every tenant
+    at deploy time, bucket a user's orphans into a single 'archive'
+    conversation the first time they open /agent/insights after the
+    deploy. Idempotent — subsequent calls find zero orphans and no-op.
+    Returns the count of rows re-parented (for logging / tests)."""
+    orphans = AgentMessage.query.filter_by(
+        user_id=user_id, company_id=company_id,
+        agent_type="insights", conversation_id=None,
+    ).all()
+    if not orphans:
+        return 0
+    from app.services.agent_conversations import create_conversation
+    archive_conv = create_conversation(user_id, company_id, "insights")
+    archive_conv.title = "الرسائل السابقة"
+    from datetime import datetime
+    archive_conv.last_message_at = max(
+        (m.created_at for m in orphans if m.created_at),
+        default=datetime.utcnow())
+    for m in orphans:
+        m.conversation_id = archive_conv.id
+    db.session.commit()
+    return len(orphans)
 
 
 # ─── Accountant (existing) ─────────────────────────────────────
@@ -156,15 +169,18 @@ def chat():
 
 
 # ─── MARSOUD-AGENT-MEMORY-05 (2026-08-06) — conversation endpoints ───
-def _resolve_own_conversation(conv_id):
+# MARSOUD-INSIGHTS-CONVERSATIONS-01 (2026-08-08) — parameterized on
+# agent_type so the same isolation predicate serves both accountant
+# and insights routes.
+def _resolve_own_conversation(conv_id, agent_type):
     """Fetch a conversation but ONLY if it belongs to the current
-    user + active company + accountant agent_type. Returns the row
-    or aborts 404. Same isolation shape AgentMessage would refuse."""
+    user + active company + given agent_type. Returns the row or
+    aborts 404. Same isolation shape AgentMessage would refuse."""
     c = db.session.get(AgentConversation, conv_id)
     if (not c
             or c.user_id != current_user.id
             or c.company_id != g.active_company.id
-            or c.agent_type != "accountant"):
+            or c.agent_type != agent_type):
         abort(404)
     return c
 
@@ -205,7 +221,7 @@ def conversations_new():
 @login_required
 @require_permission("agent.use")
 def conversations_messages(conv_id):
-    conv = _resolve_own_conversation(conv_id)
+    conv = _resolve_own_conversation(conv_id, "accountant")
     msgs = _load_conversation_history(conv.id, limit=200)
     import json as _json
     return jsonify({
@@ -230,7 +246,7 @@ def conversations_delete(conv_id):
     later. Two-step so a future 'restore archive' feature is
     reachable without changing the delete path."""
     from app.services.agent_conversations import archive_conversation
-    conv = _resolve_own_conversation(conv_id)
+    conv = _resolve_own_conversation(conv_id, "accountant")
     archive_conversation(conv)
     return jsonify({"ok": True, "id": conv.id, "archived": True})
 
@@ -288,16 +304,35 @@ def clear():
     return jsonify({"ok": True, "archived_conversation_id": conv.id})
 
 
-# ─── Insights (new, DeepSeek) ──────────────────────────────────
+# ─── Insights (DeepSeek) ───────────────────────────────────────
+# MARSOUD-INSIGHTS-CONVERSATIONS-01 (2026-08-08) — full parity with
+# the accountant agent: multi-conversation with sidebar, per-topic
+# isolation, soft-delete-as-archive. Uses the same
+# agent_conversations service helpers as the accountant with
+# agent_type="insights" instead of "accountant".
 @bp.route("/insights")
 @login_required
 @require_permission("insights.use")
 def insights_index():
-    history = _load_history(
-        g.active_company.id, current_user.id,
-        "insights", limit=40,
+    from app.services.agent_conversations import (
+        get_or_create_current_conversation, list_conversations_for,
     )
-    return render_template("agent/insights.html", history=history)
+    # Lazy per-user backfill: rescue pre-ticket orphan messages
+    # (conversation_id=NULL) into a dedicated 'الرسائل السابقة'
+    # conversation so users don't lose their history. Idempotent.
+    _backfill_orphan_insights_messages(
+        current_user.id, g.active_company.id)
+    conv = get_or_create_current_conversation(
+        current_user.id, g.active_company.id, "insights")
+    history = _load_conversation_history(conv.id, limit=40)
+    conversations = list_conversations_for(
+        current_user.id, g.active_company.id, "insights")
+    return render_template(
+        "agent/insights.html",
+        history=history,
+        conversations=conversations,
+        active_conversation_id=conv.id,
+    )
 
 
 @bp.route("/insights/chat", methods=["POST"])
@@ -310,14 +345,35 @@ def insights_chat():
     if not g.active_company:
         return jsonify({"error": "لا توجد شركة نشطة"}), 400
 
+    # Same resolve-or-create dance as accountant chat: honor the
+    # conversation_id the client sends, verify it's ours (isolation),
+    # else fall back to the current one.
+    from app.services.agent_conversations import (
+        get_or_create_current_conversation, touch_conversation,
+    )
+    cid_from_body = (request.json or {}).get("conversation_id")
+    conv = None
+    if cid_from_body:
+        conv = db.session.get(AgentConversation, int(cid_from_body))
+        if (not conv
+                or conv.user_id != current_user.id
+                or conv.company_id != g.active_company.id
+                or conv.agent_type != "insights"
+                or conv.is_archived):
+            return jsonify({"error": "المحادثة غير موجودة"}), 404
+    if conv is None:
+        conv = get_or_create_current_conversation(
+            current_user.id, g.active_company.id, "insights")
+
     db.session.add(AgentMessage(
         company_id=g.active_company.id, user_id=current_user.id,
         role="user", content=user_msg, agent_type="insights",
+        conversation_id=conv.id,
     ))
     db.session.commit()
+    touch_conversation(conv, first_user_text=user_msg)
 
-    history = _load_history(
-        g.active_company.id, current_user.id, "insights")
+    history = _load_conversation_history(conv.id, limit=40)
     messages = [{"role": m.role, "content": m.content}
                 for m in history if m.role in ("user", "assistant")]
 
@@ -335,13 +391,8 @@ def insights_chat():
         )
         from app.services.ai_providers import DeepseekProvider
         # MARSOUD-INSIGHTS-AGENT-PROFESSIONAL (2026-08-06) —
-        # max_iters bumped from 5 → 8 (matches accountant). With
-        # ~40 tools + 3 composites, a legitimate drill-down (open
-        # composite → cross-check on one atomic → close) needs 6+
-        # provider turns. The old 5-cap was silently truncating
-        # those chains: the loop reset `final_text = ""` on the
-        # last non-terminating iter and the user got an empty
-        # reply. See app/agent/base.py:130.
+        # max_iters bumped from 5 → 8 (matches accountant). See
+        # app/agent/base.py:130 for the truncation trap this avoids.
         reply, _, tool_trace = run_agent_turn(
             messages=messages,
             company_id=g.active_company.id,
@@ -353,22 +404,23 @@ def insights_chat():
             company_context=company_context,
             max_iters=8,
         )
-        # MARSOUD-INSIGHTS-AGENT-PROFESSIONAL — persist tool_trace
-        # on the assistant row (accountant already does this; the
-        # insights route was just missing it). Enables the audit
-        # + latency dashboard to answer "what did the analyst run
-        # yesterday? how long did each tool take?".
         import json as _json
         db.session.add(AgentMessage(
             company_id=g.active_company.id,
             user_id=current_user.id, role="assistant",
             content=reply, agent_type="insights",
+            conversation_id=conv.id,
             tool_trace=(_json.dumps(tool_trace, default=str,
                                     ensure_ascii=False)
                         if tool_trace else None),
         ))
         db.session.commit()
-        return jsonify({"reply": reply, "tools": tool_trace})
+        touch_conversation(conv)
+        return jsonify({
+            "reply": reply,
+            "tools": tool_trace,
+            "conversation_id": conv.id,
+        })
     except Exception as e:  # noqa: BLE001
         # A DeepSeek failure MUST NOT affect the accountant.
         # Log the traceback so dev doesn't lose it — the Arabic
@@ -391,9 +443,77 @@ def insights_chat():
 @login_required
 @require_permission("insights.use")
 def insights_clear():
-    AgentMessage.query.filter_by(
-        company_id=g.active_company.id, user_id=current_user.id,
-        agent_type="insights",
-    ).delete()
-    db.session.commit()
-    return jsonify({"ok": True})
+    """Same reinterpretation as accountant /clear: archive the
+    current conversation, don't nuke messages. Retention cron
+    hard-deletes later."""
+    from app.services.agent_conversations import (
+        get_or_create_current_conversation, archive_conversation,
+    )
+    conv = get_or_create_current_conversation(
+        current_user.id, g.active_company.id, "insights")
+    archive_conversation(conv)
+    return jsonify({"ok": True, "archived_conversation_id": conv.id})
+
+
+# ─── Insights conversations endpoints (mirror the accountant set) ───
+@bp.route("/insights/conversations", methods=["GET"])
+@login_required
+@require_permission("insights.use")
+def insights_conversations_list():
+    from app.services.agent_conversations import list_conversations_for
+    convs = list_conversations_for(
+        current_user.id, g.active_company.id, "insights")
+    return jsonify({
+        "conversations": [
+            {"id": c.id,
+             "title": c.title or "محادثة جديدة",
+             "last_message_at": c.last_message_at.isoformat()
+             if c.last_message_at else None,
+             "created_at": c.created_at.isoformat()
+             if c.created_at else None}
+            for c in convs
+        ],
+    })
+
+
+@bp.route("/insights/conversations/new", methods=["POST"])
+@login_required
+@require_permission("insights.use")
+def insights_conversations_new():
+    from app.services.agent_conversations import create_conversation
+    if not g.active_company:
+        return jsonify({"error": "لا توجد شركة نشطة"}), 400
+    conv = create_conversation(
+        current_user.id, g.active_company.id, "insights")
+    return jsonify({"id": conv.id, "title": conv.title or "محادثة جديدة"})
+
+
+@bp.route("/insights/conversations/<int:conv_id>/messages", methods=["GET"])
+@login_required
+@require_permission("insights.use")
+def insights_conversations_messages(conv_id):
+    conv = _resolve_own_conversation(conv_id, "insights")
+    msgs = _load_conversation_history(conv.id, limit=200)
+    import json as _json
+    return jsonify({
+        "id": conv.id,
+        "title": conv.title or "محادثة جديدة",
+        "messages": [
+            {"role": m.role, "content": m.content,
+             "tool_trace": _json.loads(m.tool_trace)
+             if m.tool_trace else None,
+             "created_at": m.created_at.isoformat()
+             if m.created_at else None}
+            for m in msgs
+        ],
+    })
+
+
+@bp.route("/insights/conversations/<int:conv_id>", methods=["DELETE"])
+@login_required
+@require_permission("insights.use")
+def insights_conversations_delete(conv_id):
+    from app.services.agent_conversations import archive_conversation
+    conv = _resolve_own_conversation(conv_id, "insights")
+    archive_conversation(conv)
+    return jsonify({"ok": True, "id": conv.id, "archived": True})

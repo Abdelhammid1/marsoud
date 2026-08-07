@@ -3,7 +3,13 @@
 {% block content %}
 {# MARSOUD-INSIGHTS-AGENT-01 (Batch 9 Ticket 6, 2026-08-01) —
    read-only analyst chat. Visually distinct from the accountant
-   (amber accent + 🔍 icon) so users don't mistake the two. #}
+   (amber accent + 🔍 icon) so users don't mistake the two.
+   MARSOUD-INSIGHTS-CONVERSATIONS-01 (2026-08-08) — multi-
+   conversation sidebar ported over from the accountant; palette
+   swap emerald → amber is the only visual difference. Shared JS
+   helpers (escapeHtml + renderMarkdownTables) come from the
+   agent-common.js script tag below. #}
+<script src="{{ url_for('static', filename='js/agent-common.js') }}"></script>
 <div class="grid grid-cols-3 gap-4 h-[calc(100vh-9rem)]">
   <div class="card p-6 col-span-2 flex flex-col border-amber-200">
     <div class="flex items-center justify-between mb-4">
@@ -14,7 +20,11 @@
           <p class="text-xs text-slate-500">قراءة وتحليل بيانات شركتك — للاطلاع فقط، مش بيعدّل أو ينفّذ أي عملية.</p>
         </div>
       </div>
-      <button onclick="clearChat()" class="text-sm text-slate-500 hover:text-red-600">مسح المحادثة</button>
+      {# 'مسح المحادثة' now archives the current conversation
+         (see /agent/insights/clear) instead of nuking every insights
+         message the user ever wrote. Same semantic as accountant's
+         clear after MARSOUD-AGENT-MEMORY-05. #}
+      <button onclick="clearChat()" class="text-sm text-slate-500 hover:text-red-600">أرشفة وابدأ جديدة</button>
     </div>
 
     <div id="chat-messages" class="flex-1 overflow-y-auto space-y-3 mb-4 bg-amber-50/40 -mx-6 px-6 py-4 border-y border-amber-100">
@@ -47,27 +57,44 @@
     </form>
   </div>
 
-  <div class="card p-6 border-amber-100">
-    <h3 class="font-bold text-navy-900 mb-3">💡 اسأل عن</h3>
-    <div class="space-y-3 text-sm">
-      {% set topics = [
-        ('📅', 'ملخص اليوم', 'فواتير، تحصيلات، مهام، عملاء محتملين'),
-        ('✅', 'إحصائيات المهام', 'مفتوح/منجز/متأخر لكل حالة'),
-        ('👤', 'أداء الموظفين', 'مين اللي بينجز أكتر خلال فترة'),
-        ('⏰', 'المتأخرات', 'مهام + فواتير عملاء + فواتير موردين'),
-        ('📊', 'نشاط الموديولات', 'أكتر أجزاء النظام استخدامًا'),
-      ] %}
-      {% for icon, title, desc in topics %}
-      <div class="flex gap-3">
-        <div class="text-xl">{{ icon }}</div>
-        <div>
-          <div class="font-semibold text-navy-900">{{ title }}</div>
-          <div class="text-xs text-slate-500">{{ desc }}</div>
+  {# MARSOUD-INSIGHTS-CONVERSATIONS-01 (2026-08-08) — sidebar
+     ported verbatim from chat.html; palette classes are the only
+     changes (emerald → amber). Same server-side hydration via
+     {% for c in conversations %}. #}
+  <div class="card p-4 flex flex-col overflow-hidden border-amber-100">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-bold text-navy-900">💬 محادثاتي</h3>
+      <button onclick="newConversation()"
+              class="text-xs px-3 py-1.5 rounded bg-amber-600 text-white hover:bg-amber-700">
+        + محادثة جديدة
+      </button>
+    </div>
+    <div id="conversations-list" class="flex-1 overflow-y-auto space-y-1 text-sm"
+         data-active-id="{{ active_conversation_id }}">
+      {% for c in conversations %}
+      <div class="conv-row flex items-center justify-between rounded px-2 py-2 hover:bg-slate-100 cursor-pointer
+                  {% if c.id == active_conversation_id %}bg-amber-50 border border-amber-200{% endif %}"
+           data-id="{{ c.id }}"
+           onclick="loadConversation({{ c.id }})">
+        <div class="flex-1 min-w-0">
+          <div class="font-medium text-navy-900 truncate">
+            {{ c.title or 'محادثة جديدة' }}
+          </div>
+          <div class="text-xs text-slate-500">
+            {{ c.last_message_at | company_dt('%Y-%m-%d %H:%M') if c.last_message_at else '' }}
+          </div>
         </div>
+        <button onclick="deleteConversation(event, {{ c.id }})"
+                class="text-xs text-slate-400 hover:text-rose-600"
+                title="حذف من القائمة">🗑</button>
+      </div>
+      {% else %}
+      <div class="text-xs text-slate-400 text-center py-6">
+        لا توجد محادثات بعد. ابدأ الكتابة يمين.
       </div>
       {% endfor %}
     </div>
-    <div class="mt-5 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-700">
+    <div class="mt-3 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-700">
       <b class="text-slate-900">للقراءة فقط.</b> المحلل ما بيعدّل ولا يعمل قيد ولا يمسح حاجة. لأي عملية استخدم <a href="{{ url_for('agent.index') }}" class="text-brand-600 hover:underline">المحاسب الذكي</a>.
     </div>
   </div>
@@ -91,17 +118,30 @@ async function sendMessage(e) {
   box.scrollTop = box.scrollHeight;
   document.getElementById('send-btn').disabled = true;
 
+  // MARSOUD-INSIGHTS-CONVERSATIONS-01 — pass the active conversation
+  // id so the server pins each user message to the correct thread.
+  // First turn of a fresh chat leaves it null and the server
+  // get-or-create's; from then on the client tracks the id via
+  // data-active-id on #conversations-list.
+  const activeId = document.getElementById('conversations-list').dataset.activeId || null;
+
   try {
     const res = await fetch('/agent/insights/chat', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message: text}),
+      body: JSON.stringify({message: text, conversation_id: activeId}),
     });
     const data = await res.json();
     loading.remove();
     if (data.error) {
       box.innerHTML += `<div class="text-xs text-red-600 px-2">${escapeHtml(data.error)}</div>`;
     } else {
-      box.innerHTML += `<div class="flex justify-start"><div class="bg-white border border-amber-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">${escapeHtml(data.reply)}</div></div>`;
+      // Server always echoes conversation_id — keep the client in sync
+      // (first turn of a fresh chat lands with a server-assigned id).
+      if (data.conversation_id) {
+        document.getElementById('conversations-list')
+                .dataset.activeId = data.conversation_id;
+      }
+      box.innerHTML += `<div class="flex justify-start"><div class="bg-white border border-amber-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">${renderMarkdownTables(data.reply)}</div></div>`;
       if (data.tools && data.tools.length) {
         const usedTools = data.tools.map(t => t.tool).join(', ');
         box.innerHTML += `<div class="text-xs text-slate-400 px-2">🔧 استخدم: ${escapeHtml(usedTools)}</div>`;
@@ -114,12 +154,57 @@ async function sendMessage(e) {
   document.getElementById('send-btn').disabled = false;
   box.scrollTop = box.scrollHeight;
 }
+
 async function clearChat() {
-  if (!confirm('مسح محادثة المحلل بالكامل؟')) return;
+  if (!confirm('أرشفة المحادثة الحالية وفتح واحدة جديدة؟')) return;
   await fetch('/agent/insights/clear', {method: 'POST'});
   location.reload();
 }
-function escapeHtml(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// MARSOUD-INSIGHTS-CONVERSATIONS-01 — sidebar handlers, mirror of
+// accountant's chat.html functions with the /agent/insights/... URLs.
+async function newConversation() {
+  const res = await fetch('/agent/insights/conversations/new', {method: 'POST'});
+  const data = await res.json();
+  if (!data.id) return;
+  const box = document.getElementById('chat-messages');
+  box.innerHTML = '<div class="text-center text-slate-400 py-8"><div class="text-3xl mb-2">🆕</div><p class="text-sm">محادثة جديدة — اطرح سؤالك</p></div>';
+  document.getElementById('conversations-list').dataset.activeId = data.id;
+  location.reload();
+}
+
+async function loadConversation(cid) {
+  const res = await fetch(`/agent/insights/conversations/${cid}/messages`);
+  const data = await res.json();
+  if (data.messages === undefined) return;
+  const box = document.getElementById('chat-messages');
+  box.innerHTML = '';
+  if (data.messages.length === 0) {
+    box.innerHTML = '<div class="text-center text-slate-400 py-8"><div class="text-3xl mb-2">💬</div><p class="text-sm">المحادثة فاضية</p></div>';
+  }
+  data.messages.forEach(m => {
+    if (m.role === 'user') {
+      box.innerHTML += `<div class="flex justify-end"><div class="bg-navy-900 text-white rounded-2xl rounded-tl-sm px-4 py-2 max-w-[80%] text-sm">${escapeHtml(m.content)}</div></div>`;
+    } else {
+      box.innerHTML += `<div class="flex justify-start"><div class="bg-white border border-amber-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">${renderMarkdownTables(m.content)}</div></div>`;
+    }
+  });
+  document.getElementById('conversations-list').dataset.activeId = cid;
+  box.scrollTop = box.scrollHeight;
+  document.querySelectorAll('.conv-row').forEach(r => {
+    r.classList.toggle('bg-amber-50', Number(r.dataset.id) === Number(cid));
+    r.classList.toggle('border', Number(r.dataset.id) === Number(cid));
+    r.classList.toggle('border-amber-200', Number(r.dataset.id) === Number(cid));
+  });
+}
+
+async function deleteConversation(ev, cid) {
+  ev.stopPropagation();
+  if (!confirm('حذف هذه المحادثة من القائمة؟')) return;
+  await fetch(`/agent/insights/conversations/${cid}`, {method: 'DELETE'});
+  location.reload();
+}
+
 document.getElementById('chat-messages').scrollTop = 99999;
 </script>
 {% endblock %}
