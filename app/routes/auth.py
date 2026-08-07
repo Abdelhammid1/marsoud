@@ -488,7 +488,13 @@ def choose_plan():
         # read + cleared by base.html on the very next page render so
         # the CompleteRegistration event fires exactly once, right
         # after a real plan choice (not on plain signup/login).
+        # Also attach value+currency (Meta's Test Events flagged the
+        # event as missing these — needed for value-based bidding).
+        cycle = "monthly" if freq == "MONTHLY" else "yearly"
+        price = plan.price_for(company.base_currency, cycle)
         session["plan_selected_conversion"] = True
+        session["plan_selected_conversion_value"] = float(price) if price else 0
+        session["plan_selected_conversion_currency"] = company.base_currency or "EGP"
         return redirect(url_for("dashboard.index"))
 
     plans = Plan.query.filter_by(is_active=True).order_by(

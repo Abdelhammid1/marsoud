@@ -454,7 +454,10 @@ tailwind.config = {
   // Fires exactly once — right after a successful /choose-plan POST,
   // on the first dashboard load that follows it. session.pop (not
   // .get) guarantees it clears itself so a refresh won't re-fire it.
-  fbq('track', 'CompleteRegistration');
+  fbq('track', 'CompleteRegistration', {
+    value: {{ session.pop('plan_selected_conversion_value', 0) }},
+    currency: '{{ session.pop('plan_selected_conversion_currency', 'EGP') }}'
+  });
   </script>
   {% endif %}
 </head>
