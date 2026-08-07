@@ -51,6 +51,10 @@ _SOURCE_TYPES = {
     "template":           ("قيد من قالب متكرر", None,                  None),
     "depreciation":       ("إهلاك أصول",       None,                    None),
     "asset_purchase":     ("شراء أصل",         "vendor_bills.view",     "bill_id"),
+    # MARSOUD-ASSET-DISPOSAL-01 (2026-08-07) — source_id is the
+    # asset.id (not a bill), so the label links back to the asset
+    # view where the disposal panel becomes a read-only banner.
+    "asset_disposal":     ("شطب أصل",          "assets.view",           "asset_id"),
     "manual_adjustment":  ("تسوية مخزون",      None,                    None),
     "stock_transfer":     ("تحويل بين المخازن", "inventory.transfers",  None),
     "pos_sale":           ("بيع من نقطة البيع", "invoices.view",         "invoice_id"),

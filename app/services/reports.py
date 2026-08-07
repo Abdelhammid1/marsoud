@@ -441,12 +441,18 @@ def payroll_summary_report(company_id, year=None, month=None):
 
 
 def fixed_assets_report(company_id):
-    """Full fixed assets inventory — total NBV must match the asset accounts on the balance sheet."""
+    """Full fixed assets inventory — total active NBV must match the
+    asset accounts on the balance sheet.
+
+    MARSOUD-ASSET-DISPOSAL-01 (2026-08-07) — return shape gained a
+    `disposed` section alongside the active one. The template splits
+    on it; the accountant agent + dashboard KPI keep reading the
+    top-level `rows`/`totals` (active only) for back-compat."""
     from app.models import FixedAsset
-    assets = FixedAsset.query.filter_by(company_id=company_id, is_disposed=False).order_by(FixedAsset.created_at).all()
-    rows = []
-    totals = {"cost": 0.0, "annual_dep": 0.0, "accumulated_dep": 0.0, "nbv": 0.0}
-    for a in assets:
+    all_assets = FixedAsset.query.filter_by(
+        company_id=company_id).order_by(FixedAsset.created_at).all()
+
+    def _row(a, *, include_disposal=False):
         row = {
             "id": a.id,
             "name": a.name,
@@ -462,12 +468,50 @@ def fixed_assets_report(company_id):
             "account_code": a.account.code if a.account else "",
             "account_name": (a.account.name_ar or a.account.name) if a.account else "",
         }
-        rows.append(row)
-        totals["cost"] += row["cost"]
-        totals["annual_dep"] += row["annual_dep"]
-        totals["accumulated_dep"] += row["accumulated_dep"]
-        totals["nbv"] += row["nbv"]
-    return {"rows": rows, "totals": totals}
+        if include_disposal:
+            row.update({
+                "disposal_date": (a.disposal_date.isoformat()
+                                  if a.disposal_date else None),
+                "disposal_reason": (a.disposal_reason.value
+                                    if a.disposal_reason else None),
+                "disposal_reason_ar": (a.disposal_reason.label_ar
+                                       if a.disposal_reason else None),
+                "disposal_proceeds": float(a.disposal_proceeds or 0),
+                "disposal_note": a.disposal_note,
+                "disposal_entry_id": a.disposal_journal_entry_id,
+            })
+        return row
+
+    def _totals(rows):
+        t = {"cost": 0.0, "annual_dep": 0.0,
+             "accumulated_dep": 0.0, "nbv": 0.0}
+        for r in rows:
+            t["cost"] += r["cost"]
+            t["annual_dep"] += r["annual_dep"]
+            t["accumulated_dep"] += r["accumulated_dep"]
+            t["nbv"] += r["nbv"]
+        return t
+
+    active_rows = [_row(a) for a in all_assets if not a.is_disposed]
+    disposed_rows = [_row(a, include_disposal=True)
+                     for a in all_assets if a.is_disposed]
+
+    active_totals = _totals(active_rows)
+    disposed_totals = _totals(disposed_rows)
+    # Disposed rows also carry a proceeds total the active side
+    # doesn't have.
+    disposed_totals["proceeds"] = round(
+        sum(r["disposal_proceeds"] for r in disposed_rows), 2)
+
+    # Back-compat top-level keys — accountant agent's list_fixed_assets
+    # + dashboard KPI read rows/totals by name. Additive: adding
+    # `active`/`disposed` alongside doesn't break them.
+    return {
+        "rows": active_rows,
+        "totals": active_totals,
+        "active": {"rows": active_rows, "totals": active_totals},
+        "disposed": {"rows": disposed_rows, "totals": disposed_totals},
+    }
 
 
 def aging_report(company_id, as_of=None):

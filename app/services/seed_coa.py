@@ -99,6 +99,10 @@ DEFAULT_COA = [
     ("4300", "Sales Returns & Allowances", "مردودات ومسموحات المبيعات", AccountType.REVENUE, "4000", True),
     ("4400", "Discounts Allowed", "خصم مسموح به", AccountType.REVENUE, "4000", True),
     ("4500", "Other Income", "إيرادات أخرى", AccountType.REVENUE, "4000", True),
+    # MARSOUD-ASSET-DISPOSAL-01 (2026-08-07) — proceeds > NBV on a
+    # disposal lands here. Sibling of 4500 rather than under it
+    # (4500 is a leaf, not a header) to match the flat 4xxx layout.
+    ("4550", "Gain on Disposal of Fixed Assets", "أرباح بيع أصول ثابتة", AccountType.REVENUE, "4000", True),
 
     # ===== EXPENSES =====
     ("5000", "Expenses", "المصروفات", AccountType.EXPENSE, None, False),
@@ -145,6 +149,10 @@ DEFAULT_COA = [
     # expense, and 5200 is the operating subtotal. 5270 is a different
     # line (account fees, transfer charges), not a substitute for this.
     ("5940", "Interest & Financing Charges", "فوائد وأعباء تمويلية", AccountType.EXPENSE, "5900", True),
+    # MARSOUD-ASSET-DISPOSAL-01 (2026-08-07) — NBV > proceeds on a
+    # disposal lands here. Under 5900 (Other Expenses header) — a
+    # disposal loss isn't an operating expense.
+    ("5950", "Loss on Disposal of Fixed Assets", "خسائر بيع أصول ثابتة", AccountType.EXPENSE, "5900", True),
 ]
 
 

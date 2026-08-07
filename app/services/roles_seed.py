@@ -40,6 +40,12 @@ PERMISSION_CATALOG = {
     "products.manage":      ("المالية والمحاسبة", "المنتجات والخدمات: إدارة", "edit"),
     "payment_methods.manage": ("المالية والمحاسبة", "طرق الدفع: إدارة", "edit"),
     "assets.manage":        ("المالية والمحاسبة", "الأصول الثابتة: إدارة", "edit"),
+    # MARSOUD-ASSET-DISPOSAL-01 (2026-08-07) — split off .manage so
+    # a custom role can hold "read + monthly depreciate" without
+    # also holding the irreversible disposal button.
+    "assets.dispose":       ("المالية والمحاسبة",
+                              "شطب / استبعاد أصل ثابت (عملية لا رجعة فيها)",
+                              "delete"),
 
     "reports.view":         ("المالية والمحاسبة", "التقارير المالية: عرض", "view"),
     "reports.export":       ("المالية والمحاسبة", "التقارير المالية: تصدير", "edit"),

@@ -44,4 +44,67 @@
   </table>
   <p class="text-xs text-slate-400 mt-3">⚠ إجمالي القيمة الدفترية يطابق رصيد الأصول الثابتة في الميزانية</p>
 </div>
+
+{# MARSOUD-ASSET-DISPOSAL-01 (2026-08-07) — separate section for
+   disposed assets so they don't vanish from history when the flag
+   flips. Kept collapsed by default so the "healthy" report still
+   reads clean; expand to review closures + click through to the
+   disposal journal. #}
+{% if data.disposed and data.disposed.rows %}
+<div class="card p-6 mt-6 border-l-4 border-slate-400">
+  <details {% if data.disposed.rows|length <= 3 %}open{% endif %}>
+    <summary class="cursor-pointer flex items-center justify-between">
+      <h2 class="font-bold text-slate-700">
+        الأصول المشطوبة / المستبعدة
+        <span class="text-sm font-normal text-slate-500 mr-2">
+          ({{ data.disposed.rows|length }} أصل — تكلفة إجمالية
+          {{ "%.2f"|format(data.disposed.totals.cost) }})
+        </span>
+      </h2>
+      <span class="text-xs text-slate-400">اضغط للتوسيع</span>
+    </summary>
+    <table class="data-table mt-4">
+      <thead><tr>
+        <th>الأصل</th><th>تاريخ الشطب</th><th>السبب</th>
+        <th class="text-left">التكلفة الأصلية</th>
+        <th class="text-left">مجمع الإهلاك</th>
+        <th class="text-left">NBV وقت الشطب</th>
+        <th class="text-left">تحصيل</th>
+        <th>قيد الشطب</th>
+      </tr></thead>
+      <tbody>
+        {% for r in data.disposed.rows %}
+        <tr>
+          <td>
+            <a href="{{ url_for('assets.view', asset_id=r.id) }}"
+               class="font-semibold hover:text-brand-600">{{ r.name }}</a>
+            <div class="text-xs text-slate-500">{{ r.account_code }} · {{ r.account_name }}</div>
+          </td>
+          <td class="font-mono text-sm">{{ r.disposal_date or '—' }}</td>
+          <td class="text-sm">{{ r.disposal_reason_ar or '—' }}</td>
+          <td class="text-left font-mono">{{ "%.2f"|format(r.cost) }}</td>
+          <td class="text-left font-mono text-amber-700">{{ "%.2f"|format(r.accumulated_dep) }}</td>
+          <td class="text-left font-mono">{{ "%.2f"|format(r.nbv) }}</td>
+          <td class="text-left font-mono">{{ "%.2f"|format(r.disposal_proceeds) }}</td>
+          <td>
+            {% if r.disposal_entry_id %}
+            <a href="{{ url_for('journals.view', entry_id=r.disposal_entry_id) }}"
+               class="text-brand-600 hover:underline text-xs">عرض القيد</a>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        <tr class="border-t-2 border-slate-400 font-bold bg-slate-50">
+          <td colspan="3" class="py-3">إجمالي المشطوب</td>
+          <td class="text-left font-mono">{{ "%.2f"|format(data.disposed.totals.cost) }}</td>
+          <td class="text-left font-mono text-amber-700">{{ "%.2f"|format(data.disposed.totals.accumulated_dep) }}</td>
+          <td class="text-left font-mono">{{ "%.2f"|format(data.disposed.totals.nbv) }}</td>
+          <td class="text-left font-mono">{{ "%.2f"|format(data.disposed.totals.proceeds) }}</td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+  </details>
+</div>
+{% endif %}
 {% endblock %}

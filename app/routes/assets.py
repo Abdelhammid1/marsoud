@@ -2,8 +2,13 @@ from datetime import datetime, date
 from flask import Blueprint, render_template, redirect, url_for, flash, request, g
 from flask_login import login_required, current_user
 from app import db
-from app.models import FixedAsset, DepreciationEntry, Account, Vendor
-from app.services.assets import post_monthly_depreciation, post_asset_purchase
+from app.models import (
+    FixedAsset, DepreciationEntry, Account, Vendor, DisposalReason,
+)
+from app.services.assets import (
+    post_monthly_depreciation, post_asset_purchase,
+    dispose_asset, AssetError,
+)
 from app.services.ledger import LedgerError
 from app.services.permissions import require_permission
 
@@ -103,7 +108,47 @@ def view(asset_id):
     history = DepreciationEntry.query.filter_by(asset_id=asset.id).order_by(
         DepreciationEntry.period_year, DepreciationEntry.period_month
     ).all()
-    return render_template("assets/view.html", asset=asset, history=history)
+    return render_template(
+        "assets/view.html", asset=asset, history=history,
+        disposal_reasons=DisposalReason)
+
+
+# MARSOUD-ASSET-DISPOSAL-01 (2026-08-07) — the irreversible closure.
+# Cross-tenant guard by loading with company scope BEFORE calling
+# the service (service also checks but this keeps the URL 404
+# rather than 500-with-service-error for company B poking A's id).
+@bp.route("/<int:asset_id>/dispose", methods=["POST"])
+@login_required
+@require_permission("assets.dispose")
+def dispose(asset_id):
+    asset = db.session.get(FixedAsset, asset_id)
+    if not asset or asset.company_id != g.active_company.id:
+        flash("الأصل غير موجود", "error")
+        return redirect(url_for("assets.index"))
+    try:
+        _date_raw = request.form.get("disposal_date", "").strip()
+        _date = (datetime.strptime(_date_raw, "%Y-%m-%d").date()
+                 if _date_raw else date.today())
+        dispose_asset(
+            asset.id,
+            disposal_date=_date,
+            reason=request.form.get("reason") or "OTHER",
+            proceeds=request.form.get("proceeds") or 0,
+            funding=request.form.get("funding", "cash"),
+            note=request.form.get("note"),
+            # charged_account_id is a service seam that no UI field
+            # populates in this ticket (item-custody will pass it).
+            # Left None here on purpose.
+            created_by=current_user.id,
+        )
+        flash(
+            f"تم شطب الأصل «{asset.name}» — القيد رقم "
+            f"{asset.disposal_journal_entry_id}",
+            "success")
+    except (AssetError, LedgerError, ValueError, TypeError) as e:
+        db.session.rollback()
+        flash(str(e), "error")
+    return redirect(url_for("assets.view", asset_id=asset.id))
 
 
 @bp.route("/depreciate", methods=["POST"])

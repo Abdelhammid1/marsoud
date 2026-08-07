@@ -1,5 +1,28 @@
+import enum
 from datetime import datetime, date
 from app import db
+
+
+class DisposalReason(enum.Enum):
+    """MARSOUD-ASSET-DISPOSAL-01 (2026-08-07) — why an asset left the
+    books. Enum (not free text) so the fixed-assets report + the
+    accountant agent can filter/count by reason without free-text
+    parsing. `disposal_note` handles the extra detail beside it."""
+    SOLD        = "SOLD"          # بيع بمقابل
+    LOST        = "LOST"          # فقد / سرقة
+    DAMAGED     = "DAMAGED"       # تلف
+    END_OF_LIFE = "END_OF_LIFE"   # انتهى عمره الإنتاجي
+    OTHER       = "OTHER"         # أي سبب آخر — راجع disposal_note
+
+    @property
+    def label_ar(self):
+        return {
+            "SOLD":        "بيع",
+            "LOST":        "فقد",
+            "DAMAGED":     "تلف",
+            "END_OF_LIFE": "انتهاء العمر الإنتاجي",
+            "OTHER":       "أخرى",
+        }[self.value]
 
 
 class FixedAsset(db.Model):
@@ -18,9 +41,25 @@ class FixedAsset(db.Model):
     is_disposed = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # MARSOUD-ASSET-DISPOSAL-01 (2026-08-07) — the closure fields.
+    # All five populated in one atomic write by
+    # `app/services/assets.py::dispose_asset` alongside a balanced
+    # disposal journal. Never edited by hand.
+    disposal_date = db.Column(db.Date, nullable=True)
+    disposal_reason = db.Column(db.Enum(DisposalReason), nullable=True)
+    disposal_note = db.Column(db.Text, nullable=True)
+    disposal_proceeds = db.Column(db.Numeric(15, 2), default=0)
+    disposal_journal_entry_id = db.Column(
+        db.Integer, db.ForeignKey("journal_entries.id"), nullable=True)
+    disposed_by_id = db.Column(
+        db.Integer, db.ForeignKey("users.id"), nullable=True)
+
     company = db.relationship("Company", backref=db.backref("assets", lazy="dynamic"))
     account = db.relationship("Account")
     vendor = db.relationship("Vendor", backref="fixed_assets")
+    disposal_entry = db.relationship(
+        "JournalEntry", foreign_keys=[disposal_journal_entry_id])
+    disposed_by = db.relationship("User", foreign_keys=[disposed_by_id])
 
     @property
     def annual_depreciation(self):

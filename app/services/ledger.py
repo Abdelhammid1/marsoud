@@ -299,6 +299,21 @@ def _undo_source_side_effects(original, reversal=None):
             if reversal is not None:
                 adv.reversal_entry_id = reversal.id
 
+    elif src_type == "asset_disposal":
+        # MARSOUD-ASSET-DISPOSAL-01 (2026-08-07) — a raw /journals
+        # reversal of a disposal entry would only reverse the ledger
+        # lines. It cannot safely un-flip `is_disposed`, restore all
+        # 5 disposal_* columns, or reconcile with a subsequent
+        # depreciation run (which can't have happened — the filter
+        # excludes disposed rows — but a data fix could).
+        #
+        # Refuse loudly. The ticket names manual correction as the
+        # only supported undo path — the accountant posts a fresh
+        # correcting journal, they don't reverse this one.
+        raise LedgerError(
+            "لا يمكن عكس قيد شطب أصل من هنا — استخدم قيد تصحيح "
+            "يدوي عادي إذا كان الشطب غلط.")
+
 
 def get_account_by_code(company_id, code):
     return Account.query.filter_by(company_id=company_id, code=code).first()

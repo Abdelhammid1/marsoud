@@ -146,6 +146,12 @@ P = {
     "payment_methods.manage": {"owner", "admin", "accountant"},
 
     "assets.manage":        {"owner", "admin", "accountant"},
+    # MARSOUD-ASSET-DISPOSAL-01 (2026-08-07) — irreversible closure.
+    # Same role set as .manage today, but split out so a custom role
+    # can hold "read + monthly depreciate" without holding "dispose".
+    # _IMPLIES entry below inherits it from .manage so existing
+    # accountants get it on deploy without a role re-seed.
+    "assets.dispose":       {"owner", "admin", "accountant"},
 
     "agent.use":            {"owner", "admin", "accountant"},   # agent can post journals → not viewer
     # MARSOUD-AGENT-SAFETY-03 (2026-08-06) — separated from agent.use
@@ -345,6 +351,12 @@ _IMPLIES = {
     "refunds.view":        "invoices.refund",
     "refunds.manage":      "invoices.refund",
     "vendor_bills.refund": "invoices.refund",
+    # MARSOUD-ASSET-DISPOSAL-01 (2026-08-07) — new perm inherits from
+    # its umbrella so existing accountants get it without a role
+    # re-seed on deploy. roles_seed doesn't touch custom roles, so a
+    # company that built a custom "assets.manage" role would
+    # otherwise lose disposal access until an admin re-toggled it.
+    "assets.dispose":      "assets.manage",
 }
 
 
