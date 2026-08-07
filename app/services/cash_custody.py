@@ -325,7 +325,17 @@ def issue_custody(company_id, *, holder_type, holder_id, amount,
 
     issued_on = issued_on or date.today()
 
-    # Where the money leaves from. Same resolution as advances.
+    # Where the money leaves from. Same resolution as advances, plus
+    # MARSOUD-CUSTODY-BUGS-01 (2026-08-08) — cascading fallback so a
+    # company whose seed pre-dated account 1110 (or whose super-admin
+    # renamed / re-parented cash accounts) can still issue custody
+    # without the accountant having to pick a payment method:
+    #   1. explicit pick — the payment method the accountant chose
+    #   2. the tenant's default PaymentMethod (points at 1110 out of
+    #      the box; a super-admin can re-point without breaking us)
+    #   3. any postable descendant of the Cash + Banks roots via the
+    #      same walker the cash-flow statement + POS already use
+    # Only raise when the company truly has no cash-side account.
     if payment_method_id:
         pm = db.session.get(PaymentMethod, int(payment_method_id))
         if not pm or pm.company_id != company_id or not pm.is_active:
@@ -333,11 +343,21 @@ def issue_custody(company_id, *, holder_type, holder_id, amount,
         pay_account = pm.account
         pay_label = pm.name_ar or pm.name
     else:
-        pay_account = get_account_by_code(company_id, "1110")
-        pay_label = "نقدي"
+        default_pm = PaymentMethod.query.filter_by(
+            company_id=company_id, is_default=True, is_active=True,
+        ).first()
+        if default_pm and default_pm.account:
+            pay_account = default_pm.account
+            pay_label = default_pm.name_ar or default_pm.name or "نقدي"
+        else:
+            from app.services.ledger import cash_accounts
+            leaves = cash_accounts(company_id, active_only=True)
+            pay_account = leaves[0] if leaves else None
+            pay_label = pay_account.name_ar if pay_account else "نقدي"
     if not pay_account:
         raise CustodyError(
-            "حساب النقدية (1110) غير موجود — راجع شجرة الحسابات")
+            "لا يوجد حساب نقدية أو بنك مُفعّل في شجرة الحسابات — "
+            "أضف طريقة دفع أو حسابًا تحت 1110/1120 من الإعدادات")
 
     # Holder's 1180-NNNNNN sub-account, minted lazily.
     from app.services.subsidiary import party_custody_account
