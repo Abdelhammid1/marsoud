@@ -789,6 +789,26 @@ def create_app(config_class=Config):
         except Exception as e:
             app.logger.exception("roles seed failed: %s", e)
 
+    # ─── MARSOUD-PLAN-BUNDLE-FIXES-01 (2026-08-07) — auto-heal
+    # PLAN_SEED drift. When a module is added to PLAN_SEED in code,
+    # nothing used to update the DB row until someone remembered to
+    # run `flask seed-plans`; result: the module was silently invisible
+    # for existing tenants. Now: on boot, we call the same idempotent
+    # sync the CLI uses. No-op when in sync; single INFO log line
+    # naming the plans that were re-seeded when drift is detected.
+    # Wrapped in try/except so a fresh clone before migrations run
+    # (plans table missing) still boots cleanly.
+    with app.app_context():
+        try:
+            from app.cli import sync_plans_from_seed
+            summary = sync_plans_from_seed()
+            if summary["updated"]:
+                app.logger.info(
+                    "PLAN_SEED drift auto-healed: re-seeded %s",
+                    ", ".join(summary["updated"]))
+        except Exception:
+            app.logger.exception("plan-seed drift check failed")
+
     # ─── Cycle 7 gap-close: context for the bell-icon unread counter ────
     @app.context_processor
     def inject_notif_count():

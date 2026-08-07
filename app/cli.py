@@ -35,12 +35,19 @@ PLAN_SEED = [
         "code": "growth",
         "name_ar": "Growth",
         "name": "Growth",
-        "description": "تجارة تجزئة — 7 مستخدمين + Starter + المخزون + نقطة البيع + CRM",
+        # MARSOUD-PLAN-BUNDLE-FIXES-01 (2026-08-07) — HR removed from
+        # Growth to match the plan-comparison marketing matrix (HR is
+        # Pro-only). Existing Growth tenants that were previously
+        # using HR keep their data (payroll runs / employees /
+        # attendance rows stay on disk); the module is just no
+        # longer exposed. Sales/support convert them to Pro if the
+        # tenant still needs HR features.
+        "description": "تجارة تجزئة — 7 مستخدمين + Starter + CRM + إدارة المهام والمشاريع",
         "price_monthly": 1499,
         "price_yearly": 14990,
         "modules": [
             "accounting", "sales", "purchases", "reports", "agent",
-            "inventory", "pos", "crm", "hr",
+            "inventory", "pos", "crm",
         ],
         "quotas": {
             "users": (7, 150),
@@ -84,10 +91,22 @@ PLAN_SEED = [
 LEGACY_TO_DEACTIVATE = ("retail", "services")
 
 
-@click.command("seed-plans")
-@with_appcontext
-def seed_plans_command():
-    """Rename + update the 3 canonical plans + seed quotas."""
+def sync_plans_from_seed():
+    """MARSOUD-PLAN-BUNDLE-FIXES-01 (2026-08-07) — pure function that
+    rewrites Plan + Quota rows from PLAN_SEED. Idempotent; safe to
+    call at boot to auto-heal drift between the seed and the DB.
+
+    Returns a dict summary:
+        {
+          "updated":     [<plan_code>, ...]  — plans that changed on disk
+          "deactivated": [<plan_code>, ...]  — legacy plans just flipped inactive
+          "skipped":     [(<plan_code>, <reason>), ...]
+        }
+
+    Splits into (`updated` vs no-op) by comparing what would be
+    written to what's already there BEFORE mutating — so the boot
+    shim can decide whether to log "auto-healed" or stay quiet.
+    """
     from app import db
     from app.models import (
         Plan, Company, Quota,
@@ -107,9 +126,25 @@ def seed_plans_command():
         # from the legacy code.
         plan = (Plan.query.filter_by(code=cfg["code"]).first()
                 or Plan.query.filter_by(code=cfg["old_code"]).first())
-        if plan is None:
+        is_new = plan is None
+        if is_new:
             plan = Plan(code=cfg["code"])
             db.session.add(plan)
+
+        # Drift detection before writing — compare seed to current
+        # row so the boot shim only logs when something actually
+        # changed.
+        drift = is_new or (
+            plan.code != cfg["code"]
+            or plan.name_ar != cfg["name_ar"]
+            or plan.name != cfg["name"]
+            or plan.description != cfg["description"]
+            or float(plan.price_monthly or 0) != float(cfg["price_monthly"])
+            or float(plan.price_yearly or 0) != float(cfg["price_yearly"])
+            or set(plan.modules or []) != set(cfg["modules"])
+            or not plan.is_active
+        )
+
         plan.code = cfg["code"]
         plan.name_ar = cfg["name_ar"]
         plan.name = cfg["name"]
@@ -120,20 +155,30 @@ def seed_plans_command():
         plan.set_modules(cfg["modules"])
         db.session.flush()
 
-        # Upsert quota rows.
+        # Upsert quota rows. Any quota row diff also counts as drift.
         for key, (included, unit_price) in cfg["quotas"].items():
             qtype = quota_type_map[key]
             row = Quota.query.filter_by(
                 plan_id=plan.id, quota_type=qtype).first()
             if row is None:
+                drift = True
                 row = Quota(plan_id=plan.id, quota_type=qtype)
                 db.session.add(row)
+            elif (row.included_amount != included
+                  or row.enforcement_mode != ENF_BLOCK
+                  or float(row.price_per_extra_unit or 0)
+                      != float(unit_price)):
+                drift = True
             row.included_amount = included
             row.enforcement_mode = ENF_BLOCK
             row.price_per_extra_unit = unit_price
-        updated.append(cfg["code"])
+
+        if drift:
+            updated.append(cfg["code"])
 
     # Deactivate legacy retail + services when nobody is bound.
+    deactivated = []
+    skipped = []
     for code in LEGACY_TO_DEACTIVATE:
         row = Plan.query.filter_by(code=code).first()
         if not row:
@@ -143,13 +188,32 @@ def seed_plans_command():
             (Company.intended_plan_id == row.id)
         ).count()
         if bound:
-            click.echo(f"⚠ skipping deactivation of '{code}' — "
-                        f"{bound} companies still bound")
+            skipped.append(
+                (code, f"{bound} companies still bound"))
             continue
-        row.is_active = False
+        if row.is_active:
+            row.is_active = False
+            deactivated.append(code)
 
     db.session.commit()
-    click.echo(f"✅ seeded plans: {', '.join(updated)}")
+    return {"updated": updated, "deactivated": deactivated,
+            "skipped": skipped}
+
+
+@click.command("seed-plans")
+@with_appcontext
+def seed_plans_command():
+    """Rename + update the 3 canonical plans + seed quotas."""
+    summary = sync_plans_from_seed()
+    for code, reason in summary["skipped"]:
+        click.echo(f"⚠ skipping deactivation of '{code}' — {reason}")
+    if summary["updated"]:
+        click.echo(f"✅ seeded plans: {', '.join(summary['updated'])}")
+    else:
+        click.echo("✅ plans already in sync — no changes")
+    if summary["deactivated"]:
+        click.echo(f"↓ deactivated legacy plans: "
+                    f"{', '.join(summary['deactivated'])}")
 
 
 @click.command("saas-backfill")

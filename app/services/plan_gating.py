@@ -110,8 +110,18 @@ def plan_allows(action, company):
         even if the module is disabled)
       - the action doesn't map to a gated module (treated as ungated)
       - the module is in the always-allowed set
-      - the company has no plan assigned (legacy / not yet backfilled)
+      - the company has NEITHER a promoted plan NOR an intended plan
+        (pre-/choose-plan onboarding — back-compat "don't lock")
       - the plan's allowed_modules list contains the module
+
+    MARSOUD-PLAN-BUNDLE-FIXES-01 (2026-08-07) — previously this
+    checked ONLY `subscription_plan` (which resolves via `plan_id`),
+    so a company that picked Starter at /choose-plan but hadn't been
+    promoted from `intended_plan_id` → `plan_id` got full access for
+    the entire trial. That's the "Starter has access to everything"
+    the user reported. Now: fall back to `intended_plan_id` when
+    `plan_id` is NULL, matching the convention already used by
+    quotas.py, saas_billing.py, platform_metrics.py.
     """
     if action in _ALWAYS_READABLE:
         return True
@@ -120,10 +130,15 @@ def plan_allows(action, company):
         return True
     if module in _ALWAYS_ALLOWED:
         return True
-    if not company or not getattr(company, "subscription_plan", None):
-        # No plan assigned → don't lock anything (back-compat).
+    if not company:
         return True
-    plan = company.subscription_plan
+    plan = getattr(company, "subscription_plan", None)
+    if plan is None:
+        # Fall back to the picked-but-not-promoted plan. See docstring.
+        plan = getattr(company, "intended_plan", None)
+    if plan is None:
+        # Truly no pick yet — pre-/choose-plan onboarding.
+        return True
     return module in plan.modules
 
 
@@ -253,17 +268,27 @@ def subitem_allowed(endpoint, company):
       - the plan's allowed_subitems is None (legacy / not yet set)
       - the endpoint is in the plan's allowed_subitems list
       - the company is inside its trial window (MARSOUD-CHOOSE-PLAN):
-        during the trial, ALL features are enabled regardless of the
-        picked plan so the user experiences the full product before
-        deciding whether to keep the chosen tier.
+        during the trial, ALL sub-items are shown so a fine-grained
+        super-admin toggle doesn't surprise a trial user. The coarse
+        module gate on `plan_allows` (which the sidebar template AND-s
+        with this one via `has_permission`) is what enforces the
+        picked-plan restrictions during trial — see MARSOUD-PLAN-
+        BUNDLE-FIXES-01.
     """
     if not company:
         return True
-    # MARSOUD-CHOOSE-PLAN — trial window overrides plan gating.
+    # Trial keeps sub-items unlocked; the coarse module gate on
+    # plan_allows already blocks features that aren't in the picked
+    # plan's modules. Sub-item toggles are a fine-grained super-admin
+    # customization that shouldn't surprise a trial user.
     if _company_in_trial(company):
         return True
     plan = getattr(company, "subscription_plan", None)
-    if not plan:
+    if plan is None:
+        # Fall back to the picked-but-not-promoted plan, same
+        # convention as plan_allows.
+        plan = getattr(company, "intended_plan", None)
+    if plan is None:
         return True
     items = plan.subitems
     if items is None:
@@ -273,11 +298,17 @@ def subitem_allowed(endpoint, company):
 
 
 def _company_in_trial(company):
-    """MARSOUD-CHOOSE-PLAN — true iff the company is still inside its
-    subscription window. Named "trial" because for freshly-registered
-    companies the window IS the trial. Same predicate also protects
-    any renewal buffer (the app should stay full-features during the
-    active window regardless of trial-vs-paid nuance)."""
+    """True iff the company is still inside its subscription window.
+    Named "trial" because for freshly-registered companies the window
+    IS the trial. Same predicate also protects any renewal buffer.
+
+    MARSOUD-PLAN-BUNDLE-FIXES-01 (2026-08-07) — this predicate no
+    longer implies "full access" on its own. Once a company picks a
+    plan (intended OR promoted), gating uses that plan's modules
+    even inside the trial window. Kept as a helper because callers
+    may still want to distinguish "paying" from "trialing" for UI or
+    billing reasons unrelated to feature gating.
+    """
     from datetime import datetime
     expires = getattr(company, "subscription_expires_at", None)
     return bool(expires and expires > datetime.utcnow())
