@@ -1063,6 +1063,12 @@ def create_app(config_class=Config):
     from scripts.audit_double_reversals import audit_cli as _dblrev_cli
     app.cli.add_command(_dblrev_cli)
 
+    # MARSOUD-COSMETICS-CATEGORY-SEED (2026-08-07) — CLI:
+    #   flask seed-cosmetics-categories --company-id 106            # dry-run
+    #   flask seed-cosmetics-categories --company-id 106 --apply    # write
+    from scripts.seed_cosmetics_categories import seed_cli as _cosmetics_seed_cli
+    app.cli.add_command(_cosmetics_seed_cli)
+
     # ASMAA-FIX 2026-07-03 — CLI: re-sync system role permissions.
     # After the P dict is edited (e.g. broadening tasks.manage), run:
     #   flask resync-system-roles
