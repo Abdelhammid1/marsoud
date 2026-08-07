@@ -68,6 +68,25 @@ def tick():
             "custody overdue sweep failed: %s", e)
         summary["custody_overdue"] = {"error": str(e)[:200]}
 
+    # MARSOUD-ITEM-CUSTODY-01 (2026-08-07) — bell for item custodies
+    # that have been ACTIVE longer than the threshold (default 90d).
+    # Ticket asked for "أسبوعية بالعهد النشطة أكتر من مدة معينة".
+    # One-shot per custody via overdue_notified_at, cleared on any
+    # settlement.
+    item_custody_notified = 0
+    try:
+        from app.services.item_custody import (
+            sweep_long_active_custodies,
+        )
+        for c in Company.query.filter_by(is_active=True).all():
+            item_custody_notified += sweep_long_active_custodies(c.id)
+        summary["item_custody_long_active"] = item_custody_notified
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception(
+            "item-custody long-active sweep failed: %s", e)
+        summary["item_custody_long_active"] = {"error": str(e)[:200]}
+
     # MARSOUD-VBILL-OVERDUE-01 (2026-08-06) — materialise recurring
     # vendor-bill forecasts into real POSTED bills the moment their
     # date arrives. Idempotent via the unique index on

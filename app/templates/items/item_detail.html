@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block page_title %}عنصر #{{ item.id }}{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h2 class="font-bold text-navy-900">
+    {{ item.name }}
+    {% if not item.is_active %}<span class="badge badge-cancelled mr-2">غير نشط</span>{% endif %}
+  </h2>
+  <a href="{{ url_for('item_custody.index') }}" class="btn-secondary text-sm">← كل العناصر</a>
+</div>
+
+<div class="card p-6 mb-6">
+  <h3 class="font-semibold text-navy-900 mb-3">التفاصيل</h3>
+  <dl class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+    <div><dt class="text-slate-500 inline">الاسم:</dt> <dd class="inline font-semibold">{{ item.name }}</dd></div>
+    <div><dt class="text-slate-500 inline">التصنيف:</dt> <dd class="inline">{{ item.category or '—' }}</dd></div>
+    <div><dt class="text-slate-500 inline">الرقم التسلسلي:</dt> <dd class="inline font-mono">{{ item.serial_number or '—' }}</dd></div>
+    <div>
+      <dt class="text-slate-500 inline">مربوط بأصل:</dt>
+      <dd class="inline">
+        {% if item.fixed_asset %}
+          <a href="{{ url_for('assets.view', asset_id=item.fixed_asset_id) }}"
+             class="text-brand-600 hover:underline">
+            {{ item.fixed_asset.name }} (#{{ item.fixed_asset_id }})
+          </a>
+        {% else %}<span class="text-slate-400">لا — عنصر مستقل</span>{% endif %}
+      </dd>
+    </div>
+    {% if not item.fixed_asset %}
+    <div><dt class="text-slate-500 inline">التقييم:</dt>
+      <dd class="inline font-mono">{{ "%.2f"|format(item.estimated_value or 0) }}</dd></div>
+    {% endif %}
+    <div><dt class="text-slate-500 inline">تاريخ التسجيل:</dt>
+      <dd class="inline text-xs">{{ item.created_at | company_dt('%Y-%m-%d') if item.created_at else '—' }}</dd></div>
+  </dl>
+</div>
+
+<div class="card p-6">
+  <h3 class="font-semibold text-navy-900 mb-3">سجل العهد على هذا العنصر</h3>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>#</th><th>الحامل</th>
+        <th>تاريخ التسليم</th><th>تاريخ التسوية</th>
+        <th>الحالة</th><th>ملاحظات</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for c in history %}
+      <tr>
+        <td class="text-xs">#{{ c.id }}</td>
+        <td class="font-semibold">
+          {{ c.holder_name }}
+          <div class="text-xs text-slate-500">
+            {% if c.holder_type.value == 'EMPLOYEE' %}موظف{% else %}قسم{% endif %}
+          </div>
+        </td>
+        <td class="font-mono text-xs">{{ c.handed_over_on.isoformat() }}</td>
+        <td class="font-mono text-xs">{{ c.settled_on.isoformat() if c.settled_on else '—' }}</td>
+        <td>
+          {% set s = c.status.value %}
+          {% if s == 'ACTIVE' %}<span class="badge badge-partial">نشطة</span>
+          {% elif s == 'RETURNED_GOOD' %}<span class="badge badge-paid">سليمة</span>
+          {% elif s == 'RETURNED_DAMAGED' %}<span class="badge badge-overdue">تالفة</span>
+          {% elif s == 'LOST' %}<span class="badge badge-overdue">فقد</span>
+          {% elif s == 'TRANSFERRED' %}<span class="badge badge-sent">محولة</span>
+          {% endif %}
+          {% if c.disposal_pending_at and not c.disposal_asset_result_id %}
+            <div class="text-xs text-amber-700 mt-1">بانتظار شطب</div>
+          {% endif %}
+        </td>
+        <td class="text-xs text-slate-600">{{ (c.settlement_note or '—')[:60] }}</td>
+        <td>
+          <a href="{{ url_for('item_custody.detail', custody_id=c.id) }}"
+             class="text-brand-600 text-xs hover:underline">فتح</a>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="text-center text-slate-400 py-4">لا يوجد سجل استلام بعد.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

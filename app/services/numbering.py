@@ -46,6 +46,11 @@ DOC_PREFIXES = {
     # the prefix now means `next_number(cid, "CASH_CUSTODY")` will
     # work without touching numbering.py later.
     "CASH_CUSTODY": "CC",
+    # MARSOUD-ITEM-CUSTODY-01 (2026-08-07) — reserved for a future
+    # per-company display sequence on ItemCustody rows. Not used
+    # today (routes address rows by id); reserving the prefix keeps
+    # next_number(cid, "ITEM_CUSTODY") ready.
+    "ITEM_CUSTODY": "IC",
 }
 
 

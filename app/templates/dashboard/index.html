@@ -306,6 +306,24 @@
       </div>
     </a>
     {% endif %}
+    {# MARSOUD-ITEM-CUSTODY-01 (dashboard tile, 2026-08-07) — active
+       item-custody count, with a red nudge when there are pending
+       item-request approvals waiting on the owner. Gated on
+       custody.manage; plans without the module get 0/0 safely. #}
+    {% if has_permission('custody.manage') %}
+    <a class="op" href="{{ url_for('item_custody.index') }}" title="العهد العينية">
+      <div class="op-ico i-violet">📦</div>
+      <div>
+        <div class="op-val">{{ metrics.ops.item_custody_active or 0 }}</div>
+        <div class="op-label">عهدة عينية نشطة</div>
+        {% if metrics.ops.item_custody_pending %}
+        <div class="op-extra tag-red">⏰ {{ metrics.ops.item_custody_pending }} طلب معلّق</div>
+        {% else %}
+        <div class="op-extra tag-green">لا طلبات معلّقة</div>
+        {% endif %}
+      </div>
+    </a>
+    {% endif %}
   </div>
   {% endif %}
 
@@ -666,6 +684,13 @@
        their /my/custody entry via the sidebar. #}
     {% if has_permission('custody.manage') %}
     <a class="q" href="{{ url_for('custody.new') }}"><span class="q-ico">💵</span><span class="q-label">عهدة نقدية</span></a>
+    {% endif %}
+    {# MARSOUD-ITEM-CUSTODY-01 (dashboard tile, 2026-08-07) — quick-
+       action to /items/new (the item register entry). The custody-
+       assignment flow lives inside a specific item's page, so the
+       correct "create" verb here is registering a new item. #}
+    {% if has_permission('custody.manage') %}
+    <a class="q" href="{{ url_for('item_custody.new') }}"><span class="q-ico">📦</span><span class="q-label">عنصر عهدة</span></a>
     {% endif %}
     {% endif %}
     {% if can_finance %}

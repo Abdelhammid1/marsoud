@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block page_title %}عنصر عهدة جديد{% endblock %}
+{% block content %}
+<div class="card p-6 max-w-2xl">
+  <h2 class="font-bold text-navy-900 mb-4">تسجيل عنصر عهدة جديد</h2>
+
+  <form method="POST" class="space-y-4">
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">اسم العنصر</label>
+      <input type="text" name="name" required class="input"
+             placeholder="مثلاً: لابتوب Dell Latitude 5420">
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">الرقم التسلسلي (اختياري)</label>
+        <input type="text" name="serial_number" class="input">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">التصنيف (اختياري)</label>
+        <input type="text" name="category" class="input"
+               placeholder="لابتوب / موبايل / عربة / أدوات">
+      </div>
+    </div>
+
+    <div class="border-t border-slate-200 pt-4">
+      <div class="text-xs text-slate-600 mb-3">
+        اختار واحد فقط: اربط بأصل ثابت موجود، أو أدخل تقييم يدوي
+        (للعناصر غير الرأسمالية).
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">أصل ثابت مرتبط (اختياري)</label>
+          <select name="fixed_asset_id" class="select">
+            <option value="">— بدون —</option>
+            {% for a in assets %}
+            <option value="{{ a.id }}">{{ a.name }} · {{ a.account.code if a.account else '' }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">قيمة تقديرية (اختياري)</label>
+          <input type="number" name="estimated_value" step="0.01" min="0" class="input"
+                 placeholder="مثلاً: 250.00">
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-2">
+      <a href="{{ url_for('item_custody.index') }}" class="btn-secondary">إلغاء</a>
+      <button type="submit" class="btn-primary">تسجيل</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

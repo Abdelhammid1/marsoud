@@ -19,6 +19,10 @@ class DocumentSourceType(str, enum.Enum):
     # attachments so a future doc-library scan sees custody
     # receipts without new plumbing.
     CASH_CUSTODY_SETTLEMENT = "CASH_CUSTODY_SETTLEMENT"
+    # MARSOUD-ITEM-CUSTODY-01 (2026-08-07) — photos of the item at
+    # handover/return + optional damage evidence. source_id points
+    # at ItemCustody.id.
+    ITEM_CUSTODY = "ITEM_CUSTODY"
 
 
 class DocumentVisibility(str, enum.Enum):

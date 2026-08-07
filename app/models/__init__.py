@@ -103,6 +103,13 @@ from app.models.cash_custody import (
     CustodyHolderType, CustodyRequestStatus, CustodyStatus,
     ShortfallDisposition,
 )
+# MARSOUD-ITEM-CUSTODY-01 (2026-08-07) — reuses CustodyHolderType
+# from cash_custody. Item custody is the physical-things
+# counterpart (laptops, uniforms, SIMs).
+from app.models.item_custody import (
+    CustodyItem, ItemCustodyRequest, ItemCustody,
+    ItemCustodyRequestStatus, ItemCustodyStatus,
+)
 from app.models.department import Department
 from app.models.attendance import (
     AttendancePolicy, PolicyScope, PolicyType,
@@ -225,6 +232,8 @@ __all__ = [
     "CashCustodyRequest", "CashCustody", "CashCustodySettlementLine",
     "CustodyHolderType", "CustodyRequestStatus", "CustodyStatus",
     "ShortfallDisposition",
+    "CustodyItem", "ItemCustodyRequest", "ItemCustody",
+    "ItemCustodyRequestStatus", "ItemCustodyStatus",
     "AdvanceRepayment",
     "OpenItem", "OpenItemSettlement", "OpenItemStatus",
     "SETTLEABLE_STATUSES",

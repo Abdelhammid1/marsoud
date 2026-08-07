@@ -691,6 +691,92 @@ def custody_detail(custody_id):
 
 
 # ──────────────────────────────────────────────────────────────────────
+# MARSOUD-ITEM-CUSTODY-01 (2026-08-07) — physical-item custody portal
+# ──────────────────────────────────────────────────────────────────────
+@portal_emp_bp.route("/items")
+@login_required
+def items_list():
+    """Items currently held by this employee + their pending requests
+    + the list of items they could request (items with no active
+    custody)."""
+    emp = _my_employee()
+    if not emp:
+        return _no_employee_record_response()
+    from app.models import (
+        ItemCustody, ItemCustodyRequest, CustodyHolderType,
+    )
+    from app.services.item_custody import items_available_for_company
+    mine = ItemCustody.query.filter_by(
+        company_id=emp.company_id,
+        holder_type=CustodyHolderType.EMPLOYEE,
+        employee_id=emp.id,
+    ).order_by(ItemCustody.created_at.desc()).limit(50).all()
+    my_requests = ItemCustodyRequest.query.filter_by(
+        company_id=emp.company_id,
+        holder_type=CustodyHolderType.EMPLOYEE,
+        employee_id=emp.id,
+    ).order_by(ItemCustodyRequest.created_at.desc()).limit(30).all()
+    available = items_available_for_company(emp.company_id)
+    return render_template(
+        "portal_emp/items_list.html",
+        custodies=mine, requests=my_requests,
+        available=available, employee=emp,
+    )
+
+
+@portal_emp_bp.route("/items/request", methods=["POST"])
+@login_required
+def items_request_new():
+    """Submit a request for one of the available items. Portal has
+    no permission decorator — portal_emp is prefix-allowlisted."""
+    emp = _my_employee()
+    if not emp:
+        abort(403)
+    try:
+        from app.services.item_custody import (
+            request_item_custody, ItemCustodyError,
+        )
+        from app.models import CustodyHolderType
+        try:
+            request_item_custody(
+                emp.company_id,
+                item_id=int(request.form.get("item_id") or 0),
+                holder_type=CustodyHolderType.EMPLOYEE,
+                holder_id=emp.id,
+                purpose=request.form.get("purpose"),
+                created_by=current_user.id,
+            )
+            flash("تم إرسال طلب استلام العنصر للاعتماد.", "success")
+        except ItemCustodyError as e:
+            flash(str(e), "error")
+    except (ValueError, TypeError, KeyError) as e:
+        flash(str(e), "error")
+    return redirect(url_for("portal_emp.items_list"))
+
+
+@portal_emp_bp.route("/items/<int:custody_id>")
+@login_required
+def items_detail(custody_id):
+    """Employee views one of their item custodies. Read-only —
+    settlement is done by the accountant."""
+    emp = _my_employee()
+    if not emp:
+        return _no_employee_record_response()
+    from app.models import ItemCustody, CustodyHolderType
+    custody = ItemCustody.query.filter_by(
+        id=custody_id, company_id=emp.company_id,
+        holder_type=CustodyHolderType.EMPLOYEE,
+        employee_id=emp.id,
+    ).first()
+    if not custody:
+        abort(404)
+    return render_template(
+        "portal_emp/items_detail.html",
+        custody=custody, employee=emp,
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────
 # MARSOUD-EMPLOYEE-DAILY-REPORTS — employee-side review + submit
 # ──────────────────────────────────────────────────────────────────────
 @portal_emp_bp.route("/daily-reports")

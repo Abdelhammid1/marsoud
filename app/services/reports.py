@@ -684,6 +684,34 @@ def _initials_for(name):
     return parts[0][:1] + parts[-1][:1]
 
 
+def _item_custody_metrics(company_id):
+    """MARSOUD-ITEM-CUSTODY-01 (dashboard tile, 2026-08-07) — the two
+    keys the ops tile reads:
+        item_custody_active   — count of ACTIVE ItemCustody rows
+        item_custody_pending  — pending item-request approvals
+                                 (owner sees a red nudge when > 0)
+    Wrapped in try so a company on a plan without the item_custody
+    module doesn't 500 the whole dashboard."""
+    try:
+        from app.models import (ItemCustody, ItemCustodyStatus,
+                                ItemCustodyRequest,
+                                ItemCustodyRequestStatus)
+        active = ItemCustody.query.filter(
+            ItemCustody.company_id == company_id,
+            ItemCustody.status == ItemCustodyStatus.ACTIVE,
+        ).count()
+        pending = ItemCustodyRequest.query.filter(
+            ItemCustodyRequest.company_id == company_id,
+            ItemCustodyRequest.status == ItemCustodyRequestStatus.PENDING,
+        ).count()
+        return {
+            "item_custody_active": active,
+            "item_custody_pending": pending,
+        }
+    except Exception:
+        return {"item_custody_active": 0, "item_custody_pending": 0}
+
+
 def _account_balance_as_of(company_id, account_codes, as_of_date):
     """Sum debit−credit on the given accounts up to and including
     `as_of_date`. Used for historical sparkline points."""
@@ -1273,6 +1301,8 @@ def dashboard_metrics(company_id, period="month"):
             # without cash_custody doesn't 500 the whole dashboard
             # if the tables aren't there — 0 is safe.
             **_cash_custody_metrics(company_id),
+            # MARSOUD-ITEM-CUSTODY-01 (dashboard tile, 2026-08-07)
+            **_item_custody_metrics(company_id),
         },
         "late_invoices": late_invoices,
         "late_invoices_total": overdue_total,

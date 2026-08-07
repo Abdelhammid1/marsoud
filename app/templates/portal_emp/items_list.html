@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block page_title %}عهدي العينية{% endblock %}
+{% block content %}
+<h2 class="font-bold text-navy-900 mb-4">عهدي العينية</h2>
+
+{# ─── Available items to request ────────────────────────────── #}
+<div class="card p-6 mb-6">
+  <h3 class="font-semibold text-navy-900 mb-3">طلب استلام عنصر</h3>
+  {% if available %}
+  <form method="POST" action="{{ url_for('portal_emp.items_request_new') }}"
+        class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end"
+        data-once data-once-label="جاري الإرسال...">
+    <div class="md:col-span-2">
+      <label class="block text-xs font-semibold text-slate-700 mb-1">العنصر</label>
+      <select name="item_id" required class="select text-sm">
+        <option value="">— اختر عنصر متاح —</option>
+        {% for it in available %}
+        <option value="{{ it.id }}">
+          {{ it.name }}
+          {% if it.serial_number %} · SN: {{ it.serial_number }}{% endif %}
+          {% if it.category %} · {{ it.category }}{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="md:col-span-3">
+      <label class="block text-xs font-semibold text-slate-700 mb-1">الغرض</label>
+      <input type="text" name="purpose" required class="input text-sm"
+             placeholder="مثلاً: مطلوب للعمل من المنزل / لمشروع كذا">
+    </div>
+    <button type="submit" class="btn-primary text-sm md:col-span-3">إرسال الطلب للاعتماد</button>
+  </form>
+  {% else %}
+  <div class="text-sm text-slate-400">مافيش عناصر متاحة للطلب حالياً.</div>
+  {% endif %}
+</div>
+
+{# ─── My requests ──────────────────────────────────────────── #}
+<div class="card p-6 mb-6">
+  <h3 class="font-semibold text-navy-900 mb-3">طلباتي</h3>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>#</th><th>العنصر</th><th>الغرض</th>
+        <th>الحالة</th><th>ملاحظة</th><th>التاريخ</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in requests %}
+      <tr>
+        <td class="text-xs">#{{ r.id }}</td>
+        <td class="font-semibold">{{ r.item.name }}</td>
+        <td class="text-xs">{{ (r.purpose or '—')[:60] }}</td>
+        <td>
+          {% set s = r.status.value %}
+          {% if s == 'PENDING' %}<span class="badge badge-draft">قيد الانتظار</span>
+          {% elif s == 'APPROVED' %}<span class="badge badge-paid">معتمدة</span>
+          {% else %}<span class="badge badge-cancelled">مرفوضة</span>{% endif %}
+        </td>
+        <td class="text-xs text-slate-500">{{ r.review_note or '—' }}</td>
+        <td class="text-xs text-slate-500">
+          {{ r.created_at | company_dt('%Y-%m-%d') if r.created_at else '' }}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="text-center text-slate-400 py-4">لا يوجد طلبات.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ─── Custodies (past + current) ────────────────────────────── #}
+<div class="card p-6">
+  <h3 class="font-semibold text-navy-900 mb-3">عهدي الحالية والسابقة</h3>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>#</th><th>العنصر</th>
+        <th>تاريخ التسليم</th><th>تاريخ التسوية</th>
+        <th>الحالة</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for c in custodies %}
+      <tr>
+        <td class="text-xs">#{{ c.id }}</td>
+        <td class="font-semibold">{{ c.item.name }}</td>
+        <td class="font-mono text-xs">{{ c.handed_over_on.isoformat() }}</td>
+        <td class="font-mono text-xs">{{ c.settled_on.isoformat() if c.settled_on else '—' }}</td>
+        <td>
+          {% set s = c.status.value %}
+          {% if s == 'ACTIVE' %}<span class="badge badge-partial">لدي حالياً</span>
+          {% elif s == 'RETURNED_GOOD' %}<span class="badge badge-paid">سُلِّمت سليمة</span>
+          {% elif s == 'RETURNED_DAMAGED' %}<span class="badge badge-overdue">تالفة</span>
+          {% elif s == 'LOST' %}<span class="badge badge-overdue">فقد</span>
+          {% elif s == 'TRANSFERRED' %}<span class="badge badge-sent">محولة</span>{% endif %}
+        </td>
+        <td>
+          <a href="{{ url_for('portal_emp.items_detail', custody_id=c.id) }}"
+             class="text-brand-600 text-xs hover:underline">تفاصيل</a>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="text-center text-slate-400 py-4">
+        لا يوجد عهد بعد. اطلب عنصر من الأعلى.
+      </td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

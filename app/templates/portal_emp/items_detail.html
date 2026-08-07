@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block page_title %}عهدة #{{ custody.id }}{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h2 class="font-bold text-navy-900">
+    عهدة #{{ custody.id }} — {{ custody.item.name }}
+  </h2>
+  <a href="{{ url_for('portal_emp.items_list') }}" class="btn-secondary text-sm">← كل عهدي</a>
+</div>
+
+<div class="card p-6 mb-6">
+  <h3 class="font-semibold text-navy-900 mb-3">تفاصيل العنصر</h3>
+  <dl class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+    <div><dt class="text-slate-500 inline">الاسم:</dt> <dd class="inline font-semibold">{{ custody.item.name }}</dd></div>
+    <div><dt class="text-slate-500 inline">التصنيف:</dt> <dd class="inline">{{ custody.item.category or '—' }}</dd></div>
+    {% if custody.item.serial_number %}
+    <div><dt class="text-slate-500 inline">الرقم التسلسلي:</dt>
+      <dd class="inline font-mono">{{ custody.item.serial_number }}</dd></div>
+    {% endif %}
+    <div><dt class="text-slate-500 inline">تاريخ التسليم:</dt>
+      <dd class="inline font-mono">{{ custody.handed_over_on.isoformat() }}</dd></div>
+    <div><dt class="text-slate-500 inline">الحالة:</dt>
+      <dd class="inline">
+        {% set s = custody.status.value %}
+        {% if s == 'ACTIVE' %}<span class="badge badge-partial">لدي حالياً</span>
+        {% elif s == 'RETURNED_GOOD' %}<span class="badge badge-paid">سُلِّمت سليمة</span>
+        {% elif s == 'RETURNED_DAMAGED' %}<span class="badge badge-overdue">تالفة</span>
+        {% elif s == 'LOST' %}<span class="badge badge-overdue">فقد</span>
+        {% elif s == 'TRANSFERRED' %}<span class="badge badge-sent">محولة</span>{% endif %}
+      </dd></div>
+    {% if custody.condition_at_handover %}
+    <div class="col-span-2"><dt class="text-slate-500 inline">حالة العنصر وقت التسليم:</dt>
+      <dd class="inline">{{ custody.condition_at_handover }}</dd></div>
+    {% endif %}
+    {% if custody.settled_on %}
+    <div><dt class="text-slate-500 inline">تاريخ التسوية:</dt>
+      <dd class="inline font-mono">{{ custody.settled_on.isoformat() }}</dd></div>
+    {% endif %}
+    {% if custody.condition_at_return %}
+    <div class="col-span-2"><dt class="text-slate-500 inline">حالة العنصر وقت الاسترجاع:</dt>
+      <dd class="inline">{{ custody.condition_at_return }}</dd></div>
+    {% endif %}
+  </dl>
+</div>
+
+<p class="text-xs text-slate-500">
+  تسوية العهدة (استرجاع / إبلاغ عن فقد أو تلف) بيتم من المحاسب —
+  تواصل معه لو محتاج تحويل أو استرجاع.
+</p>
+{% endblock %}

@@ -95,6 +95,7 @@ def create_app(config_class=Config):
     from app.routes.hr import bp as hr_bp
     from app.routes.advances import bp as advances_bp
     from app.routes.custody import bp as custody_bp
+    from app.routes.item_custody import bp as item_custody_bp
     from app.routes.leads import bp as leads_bp
     from app.routes.projects import bp as projects_bp
     from app.routes.tasks import bp as tasks_bp
@@ -160,6 +161,7 @@ def create_app(config_class=Config):
     app.register_blueprint(hr_bp, url_prefix="/hr")
     app.register_blueprint(advances_bp, url_prefix="/advances")
     app.register_blueprint(custody_bp, url_prefix="/custody")
+    app.register_blueprint(item_custody_bp, url_prefix="/items")
     app.register_blueprint(leads_bp, url_prefix="/leads")
     app.register_blueprint(projects_bp, url_prefix="/projects")
     app.register_blueprint(tasks_bp, url_prefix="/tasks")

@@ -91,6 +91,22 @@ def _can_attach_to(source_type, source_id, company_id):
                 and custody.employee.user_id == current_user.id):
             return True
         return False
+    if source_type == "ITEM_CUSTODY":
+        # MARSOUD-ITEM-CUSTODY-01 (2026-08-07) — source_id is the
+        # ItemCustody.id. Custody-managing roles always allowed;
+        # the holder-employee can attach handover/return photos
+        # to their own custody row.
+        from app.models import ItemCustody, CustodyHolderType
+        custody = db.session.get(ItemCustody, source_id)
+        if not custody or custody.company_id != company_id:
+            return False
+        if role in ("owner", "admin", "accountant"):
+            return True
+        if (custody.holder_type == CustodyHolderType.EMPLOYEE
+                and custody.employee
+                and custody.employee.user_id == current_user.id):
+            return True
+        return False
     return False
 
 
@@ -130,6 +146,9 @@ def upload(source_type, source_id):
         if line and line.custody_id:
             target = url_for("custody.detail",
                              custody_id=line.custody_id)
+    elif source_type == "ITEM_CUSTODY":
+        target = url_for("item_custody.detail",
+                         custody_id=source_id)
     return redirect(target or url_for("dashboard.index"))
 
 
