@@ -484,6 +484,11 @@ def choose_plan():
             _ca.logger.warning(
                 "SaaS first-invoice creation failed for company "
                 "%s: %s", company.id, e)
+        # MARSOUD-META-PIXEL-01 (Abdelhamid 2026-08-07) — one-shot flag,
+        # read + cleared by base.html on the very next page render so
+        # the CompleteRegistration event fires exactly once, right
+        # after a real plan choice (not on plain signup/login).
+        session["plan_selected_conversion"] = True
         return redirect(url_for("dashboard.index"))
 
     plans = Plan.query.filter_by(is_active=True).order_by(

@@ -430,6 +430,33 @@ tailwind.config = {
   <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/favicon-32.png') }}">
   <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='img/favicon-16.png') }}">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/apple-touch-icon.png') }}">
+  <!-- MARSOUD-META-PIXEL-01 (Abdelhamid 2026-08-07) — base code, fires
+       PageView on every app page (dashboard, verify-pending, choose-plan..).
+       Must stay in base.html (not just landing.html) since those pages
+       live on the tenant subdomain, not marsoud.com. -->
+  <script>
+  !function(f,b,e,v,n,t,s)
+  {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+  n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];
+  s.parentNode.insertBefore(t,s)}(window, document,'script',
+  'https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '1356436859976572');
+  fbq('track', 'PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none"
+  src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
+  /></noscript>
+  {% if session.pop('plan_selected_conversion', False) %}
+  <script>
+  // Fires exactly once — right after a successful /choose-plan POST,
+  // on the first dashboard load that follows it. session.pop (not
+  // .get) guarantees it clears itself so a refresh won't re-fire it.
+  fbq('track', 'CompleteRegistration');
+  </script>
+  {% endif %}
 </head>
 <body class="antialiased">
 
