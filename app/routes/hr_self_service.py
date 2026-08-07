@@ -596,6 +596,101 @@ def advance_new():
 
 
 # ──────────────────────────────────────────────────────────────────────
+# MARSOUD-CASH-CUSTODY-01 (2026-08-07, slice 3) — employee custody portal
+# ──────────────────────────────────────────────────────────────────────
+@portal_emp_bp.route("/custody")
+@login_required
+def custody_list():
+    """List the employee's cash custodies + pending requests.
+    Standalone page (mirrors daily_reports_list) rather than inline
+    on /my/account because custodies need per-line receipt uploads
+    that the account page has no room for."""
+    emp = _my_employee()
+    if not emp:
+        return _no_employee_record_response()
+    from app.models import (
+        CashCustody, CashCustodyRequest, CustodyHolderType,
+    )
+    custodies = CashCustody.query.filter_by(
+        company_id=emp.company_id,
+        holder_type=CustodyHolderType.EMPLOYEE,
+        employee_id=emp.id,
+    ).order_by(CashCustody.created_at.desc()).limit(50).all()
+    requests_ = CashCustodyRequest.query.filter_by(
+        company_id=emp.company_id,
+        holder_type=CustodyHolderType.EMPLOYEE,
+        employee_id=emp.id,
+    ).order_by(CashCustodyRequest.created_at.desc()).limit(30).all()
+    return render_template(
+        "portal_emp/custody_list.html",
+        custodies=custodies, requests=requests_,
+        employee=emp,
+    )
+
+
+@portal_emp_bp.route("/custody/request", methods=["POST"])
+@login_required
+def custody_request_new():
+    """Employee submits a new cash-custody request. Same shape as
+    /my/advance/new — service-layer refuses if a pending request or
+    an open custody already exists for this employee."""
+    emp = _my_employee()
+    if not emp:
+        abort(403)
+    try:
+        from app.services.cash_custody import (
+            request_custody, CustodyError,
+        )
+        from app.models import CustodyHolderType
+        _due_raw = (request.form.get("needed_by_date") or "").strip()
+        due = None
+        if _due_raw:
+            try:
+                due = datetime.strptime(_due_raw, "%Y-%m-%d").date()
+            except ValueError:
+                due = None
+        try:
+            request_custody(
+                emp.company_id,
+                CustodyHolderType.EMPLOYEE, emp.id,
+                request.form.get("amount"),
+                purpose=request.form.get("purpose"),
+                needed_by_date=due,
+                created_by=current_user.id,
+            )
+            flash("تم إرسال طلب العهدة للاعتماد.", "success")
+        except CustodyError as e:
+            flash(str(e), "error")
+    except (ValueError, TypeError, KeyError) as e:
+        flash(str(e), "error")
+    return redirect(url_for("portal_emp.custody_list"))
+
+
+@portal_emp_bp.route("/custody/<int:custody_id>")
+@login_required
+def custody_detail(custody_id):
+    """Employee views one of their custodies + the settlement lines
+    already uploaded against it. Only the accountant can add lines
+    or close the settlement — this is a read-only view + the receipt
+    upload button (which posts through /documents/upload)."""
+    emp = _my_employee()
+    if not emp:
+        return _no_employee_record_response()
+    from app.models import CashCustody, CustodyHolderType
+    custody = CashCustody.query.filter_by(
+        id=custody_id, company_id=emp.company_id,
+        holder_type=CustodyHolderType.EMPLOYEE,
+        employee_id=emp.id,
+    ).first()
+    if not custody:
+        abort(404)
+    return render_template(
+        "portal_emp/custody_detail.html",
+        custody=custody, employee=emp,
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────
 # MARSOUD-EMPLOYEE-DAILY-REPORTS — employee-side review + submit
 # ──────────────────────────────────────────────────────────────────────
 @portal_emp_bp.route("/daily-reports")

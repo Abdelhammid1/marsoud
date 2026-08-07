@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block page_title %}عهدة #{{ custody.id }}{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h2 class="font-bold text-navy-900">عهدة #{{ custody.id }}</h2>
+  <a href="{{ url_for('portal_emp.custody_list') }}" class="btn-secondary text-sm">← كل عهدي</a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+  <div class="card p-4">
+    <div class="text-xs text-slate-500">مصروف عليك</div>
+    <div class="text-2xl font-bold text-navy-900 font-mono">{{ "%.2f"|format(custody.amount_issued) }}</div>
+    <div class="text-xs text-slate-500 mt-1">{{ custody.issued_on.isoformat() }}</div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500">مُنفَق بإيصالات</div>
+    <div class="text-2xl font-bold text-sky-700 font-mono">{{ "%.2f"|format(custody.amount_settled) }}</div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500">لسه معلَّق</div>
+    <div class="text-2xl font-bold {% if custody.amount_pending %}text-amber-700{% else %}text-emerald-700{% endif %} font-mono">
+      {{ "%.2f"|format(custody.amount_pending) }}
+    </div>
+    <div class="text-xs text-slate-500 mt-1">
+      {% set s = custody.status.value %}
+      {% if s == 'ISSUED' %}<span class="badge badge-sent">مصروفة</span>
+      {% elif s == 'PARTIALLY_SETTLED' %}<span class="badge badge-partial">قيد التسوية</span>
+      {% elif s == 'SETTLED' %}<span class="badge badge-paid">مُقفلة</span>
+      {% else %}<span class="badge badge-cancelled">ملغاة</span>{% endif %}
+      {% if custody.is_overdue %}<span class="badge badge-overdue mr-1">متأخر</span>{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card p-6 mb-6">
+  <h3 class="font-semibold text-navy-900 mb-2">تفاصيل</h3>
+  <dl class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+    <div><dt class="text-slate-500 inline">الغرض:</dt> <dd class="inline">{{ custody.purpose or '—' }}</dd></div>
+    <div><dt class="text-slate-500 inline">طريقة الصرف:</dt>
+      <dd class="inline">{{ custody.payment_method.name_ar if custody.payment_method else 'نقدي' }}</dd></div>
+    {% if custody.settlement_due_date %}
+    <div><dt class="text-slate-500 inline">موعد التسوية:</dt>
+      <dd class="inline font-mono">{{ custody.settlement_due_date.isoformat() }}</dd></div>
+    {% endif %}
+    {% if custody.note %}
+    <div class="col-span-2"><dt class="text-slate-500 inline">ملاحظات:</dt>
+      <dd class="inline">{{ custody.note }}</dd></div>
+    {% endif %}
+  </dl>
+</div>
+
+<div class="card p-6">
+  <h3 class="font-semibold text-navy-900 mb-3">بنود التسوية</h3>
+  <p class="text-xs text-slate-500 mb-4">
+    الإيصالات دي بيضيفها المحاسب مع كل مصروف بيتحسب على العهدة.
+    لو عندك إيصال جديد، ابعته للمحاسب.
+  </p>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>#</th><th>الحساب</th>
+        <th class="text-left">المبلغ</th>
+        <th>الوصف</th><th>التاريخ</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for l in custody.settlement_lines %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>
+          {% if l.expense_account %}
+            <span class="font-mono text-xs">{{ l.expense_account.code }}</span>
+            {{ l.expense_account.name_ar or l.expense_account.name }}
+          {% else %}<span class="text-slate-400">—</span>{% endif %}
+        </td>
+        <td class="text-left font-mono">{{ "%.2f"|format(l.amount) }}</td>
+        <td class="text-xs text-slate-600">{{ l.receipt_note or '—' }}</td>
+        <td class="text-xs text-slate-500">
+          {{ l.created_at | company_dt('%Y-%m-%d') if l.created_at else '' }}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="text-center text-slate-400 py-4">
+        لسه المحاسب ما ضافش أي بنود تسوية.
+      </td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

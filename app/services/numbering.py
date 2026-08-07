@@ -40,6 +40,12 @@ DOC_PREFIXES = {
     # payments the customer makes BEFORE an invoice exists. Distinct
     # from PAYMENT so the audit trail stays clean.
     "DEPOSIT": "DEP",
+    # MARSOUD-CASH-CUSTODY-01 (2026-08-07) — reserved for a future
+    # per-company display sequence on CashCustody rows. Not used
+    # today (journal reference stays f"CUST-{custody.id}"); reserving
+    # the prefix now means `next_number(cid, "CASH_CUSTODY")` will
+    # work without touching numbering.py later.
+    "CASH_CUSTODY": "CC",
 }
 
 

@@ -6,6 +6,7 @@ from app.services.reports import (
     income_summary, expenses_summary, income_statement_compared,
     aging_report, ap_aging_report, vat_report,
     payroll_summary_report, fixed_assets_report,
+    open_custody_report,
 )
 from app.services.permissions import require_permission
 
@@ -115,6 +116,23 @@ def ap_aging():
     as_of = _parse_date(request.args.get("as_of"), date.today())
     data = ap_aging_report(g.active_company.id, as_of=as_of)
     return render_template("reports/ap_aging.html", data=data, as_of=as_of)
+
+
+# MARSOUD-CASH-CUSTODY-01 (2026-08-07, slice 3) — open custody
+# aging. Same as AR/AP but the "buckets" are per-custody-row
+# (issued / settled / returned / pending + days_open + overdue
+# flag) rather than 30/60/90 age brackets, because a custody
+# has a hard settlement_due_date, not a rolling deadline.
+@bp.route("/open-custody")
+@login_required
+@require_permission("custody.manage")
+def open_custody():
+    if not g.active_company:
+        return redirect(url_for("companies.new"))
+    as_of = _parse_date(request.args.get("as_of"), date.today())
+    data = open_custody_report(g.active_company.id, as_of=as_of)
+    return render_template(
+        "reports/open_custody.html", data=data, as_of=as_of)
 
 
 @bp.route("/vat")

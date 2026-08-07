@@ -315,6 +315,27 @@ def _undo_source_side_effects(original, reversal=None):
             "يدوي عادي إذا كان الشطب غلط.")
 
 
+    elif src_type == "cash_custody":
+        from app.models.cash_custody import CashCustody, CustodyStatus
+        cust = db.session.get(CashCustody, src_id)
+        if cust and cust.status in (CustodyStatus.ISSUED,
+                                    CustodyStatus.PARTIALLY_SETTLED):
+            if float(cust.amount_settled or 0) > 0.005:
+                raise LedgerError(
+                    "لا يمكن عكس قيد صرف عهدة عليها بنود تسوية — "
+                    "أقفل التسوية أولاً ثم أعد المحاولة.")
+            cust.status = CustodyStatus.CANCELLED
+            cust.cancelled_at = datetime.utcnow()
+            cust.custody_overdue_notified_at = None
+            if reversal is not None:
+                cust.reversal_entry_id = reversal.id
+
+    elif src_type == "cash_custody_settlement":
+        raise LedgerError(
+            "لا يمكن عكس قيد إقفال تسوية عهدة مباشرة — يتطلب إجراء "
+            "خاص لإعادة فتح التسوية.")
+
+
 def get_account_by_code(company_id, code):
     return Account.query.filter_by(company_id=company_id, code=code).first()
 

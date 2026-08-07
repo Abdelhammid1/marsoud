@@ -72,6 +72,25 @@ def _can_attach_to(source_type, source_id, company_id):
         if role == "project_manager" and t.project.manager_id == current_user.id:
             return True
         return t.assigned_to_id == current_user.id
+    if source_type == "CASH_CUSTODY_SETTLEMENT":
+        # MARSOUD-CASH-CUSTODY-01 (2026-08-07, slice 3) — source_id
+        # is the CashCustodySettlementLine.id. Custody-managing roles
+        # can always attach; the custody's holder-employee can attach
+        # to their own custody's lines.
+        from app.models import CashCustodySettlementLine, CustodyHolderType
+        line = db.session.get(CashCustodySettlementLine, source_id)
+        if not line or line.company_id != company_id:
+            return False
+        if role in ("owner", "admin", "accountant"):
+            return True
+        # Employee side: only the holder-employee's own custody.
+        custody = line.custody
+        if (custody
+                and custody.holder_type == CustodyHolderType.EMPLOYEE
+                and custody.employee
+                and custody.employee.user_id == current_user.id):
+            return True
+        return False
     return False
 
 
@@ -97,12 +116,21 @@ def upload(source_type, source_id):
     except DocumentError as e:
         flash(str(e), "error")
     # Bounce back to the parent entity
-    target = {
-        "LEAD": url_for("leads.detail", lead_id=source_id),
-        "PROJECT": url_for("projects.detail", project_id=source_id),
-        "TASK": url_for("tasks.detail", task_id=source_id),
-    }.get(source_type, url_for("dashboard.index"))
-    return redirect(target)
+    target = None
+    if source_type == "LEAD":
+        target = url_for("leads.detail", lead_id=source_id)
+    elif source_type == "PROJECT":
+        target = url_for("projects.detail", project_id=source_id)
+    elif source_type == "TASK":
+        target = url_for("tasks.detail", task_id=source_id)
+    elif source_type == "CASH_CUSTODY_SETTLEMENT":
+        # Bounce to the parent custody's detail page.
+        from app.models import CashCustodySettlementLine
+        line = db.session.get(CashCustodySettlementLine, source_id)
+        if line and line.custody_id:
+            target = url_for("custody.detail",
+                             custody_id=line.custody_id)
+    return redirect(target or url_for("dashboard.index"))
 
 
 @documents_bp.route("/<int:doc_id>/delete", methods=["POST"])

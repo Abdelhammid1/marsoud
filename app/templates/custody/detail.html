@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block page_title %}عهدة #{{ custody.id }}{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h2 class="font-bold text-navy-900">عهدة #{{ custody.id }} — {{ custody.holder_name }}</h2>
+  <a href="{{ url_for('custody.index') }}" class="btn-secondary text-sm">← كل العهد</a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+  <div class="card p-4">
+    <div class="text-xs text-slate-500">المصروف</div>
+    <div class="text-2xl font-bold text-navy-900 font-mono">{{ "%.2f"|format(custody.amount_issued) }}</div>
+    <div class="text-xs text-slate-500 mt-1">
+      {{ custody.issued_on.isoformat() }}
+      {% if custody.entry %} · <a href="{{ url_for('journals.view_entry', entry_id=custody.entry.id) }}"
+                                    class="text-brand-600 hover:underline">قيد #{{ custody.entry.number }}</a>{% endif %}
+    </div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500">مُنفَق بإيصالات</div>
+    <div class="text-2xl font-bold text-sky-700 font-mono">{{ "%.2f"|format(custody.amount_settled) }}</div>
+    <div class="text-xs text-slate-500 mt-1">{{ custody.settlement_lines|length }} بند تسوية</div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500">متبقّي معلَّق</div>
+    <div class="text-2xl font-bold {% if custody.amount_pending %}text-amber-700{% else %}text-emerald-700{% endif %} font-mono">
+      {{ "%.2f"|format(custody.amount_pending) }}
+    </div>
+    <div class="text-xs text-slate-500 mt-1">
+      {% set s = custody.status.value %}
+      {% if s == 'ISSUED' %}<span class="badge badge-sent">مصروفة</span>
+      {% elif s == 'PARTIALLY_SETTLED' %}<span class="badge badge-partial">قيد التسوية</span>
+      {% elif s == 'SETTLED' %}<span class="badge badge-paid">مُقفلة</span>
+      {% else %}<span class="badge badge-cancelled">ملغاة</span>{% endif %}
+      {% if custody.is_overdue %}<span class="badge badge-overdue mr-1">متأخر</span>{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card p-6 mb-6">
+  <h3 class="font-semibold text-navy-900 mb-2">تفاصيل العهدة</h3>
+  <dl class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+    <div><dt class="text-slate-500 inline">الغرض:</dt> <dd class="inline">{{ custody.purpose or '—' }}</dd></div>
+    <div><dt class="text-slate-500 inline">طريقة الصرف:</dt>
+      <dd class="inline">{{ custody.payment_method.name_ar if custody.payment_method else 'نقدي' }}</dd></div>
+    {% if custody.settlement_due_date %}
+    <div><dt class="text-slate-500 inline">موعد التسوية:</dt>
+      <dd class="inline font-mono">{{ custody.settlement_due_date.isoformat() }}</dd></div>
+    {% endif %}
+    {% if custody.approver %}
+    <div><dt class="text-slate-500 inline">اعتمدها:</dt>
+      <dd class="inline">{{ custody.approver.full_name }}</dd></div>
+    {% endif %}
+    {% if custody.note %}
+    <div class="col-span-2"><dt class="text-slate-500 inline">ملاحظات:</dt>
+      <dd class="inline">{{ custody.note }}</dd></div>
+    {% endif %}
+  </dl>
+</div>
+
+<div class="card p-6 mb-6">
+  <h3 class="font-semibold text-navy-900 mb-3">بنود التسوية</h3>
+  {# MARSOUD-CASH-CUSTODY-01 (2026-08-07, slice 3) — inline receipt
+     upload per settlement line via the polymorphic Document flow
+     (source_type=CASH_CUSTODY_SETTLEMENT). The upload route lives
+     in the documents blueprint and is already wired to bounce back
+     here on success. #}
+  {% from '_macros.html' import _noop with context if False %}
+  <table class="data-table mb-3">
+    <thead>
+      <tr>
+        <th>#</th><th>الحساب</th><th class="text-left">المبلغ</th>
+        <th>الإيصال</th><th>ملفات</th><th>التاريخ</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for l in custody.settlement_lines %}
+      {% set docs = documents_for('CASH_CUSTODY_SETTLEMENT', l.id) %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>
+          {% if l.expense_account %}
+            <span class="font-mono text-xs">{{ l.expense_account.code }}</span>
+            {{ l.expense_account.name_ar or l.expense_account.name }}
+          {% else %}<span class="text-slate-400">—</span>{% endif %}
+        </td>
+        <td class="text-left font-mono">{{ "%.2f"|format(l.amount) }}</td>
+        <td class="text-xs text-slate-600">{{ l.receipt_note or '—' }}</td>
+        <td class="text-xs">
+          {% for d in docs %}
+            <a href="{{ d.file_path }}" target="_blank"
+               class="text-brand-600 hover:underline block">📎 {{ d.name }}</a>
+          {% endfor %}
+          {% if custody.status.value in ('ISSUED', 'PARTIALLY_SETTLED') %}
+          <form method="POST"
+                action="{{ url_for('documents.upload', source_type='CASH_CUSTODY_SETTLEMENT', source_id=l.id) }}"
+                enctype="multipart/form-data" class="mt-1">
+            <input type="file" name="file" required
+                   accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.doc,.docx,.xls,.xlsx"
+                   class="text-xs" style="max-width:140px">
+            <button type="submit" class="text-xs text-brand-600 hover:underline">+ رفع إيصال</button>
+          </form>
+          {% endif %}
+        </td>
+        <td class="text-xs text-slate-500">{{ l.created_at | company_dt('%Y-%m-%d') if l.created_at else '' }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="text-center text-slate-400 py-4">لا توجد بنود تسوية بعد.</td></tr>
+    {% endfor %}
+    </tbody>
+    {% if custody.settlement_lines %}
+    <tfoot>
+      <tr>
+        <td colspan="2" class="text-left font-bold">الإجمالي</td>
+        <td class="text-left font-mono font-bold">{{ "%.2f"|format(custody.amount_settled) }}</td>
+        <td colspan="2"></td>
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+
+  {% if custody.status.value in ('ISSUED', 'PARTIALLY_SETTLED') %}
+  <form method="POST" action="{{ url_for('custody.add_line', custody_id=custody.id) }}"
+        class="grid grid-cols-1 md:grid-cols-4 gap-2 items-end pt-3 border-t border-slate-200">
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">حساب المصروف</label>
+      <select name="expense_account_id" required class="select text-sm">
+        <option value="">— اختر —</option>
+        {% for a in expense_accounts %}
+        <option value="{{ a.id }}">{{ a.code }} · {{ a.name_ar or a.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">المبلغ</label>
+      <input type="number" name="amount" step="0.01" min="0.01" required class="input text-sm">
+    </div>
+    <div class="md:col-span-1">
+      <label class="block text-xs font-semibold text-slate-700 mb-1">وصف الإيصال</label>
+      <input type="text" name="receipt_note" class="input text-sm">
+    </div>
+    <button type="submit" class="btn-primary text-sm">+ إضافة بند</button>
+  </form>
+  {% endif %}
+</div>
+
+{% if custody.status.value in ('ISSUED', 'PARTIALLY_SETTLED') %}
+<div class="card p-6 mb-6">
+  <h3 class="font-semibold text-navy-900 mb-3">إقفال التسوية</h3>
+  <form method="POST" action="{{ url_for('custody.close', custody_id=custody.id) }}"
+        class="space-y-4"
+        onsubmit="return confirm('إقفال التسوية سيرحّل قيد التسوية النهائي. متأكد؟');">
+    <div class="grid grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">الفائض المعاد للنقدية</label>
+        <input type="number" name="returned_amount" step="0.01" min="0" value="0" class="input">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">معالجة العجز</label>
+        <select name="shortfall_disposition" class="select">
+          <option value="">— لو مفيش عجز —</option>
+          {% if custody.holder_type.value == 'EMPLOYEE' %}
+          <option value="EMPLOYEE_LIABILITY">تحويل لحساب الموظف (2130) — يُحصَّل لاحقاً</option>
+          {% endif %}
+          <option value="EXPENSE">تسجيله مصروف عجز عهدة (5991)</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">تاريخ الإقفال</label>
+        <input type="date" name="settlement_date" value="{{ today }}" class="input">
+      </div>
+    </div>
+    <div class="text-xs text-slate-500 bg-slate-50 rounded p-3">
+      قاعدة الإقفال: مجموع البنود ({{ "%.2f"|format(custody.amount_settled) }})
+      + الفائض + العجز = المبلغ المصروف ({{ "%.2f"|format(custody.amount_issued) }}).
+      لو الأرقام مش مظبوطة، الإقفال هيترفض.
+    </div>
+    <div class="flex justify-end">
+      <button type="submit" class="btn-primary">إقفال التسوية</button>
+    </div>
+  </form>
+</div>
+
+<div class="card p-6 border-l-4 border-rose-300">
+  <h3 class="font-semibold text-rose-900 mb-2">إلغاء العهدة</h3>
+  <p class="text-xs text-slate-500 mb-3">
+    سيتم عكس قيد الصرف. يُرفض لو أضفت أي بند تسوية.
+  </p>
+  <form method="POST" action="{{ url_for('custody.cancel', custody_id=custody.id) }}"
+        class="flex gap-2"
+        onsubmit="return confirm('إلغاء العهدة؟');">
+    <input type="text" name="reason" placeholder="السبب" class="input text-sm">
+    <button type="submit" class="btn-secondary text-sm text-rose-600">إلغاء العهدة</button>
+  </form>
+</div>
+{% endif %}
+
+{% if custody.status.value == 'SETTLED' and custody.settlement_entry %}
+<div class="card p-4 bg-emerald-50 border-l-4 border-emerald-400">
+  <div class="text-sm">
+    ✓ تم إقفال التسوية بواسطة <b>{{ custody.settler.full_name if custody.settler else '—' }}</b>
+    في {{ custody.settled_at | company_dt('%Y-%m-%d %H:%M') if custody.settled_at else '' }}.
+    قيد الإقفال:
+    <a href="{{ url_for('journals.view_entry', entry_id=custody.settlement_entry.id) }}"
+       class="text-brand-600 hover:underline">#{{ custody.settlement_entry.number }}</a>
+  </div>
+</div>
+{% endif %}
+
+{% if custody.status.value == 'CANCELLED' %}
+<div class="card p-4 bg-slate-100 border-l-4 border-slate-400">
+  <div class="text-sm">
+    ✗ العهدة ملغاة
+    {% if custody.canceller %}بواسطة <b>{{ custody.canceller.full_name }}</b>{% endif %}
+    في {{ custody.cancelled_at | company_dt('%Y-%m-%d') if custody.cancelled_at else '' }}.
+    {% if custody.cancel_reason %}<div class="text-xs text-slate-600 mt-1">السبب: {{ custody.cancel_reason }}</div>{% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

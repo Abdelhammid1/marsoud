@@ -66,6 +66,14 @@ class Employee(db.Model):
     bank_account_last4 = db.Column(db.String(4))
     # MARSOUD-COA-REBUILD — employee sub-account under 2130 (Salaries Payable).
     account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=True)
+    # MARSOUD-CASH-CUSTODY-01 (2026-08-07) — per-employee sub-account
+    # under 1180 (Cash Custody). Nullable — only minted lazily via
+    # subsidiary.ensure_custody_account when this employee first
+    # receives a custody. Separate from account_id (2130 salaries)
+    # so the two lifecycles never entangle.
+    custody_account_id = db.Column(db.Integer,
+                                    db.ForeignKey("accounts.id"),
+                                    nullable=True)
     # MARSOUD-MC-EMPLOYEE — per-company FK to the User account that owns
     # this employee row. Nullable because an employee may exist before an
     # account is provisioned. DB-level UNIQUE(company_id, user_id) makes
@@ -76,6 +84,8 @@ class Employee(db.Model):
 
     company = db.relationship("Company", backref=db.backref("employees", lazy="dynamic"))
     account = db.relationship("Account", foreign_keys=[account_id])
+    custody_account = db.relationship(
+        "Account", foreign_keys=[custody_account_id])
     user = db.relationship(
         "User", foreign_keys=[user_id],
         backref=db.backref("employees", lazy="dynamic"),

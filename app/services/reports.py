@@ -564,6 +564,61 @@ def aging_report(company_id, as_of=None):
     return {"rows": rows, "totals": totals, "as_of": as_of}
 
 
+def open_custody_report(company_id, as_of=None):
+    """MARSOUD-CASH-CUSTODY-01 (2026-08-07, slice 3) — every
+    cash custody that hasn't been fully settled yet, with days-
+    open and an overdue flag.
+
+    Mirrors aging_report's shape (rows + totals + as_of) so the
+    /reports index tile behaves the same as AR/AP aging.
+
+    A row shows up when custody.status in (ISSUED,
+    PARTIALLY_SETTLED). SETTLED + CANCELLED are done deals — off
+    the report. amount_pending is the truthy balance still
+    floating: amount_issued - amount_settled - amount_returned.
+    """
+    from app.models import CashCustody, CustodyStatus
+    as_of = as_of or date.today()
+    q = CashCustody.query.filter(
+        CashCustody.company_id == company_id,
+        CashCustody.status.in_((CustodyStatus.ISSUED,
+                                CustodyStatus.PARTIALLY_SETTLED)),
+    ).order_by(CashCustody.issued_on.asc())
+    rows = []
+    totals = {"issued": 0.0, "settled": 0.0,
+              "returned": 0.0, "pending": 0.0,
+              "overdue_count": 0}
+    for c in q.all():
+        days_open = (as_of - c.issued_on).days if c.issued_on else 0
+        pending = float(c.amount_pending or 0)
+        is_overdue = bool(
+            c.settlement_due_date
+            and c.settlement_due_date < as_of)
+        rows.append({
+            "custody_id": c.id,
+            "holder_type": c.holder_type.value,
+            "holder_name": c.holder_name,
+            "purpose": c.purpose,
+            "issued_on": c.issued_on.isoformat() if c.issued_on else None,
+            "amount_issued": float(c.amount_issued or 0),
+            "amount_settled": float(c.amount_settled or 0),
+            "amount_returned": float(c.amount_returned or 0),
+            "amount_pending": pending,
+            "days_open": days_open,
+            "settlement_due_date": (c.settlement_due_date.isoformat()
+                                    if c.settlement_due_date else None),
+            "is_overdue": is_overdue,
+            "status": c.status.value,
+        })
+        totals["issued"] += float(c.amount_issued or 0)
+        totals["settled"] += float(c.amount_settled or 0)
+        totals["returned"] += float(c.amount_returned or 0)
+        totals["pending"] += pending
+        if is_overdue:
+            totals["overdue_count"] += 1
+    return {"rows": rows, "totals": totals, "as_of": as_of}
+
+
 def _month_range(year, month):
     """Return (first_of_month, last_of_month) date objects."""
     from calendar import monthrange

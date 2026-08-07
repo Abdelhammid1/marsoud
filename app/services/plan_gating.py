@@ -71,6 +71,9 @@ _PREFIX_TO_MODULE = {
     "agent.": "agent",
     # MARSOUD-INSIGHTS-AGENT-01 (Batch 9 Ticket 6, 2026-08-01).
     "insights.": "insights",
+    # MARSOUD-CASH-CUSTODY-01 (2026-08-07) — cash custody is its own
+    # coarse module, feature-flag on Pro (super-admin flips per plan).
+    "custody.": "cash_custody",
     # settings — always on
     "users.": "settings",
 }

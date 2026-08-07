@@ -94,6 +94,7 @@ def create_app(config_class=Config):
     from app.routes.superadmin import bp as superadmin_bp
     from app.routes.hr import bp as hr_bp
     from app.routes.advances import bp as advances_bp
+    from app.routes.custody import bp as custody_bp
     from app.routes.leads import bp as leads_bp
     from app.routes.projects import bp as projects_bp
     from app.routes.tasks import bp as tasks_bp
@@ -158,6 +159,7 @@ def create_app(config_class=Config):
     app.register_blueprint(superadmin_bp, url_prefix="/admin")
     app.register_blueprint(hr_bp, url_prefix="/hr")
     app.register_blueprint(advances_bp, url_prefix="/advances")
+    app.register_blueprint(custody_bp, url_prefix="/custody")
     app.register_blueprint(leads_bp, url_prefix="/leads")
     app.register_blueprint(projects_bp, url_prefix="/projects")
     app.register_blueprint(tasks_bp, url_prefix="/tasks")
@@ -942,6 +944,15 @@ def create_app(config_class=Config):
     # fetch /static/ relative paths).
     from app.services.email import company_logo_email_uri
     app.jinja_env.globals["company_logo_email_uri"] = company_logo_email_uri
+
+    # MARSOUD-CASH-CUSTODY-01 (2026-08-07, slice 3) — the custody
+    # detail template renders per-line attachments inline (one
+    # documents_for call per settlement line). Passing it through
+    # render_template would force every callsite of the polymorphic
+    # Document flow to hand-plumb the same helper. Exposing as a
+    # global keeps the pattern DRY.
+    from app.services.opsflow_extras import documents_for as _docs_for
+    app.jinja_env.globals["documents_for"] = _docs_for
 
     # MARSOUD-ACTLOG-01 — log every successful GET as a VIEW activity
     # row. Wrapped in try/except so a logging hiccup never blocks the

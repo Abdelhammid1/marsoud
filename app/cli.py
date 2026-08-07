@@ -62,6 +62,15 @@ PLAN_SEED = [
             "hr", "employee_reports", "manufacturing",
             # MARSOUD-EVALUATIONS-PRO-GATING (Batch 5 Ticket 6, 2026-07-29).
             "evaluations",
+            # MARSOUD-CASH-CUSTODY-01 (2026-08-07) — Pro tier only.
+            # Custody is an operational-control feature aligned with
+            # organizations that already run payroll + fixed assets +
+            # evaluations. Growth stays lean; super-admin can flip it
+            # on for a specific Growth company via /admin/plans.
+            "cash_custody",
+            # MARSOUD-INSIGHTS-AGENT-PROFESSIONAL followup — same rationale.
+            # Was missed in T9 (plan gate blocked the sidebar row).
+            "insights",
         ],
         "quotas": {
             "users": (15, 130),

@@ -76,6 +76,19 @@ P = {
     # An employee submits their own request through /my/ with no
     # permission code at all (portal_emp is allowlisted by prefix).
     "advances.manage":      {"owner", "admin", "accountant"},
+    # MARSOUD-CASH-CUSTODY-01 (2026-08-07) — cash custody has TWO codes
+    # unlike advances (which only has .manage because the portal blueprint
+    # is prefix-allowlisted). The ticket explicitly names both:
+    #   custody.manage — approve/issue/settle/cancel (accountant flow)
+    #   custody.request — submit a request from the portal (every user
+    #     with an employee record — same reach as advances get via the
+    #     portal prefix allowlist, but named so a future role like
+    #     "site foreman" can hold custody.request without advances)
+    "custody.manage":       {"owner", "admin", "accountant"},
+    "custody.request":      {"owner", "admin", "accountant", "ceo",
+                             "hr_manager", "sales_manager", "sales_rep",
+                             "project_manager", "team_member",
+                             "employee"},
     "payroll.view":         {"owner", "admin", "accountant", "hr_manager", "viewer"},
     # MARSOUD-PERM-FIX-01 — view employee personal/HR data WITHOUT salary
     # figures. Whoever has payroll.view sees the salary numbers; this is the

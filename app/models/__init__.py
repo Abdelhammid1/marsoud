@@ -96,6 +96,13 @@ from app.models.advances import (
     AdvanceRequest, AdvanceRequestStatus,
     EmployeeAdvance, AdvanceStatus, AdvanceSource, AdvanceRepayment,
 )
+# MARSOUD-CASH-CUSTODY-01 (2026-08-07) — separate from advances by
+# design: custody is closed by receipts, not deducted from salary.
+from app.models.cash_custody import (
+    CashCustodyRequest, CashCustody, CashCustodySettlementLine,
+    CustodyHolderType, CustodyRequestStatus, CustodyStatus,
+    ShortfallDisposition,
+)
 from app.models.department import Department
 from app.models.attendance import (
     AttendancePolicy, PolicyScope, PolicyType,
@@ -215,6 +222,9 @@ __all__ = [
     "EmployeeHistory", "EmployeeChangeType",
     "AdvanceRequest", "AdvanceRequestStatus",
     "EmployeeAdvance", "AdvanceStatus", "AdvanceSource",
+    "CashCustodyRequest", "CashCustody", "CashCustodySettlementLine",
+    "CustodyHolderType", "CustodyRequestStatus", "CustodyStatus",
+    "ShortfallDisposition",
     "AdvanceRepayment",
     "OpenItem", "OpenItemSettlement", "OpenItemStatus",
     "SETTLEABLE_STATUSES",

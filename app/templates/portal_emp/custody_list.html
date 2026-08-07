@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block page_title %}عهدتي النقدية{% endblock %}
+{% block content %}
+<h2 class="font-bold text-navy-900 mb-4">عهدتي النقدية</h2>
+
+{# ─── New-request form ───────────────────────────────────────── #}
+<div class="card p-6 mb-6">
+  <h3 class="font-semibold text-navy-900 mb-3">طلب عهدة جديدة</h3>
+  <form method="POST" action="{{ url_for('portal_emp.custody_request_new') }}"
+        class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end"
+        data-once data-once-label="جاري الإرسال...">
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">المبلغ</label>
+      <input type="number" name="amount" step="0.01" min="0.01" required class="input text-sm">
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">موعد الحاجة (اختياري)</label>
+      <input type="date" name="needed_by_date" class="input text-sm">
+    </div>
+    <div class="md:col-span-2">
+      <label class="block text-xs font-semibold text-slate-700 mb-1">الغرض</label>
+      <input type="text" name="purpose" required class="input text-sm"
+             placeholder="مثلاً: مصاريف انتقال + إقامة لمشروع الفرع">
+    </div>
+    <button type="submit" class="btn-primary text-sm md:col-span-4">إرسال الطلب للاعتماد</button>
+  </form>
+</div>
+
+{# ─── Requests history ───────────────────────────────────────── #}
+<div class="card p-6 mb-6">
+  <h3 class="font-semibold text-navy-900 mb-3">طلباتي</h3>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>#</th><th>الغرض</th>
+        <th class="text-left">المبلغ</th>
+        <th>الحالة</th><th>الملاحظة</th><th>التاريخ</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in requests %}
+      <tr>
+        <td class="text-xs">#{{ r.id }}</td>
+        <td class="text-xs">{{ (r.purpose or '—')[:60] }}</td>
+        <td class="text-left font-mono">{{ "%.2f"|format(r.amount) }}</td>
+        <td>
+          {% if r.status.value == 'PENDING' %}<span class="badge badge-draft">قيد الانتظار</span>
+          {% elif r.status.value == 'APPROVED' %}<span class="badge badge-paid">معتمدة</span>
+          {% else %}<span class="badge badge-cancelled">مرفوضة</span>{% endif %}
+        </td>
+        <td class="text-xs text-slate-500">{{ r.review_note or '—' }}</td>
+        <td class="text-xs text-slate-500">
+          {{ r.created_at | company_dt('%Y-%m-%d') if r.created_at else '' }}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="text-center text-slate-400 py-4">لا يوجد طلبات.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# ─── Custodies ──────────────────────────────────────────────── #}
+<div class="card p-6">
+  <h3 class="font-semibold text-navy-900 mb-3">عهدي المفتوحة والسابقة</h3>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>#</th><th>الغرض</th>
+        <th class="text-left">مصروف</th><th class="text-left">مُنفَق</th>
+        <th class="text-left">متبقّي</th>
+        <th>موعد التسوية</th><th>الحالة</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for c in custodies %}
+      <tr>
+        <td class="text-xs">#{{ c.id }}</td>
+        <td class="text-xs">{{ (c.purpose or '—')[:50] }}</td>
+        <td class="text-left font-mono">{{ "%.2f"|format(c.amount_issued) }}</td>
+        <td class="text-left font-mono text-slate-500">{{ "%.2f"|format(c.amount_settled) }}</td>
+        <td class="text-left font-mono font-bold">{{ "%.2f"|format(c.amount_pending) }}</td>
+        <td class="font-mono text-xs">
+          {% if c.settlement_due_date %}
+            {{ c.settlement_due_date.isoformat() }}
+            {% if c.is_overdue %}<span class="badge badge-overdue mr-1">متأخر</span>{% endif %}
+          {% else %}<span class="text-slate-400">—</span>{% endif %}
+        </td>
+        <td>
+          {% set s = c.status.value %}
+          {% if s == 'ISSUED' %}<span class="badge badge-sent">مصروفة</span>
+          {% elif s == 'PARTIALLY_SETTLED' %}<span class="badge badge-partial">قيد التسوية</span>
+          {% elif s == 'SETTLED' %}<span class="badge badge-paid">مُقفلة</span>
+          {% else %}<span class="badge badge-cancelled">ملغاة</span>{% endif %}
+        </td>
+        <td>
+          <a href="{{ url_for('portal_emp.custody_detail', custody_id=c.id) }}"
+             class="text-brand-600 text-xs hover:underline">تفاصيل</a>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="8" class="text-center text-slate-400 py-4">لا يوجد عهد بعد.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

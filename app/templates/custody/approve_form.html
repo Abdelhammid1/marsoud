@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block page_title %}اعتماد طلب عهدة{% endblock %}
+{% block content %}
+<div class="card p-6 max-w-2xl">
+  <h2 class="font-bold text-navy-900 mb-4">اعتماد طلب عهدة نقدية</h2>
+
+  <div class="bg-slate-50 rounded p-4 mb-4 space-y-1 text-sm">
+    <div><span class="text-slate-500">الحامل:</span>
+      <span class="font-semibold">{{ req.holder_name }}</span>
+      ({% if req.holder_type.value == 'EMPLOYEE' %}موظف{% else %}قسم{% endif %})
+    </div>
+    <div><span class="text-slate-500">المبلغ:</span>
+      <span class="font-mono font-bold">{{ "%.2f"|format(req.amount) }}</span></div>
+    <div><span class="text-slate-500">الغرض:</span> {{ req.purpose }}</div>
+    {% if req.needed_by_date %}
+    <div><span class="text-slate-500">موعد الحاجة:</span>
+      {{ req.needed_by_date.isoformat() }}</div>
+    {% endif %}
+  </div>
+
+  <form method="POST" class="space-y-4">
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">تاريخ الصرف</label>
+        <input type="date" name="issued_on" value="{{ today }}" required class="input">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">موعد التسوية (اختياري)</label>
+        <input type="date" name="settlement_due_date" class="input">
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">طريقة الصرف</label>
+      <select name="payment_method_id" class="select">
+        <option value="">نقدي (1110)</option>
+        {% for pm in payment_methods %}
+        <option value="{{ pm.id }}">{{ pm.name_ar or pm.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">ملاحظة الاعتماد (اختياري)</label>
+      <textarea name="review_note" rows="2" class="textarea"></textarea>
+    </div>
+
+    <div class="flex justify-end gap-2">
+      <a href="{{ url_for('custody.requests') }}" class="btn-secondary">إلغاء</a>
+      <button type="submit" class="btn-primary">اعتماد وصرف العهدة</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

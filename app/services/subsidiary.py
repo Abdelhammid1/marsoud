@@ -100,6 +100,25 @@ def ensure_employee_account(employee):
     return acc
 
 
+def ensure_custody_account(holder):
+    """MARSOUD-CASH-CUSTODY-01 (2026-08-07) — return the custody
+    holder's Cash-Custody sub-account under 1180; create if absent.
+
+    Works for BOTH Employee AND Department (the two allowed holder
+    types per the ticket). Both models carry a `custody_account_id`
+    FK — the helper duck-types on it. Idempotent; safe to call at
+    every issue journal.
+
+    The 1180-NNNNNN leaves let the party-ledger + open-custody
+    reports slice by holder without another table."""
+    if holder.custody_account_id:
+        return holder.custody_account
+    acc = create_party_subaccount(holder.company_id, "1180", holder.name)
+    holder.custody_account_id = acc.id
+    db.session.flush()
+    return acc
+
+
 WALK_IN_CUSTOMER_NAME = "زبون نقدي (Walk-in)"
 
 
@@ -146,6 +165,15 @@ def party_ap_account(bill):
 def party_payroll_account(employee):
     """For payroll — the Salaries-Payable sub-account for one employee."""
     return ensure_employee_account(employee)
+
+
+def party_custody_account(holder):
+    """MARSOUD-CASH-CUSTODY-01 — the 1180-NNNNNN sub-account for
+    the holder (Employee or Department) of a cash custody. Used
+    by services/cash_custody on both the issue journal (Dr this
+    account / Cr cash) and the close-settlement journal (Cr this
+    account for the settled+returned+shortfall)."""
+    return ensure_custody_account(holder)
 
 
 # ─── MARSOUD-PARTY-OPENING-BALANCE-01 ──────────────────────────────────

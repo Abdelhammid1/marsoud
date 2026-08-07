@@ -13,6 +13,12 @@ class DocumentSourceType(str, enum.Enum):
     LEAD = "LEAD"
     PROJECT = "PROJECT"
     TASK = "TASK"
+    # MARSOUD-CASH-CUSTODY-01 (2026-08-07) — settlement receipts
+    # attach here (source_id = CashCustodySettlementLine.id). Uses
+    # the same upload route + storage as the LEAD/PROJECT/TASK
+    # attachments so a future doc-library scan sees custody
+    # receipts without new plumbing.
+    CASH_CUSTODY_SETTLEMENT = "CASH_CUSTODY_SETTLEMENT"
 
 
 class DocumentVisibility(str, enum.Enum):

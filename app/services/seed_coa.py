@@ -42,6 +42,15 @@ DEFAULT_COA = [
     # revenue as an investing activity in every company's cash-flow
     # statement. 1280 below is already caught by exactly that rule.
     ("1170", "Accrued Revenue", "إيرادات مستحقة", AccountType.ASSET, "1100", True),
+    # MARSOUD-CASH-CUSTODY-01 (2026-08-07) — cash handed to an
+    # employee or department against a future settlement (expense
+    # receipts + return excess / collect shortfall). HEADER only —
+    # every custody holder gets a leaf 1180-NNNNNN under this via
+    # subsidiary.ensure_custody_account, mirroring the 1130 / 2110
+    # / 2130 party-ledger pattern so the aging + party-ledger
+    # reports treat custody sub-accounts uniformly.
+    ("1180", "Cash Custody in Settlement", "عهد نقدية تحت التسوية",
+     AccountType.ASSET, "1100", False),
     ("1280", "Input VAT (Recoverable)", "ضريبة المدخلات القابلة للخصم", AccountType.ASSET, "1100", True),
     # Inventory — 1300 stays the trading-goods account (code posts to it)
     ("1300", "Inventory", "المخزون", AccountType.ASSET, "1100", True),

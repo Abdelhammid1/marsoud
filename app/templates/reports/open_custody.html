@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block page_title %}تقرير العهد النقدية المفتوحة{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h2 class="font-bold text-navy-900">تقرير العهد النقدية المفتوحة</h2>
+  <a href="{{ url_for('reports.index') }}" class="btn-secondary text-sm">← كل التقارير</a>
+</div>
+
+<form method="GET" class="flex items-end gap-3 mb-4">
+  <div>
+    <label class="block text-xs font-semibold text-slate-700 mb-1">حتى تاريخ</label>
+    <input type="date" name="as_of" value="{{ as_of.isoformat() }}" class="input text-sm">
+  </div>
+  <button type="submit" class="btn-primary text-sm">تطبيق</button>
+</form>
+
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  <div class="card p-4">
+    <div class="text-xs text-slate-500">إجمالي مصروف</div>
+    <div class="text-xl font-bold text-navy-900 font-mono">{{ "%.2f"|format(data.totals.issued) }}</div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500">إجمالي مُسوَّى</div>
+    <div class="text-xl font-bold text-sky-700 font-mono">{{ "%.2f"|format(data.totals.settled) }}</div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500">معلَّق (لم يُسوَّ)</div>
+    <div class="text-xl font-bold text-amber-700 font-mono">{{ "%.2f"|format(data.totals.pending) }}</div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500">متأخرة</div>
+    <div class="text-xl font-bold {% if data.totals.overdue_count %}text-rose-600{% else %}text-slate-400{% endif %} font-mono">
+      {{ data.totals.overdue_count }}
+    </div>
+  </div>
+</div>
+
+<div class="card p-6">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>الحامل</th>
+        <th>الغرض</th>
+        <th>تاريخ الصرف</th>
+        <th class="text-left">مصروف</th>
+        <th class="text-left">مُنفَق</th>
+        <th class="text-left">معلَّق</th>
+        <th>أيام</th>
+        <th>موعد التسوية</th>
+        <th>الحالة</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in data.rows %}
+      <tr>
+        <td class="text-xs">
+          <a href="{{ url_for('custody.detail', custody_id=r.custody_id) }}"
+             class="text-brand-600 hover:underline">#{{ r.custody_id }}</a>
+        </td>
+        <td class="font-semibold">
+          {{ r.holder_name }}
+          <div class="text-xs text-slate-500">
+            {% if r.holder_type == 'EMPLOYEE' %}موظف{% else %}قسم{% endif %}
+          </div>
+        </td>
+        <td class="text-xs text-slate-700">{{ (r.purpose or '—')[:50] }}</td>
+        <td class="font-mono text-xs">{{ r.issued_on }}</td>
+        <td class="text-left font-mono">{{ "%.2f"|format(r.amount_issued) }}</td>
+        <td class="text-left font-mono text-slate-500">{{ "%.2f"|format(r.amount_settled) }}</td>
+        <td class="text-left font-mono font-bold {% if r.amount_pending %}text-amber-700{% endif %}">
+          {{ "%.2f"|format(r.amount_pending) }}
+        </td>
+        <td class="text-center font-mono text-xs">{{ r.days_open }}</td>
+        <td class="font-mono text-xs">
+          {% if r.settlement_due_date %}
+            {{ r.settlement_due_date }}
+            {% if r.is_overdue %}<span class="badge badge-overdue mr-1">متأخر</span>{% endif %}
+          {% else %}<span class="text-slate-400">—</span>{% endif %}
+        </td>
+        <td>
+          {% if r.status == 'ISSUED' %}<span class="badge badge-sent">مصروفة</span>
+          {% elif r.status == 'PARTIALLY_SETTLED' %}<span class="badge badge-partial">قيد التسوية</span>
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="10" class="text-center text-slate-400 py-6">لا توجد عهد مفتوحة.</td></tr>
+    {% endfor %}
+    </tbody>
+    {% if data.rows %}
+    <tfoot>
+      <tr class="font-bold">
+        <td colspan="4" class="text-left">الإجمالي</td>
+        <td class="text-left font-mono">{{ "%.2f"|format(data.totals.issued) }}</td>
+        <td class="text-left font-mono">{{ "%.2f"|format(data.totals.settled) }}</td>
+        <td class="text-left font-mono text-amber-700">{{ "%.2f"|format(data.totals.pending) }}</td>
+        <td colspan="3"></td>
+      </tr>
+    </tfoot>
+    {% endif %}
+  </table>
+</div>
+{% endblock %}

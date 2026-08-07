@@ -52,6 +52,22 @@ def tick():
             "vendor bill overdue sweep failed: %s", e)
         summary["vendor_bill_overdue"] = {"error": str(e)[:200]}
 
+    # MARSOUD-CASH-CUSTODY-01 (2026-08-07, slice 3) — bell every
+    # custody past its settlement_due_date, once per custody per
+    # company. Dedup lives on custody_overdue_notified_at, cleared
+    # by close/cancel so a re-issued row can re-notify.
+    custody_notified = 0
+    try:
+        from app.services.cash_custody import sweep_overdue_custodies
+        for c in Company.query.filter_by(is_active=True).all():
+            custody_notified += sweep_overdue_custodies(c.id)
+        summary["custody_overdue"] = custody_notified
+    except Exception as e:
+        import logging
+        logging.getLogger("ledgeros.cron").exception(
+            "custody overdue sweep failed: %s", e)
+        summary["custody_overdue"] = {"error": str(e)[:200]}
+
     # MARSOUD-VBILL-OVERDUE-01 (2026-08-06) — materialise recurring
     # vendor-bill forecasts into real POSTED bills the moment their
     # date arrives. Idempotent via the unique index on
