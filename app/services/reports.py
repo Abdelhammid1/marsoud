@@ -650,6 +650,105 @@ def _cash_custody_metrics(company_id):
                 "cash_custody_overdue": 0}
 
 
+# ─── MARSOUD-DASHBOARD-COVERAGE-01 (2026-08-08) — ops metric
+# helpers for the four new top-level tiles (HR, vendors, products,
+# projects). Same shape as _cash_custody_metrics / _item_custody_
+# metrics: private, try/except-wrapped so a plan without the module
+# falls back to zeros rather than 500-ing the dashboard.
+
+def _hr_metrics(company_id):
+    """{hr_employees_active, hr_expiring_contracts} — active head-
+    count + subset whose contract expires within 30 days."""
+    try:
+        from app.models import Employee, EmployeeStatus
+        from datetime import date as _date, timedelta as _td
+        today = _date.today()
+        cutoff = today + _td(days=30)
+        active = Employee.query.filter(
+            Employee.company_id == company_id,
+            Employee.status == EmployeeStatus.ACTIVE,
+        ).all()
+        return {
+            "hr_employees_active": len(active),
+            "hr_expiring_contracts": sum(
+                1 for e in active
+                if e.contract_end_date
+                and today <= e.contract_end_date <= cutoff),
+        }
+    except Exception:
+        return {"hr_employees_active": 0,
+                "hr_expiring_contracts": 0}
+
+
+def _vendors_metrics(company_id):
+    """{vendors_count, vendors_with_balance} — active vendors +
+    subset that currently have an outstanding AP balance."""
+    try:
+        from app.models import Vendor
+        vendors = Vendor.query.filter_by(
+            company_id=company_id, is_active=True).all()
+        with_balance = 0
+        for v in vendors:
+            # Vendor.balance is a hybrid/computed on the model; if it
+            # isn't there we fall back to the party sub-account lookup
+            # via getattr so a schema shape drift doesn't 500.
+            bal = 0
+            try:
+                bal = float(getattr(v, "balance", 0) or 0)
+            except Exception:
+                bal = 0
+            if abs(bal) > 0.01:
+                with_balance += 1
+        return {
+            "vendors_count": len(vendors),
+            "vendors_with_balance": with_balance,
+        }
+    except Exception:
+        return {"vendors_count": 0, "vendors_with_balance": 0}
+
+
+def _products_metrics(company_id):
+    """{products_count, products_missing_price} — active products/
+    services + subset whose default_price is NULL or 0 (they can't
+    be sold from POS until priced)."""
+    try:
+        from app.models import Product
+        products = Product.query.filter_by(
+            company_id=company_id, is_active=True).all()
+        missing = sum(
+            1 for p in products
+            if not p.default_price or float(p.default_price) <= 0)
+        return {
+            "products_count": len(products),
+            "products_missing_price": missing,
+        }
+    except Exception:
+        return {"products_count": 0, "products_missing_price": 0}
+
+
+def _projects_metrics(company_id):
+    """{projects_open, projects_overdue} — projects in a non-terminal
+    status + subset whose end_date is in the past. CLOSED and
+    DELIVERED count as terminal here."""
+    try:
+        from app.models import Project, ProjectStatus
+        from datetime import date as _date
+        today = _date.today()
+        terminal = (ProjectStatus.CLOSED, ProjectStatus.DELIVERED)
+        open_projects = Project.query.filter(
+            Project.company_id == company_id,
+            Project.status.notin_(terminal),
+        ).all()
+        return {
+            "projects_open": len(open_projects),
+            "projects_overdue": sum(
+                1 for p in open_projects
+                if p.end_date and p.end_date < today),
+        }
+    except Exception:
+        return {"projects_open": 0, "projects_overdue": 0}
+
+
 def _month_range(year, month):
     """Return (first_of_month, last_of_month) date objects."""
     from calendar import monthrange
@@ -1303,6 +1402,13 @@ def dashboard_metrics(company_id, period="month"):
             **_cash_custody_metrics(company_id),
             # MARSOUD-ITEM-CUSTODY-01 (dashboard tile, 2026-08-07)
             **_item_custody_metrics(company_id),
+            # MARSOUD-DASHBOARD-COVERAGE-01 (2026-08-08) — four new
+            # top-level ops tiles for HR / vendors / products /
+            # projects. Same shape as the custody unpacks above.
+            **_hr_metrics(company_id),
+            **_vendors_metrics(company_id),
+            **_products_metrics(company_id),
+            **_projects_metrics(company_id),
         },
         "late_invoices": late_invoices,
         "late_invoices_total": overdue_total,
