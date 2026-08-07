@@ -473,16 +473,41 @@ class Task(db.Model):
     created_by = db.relationship("User", foreign_keys=[created_by_id])
 
     @property
+    def is_closed_for_assignee(self):
+        """MARSOUD-TASK-REVIEW-NOT-INCOMPLETE (2026-08-06) — true when
+        the assignee's part is done. REVIEW means the assignee shipped
+        it and the ball is in the creator's court for approval; DONE
+        means it's truly closed. Distinct from `status == DONE`, which
+        answers "is the task truly finished" — used only by things that
+        can't lie about actual completion (project progress, HR
+        completion scoring, `completed_at` on the row itself, task
+        auto-archive). Every performance/rollup site should use this
+        property instead of comparing to DONE by hand.
+        """
+        return self.status in (TaskStatus.REVIEW, TaskStatus.DONE)
+
+    @property
     def is_overdue(self):
-        """Overdue when deadline passed and not done/blocked."""
-        if not self.deadline or self.status in (TaskStatus.DONE, TaskStatus.BLOCKED):
+        """Overdue when deadline passed and not closed-for-assignee /
+        blocked. REVIEW joined DONE and BLOCKED in
+        MARSOUD-TASK-REVIEW-NOT-INCOMPLETE (2026-08-06): a task the
+        assignee already handed off for review can't be counted as
+        their overdue work — that's what the ticket calls out. Every
+        rollup that inherits this property (dashboard tasks_overdue,
+        calendar deadline widget, team_stats.overdue, the Kanban
+        red badge, insights_tools) gets the fix for free."""
+        if not self.deadline or self.status in (
+                TaskStatus.DONE, TaskStatus.REVIEW, TaskStatus.BLOCKED):
             return False
         return self.deadline < date.today()
 
     @property
     def deadline_soon(self):
-        """True when deadline is today or within the next 24h."""
-        if not self.deadline or self.status in (TaskStatus.DONE, TaskStatus.BLOCKED):
+        """True when deadline is today or within the next 24h AND the
+        task is still on the assignee. REVIEW excluded for the same
+        reason as `is_overdue` — MARSOUD-TASK-REVIEW-NOT-INCOMPLETE."""
+        if not self.deadline or self.status in (
+                TaskStatus.DONE, TaskStatus.REVIEW, TaskStatus.BLOCKED):
             return False
         today = date.today()
         return today <= self.deadline <= today + timedelta(days=1)

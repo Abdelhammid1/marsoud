@@ -479,12 +479,19 @@ def is_visible_to(task, user_id, full_visibility, pm_project_ids=None):
 
 # ─── Stats ────────────────────────────────────────────────────────────────
 def _close_timestamps(company_id):
-    """Map task_id → first datetime the task hit DONE, by inspecting
-    TaskActivityLog rows with action='STATUS_CHANGED' and after.status==DONE.
+    """Map task_id → first datetime the task left the assignee's hands.
+    Walks TaskActivityLog rows with action='STATUS_CHANGED' and returns
+    the earliest transition into REVIEW or DONE per task.
 
-    Used for time-to-close + velocity calculations. Tasks whose close event
-    predates the activity log feature fall back to None and are excluded
-    from the median.
+    MARSOUD-TASK-REVIEW-NOT-INCOMPLETE (2026-08-06) — was DONE-only.
+    Now: velocity + on-time + time-to-close all measure "when did the
+    assignee finish their part", which is REVIEW or DONE (whichever
+    came first). A slow reviewer no longer penalizes the assignee's
+    velocity chart, and "on-time" is judged against the handoff, not
+    the approval.
+
+    Tasks whose close event predates the activity log feature fall
+    back to None and are excluded from the median.
     """
     import json
     from app.models import TaskActivityLog
@@ -492,15 +499,16 @@ def _close_timestamps(company_id):
         TaskActivityLog.company_id == company_id,
         TaskActivityLog.action == "STATUS_CHANGED",
     ).order_by(TaskActivityLog.created_at.asc()).all()
+    _CLOSED_STATUSES = {"DONE", "REVIEW"}
     out = {}
     for r in rows:
         if r.task_id in out:
-            continue   # only keep the first DONE transition
+            continue   # only keep the first assignee-closing transition
         try:
             after = json.loads(r.after_json or "{}")
         except (TypeError, ValueError):
             continue
-        if (after.get("status") or "").upper() == "DONE":
+        if (after.get("status") or "").upper() in _CLOSED_STATUSES:
             out[r.task_id] = r.created_at
     return out
 
@@ -585,6 +593,16 @@ def team_stats(company_id, since=None):
         "_on_time_count": 0,
     } for uid in member_ids if uid in users}
 
+    # MARSOUD-TASK-REVIEW-NOT-INCOMPLETE (2026-08-06) — `done` folds
+    # REVIEW into DONE (assignee shipped it, from their POV they're
+    # done), but the per-status split still exposes REVIEW as its own
+    # count so the UI can distinguish "assignee closed" from "creator
+    # approved". _on_time / _close_days measure from the FIRST close
+    # transition per task (via _close_timestamps above, now
+    # REVIEW-or-DONE), so a slow reviewer doesn't drag down the
+    # assignee's on-time rate. The `review` counter also lives inside
+    # the closed branch — a REVIEW task lands in BOTH `done` and
+    # `review`, giving managers the aggregate + the drill-down chip.
     for t in tasks:
         ids = assignee_ids_for(t)
         closed_at = closes.get(t.id)
@@ -593,8 +611,10 @@ def team_stats(company_id, since=None):
                 continue
             row = out[uid]
             row["total"] += 1
-            if t.status == TaskStatus.DONE:
+            if t.is_closed_for_assignee:
                 row["done"] += 1
+                if t.status == TaskStatus.REVIEW:
+                    row["review"] += 1
                 if closed_at and t.created_at:
                     delta_days = (closed_at - t.created_at).total_seconds() / 86400
                     if delta_days >= 0:
@@ -611,8 +631,6 @@ def team_stats(company_id, since=None):
                     row["todo"] += 1
                 elif t.status == TaskStatus.IN_PROGRESS:
                     row["in_progress"] += 1
-                elif t.status == TaskStatus.REVIEW:
-                    row["review"] += 1
                 elif t.status == TaskStatus.BLOCKED:
                     row["blocked"] += 1
             if t.is_overdue:

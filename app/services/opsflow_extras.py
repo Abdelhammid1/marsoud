@@ -346,10 +346,15 @@ def remind_task_deadlines_24h():
     from datetime import date as _d
     today_utc = _d.today()
     horizon = today_utc + timedelta(days=2)   # widen so no tz boundary bites
+    # MARSOUD-TASK-REVIEW-NOT-INCOMPLETE (2026-08-06) — REVIEW joined
+    # DONE + BLOCKED in the exclusion list. The assignee already
+    # handed the task off for review; pinging them 24h before the
+    # deadline is pure noise when the ball is in the creator's court.
     raw_candidates = Task.query.filter(
         Task.deadline.isnot(None),
         Task.deadline >= today_utc, Task.deadline <= horizon,
-        Task.status.notin_([TaskStatus.DONE, TaskStatus.BLOCKED]),
+        Task.status.notin_([TaskStatus.DONE, TaskStatus.REVIEW,
+                            TaskStatus.BLOCKED]),
     ).all()
     # Filter per-company using its own today.
     company_today = {}

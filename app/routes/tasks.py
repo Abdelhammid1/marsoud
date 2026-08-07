@@ -196,11 +196,20 @@ def _employee_monthly_stats(company_id, user_id, months=6):
     task_ids.update(r[0] for r in legacy)
     if not task_ids:
         return {"labels": [], "closed": [], "user_total": 0}
-    # Step 2: walk DONE-transition events from the activity log.
+    # Step 2: walk STATUS_CHANGED events, ORDERED by created_at so the
+    # FIRST assignee-closing transition per task wins.
+    #
+    # MARSOUD-TASK-REVIEW-NOT-INCOMPLETE (2026-08-06) — was DONE-only;
+    # a task the assignee shipped to REVIEW never surfaced on their
+    # monthly chart even though the work landed that month. Now
+    # REVIEW counts too. The `seen` set ensures REVIEW→DONE later in
+    # the same month doesn't double-count — the assignee gets one
+    # credit at the moment they handed the task off.
     close_events = db.session.query(TaskActivityLog).filter(
         TaskActivityLog.task_id.in_(task_ids),
         TaskActivityLog.action == "STATUS_CHANGED",
-    ).all()
+    ).order_by(TaskActivityLog.created_at.asc()).all()
+    _CLOSED_STATUSES = {"DONE", "REVIEW"}
     # Build monthly buckets for the last `months` months (oldest → newest)
     today = _dt.utcnow()
     buckets = []
@@ -219,7 +228,7 @@ def _employee_monthly_stats(company_id, user_id, months=6):
             after = _json.loads(ev.after_json or "{}")
         except (TypeError, ValueError):
             continue
-        if (after.get("status") or "").upper() != "DONE":
+        if (after.get("status") or "").upper() not in _CLOSED_STATUSES:
             continue
         ts = ev.created_at
         key = (ts.year, ts.month)
@@ -262,8 +271,14 @@ def _employee_task_buckets(company_id):
     tasks = Task.query.filter_by(company_id=company_id).filter(
         Task.archived_at.is_(None),
     ).all()
+    # MARSOUD-TASK-REVIEW-NOT-INCOMPLETE (2026-08-06) — `done` folds
+    # REVIEW into DONE (both mean "assignee shipped it"), a new
+    # `review` bucket exposes REVIEW separately so the UI can chip it,
+    # and `overdue` no longer blames the assignee for a task past its
+    # deadline that they already handed off. progress_pct uses the
+    # combined figure.
     by_user = {uid: {"user": users[uid], "total": 0, "done": 0,
-                     "in_progress": 0, "overdue": 0}
+                     "in_progress": 0, "review": 0, "overdue": 0}
                 for uid in user_ids if uid in users}
     today = _date.today()
     for t in tasks:
@@ -275,11 +290,14 @@ def _employee_task_buckets(company_id):
                 continue
             b = by_user[uid]
             b["total"] += 1
-            if t.status == TaskStatus.DONE:
+            if t.is_closed_for_assignee:
                 b["done"] += 1
+                if t.status == TaskStatus.REVIEW:
+                    b["review"] += 1
             elif t.status == TaskStatus.IN_PROGRESS:
                 b["in_progress"] += 1
-            if t.deadline and t.deadline < today and t.status != TaskStatus.DONE:
+            if (t.deadline and t.deadline < today
+                    and not t.is_closed_for_assignee):
                 b["overdue"] += 1
     out = []
     for b in by_user.values():
