@@ -691,14 +691,41 @@ def detail(task_id):
 @require_permission("tasks.manage")
 def edit(task_id):
     t = _task_or_403(task_id)
+    cid = g.active_company.id
     projects = _company_projects()
     users = _company_users()
     if request.method == "POST":
         try:
             new_title = (request.form.get("title") or t.title).strip()
             new_desc = (request.form.get("description") or "").strip() or None
+            # MARSOUD-TASK-EDIT-PROJECT-STAGE (2026-08-06) — before this
+            # ticket the edit form ignored project_id (the template also
+            # disabled the <select> and re-submitted the current value
+            # from a hidden input, keeping the two layers consistent).
+            # A user who created a task without picking a project had no
+            # way to add one later. Now we resolve the new project the
+            # same way new() does (line 509-512 above) — company-scope
+            # check, unknown id raises. The milestone_id check below
+            # runs against the NEW project so a coordinated
+            # project + stage swap works atomically.
+            pid_raw = request.form.get("project_id") or None
+            new_pid = int(pid_raw) if pid_raw else None
+            new_project = None
+            if new_pid:
+                new_project = db.session.get(Project, new_pid)
+                if not new_project or new_project.company_id != cid:
+                    raise CRMError("المشروع غير موجود")
             milestone_raw = request.form.get("milestone_id") or None
             new_milestone = int(milestone_raw) if milestone_raw else None
+            if new_milestone:
+                # Milestone must belong to the project the caller is
+                # picking in this same request — not the OLD project.
+                # Same rule new() enforces at line 520-525.
+                if not new_project:
+                    raise CRMError("لا يمكن ربط مرحلة بدون مشروع")
+                m = db.session.get(Milestone, new_milestone)
+                if not m or m.project_id != new_pid:
+                    raise CRMError("المرحلة لا تنتمي لهذا المشروع")
             priority_str = request.form.get("priority", t.priority.value)
             new_priority = TaskPriority[priority_str]
             new_deadline = _parse_date(request.form.get("deadline"))
@@ -731,11 +758,37 @@ def edit(task_id):
                              before={"deadline": str(t.deadline) if t.deadline else None},
                              after={"deadline": str(new_deadline) if new_deadline else None})
                 t.deadline = new_deadline
-            t.milestone_id = new_milestone
+            # Both project and milestone get logged and applied together
+            # so the activity feed shows the pair moved atomically — a
+            # reviewer looking at "PROJECT_CHANGED from X to Y" doesn't
+            # have to hunt for a separate MILESTONE_CHANGED to know the
+            # stage came along with it.
+            old_pid = t.project_id
+            if new_pid != old_pid:
+                log_activity(t, "PROJECT_CHANGED",
+                             before={"project_id": old_pid},
+                             after={"project_id": new_pid})
+                t.project_id = new_pid
+            if new_milestone != t.milestone_id:
+                log_activity(t, "MILESTONE_CHANGED",
+                             before={"milestone_id": t.milestone_id},
+                             after={"milestone_id": new_milestone})
+                t.milestone_id = new_milestone
             t.notes = (request.form.get("notes") or "").strip() or None
 
             db.session.flush()
             set_assignees(t, ids, actor_id=current_user.id)
+            # When a task moves between projects BOTH sides need their
+            # completion bar recomputed — the old project just lost a
+            # task, the new one just gained one. Fetching by id (not
+            # via the ORM relationship) so a None old_pid is skipped
+            # cleanly.
+            if new_pid != old_pid:
+                for pid in (old_pid, new_pid):
+                    if pid:
+                        p = db.session.get(Project, pid)
+                        if p:
+                            p.recompute_progress()
             db.session.commit()
 
             # MARSOUD-TASK-NOTIFY-CREATOR — full edit doesn't route
@@ -766,13 +819,27 @@ def edit(task_id):
             flash("تم حفظ التعديلات", "success")
             return redirect(_safe_next(
                 url_for("tasks.detail", task_id=t.id)))
-        except (TaskError, ValueError, TypeError, KeyError) as e:
+        # CRMError comes from the project/milestone validation added
+        # for MARSOUD-TASK-EDIT-PROJECT-STAGE (2026-08-06). Without it
+        # in the tuple a cross-tenant or mismatched-stage POST would
+        # 500 instead of flashing back.
+        except (TaskError, CRMError, ValueError, TypeError, KeyError) as e:
             db.session.rollback()
             flash(str(e), "error")
+    # Same shape new() ships (line 647-650 above) — the client-side
+    # cascade in form.html:170-193 keys off this map to swap the Stage
+    # <select> options the moment the user picks a different project.
+    # Passing it here (previously only new() did) is what lets the
+    # edit page cascade at all.
+    milestones_by_project = {
+        p.id: [{"id": m.id, "name": m.name} for m in p.milestones]
+        for p in projects
+    }
     return render_template("tasks/form.html",
                            task=t, projects=projects, users=users,
                            priorities=TaskPriority,
                            milestones=t.project.milestones if t.project else [],
+                           milestones_by_project=milestones_by_project,
                            selected_assignee_ids=list(assignee_ids_for(t)))
 
 
