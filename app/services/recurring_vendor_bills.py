@@ -1,8 +1,8 @@
 """MARSOUD-VBILL-OVERDUE-01 (2026-08-06) — cron: materialise recurring
-vendor-bill forecasts into real POSTED VendorBills.
+vendor-bill forecasts into real DRAFT VendorBills for human review.
 
 Direct mirror of process_recurring_invoices at services/recurring_invoices.py:
-same skeleton, same duplicate-run guard, but posts a VendorBill + JE per
+same skeleton, same duplicate-run guard, but produces a VendorBill per
 missed occurrence instead of an Invoice. The ticket points to that file
 by name and says "نفس الآلية بالظبط" — so this file's shape is bounded
 by that mandate.
@@ -11,9 +11,20 @@ WHY THE FUNCTION EXISTS. The dashboard's "فواتير جايّة عليك" pane
 live forecast — never materialised. When the projected date passed, the
 row aged off the panel and no record existed anywhere: HR concluded
 "must have been paid" and moved on. This cron converts the forecast
-into a real POSTED bill the moment the day arrives, so the bill
-either appears in the overdue panel (if unpaid) or in the ledger (if
-someone paid it) — never silently disappears.
+into a real DRAFT bill the moment the day arrives, so the bill
+appears in the overdue panel and a human decides whether to post + pay
+it — never silently disappears.
+
+⚠ MARSOUD-CRON-VBILL-NO-AUTOPAY-01 (2026-08-07). The 2026-08-06 cron run
+after a 3-week outage materialised + auto-paid 4 CASH-template bills
+totalling 5,526.93 EGP with no owner approval. Root cause: this file
+called materialize_from_recurring() without status_target, which
+defaulted to POSTED. post_vendor_bill() then posted a second journal
+(Dr Vendor sub / Cr Cash|Bank) that drained the till and flipped the
+bill to PAID. The fix is on line 53 below: explicit status_target=
+"DRAFT" so cron NEVER auto-posts, regardless of the source template's
+payment method. Payment is always a human step per ticket wording
+"الدفع خطوة بشرية دايمًا، بغض النظر عن طريقة الدفع الأصلية في القالب."
 
 IDEMPOTENCY. Every insert lands with recurring_bill_id + occurrence_date
 set; the unique index on that pair blocks a second insert. A cron run
@@ -32,13 +43,24 @@ log = logging.getLogger("marsoud.recurring_vendor_bills")
 
 def process_recurring_vendor_bills():
     """Walk every active company, materialise every past-due
-    unmaterialised forecast into a POSTED VendorBill. Returns a summary
-    suitable for the /cron/tick response body."""
+    unmaterialised forecast into a DRAFT VendorBill (never POSTED —
+    see module docstring). Returns a summary suitable for the
+    /cron/tick response body.
+
+    Summary keys:
+      materialised       — count of DRAFT bills newly created (was
+                            "posted" before MARSOUD-CRON-VBILL-NO-
+                            AUTOPAY-01; renamed because "posted" was
+                            factually wrong now that we never post
+                            here).
+      skipped_duplicate  — the unique-index catch (safe double-run).
+      failed             — anything else (logged in full).
+    """
     from app.services.recurring_bills import unmaterialised_past_due
     from app.services.vendor_bills import materialize_from_recurring
     from app.models import RecurringBill
 
-    posted = 0
+    materialised = 0
     skipped_duplicate = 0
     failed = 0
     today = date.today()
@@ -50,9 +72,14 @@ def process_recurring_vendor_bills():
             if rb is None or not rb.active:
                 continue
             try:
+                # ⚠ status_target="DRAFT" is the ENTIRE point of
+                # MARSOUD-CRON-VBILL-NO-AUTOPAY-01. Do NOT change to
+                # "POSTED" without explicit approval — see the module
+                # docstring for the incident that motivated this.
                 materialize_from_recurring(
-                    rb, row["date"], actor_id=None)
-                posted += 1
+                    rb, row["date"], actor_id=None,
+                    status_target="DRAFT")
+                materialised += 1
             except Exception as e:
                 # Idempotency trip: the second cron run on the same day
                 # bumps into the (recurring_bill_id, occurrence_date)
@@ -72,5 +99,10 @@ def process_recurring_vendor_bills():
                     db.session.rollback()
                     failed += 1
 
-    return {"posted": posted, "skipped_duplicate": skipped_duplicate,
+    return {"materialised": materialised,
+            # Back-compat alias so any dashboard / audit that still
+            # reads the old "posted" key doesn't 500 — matches the
+            # DRAFT count (the number of new rows produced).
+            "posted": materialised,
+            "skipped_duplicate": skipped_duplicate,
             "failed": failed}

@@ -782,7 +782,7 @@ def postpone_bill(bill, *, new_due_date, reason=None, actor_id=None):
 
 
 def materialize_from_recurring(recurring_bill, occurrence_date, *,
-                               actor_id=None, status_target=None):
+                               actor_id=None, status_target="POSTED"):
     """MARSOUD-VBILL-OVERDUE-01 (2026-08-06) — turn one RecurringBill
     occurrence into a real VendorBill.
 
@@ -798,11 +798,26 @@ def materialize_from_recurring(recurring_bill, occurrence_date, *,
     services/recurring_invoices.py:59.
 
     status_target controls what state the created bill lands in:
-      None or "POSTED"  → default, invokes post_vendor_bill() to write
-                          the JE (used by the cron materialiser).
-      "DRAFT"           → skip posting, used by the forecast-postpone
-                          flow so HR can review the amount before it
-                          hits the ledger.
+      "POSTED"          → invokes post_vendor_bill() to write the JE
+                          (the historical default; still what the
+                          manual "اعمل الفاتورة" button uses).
+      "DRAFT"           → skip posting, used by the cron materialiser
+                          + the forecast-postpone flow so a human
+                          reviews the amount before it hits the ledger.
+
+    ⚠ MARSOUD-CRON-VBILL-NO-AUTOPAY-01 (2026-08-07). When the source
+    template's payment_method is CASH or BANK, post_vendor_bill()
+    posts a SECOND journal (Dr Vendor sub / Cr Cash|Bank) that drains
+    the till immediately and flips the bill to PAID. Before this
+    ticket the cron caller passed no `status_target` and the None
+    default resolved to POSTED — a 3-week cron outage on 2026-08-06
+    then leaked 5,526.93 EGP across 4 backlogged bills (VB-0061..64)
+    with no owner approval.
+
+    The default is now the explicit string "POSTED" so the risky
+    behavior stays behind an EXPLICIT choice at the callsite, and
+    the cron path was fixed at
+    app/services/recurring_vendor_bills.py:53 to pass "DRAFT".
     """
     from app.services.numbering import next_number
     from app.models import VendorBill, VendorBillItem
@@ -870,6 +885,10 @@ def materialize_from_recurring(recurring_bill, occurrence_date, *,
         db.session.rollback()
         raise
 
-    if (status_target or "POSTED") == "POSTED":
+    # Only auto-post when the caller explicitly asks for it. Any
+    # non-"POSTED" value (including "DRAFT", None left over from
+    # older callers, or a typo) leaves the bill in DRAFT so a human
+    # has to click "post" — see docstring for why.
+    if status_target == "POSTED":
         post_vendor_bill(new, created_by=actor_id)
     return new
