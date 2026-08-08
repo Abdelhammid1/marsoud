@@ -157,8 +157,18 @@ _MODULES: tuple = (
            sidebar_section="crm", sort_order=70,
            blueprint_prefixes=("leads", "crm", "tasks", "projects",
                                 "calendar"),
-           permission_prefixes=("leads.", "tasks.", "projects.",
-                                "crm.")),
+           # MARSOUD-4-BRANCH-REPAIR (2026-08-08) — main's old
+           # _PREFIX_TO_MODULE deliberately had NO "crm." prefix,
+           # so `crm.campaigns.view` / `crm.activities.view` etc.
+           # fell through to the "no gated module → allow" branch
+           # in plan_allows. Adding "crm." here in T1/T2 tightened
+           # the gate and hid CRM sidebar rows on Starter tenants
+           # (whose plan modules don't include "crm"). Rolling back
+           # to the pre-branch behaviour: the CRM module gate lives
+           # on the leads./tasks./projects. namespaces; the
+           # crm.* fine-grained codes stay ungated at plan-level
+           # and are still enforced by the role permission itself.
+           permission_prefixes=("leads.", "tasks.", "projects.")),
     Module("hr", "الموارد البشرية", "HR",
            "الموظفين والرواتب والحضور والسلف",
            CATEGORY_HR, "👤",

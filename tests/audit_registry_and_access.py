@@ -88,16 +88,36 @@ def _():
     return "starter/growth/pro all resolve"
 
 
-@check("3. Every P permission maps to some module")
+@check("3. Every P permission maps to some module (or is a documented exception)")
 def _():
     from app.services.permissions import P
     from app.services.feature_registry import module_for_permission
-    orphans = [p for p in P.keys() if module_for_permission(p) is None]
+    # MARSOUD-4-BRANCH-REPAIR (2026-08-08) — a small allow-list of
+    # codes intentionally has NO plan-level module gate. Historically
+    # (main), main's _PREFIX_TO_MODULE didn't include a `crm.` entry
+    # so `crm.campaigns.view` / .activities.view / .contacts.view /
+    # .analytics.view fell through to `plan_allows`'s "no module →
+    # True" branch — Starter tenants saw the CRM sidebar rows. The
+    # T1/T2 branch tightened the gate, hiding them on Starter (boss
+    # regression 2026-08-08). Restoring the pre-branch semantics =
+    # removing `crm.` from the crm module's permission_prefixes.
+    # Their role-permission still enforces access; only the plan-
+    # module dimension is intentionally absent.
+    _UNGATED_AT_PLAN = {
+        "crm.campaigns.view",
+        "crm.activities.view",
+        "crm.contacts.view",
+        "crm.analytics.view",
+    }
+    orphans = [p for p in P.keys()
+               if module_for_permission(p) is None
+               and p not in _UNGATED_AT_PLAN]
     assert not orphans, (
         f"{len(orphans)} permission codes have no module in the "
         f"registry: {orphans[:5]}"
         + (" …" if len(orphans) > 5 else ""))
-    return f"all {len(P)} permission codes routed"
+    return (f"all {len(P) - len(_UNGATED_AT_PLAN)} permission codes routed "
+            f"({len(_UNGATED_AT_PLAN)} deliberately ungated at plan level)")
 
 
 @check("4. module_for_endpoint fixes the FeatureFlag key mismatch bug")

@@ -1373,6 +1373,17 @@ def create_app(config_class=Config):
             pass   # table missing → fresh install, safe to skip
 
         # (c) Every P permission code maps to some module.
+        # MARSOUD-4-BRANCH-REPAIR (2026-08-08) — the 4 crm.* fine-
+        # grained codes intentionally have no plan-level module
+        # gate (see the "3. Every P permission maps..." check in
+        # tests/audit_registry_and_access.py for the rationale).
+        # Whitelist them so `flask check-registry` stays green.
+        _UNGATED_AT_PLAN = {
+            "crm.campaigns.view",
+            "crm.activities.view",
+            "crm.contacts.view",
+            "crm.analytics.view",
+        }
         try:
             from app.services.permissions import P
             missing_perm_module = []
@@ -1383,7 +1394,8 @@ def create_app(config_class=Config):
                     # prefix mapping because settings has no
                     # prefix — this is fine, they're always
                     # allowed. Only report unknown prefixes.
-                    if not perm.startswith(("users.",)):
+                    if (not perm.startswith(("users.",))
+                            and perm not in _UNGATED_AT_PLAN):
                         missing_perm_module.append(perm)
             if missing_perm_module:
                 findings.append(
