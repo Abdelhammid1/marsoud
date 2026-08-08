@@ -76,8 +76,7 @@ def _setup():
     u = User(email=f"{PREFIX}u@audit.local",
              password_hash=generate_password_hash(
                  "x", method="pbkdf2:sha256"),
-             full_name="teps user", is_active=True,
-             terms_version="v1.0")
+             full_name="teps user", is_active=True)
     db.session.add(u); db.session.flush()
     db.session.execute(user_companies.insert().values(
         user_id=u.id, company_id=home.id, role="owner"))
