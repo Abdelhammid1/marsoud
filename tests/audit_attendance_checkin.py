@@ -46,6 +46,11 @@ sys.path.insert(0, str(ROOT))
 
 from app import create_app, db
 
+# MARSOUD-4-BRANCH-REPAIR (2026-08-08) — refuse unscoped bulk
+# deletes on the attendance tables (prod-data-loss incident).
+import tests._audit_guard as _audit_guard  # noqa: E402
+_audit_guard.install()
+
 CHECKS = []
 PREFIX = "__ATTCHK_"
 _STATE = {}
@@ -148,9 +153,15 @@ def _emp(tag="one"):
 def _reset():
     """Clear check-ins, exceptions and policies between checks."""
     from app.models import AttendanceCheckin, AttendanceException, AttendancePolicy
-    AttendanceCheckin.query.delete()
-    AttendanceException.query.delete()
-    AttendancePolicy.query.delete()
+    # MARSOUD-4-BRANCH-REPAIR (2026-08-08) — was
+    #   AttendanceCheckin.query.delete() / AttendanceException.query.delete()
+    #   AttendancePolicy.query.delete()
+    # → wiped every tenant's attendance if run against a DB with
+    # real data. Scope the delete to the fixture company only.
+    _cid = _STATE["cid"]
+    AttendanceCheckin.query.filter_by(company_id=_cid).delete()
+    AttendanceException.query.filter_by(company_id=_cid).delete()
+    AttendancePolicy.query.filter_by(company_id=_cid).delete()
     db.session.commit()
 
 

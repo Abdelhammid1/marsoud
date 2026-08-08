@@ -33,6 +33,11 @@ sys.path.insert(0, str(ROOT))
 
 from app import create_app, db
 
+# MARSOUD-4-BRANCH-REPAIR (2026-08-08) — refuse unscoped bulk
+# deletes on the attendance tables (prod-data-loss incident).
+import tests._audit_guard as _audit_guard  # noqa: E402
+_audit_guard.install()
+
 CHECKS = []
 PREFIX = "__VIOLPOL_"
 _STATE = {}
@@ -176,12 +181,20 @@ def _reset_month():
             PayrollLine.query.filter(
                 PayrollLine.run_id.in_(rids)
             ).delete(synchronize_session=False)
-    AttendanceException.query.delete()
-    LatePermissionRequest.query.delete()
-    PayrollRun.query.delete()
-    JournalEntry.query.filter(JournalEntry.source_type.in_(
-        ["payroll", "payroll_settlement"])).delete()
-    AttendanceViolationPolicy.query.delete()
+    # MARSOUD-4-BRANCH-REPAIR (2026-08-08) — these 5 deletes were
+    # tenant-agnostic; a run against a DB with real data would
+    # nuke every company's rows (prod-data-loss pattern). Scope
+    # to the two fixture companies established at setup.
+    for _cid in (_STATE["cid_a"], _STATE["cid_b"]):
+        AttendanceException.query.filter_by(company_id=_cid).delete()
+        LatePermissionRequest.query.filter_by(company_id=_cid).delete()
+        PayrollRun.query.filter_by(company_id=_cid).delete()
+        (JournalEntry.query
+         .filter(JournalEntry.company_id == _cid,
+                 JournalEntry.source_type.in_(
+                     ["payroll", "payroll_settlement"]))
+         .delete(synchronize_session=False))
+        AttendanceViolationPolicy.query.filter_by(company_id=_cid).delete()
     db.session.commit()
 
 
@@ -259,7 +272,11 @@ def _():
         "cap is not being applied")
 
     # Same day, now 45 min: charge (45-20)=25 min → 25/60/8 = 0.052 → 0.05
-    db.session.query(AttendanceException).delete()
+    # MARSOUD-4-BRANCH-REPAIR (2026-08-08) — was
+    # db.session.query(AttendanceException).delete() (unscoped).
+    (db.session.query(AttendanceException)
+     .filter(AttendanceException.company_id == _STATE["cid_a"])
+     .delete(synchronize_session=False))
     db.session.commit()
     db.session.add(AttendanceException(
         company_id=_STATE["cid_a"], employee_id=_STATE["emp_a"],

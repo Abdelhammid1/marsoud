@@ -38,6 +38,11 @@ sys.path.insert(0, str(ROOT))
 
 from app import create_app, db
 
+# MARSOUD-4-BRANCH-REPAIR (2026-08-08) — refuse unscoped bulk
+# deletes on the attendance tables (prod-data-loss incident).
+import tests._audit_guard as _audit_guard  # noqa: E402
+_audit_guard.install()
+
 CHECKS = []
 PREFIX = "__EXCAUD_"
 _STATE = {}
@@ -125,8 +130,13 @@ def _teardown():
 
 
 def _reset():
+    # MARSOUD-4-BRANCH-REPAIR (2026-08-08) — was
+    #   AttendanceException.query.delete()
+    # → wiped every tenant's exceptions if run against a DB with
+    # real data. Scope the delete to the fixture company only.
     from app.models import AttendanceException
-    AttendanceException.query.delete()
+    _cid = _STATE["cid"]
+    AttendanceException.query.filter_by(company_id=_cid).delete()
     db.session.commit()
 
 
@@ -441,7 +451,8 @@ def _():
 
     # and the reachable path that found it: a late check-in on a
     # cancelled day must not 500
-    AttendanceCheckin.query.delete()
+    # MARSOUD-4-BRANCH-REPAIR (2026-08-08) — scope to fixture company.
+    AttendanceCheckin.query.filter_by(company_id=_STATE["cid"]).delete()
     db.session.commit()
     today_ex = _absence(date.today())
     cancel_exception(today_ex, reason="إلغاء", actor_id=_STATE["uid"])
