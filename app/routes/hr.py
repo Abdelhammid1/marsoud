@@ -28,7 +28,7 @@ from app.services.leave import (
     reject_leave_request, cancel_leave_request,
     LeaveError,
 )
-from app.services.attendance import AttendanceError, checkins_in_period
+from app.services.attendance import AttendanceError
 from app.services.permissions import hr_required
 
 
@@ -330,78 +330,11 @@ def attendance():
     for ex in exceptions:
         grid.setdefault(ex.employee_id, {})[ex.date.day] = ex
     days_in_month = monthrange(year, month)[1]
-
-    # MARSOUD-ATTENDANCE-VIEW-01 (2026-08-08) — HR now sees actual
-    # check-ins too. Keyed by (employee_id, date_obj) for O(1)
-    # template lookup. Same period + optional employee filter as
-    # exceptions_in_period so both dicts stay in sync.
-    checkins = checkins_in_period(cid, year, month, employee_id=emp_id)
     return render_template("hr/attendance.html",
                            employees=employees, grid=grid,
-                           checkins=checkins, today=today,
                            year=year, month=month,
                            days_in_month=days_in_month,
                            filter_employee_id=emp_id)
-
-
-# ─── MARSOUD-ATTENDANCE-VIEW-01 (2026-08-08) ─────────────────────
-# Per-employee monthly attendance detail. Separate route (not a
-# tab on payroll.employee_profile) so the hr_required permission
-# stays isolated from the broader employees.view audience.
-_WEEKDAYS_AR = {
-    0: "الاثنين", 1: "الثلاثاء", 2: "الأربعاء", 3: "الخميس",
-    4: "الجمعة", 5: "السبت", 6: "الأحد",
-}
-
-
-@bp.route("/attendance/employee/<int:employee_id>")
-@login_required
-@hr_required
-def employee_attendance_detail(employee_id):
-    """One row per day of the month: date · weekday · check-in ·
-    check-out · worked hours · exception badge/note. 404 for a
-    stranger-company employee_id (don't confirm existence)."""
-    from flask import abort
-    cid = g.active_company.id
-    emp = db.session.get(Employee, employee_id)
-    if emp is None or emp.company_id != cid:
-        abort(404)
-
-    today = date.today()
-    try:
-        year = int(request.args.get("year") or today.year)
-        month = int(request.args.get("month") or today.month)
-    except (TypeError, ValueError):
-        year, month = today.year, today.month
-    if not (1 <= month <= 12):
-        month = today.month
-
-    exceptions = exceptions_in_period(
-        cid, year, month, employee_id=emp.id,
-        include_cancelled=True)
-    checkins = checkins_in_period(
-        cid, year, month, employee_id=emp.id)
-
-    # Fast lookup by date.
-    ex_by_date = {ex.date: ex for ex in exceptions}
-
-    days_in_month = monthrange(year, month)[1]
-    rows = []
-    for d in range(1, days_in_month + 1):
-        the_date = date(year, month, d)
-        rows.append({
-            "date": the_date,
-            "weekday_ar": _WEEKDAYS_AR[the_date.weekday()],
-            "checkin": checkins.get((emp.id, the_date)),
-            "exception": ex_by_date.get(the_date),
-            "is_future": the_date > today,
-        })
-
-    return render_template(
-        "hr/employee_attendance_detail.html",
-        employee=emp, rows=rows,
-        year=year, month=month, today=today,
-    )
 
 
 @bp.route("/attendance/new", methods=["GET", "POST"])

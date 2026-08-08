@@ -281,30 +281,6 @@ def checkin_for(employee_id, on_date):
         employee_id=employee_id, date=on_date).first()
 
 
-def checkins_in_period(company_id, year, month, employee_id=None):
-    """MARSOUD-ATTENDANCE-VIEW-01 (2026-08-08) — every check-in
-    row in the month, keyed by (employee_id, date) so the HR grid
-    can O(1) look up any cell. Company-scoped; optional
-    employee_id filter matches exceptions_in_period()'s signature
-    so the two composers plug into the same grid renderer.
-
-    Returns dict[(int, date)] -> AttendanceCheckin. Empty dict on
-    no rows.
-    """
-    from calendar import monthrange
-    from datetime import date as _date
-    from app.models import AttendanceCheckin
-    start = _date(year, month, 1)
-    end = _date(year, month, monthrange(year, month)[1])
-    q = (AttendanceCheckin.query
-         .filter(AttendanceCheckin.company_id == company_id,
-                 AttendanceCheckin.date >= start,
-                 AttendanceCheckin.date <= end))
-    if employee_id:
-        q = q.filter(AttendanceCheckin.employee_id == employee_id)
-    return {(r.employee_id, r.date): r for r in q.all()}
-
-
 # ═══ MARSOUD-ATTENDANCE-AUTO (ticket 4) ═════════════════════════════════
 def evaluate_checkin(checkin):
     """Turn a late arrival into an AttendanceException. Returns it, or None.
