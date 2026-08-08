@@ -1042,12 +1042,25 @@ tailwind.config = {
                 <div class="text-xs text-slate-500 truncate" dir="ltr">{{ current_user.email }}</div>
               </div>
               {% if my_employee_here %}
-              {# MARSOUD-MC-EMPLOYEE — scoped to the ACTIVE company. #}
+              {# MARSOUD-MC-EMPLOYEE — scoped to the ACTIVE company.
+                 MARSOUD-CUSTODY-NAV-01 (2026-08-09) — custody links
+                 added here so ANY user with an Employee record (owner
+                 / admin / accountant / manager / employee) reaches
+                 their custody pages from the 👤 menu regardless of
+                 role. The role-scoped sidebar branch only covers the
+                 `employee` role; my_employee_here scopes correctly
+                 per active company. #}
               <a href="{{ url_for('portal_emp.account') }}" class="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
                 <span>👤</span><span>حسابي</span>
               </a>
               <a href="{{ url_for('portal_emp.daily_reports_list') }}" class="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
                 <span>📝</span><span>تقاريري اليومية</span>
+              </a>
+              <a href="{{ url_for('portal_emp.custody_list') }}" class="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
+                <span>💵</span><span>عهدتي النقدية</span>
+              </a>
+              <a href="{{ url_for('portal_emp.items_list') }}" class="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
+                <span>📦</span><span>عهدي العينية</span>
               </a>
               {% endif %}
               <form method="POST" action="{{ url_for('auth.logout') }}" class="border-t border-slate-100 mt-1 pt-1">
