@@ -1445,8 +1445,36 @@ def _():
     return f"{mig.count('ondelete=\"CASCADE\"')} CASCADE FKs on both sides"
 
 
+def _neutralise_session_cookie_domain(app):
+    """MARSOUD-4-BRANCH-REPAIR (2026-08-08) — mirrored from
+    tests/audit_dashboard_shell.py::_neutralise_session_cookie_domain
+    (MARSOUD-SESSION-COOKIE-DEV-FIX).
+
+    A production-style .env sets SESSION_COOKIE_DOMAIN=.marsoud.com,
+    which scopes the session cookie to that domain while the test
+    client runs on localhost — so the cookie is never sent back,
+    every request answers as anonymous, and @login_required
+    bounces to /login. The run then reports 302s / redirects /
+    empty pages that read as real failures when in fact no
+    fixture session ever existed.
+
+    The 2026-08-08 pre-deploy audit hit exactly this: 3 checks
+    (40, 41, 42) failed on the boss's worktree because its .env
+    was copied from prod. audit_dashboard_shell.py already had
+    this override; audit_ops_foundation.py didn't. Adding it here
+    so the two audits are equally robust against env drift.
+    """
+    domain = app.config.get("SESSION_COOKIE_DOMAIN")
+    if domain:
+        app.config["SESSION_COOKIE_DOMAIN"] = None
+        print(f"NOTE  SESSION_COOKIE_DOMAIN={domain!r} overridden to None "
+              f"for this run -- a domain-scoped cookie is never sent "
+              f"to the localhost test client.")
+
+
 def main():
     app = create_app()
+    _neutralise_session_cookie_domain(app)
     _STATE["app"] = app
     passed = failed = 0
     with app.app_context():
