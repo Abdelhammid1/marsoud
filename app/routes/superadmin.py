@@ -595,6 +595,20 @@ def _404():
     abort(404)
 
 
+# ── MARSOUD-SUPERADMIN-CONTROL-01 T10 (2026-08-08) — Ctrl+K palette ── #
+@bp.route("/nav-search.json")
+@login_required
+@superadmin_required
+def nav_search_json():
+    """Backing endpoint for the Ctrl+K palette overlay defined in
+    templates/admin/base.html. Returns grouped results (nav /
+    companies / users) filtered by ?q=…."""
+    from flask import jsonify
+    from app.services.nav_search import search_all
+    q = (request.args.get("q") or "").strip()
+    return jsonify(search_all(q))
+
+
 # ── MARSOUD-48: email diagnostic ─────────────────────────────────────────── #
 @bp.route("/email-test", methods=["GET", "POST"])
 @login_required
