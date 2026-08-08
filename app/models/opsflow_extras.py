@@ -74,6 +74,12 @@ class NotificationKind(str, enum.Enum):
     # finds the bill already OVERDUE and the "just flipped" set is
     # empty, so no dedup column is needed.
     VENDOR_BILL_OVERDUE = "VENDOR_BILL_OVERDUE"
+    # MARSOUD-SUPERADMIN-CONTROL-01 T5 (2026-08-08) — quota
+    # threshold crossed (80/90/100%). Fires via
+    # `_send_owner_notification` in services/quotas.py after the
+    # email dispatch. QuotaNotificationSent handles per-cycle
+    # dedup, so no NotificationKind-level dedup needed.
+    QUOTA_THRESHOLD = "QUOTA_THRESHOLD"
 
 
 class Notification(db.Model):

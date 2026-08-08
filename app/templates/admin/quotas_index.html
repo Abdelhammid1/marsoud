@@ -1,0 +1,176 @@
+{% extends "admin/base.html" %}
+{% block page_title %}الحدود / Quotas{% endblock %}
+{% block content %}
+
+<div class="mb-4">
+  <h2 class="text-2xl font-bold text-slate-900">📏 حدود الباقات (Quotas)</h2>
+  <p class="text-sm text-ink-200 mt-1">
+    كل باقة ليها حد لكل مورد (مستخدمين / توكنز الذكاء الاصطناعي شهرياً /
+    مساحة تخزين / فروع). النمط <code>BLOCK</code> بيرفض التخطي فوراً،
+    <code>ALLOW_NOTIFY</code> بيسمح ويبعت تنبيه للسوبر أدمن،
+    <code>UNLIMITED</code> بيلغي الحد. أي تعديل بيتسجّل في سجل التدقيق.
+  </p>
+</div>
+
+{# ─── Per-plan quota edit cards ────────────────────────────────── #}
+{% for plan in plans %}
+<div class="card p-4 mb-4">
+  <h3 class="font-bold text-slate-900 mb-3">
+    📦 {{ plan.name_ar }}
+    <span class="text-xs text-ink-200 font-normal">
+      ({{ plan.code }})
+    </span>
+  </h3>
+  <div class="space-y-2">
+    {% for qt in known_quota_types %}
+      {% set q = rows_by_plan[plan.id][qt] %}
+      <form method="POST"
+            action="{{ url_for('superadmin.quotas_save', plan_id=plan.id) }}"
+            class="grid grid-cols-1 md:grid-cols-5 gap-2 items-end p-2 bg-slate-50 rounded">
+        <input type="hidden" name="quota_type" value="{{ qt }}">
+        <div>
+          <label class="block text-xs font-semibold text-ink-200 mb-1">
+            المورد
+          </label>
+          <div class="text-sm font-mono">{{ qt }}</div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-ink-200 mb-1">
+            الكمية المسموحة
+          </label>
+          <input type="number" name="included_amount" min="0" required
+                 value="{{ q.included_amount if q else 0 }}"
+                 class="input text-sm font-mono">
+          {% if qt == 'storage_bytes' %}
+          <p class="text-[10px] text-ink-200 mt-1">
+            بالبايت (1 GB = 1073741824)
+          </p>
+          {% endif %}
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-ink-200 mb-1">
+            نمط التنفيذ
+          </label>
+          <select name="enforcement_mode" class="select text-sm">
+            {% for m in enforcement_modes %}
+            <option value="{{ m }}"
+              {% if q and q.enforcement_mode == m %}selected
+              {% elif not q and m == 'BLOCK' %}selected{% endif %}>
+              {{ m }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-ink-200 mb-1">
+            سعر الوحدة الإضافية
+          </label>
+          <input type="number" name="price_per_extra_unit" step="0.01" min="0"
+                 value="{{ q.price_per_extra_unit if q and q.price_per_extra_unit else '' }}"
+                 placeholder="اختياري"
+                 class="input text-sm font-mono">
+        </div>
+        <div>
+          <button type="submit" class="btn btn-primary text-sm w-full">
+            💾 حفظ
+          </button>
+          {% if not q %}
+          <div class="text-[10px] text-ink-200 mt-1">
+            (غير محفوظ بعد)
+          </div>
+          {% endif %}
+        </div>
+      </form>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+
+{# ─── Consumption panel ────────────────────────────────────────── #}
+<div class="card p-4">
+  <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+    <h3 class="font-bold text-slate-900">📊 استهلاك الشركات</h3>
+    <form method="GET" class="flex items-center gap-2">
+      <label class="text-xs font-semibold text-ink-200">فلتر:</label>
+      <select name="threshold" class="select text-sm"
+              onchange="this.form.submit()">
+        <option value="0" {% if threshold == '0' %}selected{% endif %}>الكل</option>
+        <option value="70" {% if threshold == '70' %}selected{% endif %}>&gt; 70%</option>
+        <option value="80" {% if threshold == '80' %}selected{% endif %}>&gt; 80%</option>
+        <option value="90" {% if threshold == '90' %}selected{% endif %}>&gt; 90%</option>
+        <option value="100" {% if threshold == '100' %}selected{% endif %}>&gt; 100% (متجاوزة)</option>
+      </select>
+    </form>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="data-table w-full text-sm">
+      <thead>
+        <tr>
+          <th class="text-right">الشركة</th>
+          <th class="text-right">الباقة</th>
+          {% for qt in known_quota_types %}
+          <th class="text-right">{{ qt }}</th>
+          {% endfor %}
+          <th class="text-right">أعلى نسبة</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in consumption %}
+        <tr>
+          <td>
+            <a href="{{ url_for('superadmin.company_detail', company_id=c.company_id) }}"
+               class="text-emerald-700 hover:underline">
+              {{ c.company_name }}
+            </a>
+          </td>
+          <td>
+            {% if c.plan_name_ar %}
+            <span class="badge badge-neutral">{{ c.plan_name_ar }}</span>
+            {% else %}
+            <span class="text-ink-200 text-xs">— بدون —</span>
+            {% endif %}
+          </td>
+          {% for row in c.rows %}
+          <td class="text-xs font-mono">
+            {% if row.pct is none %}
+              <span class="text-ink-200">∞</span>
+            {% else %}
+              {{ row.current }} / {{ row.included }}
+              <span class="text-[10px]
+                {% if row.pct >= 100 %}text-rose-600
+                {% elif row.pct >= 90 %}text-amber-600
+                {% elif row.pct >= 70 %}text-amber-500
+                {% else %}text-emerald-600{% endif %}">
+                ({{ '%.0f'|format(row.pct) }}%)
+              </span>
+            {% endif %}
+          </td>
+          {% endfor %}
+          <td>
+            {% set p = c.max_pct %}
+            <span class="badge
+              {% if p >= 100 %}badge-bad
+              {% elif p >= 90 %}badge-neutral
+              {% else %}badge-ok{% endif %}">
+              {{ '%.0f'|format(p) }}%
+            </span>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="{{ 3 + known_quota_types|length }}"
+              class="text-center text-ink-200 py-6">
+            {% if threshold != '0' %}
+              لا توجد شركات تخطّت هذا الحد.
+            {% else %}
+              لا توجد شركات نشطة.
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}

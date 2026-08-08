@@ -346,3 +346,155 @@ def _send_owner_notification(company, quota_type, threshold_pct,
             send_email(u.email, subject, html)
         except Exception:
             pass
+    # MARSOUD-SUPERADMIN-CONTROL-01 T5 (2026-08-08) — bell
+    # notification alongside the email dispatch. Previously the
+    # owner only saw an email; now they also see a bell entry
+    # (and the super-admin sees it in the platform-wide feed
+    # once we surface a listener for QUOTA_THRESHOLD there).
+    if owners_ids:
+        try:
+            from app.services.opsflow_extras import notify_users
+            from app.models import NotificationKind
+            body = (f"{label}: {current}/{limit} ({threshold_pct}%)")
+            try:
+                from flask import url_for
+                link = url_for("settings_usage.index")
+            except Exception:
+                link = None
+            notify_users(
+                owners_ids,
+                company_id=company.id,
+                kind=NotificationKind.QUOTA_THRESHOLD,
+                title=subject,
+                body=body,
+                link_url=link,
+            )
+        except Exception:
+            # Bell failure never rolls back the email dispatch.
+            try:
+                from flask import current_app
+                current_app.logger.exception(
+                    "quota bell notification failed")
+            except Exception:
+                pass
+
+
+# ─── MARSOUD-SUPERADMIN-CONTROL-01 T5 (2026-08-08) — admin surface ─
+def upsert_quota(plan_id, quota_type, *, included_amount,
+                  enforcement_mode, price_per_extra_unit=None,
+                  actor_id=None):
+    """Super-admin write path for /admin/quotas.
+
+    Validates every input up front, upserts the row, commits, and
+    writes a platform audit log entry naming the plan + quota +
+    old→new values.
+
+    Raises ValueError on any validation failure — the route
+    handler catches + flashes.
+    """
+    from app.models import Plan, KNOWN_QUOTA_TYPES, ENFORCEMENT_MODES
+    if quota_type not in KNOWN_QUOTA_TYPES:
+        raise ValueError(
+            f"نوع الحد {quota_type!r} غير معروف "
+            f"({', '.join(KNOWN_QUOTA_TYPES)})")
+    if enforcement_mode not in ENFORCEMENT_MODES:
+        raise ValueError(
+            f"نمط التنفيذ {enforcement_mode!r} غير معروف "
+            f"({', '.join(ENFORCEMENT_MODES)})")
+    try:
+        included_amount = int(included_amount)
+    except (TypeError, ValueError):
+        raise ValueError("الكمية المسموحة يجب أن تكون رقماً صحيحاً")
+    if included_amount < 0:
+        raise ValueError("الكمية المسموحة لا يمكن أن تكون سالبة")
+    plan = db.session.get(Plan, plan_id)
+    if plan is None:
+        raise ValueError(f"الباقة #{plan_id} غير موجودة")
+    row = Quota.query.filter_by(
+        plan_id=plan.id, quota_type=quota_type).first()
+    before = None
+    if row is None:
+        row = Quota(plan_id=plan.id, quota_type=quota_type)
+        db.session.add(row)
+    else:
+        before = (f"{row.included_amount}/{row.enforcement_mode}/"
+                  f"{row.price_per_extra_unit or ''}")
+    row.included_amount = included_amount
+    row.enforcement_mode = enforcement_mode
+    if price_per_extra_unit is not None:
+        row.price_per_extra_unit = price_per_extra_unit
+    db.session.commit()
+    after = (f"{row.included_amount}/{row.enforcement_mode}/"
+              f"{row.price_per_extra_unit or ''}")
+    try:
+        from app.services.superadmin import log_platform_action
+        details = f"plan={plan.code} {quota_type}: {after}"
+        if before:
+            details = (f"plan={plan.code} {quota_type}: "
+                       f"{before} → {after}")
+        log_platform_action(
+            "quota_edit", actor_id=actor_id, details=details)
+    except Exception:
+        pass
+    return row
+
+
+def list_consumption(threshold_pct=0):
+    """Every active company with per-quota-type current + limit +
+    percentage. Sorted by worst-offender max_pct descending.
+
+    Returns a list of dicts:
+      { company_id, company_name, plan_code, max_pct,
+        rows: [{quota_type, current, included, pct, enforcement}, …] }
+
+    A company with no plan (plan_id=NULL) appears with plan_code=None
+    and max_pct=0 (treated as UNLIMITED). Companies whose max_pct is
+    below `threshold_pct` are dropped.
+    """
+    from app.models import Company, KNOWN_QUOTA_TYPES
+    out = []
+    for co in Company.query.filter_by(is_active=True).order_by(
+            Company.name).all():
+        rows = []
+        max_pct = 0.0
+        for qt in KNOWN_QUOTA_TYPES:
+            try:
+                current = count_current(co, qt)
+            except Exception:
+                current = 0
+            q = get_quota(co, qt)
+            if is_unlimited(q):
+                rows.append({
+                    "quota_type": qt,
+                    "current": current,
+                    "included": None,
+                    "pct": None,
+                    "enforcement": (q.enforcement_mode if q
+                                     else ENF_UNLIMITED),
+                })
+                continue
+            limit = int(q.included_amount or 0) or 1
+            pct = 100.0 * current / limit
+            if pct > max_pct:
+                max_pct = pct
+            rows.append({
+                "quota_type": qt,
+                "current": current,
+                "included": q.included_amount,
+                "pct": pct,
+                "enforcement": q.enforcement_mode,
+            })
+        if max_pct < threshold_pct:
+            continue
+        plan = getattr(co, "intended_plan", None) or getattr(
+            co, "subscription_plan", None)
+        out.append({
+            "company_id": co.id,
+            "company_name": co.name,
+            "plan_code": plan.code if plan else None,
+            "plan_name_ar": plan.name_ar if plan else None,
+            "max_pct": max_pct,
+            "rows": rows,
+        })
+    out.sort(key=lambda r: -r["max_pct"])
+    return out
