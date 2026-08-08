@@ -7,9 +7,11 @@ companies and archives DONE tasks whose `completed_at` (or
 
 Helpers:
   archive_task(task, *, actor_id)
-  unarchive_task(task)
+  unarchive_task(task, *, actor_id=None)          [T-ARCHIVE-MINE: widened]
   archive_all_done_in_company(company_id, *, actor_id) -> count
   auto_archive_old_done(threshold_days=30) -> {company_id: count, ...}
+  my_archived_tasks(company_id, user_id) -> Query   [T-ARCHIVE-MINE]
+  can_restore_mine(task, user_id) -> bool           [T-ARCHIVE-MINE]
 """
 from datetime import datetime, timedelta
 from app import db
@@ -37,8 +39,14 @@ def archive_task(task, *, actor_id=None):
     return True
 
 
-def unarchive_task(task):
-    """Restore the task to the board. No-op if not archived."""
+def unarchive_task(task, *, actor_id=None):
+    """Restore the task to the board. No-op if not archived.
+
+    MARSOUD-TASK-ARCHIVE-MINE (2026-08-08) — widened to accept
+    `actor_id` so the personal restore path records WHO restored
+    (was anonymous). Backwards-compatible: callers that omit the
+    kwarg get the old behaviour (no attribution on the log line).
+    """
     if task.archived_at is None:
         return False
     task.archived_at = None
@@ -46,7 +54,8 @@ def unarchive_task(task):
     try:
         from app.services.tasks_extras import log_activity
         log_activity(task, "UNARCHIVED",
-                     after={"restored_at": datetime.utcnow().isoformat()})
+                     after={"restored_at": datetime.utcnow().isoformat()},
+                     user_id=actor_id)
     except Exception:
         pass
     db.session.commit()
@@ -97,3 +106,31 @@ def auto_archive_old_done(threshold_days=AUTO_ARCHIVE_DAYS):
     if summary:
         db.session.commit()
     return summary
+
+
+# ─── MARSOUD-TASK-ARCHIVE-MINE (2026-08-08) — per-user archive ────
+def my_archived_tasks(company_id, user_id):
+    """Archived tasks visible to `user_id` in `company_id`. The
+    "visible to me" scope is the exact same union tasks.py uses for
+    non-owner Kanban views (legacy assignee OR m2m member OR
+    creator) so a user's archive contains exactly the tasks they
+    ever saw live.
+
+    Returns a Query (not a list) so callers can .count()/.limit()
+    without materialising the full row set.
+    """
+    from app.services.tasks_extras import visible_tasks_query
+    return (visible_tasks_query(company_id, user_id,
+                                 full_visibility=False)
+            .filter(Task.archived_at.isnot(None))
+            .order_by(Task.archived_at.desc()))
+
+
+def can_restore_mine(task, user_id):
+    """True iff `task` is archived AND visible to `user_id` under
+    the personal-scope rules. Callers should return 404 (not 403)
+    when this is False so we don't confirm a stranger's task id."""
+    if task is None or task.archived_at is None:
+        return False
+    from app.services.tasks_extras import is_visible_to
+    return is_visible_to(task, user_id, full_visibility=False)

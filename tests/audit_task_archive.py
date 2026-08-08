@@ -276,9 +276,15 @@ def _():
 
 @check("11. Sidebar exposes the archive link to anyone with tasks.archive")
 def _():
-    src = (ROOT / "app/templates/base.html").read_text()
+    # MARSOUD-TASK-ARCHIVE-MINE (2026-08-08) — added explicit
+    # encoding='utf-8' so the read doesn't blow up on Windows'
+    # cp1252 default after the new Arabic sidebar tuples landed.
+    src = (ROOT / "app/templates/base.html").read_text(encoding="utf-8")
     assert "'tasks.archive_list': 'tasks.archive'" in src
-    return "sidebar key wired"
+    # T-ARCHIVE-MINE also wires the personal entry.
+    assert "'tasks.archive_mine': 'tasks.view'" in src, \
+        "personal archive permission map entry missing"
+    return "sidebar key wired (+ tasks.archive_mine)"
 
 
 @check("12. Cron tick includes auto-archive in its summary")
@@ -288,6 +294,252 @@ def _():
         "cron tick doesn't call auto_archive_old_done"
     assert "task_auto_archive" in src
     return "cron tick wired"
+
+
+# ═══ MARSOUD-TASK-ARCHIVE-MINE (2026-08-08) ══════════════════════
+# Checks 13-20 cover the per-user archive: service composers +
+# route smoke + cross-user access refusal + portal_emp mirror.
+
+
+def _seed_second_user(company_id, *, email="mine_other@test.com",
+                       name="mine other"):
+    """Second User in the same company (team_member role) —
+    used to prove cross-user archive isolation."""
+    from werkzeug.security import generate_password_hash
+    from app.models import User, Role
+    from app.models.user import user_companies
+    u = User.query.filter_by(email=email).first()
+    if not u:
+        u = User(email=email, full_name=name,
+                 password_hash=generate_password_hash(
+                     "p1234567", method="pbkdf2:sha256"),
+                 is_active=True)
+        db.session.add(u); db.session.flush()
+    tm = Role.query.filter_by(
+        company_id=company_id, code="team_member").first()
+    db.session.execute(user_companies.delete().where(
+        (user_companies.c.user_id == u.id) &
+        (user_companies.c.company_id == company_id)))
+    db.session.execute(user_companies.insert().values(
+        user_id=u.id, company_id=company_id,
+        role="team_member", role_id=(tm.id if tm else None),
+    ))
+    db.session.commit()
+    return u
+
+
+@check("13. my_archived_tasks filters to visible-to-user only")
+def _():
+    from app.models import Company, User
+    from app.services.task_archive import my_archived_tasks
+    company = Company.query.first()
+    owner = User.query.filter_by(email=DEMO_EMAIL).first()
+    other = _seed_second_user(company.id)
+    mine = _make_task(company, owner, archived=True,
+                       title="_AUDIT_MINE_M13")
+    theirs = _make_task(company, other, archived=True,
+                         title="_AUDIT_OTHER_M13")
+    try:
+        titles = {t.title for t in
+                  my_archived_tasks(company.id, owner.id).all()}
+        assert "_AUDIT_MINE_M13" in titles
+        assert "_AUDIT_OTHER_M13" not in titles
+    finally:
+        db.session.delete(mine); db.session.delete(theirs)
+        db.session.commit()
+    return "cross-user leakage blocked at the query"
+
+
+@check("14. my_archived_tasks includes tasks the user CREATED")
+def _():
+    from app.models import Company, User, Task, TaskStatus, TaskPriority
+    from app.services.task_archive import my_archived_tasks
+    company = Company.query.first()
+    owner = User.query.filter_by(email=DEMO_EMAIL).first()
+    other = _seed_second_user(company.id)
+    # Assigned to `other`, created by `owner`. `owner` still owns
+    # the view because creator branch of visible_tasks_query counts.
+    t = Task(company_id=company.id, title="_AUDIT_CREATOR_M14",
+             status=TaskStatus.DONE, priority=TaskPriority.LOW,
+             assigned_to_id=other.id, created_by_id=owner.id,
+             archived_at=datetime.utcnow())
+    db.session.add(t); db.session.commit()
+    try:
+        titles = {r.title for r in
+                  my_archived_tasks(company.id, owner.id).all()}
+        assert "_AUDIT_CREATOR_M14" in titles, \
+            "creator-branch visibility missing"
+    finally:
+        db.session.delete(t); db.session.commit()
+
+
+@check("15. my_archived_tasks excludes live (non-archived) tasks")
+def _():
+    from app.models import Company, User
+    from app.services.task_archive import my_archived_tasks
+    company = Company.query.first()
+    owner = User.query.filter_by(email=DEMO_EMAIL).first()
+    live = _make_task(company, owner, archived=False,
+                       title="_AUDIT_LIVE_M15")
+    try:
+        titles = {r.title for r in
+                  my_archived_tasks(company.id, owner.id).all()}
+        assert "_AUDIT_LIVE_M15" not in titles
+    finally:
+        db.session.delete(live); db.session.commit()
+
+
+@check("16. can_restore_mine — own archived True, other's False, own live False")
+def _():
+    from app.models import Company, User
+    from app.services.task_archive import can_restore_mine
+    company = Company.query.first()
+    owner = User.query.filter_by(email=DEMO_EMAIL).first()
+    other = _seed_second_user(company.id)
+    mine_arc = _make_task(company, owner, archived=True,
+                           title="_AUDIT_CRM_MINE")
+    mine_live = _make_task(company, owner, archived=False,
+                            title="_AUDIT_CRM_LIVE")
+    theirs = _make_task(company, other, archived=True,
+                         title="_AUDIT_CRM_THEIRS")
+    try:
+        assert can_restore_mine(mine_arc, owner.id) is True
+        assert can_restore_mine(mine_live, owner.id) is False
+        assert can_restore_mine(theirs, owner.id) is False
+    finally:
+        for t in (mine_arc, mine_live, theirs):
+            db.session.delete(t)
+        db.session.commit()
+
+
+@check("17. GET /tasks/archive/mine shows own row, hides other's")
+def _():
+    from app.models import Company, User
+    company = Company.query.first()
+    owner = User.query.filter_by(email=DEMO_EMAIL).first()
+    other = _seed_second_user(company.id)
+    mine = _make_task(company, owner, archived=True,
+                       title="_AUDIT_MINE_LIST_17")
+    theirs = _make_task(company, other, archived=True,
+                         title="_AUDIT_OTHER_LIST_17")
+    try:
+        app = create_app()
+        with app.test_client() as client:
+            _login(client, DEMO_EMAIL, DEMO_PASS)
+            r = client.get("/tasks/archive/mine")
+            assert r.status_code == 200, r.status_code
+            body = r.get_data(as_text=True)
+            assert "_AUDIT_MINE_LIST_17" in body
+            assert "_AUDIT_OTHER_LIST_17" not in body, \
+                "someone else's archived task leaked into /archive/mine"
+    finally:
+        db.session.delete(mine); db.session.delete(theirs)
+        db.session.commit()
+
+
+@check("18. POST /tasks/<id>/unarchive-mine on own -> 302 + unarchived + attributed")
+def _():
+    from app.models import Company, User, TaskActivityLog
+    company = Company.query.first()
+    owner = User.query.filter_by(email=DEMO_EMAIL).first()
+    t = _make_task(company, owner, archived=True,
+                    title="_AUDIT_RESTORE_M18")
+    try:
+        app = create_app()
+        with app.test_client() as client:
+            _login(client, DEMO_EMAIL, DEMO_PASS)
+            r = client.post(f"/tasks/{t.id}/unarchive-mine",
+                             follow_redirects=False)
+            assert r.status_code in (302, 303), r.status_code
+        db.session.refresh(t)
+        assert t.archived_at is None, "task not restored"
+        # Activity log records the restorer (widened unarchive sig).
+        entry = (TaskActivityLog.query
+                 .filter_by(task_id=t.id, action="UNARCHIVED")
+                 .order_by(TaskActivityLog.id.desc()).first())
+        assert entry is not None, "UNARCHIVED activity not logged"
+        assert entry.user_id == owner.id, \
+            f"UNARCHIVED user_id={entry.user_id!r}, expected {owner.id}"
+    finally:
+        db.session.delete(t); db.session.commit()
+
+
+@check("19. POST /tasks/<id>/unarchive-mine on someone else's -> 404")
+def _():
+    from app.models import Company, User
+    company = Company.query.first()
+    owner = User.query.filter_by(email=DEMO_EMAIL).first()
+    other = _seed_second_user(company.id)
+    theirs = _make_task(company, other, archived=True,
+                         title="_AUDIT_STEAL_M19")
+    try:
+        app = create_app()
+        with app.test_client() as client:
+            _login(client, DEMO_EMAIL, DEMO_PASS)
+            r = client.post(f"/tasks/{theirs.id}/unarchive-mine",
+                             follow_redirects=False)
+            # 404 (not 403) — no existence leak.
+            assert r.status_code == 404, \
+                f"stranger's task should 404, got {r.status_code}"
+        db.session.refresh(theirs)
+        assert theirs.archived_at is not None, \
+            "stranger's task must not be restored"
+    finally:
+        db.session.delete(theirs); db.session.commit()
+
+
+@check("20. Portal /my/archive renders + restore works for employee role")
+def _():
+    from werkzeug.security import generate_password_hash
+    from app.models import User, Company, Role
+    from app.models.user import user_companies
+    company = Company.query.first()
+    email = "arch_emp_portal@test.com"
+    u = User.query.filter_by(email=email).first()
+    if not u:
+        u = User(email=email, full_name="arch emp portal",
+                 password_hash=generate_password_hash(
+                     "p1234567", method="pbkdf2:sha256"),
+                 is_active=True)
+        db.session.add(u); db.session.flush()
+    else:
+        u.password_hash = generate_password_hash(
+            "p1234567", method="pbkdf2:sha256")
+    emp_role = Role.query.filter_by(
+        company_id=company.id, code="employee").first()
+    db.session.execute(user_companies.delete().where(
+        (user_companies.c.user_id == u.id) &
+        (user_companies.c.company_id == company.id)))
+    db.session.execute(user_companies.insert().values(
+        user_id=u.id, company_id=company.id,
+        role="employee",
+        role_id=(emp_role.id if emp_role else None),
+    ))
+    db.session.commit()
+    t = _make_task(company, u, archived=True,
+                    title="_AUDIT_PORTAL_M20")
+    try:
+        app = create_app()
+        with app.test_client() as client:
+            _login(client, email, "p1234567")
+            r = client.get("/my/archive")
+            assert r.status_code == 200, \
+                f"/my/archive as employee got {r.status_code}"
+            body = r.get_data(as_text=True)
+            assert "_AUDIT_PORTAL_M20" in body
+            # Restore via the portal route.
+            r2 = client.post(f"/my/archive/{t.id}/restore",
+                              follow_redirects=False)
+            assert r2.status_code in (302, 303), r2.status_code
+        db.session.refresh(t)
+        assert t.archived_at is None, "portal restore did not work"
+    finally:
+        db.session.delete(t)
+        db.session.execute(user_companies.delete().where(
+            (user_companies.c.user_id == u.id) &
+            (user_companies.c.company_id == company.id)))
+        User.query.filter_by(email=email).delete()
+        db.session.commit()
 
 
 def main():

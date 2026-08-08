@@ -1047,3 +1047,44 @@ def activity():
         users=[], actions=list(ACTION_TYPES), entity_types=[],
         filters=f, is_portal=True,
     )
+
+
+# ─── MARSOUD-TASK-ARCHIVE-MINE (2026-08-08) ────────────────────────
+# Portal mirror for tasks.archive_mine — the `employee` role is
+# portal-confined by confine_client_to_portal (app/__init__.py), so
+# `/tasks/*` 403s for them. Same service composer + same
+# per-user visibility scope; different route + template.
+@portal_emp_bp.route("/archive", methods=["GET"])
+@login_required
+def archive():
+    """Employee-role mirror of tasks.archive_mine — their own
+    archived tasks (assignee OR m2m member OR creator) only."""
+    from app.models import Task  # noqa: F401 (imported for the model registry)
+    from app.services.task_archive import my_archived_tasks
+    if not g.get("active_company"):
+        abort(404)
+    rows = my_archived_tasks(
+        g.active_company.id, current_user.id).all()
+    return render_template("portal_emp/archive.html", tasks=rows)
+
+
+@portal_emp_bp.route("/archive/<int:task_id>/restore",
+                      methods=["POST"])
+@login_required
+def archive_restore(task_id):
+    """Self-restore under /my/*. 404 (not 403) on a stranger's task
+    id — keep the portal archive opaque about existence."""
+    from app.models import Task
+    from app.services.task_archive import (
+        unarchive_task, can_restore_mine,
+    )
+    if not g.get("active_company"):
+        abort(404)
+    t = db.session.get(Task, task_id)
+    if (t is None
+        or t.company_id != g.active_company.id
+        or not can_restore_mine(t, current_user.id)):
+        abort(404)
+    unarchive_task(t, actor_id=current_user.id)
+    flash(f"↩ تم استعادة المهمة: {t.title}", "success")
+    return redirect(url_for("portal_emp.archive"))

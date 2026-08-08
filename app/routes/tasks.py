@@ -972,6 +972,42 @@ def archive_list():
     return render_template("tasks/archive.html", tasks=archived)
 
 
+# ── MARSOUD-TASK-ARCHIVE-MINE (2026-08-08) — personal archive ─────
+@bp.route("/archive/mine", methods=["GET"])
+@login_required
+@require_permission("tasks.view")
+def archive_mine():
+    """Personal archive: only the current user's own archived tasks
+    (assignee OR m2m member OR creator scope — the same union used
+    by the non-owner Kanban view). Every business role gets this;
+    the visibility scope is enforced in the query, NOT the
+    permission (which would leak everyone else's rows if loosened).
+    """
+    from app.services.task_archive import my_archived_tasks
+    rows = my_archived_tasks(
+        g.active_company.id, current_user.id).all()
+    return render_template("tasks/archive_mine.html", tasks=rows)
+
+
+@bp.route("/<int:task_id>/unarchive-mine", methods=["POST"])
+@login_required
+@require_permission("tasks.view")
+def unarchive_mine(task_id):
+    """Self-restore. 404 (not 403) on a stranger's task id so the
+    archive stays opaque about existence."""
+    from app.services.task_archive import (
+        unarchive_task, can_restore_mine,
+    )
+    t = db.session.get(Task, task_id)
+    if (t is None
+        or t.company_id != g.active_company.id
+        or not can_restore_mine(t, current_user.id)):
+        abort(404)
+    unarchive_task(t, actor_id=current_user.id)
+    flash(f"↩ تم استعادة المهمة: {t.title}", "success")
+    return redirect(url_for("tasks.archive_mine"))
+
+
 # ─── Inline field edits (AJAX form posts) ────────────────────────────────
 @bp.route("/<int:task_id>/inline", methods=["POST"])
 @login_required
