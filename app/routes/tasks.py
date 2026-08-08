@@ -608,6 +608,22 @@ def new():
             )
             if not t.title:
                 raise CRMError("عنوان المهمة مطلوب")
+
+            # MARSOUD-PARENT-CHILD-TASK-HIERARCHY (2026-08-09) —
+            # optional parent. validate_parent enforces same-company
+            # and (once t is persisted) no-self / no-cycle. task.id
+            # is None here → self/descendant short-circuit; the
+            # remaining checks (unknown id, cross-tenant) still fire.
+            from app.services.task_hierarchy import (
+                validate_parent, TaskHierarchyError,
+            )
+            try:
+                parent = validate_parent(
+                    t, request.form.get("parent_task_id"))
+            except TaskHierarchyError as e:
+                raise CRMError(str(e))
+            t.parent_task_id = parent.id if parent else None
+
             db.session.add(t)
             db.session.flush()  # need t.id for the assignee rows
 
@@ -673,13 +689,24 @@ def new():
                 int(selected_project), [])
         except (TypeError, ValueError):
             initial_milestones = []
+    # MARSOUD-PARENT-CHILD-TASK-HIERARCHY (2026-08-09) — parent
+    # picker candidates + pre-selected parent from ?parent_task_id
+    # (used by the "+ subtask" button on a parent's detail page).
+    from app.services.task_hierarchy import available_parents_for
+    parent_choices = available_parents_for(
+        None, cid, current_user.id,
+        _has_full_task_visibility(), _pm_project_ids() or None)
+    raw_parent = (request.args.get("parent_task_id") or "").strip()
+    selected_parent_id = int(raw_parent) if raw_parent.isdigit() else None
     return render_template("tasks/form.html",
                            task=None, projects=projects, users=users,
                            priorities=TaskPriority,
                            milestones=initial_milestones,
                            milestones_by_project=milestones_by_project,
                            selected_project=selected_project,
-                           selected_assignee_ids=[])
+                           selected_assignee_ids=[],
+                           parent_choices=parent_choices,
+                           selected_parent_id=selected_parent_id)
 
 
 @bp.route("/<int:task_id>")
@@ -689,6 +716,9 @@ def detail(task_id):
     t = _task_or_403(task_id)
     from app.services.opsflow_extras import documents_for
     from app.services.tasks_extras import activity_description
+    # MARSOUD-PARENT-CHILD-TASK-HIERARCHY (2026-08-09) — parent
+    # chip + subtasks section + hierarchy breadcrumb.
+    from app.services.task_hierarchy import breadcrumb
     docs = documents_for("TASK", t.id)
     role = _role()
     can_edit = _has_full_task_visibility() or current_user.id in assignee_ids_for(t) \
@@ -701,6 +731,9 @@ def detail(task_id):
         users=_company_users(),
         current_assignee_ids=assignee_ids_for(t),
         activity_description=activity_description,
+        parent=t.parent,
+        subtasks=list(t.subtasks),
+        breadcrumb=breadcrumb(t),
     )
 
 
@@ -792,6 +825,27 @@ def edit(task_id):
                              before={"milestone_id": t.milestone_id},
                              after={"milestone_id": new_milestone})
                 t.milestone_id = new_milestone
+            # MARSOUD-PARENT-CHILD-TASK-HIERARCHY (2026-08-09) —
+            # validate_parent is the single home for the
+            # same-company + no-cycle rules (see docstring on
+            # services/task_hierarchy.py:validate_parent). Wrap
+            # its Arabic message as CRMError so the existing
+            # rollback / flash branch below handles it uniformly
+            # with the project + milestone validation.
+            from app.services.task_hierarchy import (
+                validate_parent, TaskHierarchyError,
+            )
+            try:
+                new_parent = validate_parent(
+                    t, request.form.get("parent_task_id"))
+            except TaskHierarchyError as e:
+                raise CRMError(str(e))
+            new_parent_id = new_parent.id if new_parent else None
+            if t.parent_task_id != new_parent_id:
+                log_activity(t, "PARENT_CHANGED",
+                             before={"parent_task_id": t.parent_task_id},
+                             after={"parent_task_id": new_parent_id})
+                t.parent_task_id = new_parent_id
             t.notes = (request.form.get("notes") or "").strip() or None
 
             db.session.flush()
@@ -853,12 +907,22 @@ def edit(task_id):
         p.id: [{"id": m.id, "name": m.name} for m in p.milestones]
         for p in projects
     }
+    # MARSOUD-PARENT-CHILD-TASK-HIERARCHY (2026-08-09) — picker
+    # feeds the <select name="parent_task_id"> in form.html;
+    # excludes self + descendants so the user can't build a cycle
+    # by picking (see services/task_hierarchy.py).
+    from app.services.task_hierarchy import available_parents_for
+    parent_choices = available_parents_for(
+        t, cid, current_user.id,
+        _has_full_task_visibility(), _pm_project_ids() or None)
     return render_template("tasks/form.html",
                            task=t, projects=projects, users=users,
                            priorities=TaskPriority,
                            milestones=t.project.milestones if t.project else [],
                            milestones_by_project=milestones_by_project,
-                           selected_assignee_ids=list(assignee_ids_for(t)))
+                           selected_assignee_ids=list(assignee_ids_for(t)),
+                           parent_choices=parent_choices,
+                           selected_parent_id=t.parent_task_id)
 
 
 @bp.route("/<int:task_id>/status", methods=["POST"])

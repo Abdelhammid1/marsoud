@@ -25,6 +25,33 @@
       <label class="block text-sm font-semibold text-slate-700 mb-2">الوصف</label>
       <textarea name="description" rows="3" class="textarea">{{ task.description if task else '' }}</textarea>
     </div>
+    {# MARSOUD-PARENT-CHILD-TASK-HIERARCHY (2026-08-09) — optional
+       parent picker. `parent_choices` is filtered by
+       services/task_hierarchy.py::available_parents_for so the
+       user never sees a task from another company OR a task
+       that would create a cycle (self + descendants excluded on
+       edit). On create the caller may pre-select a parent via
+       ?parent_task_id=<id> (used by the "+ مهمة فرعية" link on
+       the parent's detail page). #}
+    {% if parent_choices is defined %}
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-2">
+        مهمة أب (اختياري)
+      </label>
+      <select name="parent_task_id" id="task-parent-select" class="select">
+        <option value="">— بدون (مهمة أساسية) —</option>
+        {% for p in parent_choices %}
+        <option value="{{ p.id }}"
+                {% if selected_parent_id and selected_parent_id == p.id %}selected{% endif %}>
+          {{ p.title }}
+        </option>
+        {% endfor %}
+      </select>
+      <p class="text-[11px] text-slate-500 mt-1">
+        لو حددت مهمة أب، دي هتبقى مهمة فرعية بتاعتها. يمكن تعديل ده لاحقاً.
+      </p>
+    </div>
+    {% endif %}
     <div class="grid grid-cols-2 gap-4">
       <div>
         {# MARSOUD-TASK-EDIT-PROJECT-STAGE (2026-08-06) — the select

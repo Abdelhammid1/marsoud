@@ -770,6 +770,7 @@ def delete_task_fully(task):
     (SQLite id reuse).
 
     Order matters — child rows before the parent:
+      0. subtasks orphaned (parent_task_id → NULL)
       1. documents (table) + files on disk (best-effort)
       2. task_comments
       3. task_activity_logs
@@ -779,12 +780,25 @@ def delete_task_fully(task):
     import os
     from flask import current_app
     from app.models import (
-        Document, DocumentSourceType,
+        Document, DocumentSourceType, Task,
         TaskComment, TaskActivityLog, task_assignees,
     )
 
     company_id = task.company_id
     task_id = task.id
+
+    # 0. MARSOUD-PARENT-CHILD-TASK-HIERARCHY (2026-08-09) —
+    # orphan subtasks BEFORE the parent row goes. The FK is
+    # declared ondelete="SET NULL" (see migration
+    # c9d1e4f7a2b8_task_parent_id.py) which handles Postgres
+    # correctly. SQLite doesn't enforce that unless
+    # PRAGMA foreign_keys=ON — same reason attachments +
+    # comments + activity logs are wiped explicitly above the
+    # parent delete. Ticket rule: "Deleting a parent does NOT
+    # delete any subtask — subtasks retain all their data and
+    # history and become standalone root tasks."
+    Task.query.filter_by(parent_task_id=task_id).update(
+        {"parent_task_id": None}, synchronize_session=False)
 
     # 1. attachments — delete files first, then the rows.
     docs = Document.query.filter_by(
