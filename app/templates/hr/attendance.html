@@ -13,10 +13,26 @@ function promptReason(form) {
 
 {% endblock %}
 {% block content %}
+{# MARSOUD-ATTENDANCE-VIEW-01 (2026-08-08) — cells now render
+   real check-in ✓ chips alongside the existing exception dots,
+   and the employee name links to a per-employee monthly detail
+   page. The exception-audit table below is unchanged. #}
+<style>
+  .att-chip {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: 999px;
+    font-size: 11px; font-weight: 700;
+  }
+  .att-present { background: #D1FAE5; color: #047857; }
+  .att-no-record { background: #F1F5F9; color: #94A3B8; }
+</style>
 <div class="flex items-center justify-between mb-4">
   <div>
-    <h2 class="font-bold text-navy-900">سجل الاستثناءات — {{ month }}/{{ year }}</h2>
-    <p class="text-xs text-slate-500">القاعدة: كل أيام الشهر = حضور. هنا فقط الاستثناءات (غياب / تأخير / إجازة).</p>
+    <h2 class="font-bold text-navy-900">سجل الحضور والاستثناءات — {{ month }}/{{ year }}</h2>
+    <p class="text-xs text-slate-500">
+      كل خانة تعرض الحالة الفعلية للموظف في اليوم ده: حاضر (بوقت
+      الدخول والخروج) أو استثناء (غياب / تأخير / إجازة) أو لم يسجّل.
+    </p>
   </div>
   <a href="{{ url_for('hr.attendance_new') }}" class="btn-primary text-sm">+ تسجيل استثناء</a>
 </div>
@@ -64,17 +80,40 @@ function promptReason(form) {
     {% for e in employees %}
       {% set row = grid.get(e.id, {}) %}
       <tr>
-        <td class="sticky right-0 bg-white z-10 font-semibold text-sm">{{ e.name }}</td>
+        <td class="sticky right-0 bg-white z-10 font-semibold text-sm">
+          {# T-ATTENDANCE-VIEW — employee name → per-employee monthly detail. #}
+          <a href="{{ url_for('hr.employee_attendance_detail',
+                              employee_id=e.id, year=year, month=month) }}"
+             class="text-navy-900 hover:text-emerald-700 hover:underline">
+            {{ e.name }}
+          </a>
+        </td>
         {% for d in range(1, days_in_month + 1) %}
           {% set ex = row.get(d) %}
+          {% set day_date = ex.date if ex else (today.replace(year=year, month=month, day=d) if d else None) %}
+          {% set ci = checkins.get((e.id, day_date)) if day_date else None %}
+          {% set is_future = day_date and day_date > today %}
           <td class="text-center px-1">
+            {# Precedence: exception > check-in > no-record > future.
+               The 4 exception colors stay verbatim so the existing
+               audit contract (rose=ABSENT, amber=LATE, emerald=APPROVED,
+               slate=UNPAID) doesn't shift. #}
             {% if ex %}
               {% if ex.type.value == 'ABSENT' %}<span title="غياب" class="inline-block w-4 h-4 rounded-full bg-rose-500"></span>
               {% elif ex.type.value == 'LATE' %}<span title="تأخير {{ ex.duration_hours }}س" class="inline-block w-4 h-4 rounded-full bg-amber-400"></span>
               {% elif ex.type.value == 'APPROVED_LEAVE' %}<span title="إجازة معتمدة" class="inline-block w-4 h-4 rounded-full bg-emerald-500"></span>
               {% elif ex.type.value == 'UNPAID_LEAVE' %}<span title="إجازة بدون راتب" class="inline-block w-4 h-4 rounded-full bg-slate-500"></span>
               {% endif %}
-            {% else %}<span class="text-slate-200">·</span>{% endif %}
+            {% elif ci and ci.check_in_time %}
+              <span class="att-chip att-present"
+                    title="دخل: {{ ci.check_in_time.strftime('%H:%M') }}{% if ci.check_out_time %} · خرج: {{ ci.check_out_time.strftime('%H:%M') }} · {{ ci.worked_hours }} ساعة{% else %} — لسه مسجّلش خروج{% endif %}">
+                ✓
+              </span>
+            {% elif is_future %}
+              <span class="text-slate-200">·</span>
+            {% else %}
+              <span class="att-chip att-no-record" title="لم يسجّل">·</span>
+            {% endif %}
           </td>
         {% endfor %}
       </tr>
@@ -85,11 +124,14 @@ function promptReason(form) {
   </table>
 </div>
 
-<div class="mt-4 flex items-center gap-4 text-xs text-slate-600">
+<div class="mt-4 flex items-center gap-4 text-xs text-slate-600 flex-wrap">
+  <span class="flex items-center gap-1"><span class="att-chip att-present">✓</span>حاضر (بيان الوقت في الـtooltip)</span>
   <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-full bg-rose-500"></span>غياب</span>
   <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-full bg-amber-400"></span>تأخير</span>
   <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-full bg-emerald-500"></span>إجازة معتمدة</span>
   <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded-full bg-slate-500"></span>إجازة بدون راتب</span>
+  <span class="flex items-center gap-1"><span class="att-chip att-no-record">·</span>لم يسجّل</span>
+  <span class="flex items-center gap-1"><span class="inline-block text-slate-200">·</span>يوم مستقبلي</span>
 </div>
 
 <div class="card p-6 mt-6">
