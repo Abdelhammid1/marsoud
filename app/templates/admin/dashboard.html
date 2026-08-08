@@ -7,17 +7,17 @@
     <div class="text-xs text-ink-200 mb-1">إجمالي الشركات</div>
     <div class="text-3xl font-bold text-slate-900">{{ total_companies }}</div>
     <div class="text-xs text-ink-200 mt-2">
-      <span class="text-emerald-300">{{ active_companies }} نشطة</span>
-      · <span class="text-amber-300">{{ trial_companies }} تجريبية</span>
-      · <span class="text-rose-300">{{ suspended_companies }} موقوفة</span>
+      <span class="text-emerald-700">{{ active_companies }} نشطة</span>
+      · <span class="text-amber-700">{{ trial_companies }} تجريبية</span>
+      · <span class="text-rose-700">{{ suspended_companies }} موقوفة</span>
     </div>
   </div>
   <div class="stat-muted p-5">
     <div class="text-xs text-ink-200 mb-1">إجمالي المستخدمين</div>
     <div class="text-3xl font-bold text-slate-900">{{ total_users }}</div>
     <div class="text-xs text-ink-200 mt-2">
-      <span class="text-amber-300">{{ active_24h }}</span> آخر 24س ·
-      <span class="text-sky-300">{{ active_7d }}</span> آخر 7 أيام
+      <span class="text-amber-700">{{ active_24h }}</span> آخر 24س ·
+      <span class="text-sky-700">{{ active_7d }}</span> آخر 7 أيام
     </div>
   </div>
   <div class="stat-muted p-5">
@@ -86,25 +86,25 @@
     <span>💰</span> الإيرادات والاشتراكات
   </h3>
   <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-    <div class="bg-emerald-900/30 border border-emerald-800 rounded-lg p-3">
-      <div class="text-xs text-emerald-300 mb-1">MRR</div>
-      <div class="text-2xl font-bold text-emerald-100 font-mono">{{ revenue.mrr | int }}</div>
-      <div class="text-xs text-emerald-300">جنيه/شهر</div>
+    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+      <div class="text-xs text-emerald-700 mb-1">MRR</div>
+      <div class="text-2xl font-bold text-emerald-900 font-mono">{{ revenue.mrr | int }}</div>
+      <div class="text-xs text-emerald-700">جنيه/شهر</div>
     </div>
-    <div class="bg-sky-900/30 border border-sky-800 rounded-lg p-3">
-      <div class="text-xs text-sky-300 mb-1">ARR</div>
-      <div class="text-2xl font-bold text-sky-100 font-mono">{{ revenue.arr | int }}</div>
-      <div class="text-xs text-sky-300">جنيه/سنة</div>
+    <div class="bg-sky-50 border border-sky-200 rounded-lg p-3">
+      <div class="text-xs text-sky-700 mb-1">ARR</div>
+      <div class="text-2xl font-bold text-sky-900 font-mono">{{ revenue.arr | int }}</div>
+      <div class="text-xs text-sky-700">جنيه/سنة</div>
     </div>
-    <div class="bg-amber-900/30 border border-amber-800 rounded-lg p-3">
-      <div class="text-xs text-amber-300 mb-1">تجديدات خلال 7 أيام</div>
-      <div class="text-2xl font-bold text-amber-100 font-mono">{{ revenue.renewals_7d }}</div>
-      <div class="text-xs text-amber-300">شركة</div>
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-3">
+      <div class="text-xs text-amber-700 mb-1">تجديدات خلال 7 أيام</div>
+      <div class="text-2xl font-bold text-amber-900 font-mono">{{ revenue.renewals_7d }}</div>
+      <div class="text-xs text-amber-700">شركة</div>
     </div>
-    <div class="bg-rose-900/30 border border-rose-800 rounded-lg p-3">
-      <div class="text-xs text-rose-300 mb-1">تجديدات خلال 30 يوم</div>
-      <div class="text-2xl font-bold text-rose-100 font-mono">{{ revenue.renewals_30d }}</div>
-      <div class="text-xs text-rose-300">شركة</div>
+    <div class="bg-rose-50 border border-rose-200 rounded-lg p-3">
+      <div class="text-xs text-rose-700 mb-1">تجديدات خلال 30 يوم</div>
+      <div class="text-2xl font-bold text-rose-900 font-mono">{{ revenue.renewals_30d }}</div>
+      <div class="text-xs text-rose-700">شركة</div>
     </div>
   </div>
 
@@ -113,7 +113,7 @@
       <h4 class="text-sm font-semibold text-slate-900 mb-2">توزيع الشركات على الباقات</h4>
       <ul class="space-y-2">
         {% for row in revenue.plan_distribution %}
-        <li class="flex items-center justify-between text-sm bg-white/5 rounded p-2">
+        <li class="flex items-center justify-between text-sm bg-slate-50 rounded p-2">
           <span class="text-ink-200">{{ row.label }}</span>
           <span class="font-mono font-bold text-slate-900">{{ row.count }}</span>
         </li>
@@ -128,7 +128,7 @@
                                 ('GRACE', 'فترة سماح'),
                                 ('EXPIRED', 'منتهي'),
                                 ('NEVER_STARTED', 'لم يبدأ')] %}
-        <li class="flex items-center justify-between text-sm bg-white/5 rounded p-2">
+        <li class="flex items-center justify-between text-sm bg-slate-50 rounded p-2">
           <span class="text-ink-200">{{ ar }}</span>
           <span class="font-mono font-bold text-slate-900">{{ revenue.subscription_states[label] }}</span>
         </li>
