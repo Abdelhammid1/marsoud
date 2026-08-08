@@ -528,12 +528,14 @@ tailwind.config = {
           ('dashboard.index', 'لوحة التحكم', '📊'),
           ('projects.index', 'المشاريع', '📂'),
           ('tasks.index', 'المهام', '✅'),
+          ('tasks.archive_mine', 'أرشيفي', '🗂'),
           ('customers.index', 'العملاء', '👥'),
         ] %}
       {% elif current_role == 'team_member' %}
         {% set links = [
           ('dashboard.index', 'لوحة التحكم', '📊'),
           ('tasks.index', 'مهامي', '✅'),
+          ('tasks.archive_mine', 'أرشيفي', '🗂'),
           ('projects.index', 'المشاريع', '📂'),
         ] %}
       {% elif current_role == 'ceo' %}
@@ -543,6 +545,7 @@ tailwind.config = {
           ('leads.index', 'العملاء المحتملون', '🎯'),
           ('projects.index', 'المشاريع', '📂'),
           ('tasks.index', 'المهام', '✅'),
+          ('tasks.archive_mine', 'أرشيفي', '🗂'),
           ('customers.index', 'العملاء', '👥'),
           ('payroll.index', 'الرواتب', '💼'),
         ] %}
@@ -562,6 +565,7 @@ tailwind.config = {
         {% set links = [
           ('portal_emp.account', 'حسابي', '👤'),
           ('portal_emp.daily_reports_list', 'تقاريري اليومية', '📝'),
+          ('portal_emp.archive', 'أرشيفي', '🗂'),
           ('portal_emp.custody_list', 'عهدتي النقدية', '💵'),
           ('portal_emp.items_list', 'عهدي العينية', '📦'),
           ('user_files.index', 'ملفاتي', '📁'),
@@ -651,6 +655,7 @@ tailwind.config = {
           ]),
           ('إدارة العمل', '🗂️', [
             ('tasks.index', 'المهام', '✅'),
+            ('tasks.archive_mine', 'أرشيفي', '🗂'),
             ('projects.index', 'المشاريع', '📂'),
             ('calendar.index', 'التقويم', '📅'),
           ]),
@@ -776,6 +781,8 @@ tailwind.config = {
         'reports.metric_logs': 'users.manage',
         'reports.vendor_sub_categories': 'vendor_bills.create',
         'tasks.archive_list': 'tasks.archive',
+        'tasks.archive_mine': 'tasks.view',
+        'portal_emp.archive': None,
         'settings_activity.index': 'activity_log.view',
         'settings_backup.index': 'backup.download',
         'settings_usage.index': 'settings_usage.view',

@@ -23,4 +23,17 @@ def index():
     # MARSOUD-DASH-FILTER — اليوم / الشهر / الربع / السنة
     period = request.args.get("period", "month")
     metrics = dashboard_metrics(g.active_company.id, period=period)
+    # MARSOUD-TASK-ARCHIVE-MINE (2026-08-08) — the "🗂 أرشيفي"
+    # dashboard tile is per-user, so it lives outside the
+    # company-scoped dashboard_metrics(). Computed here so the
+    # metrics dict remains a single source of truth for the tile
+    # renderer.
+    try:
+        from app.services.task_archive import my_archived_tasks
+        metrics.setdefault("ops", {})["tasks_archived_mine"] = (
+            my_archived_tasks(
+                g.active_company.id, current_user.id).count())
+    except Exception:
+        current_app.logger.exception("tasks_archived_mine metric failed")
+        metrics.setdefault("ops", {})["tasks_archived_mine"] = 0
     return render_template("dashboard/index.html", metrics=metrics)

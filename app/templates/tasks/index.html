@@ -11,6 +11,12 @@
     {% if has_permission('tasks.archive') %}
     <a href="{{ url_for('tasks.archive_list') }}" class="btn-secondary text-sm">🗂 الأرشيف</a>
     {% endif %}
+    {# MARSOUD-TASK-ARCHIVE-MINE (2026-08-08) — personal archive
+       button, visible for anyone with tasks.view. Owners see both
+       (the company-wide one above + the personal one here). #}
+    {% if has_permission('tasks.view') %}
+    <a href="{{ url_for('tasks.archive_mine') }}" class="btn-secondary text-sm">🗂 أرشيفي</a>
+    {% endif %}
     {% if has_permission('tasks.manage') %}
     {# MARSOUD-TASK-CONTEXT — pass the current URL forward so that
        after creating the task the user lands back on the same

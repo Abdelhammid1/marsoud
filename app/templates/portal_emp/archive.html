@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block page_title %}🗂 أرشيف مهامي{% endblock %}
+{% block content %}
+{# MARSOUD-TASK-ARCHIVE-MINE (2026-08-08) — portal_emp mirror.
+   Same shape as tasks/archive_mine.html but posts to
+   portal_emp.archive_restore so the `employee` role
+   (portal-confined) can restore their own tasks without going
+   through /tasks/* (which confine_client_to_portal 403s). #}
+<h2 class="font-bold text-navy-900 mb-1">🗂 أرشيف مهامي</h2>
+<p class="text-xs text-slate-500 mb-4">
+  المهام اللي كانت مسندة لك أو أنشأتها وتم إغلاقها. الأرشفة
+  التلقائية تحصل بعد 30 يوم من الإتمام. تقدر تسترجع أي مهمة
+  للبورد من زر "استعادة".
+</p>
+
+<div class="card p-6">
+  {% if tasks %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>العنوان</th>
+        <th>المشروع</th>
+        <th>الحالة عند الأرشفة</th>
+        <th>تاريخ الأرشفة</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tasks %}
+      <tr>
+        <td>
+          <span class="font-semibold text-navy-900">{{ t.title }}</span>
+        </td>
+        <td class="text-xs">
+          {% if t.project %}<span class="badge badge-sent">{{ t.project.name }}</span>
+          {% else %}<em class="text-slate-400">مهمة مستقلة</em>{% endif %}
+        </td>
+        <td><span class="badge {{ t.status.badge_class }} text-[10px]">{{ t.status.label_ar }}</span></td>
+        <td class="text-xs font-mono text-slate-500">
+          {{ t.archived_at | company_dt('%Y-%m-%d %H:%M') if t.archived_at else '—' }}
+        </td>
+        <td>
+          <form method="POST"
+                action="{{ url_for('portal_emp.archive_restore', task_id=t.id) }}"
+                onsubmit="return confirm('استعادة المهمة للبورد؟');">
+            <button type="submit" class="text-emerald-700 text-xs hover:underline">
+              ↩ استعادة
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-sm text-slate-400 text-center py-12">
+    لا توجد مهام مؤرشفة في حسابك.<br>
+    المهام المكتملة بيتم أرشفتها تلقائياً بعد 30 يوم من الإتمام.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -268,6 +268,18 @@
         {% endif %}
       </div>
     </a>
+    {# MARSOUD-TASK-ARCHIVE-MINE (2026-08-08) — per-user tile.
+       Same permission gate as the tasks tile above; the count
+       comes from a per-user query composed in the route (not
+       from dashboard_metrics, which is company-scoped). #}
+    <a class="op" href="{{ url_for('tasks.archive_mine') }}" title="أرشيفي">
+      <div class="op-ico i-violet">🗂</div>
+      <div>
+        <div class="op-val">{{ metrics.ops.tasks_archived_mine or 0 }}</div>
+        <div class="op-label">مهمة مؤرشفة</div>
+        <div class="op-extra tag-green">قابلة للاسترجاع</div>
+      </div>
+    </a>
     {% endif %}
     {% if has_permission('leads.view') %}
     <a class="op" href="{{ url_for('leads.index') }}" title="العملاء المحتملون">
