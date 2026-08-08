@@ -7,6 +7,7 @@ a PlatformAuditLog entry.
 from datetime import datetime
 from flask import (
     Blueprint, render_template, redirect, url_for, flash, request, session, g,
+    current_app,
 )
 from flask_login import current_user, login_required
 from sqlalchemy import or_
@@ -105,13 +106,44 @@ def company_detail(company_id):
     from app.services.permissions import ALL_ROLES, ROLE_LABELS_AR
     linkable_roles = [r for r in ALL_ROLES
                        if r not in ("client", "employee")]
+
+    # MARSOUD-SUPERADMIN-CONTROL-01 T6 (2026-08-08) — Company 360°.
+    # Compose the extra panels. Each composer is guarded so a
+    # crash in one section doesn't blank the whole page.
+    from app.services.company_360 import (
+        subscription_snapshot, usage_snapshot, ai_usage_row,
+        owners_of, module_matrix, errors_preview,
+    )
+
+    def _safe(fn, fallback):
+        try:
+            return fn()
+        except Exception:
+            current_app.logger.exception(
+                "company_360 composer failed for company_id=%s",
+                company_id)
+            return fallback
+
+    subscription = _safe(lambda: subscription_snapshot(company), None)
+    usage_cards = _safe(lambda: usage_snapshot(company), [])
+    ai_row = _safe(lambda: ai_usage_row(company), None)
+    owners = _safe(lambda: owners_of(company), [])
+    modules = _safe(lambda: module_matrix(company), [])
+    errors = _safe(lambda: errors_preview(company, limit=10), [])
+
     return render_template("admin/company_detail.html",
                            company=company,
                            company_users=company_users,
                            recent_activity=recent_activity,
                            plans=plans,
                            linkable_roles=linkable_roles,
-                           role_labels_ar=ROLE_LABELS_AR)
+                           role_labels_ar=ROLE_LABELS_AR,
+                           subscription=subscription,
+                           usage_cards=usage_cards,
+                           ai_row=ai_row,
+                           owners=owners,
+                           modules=modules,
+                           errors=errors)
 
 
 @bp.route("/companies/<int:company_id>/toggle", methods=["POST"])
