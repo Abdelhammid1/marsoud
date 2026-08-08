@@ -1409,14 +1409,21 @@ def create_app(config_class=Config):
             findings.append(f"module→feature check failed: {e}")
 
         # Report
+        # ASCII-only prints — Windows cp1252 stdout crashes on the
+        # ✓ / ❌ glyphs, which the pre-commit hook triggers.
+        def _p(msg):
+            try:
+                print(msg)
+            except UnicodeEncodeError:
+                print(msg.encode("ascii", errors="replace").decode())
         if not findings:
-            print("✓ feature registry is in sync — no drift detected")
-            print(f"  · {len(list(all_modules()))} modules")
-            print(f"  · {len(list(all_features()))} features")
+            _p("OK feature registry is in sync - no drift detected")
+            _p(f"  - {len(list(all_modules()))} modules")
+            _p(f"  - {len(list(all_features()))} features")
             sys.exit(0)
-        print("❌ feature registry drift detected:")
+        _p("FAIL feature registry drift detected:")
         for f in findings:
-            print(f"  - {f}")
+            _p(f"  - {f}")
         sys.exit(1)
 
     return app
