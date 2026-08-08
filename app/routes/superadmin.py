@@ -595,6 +595,72 @@ def _404():
     abort(404)
 
 
+# ── MARSOUD-SUPERADMIN-CONTROL-01 T7 (2026-08-08) — AI Control Center ── #
+@bp.route("/ai-control", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def ai_control():
+    """Single hub for every AI knob: provider key status, model
+    routing per persona, fallback order, global caps (max_tokens
+    + kill switch), and a filterable turn log. Replaces the
+    sidebar entries for /admin/ai-usage + /admin/ai-settings;
+    those two URLs still work and link back here."""
+    from app.services.ai_control import (
+        providers_status, model_routing, fallback_order,
+        global_caps, turn_log,
+        set_fallback_order, set_max_tokens, set_globally_disabled,
+        set_model_routing, KNOWN_PROVIDERS,
+    )
+
+    if request.method == "POST":
+        section = (request.form.get("section") or "").strip()
+        try:
+            if section == "model_routing":
+                set_model_routing(
+                    persona=request.form.get("persona"),
+                    provider=request.form.get("provider"),
+                    model=(request.form.get("model") or "").strip(),
+                    actor_id=current_user.id)
+            elif section == "fallback":
+                raw = (request.form.get("order") or "").strip()
+                order = [x.strip() for x in raw.split(",") if x.strip()]
+                set_fallback_order(order, actor_id=current_user.id)
+            elif section == "max_tokens":
+                set_max_tokens(request.form.get("value") or 0,
+                                actor_id=current_user.id)
+            elif section == "kill_switch":
+                flag = (request.form.get("value") == "on")
+                set_globally_disabled(flag, actor_id=current_user.id)
+            else:
+                flash("قسم غير معروف", "error")
+                return redirect(url_for("superadmin.ai_control"))
+            flash("💾 تم حفظ الإعدادات", "success")
+        except ValueError as e:
+            flash(f"خطأ: {e}", "error")
+        return redirect(url_for("superadmin.ai_control"))
+
+    args = request.args
+
+    def _int_or_none(v):
+        return int(v) if (v or "").isdigit() else None
+
+    return render_template(
+        "admin/ai_control.html",
+        providers=providers_status(),
+        routing=model_routing(),
+        fallback=fallback_order(),
+        caps=global_caps(),
+        turns=turn_log(
+            company_id=_int_or_none(args.get("company_id")),
+            user_id=_int_or_none(args.get("user_id")),
+            provider=(args.get("provider") or None),
+            hours=int(args["hours"]) if args.get("hours", "").isdigit() else 24,
+        ),
+        turn_filters={k: v for k, v in args.items()},
+        KNOWN_PROVIDERS=KNOWN_PROVIDERS,
+    )
+
+
 # ── MARSOUD-48: email diagnostic ─────────────────────────────────────────── #
 @bp.route("/email-test", methods=["GET", "POST"])
 @login_required

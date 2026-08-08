@@ -2,6 +2,17 @@
 {% block page_title %}إعدادات الذكاء الاصطناعي{% endblock %}
 {% block content %}
 
+{# MARSOUD-SUPERADMIN-CONTROL-01 T7 — soft redirect banner to
+   the new hub. This page still works (its keys are still read
+   by the accountant) but the hub is the recommended entry. #}
+<div class="card p-3 mb-4 border-emerald-200 bg-emerald-50">
+  <a href="{{ url_for('superadmin.ai_control') }}"
+     class="text-sm text-emerald-700 hover:underline">
+    🧬 تجربة الإصدار الموحّد: مركز التحكم في الذكاء الاصطناعي →
+  </a>
+</div>
+
+
 {# MARSOUD-AGENT-DEEPSEEK-02 (2026-08-06) — runtime knobs for the
    accountant agent's provider and model. Saved settings land on the
    NEXT agent turn — no app restart. Insights agent has its own knobs

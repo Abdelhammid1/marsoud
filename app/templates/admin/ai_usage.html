@@ -2,6 +2,16 @@
 {% block page_title %}استهلاك الذكاء الاصطناعي{% endblock %}
 {% block content %}
 
+{# MARSOUD-SUPERADMIN-CONTROL-01 T7 — soft redirect banner to
+   the new hub, which now carries the turn log + kill switch. #}
+<div class="card p-3 mb-4 border-emerald-200 bg-emerald-50">
+  <a href="{{ url_for('superadmin.ai_control') }}"
+     class="text-sm text-emerald-700 hover:underline">
+    🧬 مركز التحكم في الذكاء الاصطناعي (سجل التنفيذ اللحظي + مفتاح الإيقاف) →
+  </a>
+</div>
+
+
 <div class="card p-6 max-w-6xl">
   <h2 class="font-bold text-navy-900 mb-1">🤖 استهلاك الذكاء الاصطناعي (المحاسب الذكي)</h2>
   <p class="text-sm text-slate-500 mb-5">

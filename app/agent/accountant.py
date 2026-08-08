@@ -30,11 +30,36 @@ def _provider_for(key):
     MARSOUD-AGENT-DEEPSEEK-KEY-SPLIT (2026-08-06) — the accountant
     agent uses its own DeepSeek key (DEEPSEEK_API_KEY_ACCOUNTANT),
     separate from the insights agent's DEEPSEEK_API_KEY, so usage
-    and billing can be tracked and capped independently."""
-    if key == "deepseek":
-        accountant_key = os.environ.get("DEEPSEEK_API_KEY_ACCOUNTANT")
-        return DeepseekProvider(api_key=accountant_key)
-    return AnthropicProvider()
+    and billing can be tracked and capped independently.
+
+    MARSOUD-SUPERADMIN-CONTROL-01 T7 (2026-08-08) — enforces the
+    global kill switch + walks the fallback chain when the
+    preferred provider's construction raises. Direct ai_providers
+    .resolve_provider() would lose the key-split (it calls
+    DeepseekProvider() with no api_key), so we walk the chain here
+    while still using the accountant-scoped DEEPSEEK key.
+    """
+    from app.services.ai_providers import (
+        kill_switch_active, _fallback_chain,
+    )
+    if kill_switch_active():
+        raise RuntimeError(
+            "الذكاء الاصطناعي معطّل مؤقتاً من مركز التحكم "
+            "(/admin/ai-control).")
+    chain = _fallback_chain(key) or [(key or "anthropic")]
+    last_err = None
+    for name in chain:
+        try:
+            if name == "deepseek":
+                accountant_key = os.environ.get(
+                    "DEEPSEEK_API_KEY_ACCOUNTANT")
+                return DeepseekProvider(api_key=accountant_key)
+            return AnthropicProvider()
+        except RuntimeError as e:
+            last_err = e
+            continue
+    raise last_err or RuntimeError(
+        "لا يوجد مزود ذكاء اصطناعي متاح")
 
 
 def run_agent(messages, company_id, user_id,
