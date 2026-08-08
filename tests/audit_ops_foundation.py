@@ -196,13 +196,41 @@ def _setup():
     from app.services.legal import get_terms_version
     from app.services.plan_gating import plan_allows
 
-    for pl in Plan.query.order_by(Plan.id).all():
+    # MARSOUD-4-BRANCH-REPAIR (2026-08-08) — was
+    #   Plan.query.order_by(Plan.id).all()
+    # which iterates EVERY row including legacy inactive plans
+    # (retail / services from LEGACY_TO_DEACTIVATE in app/cli.py:91).
+    # Those rows survive with empty `modules`; plan_allows falls
+    # through to True on the "no plan → allow" branch, so the loop
+    # breaks on iteration 1 with a mis-configured plan. On the
+    # boss's DB that made checks 40/41/42 fail because every
+    # subsequent has_permission("journals.create") returned False.
+    #
+    # Also expire subscription_plan between iterations — SQLAlchemy
+    # caches the relationship, and `plain.plan_id = pl.id` +
+    # `db.session.flush()` doesn't reliably invalidate it, so the
+    # first-iteration read of `plain.subscription_plan` can still
+    # be None → plan_allows returns True even for a plan that
+    # doesn't grant accounting.
+    for pl in (Plan.query.filter_by(is_active=True)
+               .order_by(Plan.id).all()):
         plain.plan_id = pl.id
         plain.intended_plan_id = pl.id
         db.session.flush()
+        db.session.expire(plain, ["subscription_plan", "intended_plan"])
         if plan_allows("journals.create", plain):
             break
     db.session.commit()
+    # Blow up loud + early if the fixture picked a plan that
+    # doesn't actually grant accounting — better than 40 checks
+    # later reporting cryptic 302s.
+    resolved_plan = plain.subscription_plan or plain.intended_plan
+    assert resolved_plan is not None, \
+        "fixture failed to attach a plan to the plain company"
+    assert "accounting" in resolved_plan.modules, (
+        f"fixture picked plan {resolved_plan.code!r} whose modules "
+        f"do not include 'accounting': {resolved_plan.modules!r} — "
+        f"tests 40/41/42 would fail with mysterious 302s")
     ensure_roles_ready_for_company(plain.id)
 
     u = User(email="__opsfound@audit.local", full_name="OpsFound Owner",
