@@ -28,11 +28,76 @@ from app.models.account import NORMAL_SIDE_FOR_TYPE
 _SUFFIX_WIDTH = 6
 
 
+# MARSOUD-CUSTODY-BUGS-02 (2026-08-08) — well-known party-header
+# codes we auto-mint if a legacy tenant's COA is missing them.
+# Each has a canonical (name_en, name_ar, type) documented in
+# seed_coa.py, and a canonical grandparent (1100 / 2100). Any
+# other parent code still raises loudly — a typo in a caller's
+# parent_code arg is a real bug, not a tenant-state issue.
+_KNOWN_PARTY_HEADERS = {
+    "1130": ("Trade Receivables", "العملاء — المدينون", AccountType.ASSET),
+    "1180": ("Cash Custody in Settlement", "عهد نقدية تحت التسوية",
+             AccountType.ASSET),
+    "2110": ("Trade Payables", "الموردون — الدائنون",
+             AccountType.LIABILITY),
+    "2130": ("Salaries Payable", "الرواتب المستحقة",
+             AccountType.LIABILITY),
+}
+_KNOWN_PARENT_OF = {
+    "1130": "1100", "1180": "1100",
+    "2110": "2100", "2130": "2100",
+}
+
+
+def _lazy_create_known_header(company_id, parent_code):
+    """MARSOUD-CUSTODY-BUGS-02 (2026-08-08) — mint a missing
+    party-header account for legacy tenants whose COA was seeded
+    before the header was added to seed_default_coa. Called only
+    when the header is one of the four documented codes; any other
+    code falls through to the raise below.
+
+    Companion to the runtime migration; this layer covers a
+    tenant whose super-admin manually deleted the header, or a
+    mid-migration state that the alembic upgrade hasn't reached
+    yet. Both paths land in a byte-identical Account row —
+    parent_id derived from the same 1100 / 2100 the seed uses,
+    normal_side from NORMAL_SIDE_FOR_TYPE.
+    """
+    name_en, name_ar, type_ = _KNOWN_PARTY_HEADERS[parent_code]
+    grandparent_code = _KNOWN_PARENT_OF[parent_code]
+    grandparent = Account.query.filter_by(
+        company_id=company_id, code=grandparent_code,
+    ).first()
+    if grandparent is None:
+        # If the tenant is missing BOTH the header and its
+        # grandparent, we point at both codes so the accountant
+        # doesn't fix one and then be told about the other.
+        raise ValueError(
+            f"الحساب الأب {parent_code} وحسابه الأب "
+            f"{grandparent_code} غير موجودين — راجع شجرة الحسابات"
+        )
+    parent = Account(
+        company_id=company_id,
+        code=parent_code,
+        name=name_en, name_ar=name_ar,
+        type=type_,
+        parent_id=grandparent.id,
+        is_postable=False,
+        normal_side=NORMAL_SIDE_FOR_TYPE[type_],
+        is_active=True,
+    )
+    db.session.add(parent)
+    db.session.flush()
+    return parent
+
+
 def create_party_subaccount(company_id, parent_code, party_name):
     """Create a leaf account under the header coded `parent_code`."""
     parent = Account.query.filter_by(
         company_id=company_id, code=parent_code,
     ).first()
+    if not parent and parent_code in _KNOWN_PARTY_HEADERS:
+        parent = _lazy_create_known_header(company_id, parent_code)
     if not parent:
         raise ValueError(
             f"الحساب الأب {parent_code} غير موجود — راجع شجرة الحسابات"
