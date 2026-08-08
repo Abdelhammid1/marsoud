@@ -1137,6 +1137,89 @@ def feature_flags_index():
     return render_template("admin/feature_flags.html", rows=rows)
 
 
+# ─── MARSOUD-SUPERADMIN-CONTROL-01 T4 (2026-08-08) — company overrides
+@bp.route("/overrides", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def overrides_index():
+    """Central admin page for per-company feature grant/deny.
+    GET renders the table + add-form; POST creates a new override."""
+    from datetime import datetime
+    from app.services.company_overrides import (
+        upsert_override, list_all,
+    )
+    from app.services.feature_registry import all_modules
+
+    if request.method == "POST":
+        try:
+            company_id = int(request.form.get("company_id") or 0)
+            feature_code = (request.form.get("feature_code") or "").strip()
+            mode = (request.form.get("mode") or "").strip()
+            reason = (request.form.get("reason") or "").strip()
+            exp_raw = (request.form.get("expires_at") or "").strip()
+            expires_at = None
+            if exp_raw:
+                # HTML date input → YYYY-MM-DD. End-of-day so the
+                # override is active for the whole picked day.
+                expires_at = datetime.strptime(exp_raw, "%Y-%m-%d")
+                expires_at = expires_at.replace(hour=23, minute=59)
+            if not company_id:
+                raise ValueError("اختر الشركة")
+            upsert_override(
+                company_id, feature_code, mode, reason,
+                expires_at=expires_at, actor_id=current_user.id,
+            )
+            flash(
+                f"✅ تم تسجيل استثناء ({mode}) على الميزة {feature_code}",
+                "success",
+            )
+        except ValueError as e:
+            flash(str(e), "error")
+        return redirect(url_for(
+            "superadmin.overrides_index",
+            company_id=request.form.get("company_id") or None,
+        ))
+
+    # GET — build the filtered list.
+    filter_company_id = request.args.get("company_id", type=int)
+    filter_mode = request.args.get("mode") or None
+    filter_status = request.args.get("status") or "active"
+    rows = list_all(
+        company_id=filter_company_id, mode=filter_mode,
+        status=filter_status,
+    )
+    # For the add-form + filter selects.
+    companies = Company.query.filter_by(is_active=True)\
+        .order_by(Company.name).all()
+    modules = all_modules()
+    return render_template(
+        "admin/overrides_index.html",
+        rows=rows, companies=companies, modules=modules,
+        filter_company_id=filter_company_id,
+        filter_mode=filter_mode,
+        filter_status=filter_status,
+    )
+
+
+@bp.route("/overrides/<int:override_id>/revoke", methods=["POST"])
+@login_required
+@superadmin_required
+def overrides_revoke(override_id):
+    """Delete an override. Audit trail preserved in
+    platform_audit_logs via revoke_override's log call."""
+    from app.services.company_overrides import revoke_override
+    ok = revoke_override(override_id, actor_id=current_user.id)
+    flash("🗑️ تم إلغاء الاستثناء" if ok
+          else "الاستثناء غير موجود", "success" if ok else "error")
+    # Preserve the caller's filter — if they came from a
+    # per-company view, land back there.
+    company_id = request.args.get("company_id", type=int)
+    return redirect(url_for(
+        "superadmin.overrides_index",
+        company_id=company_id,
+    ))
+
+
 # MARSOUD-CONSENT-AUDIT-LOG (Abdelhamid 2026-07-22) — cross-tenant
 # consent history + "not accepted current version" report.
 @bp.route("/consent")

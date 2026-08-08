@@ -2,6 +2,18 @@
 {% block page_title %}{{ company.name }}{% endblock %}
 {% block content %}
 
+{# MARSOUD-SUPERADMIN-CONTROL-01 T4 (2026-08-08) — quick jump
+   to the /admin/overrides page pre-filtered on this company.
+   T6 will replace this link with an inline "Features" tab on
+   the same page. #}
+<div class="mb-3 flex justify-end">
+  <a href="{{ url_for('superadmin.overrides_index',
+                       company_id=company.id) }}"
+     class="text-sm text-brand-600 hover:underline">
+    🧩 استثناءات هذه الشركة →
+  </a>
+</div>
+
 <div class="grid grid-cols-3 gap-4 mb-6">
   <div class="stat-muted p-5">
     <div class="text-xs text-ink-200">العملة</div>
