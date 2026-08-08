@@ -162,6 +162,13 @@ DEFAULT_COA = [
     # disposal lands here. Under 5900 (Other Expenses header) — a
     # disposal loss isn't an operating expense.
     ("5950", "Loss on Disposal of Fixed Assets", "خسائر بيع أصول ثابتة", AccountType.EXPENSE, "5900", True),
+    # MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08, Phase 2) — two new
+    # sinks for the ops-hub wizards:
+    #   5960 — الصندوق الفعلي مش مطابق للدفاتر → surplus/shortage lands here
+    #   5970 — أي تعديل يدوي على رصيد أي حساب من معالج ops.adjustments
+    # Both under 5900 (مصروفات أخرى) — not operating expenses.
+    ("5960", "Cash Count Variance", "فروق نقدية", AccountType.EXPENSE, "5900", True),
+    ("5970", "Miscellaneous Adjustments", "تسويات متنوعة", AccountType.EXPENSE, "5900", True),
 ]
 
 

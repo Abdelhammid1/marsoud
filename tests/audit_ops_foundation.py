@@ -1145,6 +1145,12 @@ def _():
     from app.services.accounting_ops import OPERATIONS
     from app.services.permissions import P, _IMPLIES
     from app.services.roles_seed import PERMISSION_CATALOG
+    # MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08) — some permissions
+    # are DELIBERATELY not implied by journals.create because they
+    # gate dangerous wizards ("صلاحية مستقلة" per the ticket). List
+    # them explicitly so the auditor can see the exemption instead
+    # of hiding it inside the assertion.
+    EXPLICIT_ONLY = {"ops.adjustments"}
     new = {op.permission for op in OPERATIONS} - {"journals.create"}
     assert new, "no per-operation permission was actually introduced"
     for code in sorted(new):
@@ -1152,10 +1158,17 @@ def _():
         assert code in PERMISSION_CATALOG, (
             f"{code} missing from PERMISSION_CATALOG — an owner cannot "
             "grant a permission that the roles screen never lists")
-        assert _IMPLIES.get(code) == "journals.create", (
-            f"{code} is not implied by journals.create — every role that "
-            "could run these wizards yesterday would lose them today")
-    return f"{len(new)} codes in P + catalog + _IMPLIES"
+        if code in EXPLICIT_ONLY:
+            # Must NOT be in _IMPLIES — that would defeat the point
+            # of gating this behind an explicit grant.
+            assert code not in _IMPLIES, (
+                f"{code} is in EXPLICIT_ONLY but _IMPLIES has an entry — "
+                f"remove it so accountant-role users don't inherit it")
+        else:
+            assert _IMPLIES.get(code) == "journals.create", (
+                f"{code} is not implied by journals.create — every role "
+                "that could run these wizards yesterday would lose them today")
+    return f"{len(new)} codes in P + catalog + _IMPLIES (excl. {sorted(EXPLICIT_ONLY)})"
 
 
 @check("39. the three original operations did not change gate")

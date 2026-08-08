@@ -44,6 +44,18 @@ class Employee(db.Model):
     allowances = db.Column(db.Numeric(15, 2), default=0)
     deductions = db.Column(db.Numeric(15, 2), default=0)
 
+    # MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08, Phase 1) — GOSI /
+    # income-tax withholding rates. All percentages of basic_salary.
+    # Nullable + default 0 so every existing employee row remains
+    # byte-identical in run_payroll output until HR fills them in.
+    # employee_insurance_rate → credit 2135 (تأمينات مستحقة)
+    # income_tax_rate         → credit 2136 (ضريبة كسب عمل مستحقة)
+    # company_insurance_rate  → debit 5217 + credit 2135 (share of employer)
+    insurance_rate = db.Column(db.Numeric(15, 4), default=0, nullable=True)
+    income_tax_rate = db.Column(db.Numeric(15, 4), default=0, nullable=True)
+    company_insurance_rate = db.Column(db.Numeric(15, 4), default=0,
+                                        nullable=True)
+
     termination_date = db.Column(db.Date)
     termination_reason = db.Column(db.Enum(TerminationReason))
     termination_notes = db.Column(db.Text)
@@ -170,6 +182,15 @@ class PayrollLine(db.Model):
     absence_deduction = db.Column(db.Numeric(15, 2), default=0)
     late_deduction = db.Column(db.Numeric(15, 2), default=0)
     advance_deduction = db.Column(db.Numeric(15, 2), default=0)
+
+    # MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08, Phase 1) — per-line
+    # snapshot of the amounts computed from Employee.*_rate at run
+    # time, so a rate change AFTER the run doesn't retroactively
+    # rewrite the payslip. Same "always positive, subtracted at
+    # compute" convention as the four legacy deduction columns.
+    insurance_deduction = db.Column(db.Numeric(15, 2), default=0)
+    income_tax_deduction = db.Column(db.Numeric(15, 2), default=0)
+    employer_insurance_share = db.Column(db.Numeric(15, 2), default=0)
 
     net = db.Column(db.Numeric(15, 2), default=0)
     amount_paid = db.Column(db.Numeric(15, 2), default=0)  # what was actually paid; (net - amount_paid) → accrual

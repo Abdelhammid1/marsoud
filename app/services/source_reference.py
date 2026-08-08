@@ -112,6 +112,30 @@ _SOURCE_TYPES = {
     # dropping the label would be a regression on old ledgers.
     "asset":                   ("أصل ثابت",             None, None),
     "stock_receipt":           ("استلام مخزون",         None, None),
+    # MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08) — 18 new wizards.
+    # Registered at ship-time so no entry ever falls back to "قيد
+    # يدوي" in the journal viewer. Every wizard's source_type is
+    # the operation key with underscores. All label-only for now —
+    # none have a dedicated detail page yet.
+    "loan_short_receive":      ("استلام قرض قصير الأجل", None, None),
+    "loan_long_receive":       ("استلام قرض طويل الأجل", None, None),
+    "loan_installment_paid":   ("سداد قسط قرض",          None, None),
+    "vat_net_payment":         ("سداد صافي ضريبة القيمة المضافة", None, None),
+    "year_end_close":          ("إقفال نهاية السنة",     None, None),
+    "legal_reserve_allocation": ("تخصيص احتياطي قانوني", None, None),
+    "eosb_provision":          ("مخصص مكافأة نهاية الخدمة", None, None),
+    "eosb_payment":            ("صرف مكافأة نهاية الخدمة", None, None),
+    "deposit_received":        ("استلام أمانة من طرف",   None, None),
+    "deposit_returned":        ("رد أمانة لطرف",         None, None),
+    "note_receivable_received": ("استلام ورقة قبض",      None, None),
+    "note_payable_issued":     ("إصدار ورقة دفع",        None, None),
+    "bad_debt_writeoff":       ("شطب دين معدوم",         None, None),
+    "cash_count_adjustment":   ("تسوية الصندوق",         None, None),
+    "general_adjustment":      ("تسوية حساب عام",        None, None),
+    # accrued-revenue + dividends piggyback on the existing
+    # open_item / open_item_settle labels — they only differ by
+    # item_kind, which is displayed inside the open_item detail
+    # view. No new source_type needed for those four wizards.
 }
 
 
