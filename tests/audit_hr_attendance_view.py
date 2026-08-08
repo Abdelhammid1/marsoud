@@ -24,6 +24,11 @@ sys.path.insert(0, str(ROOT))
 
 from app import create_app, db
 
+# MARSOUD-4-BRANCH-REPAIR (2026-08-08) — refuse unscoped bulk
+# deletes on the attendance tables (prod-data-loss incident).
+import tests._audit_guard as _audit_guard  # noqa: E402
+_audit_guard.install()
+
 
 CHECKS = []
 PREFIX = "__HRATT_"
@@ -142,9 +147,17 @@ def _teardown():
 
 
 def _reset_att():
+    # MARSOUD-4-BRANCH-REPAIR (2026-08-08) — was
+    #   AttendanceCheckin.query.delete()
+    #   AttendanceException.query.delete()
+    # → wiped every tenant's attendance if run against a DB with
+    # real data (2026-08-08 prod-data-loss incident: 50 exceptions
+    # + 12 check-ins nuked, restored from backup). Scope to the
+    # two fixture companies only.
     from app.models import AttendanceCheckin, AttendanceException
-    AttendanceCheckin.query.delete()
-    AttendanceException.query.delete()
+    for _cid in (_STATE["cid_a"], _STATE["cid_b"]):
+        AttendanceCheckin.query.filter_by(company_id=_cid).delete()
+        AttendanceException.query.filter_by(company_id=_cid).delete()
     db.session.commit()
 
 
@@ -326,6 +339,66 @@ def _():
         follow_redirects=False)
     assert r_tm.status_code == 403, \
         f"team_member should get 403, got {r_tm.status_code}"
+
+
+@check("9. endpoint_to_subitem maps detail route to 'hr.attendance'")
+def _():
+    """Would have caught the 302/403 the boss saw: hr.employee_attendance_detail
+    fell through to 'hr.index' via the generic 'hr.*' branch, so a tenant
+    with hr.attendance but NOT hr.index in allowed_subitems 403'd the
+    detail page. Explicit mapping now groups both under hr.attendance."""
+    from app.services.plan_gating import endpoint_to_subitem
+    assert endpoint_to_subitem("hr.attendance") == "hr.attendance"
+    assert endpoint_to_subitem("hr.employee_attendance_detail") == "hr.attendance", \
+        "detail route must inherit the attendance gate, not hr.index"
+
+
+@check("10. detail route stays 200 when hr.index is NOT in the plan's subitems")
+def _():
+    """Regression proof for the 2026-08-08 revert scenario. Reproduce the
+    exact plan config the boss's tenant had: allowed_subitems includes
+    hr.attendance but excludes hr.index. Before the fix, the detail
+    request 403'd via enforce_subitem_gating."""
+    from app.models import Plan, Company
+    # Force a fresh Flask-Login user_loader + ORM session — check 8's
+    # cached current_user + stale plan relationship leak forward and
+    # make the fixture's plan changes invisible to the next request.
+    from flask import g
+    try:
+        g.pop("_login_user", None)
+    except (KeyError, AttributeError, RuntimeError):
+        pass
+    db.session.expire_all()
+    db.session.remove()
+
+    plan = Plan.query.filter_by(code="__hratt__").first()
+    original = plan.subitems
+    try:
+        plan.set_subitems(["hr.attendance"])   # explicitly exclude hr.index
+        db.session.commit()
+        # Sanity: verify the endpoint mapper agrees before hitting HTTP.
+        from app.services.plan_gating import (
+            endpoint_to_subitem, subitem_allowed,
+        )
+        co = db.session.get(Company, _STATE["cid_a"])
+        assert endpoint_to_subitem("hr.employee_attendance_detail") == "hr.attendance"
+        assert subitem_allowed("hr.attendance", co) is True, \
+            "sanity: subitem_allowed should pass for hr.attendance now"
+
+        client = _client_as(_STATE["hr_a"], _STATE["cid_a"])
+        r = client.get(
+            f"/hr/attendance/employee/{_STATE['emp_a1']}"
+            f"?year={date.today().year}&month={date.today().month}",
+            follow_redirects=False)
+        assert r.status_code == 200, \
+            f"detail route 403'd when hr.attendance was allowed but hr.index wasn't; got {r.status_code}"
+    finally:
+        # Refresh + restore the original subitems.
+        db.session.expire_all()
+        plan = Plan.query.filter_by(code="__hratt__").first()
+        if plan is not None:
+            plan.set_subitems(original)
+            db.session.commit()
 
 
 # ─── Runner ────────────────────────────────────────────────────
