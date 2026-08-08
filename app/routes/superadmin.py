@@ -690,22 +690,21 @@ def cron_tick_now():
 
 
 # ─── MARSOUD-57.2: Plans CRUD ────────────────────────────────────────────
-ALL_MODULES = ["accounting", "sales", "inventory", "purchases", "pos",
-               "crm", "hr", "reports", "agent",
-               "manufacturing", "employee_reports"]
-MODULE_LABELS_AR = {
-    "accounting": "المحاسبة",
-    "sales": "المبيعات",
-    "inventory": "المخزون",
-    "purchases": "المشتريات",
-    "pos": "نقطة البيع",
-    "crm": "العملاء المحتملين (CRM)",
-    "hr": "الموارد البشرية",
-    "reports": "التقارير",
-    "agent": "المحاسب الذكي",
-    "manufacturing": "التصنيع",
-    "employee_reports": "تقارير الموظفين اليومية",
-}
+# MARSOUD-SUPERADMIN-CONTROL-01 T1 (2026-08-08) — ALL_MODULES +
+# MODULE_LABELS_AR were hand-maintained here with 11 entries,
+# missing insights / cash_custody / evaluations (which PLAN_SEED
+# was already writing into Pro plans). Result: those 3 modules
+# were literally unpickable in the plan-edit form. Now derived
+# from feature_registry so any future module addition shows up
+# on the very next page load with zero code change here.
+def _all_modules_from_registry():
+    from app.services.feature_registry import all_modules
+    codes = [m.code for m in all_modules()]
+    labels = {m.code: m.label_ar for m in all_modules()}
+    return codes, labels
+
+
+ALL_MODULES, MODULE_LABELS_AR = _all_modules_from_registry()
 
 
 def _read_subitems_form():

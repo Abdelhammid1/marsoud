@@ -709,86 +709,28 @@ tailwind.config = {
          NB: no Jinja comment inside the dict literal below — a comment
          cannot be parsed inside an expression and it 500s every
          authenticated page. #}
-      {% set permission_map = {
-        'dashboard.index': None,
-        'accounts.index': 'accounts.manage',
-        'journals.index': 'journals.view',
-        'accounting_ops.index': 'journals.create',
-        'invoices.index': 'invoices.create',
-        'vendor_bills.index': 'vendor_bills.create',
-        'recurring_bills.index': 'vendor_bills.create',
-        'forecast.index': 'vendor_bills.create',
-        'payment_methods.index': 'payment_methods.manage',
-        'products.index': 'products.manage',
-        'customers.index': 'customers.view',
-        'leads.index': 'leads.view',
-        'leads.no_response_index': 'leads.view',
-        'crm.campaigns_index': 'crm.campaigns.view',
-        'crm.activities_index': 'crm.activities.view',
-        'crm.contacts_index': 'crm.contacts.view',
-        'crm.analytics': 'crm.analytics.view',
-        'vendors.index': 'partners.manage',
-        'projects.index': 'projects.view',
-        'tasks.index': 'tasks.view',
-        'calendar.index': 'tasks.view',
-        'assets.index': 'assets.manage',
-        'inventory.index': 'inventory.view',
-        'inventory.warehouses': 'inventory.manage',
-        'inventory.transfers': 'transfers.view',
-        'inventory.movements': 'inventory.view',
-        'inventory_counts.index': 'inventory.manage',
-        'inventory.inventory_balance': 'inventory.view',
-        'inventory.adjust': 'inventory.manage',
-        'inventory.opening_balance': 'inventory.manage',
-        'inventory.barcodes_picker': 'inventory.manage',
-        'products.hierarchy': 'products.manage',
-        'pos.index': 'pos.use',
-        'pos.shifts': 'shifts.manage',
-        'pos.history': 'pos.use',
-        'recurring_invoices.index': 'invoices.create',
-        'reports.cashier_sales': 'reports.cashier_sales',
-        'reports.profitability': 'reports.profitability',
-        'reports.index': 'reports.view',
-        'party_ledger.index': 'party_ledger.view',
-        'refunds.index': 'refunds.view',
-        'refunds.report': 'refunds.view',
-        'reports.employees_index': 'employee_reports.view',
-        'settings_employee_reports.index': 'users.manage',
-        'manufacturing.boms_index': 'manufacturing.view',
-        'manufacturing.work_orders_index': 'manufacturing.view',
-        'manufacturing.reports': 'manufacturing.view',
-        'audit_log.index': 'users.view',
-        'hr.index': 'hr.manage',
-        'hr.attendance': 'hr.manage',
-        'hr.attendance_policies': 'hr.manage',
-        'advances.index': 'advances.manage',
-        'custody.index': 'custody.manage',
-        'item_custody.index': 'custody.manage',
-        'hr_ss.index': 'users.manage',
-        'payroll.index': 'employees.view',
-        'agent.index': 'agent.use',
-        'agent.insights_index': 'insights.use',
-        'companies.edit': 'users.manage',
-        'settings_roles.index': 'users.manage',
-        'settings_api_tokens.index': 'api_tokens.manage',
-        'evaluations.index': 'evaluations.manage',
-        'evaluations.logs_index': 'evaluations.manage',
-        'reports.metric_logs': 'users.manage',
-        'reports.vendor_sub_categories': 'vendor_bills.create',
-        'tasks.archive_list': 'tasks.archive',
-        'settings_activity.index': 'activity_log.view',
-        'settings_backup.index': 'backup.download',
-        'settings_usage.index': 'settings_usage.view',
-        'companies.index': 'companies.manage',
-        'support.index': None,
-        'support_admin.index': 'support.manage_tickets',
-      } %}
+      {# MARSOUD-SUPERADMIN-CONTROL-01 T2 (2026-08-08) — the
+         72-entry permission_map dict used to live here. It was
+         hand-maintained and 10 endpoints short (hr.leave_types,
+         portal_emp.*, user_files.index, …), so those rows
+         rendered for every user and then 403'd on click. The
+         registry-driven can_access_endpoint() now decides
+         visibility from the SAME predicate the request-time
+         guard uses. Any drift = both sides drift together, by
+         construction. #}
 
-      {# Flat list for the non-owner roles. #}
+      {# Flat list for the non-owner roles.
+         MARSOUD-SUPERADMIN-CONTROL-01 T2 (2026-08-08) — gate
+         through can_access_endpoint instead of the local
+         permission_map. Fixes the ticket's headline bug:
+         permission_map was 10 endpoints short (hr.leave_types,
+         portal_emp.*, user_files.index …) so those rows rendered
+         for every role and then 403'd on click. can_access uses
+         the feature registry — same predicate the request-time
+         guard uses, so 'يظهر' ⟺ 'يفتح'. #}
       {% if sections is not defined %}
       {% for endpoint, label, icon in links %}
-      {% set req = permission_map.get(endpoint) %}
-      {% if not req or has_permission(req) %}
+      {% if can_access_endpoint(endpoint) %}
       {% set is_active = request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
       <a href="{{ url_for(endpoint) }}"
          class="nav-link flex items-center gap-3 px-5 py-2.5 text-sm hover:bg-emerald-50 transition-colors {% if is_active %}active{% endif %}">
@@ -812,23 +754,16 @@ tailwind.config = {
           {% set label = item[1] %}
           {% set icon = item[2] %}
           {% set kwargs = item[3] if item|length > 3 else {} %}
-          {% set req = permission_map.get(endpoint) %}
-          {# MARSOUD-58 — sub-item gate filters individual links inside
-             an otherwise-open section. subitem_allowed() returns True
-             when the company has no plan, the plan's allowed_subitems is
-             null (legacy), or the endpoint is listed in it. #}
-          {# MARSOUD-SUPPORT-SIDEBAR-GATE (Abdelhamid 2026-07-29) —
-             the "دعم منصتي" cross-tenant inbox must ONLY show for
-             users who are actually Manasty support agents. The
-             permission alone isn't enough — the `owner` role holds
-             support.manage_tickets by default, so every owner of
-             every customer company was seeing this section. Add
-             a Manasty-membership check on top. is_support_agent
-             comes from the context processor in app/__init__.py
-             and is already False for anyone outside Manasty. #}
+          {# MARSOUD-SUPERADMIN-CONTROL-01 T2 (2026-08-08) — gate
+             through the unified resolver. can_access folds in the
+             module-plan check, sub-item gate, and role-permission
+             check that used to be three separate conditions here.
+             The support-agent scoping stays as a template-side
+             overlay because it's tenant-membership, not
+             plan-or-permission. #}
           {% set _ok_support = (not endpoint.startswith('support_admin.'))
                                 or is_support_agent %}
-          {% if (not req or has_permission(req)) and subitem_allowed(endpoint) and _ok_support %}
+          {% if can_access_endpoint(endpoint) and _ok_support %}
             {% set _ = ns.visible.append((endpoint, label, icon, kwargs)) %}
             {% if request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
               {% set ns.active = true %}

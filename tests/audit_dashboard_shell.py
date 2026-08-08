@@ -343,17 +343,24 @@ def _():
     return " · ".join(lbl for _e, lbl, _p in NEW_NAV)
 
 
-@check("8. every new sidebar row has a permission_map entry")
+@check("8. every new sidebar row is wired through the feature registry")
 def _():
-    """A row with no entry leaves `req` as None, so the link shows to
-    every logged-in user — including roles the route then 403s."""
-    src = _base_src()
-    pmap = src.split("{% set permission_map = {", 1)[1].split("} %}", 1)[0]
+    """MARSOUD-SUPERADMIN-CONTROL-01 T1 (2026-08-08) — the
+    permission_map dict was removed from base.html; the same
+    endpoint → permission mapping now lives in
+    app/services/feature_registry.py. A row not in the registry
+    would fall through can_access to True → link shown to every
+    logged-in user → route 403s. Same bug class, different
+    check surface."""
+    from app.services.feature_registry import feature_for_endpoint
     for ep, _lbl, perm in NEW_NAV:
-        assert f"'{ep}'" in pmap, f"{ep} has no permission_map entry"
-        assert re.search(rf"'{re.escape(ep)}'\s*:\s*'{re.escape(perm)}'", pmap), \
-            f"{ep} should map to {perm}"
-    return f"{len(NEW_NAV)} rows mapped"
+        feat = feature_for_endpoint(ep)
+        assert feat is not None, (
+            f"{ep} has no Feature in the registry — add it to "
+            f"app/services/feature_registry.py")
+        assert perm in feat.permissions, (
+            f"{ep} should require {perm}; got {list(feat.permissions)}")
+    return f"{len(NEW_NAV)} rows registered"
 
 
 @check("9. every new sidebar row resolves and returns 200")

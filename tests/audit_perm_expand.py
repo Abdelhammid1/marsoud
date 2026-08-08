@@ -90,23 +90,37 @@ def _():
     return f"all {len(NEW_CODES)} codes catalogued"
 
 
-@check("4. Sidebar permission_map wires new items to the new codes")
+@check("4. Sidebar new items are wired through the feature registry")
 def _():
-    p = ROOT / "app" / "templates" / "base.html"
-    text = p.read_text(encoding="utf-8")
-    # Rows we should see (endpoint → new code)
-    for line in [
-        "'crm.campaigns_index': 'crm.campaigns.view'",
-        "'crm.activities_index': 'crm.activities.view'",
-        "'crm.contacts_index': 'crm.contacts.view'",
-        "'crm.analytics': 'crm.analytics.view'",
-        "'party_ledger.index': 'party_ledger.view'",
-        "'settings_api_tokens.index': 'api_tokens.manage'",
-        "'settings_activity.index': 'activity_log.view'",
-        "'settings_backup.index': 'backup.download'",
-    ]:
-        assert line in text, f"permission_map missing: {line}"
-    return "all 8 permission_map entries updated"
+    # MARSOUD-SUPERADMIN-CONTROL-01 T1 (2026-08-08) — the
+    # permission_map dict was deleted from base.html; the same
+    # endpoint-→-permission mapping now lives in
+    # app/services/feature_registry.py as Feature entries. This
+    # check verifies each ticket-era endpoint still has the right
+    # permission, but reads from the registry — not the template.
+    from app.services.feature_registry import feature_for_endpoint
+    expected = {
+        "crm.campaigns_index":     "crm.campaigns.view",
+        "crm.activities_index":    "crm.activities.view",
+        "crm.contacts_index":      "crm.contacts.view",
+        "crm.analytics":           "crm.analytics.view",
+        "party_ledger.index":      "party_ledger.view",
+        "settings_api_tokens.index": "api_tokens.manage",
+        "settings_activity.index": "activity_log.view",
+        "settings_backup.index":   "backup.download",
+    }
+    missing = []
+    for endpoint, expected_perm in expected.items():
+        feat = feature_for_endpoint(endpoint)
+        if feat is None:
+            missing.append(f"{endpoint} has no Feature in the registry")
+            continue
+        if expected_perm not in feat.permissions:
+            missing.append(
+                f"{endpoint}: expected {expected_perm} in feature "
+                f"permissions, got {list(feat.permissions)}")
+    assert not missing, "\n  ".join([""] + missing)
+    return f"all {len(expected)} endpoints registered with correct permission"
 
 
 # ─── Plan gating catalog ───────────────────────────────────────────────

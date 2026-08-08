@@ -19,64 +19,27 @@ module. Modules currently in use:
   platform     superadmin.* — gating bypassed for super-admins
 """
 
-# Single source of truth: action prefix → module code.
-# When you add a new permission code, also add its prefix here.
-_PREFIX_TO_MODULE = {
-    # accounting
-    "journals.": "accounting",
-    "accounts.": "accounting",
-    "accounting_ops.": "accounting",
-    "payment_methods.": "accounting",
-    "partners.": "accounting",
-    "assets.": "accounting",
-    # sales
-    "invoices.": "sales",
-    "products.": "sales",
-    # MARSOUD-REFUNDS-01 — refunds are gated on the sales module (any
-    # plan that has sales gets refund view + issue). Sales and purchase
-    # refunds live in one blueprint; the module lookup for both
-    # `refunds.view`/`refunds.manage` returns "sales".
-    "refunds.": "sales",
-    # crm
-    "leads.": "crm",
-    "tasks.": "crm",
-    "projects.": "crm",
-    # inventory + purchases
-    "inventory.": "inventory",
-    "transfers.": "inventory",
-    "vendor_bills.": "purchases",
-    "recurring_bills.": "purchases",
-    "forecast.": "purchases",
-    # pos
-    "pos.": "pos",
-    "shifts.": "pos",
-    "reports.cashier_sales": "pos",
-    "reports.profitability": "pos",
-    # hr
-    "hr.": "hr",
-    "payroll.": "hr",
-    "advances.": "hr",
-    # MARSOUD-EMPLOYEE-DAILY-REPORTS — own coarse module so plans can
-    # ship without it (the ticket wants Super Admin control per package).
-    "employee_reports.": "employee_reports",
-    # MARSOUD-MANUFACTURING-01 — own coarse module (BOM + work orders).
-    "manufacturing.": "manufacturing",
-    # MARSOUD-EVALUATIONS-PRO-GATING (Batch 5 Ticket 6, 2026-07-29) —
-    # employee-evaluations feature is Pro-only. Starter/Growth companies
-    # get 403 on /evaluations/* until they upgrade.
-    "evaluations.": "evaluations",
-    # reports (catch-all after the pos-specific overrides above)
-    "reports.": "reports",
-    # agent
-    "agent.": "agent",
-    # MARSOUD-INSIGHTS-AGENT-01 (Batch 9 Ticket 6, 2026-08-01).
-    "insights.": "insights",
-    # MARSOUD-CASH-CUSTODY-01 (2026-08-07) — cash custody is its own
-    # coarse module, feature-flag on Pro (super-admin flips per plan).
-    "custody.": "cash_custody",
-    # settings — always on
-    "users.": "settings",
-}
+# MARSOUD-SUPERADMIN-CONTROL-01 T1 (2026-08-08) — the real source
+# of truth moved to app/services/feature_registry.py. This dict is
+# kept as a computed alias so nothing that imports it breaks; the
+# entries below are DERIVED from the registry at import time so
+# there's zero risk of drift. Every code change goes into the
+# registry file — this dict updates itself.
+def _build_prefix_to_module():
+    from app.services.feature_registry import all_modules
+    out = {}
+    for m in all_modules():
+        for p in m.permission_prefixes:
+            out[p] = m.code
+    return out
+
+
+_PREFIX_TO_MODULE = _build_prefix_to_module()
+
+# The rest of this file assumes _PREFIX_TO_MODULE dict semantics
+# from the pre-registry era. If you're adding a NEW permission
+# prefix, add it to the appropriate Module in feature_registry.py
+# — NOT here.
 
 # Modules that are ALWAYS allowed regardless of plan (auth + basic admin).
 _ALWAYS_ALLOWED = {"settings"}
