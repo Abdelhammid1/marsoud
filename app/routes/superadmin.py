@@ -595,6 +595,39 @@ def _404():
     abort(404)
 
 
+# ── MARSOUD-SUPERADMIN-CONTROL-01 T11 (2026-08-08) — Ops & Health ── #
+@bp.route("/ops-health")
+@login_required
+@superadmin_required
+def ops_health():
+    """Single-screen operational dashboard: vitals + errors 24h +
+    cron last-runs + DB stats + audit tail. Meta-refresh every
+    15s in the template. Each composer is guarded so a failure
+    in one card never blanks the page."""
+    from app.services.ops_health import (
+        system_vitals, errors_summary, cron_last_runs,
+        db_stats, audit_tail,
+    )
+
+    def _safe(fn, fb):
+        try:
+            return fn()
+        except Exception:
+            current_app.logger.exception("ops_health composer failed")
+            return fb
+
+    return render_template(
+        "admin/ops_health.html",
+        vitals=_safe(system_vitals, None),
+        errors=_safe(lambda: errors_summary(24),
+                      {"total": 0, "by_route": [], "by_status": [],
+                       "newest": [], "hours": 24}),
+        cron=_safe(cron_last_runs, []),
+        db_stats=_safe(db_stats, None),
+        audit=_safe(lambda: audit_tail(20), []),
+    )
+
+
 # ── MARSOUD-48: email diagnostic ─────────────────────────────────────────── #
 @bp.route("/email-test", methods=["GET", "POST"])
 @login_required
