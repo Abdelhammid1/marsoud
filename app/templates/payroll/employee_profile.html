@@ -7,6 +7,11 @@
 {% set can_view_payroll = has_permission('payroll.view') %}
 {% set can_manage_employees = has_permission('payroll.employees') %}
 {% set can_settle_accruals = has_permission('payroll.accruals') %}
+{# MARSOUD-ATTENDANCE-VIEW-01 (2026-08-08) — same role set as
+   hr_required (owner / admin / hr_manager). Gates the tiny
+   "monthly attendance" link so non-HR viewers don't see a link
+   that would 403 on click. #}
+{% set can_view_hr_attendance = has_permission('hr.manage') %}
 
 {# MARSOUD-CONTACT-STRIP — top-of-page contact bar #}
 {% with name=employee.name, phone=employee.phone, email=employee.email %}
@@ -290,4 +295,14 @@
   </div>
   {% endif %}{# end can_view_payroll or can_manage_employees #}
 </div>
+
+{% if can_view_hr_attendance %}
+<div class="mt-4">
+  <a href="{{ url_for('hr.employee_attendance_detail',
+                       employee_id=employee.id) }}"
+     class="text-xs text-emerald-700 hover:underline">
+    📅 عرض الحضور الشهري لهذا الموظف →
+  </a>
+</div>
+{% endif %}
 {% endblock %}
