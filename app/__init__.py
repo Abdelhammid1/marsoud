@@ -1219,4 +1219,62 @@ def create_app(config_class=Config):
         if not any_missing:
             print("All companies have a complete CoA.")
 
+    # MARSOUD-SUPERADMIN-CONTROL-01 T8 (2026-08-08) — CLI:
+    # flask audit-routes
+    @app.cli.command("audit-routes")
+    def _audit_routes():
+        """Report GET pages with no template link. Exits nonzero
+        on any orphan not classified in route_audit_ignore.txt.
+
+        Wire into pre-deploy CI to prevent shipping a screen with
+        no way to reach it."""
+        import sys
+        # ASCII-only prints — Windows cp1252 stdout crashes on
+        # ✓ / ❌ glyphs when a pre-commit hook fires.
+        def _p(msg):
+            try:
+                print(msg)
+            except UnicodeEncodeError:
+                print(msg.encode("ascii", errors="replace").decode())
+        try:
+            from app.services.route_audit import (
+                build_coverage, orphans, stale_ignores, summary,
+            )
+        except Exception as e:
+            _p(f"FAIL failed to import route_audit: {e}")
+            sys.exit(2)
+        # Ignore-file syntax validation happens on read; catch
+        # bad-format lines up front with a clear message.
+        try:
+            rows = build_coverage(app)
+        except ValueError as e:
+            _p(f"FAIL route_audit_ignore.txt: {e}")
+            sys.exit(1)
+        stale = stale_ignores(app)
+        if stale:
+            _p(f"FAIL {len(stale)} stale ignore entries "
+               "(endpoints no longer exist):")
+            for ep in stale:
+                _p(f"  - {ep}")
+            sys.exit(1)
+        orphs = orphans(app)
+        s = summary(app)
+        if orphs:
+            _p(f"FAIL {len(orphs)} orphan endpoint(s) "
+               "(HTML pages with no template link):")
+            for r in orphs:
+                _p(f"  - {r.endpoint}  ({r.url_rule})  "
+                   f"module={r.module}")
+            _p("")
+            _p("Fix by adding a template link OR adding an entry "
+               "to route_audit_ignore.txt with a reason.")
+            sys.exit(1)
+        _p(f"OK all {s['pages']} pages have a template link "
+           "(or a classified ignore entry).")
+        _p(f"  - {s['total']} total endpoints")
+        _p(f"  - {s['pages']} pages ({s['ignored']} via ignore file)")
+        _p(f"  - {s['api']} api / {s['post_only']} post-only / "
+           f"{s['exempt']} exempt")
+        sys.exit(0)
+
     return app
