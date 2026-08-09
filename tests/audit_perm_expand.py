@@ -148,6 +148,23 @@ def _():
         "party_ledger.index",
         "settings_api_tokens.index", "settings_activity.index",
         "settings_backup.index",
+        # MARSOUD-PLAN-SUBITEMS-27 (2026-08-09) — the 26 new rows.
+        # If a future ticket removes one, this check flags it.
+        "accounting_ops.index",
+        "recurring_invoices.index",
+        "pos.shifts", "pos.history",
+        "inventory.adjust", "inventory.opening_balance",
+        "inventory.movements", "inventory.transfers",
+        "inventory.inventory_balance", "inventory.barcodes_picker",
+        "inventory_counts.index", "products.hierarchy",
+        "leads.no_response_index",
+        "tasks.archive_mine",
+        "hr.departments", "hr.leave_types", "hr.leave_requests",
+        "hr.attendance_policies", "advances.index",
+        "payroll.archive", "custody.index", "item_custody.index",
+        "evaluations.index", "evaluations.logs_index",
+        "settings_employee_reports.index", "settings_usage.index",
+        "user_files.index",
     ]
     missing = [ep for ep in required_new if ep not in all_endpoints]
     assert not missing, f"catalog missing: {missing}"

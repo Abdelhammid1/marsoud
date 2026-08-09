@@ -127,11 +127,24 @@ SUB_ITEM_CATALOG = {
         ("assets.index", "الأصول الثابتة", "🏗️"),
         ("reports.index", "التقارير المالية", "📑"),
         ("party_ledger.index", "كشف حساب طرف", "📒"),
+        # MARSOUD-PLAN-SUBITEMS-27 (2026-08-09) — the wizards page
+        # used to be lumped under journals.index via
+        # endpoint_to_subitem; now it's its own catalog entry.
+        # See the guard on that shortcut below.
+        ("accounting_ops.index", "العمليات المحاسبية", "🧮"),
     ],
     "sales": [
         ("pos.index", "نقطة البيع", "🛒"),
         ("invoices.index", "الفواتير", "🧾"),
         ("customers.index", "العملاء", "👥"),
+        # MARSOUD-PLAN-SUBITEMS-27 (2026-08-09). Note the label
+        # collision with purchases/recurring_bills.index — that's
+        # the purchases side; this one is the sales side and it's
+        # a separate blueprint (recurring_invoices, not
+        # recurring_bills). Both rows live in their own section.
+        ("recurring_invoices.index", "الفواتير المتكررة", "🔁"),
+        ("pos.shifts",  "الورديات",  "🕒"),
+        ("pos.history", "سجل نقطة البيع", "📜"),
     ],
     "purchases": [
         ("vendor_bills.index", "فواتير الموردين", "📥"),
@@ -155,6 +168,21 @@ SUB_ITEM_CATALOG = {
         ("inventory.index", "المخزون", "📊"),
         ("inventory.warehouses", "المخازن", "🏬"),
         ("products.index", "المنتجات والخدمات", "🏷️"),
+        # MARSOUD-PLAN-SUBITEMS-27 (2026-08-09) — 8 inventory
+        # rows that used to lump under inventory.index (or were
+        # ungated entirely: inventory_counts.index,
+        # products.hierarchy) become togglable independently.
+        # Migration f8c2e5a9d4b1 appends the lumped ones onto
+        # plans that already had inventory.index in their list,
+        # so no visibility change on existing plans.
+        ("inventory.adjust",           "تسوية المخزون",       "⚖️"),
+        ("inventory.opening_balance",  "رصيد افتتاحي مخزون",  "🎬"),
+        ("inventory.movements",        "حركات المخزون",       "🔀"),
+        ("inventory.transfers",        "تحويلات المخزون",     "🚚"),
+        ("inventory.inventory_balance","رصيد المخزون",        "📊"),
+        ("inventory.barcodes_picker",  "طباعة الباركود",      "🖨️"),
+        ("inventory_counts.index",     "الجرد",               "🔢"),
+        ("products.hierarchy",         "التصنيفات والفئات",   "🏷️"),
     ],
     "crm": [
         ("leads.index", "Leads", "🎯"),
@@ -162,17 +190,40 @@ SUB_ITEM_CATALOG = {
         ("crm.activities_index", "الأنشطة والمتابعات", "📅"),
         ("crm.contacts_index", "جهات الاتصال", "👥"),
         ("crm.analytics", "تحليلات CRM", "📈"),
+        # MARSOUD-PLAN-SUBITEMS-27 (2026-08-09).
+        ("leads.no_response_index", "العملاء بدون رد", "🕐"),
     ],
     "workflow": [
         ("tasks.index", "المهام", "✅"),
         ("projects.index", "المشاريع", "📂"),
         ("calendar.index", "التقويم", "📅"),
+        # MARSOUD-PLAN-SUBITEMS-27 (2026-08-09).
+        ("tasks.archive_mine", "أرشيف مهامي", "📦"),
     ],
     "hr": [
         ("hr.index", "الموظفين", "👤"),
         ("payroll.index", "الرواتب", "💼"),
         ("hr.attendance", "الحضور والإجازات", "📅"),
         ("hr_ss.index", "حسابات الموظفين", "🔑"),
+        # MARSOUD-PLAN-SUBITEMS-27 (2026-08-09) — HR + Custody +
+        # Evaluations rows land under the hr bucket to mirror
+        # where base.html renders them today (:512-516, :666-673).
+        # No new section keys → no SECTION_LABEL_AR / SECTION_
+        # REQUIRES_MODULES churn.
+        ("hr.departments",         "الأقسام",                 "🏛️"),
+        ("hr.leave_types",         "أنواع الإجازات",          "📂"),
+        ("hr.leave_requests",      "طلبات الإجازات",          "📝"),
+        ("hr.attendance_policies", "سياسات الحضور",           "🕐"),
+        ("advances.index",         "سلف الموظفين",            "💵"),
+        # payroll.archive serves the terminated/suspended-employee
+        # list — that's the label the sidebar uses today. Ticket
+        # said "أرشيف الرواتب" but confirmed we keep the sidebar
+        # wording so the checkbox matches the row the user sees.
+        ("payroll.archive",        "الموظفون السابقون",       "👥"),
+        ("custody.index",          "العهدة النقدية",          "💰"),
+        ("item_custody.index",     "العهدة العينية",          "📦"),
+        ("evaluations.index",      "التقييمات",               "⭐"),
+        ("evaluations.logs_index", "سجل التقييمات",           "📜"),
     ],
     "settings": [
         ("settings_roles.index", "المستخدمين والأدوار", "🔐"),
@@ -182,6 +233,10 @@ SUB_ITEM_CATALOG = {
         ("payment_methods.index", "طرق الدفع", "💳"),
         ("companies.edit", "بيانات الشركة", "🏢"),
         ("audit_log.index", "سجل التدقيق", "🔍"),
+        # MARSOUD-PLAN-SUBITEMS-27 (2026-08-09).
+        ("settings_employee_reports.index", "إعدادات تقارير الموظفين", "📝"),
+        ("settings_usage.index",            "إعدادات الاستخدام",       "📊"),
+        ("user_files.index",                "ملفاتي",                  "📁"),
     ],
 }
 
@@ -299,7 +354,16 @@ def endpoint_to_subitem(endpoint):
     # sub-item is absent from every existing plan's stored
     # allowed_subitems, so the page would 403 for every tenant until a
     # super-admin ticked it on each plan.
-    if endpoint.startswith("accounting_ops."):
+    # MARSOUD-PLAN-SUBITEMS-27 (2026-08-09) — the wizards' INDEX
+    # is now its own catalog entry (accounting_ops.index), so
+    # only the SUB-pages (accounting_ops.new_journal, etc.) still
+    # ride on journals.index. Without this guard the index would
+    # double-gate: hit accounting_ops.index → the direct-match
+    # path at line 372 catches it FIRST, so this branch never
+    # runs for the index — but we still exclude it explicitly so
+    # a reader doesn't chase the wrong lead.
+    if (endpoint.startswith("accounting_ops.")
+            and endpoint != "accounting_ops.index"):
         return "journals.index"
     # Special-case inventory: warehouses is a separate sub-item.
     if endpoint == "inventory.warehouses" or endpoint.startswith("inventory.warehouse_"):
