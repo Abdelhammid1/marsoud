@@ -15,6 +15,20 @@ tailwind.config = {
         ink: { 900: '#FFFFFF', 800: '#F8FAFC', 700: '#F0F7FF', 200: '#64748B' },
         crimson: { 400: '#059669', 500: '#047857', 600: '#065F46', 700: '#064E3B' },
         amber500: '#F59E0B',
+        // MARSOUD-SUPERADMIN-CONTROL-01 T9 (2026-08-08) — aliases so
+        // admin/*.html templates that reference navy/brand/sky
+        // (30+ call sites, none previously defined) now render with
+        // adequate contrast on the light body. Values mirror the
+        // tenant base.html palette so the two sides stay visually
+        // consistent when a user bounces between them.
+        navy:  { 700: '#1E3A8A', 800: '#1E293B', 900: '#0F172A' },
+        brand: { 500: '#059669', 600: '#047857', 700: '#065F46' },
+        sky:   { 100: '#F0F9FF', 300: '#7DD3FC', 700: '#0369A1',
+                 800: '#075985', 900: '#0C4A6E' },
+      },
+      boxShadow: {
+        // Used by plans_index.html hover state; previously undefined.
+        soft: '0 4px 20px rgba(15, 23, 42, 0.08)',
       },
     },
   },
@@ -31,31 +45,72 @@ tailwind.config = {
           border-radius: 16px; backdrop-filter: blur(8px); }
   .stat { background: linear-gradient(135deg, rgba(24,73,169,0.18), rgba(12,36,97,0.06));
           border: 1px solid rgba(24,73,169,0.25); border-radius: 18px; }
-  .stat-muted { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-                border-radius: 18px; }
-  .input, .select { background: rgba(255,255,255,0.06); color: #0F172A;
-                    border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;
+
+  /* ── MARSOUD-SUPERADMIN-CONTROL-01 T9 (2026-08-08) ────────
+     Every rule below either RESKINS a dark-theme relic for the
+     light body, or DEFINES a class name that admin templates
+     were already referencing but rendered without color. #} */
+
+  /* Stat tiles previously used rgba white-on-white → invisible. */
+  .stat-muted { background: #F8FAFC; border: 1px solid #E2E8F0;
+                border-radius: 18px; color: #0F172A; }
+
+  /* Form fields — same dark-theme relic; now proper light theme. */
+  .input, .select { background: #FFFFFF; color: #0F172A;
+                    border: 1px solid #CBD5E1; border-radius: 10px;
                     padding: 8px 12px; width: 100%; }
-  .input:focus, .select:focus { outline: none; border-color: #078FD2; }
-  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px;
-         border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
-  .btn-primary { background: linear-gradient(135deg, #1849A9, #0C2461); color: white; }
-  .btn-secondary { background: rgba(255,255,255,0.06); color: #0F172A;
-                   border: 1px solid rgba(255,255,255,0.12); }
-  .btn-danger { background: #FEE2E2; color: #B91C1C;
-                border: 1px solid rgba(225,29,72,0.4); }
-  .btn:hover { filter: brightness(1.1); }
+  .input:focus, .select:focus { outline: none; border-color: #059669;
+                                box-shadow: 0 0 0 3px rgba(5,150,105,0.15); }
+  textarea.input { min-height: 68px; resize: vertical; }
+  /* Some templates use .textarea (not .input) for their textareas —
+     alias so they render the same. */
+  .textarea { background: #FFFFFF; color: #0F172A;
+              border: 1px solid #CBD5E1; border-radius: 10px;
+              padding: 8px 12px; width: 100%; min-height: 68px;
+              resize: vertical; }
+
+  /* Buttons — 21 sites use `class="btn-primary"` bare (no `.btn`).
+     Inline the base rules on each variant so bare use renders the
+     same as compound `btn btn-primary`. */
+  .btn, .btn-primary, .btn-secondary, .btn-danger {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border-radius: 10px;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer; text-decoration: none;
+    transition: filter 0.15s;
+  }
+  .btn-primary   { background: linear-gradient(135deg, #1849A9, #0C2461);
+                   color: #FFFFFF; border: 0; }
+  .btn-secondary { background: #F1F5F9; color: #0F172A;
+                   border: 1px solid #E2E8F0; }
+  .btn-danger    { background: #FEE2E2; color: #B91C1C;
+                   border: 1px solid rgba(225,29,72,0.4); }
+  .btn:hover, .btn-primary:hover, .btn-secondary:hover,
+  .btn-danger:hover { filter: brightness(1.05); }
+
   .data-table { width: 100%; border-collapse: collapse; }
   .data-table th { text-align: right; font-weight: 600; font-size: 12px;
                    color: #64748B; padding: 10px 12px; border-bottom: 1px solid #E2E8F0; }
   .data-table td { padding: 12px; font-size: 13px; border-bottom: 1px solid #F1F5F9; }
   .nav-link.active { background: #ECFDF5; color: #047857;
                      border-right: 3px solid #059669; }
+
   .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px;
            font-size: 11px; font-weight: 600; }
   .badge-ok { background: #D1FAE5; color: #047857; }
   .badge-bad { background: #FEE2E2; color: #B91C1C; }
   .badge-neutral { background: #F1F5F9; color: #475569; }
+  /* Aliases + variants referenced by admin/subscriptions_index.html,
+     admin/plans_index.html, admin/coupons_index.html etc. Previously
+     rendered as bare pills (no color). */
+  .badge-paid      { background: #D1FAE5; color: #047857; }
+  .badge-cancelled { background: #F1F5F9; color: #475569; }
+  .badge-overdue   { background: #FEE2E2; color: #B91C1C; }
+  .badge-partial   { background: #FEF3C7; color: #92400E; }
+  .badge-amber     { background: #FEF3C7; color: #92400E; }
+  .badge-draft     { background: #E0E7FF; color: #3730A3; }
+  .badge-sent      { background: #DBEAFE; color: #1E40AF; }
+  .badge-refunded  { background: #FCE7F3; color: #9F1239; }
 </style>
 </head>
 <body>

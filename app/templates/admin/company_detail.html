@@ -5,20 +5,20 @@
 <div class="grid grid-cols-3 gap-4 mb-6">
   <div class="stat-muted p-5">
     <div class="text-xs text-ink-200">العملة</div>
-    <div class="text-2xl font-bold text-white">{{ company.base_currency|currency_ar }}</div>
+    <div class="text-2xl font-bold text-slate-900">{{ company.base_currency|currency_ar }}</div>
   </div>
   <div class="stat-muted p-5">
     <div class="text-xs text-ink-200">نسبة الضريبة</div>
-    <div class="text-2xl font-bold text-white">{{ company.vat_rate }}%</div>
+    <div class="text-2xl font-bold text-slate-900">{{ company.vat_rate }}%</div>
   </div>
   <div class="stat-muted p-5">
     <div class="text-xs text-ink-200">الحالة</div>
     {% set s = company.status or 'ACTIVE' %}
-    <div class="text-2xl font-bold {% if s=='ACTIVE' %}text-emerald-300{% elif s=='TRIAL' %}text-amber-300{% else %}text-rose-300{% endif %}">
+    <div class="text-2xl font-bold {% if s=='ACTIVE' %}text-emerald-700{% elif s=='TRIAL' %}text-amber-700{% else %}text-rose-700{% endif %}">
       {{ {'ACTIVE':'نشطة','TRIAL':'تجريبية','SUSPENDED':'موقوفة'}[s] }}
     </div>
     <div class="text-xs text-ink-200 mt-1">الباقة:
-      <span class="font-semibold text-white">{{ company.subscription_plan.name_ar if company.subscription_plan else (company.plan or 'FREE') }}</span>
+      <span class="font-semibold text-slate-900">{{ company.subscription_plan.name_ar if company.subscription_plan else (company.plan or 'FREE') }}</span>
     </div>
     {% if company.subscription_expires_at %}
     <div class="text-xs text-ink-200 mt-1">ينتهي: <span class="font-mono">{{ company.subscription_expires_at | company_dt('%Y-%m-%d') }}</span></div>
@@ -60,7 +60,7 @@
 
 <div class="grid grid-cols-2 gap-4">
   <div class="card p-5">
-    <h3 class="font-bold text-white mb-3">👥 المستخدمون ({{ company_users|length }})</h3>
+    <h3 class="font-bold text-slate-900 mb-3">👥 المستخدمون ({{ company_users|length }})</h3>
     <table class="data-table">
       <thead><tr><th>الاسم</th><th>البريد</th><th>الدور</th><th></th></tr></thead>
       <tbody>
@@ -88,7 +88,7 @@
        the role if they were already linked). If it's a new
        email, we mint an Invitation + send the accept email. #}
     <div class="mt-4 p-3 bg-white/5 rounded border border-white/10">
-      <div class="text-sm font-semibold text-white mb-2">
+      <div class="text-sm font-semibold text-slate-900 mb-2">
         ➕ ربط مستخدم جديد بالشركة
       </div>
       <form method="POST"
@@ -126,7 +126,7 @@
       <div>📅 محذوفة في:
         <span class="font-mono">{{ company.deleted_at | company_dt('%Y-%m-%d %H:%M') }}</span>
       </div>
-      <div>💬 السبب: <span class="text-white">{{ company.deletion_reason or '—' }}</span></div>
+      <div>💬 السبب: <span class="text-slate-900">{{ company.deletion_reason or '—' }}</span></div>
     </div>
     <div class="flex flex-wrap gap-2">
       <form method="POST" action="{{ url_for('superadmin.company_restore', company_id=company.id) }}"
@@ -143,7 +143,7 @@
       </form>
     </div>
     {% else %}
-    <h3 class="font-bold text-white mb-3">🗑 حذف الشركة</h3>
+    <h3 class="font-bold text-slate-900 mb-3">🗑 حذف الشركة</h3>
     <p class="text-xs text-ink-200 mb-3">
       الحذف الافتراضي soft delete — قابل للاستعادة. للحذف النهائي اكتب السبب وضغط على زر "حذف نهائي".
     </p>
@@ -158,7 +158,7 @@
   </div>
 
   <div class="card p-5">
-    <h3 class="font-bold text-white mb-3">📜 آخر النشاطات على هذه الشركة</h3>
+    <h3 class="font-bold text-slate-900 mb-3">📜 آخر النشاطات على هذه الشركة</h3>
     {% if recent_activity %}
     <table class="data-table">
       <thead><tr><th>الإجراء</th><th>الفاعل</th><th>الوقت</th></tr></thead>
