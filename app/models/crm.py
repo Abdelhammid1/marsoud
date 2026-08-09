@@ -465,6 +465,22 @@ class Task(db.Model):
                                      nullable=True, index=True)
     occurrence_index = db.Column(db.Integer, nullable=True)
 
+    # MARSOUD-PARENT-CHILD-TASK-HIERARCHY (2026-08-09) — optional
+    # parent. ondelete=SET NULL because subtasks become standalone
+    # root tasks when the parent is deleted, per ticket rule
+    # "subtasks retain all their data and history".
+    # Belt-and-braces: services/tasks_extras.py::delete_task_fully
+    # also explicitly NULLs children before deleting the parent, so
+    # SQLite (where PRAGMA foreign_keys defaults to OFF) doesn't
+    # leave dangling FKs.
+    parent_task_id = db.Column(
+        db.Integer,
+        db.ForeignKey("tasks.id",
+                       ondelete="SET NULL",
+                       name="fk_tasks_parent_task_id"),
+        nullable=True, index=True,
+    )
+
     company = db.relationship("Company")
     project = db.relationship("Project", foreign_keys=[project_id], backref="tasks")
     milestone = db.relationship("Milestone", foreign_keys=[milestone_id])
@@ -540,6 +556,22 @@ task_assignees = db.Table(
 Task.assignees = db.relationship(
     "User", secondary=task_assignees, lazy="select",
     foreign_keys=[task_assignees.c.task_id, task_assignees.c.user_id],
+)
+
+# MARSOUD-PARENT-CHILD-TASK-HIERARCHY (2026-08-09) — self-referential
+# parent/subtasks. Mirrors Account.parent / .children but adds
+# passive_deletes=True so the ondelete=SET NULL at the FK level +
+# the explicit UPDATE in delete_task_fully() are the authorities on
+# what happens to subtasks when a parent is removed. Ordering by
+# created_at gives the detail-page subtasks table a stable, meaningful
+# order (oldest → newest) rather than insertion-map order.
+Task.subtasks = db.relationship(
+    "Task",
+    backref=db.backref("parent", remote_side=[Task.id]),
+    foreign_keys=[Task.parent_task_id],
+    passive_deletes=True,
+    order_by=Task.created_at,
+    lazy="select",
 )
 
 
