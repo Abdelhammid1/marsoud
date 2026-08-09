@@ -191,8 +191,17 @@ def _():
         assert col in cols, f"column {col} missing"
     uqs = insp.get_unique_constraints("company_feature_overrides")
     uq_cols = {tuple(u["column_names"]) for u in uqs}
-    assert ("company_id", "feature_code") in uq_cols, (
-        "unique constraint on (company_id, feature_code) missing")
+    # MARSOUD-SUBITEM-OVERRIDES (2026-08-09) widened the unique
+    # from (company_id, feature_code) to (company_id, scope,
+    # feature_code) so a subitem row can coexist with a module
+    # row on the same feature name. Accept either shape — this
+    # test predates the widening and shouldn't false-red once
+    # the migration lands.
+    assert (
+        ("company_id", "feature_code") in uq_cols
+        or ("company_id", "scope", "feature_code") in uq_cols
+    ), (f"neither the old nor the widened unique present: "
+        f"{uq_cols}")
     # reason NOT NULL
     reason_col = next(c for c in insp.get_columns(
         "company_feature_overrides") if c["name"] == "reason")

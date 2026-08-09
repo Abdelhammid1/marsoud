@@ -1430,7 +1430,20 @@ def overrides_index():
     if request.method == "POST":
         try:
             company_id = int(request.form.get("company_id") or 0)
-            feature_code = (request.form.get("feature_code") or "").strip()
+            # MARSOUD-SUBITEM-OVERRIDES (2026-08-09) — the add-form
+            # ships two feature selects (module list + grouped
+            # subitem list) hidden/shown by the scope radio. Read
+            # whichever matches the submitted scope; default to
+            # MODULE for pre-ticket callers/bookmarks.
+            scope = (request.form.get("scope") or "MODULE").strip().upper()
+            if scope == "SUBITEM":
+                feature_code = (
+                    request.form.get("feature_code_subitem")
+                    or request.form.get("feature_code") or "").strip()
+            else:
+                feature_code = (
+                    request.form.get("feature_code_module")
+                    or request.form.get("feature_code") or "").strip()
             mode = (request.form.get("mode") or "").strip()
             reason = (request.form.get("reason") or "").strip()
             exp_raw = (request.form.get("expires_at") or "").strip()
@@ -1445,9 +1458,10 @@ def overrides_index():
             upsert_override(
                 company_id, feature_code, mode, reason,
                 expires_at=expires_at, actor_id=current_user.id,
+                scope=scope,
             )
             flash(
-                f"✅ تم تسجيل استثناء ({mode}) على الميزة {feature_code}",
+                f"✅ تم تسجيل استثناء ({mode}) على {feature_code}",
                 "success",
             )
         except ValueError as e:
@@ -1469,12 +1483,22 @@ def overrides_index():
     companies = Company.query.filter_by(is_active=True)\
         .order_by(Company.name).all()
     modules = all_modules()
+    # MARSOUD-SUBITEM-OVERRIDES (2026-08-09) — the subitem picker
+    # renders the same catalogue the /admin/plans editor uses,
+    # grouped by section so the admin scans by area (Sales,
+    # Inventory, HR, …) instead of a flat 40-item list.
+    from app.services.plan_gating import (
+        SUB_ITEM_CATALOG, SECTION_LABEL_AR,
+    )
+    subitems_by_section = list(SUB_ITEM_CATALOG.items())
     return render_template(
         "admin/overrides_index.html",
         rows=rows, companies=companies, modules=modules,
         filter_company_id=filter_company_id,
         filter_mode=filter_mode,
         filter_status=filter_status,
+        subitems_by_section=subitems_by_section,
+        section_labels=SECTION_LABEL_AR,
     )
 
 
