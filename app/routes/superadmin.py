@@ -1506,6 +1506,76 @@ def routes_index():
         module_codes=module_codes,
         filter_category=cat, filter_module=mod, filter_q=q,
     )
+# ─── MARSOUD-SUPERADMIN-CONTROL-01 T5 (2026-08-08) — quotas admin
+@bp.route("/quotas", methods=["GET"])
+@login_required
+@superadmin_required
+def quotas_index():
+    """One page: every plan's quotas (inline-editable per row) + a
+    consumption panel showing companies sorted by worst-percentage.
+    Ticket's mandate: super-admin sets limits from the panel + sees
+    who's near / over."""
+    from app.services.quotas import list_consumption
+    from app.models import (
+        KNOWN_QUOTA_TYPES, ENFORCEMENT_MODES, Quota,
+    )
+    plans = Plan.query.filter_by(is_active=True)\
+        .order_by(Plan.id).all()
+    # rows_by_plan[plan_id][quota_type] → Quota | None. Guarantees
+    # every plan renders all 4 quota rows (users / ai_tokens_month /
+    # storage_bytes / branches) even when a row hasn't been saved
+    # yet — the form shows "not set / save to create".
+    # Plan has no `quotas` relationship — query directly to avoid a
+    # per-plan lazy load surprise.
+    rows_by_plan = {}
+    for p in plans:
+        existing_rows = Quota.query.filter_by(plan_id=p.id).all()
+        existing = {q.quota_type: q for q in existing_rows}
+        rows_by_plan[p.id] = {
+            qt: existing.get(qt) for qt in KNOWN_QUOTA_TYPES
+        }
+    threshold = request.args.get("threshold", "0") or "0"
+    try:
+        threshold_i = max(0, int(threshold))
+    except (TypeError, ValueError):
+        threshold_i = 0
+    consumption = list_consumption(threshold_pct=threshold_i)
+    return render_template(
+        "admin/quotas_index.html",
+        plans=plans, rows_by_plan=rows_by_plan,
+        consumption=consumption,
+        enforcement_modes=ENFORCEMENT_MODES,
+        known_quota_types=KNOWN_QUOTA_TYPES,
+        threshold=threshold,
+    )
+
+
+@bp.route("/quotas/plan/<int:plan_id>/save", methods=["POST"])
+@login_required
+@superadmin_required
+def quotas_save(plan_id):
+    """Save one quota row (form-per-row pattern from
+    feature_flags.html). Refuses unknown quota_type / mode /
+    negative amount; flashes the Arabic error."""
+    from app.services.quotas import upsert_quota
+    plan = db.session.get(Plan, plan_id) or _404()
+    quota_type = (request.form.get("quota_type") or "").strip()
+    try:
+        price_raw = (request.form.get("price_per_extra_unit") or "").strip()
+        upsert_quota(
+            plan_id=plan.id,
+            quota_type=quota_type,
+            included_amount=request.form.get("included_amount") or 0,
+            enforcement_mode=(request.form.get("enforcement_mode")
+                              or "").strip(),
+            price_per_extra_unit=float(price_raw) if price_raw else None,
+            actor_id=current_user.id,
+        )
+        flash(f"💾 حُفظ حد {quota_type} على باقة {plan.name_ar}",
+              "success")
+    except (ValueError, TypeError) as e:
+        flash(f"خطأ: {e}", "error")
+    return redirect(url_for("superadmin.quotas_index"))
 
 
 # MARSOUD-CONSENT-AUDIT-LOG (Abdelhamid 2026-07-22) — cross-tenant
