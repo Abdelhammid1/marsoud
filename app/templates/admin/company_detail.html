@@ -70,6 +70,298 @@
   </form>
 </div>
 
+{# ═══ MARSOUD-SUPERADMIN-CONTROL-01 T6 (2026-08-08) — Company 360° ═══
+   Five read-only cards composed from app/services/company_360.py.
+   Order: subscription → usage → AI → modules → errors → then the
+   existing users / activity / delete grid below. Each card is
+   independent — if its composer failed the context var is None/[]
+   and the card renders an empty state. #}
+
+{# ── Subscription card ─────────────────────────────────────────── #}
+{% if subscription %}
+<div class="card p-5 mb-4">
+  <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+    <h3 class="font-bold text-slate-900">💳 حالة الاشتراك</h3>
+    <div class="flex items-center gap-2 flex-wrap">
+      {% set st = subscription.state %}
+      <span class="badge
+        {% if st == 'active' %}badge-ok
+        {% elif st == 'grace' %}badge-neutral
+        {% else %}badge-bad{% endif %}">
+        {% if st == 'active' %}نشط
+        {% elif st == 'grace' %}فترة سماح
+        {% else %}للقراءة فقط{% endif %}
+      </span>
+      {% if subscription.days_remaining is not none %}
+      <span class="badge badge-neutral">
+        {% if subscription.days_remaining >= 0 %}
+          متبقّي {{ subscription.days_remaining }} يوم
+        {% else %}
+          متأخر {{ -subscription.days_remaining }} يوم
+        {% endif %}
+      </span>
+      {% endif %}
+      {% if subscription.frequency %}
+      <span class="badge badge-neutral">{{ subscription.frequency }}</span>
+      {% endif %}
+      {% if subscription.price_lock %}
+      <span class="badge badge-neutral">🔒 سعر مثبّت</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
+    <div>
+      <div class="text-xs text-ink-200">تاريخ الانتهاء</div>
+      <div class="font-mono">
+        {{ subscription.expires_at | company_dt('%Y-%m-%d') if subscription.expires_at else '—' }}
+      </div>
+    </div>
+    <div>
+      <div class="text-xs text-ink-200">آخر يوم سماح</div>
+      <div class="font-mono">
+        {{ subscription.grace_end.strftime('%Y-%m-%d') if subscription.grace_end else '—' }}
+      </div>
+    </div>
+    <div>
+      <div class="text-xs text-ink-200">فاتورة SaaS التالية</div>
+      <div class="font-mono">
+        {% if subscription.next_billing_date %}
+          {{ subscription.next_billing_date.strftime('%Y-%m-%d') }}
+        {% else %}—{% endif %}
+      </div>
+    </div>
+    <div>
+      <div class="text-xs text-ink-200">فواتير SaaS مفتوحة</div>
+      <div class="font-mono">
+        {% if subscription.outstanding_saas_count > 0 %}
+          <span class="text-rose-600 font-bold">{{ subscription.outstanding_saas_count }}</span>
+          <a href="{{ url_for('superadmin.saas_index') }}"
+             class="text-xs text-emerald-700 hover:underline mr-2">
+            راجع →
+          </a>
+        {% else %}
+          <span class="text-emerald-600">0</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ── Quotas usage card ─────────────────────────────────────────── #}
+{% if usage_cards %}
+<div class="card p-5 mb-4">
+  <h3 class="font-bold text-slate-900 mb-3">📊 استهلاك الحدود</h3>
+  <table class="data-table w-full text-sm">
+    <thead>
+      <tr>
+        <th class="text-right">المورد</th>
+        <th class="text-right">الاستخدام</th>
+        <th class="text-right">الحد</th>
+        <th class="text-right">النسبة</th>
+        <th class="text-right">النمط</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in usage_cards %}
+      <tr>
+        <td class="font-semibold">{{ row.label_ar }}</td>
+        <td class="font-mono">{{ row.current }}</td>
+        <td class="font-mono">
+          {% if row.unset %}
+            <span class="text-ink-200">— غير محدود —</span>
+          {% elif row.unlimited %}
+            <span class="text-ink-200">∞</span>
+          {% else %}
+            {{ row.included }}
+          {% endif %}
+        </td>
+        <td>
+          {% if row.pct is none %}
+            <span class="text-ink-200 text-xs">—</span>
+          {% else %}
+            <span class="badge
+              {% if row.color == 'red' %}badge-bad
+              {% elif row.color == 'amber' %}badge-neutral
+              {% else %}badge-ok{% endif %}">
+              {{ '%.0f'|format(row.pct) }}%
+            </span>
+          {% endif %}
+        </td>
+        <td>
+          {% if row.enforcement_mode %}
+          <span class="badge badge-neutral text-xs">{{ row.enforcement_mode }}</span>
+          {% else %}
+          <span class="text-ink-200 text-xs">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ── AI usage card ─────────────────────────────────────────────── #}
+{% if ai_row %}
+<div class="card p-5 mb-4">
+  <div class="flex items-center justify-between mb-3">
+    <h3 class="font-bold text-slate-900">🤖 استهلاك الذكاء الاصطناعي</h3>
+    <a href="{{ url_for('superadmin.ai_usage') }}"
+       class="text-xs text-emerald-700 hover:underline">التقرير الكامل →</a>
+  </div>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+    <div>
+      <div class="text-xs text-ink-200">هذا الشهر</div>
+      <div class="font-mono">
+        {{ '{:,}'.format(ai_row.monthly_used) }}
+        {% if ai_row.monthly_unlimited %}
+          / <span class="text-ink-200">∞</span>
+        {% elif ai_row.monthly_limit %}
+          / {{ '{:,}'.format(ai_row.monthly_limit) }}
+        {% endif %}
+      </div>
+    </div>
+    <div>
+      <div class="text-xs text-ink-200">إجمالي المكالمات</div>
+      <div class="font-mono">{{ '{:,}'.format(ai_row.total_calls) }}</div>
+    </div>
+    <div>
+      <div class="text-xs text-ink-200">إدخال / إخراج</div>
+      <div class="font-mono text-xs">
+        {{ '{:,}'.format(ai_row.input_tokens) }} /
+        {{ '{:,}'.format(ai_row.output_tokens) }}
+      </div>
+    </div>
+    <div>
+      <div class="text-xs text-ink-200">تكلفة تقديرية (USD)</div>
+      <div class="font-mono">${{ '%.4f'|format(ai_row.est_cost_usd) }}</div>
+    </div>
+    <div class="col-span-2 md:col-span-4 text-xs text-ink-200">
+      آخر استخدام:
+      {% if ai_row.last_used_at %}
+        <span class="font-mono">{{ ai_row.last_used_at | company_dt('%Y-%m-%d %H:%M') }}</span>
+      {% else %}—{% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ── Modules matrix card ───────────────────────────────────────── #}
+{% if modules %}
+<div class="card p-5 mb-4">
+  <div class="flex items-center justify-between mb-3">
+    <h3 class="font-bold text-slate-900">🧩 الوحدات الفعّالة</h3>
+    <a href="{{ url_for('superadmin.feature_flags_index') }}"
+       class="text-xs text-emerald-700 hover:underline">
+      إدارة المفاتيح العامة →
+    </a>
+  </div>
+  <table class="data-table w-full text-sm">
+    <thead>
+      <tr>
+        <th class="text-right">الوحدة</th>
+        <th class="text-right">في الباقة</th>
+        <th class="text-right">المفتاح العام</th>
+        <th class="text-right">الوضع الفعّال</th>
+        <th class="text-right">السبب (لو معطّلة)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in modules %}
+      <tr>
+        <td class="font-semibold">{{ m.label_ar }}
+          <span class="text-[10px] text-ink-200 font-mono">({{ m.code }})</span>
+        </td>
+        <td>{{ '✅' if m.in_plan else '❌' }}</td>
+        <td>{{ '✅' if m.kill_switch_enabled else '🚫' }}</td>
+        <td>
+          <span class="badge
+            {% if m.effective %}badge-ok{% else %}badge-bad{% endif %}">
+            {{ 'مفعّل' if m.effective else 'معطّل' }}
+          </span>
+        </td>
+        <td class="text-xs text-ink-200">
+          {{ m.disabled_reason if m.disabled_reason else '' }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="text-[11px] text-ink-200 mt-3">
+    الجدول للعرض فقط. تحكّم لكل نقطة نهاية على مستوى الباقة يتم من
+    <a href="{{ url_for('superadmin.plans_index') }}"
+       class="text-emerald-700 hover:underline">إدارة الباقات</a>.
+  </p>
+</div>
+{% endif %}
+
+{# ── Errors preview card ───────────────────────────────────────── #}
+{% if errors is not none %}
+<div class="card p-5 mb-4">
+  <div class="flex items-center justify-between mb-3">
+    <h3 class="font-bold text-slate-900">🛑 آخر الأخطاء ({{ errors|length }})</h3>
+    <a href="{{ url_for('superadmin.errors_for_company', company_id=company.id) }}"
+       class="text-xs text-emerald-700 hover:underline">
+      كل الأخطاء →
+    </a>
+  </div>
+  {% if errors %}
+  <table class="data-table w-full text-sm">
+    <thead>
+      <tr>
+        <th class="text-right">الوقت</th>
+        <th class="text-right">الحالة</th>
+        <th class="text-right">المسار</th>
+        <th class="text-right">الرسالة</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in errors %}
+      <tr>
+        <td class="font-mono text-xs">
+          {{ e.created_at | company_dt('%Y-%m-%d %H:%M') }}
+        </td>
+        <td>
+          <span class="badge
+            {% if e.status_code and e.status_code >= 500 %}badge-bad
+            {% else %}badge-neutral{% endif %}">
+            {{ e.status_code or '—' }}
+          </span>
+        </td>
+        <td class="font-mono text-xs">{{ e.method or '' }} {{ e.route or '—' }}</td>
+        <td class="text-xs text-ink-200">
+          {{ (e.message or '')[:120] }}{% if e.message and e.message|length > 120 %}…{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-sm text-ink-200">لا توجد أخطاء مسجّلة. 🎉</div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# ── Owners chip strip ─────────────────────────────────────────── #}
+{% if owners is not none %}
+<div class="card p-4 mb-4">
+  <div class="flex items-center gap-2 flex-wrap">
+    <span class="text-sm font-semibold text-slate-900 ml-2">👑 المالكون:</span>
+    {% if owners %}
+      {% for o in owners %}
+      <span class="badge badge-neutral text-xs">
+        {{ o.full_name or o.email }}
+        <span class="text-ink-200 font-mono mr-1">· {{ o.email }}</span>
+      </span>
+      {% endfor %}
+    {% else %}
+      <span class="badge badge-bad text-xs">⚠️ لا يوجد مالك مسجّل لهذه الشركة</span>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 <div class="grid grid-cols-2 gap-4">
   <div class="card p-5">
     <h3 class="font-bold text-slate-900 mb-3">👥 المستخدمون ({{ company_users|length }})</h3>

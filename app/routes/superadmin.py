@@ -7,6 +7,7 @@ a PlatformAuditLog entry.
 from datetime import datetime
 from flask import (
     Blueprint, render_template, redirect, url_for, flash, request, session, g,
+    current_app,
 )
 from flask_login import current_user, login_required
 from sqlalchemy import or_
@@ -105,13 +106,44 @@ def company_detail(company_id):
     from app.services.permissions import ALL_ROLES, ROLE_LABELS_AR
     linkable_roles = [r for r in ALL_ROLES
                        if r not in ("client", "employee")]
+
+    # MARSOUD-SUPERADMIN-CONTROL-01 T6 (2026-08-08) — Company 360°.
+    # Compose the extra panels. Each composer is guarded so a
+    # crash in one section doesn't blank the whole page.
+    from app.services.company_360 import (
+        subscription_snapshot, usage_snapshot, ai_usage_row,
+        owners_of, module_matrix, errors_preview,
+    )
+
+    def _safe(fn, fallback):
+        try:
+            return fn()
+        except Exception:
+            current_app.logger.exception(
+                "company_360 composer failed for company_id=%s",
+                company_id)
+            return fallback
+
+    subscription = _safe(lambda: subscription_snapshot(company), None)
+    usage_cards = _safe(lambda: usage_snapshot(company), [])
+    ai_row = _safe(lambda: ai_usage_row(company), None)
+    owners = _safe(lambda: owners_of(company), [])
+    modules = _safe(lambda: module_matrix(company), [])
+    errors = _safe(lambda: errors_preview(company, limit=10), [])
+
     return render_template("admin/company_detail.html",
                            company=company,
                            company_users=company_users,
                            recent_activity=recent_activity,
                            plans=plans,
                            linkable_roles=linkable_roles,
-                           role_labels_ar=ROLE_LABELS_AR)
+                           role_labels_ar=ROLE_LABELS_AR,
+                           subscription=subscription,
+                           usage_cards=usage_cards,
+                           ai_row=ai_row,
+                           owners=owners,
+                           modules=modules,
+                           errors=errors)
 
 
 @bp.route("/companies/<int:company_id>/toggle", methods=["POST"])
@@ -1463,6 +1495,119 @@ def overrides_revoke(override_id):
         "superadmin.overrides_index",
         company_id=company_id,
     ))
+
+
+# ─── MARSOUD-SUPERADMIN-CONTROL-01 T8 (2026-08-08) — route coverage
+@bp.route("/routes")
+@login_required
+@superadmin_required
+def routes_index():
+    """Read-only viewer for the route coverage audit. Same data
+    the `flask audit-routes` CLI reports, filterable."""
+    from flask import current_app
+    from app.services.route_audit import build_coverage, summary
+    rows = build_coverage(current_app._get_current_object())
+    # Filters
+    cat = request.args.get("category") or ""
+    mod = request.args.get("module") or ""
+    q = (request.args.get("q") or "").strip().lower()
+
+    def _passes(r):
+        if cat:
+            if cat == "orphan":
+                if not r.is_orphan:
+                    return False
+            elif cat == "ignored":
+                if r.ignored_reason is None:
+                    return False
+            elif r.category != cat:
+                return False
+        if mod and r.module != mod:
+            return False
+        if q and q not in r.endpoint.lower() and q not in r.url_rule.lower():
+            return False
+        return True
+
+    filtered = [r for r in rows if _passes(r)]
+    # Module dropdown options — sorted unique
+    module_codes = sorted({r.module for r in rows if r.module})
+    return render_template(
+        "admin/routes_index.html",
+        rows=filtered,
+        summary=summary(current_app._get_current_object()),
+        module_codes=module_codes,
+        filter_category=cat, filter_module=mod, filter_q=q,
+    )
+# ─── MARSOUD-SUPERADMIN-CONTROL-01 T5 (2026-08-08) — quotas admin
+@bp.route("/quotas", methods=["GET"])
+@login_required
+@superadmin_required
+def quotas_index():
+    """One page: every plan's quotas (inline-editable per row) + a
+    consumption panel showing companies sorted by worst-percentage.
+    Ticket's mandate: super-admin sets limits from the panel + sees
+    who's near / over."""
+    from app.services.quotas import list_consumption
+    from app.models import (
+        KNOWN_QUOTA_TYPES, ENFORCEMENT_MODES, Quota,
+    )
+    plans = Plan.query.filter_by(is_active=True)\
+        .order_by(Plan.id).all()
+    # rows_by_plan[plan_id][quota_type] → Quota | None. Guarantees
+    # every plan renders all 4 quota rows (users / ai_tokens_month /
+    # storage_bytes / branches) even when a row hasn't been saved
+    # yet — the form shows "not set / save to create".
+    # Plan has no `quotas` relationship — query directly to avoid a
+    # per-plan lazy load surprise.
+    rows_by_plan = {}
+    for p in plans:
+        existing_rows = Quota.query.filter_by(plan_id=p.id).all()
+        existing = {q.quota_type: q for q in existing_rows}
+        rows_by_plan[p.id] = {
+            qt: existing.get(qt) for qt in KNOWN_QUOTA_TYPES
+        }
+    threshold = request.args.get("threshold", "0") or "0"
+    try:
+        threshold_i = max(0, int(threshold))
+    except (TypeError, ValueError):
+        threshold_i = 0
+    consumption = list_consumption(threshold_pct=threshold_i)
+    return render_template(
+        "admin/quotas_index.html",
+        plans=plans, rows_by_plan=rows_by_plan,
+        consumption=consumption,
+        enforcement_modes=ENFORCEMENT_MODES,
+        known_quota_types=KNOWN_QUOTA_TYPES,
+        threshold=threshold,
+    )
+
+
+@bp.route("/quotas/plan/<int:plan_id>/save", methods=["POST"])
+@login_required
+@superadmin_required
+def quotas_save(plan_id):
+    """Save one quota row (form-per-row pattern from
+    feature_flags.html). Refuses unknown quota_type / mode /
+    negative amount; flashes the Arabic error."""
+    from app.services.quotas import upsert_quota
+    plan = db.session.get(Plan, plan_id) or _404()
+    quota_type = (request.form.get("quota_type") or "").strip()
+    try:
+        price_raw = (request.form.get("price_per_extra_unit") or "").strip()
+        upsert_quota(
+            plan_id=plan.id,
+            quota_type=quota_type,
+            included_amount=request.form.get("included_amount") or 0,
+            enforcement_mode=(request.form.get("enforcement_mode")
+                              or "").strip(),
+            price_per_extra_unit=float(price_raw) if price_raw else None,
+            actor_id=current_user.id,
+        )
+        flash(f"💾 حُفظ حد {quota_type} على باقة {plan.name_ar}",
+              "success")
+    except (ValueError, TypeError) as e:
+        flash(f"خطأ: {e}", "error")
+    return redirect(url_for("superadmin.quotas_index"))
 
 
 # MARSOUD-CONSENT-AUDIT-LOG (Abdelhamid 2026-07-22) — cross-tenant

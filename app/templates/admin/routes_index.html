@@ -1,0 +1,146 @@
+{% extends "admin/base.html" %}
+{% block page_title %}تدقيق الروتس{% endblock %}
+{% block content %}
+
+<div class="mb-4">
+  <h2 class="text-2xl font-bold text-navy-900">🧭 تدقيق الروتس</h2>
+  <p class="text-sm text-slate-500 mt-1">
+    كل endpoint في النظام مصنّف. صفحة (page) لازم يبقى ليها لينك من template
+    أو entry في <code>route_audit_ignore.txt</code> بسبب واضح. الأمر
+    <code>flask audit-routes</code> بيمشي بنفس المنطق ويطلع non-zero على أي orphan.
+  </p>
+</div>
+
+{# ─── Summary cards ─────────────────────────────────────────────── #}
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+  <div class="card p-4">
+    <div class="text-xs text-slate-500 mb-1">مجموع الصفحات</div>
+    <div class="text-2xl font-bold text-navy-900">{{ summary.pages }}</div>
+  </div>
+  <div class="card p-4 {% if summary.orphans %}border-rose-300 bg-rose-50{% endif %}">
+    <div class="text-xs {% if summary.orphans %}text-rose-700{% else %}text-slate-500{% endif %} mb-1">
+      Orphans
+    </div>
+    <div class="text-2xl font-bold {% if summary.orphans %}text-rose-700{% else %}text-emerald-700{% endif %}">
+      {{ summary.orphans }}
+    </div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500 mb-1">مُستثناة (ignore file)</div>
+    <div class="text-2xl font-bold text-slate-700">{{ summary.ignored }}</div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500 mb-1">API / POST-only / Exempt</div>
+    <div class="text-lg font-bold text-slate-600">
+      {{ summary.api }} / {{ summary.post_only }} / {{ summary.exempt }}
+    </div>
+  </div>
+</div>
+
+{# ─── Filters ─────────────────────────────────────────────────── #}
+<form method="GET" class="card p-3 mb-4 flex flex-wrap gap-3 items-end">
+  <div>
+    <label class="block text-xs font-semibold text-slate-500 mb-1">التصنيف</label>
+    <select name="category" class="input text-sm"
+            onchange="this.form.submit()">
+      <option value="">— الكل —</option>
+      <option value="orphan" {% if filter_category == 'orphan' %}selected{% endif %}>Orphans فقط</option>
+      <option value="ignored" {% if filter_category == 'ignored' %}selected{% endif %}>مُستثناة</option>
+      <option value="page" {% if filter_category == 'page' %}selected{% endif %}>Page</option>
+      <option value="parametric_page" {% if filter_category == 'parametric_page' %}selected{% endif %}>Parametric page</option>
+      <option value="api" {% if filter_category == 'api' %}selected{% endif %}>API</option>
+      <option value="post_only" {% if filter_category == 'post_only' %}selected{% endif %}>POST-only</option>
+      <option value="exempt" {% if filter_category == 'exempt' %}selected{% endif %}>Exempt</option>
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold text-slate-500 mb-1">الموديول</label>
+    <select name="module" class="input text-sm" onchange="this.form.submit()">
+      <option value="">— الكل —</option>
+      {% for m in module_codes %}
+      <option value="{{ m }}" {% if filter_module == m %}selected{% endif %}>{{ m }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="flex-1 min-w-[200px]">
+    <label class="block text-xs font-semibold text-slate-500 mb-1">بحث (endpoint / URL)</label>
+    <input type="text" name="q" value="{{ filter_q }}" class="input text-sm w-full"
+           placeholder="مثال: invoices">
+  </div>
+  <div>
+    <button type="submit" class="btn-primary text-sm">🔍 تصفية</button>
+  </div>
+  {% if filter_category or filter_module or filter_q %}
+  <div>
+    <a href="{{ url_for('superadmin.routes_index') }}" class="btn-secondary text-sm">✕ مسح</a>
+  </div>
+  {% endif %}
+</form>
+
+{# ─── Table ────────────────────────────────────────────────────── #}
+<div class="card overflow-x-auto">
+  <table class="data-table w-full text-sm">
+    <thead>
+      <tr>
+        <th class="text-right">Endpoint</th>
+        <th class="text-right">URL</th>
+        <th class="text-right">Methods</th>
+        <th class="text-right">التصنيف</th>
+        <th class="text-right">الموديول</th>
+        <th class="text-right">Linked from</th>
+        <th class="text-right">Ignore reason</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr class="{% if r.is_orphan %}bg-rose-50{% endif %}">
+        <td class="font-mono text-xs">{{ r.endpoint }}</td>
+        <td class="font-mono text-xs text-slate-600">{{ r.url_rule }}</td>
+        <td class="text-xs">
+          {% for m in r.methods|sort %}
+          <span class="badge badge-neutral">{{ m }}</span>
+          {% endfor %}
+        </td>
+        <td>
+          {% if r.is_orphan %}
+          <span class="badge badge-overdue">⚠ orphan</span>
+          {% elif r.ignored_reason %}
+          <span class="badge badge-cancelled">ignored</span>
+          {% elif r.category == 'page' %}
+          <span class="badge badge-paid">page</span>
+          {% elif r.category == 'parametric_page' %}
+          <span class="badge badge-paid">page (<var>)</span>
+          {% elif r.category == 'api' %}
+          <span class="badge badge-sent">api</span>
+          {% elif r.category == 'post_only' %}
+          <span class="badge badge-neutral">POST-only</span>
+          {% else %}
+          <span class="badge badge-neutral">{{ r.category }}</span>
+          {% endif %}
+        </td>
+        <td class="text-xs text-slate-600">{{ r.module or '—' }}</td>
+        <td class="text-xs">
+          {% if r.linked_from %}
+          <span title="{{ '\n'.join(r.linked_from) }}">
+            {{ r.linked_from|length }} file{{ 's' if r.linked_from|length != 1 else '' }}
+          </span>
+          {% else %}
+          <span class="text-slate-400">—</span>
+          {% endif %}
+        </td>
+        <td class="text-xs text-slate-500 max-w-md">
+          {{ r.ignored_reason or '—' }}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7" class="text-center text-slate-400 py-8">
+          لا توجد نتائج للفلتر ده.
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}
