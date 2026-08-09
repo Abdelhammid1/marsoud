@@ -7,6 +7,8 @@ from app.models.plan import (
 from app.models.consent import ConsentEvent
 # MARSOUD-FEATURE-FLAGS-KILL-SWITCH (Abdelhamid 2026-07-22).
 from app.models.feature_flag import FeatureFlag
+# MARSOUD-SUPERADMIN-CONTROL-01 T4 (2026-08-08).
+from app.models.company_feature_override import CompanyFeatureOverride
 # MARSOUD-DISCOUNT-COUPONS (Abdelhamid 2026-07-22).
 from app.models.coupon import (
     Coupon, CouponRedemption,
@@ -211,7 +213,7 @@ __all__ = [
     "User", "user_companies", "UserStatus", "Company",
     "Plan", "PlanPrice", "SubscriptionReminderSent",
     "DEFAULT_CURRENCY", "PlatformSetting",
-    "ConsentEvent", "FeatureFlag",
+    "ConsentEvent", "FeatureFlag", "CompanyFeatureOverride",
     "Coupon", "CouponRedemption",
     "DISCOUNT_PERCENT", "DISCOUNT_FIXED",
     "Broadcast",
