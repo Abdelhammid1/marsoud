@@ -190,7 +190,10 @@ from app.models.agent_proposal import (
     PROPOSAL_STATUSES,
 )
 from app.models.numbering import NumberSequence
-from app.models.platform_audit import PlatformAuditLog, SuperadminImpersonation, PlatformError
+from app.models.platform_audit import (
+    PlatformAuditLog, SuperadminImpersonation, PlatformError,
+    PlatformCronRun,
+)
 from app.models.api_token import ApiToken
 from app.models.activity import UserSession, UserActivityLog, ACTION_TYPES, SESSION_STATUS
 from app.models.user_file import UserFile
@@ -203,6 +206,7 @@ from app.models.evaluation import (
 
 __all__ = [
     "PlatformAuditLog", "SuperadminImpersonation", "PlatformError",
+    "PlatformCronRun",
     "ApiToken",
     "UserFile",
     "EvaluationCycle", "EvaluationCyclePeriod", "EvaluationCycleStatus",

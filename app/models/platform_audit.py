@@ -47,6 +47,29 @@ class PlatformError(db.Model):
     user = db.relationship("User")
 
 
+class PlatformCronRun(db.Model):
+    """MARSOUD-SUPERADMIN-CONTROL-01 T11 (2026-08-08) — one row per
+    (job_name, tick), populated by @track_cron_job wrapper in
+    app/services/cron_tracking.py. Read by the ops-health page.
+
+    Retention: latest 1000 rows per job_name kept; older wiped by
+    the same tick's tail-trim. Rows are cheap (<200 bytes each) so
+    steady-state is ~4.6 MB even with every job tracked.
+    """
+    __tablename__ = "platform_cron_runs"
+    id = db.Column(db.Integer, primary_key=True)
+    job_name = db.Column(db.String(80), nullable=False, index=True)
+    started_at = db.Column(db.DateTime, default=datetime.utcnow,
+                            nullable=False, index=True)
+    finished_at = db.Column(db.DateTime, nullable=True)
+    # ok | error | running (only "running" while inside the ctx mgr)
+    status = db.Column(db.String(10), nullable=False, default="ok")
+    # Raw JSON string of whatever the job returned (dict / int / None).
+    summary_json = db.Column(db.Text, nullable=True)
+    # First 500 chars of exception when status='error'.
+    error_message = db.Column(db.Text, nullable=True)
+
+
 class SuperadminImpersonation(db.Model):
     __tablename__ = "superadmin_impersonations"
     id = db.Column(db.Integer, primary_key=True)
