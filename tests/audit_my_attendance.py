@@ -28,6 +28,11 @@ sys.path.insert(0, str(ROOT))
 
 from app import create_app, db
 
+# MARSOUD-4-BRANCH-REPAIR (2026-08-08) — refuse unscoped bulk
+# deletes on the attendance tables (prod-data-loss incident).
+import tests._audit_guard as _audit_guard  # noqa: E402
+_audit_guard.install()
+
 CHECKS = []
 PREFIX = "__MYATT_"
 _STATE = {}
@@ -126,12 +131,20 @@ def _teardown():
 
 
 def _reset():
+    # MARSOUD-4-BRANCH-REPAIR (2026-08-08) — was
+    #   AttendanceCheckin.query.delete()
+    #   AttendanceException.query.delete()
+    #   LatePermissionRequest.query.delete()
+    #   AttendanceViolationPolicy.query.delete()
+    # → wiped every tenant's attendance if run against a DB with
+    # real data. Scope the delete to the two fixture companies only.
     from app.models import (AttendanceCheckin, AttendanceException,
                             LatePermissionRequest, AttendanceViolationPolicy)
-    AttendanceCheckin.query.delete()
-    AttendanceException.query.delete()
-    LatePermissionRequest.query.delete()
-    AttendanceViolationPolicy.query.delete()
+    for _cid in (_STATE["cid_a"], _STATE["cid_b"]):
+        AttendanceCheckin.query.filter_by(company_id=_cid).delete()
+        AttendanceException.query.filter_by(company_id=_cid).delete()
+        LatePermissionRequest.query.filter_by(company_id=_cid).delete()
+        AttendanceViolationPolicy.query.filter_by(company_id=_cid).delete()
     db.session.commit()
 
 
