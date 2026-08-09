@@ -126,36 +126,64 @@ tailwind.config = {
       </div>
     </div>
     <nav class="flex-1 py-3 overflow-y-auto">
-      {% set links = [
-        ('superadmin.dashboard', 'النظرة العامة', '📊'),
-        ('superadmin.companies', 'الشركات', '🏢'),
-        ('superadmin.companies_inactive', 'الشركات غير النشطة', '🏚️'),
-        ('superadmin.users', 'المستخدمون', '👥'),
-        ('superadmin.plans_index', 'الباقات', '📦'),
-        ('superadmin.coupons_index', 'أكواد الخصم', '🎟️'),
-        ('superadmin.subscriptions_index', 'الاشتراكات', '⏰'),
-        ('superadmin.saas_index', 'فوترة SaaS', '💳'),
-        ('superadmin.subscription_settings', 'إعدادات الاشتراك', '⚙️'),
-        ('superadmin.broadcasts_index', 'الإشعارات الجماعية', '📢'),
-        ('superadmin.feature_flags_index', 'مفاتيح الميزات', '🚩'),
-        ('superadmin.ai_control', 'مركز التحكم في الذكاء الاصطناعي', '🧬'),
-        ('superadmin.ai_settings', 'إعدادات الذكاء الاصطناعي', '🧠'),
-        ('superadmin.consent_index', 'سجل الموافقات', '📋'),
-        ('superadmin.legal', 'المستندات القانونية', '⚖️'),
-        ('superadmin.help_index', 'مركز المساعدة', '❓'),
-        ('superadmin.audit', 'سجل النشاط', '📜'),
-        ('superadmin.errors_global', 'سجل الأخطاء', '🛑'),
-        ('superadmin.impersonations', 'سجل المعاينات', '👁️'),
-        ('superadmin.email_test', 'اختبار الإيميل', '📨'),
+      {# MARSOUD-SUPERADMIN-CONTROL-01 T10 (2026-08-08) — grouped
+         nav. 20 endpoints under 6 section headers so scanning is
+         6 targets, not 20. Order within each section matches the
+         legacy flat order. #}
+      {% set nav_sections = [
+        ('الشركات والمستخدمون', [
+          ('superadmin.dashboard',          'النظرة العامة',        '📊'),
+          ('superadmin.companies',          'الشركات',              '🏢'),
+          ('superadmin.companies_inactive', 'الشركات غير النشطة',  '🏚️'),
+          ('superadmin.users',              'المستخدمون',           '👥'),
+          ('superadmin.impersonations',     'سجل المعاينات',       '👁️'),
+        ]),
+        ('الاشتراكات والفوترة', [
+          ('superadmin.plans_index',           'الباقات',             '📦'),
+          ('superadmin.coupons_index',         'أكواد الخصم',        '🎟️'),
+          ('superadmin.subscriptions_index',   'الاشتراكات',          '⏰'),
+          ('superadmin.saas_index',            'فوترة SaaS',          '💳'),
+          ('superadmin.subscription_settings', 'إعدادات الاشتراك',  '⚙️'),
+        ]),
+        ('الميزات والذكاء الاصطناعي', [
+          ('superadmin.feature_flags_index', 'مفاتيح الميزات',        '🚩'),
+          ('superadmin.ai_control',          'مركز التحكم في الذكاء الاصطناعي', '🧬'),
+          ('superadmin.ai_usage',            'استهلاك الذكاء الاصطناعي', '🤖'),
+          ('superadmin.ai_settings',         'إعدادات الذكاء الاصطناعي', '🧠'),
+        ]),
+        ('الإشعارات والمحتوى', [
+          ('superadmin.broadcasts_index',    'الإشعارات الجماعية',   '📢'),
+          ('superadmin.consent_index',       'سجل الموافقات',        '📋'),
+          ('superadmin.legal',               'المستندات القانونية',  '⚖️'),
+          ('superadmin.help_index',          'مركز المساعدة',        '❓'),
+        ]),
+        ('المراقبة والسجلات', [
+          ('superadmin.audit',               'سجل النشاط',           '📜'),
+          ('superadmin.errors_global',       'سجل الأخطاء',          '🛑'),
+        ]),
+        ('أدوات', [
+          ('superadmin.email_test',          'اختبار الإيميل',      '📨'),
+        ]),
       ] %}
-      {% for endpoint, label, icon in links %}
-      {% set is_active = request.endpoint == endpoint %}
-      <a href="{{ url_for(endpoint) }}"
-         class="nav-link flex items-center gap-3 px-5 py-2.5 text-sm hover:bg-slate-100 transition-colors {% if is_active %}active{% endif %}">
-        <span class="text-base">{{ icon }}</span>
-        <span>{{ label }}</span>
-      </a>
+      {% for section_label, items in nav_sections %}
+        <div class="px-5 pt-3 pb-1 text-[10px] font-bold text-ink-200 uppercase tracking-wider">
+          {{ section_label }}
+        </div>
+        {% for endpoint, label, icon in items %}
+        <a href="{{ url_for(endpoint) }}"
+           class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-slate-100 transition-colors {% if request.endpoint == endpoint %}active{% endif %}">
+          <span class="text-base">{{ icon }}</span>
+          <span>{{ label }}</span>
+        </a>
+        {% endfor %}
       {% endfor %}
+      <div class="px-5 pt-4 pb-2 text-[10px] text-ink-200">
+        اضغط
+        <kbd class="px-1 py-0.5 rounded bg-slate-100 border font-mono">Ctrl</kbd>
+        +
+        <kbd class="px-1 py-0.5 rounded bg-slate-100 border font-mono">K</kbd>
+        للبحث السريع
+      </div>
     </nav>
     <div class="px-4 py-3 border-t border-slate-200">
       <a href="{{ url_for('dashboard.index') }}" class="block text-center text-xs text-ink-200 hover:text-emerald-700 py-1.5">← العودة للنظام</a>
@@ -190,5 +218,126 @@ tailwind.config = {
     <div class="p-8">{% block content %}{% endblock %}</div>
   </main>
 </div>
+
+{# ─── MARSOUD-SUPERADMIN-CONTROL-01 T10 — Ctrl+K palette overlay ─── #}
+<div id="ck-backdrop" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 hidden"
+     onclick="closeCK()"></div>
+<div id="ck-palette" class="fixed inset-x-0 top-24 z-50 hidden px-4">
+  <div class="mx-auto card p-0 shadow-2xl overflow-hidden" style="max-width: 640px;">
+    <div class="flex items-center gap-2 border-b border-slate-200 px-4">
+      <span class="text-slate-400">🔍</span>
+      <input id="ck-input" type="text" autocomplete="off"
+             placeholder="ابحث عن صفحة أو شركة أو مستخدم…"
+             class="flex-1 py-3 bg-transparent outline-none text-sm">
+      <kbd class="text-[10px] text-ink-200 px-1 border rounded font-mono">Esc</kbd>
+    </div>
+    <div id="ck-results" class="max-h-96 overflow-y-auto p-2 text-sm">
+      <div class="text-center text-ink-200 py-6">اكتب للبحث…</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const backdrop = document.getElementById('ck-backdrop');
+  const palette  = document.getElementById('ck-palette');
+  const input    = document.getElementById('ck-input');
+  const results  = document.getElementById('ck-results');
+  let items = [];        // flat list of {url, ...}
+  let idx = 0;
+  let debounce = null;
+
+  function openCK() {
+    backdrop.classList.remove('hidden');
+    palette.classList.remove('hidden');
+    input.value = '';
+    idx = 0;
+    fetchResults('');
+    setTimeout(() => input.focus(), 0);
+  }
+  function closeCK() {
+    backdrop.classList.add('hidden');
+    palette.classList.add('hidden');
+  }
+  window.closeCK = closeCK;
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g,
+      c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+  }
+  function highlight() {
+    const nodes = results.querySelectorAll('.ck-item');
+    nodes.forEach((n, i) => {
+      n.classList.toggle('bg-emerald-50', i === idx);
+    });
+    const cur = nodes[idx];
+    if (cur) cur.scrollIntoView({block: 'nearest'});
+  }
+
+  function fetchResults(q) {
+    fetch('/admin/nav-search.json?q=' + encodeURIComponent(q))
+      .then(r => r.json())
+      .then(data => {
+        items = [];
+        let html = '';
+        for (const g of (data.groups || [])) {
+          html += '<div class="px-2 pt-2 pb-1 text-[10px] font-bold text-ink-200 uppercase">'
+               + escapeHtml(g.title) + '</div>';
+          for (const it of g.items) {
+            const i = items.length;
+            html += '<a href="' + escapeHtml(it.url) + '" data-i="' + i + '"'
+                 + ' class="ck-item flex items-center gap-3 px-3 py-2 rounded hover:bg-slate-100">'
+                 + '<span>' + (it.icon || '') + '</span>'
+                 + '<span class="flex-1">' + escapeHtml(it.label) + '</span>'
+                 + (it.hint ? '<span class="text-xs text-ink-200 font-mono">'
+                              + escapeHtml(it.hint) + '</span>' : '')
+                 + '</a>';
+            items.push(it);
+          }
+        }
+        if (!items.length) {
+          html = '<div class="text-center text-ink-200 py-6">لا نتائج.</div>';
+        }
+        results.innerHTML = html;
+        idx = 0;
+        highlight();
+      })
+      .catch(() => {
+        results.innerHTML = '<div class="text-center text-rose-600 py-6">تعذّر البحث.</div>';
+      });
+  }
+
+  // Global keydown — Ctrl+K / Cmd+K opens, Esc closes.
+  document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      openCK();
+    } else if (e.key === 'Escape' && !palette.classList.contains('hidden')) {
+      closeCK();
+    }
+  });
+
+  // In-palette arrow / enter navigation.
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      idx = Math.min(items.length - 1, idx + 1);
+      highlight();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      idx = Math.max(0, idx - 1);
+      highlight();
+    } else if (e.key === 'Enter' && items[idx]) {
+      window.location.href = items[idx].url;
+    }
+  });
+
+  input.addEventListener('input', function() {
+    clearTimeout(debounce);
+    debounce = setTimeout(() => fetchResults(input.value.trim()), 150);
+  });
+})();
+</script>
+
 </body>
 </html>
