@@ -29,6 +29,12 @@ sys.path.insert(0, str(ROOT))
 
 from app import create_app, db
 
+_ORIG_CREATE_APP = create_app
+def create_app(*a, **kw):
+    app = _ORIG_CREATE_APP(*a, **kw)
+    app.config["SESSION_COOKIE_DOMAIN"] = None
+    return app
+
 CHECKS = []
 PREFIX = "__TASKHIER_"
 _STATE = {}
@@ -54,7 +60,7 @@ def _setup():
     if not plan:
         plan = Plan(code="__taskhier__", name="TASKHIER",
                     name_ar="TASKHIER", allowed_subitems=None)
-        plan.set_modules(["tasks", "projects", "settings"])
+        plan.set_modules(["tasks", "projects", "settings", "crm"])
         db.session.add(plan); db.session.flush()
 
     home = Company(name=f"{PREFIX}HOME", base_currency="SAR",
@@ -69,11 +75,16 @@ def _setup():
     ensure_roles_ready_for_company(home.id)
     ensure_roles_ready_for_company(other.id)
 
+    from app.services.legal import get_terms_version
+    from datetime import datetime
     u = User(email=f"{PREFIX}u@audit.local",
              password_hash=generate_password_hash(
                  "x", method="pbkdf2:sha256"),
-             full_name="taskhier user", is_active=True)
+             full_name="taskhier user", is_active=True,
+             terms_version=get_terms_version(),
+             terms_accepted_at=datetime.utcnow())
     db.session.add(u); db.session.flush()
+    _STATE["user_id"] = u.id
     db.session.execute(user_companies.insert().values(
         user_id=u.id, company_id=home.id, role="owner"))
     db.session.commit()
