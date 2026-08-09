@@ -1,60 +1,305 @@
 {% extends "admin/base.html" %}
-{% block page_title %}الباقات{% endblock %}
+{% block page_title %}📦 الباقات{% endblock %}
 {% block content %}
+{# MARSOUD-SUPERADMIN-CONTROL-01 T3 (2026-08-08) — two-pane builder.
+   RTL layout: right pane (aside) is the plan list; left pane
+   (3/4) is the detail form. Selection via ?plan_id=<id|new>. No
+   client JS — server-rendered form pre-fill is instant at ~20 plans. #}
 
-<div class="card p-6 mb-4">
-  <div class="flex items-center justify-between mb-4">
-    <h2 class="font-bold text-navy-900">📦 الباقات التجارية</h2>
-    <a href="{{ url_for('superadmin.plans_new') }}" class="btn-primary text-sm">+ باقة جديدة</a>
-  </div>
-  <p class="text-sm text-slate-500 mb-4">
-    كل باقة بتفتح أقسام معيّنة من النظام (modules). الشركة المرتبطة
-    بالباقة بتشوف الأقسام دي فقط مهما كان دور المستخدم. الباقة بتشتغل
-    طبقة فوق نظام الأدوار — مش بتلغيه.
-  </p>
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
 
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-    {% for p in plans %}
-    <div class="rounded-xl border border-slate-200 p-5 bg-white hover:shadow-soft transition">
-      <div class="flex items-start justify-between mb-2">
-        <div>
-          <div class="text-lg font-bold text-navy-900">{{ p.name_ar }}</div>
-          <div class="text-xs text-slate-500 font-mono">{{ p.code }}</div>
-        </div>
-        <span class="badge {% if p.is_active %}badge-paid{% else %}badge-cancelled{% endif %} text-xs">
-          {% if p.is_active %}نشطة{% else %}موقوفة{% endif %}
-        </span>
+  {# ═══ Left pane: builder form (3 cols) ═══════════════════ #}
+  <div class="lg:col-span-3 space-y-4">
+    {% if mode == 'empty' %}
+      <div class="card p-6 text-center text-ink-200">
+        لا توجد باقة محدّدة.
+        <a href="?plan_id=new" class="text-emerald-700 hover:underline">
+          أنشئ باقة جديدة →
+        </a>
       </div>
-      {% if p.description %}<p class="text-xs text-slate-600 mb-3">{{ p.description }}</p>{% endif %}
+    {% else %}
+      <form method="POST"
+            action="{{ url_for('superadmin.plans_save') }}"
+            class="space-y-4">
+        <input type="hidden" name="plan_id"
+               value="{{ current.id if current else '' }}">
+        <input type="hidden" name="submit_subitems" value="1">
 
-      <div class="grid grid-cols-2 gap-2 mb-3">
-        <div class="text-center bg-slate-50 rounded-lg p-2">
-          <div class="text-[10px] text-slate-500">شهري</div>
-          <div class="font-bold font-mono text-emerald-700">{% if p.price_monthly %}{{ "%g"|format(p.price_monthly|float) }}{% else %}—{% endif %}</div>
-        </div>
-        <div class="text-center bg-slate-50 rounded-lg p-2">
-          <div class="text-[10px] text-slate-500">سنوي</div>
-          <div class="font-bold font-mono text-emerald-700">{% if p.price_yearly %}{{ "%g"|format(p.price_yearly|float) }}{% else %}—{% endif %}</div>
-        </div>
-      </div>
-
-      <div class="mb-3">
-        <div class="text-[10px] text-slate-500 mb-1">الأقسام المفتوحة</div>
-        <div class="flex flex-wrap gap-1">
-          {% for m in all_modules %}
-            {% if m in p.modules %}
-            <span class="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">✓ {{ module_labels.get(m, m) }}</span>
+        {# ── 📋 Identity ───────────────────────────────── #}
+        <div class="card p-5">
+          <h3 class="font-bold text-slate-900 mb-3">📋 المعلومات الأساسية</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-ink-200 mb-1">
+                الكود (إنجليزي، فريد)
+              </label>
+              <input type="text" name="code" required
+                     {% if current %}readonly{% endif %}
+                     value="{{ current.code if current else '' }}"
+                     class="input text-sm font-mono"
+                     placeholder="premium">
+              {% if current %}
+              <p class="text-[10px] text-ink-200 mt-1">
+                الكود ثابت بعد الإنشاء.
+              </p>
+              {% endif %}
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-ink-200 mb-1">
+                الاسم بالعربية
+              </label>
+              <input type="text" name="name_ar" required
+                     value="{{ current.name_ar if current else '' }}"
+                     class="input text-sm">
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-xs font-semibold text-ink-200 mb-1">
+                الاسم بالإنجليزية
+              </label>
+              <input type="text" name="name" required
+                     value="{{ current.name if current else '' }}"
+                     class="input text-sm">
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-xs font-semibold text-ink-200 mb-1">
+                الوصف
+              </label>
+              <textarea name="description" rows="2"
+                        class="input text-sm">{{ current.description if current else '' }}</textarea>
+            </div>
+            {% if current %}
+            <label class="md:col-span-2 flex items-center gap-2 text-sm">
+              <input type="checkbox" name="is_active" class="w-4 h-4"
+                     {% if current.is_active %}checked{% endif %}>
+              <span>نشطة (الشركات تقدر تتسند ليها)</span>
+            </label>
             {% endif %}
-          {% endfor %}
+          </div>
         </div>
-      </div>
 
-      <div class="flex items-center justify-between text-xs">
-        <span class="text-slate-500">الشركات: <strong class="text-navy-900">{{ counts.get(p.id, 0) }}</strong></span>
-        <a href="{{ url_for('superadmin.plans_edit', plan_id=p.id) }}" class="text-emerald-700 hover:underline">✎ تعديل</a>
+        {# ── 💰 Prices (EGP + SAR) ────────────────────── #}
+        <div class="card p-5">
+          <h3 class="font-bold text-slate-900 mb-3">💰 الأسعار</h3>
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-ink-200 mb-1">
+                شهري (جنيه)
+              </label>
+              <input type="number" name="price_monthly" step="0.01" min="0"
+                     value="{{ current.price_monthly if current and current.price_monthly else '' }}"
+                     class="input text-sm font-mono">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-ink-200 mb-1">
+                سنوي (جنيه)
+              </label>
+              <input type="number" name="price_yearly" step="0.01" min="0"
+                     value="{{ current.price_yearly if current and current.price_yearly else '' }}"
+                     class="input text-sm font-mono">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-ink-200 mb-1">
+                شهري (ريال) — اختياري
+              </label>
+              <input type="number" name="price_monthly_sar" step="0.01" min="0"
+                     value="{{ sar_price.price_monthly if sar_price and sar_price.price_monthly else '' }}"
+                     placeholder="fallback → EGP"
+                     class="input text-sm font-mono">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-ink-200 mb-1">
+                سنوي (ريال) — اختياري
+              </label>
+              <input type="number" name="price_yearly_sar" step="0.01" min="0"
+                     value="{{ sar_price.price_yearly if sar_price and sar_price.price_yearly else '' }}"
+                     placeholder="fallback → EGP"
+                     class="input text-sm font-mono">
+            </div>
+          </div>
+          <p class="text-[11px] text-ink-200 mt-2">
+            الجنيه هو العملة الأساسية. لو تركت الريال فارغ الرجوع للجنيه تلقائي.
+          </p>
+        </div>
+
+        {# ── 🧩 Modules ─────────────────────────────────── #}
+        <div class="card p-5">
+          <h3 class="font-bold text-slate-900 mb-3">🧩 الوحدات</h3>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 p-3 bg-slate-50 rounded">
+            {% set current_mods = current.modules if current else [] %}
+            {% for m in all_modules %}
+            <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white rounded p-2">
+              <input type="checkbox" name="modules" value="{{ m }}"
+                     class="w-4 h-4" {% if m in current_mods %}checked{% endif %}>
+              <span>{{ module_labels.get(m, m) }}</span>
+            </label>
+            {% endfor %}
+          </div>
+          <p class="text-[11px] text-ink-200 mt-2">
+            كل وحدة تتحكم في مجموعة صلاحيات. مثلاً "نقطة البيع" بيتحكم في POS + الشيفتات + تقارير الكاشير.
+          </p>
+        </div>
+
+        {# ── 🗂 Sub-items (nested details per section) ── #}
+        <div class="card p-5">
+          <h3 class="font-bold text-slate-900 mb-3">🗂 عناصر السايدبار</h3>
+          <p class="text-xs text-ink-200 mb-3">
+            💡 لو الوحدة الأم مش مفعّلة فوق، عناصرها هنا لا تظهر للشركة
+            حتى لو نشّطتها. اترك الكل بدون تحديد لأول مرة (NULL) ← كل
+            العناصر تظهر تلقائياً.
+          </p>
+          {% set current_items = current.subitems if current else None %}
+          <div class="space-y-3">
+            {% for section_key, items in sub_item_catalog.items() %}
+            <details class="bg-slate-50 rounded border border-slate-200" open>
+              <summary class="cursor-pointer p-3 font-semibold text-sm">
+                📂 {{ section_label_ar.get(section_key, section_key) }}
+                <span class="text-xs text-ink-200 font-normal">
+                  ({{ items|length }} عنصر
+                  {% set required = section_requires_modules.get(section_key, []) %}
+                  {% if required %}— يحتاج: {{ required|join(' / ') }}{% endif %})
+                </span>
+              </summary>
+              <div class="p-3 border-t border-slate-200 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {% for endpoint, label, icon in items %}
+                <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-white rounded p-2">
+                  <input type="checkbox" name="subitems" value="{{ endpoint }}"
+                         class="w-4 h-4"
+                         {% if current_items is none or endpoint in (current_items or []) %}checked{% endif %}>
+                  <span class="text-base">{{ icon }}</span>
+                  <span>{{ label }}</span>
+                </label>
+                {% endfor %}
+              </div>
+            </details>
+            {% endfor %}
+          </div>
+        </div>
+
+        {# ── 📏 Quotas (inline editor — T3's biggest add) ─── #}
+        <div class="card p-5">
+          <h3 class="font-bold text-slate-900 mb-3">📏 الحدود (Quotas)</h3>
+          <div class="overflow-x-auto">
+            <table class="data-table w-full text-sm">
+              <thead>
+                <tr>
+                  <th class="text-right">المورد</th>
+                  <th class="text-right">الكمية المسموحة</th>
+                  <th class="text-right">النمط</th>
+                  <th class="text-right">سعر الوحدة الإضافية</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for qt in known_quota_types %}
+                {% set q = current_quotas.get(qt) if current else none %}
+                <tr>
+                  <td class="font-mono text-xs">{{ qt }}</td>
+                  <td>
+                    <input type="number" name="included_{{ qt }}" min="0"
+                           value="{{ q.included_amount if q else '' }}"
+                           class="input text-sm font-mono">
+                  </td>
+                  <td>
+                    <select name="enforcement_{{ qt }}" class="select text-sm">
+                      <option value="">— اتركه —</option>
+                      {% for m in enforcement_modes %}
+                      <option value="{{ m }}"
+                        {% if q and q.enforcement_mode == m %}selected{% endif %}>
+                        {{ m }}
+                      </option>
+                      {% endfor %}
+                    </select>
+                  </td>
+                  <td>
+                    <input type="number" step="0.01" min="0"
+                           name="price_extra_{{ qt }}"
+                           value="{{ q.price_per_extra_unit if q and q.price_per_extra_unit else '' }}"
+                           placeholder="اختياري"
+                           class="input text-sm font-mono">
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <p class="text-[11px] text-ink-200 mt-2">
+            صف كامل فارغ = حذف الحد. <code>storage_bytes</code> بالبايت (1 GB = 1073741824).
+          </p>
+        </div>
+
+        <div class="flex justify-between items-center">
+          <button type="submit" class="btn btn-primary">💾 حفظ التغييرات</button>
+          {% if current %}
+          <a href="?plan_id={{ current.id }}"
+             class="text-xs text-ink-200 hover:text-slate-900">↻ إلغاء التغييرات</a>
+          {% endif %}
+        </div>
+      </form>
+
+      {# ── ⚠️ Danger zone (edit mode only) ─────────── #}
+      {% if current %}
+      <div class="card p-5 border-rose-300 bg-rose-50">
+        <h3 class="font-bold text-rose-900 mb-2">⚠️ حذف الباقة</h3>
+        {% set used = counts.get(current.id, 0) %}
+        {% set intended = intended_counts.get(current.id, 0) %}
+        {% if used or intended %}
+          <p class="text-sm text-rose-800">
+            هذه الباقة مربوطة بـ <b>{{ used }}</b> شركة
+            و <b>{{ intended }}</b> كنيّة اشتراك — لا يمكن حذفها.
+            انقل الشركات لباقة أخرى أولاً، أو أوقف الباقة من الأعلى.
+          </p>
+        {% else %}
+          <p class="text-sm text-rose-800 mb-3">
+            سيتم حذف الباقة + حدودها + أسعارها. تُنظَّف قوائم الكوبونات المرتبطة تلقائياً.
+          </p>
+          <form method="POST"
+                action="{{ url_for('superadmin.plans_delete', plan_id=current.id) }}"
+                onsubmit="return confirm('حذف الباقة {{ current.code }} بشكل نهائي؟');">
+            <button type="submit" class="btn btn-danger">🗑 حذف نهائي</button>
+          </form>
+        {% endif %}
       </div>
-    </div>
-    {% endfor %}
+      {% endif %}
+    {% endif %}
   </div>
+
+  {# ═══ Right pane: plan list (1 col, sticky) ═══════════════ #}
+  <aside class="lg:col-span-1">
+    <div class="card p-3 lg:sticky lg:top-24 space-y-2">
+      <a href="?plan_id=new"
+         class="btn btn-primary w-full justify-center text-sm">
+        ➕ باقة جديدة
+      </a>
+      <div class="text-[10px] font-bold text-ink-200 uppercase tracking-wider mt-3 mb-1">
+        كل الباقات ({{ plans|length }})
+      </div>
+      {% for p in plans %}
+      <a href="?plan_id={{ p.id }}"
+         class="block p-3 rounded border transition
+                {% if current and current.id == p.id %}
+                  border-emerald-500 bg-emerald-50
+                {% else %}
+                  border-slate-200 hover:bg-slate-50
+                {% endif %}">
+        <div class="flex items-center justify-between mb-1">
+          <div class="font-bold text-sm text-slate-900">
+            {{ p.name_ar or p.name }}
+          </div>
+          <span class="badge {% if p.is_active %}badge-ok{% else %}badge-neutral{% endif %} text-[10px]">
+            {{ 'نشطة' if p.is_active else 'موقوفة' }}
+          </span>
+        </div>
+        <div class="text-[11px] text-ink-200 font-mono">{{ p.code }}</div>
+        <div class="text-[11px] text-ink-200 mt-1">
+          🏢 {{ counts.get(p.id, 0) }} شركة ·
+          🕰 {{ intended_counts.get(p.id, 0) }} كنيّة
+        </div>
+      </a>
+      {% else %}
+      <div class="text-xs text-ink-200 text-center py-4">
+        لا توجد باقات بعد.
+      </div>
+      {% endfor %}
+    </div>
+  </aside>
 </div>
 {% endblock %}

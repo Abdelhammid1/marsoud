@@ -158,13 +158,22 @@ def can_access(endpoint, user, company):
 
 
 def _company_override(company, module_code):
-    """T4 hook (MARSOUD-SUPERADMIN-CONTROL-01 T4) — reads from the
-    future `company_feature_overrides` table. Returns "GRANT" /
-    "DENY" / None. Empty stub for T1+T2 so the decision chain has
-    the hook slot in the right place; T4 fills it in without
-    touching this file's flow.
-    """
-    return None
+    """MARSOUD-SUPERADMIN-CONTROL-01 T4 (2026-08-08) — reads the
+    company_feature_overrides table via a 60s TTL cache. Returns
+    "GRANT" / "DENY" / None.
+
+    The stub that used to live here (T1+T2) always returned None;
+    T4 wires it into the real table without touching any of the
+    `can_access` chain logic — the priority order is unchanged."""
+    if not company or not module_code:
+        return None
+    try:
+        from app.services.company_overrides import get_override
+        return get_override(company.id, module_code)
+    except Exception:
+        current_app.logger.exception(
+            "access._company_override lookup failed")
+        return None
 
 
 # ─── Sidebar builder (backend-owned) ─────────────────────────────────

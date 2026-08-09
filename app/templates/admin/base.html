@@ -15,6 +15,20 @@ tailwind.config = {
         ink: { 900: '#FFFFFF', 800: '#F8FAFC', 700: '#F0F7FF', 200: '#64748B' },
         crimson: { 400: '#059669', 500: '#047857', 600: '#065F46', 700: '#064E3B' },
         amber500: '#F59E0B',
+        // MARSOUD-SUPERADMIN-CONTROL-01 T9 (2026-08-08) — aliases so
+        // admin/*.html templates that reference navy/brand/sky
+        // (30+ call sites, none previously defined) now render with
+        // adequate contrast on the light body. Values mirror the
+        // tenant base.html palette so the two sides stay visually
+        // consistent when a user bounces between them.
+        navy:  { 700: '#1E3A8A', 800: '#1E293B', 900: '#0F172A' },
+        brand: { 500: '#059669', 600: '#047857', 700: '#065F46' },
+        sky:   { 100: '#F0F9FF', 300: '#7DD3FC', 700: '#0369A1',
+                 800: '#075985', 900: '#0C4A6E' },
+      },
+      boxShadow: {
+        // Used by plans_index.html hover state; previously undefined.
+        soft: '0 4px 20px rgba(15, 23, 42, 0.08)',
       },
     },
   },
@@ -31,31 +45,72 @@ tailwind.config = {
           border-radius: 16px; backdrop-filter: blur(8px); }
   .stat { background: linear-gradient(135deg, rgba(24,73,169,0.18), rgba(12,36,97,0.06));
           border: 1px solid rgba(24,73,169,0.25); border-radius: 18px; }
-  .stat-muted { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-                border-radius: 18px; }
-  .input, .select { background: rgba(255,255,255,0.06); color: #0F172A;
-                    border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;
+
+  /* ── MARSOUD-SUPERADMIN-CONTROL-01 T9 (2026-08-08) ────────
+     Every rule below either RESKINS a dark-theme relic for the
+     light body, or DEFINES a class name that admin templates
+     were already referencing but rendered without color. #} */
+
+  /* Stat tiles previously used rgba white-on-white → invisible. */
+  .stat-muted { background: #F8FAFC; border: 1px solid #E2E8F0;
+                border-radius: 18px; color: #0F172A; }
+
+  /* Form fields — same dark-theme relic; now proper light theme. */
+  .input, .select { background: #FFFFFF; color: #0F172A;
+                    border: 1px solid #CBD5E1; border-radius: 10px;
                     padding: 8px 12px; width: 100%; }
-  .input:focus, .select:focus { outline: none; border-color: #078FD2; }
-  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px;
-         border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
-  .btn-primary { background: linear-gradient(135deg, #1849A9, #0C2461); color: white; }
-  .btn-secondary { background: rgba(255,255,255,0.06); color: #0F172A;
-                   border: 1px solid rgba(255,255,255,0.12); }
-  .btn-danger { background: #FEE2E2; color: #B91C1C;
-                border: 1px solid rgba(225,29,72,0.4); }
-  .btn:hover { filter: brightness(1.1); }
+  .input:focus, .select:focus { outline: none; border-color: #059669;
+                                box-shadow: 0 0 0 3px rgba(5,150,105,0.15); }
+  textarea.input { min-height: 68px; resize: vertical; }
+  /* Some templates use .textarea (not .input) for their textareas —
+     alias so they render the same. */
+  .textarea { background: #FFFFFF; color: #0F172A;
+              border: 1px solid #CBD5E1; border-radius: 10px;
+              padding: 8px 12px; width: 100%; min-height: 68px;
+              resize: vertical; }
+
+  /* Buttons — 21 sites use `class="btn-primary"` bare (no `.btn`).
+     Inline the base rules on each variant so bare use renders the
+     same as compound `btn btn-primary`. */
+  .btn, .btn-primary, .btn-secondary, .btn-danger {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border-radius: 10px;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer; text-decoration: none;
+    transition: filter 0.15s;
+  }
+  .btn-primary   { background: linear-gradient(135deg, #1849A9, #0C2461);
+                   color: #FFFFFF; border: 0; }
+  .btn-secondary { background: #F1F5F9; color: #0F172A;
+                   border: 1px solid #E2E8F0; }
+  .btn-danger    { background: #FEE2E2; color: #B91C1C;
+                   border: 1px solid rgba(225,29,72,0.4); }
+  .btn:hover, .btn-primary:hover, .btn-secondary:hover,
+  .btn-danger:hover { filter: brightness(1.05); }
+
   .data-table { width: 100%; border-collapse: collapse; }
   .data-table th { text-align: right; font-weight: 600; font-size: 12px;
                    color: #64748B; padding: 10px 12px; border-bottom: 1px solid #E2E8F0; }
   .data-table td { padding: 12px; font-size: 13px; border-bottom: 1px solid #F1F5F9; }
   .nav-link.active { background: #ECFDF5; color: #047857;
                      border-right: 3px solid #059669; }
+
   .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px;
            font-size: 11px; font-weight: 600; }
   .badge-ok { background: #D1FAE5; color: #047857; }
   .badge-bad { background: #FEE2E2; color: #B91C1C; }
   .badge-neutral { background: #F1F5F9; color: #475569; }
+  /* Aliases + variants referenced by admin/subscriptions_index.html,
+     admin/plans_index.html, admin/coupons_index.html etc. Previously
+     rendered as bare pills (no color). */
+  .badge-paid      { background: #D1FAE5; color: #047857; }
+  .badge-cancelled { background: #F1F5F9; color: #475569; }
+  .badge-overdue   { background: #FEE2E2; color: #B91C1C; }
+  .badge-partial   { background: #FEF3C7; color: #92400E; }
+  .badge-amber     { background: #FEF3C7; color: #92400E; }
+  .badge-draft     { background: #E0E7FF; color: #3730A3; }
+  .badge-sent      { background: #DBEAFE; color: #1E40AF; }
+  .badge-refunded  { background: #FCE7F3; color: #9F1239; }
 </style>
 </head>
 <body>
@@ -71,36 +126,66 @@ tailwind.config = {
       </div>
     </div>
     <nav class="flex-1 py-3 overflow-y-auto">
-      {% set links = [
-        ('superadmin.dashboard', 'النظرة العامة', '📊'),
-        ('superadmin.companies', 'الشركات', '🏢'),
-        ('superadmin.companies_inactive', 'الشركات غير النشطة', '🏚️'),
-        ('superadmin.users', 'المستخدمون', '👥'),
-        ('superadmin.plans_index', 'الباقات', '📦'),
-        ('superadmin.coupons_index', 'أكواد الخصم', '🎟️'),
-        ('superadmin.subscriptions_index', 'الاشتراكات', '⏰'),
-        ('superadmin.saas_index', 'فوترة SaaS', '💳'),
-        ('superadmin.subscription_settings', 'إعدادات الاشتراك', '⚙️'),
-        ('superadmin.broadcasts_index', 'الإشعارات الجماعية', '📢'),
-        ('superadmin.feature_flags_index', 'مفاتيح الميزات', '🚩'),
-        ('superadmin.ai_usage', 'استهلاك الذكاء الاصطناعي', '🤖'),
-        ('superadmin.ai_settings', 'إعدادات الذكاء الاصطناعي', '🧠'),
-        ('superadmin.consent_index', 'سجل الموافقات', '📋'),
-        ('superadmin.legal', 'المستندات القانونية', '⚖️'),
-        ('superadmin.help_index', 'مركز المساعدة', '❓'),
-        ('superadmin.audit', 'سجل النشاط', '📜'),
-        ('superadmin.errors_global', 'سجل الأخطاء', '🛑'),
-        ('superadmin.impersonations', 'سجل المعاينات', '👁️'),
-        ('superadmin.email_test', 'اختبار الإيميل', '📨'),
+      {# MARSOUD-SUPERADMIN-CONTROL-01 T10 (2026-08-08) — grouped
+         nav. 20 endpoints under 6 section headers so scanning is
+         6 targets, not 20. Order within each section matches the
+         legacy flat order. #}
+      {% set nav_sections = [
+        ('الشركات والمستخدمون', [
+          ('superadmin.dashboard',          'النظرة العامة',        '📊'),
+          ('superadmin.companies',          'الشركات',              '🏢'),
+          ('superadmin.companies_inactive', 'الشركات غير النشطة',  '🏚️'),
+          ('superadmin.users',              'المستخدمون',           '👥'),
+          ('superadmin.impersonations',     'سجل المعاينات',       '👁️'),
+        ]),
+        ('الاشتراكات والفوترة', [
+          ('superadmin.plans_index',           'الباقات',             '📦'),
+          ('superadmin.coupons_index',         'أكواد الخصم',        '🎟️'),
+          ('superadmin.subscriptions_index',   'الاشتراكات',          '⏰'),
+          ('superadmin.saas_index',            'فوترة SaaS',          '💳'),
+          ('superadmin.subscription_settings', 'إعدادات الاشتراك',  '⚙️'),
+        ]),
+        ('الميزات والذكاء الاصطناعي', [
+          ('superadmin.feature_flags_index', 'مفاتيح الميزات',        '🚩'),
+          ('superadmin.overrides_index',     'استثناءات الشركات',    '🧩'),
+          ('superadmin.ai_control',          'مركز التحكم في الذكاء الاصطناعي', '🧬'),
+          ('superadmin.ai_usage',            'استهلاك الذكاء الاصطناعي', '🤖'),
+          ('superadmin.ai_settings',         'إعدادات الذكاء الاصطناعي', '🧠'),
+        ]),
+        ('الإشعارات والمحتوى', [
+          ('superadmin.broadcasts_index',    'الإشعارات الجماعية',   '📢'),
+          ('superadmin.consent_index',       'سجل الموافقات',        '📋'),
+          ('superadmin.legal',               'المستندات القانونية',  '⚖️'),
+          ('superadmin.help_index',          'مركز المساعدة',        '❓'),
+        ]),
+        ('المراقبة والسجلات', [
+          ('superadmin.ops_health',          'صحة المنصة',           '🩺'),
+          ('superadmin.audit',               'سجل النشاط',           '📜'),
+          ('superadmin.errors_global',       'سجل الأخطاء',          '🛑'),
+        ]),
+        ('أدوات', [
+          ('superadmin.email_test',          'اختبار الإيميل',      '📨'),
+        ]),
       ] %}
-      {% for endpoint, label, icon in links %}
-      {% set is_active = request.endpoint == endpoint %}
-      <a href="{{ url_for(endpoint) }}"
-         class="nav-link flex items-center gap-3 px-5 py-2.5 text-sm hover:bg-slate-100 transition-colors {% if is_active %}active{% endif %}">
-        <span class="text-base">{{ icon }}</span>
-        <span>{{ label }}</span>
-      </a>
+      {% for section_label, items in nav_sections %}
+        <div class="px-5 pt-3 pb-1 text-[10px] font-bold text-ink-200 uppercase tracking-wider">
+          {{ section_label }}
+        </div>
+        {% for endpoint, label, icon in items %}
+        <a href="{{ url_for(endpoint) }}"
+           class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-slate-100 transition-colors {% if request.endpoint == endpoint %}active{% endif %}">
+          <span class="text-base">{{ icon }}</span>
+          <span>{{ label }}</span>
+        </a>
+        {% endfor %}
       {% endfor %}
+      <div class="px-5 pt-4 pb-2 text-[10px] text-ink-200">
+        اضغط
+        <kbd class="px-1 py-0.5 rounded bg-slate-100 border font-mono">Ctrl</kbd>
+        +
+        <kbd class="px-1 py-0.5 rounded bg-slate-100 border font-mono">K</kbd>
+        للبحث السريع
+      </div>
     </nav>
     <div class="px-4 py-3 border-t border-slate-200">
       <a href="{{ url_for('dashboard.index') }}" class="block text-center text-xs text-ink-200 hover:text-emerald-700 py-1.5">← العودة للنظام</a>
@@ -135,5 +220,126 @@ tailwind.config = {
     <div class="p-8">{% block content %}{% endblock %}</div>
   </main>
 </div>
+
+{# ─── MARSOUD-SUPERADMIN-CONTROL-01 T10 — Ctrl+K palette overlay ─── #}
+<div id="ck-backdrop" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 hidden"
+     onclick="closeCK()"></div>
+<div id="ck-palette" class="fixed inset-x-0 top-24 z-50 hidden px-4">
+  <div class="mx-auto card p-0 shadow-2xl overflow-hidden" style="max-width: 640px;">
+    <div class="flex items-center gap-2 border-b border-slate-200 px-4">
+      <span class="text-slate-400">🔍</span>
+      <input id="ck-input" type="text" autocomplete="off"
+             placeholder="ابحث عن صفحة أو شركة أو مستخدم…"
+             class="flex-1 py-3 bg-transparent outline-none text-sm">
+      <kbd class="text-[10px] text-ink-200 px-1 border rounded font-mono">Esc</kbd>
+    </div>
+    <div id="ck-results" class="max-h-96 overflow-y-auto p-2 text-sm">
+      <div class="text-center text-ink-200 py-6">اكتب للبحث…</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const backdrop = document.getElementById('ck-backdrop');
+  const palette  = document.getElementById('ck-palette');
+  const input    = document.getElementById('ck-input');
+  const results  = document.getElementById('ck-results');
+  let items = [];        // flat list of {url, ...}
+  let idx = 0;
+  let debounce = null;
+
+  function openCK() {
+    backdrop.classList.remove('hidden');
+    palette.classList.remove('hidden');
+    input.value = '';
+    idx = 0;
+    fetchResults('');
+    setTimeout(() => input.focus(), 0);
+  }
+  function closeCK() {
+    backdrop.classList.add('hidden');
+    palette.classList.add('hidden');
+  }
+  window.closeCK = closeCK;
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g,
+      c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+  }
+  function highlight() {
+    const nodes = results.querySelectorAll('.ck-item');
+    nodes.forEach((n, i) => {
+      n.classList.toggle('bg-emerald-50', i === idx);
+    });
+    const cur = nodes[idx];
+    if (cur) cur.scrollIntoView({block: 'nearest'});
+  }
+
+  function fetchResults(q) {
+    fetch('/admin/nav-search.json?q=' + encodeURIComponent(q))
+      .then(r => r.json())
+      .then(data => {
+        items = [];
+        let html = '';
+        for (const g of (data.groups || [])) {
+          html += '<div class="px-2 pt-2 pb-1 text-[10px] font-bold text-ink-200 uppercase">'
+               + escapeHtml(g.title) + '</div>';
+          for (const it of g.items) {
+            const i = items.length;
+            html += '<a href="' + escapeHtml(it.url) + '" data-i="' + i + '"'
+                 + ' class="ck-item flex items-center gap-3 px-3 py-2 rounded hover:bg-slate-100">'
+                 + '<span>' + (it.icon || '') + '</span>'
+                 + '<span class="flex-1">' + escapeHtml(it.label) + '</span>'
+                 + (it.hint ? '<span class="text-xs text-ink-200 font-mono">'
+                              + escapeHtml(it.hint) + '</span>' : '')
+                 + '</a>';
+            items.push(it);
+          }
+        }
+        if (!items.length) {
+          html = '<div class="text-center text-ink-200 py-6">لا نتائج.</div>';
+        }
+        results.innerHTML = html;
+        idx = 0;
+        highlight();
+      })
+      .catch(() => {
+        results.innerHTML = '<div class="text-center text-rose-600 py-6">تعذّر البحث.</div>';
+      });
+  }
+
+  // Global keydown — Ctrl+K / Cmd+K opens, Esc closes.
+  document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      openCK();
+    } else if (e.key === 'Escape' && !palette.classList.contains('hidden')) {
+      closeCK();
+    }
+  });
+
+  // In-palette arrow / enter navigation.
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      idx = Math.min(items.length - 1, idx + 1);
+      highlight();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      idx = Math.max(0, idx - 1);
+      highlight();
+    } else if (e.key === 'Enter' && items[idx]) {
+      window.location.href = items[idx].url;
+    }
+  });
+
+  input.addEventListener('input', function() {
+    clearTimeout(debounce);
+    debounce = setTimeout(() => fetchResults(input.value.trim()), 150);
+  });
+})();
+</script>
+
 </body>
 </html>

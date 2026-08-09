@@ -1,0 +1,212 @@
+{% extends "admin/base.html" %}
+{% block page_title %}🩺 صحة المنصة{% endblock %}
+{% block content %}
+{# MARSOUD-SUPERADMIN-CONTROL-01 T11 — meta-refresh keeps the page
+   live without JS. 15s = every job's worst-case is a quarter
+   minute stale. #}
+<meta http-equiv="refresh" content="15">
+
+{# ── 🩺 Vitals ────────────────────────────────────────────────── #}
+{% if vitals %}
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+  <div class="stat-muted p-5">
+    <div class="text-xs text-ink-200">قاعدة البيانات</div>
+    <div class="text-2xl font-bold {% if vitals.db_ok %}text-emerald-300{% else %}text-rose-300{% endif %}">
+      {% if vitals.db_ok %}✅ نشطة{% else %}🚫 معطّلة{% endif %}
+    </div>
+  </div>
+  <div class="stat-muted p-5">
+    <div class="text-xs text-ink-200">إجمالي الصفوف</div>
+    <div class="text-2xl font-bold text-white font-mono">
+      {% if vitals.total_rows >= 0 %}{{ '{:,}'.format(vitals.total_rows) }}{% else %}—{% endif %}
+    </div>
+  </div>
+  <div class="stat-muted p-5">
+    <div class="text-xs text-ink-200">حجم القاعدة</div>
+    <div class="text-2xl font-bold text-white font-mono">
+      {% set mb = (vitals.db_bytes / 1048576.0) if vitals.db_bytes else 0 %}
+      {{ '%.1f'|format(mb) }} MB
+    </div>
+  </div>
+  <div class="stat-muted p-5">
+    <div class="text-xs text-ink-200">التوقيت الآن (UTC)</div>
+    <div class="text-lg font-bold text-white font-mono">
+      {{ vitals.now_utc.strftime('%Y-%m-%d %H:%M:%S') }}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ── 🛑 Errors last 24h ───────────────────────────────────────── #}
+<div class="card p-5 mb-4">
+  <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+    <div class="flex items-center gap-3">
+      <h3 class="font-bold text-slate-900">🛑 الأخطاء آخر {{ errors.hours }} ساعة</h3>
+      <span class="badge {% if errors.total > 0 %}badge-bad{% else %}badge-ok{% endif %}">
+        {{ errors.total }}
+      </span>
+    </div>
+    <a href="{{ url_for('superadmin.errors_global') }}"
+       class="text-xs text-emerald-700 hover:underline">المزيد →</a>
+  </div>
+
+  {% if errors.total > 0 %}
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+      <div class="text-xs text-ink-200 mb-2">أعلى المسارات:</div>
+      <table class="data-table w-full text-sm">
+        <thead><tr><th class="text-right">المسار</th><th class="text-right">العدد</th></tr></thead>
+        <tbody>
+          {% for route, n in errors.by_route %}
+          <tr>
+            <td class="font-mono text-xs">{{ route }}</td>
+            <td><span class="badge {% if n >= 5 %}badge-bad{% else %}badge-neutral{% endif %}">{{ n }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <div class="text-xs text-ink-200 mb-2">آخر الأخطاء:</div>
+      <table class="data-table w-full text-sm">
+        <thead><tr><th class="text-right">الوقت</th><th class="text-right">الحالة</th><th class="text-right">المسار</th></tr></thead>
+        <tbody>
+          {% for e in errors.newest %}
+          <tr>
+            <td class="font-mono text-xs">{{ e.created_at.strftime('%H:%M:%S') }}</td>
+            <td><span class="badge badge-bad">{{ e.status_code or '—' }}</span></td>
+            <td class="font-mono text-xs">{{ (e.route or '—')[:40] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="text-sm text-emerald-600">✅ لا أخطاء مسجّلة في هذه الفترة.</div>
+  {% endif %}
+</div>
+
+{# ── ⏰ Cron last runs ────────────────────────────────────────── #}
+<div class="card p-5 mb-4">
+  <h3 class="font-bold text-slate-900 mb-3">⏰ آخر تشغيل لكل مهمة</h3>
+  {% if cron %}
+  <table class="data-table w-full text-sm">
+    <thead>
+      <tr>
+        <th class="text-right">المهمة</th>
+        <th class="text-right">آخر بدء (UTC)</th>
+        <th class="text-right">المدة</th>
+        <th class="text-right">الحالة</th>
+        <th class="text-right">النتيجة / الخطأ</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in cron %}
+      {% set is_tick = r.job_name == '__tick__' %}
+      <tr {% if is_tick %}class="bg-slate-50 font-semibold"{% endif %}>
+        <td class="font-mono text-xs">
+          {% if is_tick %}🕰️ {% endif %}{{ r.job_name }}
+        </td>
+        <td class="font-mono text-xs">
+          {{ r.started_at.strftime('%Y-%m-%d %H:%M:%S') }}
+        </td>
+        <td class="font-mono text-xs">
+          {% if r.duration_ms is not none %}{{ r.duration_ms }} ms{% else %}—{% endif %}
+        </td>
+        <td>
+          {% if r.status == 'ok' %}
+            <span class="badge badge-ok">ok</span>
+          {% elif r.status == 'error' %}
+            <span class="badge badge-bad">error</span>
+          {% else %}
+            <span class="badge badge-neutral">{{ r.status }}</span>
+          {% endif %}
+        </td>
+        <td class="text-xs text-ink-200">
+          {% if r.error_message %}
+            <span class="text-rose-600">{{ r.error_message[:120] }}{% if r.error_message|length > 120 %}…{% endif %}</span>
+          {% elif r.summary %}
+            <span class="font-mono">{{ r.summary|string|truncate(120, True, '…') }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-sm text-ink-200">
+    لا يوجد سجل تشغيل بعد. شغّل <code>POST /cron/tick</code> لأول مرة
+    وستظهر الصفوف هنا.
+  </div>
+  {% endif %}
+  <p class="text-[11px] text-ink-200 mt-3">
+    نظام الصفوف: <span class="text-slate-900 font-semibold">التنفيذ متزامن — لا يوجد صف مهام</span>.
+  </p>
+</div>
+
+{# ── 💾 DB stats ──────────────────────────────────────────────── #}
+{% if db_stats %}
+<div class="card p-5 mb-4">
+  <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+    <h3 class="font-bold text-slate-900">💾 إحصائيات القاعدة</h3>
+    <div class="text-xs text-ink-200">
+      {{ db_stats.table_count }} جدول ·
+      {{ db_stats.page_count }} صفحة ×
+      {{ db_stats.page_size }} بايت =
+      <span class="font-mono">{{ '%.1f'|format(db_stats.total_bytes / 1048576.0) }} MB</span>
+    </div>
+  </div>
+  <table class="data-table w-full text-sm">
+    <thead><tr><th class="text-right">الجدول</th><th class="text-right">عدد الصفوف</th></tr></thead>
+    <tbody>
+      {% for name, n in db_stats.tables %}
+      <tr>
+        <td class="font-mono text-xs">{{ name }}</td>
+        <td class="font-mono">{{ '{:,}'.format(n) if n >= 0 else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ── 📜 Audit tail ────────────────────────────────────────────── #}
+<div class="card p-5 mb-4">
+  <div class="flex items-center justify-between mb-3">
+    <h3 class="font-bold text-slate-900">📜 آخر النشاطات (يُحدَّث كل 15 ثانية)</h3>
+    <a href="{{ url_for('superadmin.audit') }}"
+       class="text-xs text-emerald-700 hover:underline">المزيد →</a>
+  </div>
+  {% if audit %}
+  <table class="data-table w-full text-sm">
+    <thead>
+      <tr>
+        <th class="text-right">الوقت</th>
+        <th class="text-right">الإجراء</th>
+        <th class="text-right">الفاعل</th>
+        <th class="text-right">الهدف</th>
+        <th class="text-right">التفاصيل</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in audit %}
+      <tr>
+        <td class="font-mono text-xs">{{ a.created_at.strftime('%H:%M:%S') }}</td>
+        <td><span class="badge badge-neutral">{{ a.action }}</span></td>
+        <td class="text-ink-200 text-xs">{{ a.actor.email if a.actor else '—' }}</td>
+        <td class="text-ink-200 text-xs">
+          {% if a.target_company %}🏢 {{ a.target_company.name }}{% endif %}
+          {% if a.target_user %}👤 {{ a.target_user.email }}{% endif %}
+        </td>
+        <td class="text-ink-200 text-xs">{{ (a.details or '')[:80] }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-sm text-ink-200">لا يوجد نشاط في سجل التدقيق بعد.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

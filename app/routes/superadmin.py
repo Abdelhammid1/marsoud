@@ -595,6 +595,115 @@ def _404():
     abort(404)
 
 
+# ── MARSOUD-SUPERADMIN-CONTROL-01 T7 (2026-08-08) — AI Control Center ── #
+@bp.route("/ai-control", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def ai_control():
+    """Single hub for every AI knob: provider key status, model
+    routing per persona, fallback order, global caps (max_tokens
+    + kill switch), and a filterable turn log. Replaces the
+    sidebar entries for /admin/ai-usage + /admin/ai-settings;
+    those two URLs still work and link back here."""
+    from app.services.ai_control import (
+        providers_status, model_routing, fallback_order,
+        global_caps, turn_log,
+        set_fallback_order, set_max_tokens, set_globally_disabled,
+        set_model_routing, KNOWN_PROVIDERS,
+    )
+
+    if request.method == "POST":
+        section = (request.form.get("section") or "").strip()
+        try:
+            if section == "model_routing":
+                set_model_routing(
+                    persona=request.form.get("persona"),
+                    provider=request.form.get("provider"),
+                    model=(request.form.get("model") or "").strip(),
+                    actor_id=current_user.id)
+            elif section == "fallback":
+                raw = (request.form.get("order") or "").strip()
+                order = [x.strip() for x in raw.split(",") if x.strip()]
+                set_fallback_order(order, actor_id=current_user.id)
+            elif section == "max_tokens":
+                set_max_tokens(request.form.get("value") or 0,
+                                actor_id=current_user.id)
+            elif section == "kill_switch":
+                flag = (request.form.get("value") == "on")
+                set_globally_disabled(flag, actor_id=current_user.id)
+            else:
+                flash("قسم غير معروف", "error")
+                return redirect(url_for("superadmin.ai_control"))
+            flash("💾 تم حفظ الإعدادات", "success")
+        except ValueError as e:
+            flash(f"خطأ: {e}", "error")
+        return redirect(url_for("superadmin.ai_control"))
+
+    args = request.args
+
+    def _int_or_none(v):
+        return int(v) if (v or "").isdigit() else None
+
+    return render_template(
+        "admin/ai_control.html",
+        providers=providers_status(),
+        routing=model_routing(),
+        fallback=fallback_order(),
+        caps=global_caps(),
+        turns=turn_log(
+            company_id=_int_or_none(args.get("company_id")),
+            user_id=_int_or_none(args.get("user_id")),
+            provider=(args.get("provider") or None),
+            hours=int(args["hours"]) if args.get("hours", "").isdigit() else 24,
+        ),
+        turn_filters={k: v for k, v in args.items()},
+        KNOWN_PROVIDERS=KNOWN_PROVIDERS,
+    )
+# ── MARSOUD-SUPERADMIN-CONTROL-01 T10 (2026-08-08) — Ctrl+K palette ── #
+@bp.route("/nav-search.json")
+@login_required
+@superadmin_required
+def nav_search_json():
+    """Backing endpoint for the Ctrl+K palette overlay defined in
+    templates/admin/base.html. Returns grouped results (nav /
+    companies / users) filtered by ?q=…."""
+    from flask import jsonify
+    from app.services.nav_search import search_all
+    q = (request.args.get("q") or "").strip()
+    return jsonify(search_all(q))
+# ── MARSOUD-SUPERADMIN-CONTROL-01 T11 (2026-08-08) — Ops & Health ── #
+@bp.route("/ops-health")
+@login_required
+@superadmin_required
+def ops_health():
+    """Single-screen operational dashboard: vitals + errors 24h +
+    cron last-runs + DB stats + audit tail. Meta-refresh every
+    15s in the template. Each composer is guarded so a failure
+    in one card never blanks the page."""
+    from app.services.ops_health import (
+        system_vitals, errors_summary, cron_last_runs,
+        db_stats, audit_tail,
+    )
+
+    def _safe(fn, fb):
+        try:
+            return fn()
+        except Exception:
+            current_app.logger.exception("ops_health composer failed")
+            return fb
+
+    return render_template(
+        "admin/ops_health.html",
+        vitals=_safe(system_vitals, None),
+        errors=_safe(lambda: errors_summary(24),
+                      {"total": 0, "by_route": [], "by_status": [],
+                       "newest": [], "hours": 24}),
+        cron=_safe(cron_last_runs, []),
+        db_stats=_safe(db_stats, None),
+        audit=_safe(lambda: audit_tail(20), []),
+    )
+
+
 # ── MARSOUD-48: email diagnostic ─────────────────────────────────────────── #
 @bp.route("/email-test", methods=["GET", "POST"])
 @login_required
@@ -713,21 +822,9 @@ def _read_subitems_form():
     return request.form.getlist("subitems")
 
 
-@bp.route("/plans")
-@login_required
-@superadmin_required
-def plans_index():
-    plans = Plan.query.order_by(Plan.id).all()
-    counts = {p.id: Company.query.filter_by(plan_id=p.id).count() for p in plans}
-    return render_template("admin/plans_index.html",
-                           plans=plans, counts=counts,
-                           all_modules=ALL_MODULES,
-                           module_labels=MODULE_LABELS_AR)
-
-
 def _upsert_plan_price(plan, currency, monthly_raw, yearly_raw):
-    """MARSOUD-MULTI-CURRENCY-PRICING — helper used by plans_new /
-    plans_edit. Upserts a plan_prices row per currency. Empty inputs
+    """MARSOUD-MULTI-CURRENCY-PRICING — helper used by the plans
+    builder. Upserts a plan_prices row per currency. Empty inputs
     delete the row so the plan-price resolver falls back to legacy
     columns / other currencies cleanly."""
     from app.models import PlanPrice
@@ -748,93 +845,241 @@ def _upsert_plan_price(plan, currency, monthly_raw, yearly_raw):
     row.price_yearly = y_val
 
 
-@bp.route("/plans/new", methods=["GET", "POST"])
+def _upsert_plan_quota(plan, quota_type, *, included_raw,
+                        mode_raw, price_extra_raw):
+    """MARSOUD-SUPERADMIN-CONTROL-01 T3 (2026-08-08) — mirrors
+    _upsert_plan_price: all-blank row = delete; else validate +
+    upsert. Bad input is silently skipped (validation UX belongs
+    on T5's standalone editor; here the aim is idempotent whole-
+    form save)."""
+    from app.models import Quota, ENFORCEMENT_MODES
+    included = (included_raw or "").strip()
+    mode = (mode_raw or "").strip()
+    price_extra = (price_extra_raw or "").strip()
+
+    if not included and not mode and not price_extra:
+        Quota.query.filter_by(
+            plan_id=plan.id, quota_type=quota_type).delete()
+        return
+
+    try:
+        included_val = int(included) if included else 0
+    except ValueError:
+        return   # skip bad ints silently
+    if included_val < 0:
+        return
+    if mode and mode not in ENFORCEMENT_MODES:
+        return
+    try:
+        price_val = float(price_extra) if price_extra else None
+    except ValueError:
+        price_val = None
+
+    row = Quota.query.filter_by(
+        plan_id=plan.id, quota_type=quota_type).first()
+    if not row:
+        row = Quota(plan_id=plan.id, quota_type=quota_type)
+        db.session.add(row)
+    row.included_amount = included_val
+    if mode:
+        row.enforcement_mode = mode
+    row.price_per_extra_unit = price_val
+
+
+# ── MARSOUD-SUPERADMIN-CONTROL-01 T3 (2026-08-08) — Plan Builder ── #
+@bp.route("/plans", methods=["GET"])
+@login_required
+@superadmin_required
+def plans_index():
+    """Two-pane builder. Right-side (RTL) plan list; left-side
+    detail form for the selected plan. Selection via
+    ?plan_id=<id|new>; empty selects the first plan when any
+    exist. Same URL as before; old bookmarks stay live via the
+    plans_new / plans_edit redirects below."""
+    from app.services.plan_gating import (
+        SUB_ITEM_CATALOG, SECTION_LABEL_AR, SECTION_REQUIRES_MODULES,
+    )
+    from app.models import (
+        PlanPrice, Quota, KNOWN_QUOTA_TYPES, ENFORCEMENT_MODES,
+    )
+    plans = Plan.query.order_by(Plan.id).all()
+    counts = {p.id: Company.query.filter_by(plan_id=p.id).count()
+               for p in plans}
+    intended_counts = {
+        p.id: Company.query.filter_by(intended_plan_id=p.id).count()
+        for p in plans}
+
+    sel = (request.args.get("plan_id") or "").strip()
+    current = None
+    if sel == "new":
+        mode = "create"
+    elif sel.isdigit():
+        current = db.session.get(Plan, int(sel))
+        mode = "edit" if current else "empty"
+    elif plans:
+        current = plans[0]
+        mode = "edit"
+    else:
+        mode = "empty"
+
+    current_quotas = {qt: None for qt in KNOWN_QUOTA_TYPES}
+    sar_price = None
+    if current:
+        for q in Quota.query.filter_by(plan_id=current.id).all():
+            if q.quota_type in current_quotas:
+                current_quotas[q.quota_type] = q
+        sar_price = PlanPrice.query.filter_by(
+            plan_id=current.id, currency="SAR").first()
+
+    return render_template(
+        "admin/plans_index.html",
+        plans=plans, counts=counts,
+        intended_counts=intended_counts,
+        current=current, mode=mode,
+        current_quotas=current_quotas,
+        sar_price=sar_price,
+        all_modules=ALL_MODULES,
+        module_labels=MODULE_LABELS_AR,
+        sub_item_catalog=SUB_ITEM_CATALOG,
+        section_label_ar=SECTION_LABEL_AR,
+        section_requires_modules=SECTION_REQUIRES_MODULES,
+        known_quota_types=KNOWN_QUOTA_TYPES,
+        enforcement_modes=ENFORCEMENT_MODES,
+    )
+
+
+@bp.route("/plans/save", methods=["POST"])
+@login_required
+@superadmin_required
+def plans_save():
+    """Unified create + update. Reads hidden plan_id; blank ⇒
+    create. Handles identity + EGP/SAR prices + modules +
+    subitems + inline quotas in one transaction. Redirects to
+    the builder with the saved plan preselected."""
+    from app.models import KNOWN_QUOTA_TYPES
+    pid = (request.form.get("plan_id") or "").strip()
+    creating = not pid.isdigit()
+
+    if creating:
+        code = (request.form.get("code") or "").strip().lower()
+        if not code:
+            flash("الكود مطلوب", "error")
+            return redirect(url_for("superadmin.plans_index",
+                                     plan_id="new"))
+        if Plan.query.filter_by(code=code).first():
+            flash(f"الكود {code} مستخدم بالفعل", "error")
+            return redirect(url_for("superadmin.plans_index",
+                                     plan_id="new"))
+        p = Plan(code=code)
+        db.session.add(p)
+    else:
+        p = db.session.get(Plan, int(pid)) or _404()
+
+    # Identity
+    p.name = (request.form.get("name") or p.name or "").strip()
+    p.name_ar = (request.form.get("name_ar") or p.name_ar or "").strip()
+    p.description = (request.form.get("description") or "").strip() or None
+    if not creating:
+        p.is_active = (request.form.get("is_active") == "on")
+
+    # Legacy EGP columns (base currency).
+    def _num(name):
+        raw = (request.form.get(name) or "").strip()
+        try:
+            return float(raw) if raw else None
+        except ValueError:
+            return None
+    p.price_monthly = _num("price_monthly")
+    p.price_yearly = _num("price_yearly")
+
+    # Modules; subitems only when the form's explicit marker is
+    # present (else leave NULL = all-on legacy behaviour).
+    p.set_modules(request.form.getlist("modules"))
+    if request.form.get("submit_subitems") == "1":
+        p.set_subitems(_read_subitems_form())
+
+    db.session.flush()   # need p.id for child upserts
+
+    _upsert_plan_price(
+        p, "SAR",
+        request.form.get("price_monthly_sar"),
+        request.form.get("price_yearly_sar"))
+
+    for qt in KNOWN_QUOTA_TYPES:
+        _upsert_plan_quota(
+            p, qt,
+            included_raw=request.form.get(f"included_{qt}"),
+            mode_raw=request.form.get(f"enforcement_{qt}"),
+            price_extra_raw=request.form.get(f"price_extra_{qt}"),
+        )
+
+    db.session.commit()
+    log_platform_action(
+        "plan_create" if creating else "plan_edit",
+        actor_id=current_user.id,
+        details=f"code={p.code} name={p.name_ar or p.name}")
+    flash("💾 تم حفظ الباقة", "success")
+    return redirect(url_for("superadmin.plans_index",
+                             plan_id=p.id))
+
+
+@bp.route("/plans/<int:plan_id>/delete", methods=["POST"])
+@login_required
+@superadmin_required
+def plans_delete(plan_id):
+    """In-use guarded delete. Refuses when any company references
+    the plan (plan_id OR intended_plan_id). Scrubs coupon JSON,
+    wipes child Quota + PlanPrice rows (SQLite doesn't enforce
+    ondelete=CASCADE without PRAGMA foreign_keys=ON), then
+    removes the plan."""
+    from app.models import Coupon, Quota, PlanPrice
+    p = db.session.get(Plan, plan_id) or _404()
+    used_count = Company.query.filter_by(plan_id=p.id).count()
+    intended_count = Company.query.filter_by(
+        intended_plan_id=p.id).count()
+    if used_count or intended_count:
+        flash(
+            f"لا يمكن حذف الباقة — مربوطة بـ {used_count} شركة "
+            f"و {intended_count} كنيّة اشتراك. أوقف الباقة أو "
+            f"انقل الشركات لباقة أخرى أولاً.",
+            "error")
+        return redirect(url_for("superadmin.plans_index",
+                                 plan_id=p.id))
+
+    # Scrub coupon JSON — no FK to enforce this.
+    for c in Coupon.query.all():
+        ids = c.plan_ids or []
+        if p.id in ids:
+            c.set_plan_ids([i for i in ids if i != p.id])
+
+    Quota.query.filter_by(plan_id=p.id).delete()
+    PlanPrice.query.filter_by(plan_id=p.id).delete()
+
+    code = p.code
+    db.session.delete(p)
+    db.session.commit()
+    log_platform_action(
+        "plan_delete",
+        actor_id=current_user.id,
+        details=f"code={code}")
+    flash(f"🗑 تم حذف الباقة {code}", "success")
+    return redirect(url_for("superadmin.plans_index"))
+
+
+# Legacy URLs — old bookmarks / docs stay live via redirects.
+@bp.route("/plans/new", methods=["GET"])
 @login_required
 @superadmin_required
 def plans_new():
-    if request.method == "POST":
-        code = (request.form.get("code") or "").strip().lower()
-        if not code or Plan.query.filter_by(code=code).first():
-            flash("الكود مطلوب وفريد", "error")
-            return redirect(url_for("superadmin.plans_new"))
-        p = Plan(
-            code=code,
-            name_ar=(request.form.get("name_ar") or "").strip(),
-            name=(request.form.get("name") or "").strip(),
-            description=(request.form.get("description") or "").strip() or None,
-            price_monthly=float(request.form.get("price_monthly") or 0) or None,
-            price_yearly=float(request.form.get("price_yearly") or 0) or None,
-        )
-        p.set_modules(request.form.getlist("modules"))
-        # MARSOUD-58 — sub-item list. Form sends a submit_subitems=1 flag
-        # so we can distinguish "user opted to enable everything" (no
-        # checkboxes shown yet for a new plan) from "user unchecked all".
-        if request.form.get("submit_subitems") == "1":
-            p.set_subitems(_read_subitems_form())
-        db.session.add(p)
-        db.session.flush()
-        # MARSOUD-MULTI-CURRENCY-PRICING — accept SAR alongside EGP.
-        _upsert_plan_price(
-            p, "SAR",
-            request.form.get("price_monthly_sar"),
-            request.form.get("price_yearly_sar"))
-        db.session.commit()
-        log_platform_action("plan_create", details=f"code={code}",
-                            actor_id=current_user.id)
-        flash(f"تم إنشاء باقة: {p.name_ar}", "success")
-        return redirect(url_for("superadmin.plans_index"))
-    from app.services.plan_gating import (
-        SUB_ITEM_CATALOG, SECTION_LABEL_AR, SECTION_REQUIRES_MODULES,
-    )
-    return render_template("admin/plans_form.html", plan=None,
-                           all_modules=ALL_MODULES,
-                           module_labels=MODULE_LABELS_AR,
-                           sub_item_catalog=SUB_ITEM_CATALOG,
-                           section_label_ar=SECTION_LABEL_AR,
-                           section_requires_modules=SECTION_REQUIRES_MODULES)
+    return redirect(url_for("superadmin.plans_index", plan_id="new"))
 
 
-@bp.route("/plans/<int:plan_id>/edit", methods=["GET", "POST"])
+@bp.route("/plans/<int:plan_id>/edit", methods=["GET"])
 @login_required
 @superadmin_required
 def plans_edit(plan_id):
-    p = db.session.get(Plan, plan_id) or _404()
-    if request.method == "POST":
-        p.name_ar = (request.form.get("name_ar") or p.name_ar).strip()
-        p.name = (request.form.get("name") or p.name).strip()
-        p.description = (request.form.get("description") or "").strip() or None
-        p.price_monthly = float(request.form.get("price_monthly") or 0) or None
-        p.price_yearly = float(request.form.get("price_yearly") or 0) or None
-        p.is_active = request.form.get("is_active") == "on"
-        p.set_modules(request.form.getlist("modules"))
-        if request.form.get("submit_subitems") == "1":
-            p.set_subitems(_read_subitems_form())
-        # MARSOUD-MULTI-CURRENCY-PRICING — SAR is optional; empty
-        # inputs clean up the row so price_for falls back to EGP.
-        _upsert_plan_price(
-            p, "SAR",
-            request.form.get("price_monthly_sar"),
-            request.form.get("price_yearly_sar"))
-        db.session.commit()
-        log_platform_action("plan_edit", details=f"code={p.code}",
-                            actor_id=current_user.id)
-        flash(f"تم حفظ الباقة: {p.name_ar}", "success")
-        return redirect(url_for("superadmin.plans_index"))
-    from app.services.plan_gating import (
-        SUB_ITEM_CATALOG, SECTION_LABEL_AR, SECTION_REQUIRES_MODULES,
-    )
-    # MARSOUD-MULTI-CURRENCY-PRICING — SAR row (may be None on first
-    # visit) so the template can pre-fill the SAR inputs.
-    from app.models import PlanPrice
-    sar_price = PlanPrice.query.filter_by(
-        plan_id=p.id, currency="SAR").first()
-    return render_template("admin/plans_form.html", plan=p,
-                           sar_price=sar_price,
-                           all_modules=ALL_MODULES,
-                           module_labels=MODULE_LABELS_AR,
-                           sub_item_catalog=SUB_ITEM_CATALOG,
-                           section_label_ar=SECTION_LABEL_AR,
-                           section_requires_modules=SECTION_REQUIRES_MODULES)
+    return redirect(url_for("superadmin.plans_index",
+                             plan_id=plan_id))
 
 
 @bp.route("/companies/<int:company_id>/assign-plan", methods=["POST"])
@@ -1135,6 +1380,89 @@ def feature_flags_index():
         for m in modules
     ]
     return render_template("admin/feature_flags.html", rows=rows)
+
+
+# ─── MARSOUD-SUPERADMIN-CONTROL-01 T4 (2026-08-08) — company overrides
+@bp.route("/overrides", methods=["GET", "POST"])
+@login_required
+@superadmin_required
+def overrides_index():
+    """Central admin page for per-company feature grant/deny.
+    GET renders the table + add-form; POST creates a new override."""
+    from datetime import datetime
+    from app.services.company_overrides import (
+        upsert_override, list_all,
+    )
+    from app.services.feature_registry import all_modules
+
+    if request.method == "POST":
+        try:
+            company_id = int(request.form.get("company_id") or 0)
+            feature_code = (request.form.get("feature_code") or "").strip()
+            mode = (request.form.get("mode") or "").strip()
+            reason = (request.form.get("reason") or "").strip()
+            exp_raw = (request.form.get("expires_at") or "").strip()
+            expires_at = None
+            if exp_raw:
+                # HTML date input → YYYY-MM-DD. End-of-day so the
+                # override is active for the whole picked day.
+                expires_at = datetime.strptime(exp_raw, "%Y-%m-%d")
+                expires_at = expires_at.replace(hour=23, minute=59)
+            if not company_id:
+                raise ValueError("اختر الشركة")
+            upsert_override(
+                company_id, feature_code, mode, reason,
+                expires_at=expires_at, actor_id=current_user.id,
+            )
+            flash(
+                f"✅ تم تسجيل استثناء ({mode}) على الميزة {feature_code}",
+                "success",
+            )
+        except ValueError as e:
+            flash(str(e), "error")
+        return redirect(url_for(
+            "superadmin.overrides_index",
+            company_id=request.form.get("company_id") or None,
+        ))
+
+    # GET — build the filtered list.
+    filter_company_id = request.args.get("company_id", type=int)
+    filter_mode = request.args.get("mode") or None
+    filter_status = request.args.get("status") or "active"
+    rows = list_all(
+        company_id=filter_company_id, mode=filter_mode,
+        status=filter_status,
+    )
+    # For the add-form + filter selects.
+    companies = Company.query.filter_by(is_active=True)\
+        .order_by(Company.name).all()
+    modules = all_modules()
+    return render_template(
+        "admin/overrides_index.html",
+        rows=rows, companies=companies, modules=modules,
+        filter_company_id=filter_company_id,
+        filter_mode=filter_mode,
+        filter_status=filter_status,
+    )
+
+
+@bp.route("/overrides/<int:override_id>/revoke", methods=["POST"])
+@login_required
+@superadmin_required
+def overrides_revoke(override_id):
+    """Delete an override. Audit trail preserved in
+    platform_audit_logs via revoke_override's log call."""
+    from app.services.company_overrides import revoke_override
+    ok = revoke_override(override_id, actor_id=current_user.id)
+    flash("🗑️ تم إلغاء الاستثناء" if ok
+          else "الاستثناء غير موجود", "success" if ok else "error")
+    # Preserve the caller's filter — if they came from a
+    # per-company view, land back there.
+    company_id = request.args.get("company_id", type=int)
+    return redirect(url_for(
+        "superadmin.overrides_index",
+        company_id=company_id,
+    ))
 
 
 # MARSOUD-CONSENT-AUDIT-LOG (Abdelhamid 2026-07-22) — cross-tenant

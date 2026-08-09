@@ -7,6 +7,8 @@ from app.models.plan import (
 from app.models.consent import ConsentEvent
 # MARSOUD-FEATURE-FLAGS-KILL-SWITCH (Abdelhamid 2026-07-22).
 from app.models.feature_flag import FeatureFlag
+# MARSOUD-SUPERADMIN-CONTROL-01 T4 (2026-08-08).
+from app.models.company_feature_override import CompanyFeatureOverride
 # MARSOUD-DISCOUNT-COUPONS (Abdelhamid 2026-07-22).
 from app.models.coupon import (
     Coupon, CouponRedemption,
@@ -188,7 +190,10 @@ from app.models.agent_proposal import (
     PROPOSAL_STATUSES,
 )
 from app.models.numbering import NumberSequence
-from app.models.platform_audit import PlatformAuditLog, SuperadminImpersonation, PlatformError
+from app.models.platform_audit import (
+    PlatformAuditLog, SuperadminImpersonation, PlatformError,
+    PlatformCronRun,
+)
 from app.models.api_token import ApiToken
 from app.models.activity import UserSession, UserActivityLog, ACTION_TYPES, SESSION_STATUS
 from app.models.user_file import UserFile
@@ -201,6 +206,7 @@ from app.models.evaluation import (
 
 __all__ = [
     "PlatformAuditLog", "SuperadminImpersonation", "PlatformError",
+    "PlatformCronRun",
     "ApiToken",
     "UserFile",
     "EvaluationCycle", "EvaluationCyclePeriod", "EvaluationCycleStatus",
@@ -211,7 +217,7 @@ __all__ = [
     "User", "user_companies", "UserStatus", "Company",
     "Plan", "PlanPrice", "SubscriptionReminderSent",
     "DEFAULT_CURRENCY", "PlatformSetting",
-    "ConsentEvent", "FeatureFlag",
+    "ConsentEvent", "FeatureFlag", "CompanyFeatureOverride",
     "Coupon", "CouponRedemption",
     "DISCOUNT_PERCENT", "DISCOUNT_FIXED",
     "Broadcast",

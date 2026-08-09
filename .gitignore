@@ -40,3 +40,4 @@ instance/
 .env
 .env.*
 instance/
+migrations/versions/__pycache__/

@@ -1,0 +1,213 @@
+{% extends "admin/base.html" %}
+{% block page_title %}استثناءات الشركات{% endblock %}
+{% block content %}
+
+<div class="mb-4">
+  <h2 class="text-2xl font-bold text-navy-900">🧩 استثناءات الشركات</h2>
+  <p class="text-sm text-slate-500 mt-1">
+    منح أو منع أي ميزة لأي شركة، مؤقتاً أو دائماً — من غير ما تلمس الباقة.
+    الاستثناء ذو أولوية أعلى من الباقة، لكن مفاتيح الميزات العامة تظل مسيطرة.
+  </p>
+</div>
+
+{# ─── Add-form (collapsed by default) ────────────────────────────── #}
+<details class="card p-4 mb-4" {% if request.args.get('add') %}open{% endif %}>
+  <summary class="cursor-pointer font-semibold text-navy-900">
+    ➕ إضافة استثناء جديد
+  </summary>
+  <form method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">
+        الشركة
+      </label>
+      <select name="company_id" class="input w-full" required>
+        <option value="">— اختر شركة —</option>
+        {% for co in companies %}
+        <option value="{{ co.id }}"
+          {% if filter_company_id == co.id %}selected{% endif %}>
+          {{ co.name }} (#{{ co.id }})
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">
+        الميزة
+      </label>
+      <select name="feature_code" class="input w-full" required>
+        <option value="">— اختر ميزة —</option>
+        {% for m in modules %}
+        <option value="{{ m.code }}">
+          {{ m.icon }} {{ m.label_ar }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">
+        النوع
+      </label>
+      <div class="flex gap-4">
+        <label class="flex items-center gap-2">
+          <input type="radio" name="mode" value="GRANT" checked>
+          <span class="text-emerald-700 font-semibold">⚡ منح</span>
+        </label>
+        <label class="flex items-center gap-2">
+          <input type="radio" name="mode" value="DENY">
+          <span class="text-rose-700 font-semibold">🚫 منع</span>
+        </label>
+      </div>
+    </div>
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">
+        ينتهي في (اختياري)
+      </label>
+      <input type="date" name="expires_at" class="input w-full">
+      <p class="text-xs text-slate-400 mt-1">
+        اتركه فارغاً للاستثناء الدائم
+      </p>
+    </div>
+    <div class="md:col-span-2">
+      <label class="block text-sm font-semibold text-slate-700 mb-1">
+        السبب (إلزامي)
+      </label>
+      <textarea name="reason" class="input w-full" rows="2" required
+                placeholder="مثال: عرض تجربة لمدة أسبوعين، أو منع مؤقت بسبب نزاع الفوترة"></textarea>
+    </div>
+    <div class="md:col-span-2 flex justify-end">
+      <button type="submit" class="btn-primary">💾 حفظ الاستثناء</button>
+    </div>
+  </form>
+</details>
+
+{# ─── Filters ───────────────────────────────────────────────────── #}
+<form method="GET" class="card p-3 mb-4 flex flex-wrap gap-3 items-end">
+  <div>
+    <label class="block text-xs font-semibold text-slate-500 mb-1">
+      الشركة
+    </label>
+    <select name="company_id" class="input text-sm"
+            onchange="this.form.submit()">
+      <option value="">— كل الشركات —</option>
+      {% for co in companies %}
+      <option value="{{ co.id }}"
+        {% if filter_company_id == co.id %}selected{% endif %}>
+        {{ co.name }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold text-slate-500 mb-1">
+      النوع
+    </label>
+    <select name="mode" class="input text-sm" onchange="this.form.submit()">
+      <option value="">— الكل —</option>
+      <option value="GRANT" {% if filter_mode == 'GRANT' %}selected{% endif %}>
+        ⚡ منح
+      </option>
+      <option value="DENY" {% if filter_mode == 'DENY' %}selected{% endif %}>
+        🚫 منع
+      </option>
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs font-semibold text-slate-500 mb-1">
+      الحالة
+    </label>
+    <select name="status" class="input text-sm" onchange="this.form.submit()">
+      <option value="active"
+        {% if filter_status == 'active' %}selected{% endif %}>سارية</option>
+      <option value="expired"
+        {% if filter_status == 'expired' %}selected{% endif %}>منتهية</option>
+      <option value="all"
+        {% if filter_status == 'all' %}selected{% endif %}>الكل</option>
+    </select>
+  </div>
+  {% if filter_company_id or filter_mode or (filter_status and filter_status != 'active') %}
+  <div>
+    <a href="{{ url_for('superadmin.overrides_index') }}"
+       class="btn-secondary text-sm">✕ مسح الفلاتر</a>
+  </div>
+  {% endif %}
+</form>
+
+{# ─── Table ────────────────────────────────────────────────────── #}
+<div class="card overflow-x-auto">
+  <table class="data-table w-full text-sm">
+    <thead>
+      <tr>
+        <th class="text-right">الشركة</th>
+        <th class="text-right">الميزة</th>
+        <th class="text-right">النوع</th>
+        <th class="text-right">السبب</th>
+        <th class="text-right">ينتهي في</th>
+        <th class="text-right">أنشأه</th>
+        <th class="text-right">أُنشئ في</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>
+          <a href="{{ url_for('superadmin.company_detail', company_id=r.company_id) }}"
+             class="text-brand-600 hover:underline">
+            {{ r.company.name if r.company else '#' ~ r.company_id }}
+          </a>
+        </td>
+        <td class="font-mono text-xs">{{ r.feature_code }}</td>
+        <td>
+          {% if r.mode == 'GRANT' %}
+          <span class="badge badge-paid">⚡ منح</span>
+          {% else %}
+          <span class="badge badge-overdue">🚫 منع</span>
+          {% endif %}
+        </td>
+        <td class="max-w-xs text-slate-700">{{ r.reason }}</td>
+        <td>
+          {% if r.expires_at %}
+            {% if r.is_active %}
+            <span class="text-slate-600">{{ r.expires_at.strftime('%Y-%m-%d') }}</span>
+            {% else %}
+            <span class="text-rose-600 line-through">{{ r.expires_at.strftime('%Y-%m-%d') }}</span>
+            <span class="text-xs text-slate-400">(منتهية)</span>
+            {% endif %}
+          {% else %}
+            <span class="text-slate-400">— دائم —</span>
+          {% endif %}
+        </td>
+        <td class="text-xs text-slate-500">
+          {{ r.created_by.full_name if r.created_by else '—' }}
+        </td>
+        <td class="text-xs text-slate-500 font-mono">
+          {{ r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else '—' }}
+        </td>
+        <td>
+          <form method="POST"
+                action="{{ url_for('superadmin.overrides_revoke', override_id=r.id, company_id=filter_company_id) }}"
+                class="inline"
+                onsubmit="return confirm('حذف هذا الاستثناء؟');">
+            <button type="submit"
+                    class="text-xs text-rose-600 hover:underline">
+              🗑 حذف
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="8" class="text-center text-slate-400 py-8">
+          لا توجد استثناءات.
+          <a href="{{ url_for('superadmin.overrides_index', add=1) }}"
+             class="text-brand-600 hover:underline">
+            أضف واحداً الآن
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}
