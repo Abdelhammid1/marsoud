@@ -307,7 +307,15 @@ def endpoint_to_subitem(endpoint):
     if endpoint.startswith("inventory."):
         return "inventory.index"
     # Special-case HR: attendance has its own sub-item.
-    if endpoint == "hr.attendance" or endpoint.startswith("hr.attendance_"):
+    # MARSOUD-4-BRANCH-REPAIR (2026-08-08) — hr.employee_attendance_detail
+    # doesn't match the "hr.attendance_" prefix, so it fell through to
+    # hr.index. A tenant with hr.attendance in allowed_subitems but not
+    # hr.index would then 403 on the per-employee detail. Group all HR
+    # attendance-family endpoints (grid + per-employee detail) under the
+    # hr.attendance gate explicitly.
+    if (endpoint == "hr.attendance"
+            or endpoint.startswith("hr.attendance_")
+            or endpoint == "hr.employee_attendance_detail"):
         return "hr.attendance"
     if endpoint.startswith("hr."):
         return "hr.index"
