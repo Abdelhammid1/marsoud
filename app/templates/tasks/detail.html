@@ -1,6 +1,24 @@
 {% extends "base.html" %}
 {% block page_title %}{{ task.title }}{% endblock %}
 {% block content %}
+{# MARSOUD-PARENT-CHILD-TASK-HIERARCHY (2026-08-09) — breadcrumb
+   from root ancestor down to this task. Rendered only when the
+   task actually has a parent (breadcrumb length > 1 — the
+   single-entry list is just this task itself). Last crumb is
+   inert text; the others link. Home crumb takes the reader
+   back to /tasks so a deep chain doesn't trap them. #}
+{% if breadcrumb and breadcrumb|length > 1 %}
+<nav class="text-xs text-slate-500 mb-3 flex items-center gap-1 flex-wrap">
+  <a href="{{ url_for('tasks.index') }}" class="hover:text-emerald-700">المهام</a>
+  {% for crumb in breadcrumb[:-1] %}
+    <span class="text-slate-300">/</span>
+    <a href="{{ url_for('tasks.detail', task_id=crumb.id) }}"
+       class="hover:text-emerald-700">{{ crumb.title }}</a>
+  {% endfor %}
+  <span class="text-slate-300">/</span>
+  <span class="text-slate-900 font-semibold">{{ breadcrumb[-1].title }}</span>
+</nav>
+{% endif %}
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
   <div class="card p-6 md:col-span-2">
     <div class="flex flex-wrap items-start justify-between gap-2 mb-4">
@@ -11,6 +29,19 @@
           {% else %}<span class="text-amber-700">📌 مهمة مستقلة (بدون مشروع)</span>
           {% endif %}
         </div>
+        {# MARSOUD-PARENT-CHILD-TASK-HIERARCHY (2026-08-09) —
+           parent chip. Kept in the header block so a reader
+           spots the relationship the moment they open the
+           page (breadcrumb tells them the depth; the chip
+           gives them a one-click jump). #}
+        {% if parent %}
+        <div class="mt-2">
+          <a href="{{ url_for('tasks.detail', task_id=parent.id) }}"
+             class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-slate-100 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700">
+            🔗 مهمة أب: <span class="font-semibold">{{ parent.title }}</span>
+          </a>
+        </div>
+        {% endif %}
       </div>
       <div class="flex items-center gap-2 flex-wrap">
         <span class="badge {{ task.priority.badge_class }}">{{ task.priority.label_ar }}</span>
@@ -123,6 +154,61 @@
       {{ task.notes | linkify }}
     </div>
     {% endif %}
+
+    {# MARSOUD-PARENT-CHILD-TASK-HIERARCHY (2026-08-09) —
+       subtasks live BETWEEN Notes and Comments on purpose:
+       ticket rule "first-class task content, not a discussion
+       afterthought". Each row is a link to its own full task
+       page — a subtask is just a task with parent_task_id set,
+       same URL scheme, same permissions. The "+ إضافة مهمة
+       فرعية" link seeds ?parent_task_id=<id> so the form
+       pre-selects this task as parent. #}
+    <hr class="my-4">
+    <div id="subtasks">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-bold text-navy-900">
+          🧩 المهام الفرعية
+          <span class="text-xs text-slate-400 font-normal">({{ subtasks|length }})</span>
+        </h3>
+        {% if can_edit %}
+        <a href="{{ url_for('tasks.new',
+                             parent_task_id=task.id,
+                             return_to=request.full_path) }}"
+           class="text-emerald-700 hover:underline text-xs">
+          + إضافة مهمة فرعية
+        </a>
+        {% endif %}
+      </div>
+      {% if subtasks %}
+      <div class="overflow-x-auto">
+      <table class="data-table text-sm w-full">
+        <thead><tr>
+          <th class="text-right">العنوان</th>
+          <th class="text-right">الحالة</th>
+          <th class="text-right">الأولوية</th>
+          <th class="text-right">الموعد</th>
+        </tr></thead>
+        <tbody>
+          {% for st in subtasks %}
+          <tr>
+            <td>
+              <a href="{{ url_for('tasks.detail', task_id=st.id) }}"
+                 class="font-semibold text-navy-900 hover:text-emerald-700">
+                {{ st.title }}
+              </a>
+            </td>
+            <td><span class="badge {{ st.status.badge_class }}">{{ st.status.label_ar }}</span></td>
+            <td><span class="badge {{ st.priority.badge_class }}">{{ st.priority.label_ar }}</span></td>
+            <td class="font-mono text-xs">{{ st.deadline.isoformat() if st.deadline else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+      <div class="text-xs text-slate-400 py-3">لا توجد مهام فرعية بعد.</div>
+      {% endif %}
+    </div>
 
     <!-- ─── Comments ──────────────────────────────────────────────── -->
     <hr class="my-4">
