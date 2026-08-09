@@ -45,6 +45,17 @@
       <a href="{{ url_for('portal_emp.activity') }}" class="flex-1 text-center px-4 py-3 rounded-lg bg-slate-50 text-slate-700 font-semibold hover:bg-slate-100 transition">
         📜 سجل نشاطي
       </a>
+      {# MARSOUD-CUSTODY-NAV-01 (2026-08-09) — same link-to-own-page
+         pattern as attendance + activity above (NOT in-page anchors).
+         Reaches the custody screens for any user with an Employee
+         record; the 👤 dropdown in base.html has the same two links
+         for consistency. #}
+      <a href="{{ url_for('portal_emp.custody_list') }}" class="flex-1 text-center px-4 py-3 rounded-lg bg-slate-50 text-slate-700 font-semibold hover:bg-slate-100 transition">
+        💵 عهدتي النقدية
+      </a>
+      <a href="{{ url_for('portal_emp.items_list') }}" class="flex-1 text-center px-4 py-3 rounded-lg bg-slate-50 text-slate-700 font-semibold hover:bg-slate-100 transition">
+        📦 عهدي العينية
+      </a>
     </nav>
   </div>
 </div>

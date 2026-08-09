@@ -293,7 +293,16 @@ def _no_employee_record_response():
 @login_required
 def index():
     """MARSOUD-57.1 — keep /my/ working but redirect to the new unified
-    /my/account page so existing bookmarks + emails don't break."""
+    /my/account page so existing bookmarks + emails don't break.
+
+    MARSOUD-CUSTODY-NAV-01 (2026-08-09) — this route has NO template.
+    The old `portal_emp/index.html` (a quick-links hub for custody /
+    daily-reports) was deleted because this handler always redirects,
+    so the file never rendered — and its stale contents mis-led at
+    least one ticket into believing custody was already reachable from
+    the portal. Keep the route in place: it's a soft-redirect for
+    external bookmarks / emails linking to /my/ directly.
+    """
     return redirect(url_for("portal_emp.account"))
 
 
