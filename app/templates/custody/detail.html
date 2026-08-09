@@ -12,7 +12,7 @@
     <div class="text-2xl font-bold text-navy-900 font-mono">{{ "%.2f"|format(custody.amount_issued) }}</div>
     <div class="text-xs text-slate-500 mt-1">
       {{ custody.issued_on.isoformat() }}
-      {% if custody.entry %} · <a href="{{ url_for('journals.view_entry', entry_id=custody.entry.id) }}"
+      {% if custody.entry %} · <a href="{{ url_for('journals.view', entry_id=custody.entry.id) }}"
                                     class="text-brand-600 hover:underline">قيد #{{ custody.entry.number }}</a>{% endif %}
     </div>
   </div>
@@ -65,8 +65,7 @@
      (source_type=CASH_CUSTODY_SETTLEMENT). The upload route lives
      in the documents blueprint and is already wired to bounce back
      here on success. #}
-  {% from '_macros.html' import _noop with context if False %}
-  <table class="data-table mb-3">
+    <table class="data-table mb-3">
     <thead>
       <tr>
         <th>#</th><th>الحساب</th><th class="text-left">المبلغ</th>
