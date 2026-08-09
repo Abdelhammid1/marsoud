@@ -20,6 +20,7 @@ from app.services.roles import (
     set_role_permissions, assign_user_to_role, remove_user_from_role,
     roles_for_company, role_member_count, role_members,
     candidate_users_for_role, grouped_permissions,
+    effective_permission_ids,
     RoleError,
 )
 from app.services.permissions import require_permission
@@ -67,7 +68,11 @@ def index():
     members = []
     candidates = []
     selected_perm_ids = set()
-    groups = grouped_permissions()
+    # MARSOUD-ROLES-REFLECT-SCOPE (2026-08-09) — grouped_permissions
+    # now filters by the company's effective_modules so the owner
+    # only sees checkboxes for features their plan actually enables
+    # (plus 'settings' + _ALWAYS_READABLE which are always visible).
+    groups = grouped_permissions(g.active_company)
     if selected:
         members = role_members(selected)
         candidates = candidate_users_for_role(selected)
@@ -160,7 +165,14 @@ def role_permissions(role_id):
     role = _role_or_404(role_id)
     raw_ids = request.form.getlist("permission_id")
     try:
-        ids = [int(x) for x in raw_ids if x]
+        submitted = [int(x) for x in raw_ids if x]
+        # MARSOUD-ROLES-REFLECT-SCOPE (2026-08-09) — intersect with
+        # the effective set so a crafted POST (or a stale open tab
+        # from before a plan downgrade) can't grant a permission
+        # the roles-page filter hid. Silent drop: never break the
+        # owner mid-save with an error the UI didn't warn about.
+        allowed = effective_permission_ids(g.active_company)
+        ids = [i for i in submitted if i in allowed]
         set_role_permissions(role, ids)
         flash("تم حفظ الصلاحيات", "success")
     except (RoleError, ValueError) as e:

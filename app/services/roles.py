@@ -241,13 +241,52 @@ def candidate_users_for_role(role):
     return [db.session.get(User, r.user_id) for r in rows if r.user_id not in in_role]
 
 
-def grouped_permissions():
+def grouped_permissions(company=None):
     """Permissions grouped by group_ar for the UI matrix.
 
-    Returns: [(group_ar, [Permission, ...]), ...] in catalogue order.
+    MARSOUD-ROLES-REFLECT-SCOPE (2026-08-09) — when `company` is
+    given, drop any permission whose module isn't in that
+    company's effective_modules(). Rows for permissions with no
+    module mapping (e.g. 'users.manage', 'settings.*') stay
+    visible — they're never plan-gated so they must always be
+    configurable. Same for anything in _ALWAYS_READABLE
+    (legacy-data-readable rule already enforced at the action
+    level by plan_allows).
+
+    company=None keeps the old 'everything' behaviour so seed
+    scripts + audit fixtures that don't want filtering can still
+    call the bare form.
+
+    Returns: [(group_ar, [Permission, ...]), ...] in catalogue
+    order.
     """
     from collections import OrderedDict
+    from app.services.plan_gating import (
+        action_module, effective_modules, _ALWAYS_READABLE,
+    )
+    all_perms = Permission.query.order_by(Permission.id).all()
+    if company is None:
+        perms = all_perms
+    else:
+        modules_on = effective_modules(company)
+        perms = [
+            p for p in all_perms
+            if (p.code in _ALWAYS_READABLE
+                or action_module(p.code) is None
+                or action_module(p.code) in modules_on)
+        ]
     out = OrderedDict()
-    for p in Permission.query.order_by(Permission.id).all():
+    for p in perms:
         out.setdefault(p.group_ar, []).append(p)
     return list(out.items())
+
+
+def effective_permission_ids(company):
+    """MARSOUD-ROLES-REFLECT-SCOPE (2026-08-09) — set of
+    Permission.id values allowed for `company` right now (the
+    checkbox-visible set). The /settings/roles POST endpoint
+    intersects submitted ids with this so a crafted form can't
+    grant a permission the owner isn't allowed to see."""
+    return {p.id
+            for _, perms in grouped_permissions(company)
+            for p in perms}
