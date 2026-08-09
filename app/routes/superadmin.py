@@ -1465,6 +1465,49 @@ def overrides_revoke(override_id):
     ))
 
 
+# ─── MARSOUD-SUPERADMIN-CONTROL-01 T8 (2026-08-08) — route coverage
+@bp.route("/routes")
+@login_required
+@superadmin_required
+def routes_index():
+    """Read-only viewer for the route coverage audit. Same data
+    the `flask audit-routes` CLI reports, filterable."""
+    from flask import current_app
+    from app.services.route_audit import build_coverage, summary
+    rows = build_coverage(current_app._get_current_object())
+    # Filters
+    cat = request.args.get("category") or ""
+    mod = request.args.get("module") or ""
+    q = (request.args.get("q") or "").strip().lower()
+
+    def _passes(r):
+        if cat:
+            if cat == "orphan":
+                if not r.is_orphan:
+                    return False
+            elif cat == "ignored":
+                if r.ignored_reason is None:
+                    return False
+            elif r.category != cat:
+                return False
+        if mod and r.module != mod:
+            return False
+        if q and q not in r.endpoint.lower() and q not in r.url_rule.lower():
+            return False
+        return True
+
+    filtered = [r for r in rows if _passes(r)]
+    # Module dropdown options — sorted unique
+    module_codes = sorted({r.module for r in rows if r.module})
+    return render_template(
+        "admin/routes_index.html",
+        rows=filtered,
+        summary=summary(current_app._get_current_object()),
+        module_codes=module_codes,
+        filter_category=cat, filter_module=mod, filter_q=q,
+    )
+
+
 # MARSOUD-CONSENT-AUDIT-LOG (Abdelhamid 2026-07-22) — cross-tenant
 # consent history + "not accepted current version" report.
 @bp.route("/consent")

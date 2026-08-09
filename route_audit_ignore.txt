@@ -1,0 +1,51 @@
+# MARSOUD-SUPERADMIN-CONTROL-01 T8 (2026-08-08) — endpoints
+# deliberately without a template link. Each non-blank non-comment
+# line MUST be `endpoint  # reason text`. Empty reasons trip CI.
+#
+# When you add a new HTML page ticket-side, DO NOT add it here to
+# silence the audit — add the sidebar row instead. This file is
+# for the rare cases where a page is legitimately reached without
+# a link (JSON endpoint called from JS, POST redirect target, etc).
+
+# ── JSON endpoints in non-api_v1 blueprints (called from fetch()) ─
+# These live under regular blueprints because their route was added
+# before the api_v1 blueprint existed, or because they're tightly
+# coupled to a specific feature's fetch() calls. Not a link target.
+accounts.suggest_code                     # JSON — used by /accounts/new autocomplete
+agent.conversations_list                  # JSON — sidebar hydration in agent/chat.html (fetch)
+agent.conversations_messages              # JSON — conversation loader (fetch, hardcoded URL)
+agent.insights_conversations_list         # JSON — insights sidebar hydration
+agent.insights_conversations_messages     # JSON — insights conversation loader
+notifications.dropdown                    # JSON — poll from base.html topbar (fetch)
+products.api_categories                   # JSON — product form category picker
+products.api_list                         # JSON — POS product search
+products.api_units                        # JSON — product form unit picker
+users.api_search                          # JSON — user picker autocomplete (Ctrl+K etc)
+vendor_bills.api_accounts                 # JSON — vendor bill form account picker
+vendor_bills.api_inventory_targets        # JSON — vendor bill inventory dropdown
+vendors.sub_categories_api                # JSON — vendor form sub-category picker
+
+# ── Report pages reached via hardcoded URLs, not url_for ──────────
+# Ancient reports index template uses <a href="/reports/…"> strings
+# rather than url_for(). They ARE reachable — the audit's url_for
+# regex just can't see them. Fixing to url_for is a UI-cleanup
+# follow-up ticket; the pages themselves are not orphaned.
+reports.balance                           # linked from /reports/ via hardcoded href
+reports.cashflow                          # linked from /reports/ via hardcoded href
+reports.cashier_sales                     # linked from /reports/ via hardcoded href
+reports.expenses_summary_view             # linked from /reports/ via hardcoded href
+reports.fixed_assets                      # linked from /reports/ via hardcoded href
+reports.income_summary_view               # linked from /reports/ via hardcoded href
+reports.metric_logs                       # linked from /reports/ via hardcoded href
+reports.open_custody                      # linked from /reports/ via hardcoded href
+reports.payroll                           # linked from /reports/ via hardcoded href
+reports.pl_compared                       # linked from /reports/ via hardcoded href
+reports.profitability                     # linked from /reports/ via hardcoded href
+reports.sales_commissions                 # linked from /reports/ via hardcoded href
+reports.vat                               # linked from /reports/ via hardcoded href
+reports.vendor_sub_categories             # linked from /reports/ via hardcoded href
+
+# ── Landing / preview / bookmark targets ─────────────────────────
+dashboard.landing                         # `/` — subdomain landing; before_request redirects to /home
+help.index                                # linked from base.html topbar via help() JS opener
+superadmin.broadcasts_preview             # linked from admin/broadcasts_index.html table row (hardcoded href)
