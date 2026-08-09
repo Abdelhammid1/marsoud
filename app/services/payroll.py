@@ -332,7 +332,21 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
             commissions_net = 0.0
 
         gross = prorated_basic + allowances + overtime + bonus + commissions_net
-        total_deductions = fixed_deductions + absence + late + advance
+        # MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08, Phase 1) — GOSI
+        # + income-tax withholding + employer share, computed off
+        # basic_salary (the legal base — the same base GOSI uses,
+        # unrelated to allowances/overtime). Zero-rate employees hit
+        # every path with 0 and land byte-identical to the pre-fix
+        # journal (checked by audit).
+        emp_insurance = round(basic_full * float(emp.insurance_rate or 0)
+                              / 100.0, 2)
+        emp_income_tax = round(basic_full * float(emp.income_tax_rate or 0)
+                                / 100.0, 2)
+        employer_ins = round(basic_full
+                              * float(emp.company_insurance_rate or 0)
+                              / 100.0, 2)
+        total_deductions = (fixed_deductions + absence + late + advance
+                             + emp_insurance + emp_income_tax)
         net = round(gross - total_deductions, 2)
 
         # amount_paid defaults to net (= full payment) when not set
@@ -356,6 +370,12 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
             absence_deduction=absence,
             late_deduction=late,
             advance_deduction=advance,
+            # MARSOUD-OPS-HUB-EXPANSION-01 (Phase 1) — snapshot of the
+            # withholding amounts on the payslip row itself, so a rate
+            # change AFTER the run doesn't retroactively rewrite it.
+            insurance_deduction=emp_insurance,
+            income_tax_deduction=emp_income_tax,
+            employer_insurance_share=employer_ins,
             net=net,
             amount_paid=amount_paid,
             attendance_auto_calculated=attendance_auto,
@@ -446,9 +466,30 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
     # Only the tracked portion counts, so companies with no advances get
     # byte-identical journals to before.
     total_advance_recovered = round(sum(advance_applied.values()), 2)
+    # MARSOUD-OPS-HUB-EXPANSION-01 (Phase 1) — sum the three
+    # withholding buckets across all lines so we can emit ONE credit
+    # each to 2135 / 2136 (employee side) and ONE debit-credit pair
+    # to 5217 / 2135 (employer share). Same visual grammar as the
+    # single aggregated 5210 debit line above.
+    total_employee_insurance = round(
+        sum(float(l.insurance_deduction or 0)
+            for _, l in lines_created), 2)
+    total_income_tax = round(
+        sum(float(l.income_tax_deduction or 0)
+            for _, l in lines_created), 2)
+    total_employer_insurance = round(
+        sum(float(l.employer_insurance_share or 0)
+            for _, l in lines_created), 2)
+    # Salary expense stays at the pre-withholding gross-side amount
+    # (net + advance_recovered + emp_insurance + emp_income_tax).
+    # Company expense doesn't shrink because part of the pay was
+    # routed to the government instead of the employee.
+    salary_debit = round(
+        total_net + total_advance_recovered
+        + total_employee_insurance + total_income_tax, 2)
     accrual_lines = [
         {"account_id": salary_expense.id,
-         "debit": round(total_net + total_advance_recovered, 2), "credit": 0,
+         "debit": salary_debit, "credit": 0,
          "memo": f"مصروف رواتب {month}/{year}"},
     ]
     # Track sub-accounts so the settlement entry can reuse them
@@ -467,6 +508,50 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
             "account_id": emp_acct.id, "debit": 0,
             "credit": payable,
             "memo": memo,
+        })
+
+    # MARSOUD-OPS-HUB-EXPANSION-01 (Phase 1) — withholding credits.
+    # Only emit lines when there's a non-zero total: a company with
+    # no configured GOSI/tax rates gets a journal byte-identical
+    # to the pre-fix version.
+    if total_employee_insurance > 0.005:
+        gosi_emp_acc = get_account_by_code(company_id, "2135")
+        if not gosi_emp_acc:
+            raise LedgerError(
+                "حساب 2135 (تأمينات مستحقة) غير موجود — راجع شجرة الحسابات")
+        accrual_lines.append({
+            "account_id": gosi_emp_acc.id, "debit": 0,
+            "credit": total_employee_insurance,
+            "memo": f"تأمينات اجتماعية (حصة الموظفين) {month}/{year}",
+        })
+    if total_income_tax > 0.005:
+        tax_acc = get_account_by_code(company_id, "2136")
+        if not tax_acc:
+            raise LedgerError(
+                "حساب 2136 (ضريبة كسب عمل مستحقة) غير موجود — راجع شجرة الحسابات")
+        accrual_lines.append({
+            "account_id": tax_acc.id, "debit": 0,
+            "credit": total_income_tax,
+            "memo": f"ضريبة كسب العمل {month}/{year}",
+        })
+    if total_employer_insurance > 0.005:
+        # Employer's share — Dr 5217 / Cr 2135 (same entry).
+        # Both accounts already resolved above (or resolved here
+        # if the employee-side withholding was zero).
+        gosi_co_acc = get_account_by_code(company_id, "5217")
+        gosi_emp_acc = get_account_by_code(company_id, "2135")
+        if not gosi_co_acc or not gosi_emp_acc:
+            raise LedgerError(
+                "حساب 5217 أو 2135 غير موجود — راجع شجرة الحسابات")
+        accrual_lines.append({
+            "account_id": gosi_co_acc.id,
+            "debit": total_employer_insurance, "credit": 0,
+            "memo": f"تأمينات اجتماعية (حصة الشركة) {month}/{year}",
+        })
+        accrual_lines.append({
+            "account_id": gosi_emp_acc.id, "debit": 0,
+            "credit": total_employer_insurance,
+            "memo": f"مستحق للتأمينات (حصة الشركة) {month}/{year}",
         })
 
     entry = post_journal(
@@ -747,7 +832,13 @@ def update_employee(employee, form, *, changed_by_id=None):
         except KeyError:
             pass
 
-    for fld in ("basic_salary", "allowances", "deductions"):
+    # MARSOUD-OPS-HUB-EXPANSION-01 (Phase 1) — three new % rates
+    # for GOSI + income-tax withholding + employer share (see
+    # Employee model columns). Same parse-or-ignore contract as the
+    # money fields above.
+    for fld in ("basic_salary", "allowances", "deductions",
+                "insurance_rate", "income_tax_rate",
+                "company_insurance_rate"):
         v = form.get(fld)
         if v is not None and v != "":
             try:

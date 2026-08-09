@@ -29,6 +29,18 @@ REQUIRED_ACCOUNTS = [
     "2115",
     # Sales commission liability
     "2150",
+    # MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08, Phase 2) — every
+    # account the 18 new hub processors + the payroll GOSI split
+    # touch by literal code. If a tenant is missing any of these,
+    # the corresponding wizard raises a friendly CoA error instead
+    # of the raw NoneType.
+    "1140", "1170",                        # notes receivable, accrued revenue
+    "2135", "2136", "5217",                # GOSI + income-tax withholding
+    "2140", "2210", "5940",                # short/long-term loans + interest
+    "2170", "2190", "2220",                # deposits, dividends payable, EOSB provision
+    "3300", "3400", "3500",                # retained earnings, current P&L, legal reserve
+    "5910",                                # bad debt expense
+    "5960", "5970",                        # cash count variance + misc adjustments (new)
 ]
 
 

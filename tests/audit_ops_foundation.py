@@ -196,13 +196,41 @@ def _setup():
     from app.services.legal import get_terms_version
     from app.services.plan_gating import plan_allows
 
-    for pl in Plan.query.order_by(Plan.id).all():
+    # MARSOUD-4-BRANCH-REPAIR (2026-08-08) — was
+    #   Plan.query.order_by(Plan.id).all()
+    # which iterates EVERY row including legacy inactive plans
+    # (retail / services from LEGACY_TO_DEACTIVATE in app/cli.py:91).
+    # Those rows survive with empty `modules`; plan_allows falls
+    # through to True on the "no plan → allow" branch, so the loop
+    # breaks on iteration 1 with a mis-configured plan. On the
+    # boss's DB that made checks 40/41/42 fail because every
+    # subsequent has_permission("journals.create") returned False.
+    #
+    # Also expire subscription_plan between iterations — SQLAlchemy
+    # caches the relationship, and `plain.plan_id = pl.id` +
+    # `db.session.flush()` doesn't reliably invalidate it, so the
+    # first-iteration read of `plain.subscription_plan` can still
+    # be None → plan_allows returns True even for a plan that
+    # doesn't grant accounting.
+    for pl in (Plan.query.filter_by(is_active=True)
+               .order_by(Plan.id).all()):
         plain.plan_id = pl.id
         plain.intended_plan_id = pl.id
         db.session.flush()
+        db.session.expire(plain, ["subscription_plan", "intended_plan"])
         if plan_allows("journals.create", plain):
             break
     db.session.commit()
+    # Blow up loud + early if the fixture picked a plan that
+    # doesn't actually grant accounting — better than 40 checks
+    # later reporting cryptic 302s.
+    resolved_plan = plain.subscription_plan or plain.intended_plan
+    assert resolved_plan is not None, \
+        "fixture failed to attach a plan to the plain company"
+    assert "accounting" in resolved_plan.modules, (
+        f"fixture picked plan {resolved_plan.code!r} whose modules "
+        f"do not include 'accounting': {resolved_plan.modules!r} — "
+        f"tests 40/41/42 would fail with mysterious 302s")
     ensure_roles_ready_for_company(plain.id)
 
     u = User(email="__opsfound@audit.local", full_name="OpsFound Owner",
@@ -1145,6 +1173,12 @@ def _():
     from app.services.accounting_ops import OPERATIONS
     from app.services.permissions import P, _IMPLIES
     from app.services.roles_seed import PERMISSION_CATALOG
+    # MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08) — some permissions
+    # are DELIBERATELY not implied by journals.create because they
+    # gate dangerous wizards ("صلاحية مستقلة" per the ticket). List
+    # them explicitly so the auditor can see the exemption instead
+    # of hiding it inside the assertion.
+    EXPLICIT_ONLY = {"ops.adjustments"}
     new = {op.permission for op in OPERATIONS} - {"journals.create"}
     assert new, "no per-operation permission was actually introduced"
     for code in sorted(new):
@@ -1152,10 +1186,17 @@ def _():
         assert code in PERMISSION_CATALOG, (
             f"{code} missing from PERMISSION_CATALOG — an owner cannot "
             "grant a permission that the roles screen never lists")
-        assert _IMPLIES.get(code) == "journals.create", (
-            f"{code} is not implied by journals.create — every role that "
-            "could run these wizards yesterday would lose them today")
-    return f"{len(new)} codes in P + catalog + _IMPLIES"
+        if code in EXPLICIT_ONLY:
+            # Must NOT be in _IMPLIES — that would defeat the point
+            # of gating this behind an explicit grant.
+            assert code not in _IMPLIES, (
+                f"{code} is in EXPLICIT_ONLY but _IMPLIES has an entry — "
+                f"remove it so accountant-role users don't inherit it")
+        else:
+            assert _IMPLIES.get(code) == "journals.create", (
+                f"{code} is not implied by journals.create — every role "
+                "that could run these wizards yesterday would lose them today")
+    return f"{len(new)} codes in P + catalog + _IMPLIES (excl. {sorted(EXPLICIT_ONLY)})"
 
 
 @check("39. the three original operations did not change gate")
@@ -1404,8 +1445,36 @@ def _():
     return f"{mig.count('ondelete=\"CASCADE\"')} CASCADE FKs on both sides"
 
 
+def _neutralise_session_cookie_domain(app):
+    """MARSOUD-4-BRANCH-REPAIR (2026-08-08) — mirrored from
+    tests/audit_dashboard_shell.py::_neutralise_session_cookie_domain
+    (MARSOUD-SESSION-COOKIE-DEV-FIX).
+
+    A production-style .env sets SESSION_COOKIE_DOMAIN=.marsoud.com,
+    which scopes the session cookie to that domain while the test
+    client runs on localhost — so the cookie is never sent back,
+    every request answers as anonymous, and @login_required
+    bounces to /login. The run then reports 302s / redirects /
+    empty pages that read as real failures when in fact no
+    fixture session ever existed.
+
+    The 2026-08-08 pre-deploy audit hit exactly this: 3 checks
+    (40, 41, 42) failed on the boss's worktree because its .env
+    was copied from prod. audit_dashboard_shell.py already had
+    this override; audit_ops_foundation.py didn't. Adding it here
+    so the two audits are equally robust against env drift.
+    """
+    domain = app.config.get("SESSION_COOKIE_DOMAIN")
+    if domain:
+        app.config["SESSION_COOKIE_DOMAIN"] = None
+        print(f"NOTE  SESSION_COOKIE_DOMAIN={domain!r} overridden to None "
+              f"for this run -- a domain-scoped cookie is never sent "
+              f"to the localhost test client.")
+
+
 def main():
     app = create_app()
+    _neutralise_session_cookie_domain(app)
     _STATE["app"] = app
     passed = failed = 0
     with app.app_context():

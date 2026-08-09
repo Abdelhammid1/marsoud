@@ -50,6 +50,12 @@ FIELD_KINDS = frozenset({
     "financial_account", "financial_account_to",
     "expense_account", "revenue_account",
     "party", "open_item",
+    # MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08) — new pickers:
+    # loan_kind          → 2-option select (قصير/طويل الأجل)
+    # direction_variance → 2-option select (زيادة/عجز) — cash count
+    # direction_dr_cr    → 2-option select (مدين/دائن) — general adjustment
+    # any_account        → picker over EVERY postable account in the tree
+    "loan_kind", "direction_variance", "direction_dr_cr", "any_account",
 })
 
 # Which chart-of-accounts root each account kind draws from.
@@ -86,7 +92,7 @@ class Field:
     """
 
     def __init__(self, name, label, kind, required=False, help_text=None,
-                 item_kind=None):
+                 item_kind=None, party_type=None):
         if kind not in FIELD_KINDS:
             raise ValueError(
                 f"field {name!r}: unknown kind {kind!r} — expected one of "
@@ -99,6 +105,13 @@ class Field:
         # open_item only: which family of items this picker offers. A
         # settle-accrued-expense wizard must not list dividends payable.
         self.item_kind = item_kind
+        # MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08, Phase 2) — party
+        # picker filter: "customer" / "vendor" / "employee". None
+        # keeps the pre-ticket behavior (all three types mixed).
+        # Used by note-receivable (customer only), note-payable
+        # (vendor only), bad-debt-writeoff (customer only), and
+        # eosb-payment (employee only).
+        self.party_type = party_type
 
 
 # Valid values for Operation.cashflow_category — the same four the
@@ -299,16 +312,31 @@ def _account_under(company_id, kind, account_id, label):
 PARTY_TYPES = ("customer", "vendor", "employee")
 
 
-def party_choices(company_id):
-    """[(group_label_ar, [(value, label), ...]), ...] for the picker."""
+def party_choices(company_id, party_type=None):
+    """[(group_label_ar, [(value, label), ...]), ...] for the picker.
+
+    MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08, Phase 2) — optional
+    `party_type` narrows the picker to one of "customer" / "vendor"
+    / "employee". None keeps the pre-ticket behavior of mixing all
+    three groups. Used by note-receivable (customer only), notes
+    payable (vendor only), bad-debt write-off (customer only), and
+    eosb-payment (employee only) so the picker never shows the
+    wrong-shape counterparty for a given operation.
+    """
     from app.models import Customer, Vendor
     from app.models.payroll import Employee
+    if party_type is not None and party_type not in PARTY_TYPES:
+        raise ValueError(
+            f"unknown party_type {party_type!r} — expected one of "
+            f"{PARTY_TYPES!r} or None")
     groups = []
     for ptype, model, label, order in (
         ("customer", Customer, "العملاء", "name"),
         ("vendor", Vendor, "الموردون", "name"),
         ("employee", Employee, "الموظفون", "name"),
     ):
+        if party_type is not None and party_type != ptype:
+            continue
         q = model.query.filter_by(company_id=company_id)
         if hasattr(model, "is_active"):
             q = q.filter(model.is_active.is_(True))
@@ -318,13 +346,20 @@ def party_choices(company_id):
     return groups
 
 
-def resolve_party(company_id, raw):
+def resolve_party(company_id, raw, expected_type=None):
     """'<type>:<id>' → (party, sub_account, label).
 
     Returns the party's OWN sub-account under 1130 / 2110 / 2130 — never
     the header. Every party operation in the system posts to that leaf,
     and the header is not postable anyway, so returning it would fail at
     save time with a confusing message.
+
+    MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08, Phase 2) — optional
+    `expected_type` refuses cross-type submissions at the service
+    layer. If the wizard's field declared `party_type="customer"`,
+    a crafted POST that submits `vendor:5` gets a clean rejection
+    here (matching how `resolve_account_under` refuses accounts
+    that weren't in the picker's offered set).
     """
     from app.models import Customer, Vendor
     from app.models.payroll import Employee
@@ -335,6 +370,8 @@ def resolve_party(company_id, raw):
     ptype, _, pid = (raw or "").partition(":")
     if ptype not in PARTY_TYPES or not pid.isdigit():
         raise OperationError("اختر الطرف")
+    if expected_type is not None and ptype != expected_type:
+        raise OperationError("نوع الطرف غير مناسب لهذه العملية")
     model, ensure = {
         "customer": (Customer, ensure_customer_account),
         "vendor": (Vendor, ensure_vendor_account),
@@ -354,6 +391,10 @@ def resolve_party(company_id, raw):
 SELECT_KINDS = frozenset({
     "financial_account", "financial_account_to",
     "expense_account", "revenue_account", "party", "open_item",
+    # MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08) — every new picker
+    # kind that renders as a grouped <select>. loan_kind / direction_*
+    # are fixed-choice enums, any_account walks the whole tree.
+    "loan_kind", "direction_variance", "direction_dr_cr", "any_account",
 })
 
 # Shown in place of an empty picker, so "no options" reads as a setup
@@ -365,6 +406,13 @@ EMPTY_PICKER_MESSAGES = {
     "revenue_account": "لا يوجد حساب إيرادات قابل للترحيل — راجع شجرة الحسابات.",
     "party": "لا يوجد عملاء أو موردون أو موظفون مسجّلون.",
     "open_item": "لا توجد بنود مفتوحة تحتاج سداد.",
+    # MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08) — the four new
+    # picker kinds. Fixed-choice enums never emit "empty" here
+    # (they always have both options); the fallback is for safety.
+    "loan_kind": "لا توجد أنواع قروض متاحة — راجع الإعدادات.",
+    "direction_variance": "لا يمكن اختيار جهة الفرق.",
+    "direction_dr_cr": "لا يمكن اختيار جهة التسوية.",
+    "any_account": "لا توجد حسابات قابلة للترحيل في شجرة الحسابات.",
 }
 
 
@@ -393,10 +441,47 @@ def field_choices(op, company_id):
             accounts = postable_under(company_id, root)
             out[f.name] = _accounts_as_choices([(f.label, accounts)])
         elif f.kind == "party":
-            out[f.name] = party_choices(company_id)
+            # MARSOUD-OPS-HUB-EXPANSION-01 (Phase 2) — pass through
+            # the field's optional party_type so pickers can narrow.
+            out[f.name] = party_choices(
+                company_id, party_type=getattr(f, "party_type", None))
         elif f.kind == "open_item":
             from app.services.open_items import open_item_choices
             out[f.name] = open_item_choices(company_id, kind=f.item_kind)
+        elif f.kind == "loan_kind":
+            out[f.name] = [("نوع القرض", [
+                ("short", "قصير الأجل (2140)"),
+                ("long", "طويل الأجل (2210)"),
+            ])]
+        elif f.kind == "direction_variance":
+            out[f.name] = [("نوع الفرق", [
+                ("surplus", "زيادة — الصندوق أكبر من الدفاتر"),
+                ("shortage", "عجز — الصندوق أقل من الدفاتر"),
+            ])]
+        elif f.kind == "direction_dr_cr":
+            out[f.name] = [("جهة التسوية", [
+                ("debit", "مدين"),
+                ("credit", "دائن"),
+            ])]
+        elif f.kind == "any_account":
+            # Every postable account in the tree. Grouped by first
+            # digit (1/2/3/4/5) so the picker isn't a wall of codes.
+            from app.models import Account
+            rows = Account.query.filter_by(
+                company_id=company_id, is_postable=True, is_active=True,
+            ).order_by(Account.code).all()
+            groups_map = {}
+            for a in rows:
+                head = (a.code or "?")[0]
+                groups_map.setdefault(head, []).append(a)
+            group_labels = {
+                "1": "أصول", "2": "التزامات", "3": "حقوق ملكية",
+                "4": "إيرادات", "5": "مصروفات",
+            }
+            out[f.name] = _accounts_as_choices([
+                (group_labels.get(h, h), accounts)
+                for h, accounts in sorted(groups_map.items())
+            ])
     return out
 
 
@@ -556,6 +641,558 @@ def _build_transfer(company_id, data, actor_id=None):
          "memo": f"وارد من {src_label}"},
         {"account_id": src.id, "debit": 0, "credit": amount,
          "memo": f"تحويل إلى {dst_label}"},
+    ]
+
+
+# ─── MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08) ──────────────────────────
+# Shared constants for the 18 new wizards. Kinds for the two new open-item
+# families (accrued revenue + dividends) — free strings, no migration.
+ACCRUED_REVENUE_KIND = "accrued_revenue"
+DIVIDEND_KIND = "dividend"
+
+
+# ─── Phase 3a: Loans (short/long receive + installment pay) ─────────────
+def _build_receive_short_loan(company_id, data, actor_id=None):
+    """Dr money-acc · Cr 2140 (short-term loans)."""
+    amount = _amount(data)
+    money, money_label = _money_account(company_id, data.get("account_id"))
+    loan_acc = _account_by_code(company_id, "2140", "قروض قصيرة الأجل")
+    note = _note(data)
+    desc = f"استلام قرض قصير الأجل — {money_label}"
+    if note:
+        desc += f" ({note})"
+    return desc, [
+        {"account_id": money.id, "debit": amount, "credit": 0,
+         "memo": note or "قرض قصير الأجل"},
+        {"account_id": loan_acc.id, "debit": 0, "credit": amount,
+         "memo": "التزام قرض قصير الأجل"},
+    ]
+
+
+def _build_receive_long_loan(company_id, data, actor_id=None):
+    """Dr money-acc · Cr 2210 (long-term loans)."""
+    amount = _amount(data)
+    money, money_label = _money_account(company_id, data.get("account_id"))
+    loan_acc = _account_by_code(company_id, "2210", "قروض طويلة الأجل")
+    note = _note(data)
+    desc = f"استلام قرض طويل الأجل — {money_label}"
+    if note:
+        desc += f" ({note})"
+    return desc, [
+        {"account_id": money.id, "debit": amount, "credit": 0,
+         "memo": note or "قرض طويل الأجل"},
+        {"account_id": loan_acc.id, "debit": 0, "credit": amount,
+         "memo": "التزام قرض طويل الأجل"},
+    ]
+
+
+def _build_pay_loan_installment(company_id, data, actor_id=None):
+    """Dr principal (2140/2210) + Dr 5940 (interest) · Cr money.
+
+    Principal + interest go to different accounts; the loan header is
+    picked from a two-choice select so we can validate against a
+    known set rather than let the user type any account code."""
+    # `amount` is the principal (matches the shared audit's
+    # convention that every wizard has an "amount" field).
+    # Interest is a separate optional field.
+    principal_amount = _amount(data, name="amount")
+    # Interest may legitimately be zero (grace-period installment),
+    # so parse it manually without _amount's ">0" guard.
+    try:
+        interest_amount = round(
+            float(data.get("interest_amount") or 0), 2)
+    except (TypeError, ValueError):
+        raise OperationError("مبلغ الفوائد غير صالح")
+    from math import isfinite as _isfinite
+    if not _isfinite(interest_amount) or interest_amount < 0:
+        raise OperationError("مبلغ الفوائد غير صالح")
+    money, money_label = _money_account(company_id, data.get("account_id"))
+    loan_kind = (data.get("loan_kind") or "").strip()
+    if loan_kind not in ("short", "long"):
+        raise OperationError("اختر نوع القرض (قصير الأجل أو طويل الأجل)")
+    principal_code = "2140" if loan_kind == "short" else "2210"
+    principal_acc = _account_by_code(
+        company_id, principal_code,
+        "قروض قصيرة الأجل" if loan_kind == "short" else "قروض طويلة الأجل")
+    interest_acc = _account_by_code(company_id, "5940",
+                                     "فوائد وأعباء تمويلية")
+    total = round(principal_amount + interest_amount, 2)
+    if total <= 0:
+        raise OperationError("لا يمكن سداد قسط بمبلغ صفر")
+    note = _note(data)
+    desc = f"سداد قسط قرض — {money_label}"
+    if note:
+        desc += f" ({note})"
+    lines = [
+        {"account_id": principal_acc.id, "debit": principal_amount,
+         "credit": 0, "memo": "سداد أصل القرض"},
+    ]
+    if interest_amount > 0.005:
+        lines.append({
+            "account_id": interest_acc.id, "debit": interest_amount,
+            "credit": 0, "memo": "فوائد وأعباء تمويلية",
+        })
+    lines.append({
+        "account_id": money.id, "debit": 0, "credit": total,
+        "memo": f"صرف من {money_label}",
+    })
+    return desc, lines
+
+
+# ─── Phase 3b: VAT net payment ─────────────────────────────────────────
+def _build_pay_vat_net(company_id, data, actor_id=None):
+    """Dr 2120 (output-VAT balance) · Cr 1280 (input-VAT balance)
+    with the difference to the money account.
+
+    The wizard shows the computed net from vat_report() on the form;
+    the user may confirm or cancel but cannot re-price it — the
+    posted amount here is the same amount the report displays."""
+    from app.models import JournalEntry, JournalLine
+    from sqlalchemy import func
+    from app import db as _db
+    output_acc = _account_by_code(company_id, "2120", "ضريبة قيمة مضافة مخرجات")
+    input_acc = _account_by_code(company_id, "1280", "ضريبة قيمة مضافة مدخلات")
+    money, money_label = _money_account(company_id, data.get("account_id"))
+    # Compute net from the ledger — sum of unreversed movements on
+    # 2120 minus 1280 across ALL time (this wizard settles the full
+    # accumulated balance). Simple, matches how a small business
+    # actually files VAT.
+    def _bal(acc):
+        d, c = _db.session.query(
+            func.coalesce(func.sum(JournalLine.debit), 0),
+            func.coalesce(func.sum(JournalLine.credit), 0),
+        ).select_from(JournalLine).join(JournalEntry).filter(
+            JournalLine.account_id == acc.id,
+            JournalEntry.is_active.is_(True),
+        ).first()
+        return float(d or 0), float(c or 0)
+    out_d, out_c = _bal(output_acc)
+    in_d, in_c = _bal(input_acc)
+    output_balance = round(out_c - out_d, 2)   # liability normal side = credit
+    input_balance = round(in_d - in_c, 2)      # asset normal side = debit
+    net = round(output_balance - input_balance, 2)
+    if net <= 0.005:
+        raise OperationError(
+            f"لا يوجد صافي ضريبة مستحق (المخرجات {output_balance:.2f} — "
+            f"المدخلات {input_balance:.2f}). لا حاجة للسداد.")
+    note = _note(data)
+    desc = f"سداد صافي ضريبة القيمة المضافة — {net:.2f}"
+    if note:
+        desc += f" ({note})"
+    return desc, [
+        {"account_id": output_acc.id, "debit": output_balance,
+         "credit": 0, "memo": "إقفال مخرجات الضريبة"},
+        {"account_id": input_acc.id, "debit": 0, "credit": input_balance,
+         "memo": "إقفال مدخلات الضريبة"},
+        {"account_id": money.id, "debit": 0, "credit": net,
+         "memo": f"صافي الضريبة إلى {money_label}"},
+    ]
+
+
+# ─── Phase 3c: Equity close ────────────────────────────────────────────
+def _build_close_year_end(company_id, data, actor_id=None):
+    """Dr 3400 (whole balance) · Cr 3300 — zero out current-year P&L
+    into retained earnings. Amount is computed from the ledger, not
+    user-editable — the whole point of a closing entry is to move
+    the exact balance, not an arbitrary number."""
+    from app.models import JournalEntry, JournalLine
+    from sqlalchemy import func
+    from app import db as _db
+    pnl_acc = _account_by_code(company_id, "3400",
+                                "أرباح/خسائر السنة الحالية")
+    retained = _account_by_code(company_id, "3300", "أرباح مرحلة")
+    d, c = _db.session.query(
+        func.coalesce(func.sum(JournalLine.debit), 0),
+        func.coalesce(func.sum(JournalLine.credit), 0),
+    ).select_from(JournalLine).join(JournalEntry).filter(
+        JournalLine.account_id == pnl_acc.id,
+        JournalEntry.is_active.is_(True),
+    ).first()
+    balance = round(float(c or 0) - float(d or 0), 2)   # credit-side normal
+    if abs(balance) < 0.005:
+        raise OperationError(
+            "رصيد 3400 صفر — لا يوجد ما يُقفَل هذه السنة")
+    note = _note(data)
+    desc = "إقفال نهاية السنة — تصفير 3400 في 3300"
+    if note:
+        desc += f" ({note})"
+    if balance > 0:
+        # net profit → Dr 3400 / Cr 3300
+        return desc, [
+            {"account_id": pnl_acc.id, "debit": balance, "credit": 0,
+             "memo": "تصفير رصيد السنة الحالية"},
+            {"account_id": retained.id, "debit": 0, "credit": balance,
+             "memo": "ترحيل الأرباح إلى الأرباح المرحّلة"},
+        ]
+    # net loss → Dr 3300 / Cr 3400
+    loss = -balance
+    return desc, [
+        {"account_id": retained.id, "debit": loss, "credit": 0,
+         "memo": "تحميل الخسارة على الأرباح المرحّلة"},
+        {"account_id": pnl_acc.id, "debit": 0, "credit": loss,
+         "memo": "تصفير رصيد السنة الحالية"},
+    ]
+
+
+def _build_allocate_legal_reserve(company_id, data, actor_id=None):
+    """Dr 3300 · Cr 3500 — carve out a chunk of retained earnings
+    into the mandatory legal reserve. User picks the amount (usually
+    10% of net profit up to a statutory ceiling)."""
+    amount = _amount(data)
+    retained = _account_by_code(company_id, "3300", "أرباح مرحلة")
+    reserve = _account_by_code(company_id, "3500", "احتياطي قانوني")
+    note = _note(data)
+    desc = f"تخصيص احتياطي قانوني — {amount:.2f}"
+    if note:
+        desc += f" ({note})"
+    return desc, [
+        {"account_id": retained.id, "debit": amount, "credit": 0,
+         "memo": "خصم من الأرباح المرحّلة"},
+        {"account_id": reserve.id, "debit": 0, "credit": amount,
+         "memo": "احتياطي قانوني"},
+    ]
+
+
+# ─── Phase 3d: EOSB provision ──────────────────────────────────────────
+def _build_provision_eosb(company_id, data, actor_id=None):
+    """Dr expense (user picks) · Cr 2220 — build up the end-of-
+    service benefits liability. Runs monthly or yearly at HR's
+    discretion; the payment side is a separate Phase-4 wizard that
+    resolves the specific employee."""
+    amount = _amount(data)
+    expense, label = _account_under(company_id, "expense_account",
+                                     data.get("expense_account_id"),
+                                     "حساب المصروف")
+    provision = _account_by_code(company_id, "2220",
+                                  "مخصص مكافأة نهاية الخدمة")
+    note = _note(data)
+    desc = f"تكوين مخصص مكافأة نهاية الخدمة — {label}"
+    if note:
+        desc += f" ({note})"
+    return desc, [
+        {"account_id": expense.id, "debit": amount, "credit": 0,
+         "memo": note or "مخصص مكافأة نهاية الخدمة"},
+        {"account_id": provision.id, "debit": 0, "credit": amount,
+         "memo": "مخصص EOSB"},
+    ]
+
+
+# ─── Phase 3e: Accrued revenue (record + collect) — mirror of accrued expense
+def _build_accrue_revenue(company_id, data, actor_id=None):
+    """Dr 1170 · Cr revenue_account — record income earned but
+    not yet collected. Creates an open_item with kind='accrued_revenue'
+    so the collect wizard can settle it later."""
+    amount = _amount(data)
+    revenue, label = _account_under(company_id, "revenue_account",
+                                     data.get("revenue_account_id"),
+                                     "حساب الإيراد")
+    receivable = _account_by_code(company_id, "1170", "إيرادات مستحقة")
+    note = _note(data)
+    desc = f"إثبات إيراد مستحق — {label}"
+    if note:
+        desc += f" ({note})"
+    from app.services.open_items import create_open_item
+    item = create_open_item(
+        company_id, ACCRUED_REVENUE_KIND, receivable.id, amount,
+        description=desc, due_date=_optional_date(data, "due_date"),
+        created_by=actor_id, note=note,
+    )
+
+    def _link(entry):
+        item.journal_entry_id = entry.id
+
+    return Built(desc, [
+        {"account_id": receivable.id, "debit": amount, "credit": 0,
+         "memo": "إيراد مستحق"},
+        {"account_id": revenue.id, "debit": 0, "credit": amount,
+         "memo": note or label},
+    ], source_id=item.id, after_post=_link)
+
+
+def _build_collect_accrued_revenue(company_id, data, actor_id=None):
+    """Dr money-acc · Cr 1170 — collect a previously-recorded
+    accrued-revenue item. Picker restricted to accrued_revenue
+    kind so the user can't accidentally settle an accrued expense."""
+    from app.models import Account
+    from app.services.open_items import resolve_open_item, settle_open_item
+    amount = _amount(data)
+    money, money_label = _money_account(company_id, data.get("account_id"))
+    item = resolve_open_item(company_id, data.get("open_item_id"),
+                              kind=ACCRUED_REVENUE_KIND)
+    receivable = db.session.get(Account, item.account_id)
+    note = _note(data)
+    desc = f"تحصيل إيراد مستحق — {item.description or item.kind}"
+    if note:
+        desc += f" ({note})"
+    leg = settle_open_item(item, amount, settled_on=_date(data),
+                            created_by=actor_id)
+
+    def _link(entry):
+        leg.journal_entry_id = entry.id
+
+    return Built(desc, [
+        {"account_id": money.id, "debit": amount, "credit": 0,
+         "memo": f"وارد إلى {money_label}"},
+        {"account_id": receivable.id, "debit": 0, "credit": amount,
+         "memo": "تحصيل إيراد مستحق"},
+    ], source_id=leg.id, after_post=_link)
+
+
+# ─── Phase 3f: Dividends (declare + pay) ───────────────────────────────
+def _build_declare_dividend(company_id, data, actor_id=None):
+    """Dr 3300 (retained earnings) · Cr 2190 (dividends payable).
+    Creates open_item(kind='dividend') so the pay wizard can settle."""
+    amount = _amount(data)
+    retained = _account_by_code(company_id, "3300", "أرباح مرحلة")
+    payable = _account_by_code(company_id, "2190", "توزيعات مستحقة")
+    note = _note(data)
+    desc = f"إثبات توزيعات مستحقة — {amount:.2f}"
+    if note:
+        desc += f" ({note})"
+    from app.services.open_items import create_open_item
+    item = create_open_item(
+        company_id, DIVIDEND_KIND, payable.id, amount,
+        description=desc, due_date=_optional_date(data, "due_date"),
+        created_by=actor_id, note=note,
+    )
+
+    def _link(entry):
+        item.journal_entry_id = entry.id
+
+    return Built(desc, [
+        {"account_id": retained.id, "debit": amount, "credit": 0,
+         "memo": "توزيعات من الأرباح المرحّلة"},
+        {"account_id": payable.id, "debit": 0, "credit": amount,
+         "memo": "توزيعات مستحقة"},
+    ], source_id=item.id, after_post=_link)
+
+
+def _build_pay_dividend(company_id, data, actor_id=None):
+    """Dr 2190 · Cr money-acc — pay a declared dividend. Picker
+    restricted to dividend kind."""
+    from app.models import Account
+    from app.services.open_items import resolve_open_item, settle_open_item
+    amount = _amount(data)
+    money, money_label = _money_account(company_id, data.get("account_id"))
+    item = resolve_open_item(company_id, data.get("open_item_id"),
+                              kind=DIVIDEND_KIND)
+    payable = db.session.get(Account, item.account_id)
+    note = _note(data)
+    desc = f"سداد توزيعات — {item.description or item.kind}"
+    if note:
+        desc += f" ({note})"
+    leg = settle_open_item(item, amount, settled_on=_date(data),
+                            created_by=actor_id)
+
+    def _link(entry):
+        leg.journal_entry_id = entry.id
+
+    return Built(desc, [
+        {"account_id": payable.id, "debit": amount, "credit": 0,
+         "memo": "سداد توزيعات"},
+        {"account_id": money.id, "debit": 0, "credit": amount,
+         "memo": f"صرف من {money_label}"},
+    ], source_id=leg.id, after_post=_link)
+
+
+# ─── Phase 3g: Deposits (receive + return) ─────────────────────────────
+def _build_receive_deposit(company_id, data, actor_id=None):
+    """Dr money-acc · Cr 2170 — take a deposit / retention from a
+    party. No open_item — the return is at the discretion of the
+    company (not a scheduled repayment)."""
+    amount = _amount(data)
+    money, money_label = _money_account(company_id, data.get("account_id"))
+    deposit_acc = _account_by_code(company_id, "2170",
+                                    "أمانات ومحتجزات")
+    note = _note(data)
+    desc = f"استلام أمانة — {money_label}"
+    if note:
+        desc += f" ({note})"
+    return desc, [
+        {"account_id": money.id, "debit": amount, "credit": 0,
+         "memo": note or "أمانة مستلمة"},
+        {"account_id": deposit_acc.id, "debit": 0, "credit": amount,
+         "memo": "أمانة مستلمة من طرف"},
+    ]
+
+
+def _build_return_deposit(company_id, data, actor_id=None):
+    """Dr 2170 · Cr money-acc — return a deposit previously received."""
+    amount = _amount(data)
+    money, money_label = _money_account(company_id, data.get("account_id"))
+    deposit_acc = _account_by_code(company_id, "2170",
+                                    "أمانات ومحتجزات")
+    note = _note(data)
+    desc = f"رد أمانة — {money_label}"
+    if note:
+        desc += f" ({note})"
+    return desc, [
+        {"account_id": deposit_acc.id, "debit": amount, "credit": 0,
+         "memo": "رد أمانة لطرف"},
+        {"account_id": money.id, "debit": 0, "credit": amount,
+         "memo": f"صرف من {money_label}"},
+    ]
+
+
+# ─── Phase 4: party-scoped processors ──────────────────────────────────
+def _build_receive_note_receivable(company_id, data, actor_id=None):
+    """Dr 1140 (notes receivable) · Cr customer 1130-N sub."""
+    amount = _amount(data)
+    _, customer_acc, customer_label = resolve_party(
+        company_id, data.get("party"), expected_type="customer")
+    notes_receivable = _account_by_code(company_id, "1140",
+                                         "أوراق قبض")
+    note = _note(data)
+    desc = f"استلام ورقة قبض من {customer_label}"
+    if note:
+        desc += f" ({note})"
+    return desc, [
+        {"account_id": notes_receivable.id, "debit": amount, "credit": 0,
+         "memo": f"ورقة قبض — {customer_label}"},
+        {"account_id": customer_acc.id, "debit": 0, "credit": amount,
+         "memo": "استبدال مديونية بورقة قبض"},
+    ]
+
+
+def _build_issue_note_payable(company_id, data, actor_id=None):
+    """Dr vendor 2110-N sub · Cr 2115 (notes payable)."""
+    amount = _amount(data)
+    _, vendor_acc, vendor_label = resolve_party(
+        company_id, data.get("party"), expected_type="vendor")
+    notes_payable = _account_by_code(company_id, "2115",
+                                      "أوراق دفع")
+    note = _note(data)
+    desc = f"إصدار ورقة دفع لـ{vendor_label}"
+    if note:
+        desc += f" ({note})"
+    return desc, [
+        {"account_id": vendor_acc.id, "debit": amount, "credit": 0,
+         "memo": "استبدال دين بورقة دفع"},
+        {"account_id": notes_payable.id, "debit": 0, "credit": amount,
+         "memo": f"ورقة دفع لـ{vendor_label}"},
+    ]
+
+
+def _build_writeoff_bad_debt(company_id, data, actor_id=None):
+    """Dr 5910 (bad debt expense) · Cr customer 1130-N sub. Requires
+    a note (why we gave up on this customer)."""
+    amount = _amount(data)
+    _, customer_acc, customer_label = resolve_party(
+        company_id, data.get("party"), expected_type="customer")
+    bad_debt = _account_by_code(company_id, "5910", "ديون معدومة")
+    note = _note(data)
+    if not note:
+        raise OperationError("الرجاء توضيح سبب الشطب في الملاحظات")
+    desc = f"شطب دين معدوم — {customer_label}"
+    desc += f" ({note})"
+    return desc, [
+        {"account_id": bad_debt.id, "debit": amount, "credit": 0,
+         "memo": f"شطب دين — {customer_label}"},
+        {"account_id": customer_acc.id, "debit": 0, "credit": amount,
+         "memo": note},
+    ]
+
+
+def _build_pay_eosb(company_id, data, actor_id=None):
+    """Dr 2220 (EOSB provision) · Cr money-acc. Employee is picked
+    to record who received the payment; the credit is still to the
+    money account (EOSB is not a salary payable line)."""
+    amount = _amount(data)
+    money, money_label = _money_account(company_id, data.get("account_id"))
+    _, _, employee_label = resolve_party(
+        company_id, data.get("party"), expected_type="employee")
+    provision = _account_by_code(company_id, "2220",
+                                  "مخصص مكافأة نهاية الخدمة")
+    note = _note(data)
+    desc = f"صرف مكافأة نهاية الخدمة — {employee_label}"
+    if note:
+        desc += f" ({note})"
+    return desc, [
+        {"account_id": provision.id, "debit": amount, "credit": 0,
+         "memo": f"صرف EOSB — {employee_label}"},
+        {"account_id": money.id, "debit": 0, "credit": amount,
+         "memo": f"صرف من {money_label}"},
+    ]
+
+
+def _build_cash_count_adjust(company_id, data, actor_id=None):
+    """Dr 1110 · Cr 5960 (surplus) OR Dr 5960 · Cr 1110 (shortage).
+    Restricted to 1110 (the physical cash box) — bank reconciliation
+    is a separate feature."""
+    amount = _amount(data)
+    direction = (data.get("direction") or "").strip()
+    if direction not in ("surplus", "shortage"):
+        raise OperationError("اختر نوع الفرق: زيادة أم عجز")
+    cash = _account_by_code(company_id, "1110", "النقدية / الصندوق")
+    variance = _account_by_code(company_id, "5960", "فروق نقدية")
+    note = _note(data)
+    if not note:
+        raise OperationError(
+            "الرجاء توضيح سبب فرق الصندوق في الملاحظات")
+    if direction == "surplus":
+        desc = f"زيادة في الصندوق — {amount:.2f}"
+        desc += f" ({note})"
+        return desc, [
+            {"account_id": cash.id, "debit": amount, "credit": 0,
+             "memo": "زيادة صندوق"},
+            {"account_id": variance.id, "debit": 0, "credit": amount,
+             "memo": note},
+        ]
+    # shortage
+    desc = f"عجز في الصندوق — {amount:.2f}"
+    desc += f" ({note})"
+    return desc, [
+        {"account_id": variance.id, "debit": amount, "credit": 0,
+         "memo": note},
+        {"account_id": cash.id, "debit": 0, "credit": amount,
+         "memo": "عجز صندوق"},
+    ]
+
+
+def _build_adjust_account(company_id, data, actor_id=None):
+    """Dr/Cr picked account · Cr/Dr 5970 (misc adjustments). Note
+    REQUIRED — this is the most dangerous wizard and any use of it
+    without a reason is a red flag on audit. Any postable account
+    can be adjusted; permission is behind ops.adjustments so
+    accountant-role users don't have access by default."""
+    from app.models import Account
+    from app.services.ledger import postable_under
+    amount = _amount(data)
+    direction = (data.get("direction") or "").strip()
+    if direction not in ("debit", "credit"):
+        raise OperationError("اختر جهة التسوية: مدين أم دائن")
+    account_id_raw = data.get("target_account_id")
+    if not account_id_raw:
+        raise OperationError("اختر الحساب المطلوب تسويته")
+    try:
+        account_id = int(account_id_raw)
+    except (TypeError, ValueError):
+        raise OperationError("الحساب المطلوب غير صالح")
+    target = db.session.get(Account, account_id)
+    if (not target or target.company_id != company_id
+            or not target.is_postable):
+        raise OperationError(
+            "الحساب المطلوب غير صالح أو غير قابل للترحيل")
+    misc = _account_by_code(company_id, "5970", "تسويات متنوعة")
+    note = _note(data)
+    if not note:
+        raise OperationError(
+            "السبب إلزامي في تسوية الحسابات — لا يمكن حفظ التسوية بدون توضيح")
+    target_label = target.name_ar or target.name or target.code
+    desc = f"تسوية حساب عام — {target_label} ({direction})"
+    desc += f" — {note}"
+    if direction == "debit":
+        return desc, [
+            {"account_id": target.id, "debit": amount, "credit": 0,
+             "memo": note},
+            {"account_id": misc.id, "debit": 0, "credit": amount,
+             "memo": "تسويات متنوعة"},
+        ]
+    return desc, [
+        {"account_id": misc.id, "debit": amount, "credit": 0,
+         "memo": "تسويات متنوعة"},
+        {"account_id": target.id, "debit": 0, "credit": amount,
+         "memo": note},
     ]
 
 
@@ -782,6 +1419,402 @@ OPERATIONS = [
         # Same boundary on the paying side: a payment to a named supplier
         # must drive that supplier's sub-account, not bare cash.
         forbids=("party", "tax"),
+    ),
+
+    # ── MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08) ─────────────────────
+    # 18 new wizards. Grouped in the same order as the ticket for
+    # easier cross-check: loans → VAT → equity → provisions →
+    # accrued revenue → dividends → deposits → party-scoped → cash
+    # count → dangerous general adjustment.
+
+    # Phase 3a — Loans
+    Operation(
+        key="receive-short-loan",
+        title="استلام قرض قصير الأجل",
+        icon="💳",
+        description="عند استلام قرض بنكي أو من طرف يُسدَّد خلال عام.",
+        effect="يزيد النقدية/البنك ويزيد التزام قروض قصيرة الأجل (2140).",
+        source_type="loan_short_receive",
+        cashflow_category="FINANCING",
+        fields=[
+            Field("amount", "المبلغ", "amount", required=True),
+            Field("date", "تاريخ الاستلام", "date", required=True),
+            Field("account_id", "الحساب المالي المستلم", "financial_account",
+                  required=True),
+            Field("notes", "ملاحظات (اختياري)", "textarea"),
+        ],
+        build=_build_receive_short_loan,
+        group="debt",
+        permission="journals.create",
+    ),
+    Operation(
+        key="receive-long-loan",
+        title="استلام قرض طويل الأجل",
+        icon="🏦",
+        description="عند استلام قرض يُسدَّد على أكثر من عام.",
+        effect="يزيد النقدية/البنك ويزيد التزام قروض طويلة الأجل (2210).",
+        source_type="loan_long_receive",
+        cashflow_category="FINANCING",
+        fields=[
+            Field("amount", "المبلغ", "amount", required=True),
+            Field("date", "تاريخ الاستلام", "date", required=True),
+            Field("account_id", "الحساب المالي المستلم", "financial_account",
+                  required=True),
+            Field("notes", "ملاحظات (اختياري)", "textarea"),
+        ],
+        build=_build_receive_long_loan,
+        group="debt",
+        permission="journals.create",
+    ),
+    Operation(
+        key="pay-loan-installment",
+        title="سداد قسط قرض",
+        icon="📤",
+        description="سداد قسط أصل + فوائد لقرض قصير أو طويل الأجل.",
+        effect="ينقص أصل القرض ويزيد المصروفات التمويلية (5940) وينقص النقدية.",
+        source_type="loan_installment_paid",
+        cashflow_category="FINANCING",
+        fields=[
+            Field("loan_kind", "نوع القرض", "loan_kind", required=True,
+                  help_text="قصير الأجل (2140) أو طويل الأجل (2210)"),
+            Field("amount", "مبلغ الأصل", "amount", required=True),
+            Field("interest_amount", "مبلغ الفوائد", "amount",
+                  help_text="اترك صفر إذا كان القسط بدون فوائد"),
+            Field("date", "تاريخ السداد", "date", required=True),
+            Field("account_id", "الحساب المالي", "financial_account",
+                  required=True),
+            Field("notes", "ملاحظات (اختياري)", "textarea"),
+        ],
+        build=_build_pay_loan_installment,
+        group="debt",
+        permission="journals.create",
+    ),
+
+    # Phase 3b — VAT
+    Operation(
+        key="pay-vat-net",
+        title="سداد صافي ضريبة القيمة المضافة",
+        icon="🧾",
+        description="سداد الصافي المستحق للمصلحة عن الفترة الحالية.",
+        effect="يقفل رصيد المخرجات (2120) مقابل المدخلات (1280)، والصافي يخرج من النقدية.",
+        source_type="vat_net_payment",
+        cashflow_category="OPERATING",
+        fields=[
+            Field("date", "تاريخ السداد", "date", required=True),
+            Field("account_id", "الحساب المالي", "financial_account",
+                  required=True),
+            Field("notes", "ملاحظات (اختياري)", "textarea"),
+        ],
+        build=_build_pay_vat_net,
+        group="accrual",
+        permission="journals.create",
+    ),
+
+    # Phase 3c — Equity close
+    Operation(
+        key="close-year-end",
+        title="إقفال نهاية السنة",
+        icon="📅",
+        description="تصفير رصيد أرباح/خسائر السنة الحالية في الأرباح المرحّلة.",
+        effect="ينقل رصيد 3400 (كامل) إلى 3300. المبلغ محسوب تلقائياً.",
+        source_type="year_end_close",
+        cashflow_category="NONCASH",
+        fields=[
+            Field("date", "تاريخ الإقفال", "date", required=True),
+            Field("notes", "ملاحظات (اختياري)", "textarea"),
+        ],
+        build=_build_close_year_end,
+        group="equity",
+        permission="journals.create",
+    ),
+    Operation(
+        key="allocate-legal-reserve",
+        title="تخصيص احتياطي قانوني",
+        icon="🏛️",
+        description="خصم جزء من الأرباح المرحّلة كاحتياطي قانوني.",
+        effect="ينقص 3300 ويزيد الاحتياطي القانوني (3500).",
+        source_type="legal_reserve_allocation",
+        cashflow_category="NONCASH",
+        fields=[
+            Field("amount", "المبلغ", "amount", required=True),
+            Field("date", "التاريخ", "date", required=True),
+            Field("notes", "ملاحظات (اختياري)", "textarea"),
+        ],
+        build=_build_allocate_legal_reserve,
+        group="equity",
+        permission="journals.create",
+    ),
+
+    # Phase 3d — EOSB provision
+    Operation(
+        key="provision-eosb",
+        title="تكوين مخصص مكافأة نهاية الخدمة",
+        icon="🛡️",
+        description="بناء مخصص EOSB شهرياً أو سنوياً. الصرف الفعلي يتم عند خروج الموظف.",
+        effect="يزيد مصروف الرواتب (اختياره لك) ويزيد المخصص (2220).",
+        source_type="eosb_provision",
+        cashflow_category="NONCASH",
+        fields=[
+            Field("amount", "المبلغ", "amount", required=True),
+            Field("date", "التاريخ", "date", required=True),
+            Field("expense_account_id", "حساب المصروف", "expense_account",
+                  required=True,
+                  help_text="عادةً حساب رواتب أو حساب مخصصات موظفين"),
+            Field("notes", "ملاحظات (اختياري)", "textarea"),
+        ],
+        build=_build_provision_eosb,
+        group="accrual",
+        permission="ops.accruals",
+    ),
+
+    # Phase 3e — Accrued revenue
+    Operation(
+        key="accrue-revenue",
+        title="إثبات إيراد مستحق",
+        icon="💵",
+        description="تسجيل إيراد تم اكتسابه ولم يُحصَّل بعد.",
+        effect="يزيد الإيرادات المستحقة (1170) ويزيد حساب الإيراد الذي تختاره.",
+        source_type="open_item",
+        cashflow_category="NONCASH",
+        fields=[
+            Field("amount", "المبلغ", "amount", required=True),
+            Field("date", "تاريخ الاستحقاق المحاسبي", "date", required=True),
+            Field("revenue_account_id", "حساب الإيراد", "revenue_account",
+                  required=True),
+            Field("due_date", "تاريخ التحصيل المتوقع (اختياري)", "date"),
+            Field("notes", "ملاحظات (اختياري)", "textarea"),
+        ],
+        build=_build_accrue_revenue,
+        group="accrual",
+        permission="ops.accruals",
+    ),
+    Operation(
+        key="collect-accrued-revenue",
+        title="تحصيل إيراد مستحق",
+        icon="🪙",
+        description="تحصيل بند إيراد سبق إثباته.",
+        effect="يزيد النقدية وينقص الإيرادات المستحقة (1170).",
+        source_type="open_item_settle",
+        cashflow_category="OPERATING",
+        fields=[
+            Field("open_item_id", "البند المراد تحصيله", "open_item",
+                  required=True, item_kind=ACCRUED_REVENUE_KIND,
+                  help_text="تظهر البنود المفتوحة فقط"),
+            Field("amount", "المبلغ المحصَّل", "amount", required=True,
+                  help_text="لا يمكن تجاوز المتبقي من البند"),
+            Field("date", "تاريخ التحصيل", "date", required=True),
+            Field("account_id", "الحساب المالي", "financial_account",
+                  required=True),
+            Field("notes", "ملاحظات (اختياري)", "textarea"),
+        ],
+        build=_build_collect_accrued_revenue,
+        group="accrual",
+        permission="ops.settle",
+    ),
+
+    # Phase 3f — Dividends
+    Operation(
+        key="declare-dividend",
+        title="إثبات توزيعات مستحقة",
+        icon="📊",
+        description="إعلان توزيعات أرباح للمساهمين.",
+        effect="ينقص الأرباح المرحّلة (3300) ويزيد التوزيعات المستحقة (2190).",
+        source_type="open_item",
+        cashflow_category="NONCASH",
+        fields=[
+            Field("amount", "المبلغ", "amount", required=True),
+            Field("date", "تاريخ الإعلان", "date", required=True),
+            Field("due_date", "تاريخ السداد المتوقع (اختياري)", "date"),
+            Field("notes", "ملاحظات (اختياري)", "textarea"),
+        ],
+        build=_build_declare_dividend,
+        group="equity",
+        permission="ops.accruals",
+    ),
+    Operation(
+        key="pay-dividend",
+        title="سداد توزيعات",
+        icon="💸",
+        description="صرف توزيعات سبق إعلانها.",
+        effect="ينقص التوزيعات المستحقة (2190) وينقص النقدية.",
+        source_type="open_item_settle",
+        cashflow_category="FINANCING",
+        fields=[
+            Field("open_item_id", "التوزيعات المراد سدادها", "open_item",
+                  required=True, item_kind=DIVIDEND_KIND),
+            Field("amount", "المبلغ المدفوع", "amount", required=True,
+                  help_text="لا يمكن تجاوز المتبقي"),
+            Field("date", "تاريخ السداد", "date", required=True),
+            Field("account_id", "الحساب المالي", "financial_account",
+                  required=True),
+            Field("notes", "ملاحظات (اختياري)", "textarea"),
+        ],
+        build=_build_pay_dividend,
+        group="equity",
+        permission="ops.settle",
+    ),
+
+    # Phase 3g — Deposits
+    Operation(
+        key="receive-deposit",
+        title="استلام أمانة من طرف",
+        icon="🔐",
+        description="أمانة أو محتجز من عميل أو مورد أو موظف.",
+        effect="يزيد النقدية ويزيد أمانات ومحتجزات (2170).",
+        source_type="deposit_received",
+        cashflow_category="FINANCING",
+        fields=[
+            Field("amount", "المبلغ", "amount", required=True),
+            Field("date", "تاريخ الاستلام", "date", required=True),
+            Field("account_id", "الحساب المالي المستلم", "financial_account",
+                  required=True),
+            Field("notes", "من أي طرف ولأي غرض؟", "textarea"),
+        ],
+        build=_build_receive_deposit,
+        group="cash",
+        permission="journals.create",
+    ),
+    Operation(
+        key="return-deposit",
+        title="رد أمانة لطرف",
+        icon="🔓",
+        description="رد أمانة سبق استلامها.",
+        effect="ينقص أمانات ومحتجزات (2170) وينقص النقدية.",
+        source_type="deposit_returned",
+        cashflow_category="FINANCING",
+        fields=[
+            Field("amount", "المبلغ", "amount", required=True),
+            Field("date", "تاريخ الرد", "date", required=True),
+            Field("account_id", "الحساب المالي", "financial_account",
+                  required=True),
+            Field("notes", "لأي طرف؟", "textarea"),
+        ],
+        build=_build_return_deposit,
+        group="cash",
+        permission="journals.create",
+    ),
+
+    # Phase 4 — party-scoped
+    Operation(
+        key="receive-note-receivable",
+        title="استلام ورقة قبض من عميل",
+        icon="📃",
+        description="استبدال دين عميل بورقة قبض (كمبيالة أو شيك مؤجل).",
+        effect="يزيد أوراق القبض (1140) وينقص رصيد العميل.",
+        source_type="note_receivable_received",
+        cashflow_category="NONCASH",
+        fields=[
+            Field("amount", "المبلغ", "amount", required=True),
+            Field("date", "تاريخ الاستلام", "date", required=True),
+            Field("party", "العميل", "party", required=True,
+                  party_type="customer"),
+            Field("notes", "ملاحظات (اختياري)", "textarea"),
+        ],
+        build=_build_receive_note_receivable,
+        group="accrual",
+        permission="journals.create",
+    ),
+    Operation(
+        key="issue-note-payable",
+        title="إصدار ورقة دفع لمورد",
+        icon="📝",
+        description="استبدال دين مورد بورقة دفع.",
+        effect="ينقص رصيد المورد ويزيد أوراق الدفع (2115).",
+        source_type="note_payable_issued",
+        cashflow_category="NONCASH",
+        fields=[
+            Field("amount", "المبلغ", "amount", required=True),
+            Field("date", "تاريخ الإصدار", "date", required=True),
+            Field("party", "المورد", "party", required=True,
+                  party_type="vendor"),
+            Field("notes", "ملاحظات (اختياري)", "textarea"),
+        ],
+        build=_build_issue_note_payable,
+        group="accrual",
+        permission="journals.create",
+    ),
+    Operation(
+        key="writeoff-bad-debt",
+        title="شطب دين معدوم",
+        icon="🗑️",
+        description="شطب مديونية عميل تعذر تحصيلها. السبب إلزامي.",
+        effect="يزيد مصروف الديون المعدومة (5910) وينقص رصيد العميل.",
+        source_type="bad_debt_writeoff",
+        cashflow_category="OPERATING",
+        fields=[
+            Field("amount", "المبلغ", "amount", required=True),
+            Field("date", "التاريخ", "date", required=True),
+            Field("party", "العميل", "party", required=True,
+                  party_type="customer"),
+            Field("notes", "سبب الشطب (إلزامي)", "textarea", required=True),
+        ],
+        build=_build_writeoff_bad_debt,
+        group="accrual",
+        permission="ops.adjustments",
+    ),
+    Operation(
+        key="pay-eosb",
+        title="صرف مكافأة نهاية الخدمة",
+        icon="🎁",
+        description="صرف EOSB لموظف خارج من الشركة.",
+        effect="ينقص مخصص EOSB (2220) وينقص النقدية.",
+        source_type="eosb_payment",
+        cashflow_category="OPERATING",
+        fields=[
+            Field("amount", "المبلغ", "amount", required=True),
+            Field("date", "تاريخ الصرف", "date", required=True),
+            Field("party", "الموظف", "party", required=True,
+                  party_type="employee"),
+            Field("account_id", "الحساب المالي", "financial_account",
+                  required=True),
+            Field("notes", "ملاحظات (اختياري)", "textarea"),
+        ],
+        build=_build_pay_eosb,
+        group="accrual",
+        permission="ops.settle",
+    ),
+    Operation(
+        key="cash-count-adjust",
+        title="تسوية الصندوق (فرق نقدي)",
+        icon="⚖️",
+        description="تسوية زيادة أو عجز في الصندوق الفعلي مقابل الدفاتر. للصندوق (1110) فقط.",
+        effect="يعدّل رصيد الصندوق ويقيّد الفرق على فروق نقدية (5960).",
+        source_type="cash_count_adjustment",
+        cashflow_category="NONCASH",
+        fields=[
+            Field("direction", "نوع الفرق", "direction_variance",
+                  required=True,
+                  help_text="زيادة (الصندوق فيه فلوس زيادة عن الدفاتر) أو عجز"),
+            Field("amount", "المبلغ", "amount", required=True),
+            Field("date", "تاريخ التسوية", "date", required=True),
+            Field("notes", "سبب الفرق (إلزامي)", "textarea", required=True),
+        ],
+        build=_build_cash_count_adjust,
+        group="cash",
+        permission="ops.adjustments",
+    ),
+    Operation(
+        key="adjust-account",
+        title="تسوية حساب عام (خطير)",
+        icon="⚠️",
+        description="تعديل رصيد أي حساب لأي سبب. أخطر معالج في القائمة — يحتاج صلاحية مستقلة.",
+        effect="يعدّل رصيد الحساب المختار ويقيّد الفرق على تسويات متنوعة (5970).",
+        source_type="general_adjustment",
+        cashflow_category="NONCASH",
+        fields=[
+            Field("target_account_id", "الحساب المطلوب تسويته", "any_account",
+                  required=True,
+                  help_text="أي حساب قابل للترحيل في الشجرة"),
+            Field("direction", "جهة التسوية", "direction_dr_cr",
+                  required=True,
+                  help_text="مدين (يزيد الأصول ويقلل الالتزامات) أو دائن (العكس)"),
+            Field("amount", "المبلغ", "amount", required=True),
+            Field("date", "التاريخ", "date", required=True),
+            Field("notes", "السبب (إلزامي)", "textarea", required=True),
+        ],
+        build=_build_adjust_account,
+        group="accrual",
+        permission="ops.adjustments",
     ),
 ]
 

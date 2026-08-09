@@ -62,6 +62,12 @@ P = {
     "ops.transfer":         {"owner", "admin", "accountant"},
     "ops.accruals":         {"owner", "admin", "accountant"},
     "ops.settle":           {"owner", "admin", "accountant"},
+    # MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08, Phase 4) — the
+    # most dangerous wizard: general account adjustment that lets
+    # any postable account be moved for any reason. Per ticket
+    # ("صلاحية مستقلة") — NOT granted to accountant by default and
+    # NOT implied by journals.create below. Explicit grant only.
+    "ops.adjustments":      {"owner", "admin"},
     # MARSOUD — read access to the general ledger. Was missing entirely,
     # which left /journals/* routes wide-open to any logged-in user. Same
     # role list as the financial-reports gate (+ accountant explicitly).

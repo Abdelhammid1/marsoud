@@ -112,24 +112,24 @@ def _teardown_company(company_id):
 
 
 # ─── 1-2: Seed + guard ─────────────────────────────────────────────────
-@check("1. Fresh company seed creates 104 accounts (18 headers + 86 leaves)")
+@check("1. Fresh company seed creates 106 accounts (18 headers + 88 leaves)")
 def _():
-    # AUDIT SYNC 2026-07-13 — 98/17/81 → 99/17/82.
-    # MARSOUD-OPS-FOUNDATION 2026-08-05 — 99/17/82 → 101/17/84
-    #   (1170 + 5940).
+    # AUDIT SYNC 2026-07-13 — updated from 98/17/81 to 99/17/82.
+    # MARSOUD-OPS-FOUNDATION 2026-08-05 — 99/17/82 → 101/17/84 (1170 + 5940).
     # MARSOUD-ASSET-DISPOSAL-01 2026-08-07 — 101 → 103 (5950 + 4550).
-    # MARSOUD-CASH-CUSTODY-01 2026-08-07 — 103 → 104 (1180 header
-    #   added; header count 17 → 18).
-    # MARSOUD-CUSTODY-BUGS-02 2026-08-08 — no seed changes (only
-    #   backfills the header into existing tenants); count unchanged.
+    # MARSOUD-CASH-CUSTODY-01 2026-08-07 — 103 → 104 (1180 header added).
+    #   Header count 17 → 18.
+    # MARSOUD-OPS-HUB-EXPANSION-01 2026-08-08 — 104 → 106
+    #   (5960 «فروق نقدية» + 5970 «تسويات متنوعة»).
+    # Any next addition: update these three numbers and add a line.
     from app.models import Account
     cid = _STATE["company_id"]
     accts = Account.query.filter_by(company_id=cid).all()
     headers = [a for a in accts if not a.is_postable]
     leaves = [a for a in accts if a.is_postable]
-    assert len(accts) == 104, f"got {len(accts)} accounts"
+    assert len(accts) == 106, f"got {len(accts)} accounts"
     assert len(headers) == 18, f"got {len(headers)} headers"
-    assert len(leaves) == 86, f"got {len(leaves)} leaves"
+    assert len(leaves) == 88, f"got {len(leaves)} leaves"
     return f"{len(accts)} accounts, {len(headers)} headers, {len(leaves)} leaves"
 
 
