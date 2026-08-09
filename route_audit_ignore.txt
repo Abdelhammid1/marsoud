@@ -49,3 +49,6 @@ reports.vendor_sub_categories             # linked from /reports/ via hardcoded 
 dashboard.landing                         # `/` — subdomain landing; before_request redirects to /home
 help.index                                # linked from base.html topbar via help() JS opener
 superadmin.broadcasts_preview             # linked from admin/broadcasts_index.html table row (hardcoded href)
+superadmin.nav_search_json                # JSON — Ctrl+K palette fetch() in admin/base.html, not a link target
+superadmin.plans_new                      # reached via JS redirect from /admin/plans (two-pane builder), not <a href>
+superadmin.plans_edit                     # reached via JS redirect from /admin/plans (two-pane builder), not <a href>
