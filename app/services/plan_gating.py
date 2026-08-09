@@ -105,6 +105,53 @@ def plan_allows(action, company):
     return module in plan.modules
 
 
+# ─── MARSOUD-ROLES-REFLECT-SCOPE (2026-08-09) — per-company effective set ─
+def effective_modules(company):
+    """The set of module codes actually enabled for `company`
+    RIGHT NOW — plan modules ∪ always-allowed (∪ future grant
+    exceptions, minus future deny exceptions).
+
+    Single source of truth for "what does this company actually
+    have". Today it wraps plan.modules + intended-plan fallback;
+    when the company-level plan-exception ticket lands, this is
+    the ONE function that widens. Every caller (roles page, POST
+    validator, future sidebar filter) reads the same set, so
+    grants/denies only need one insert point.
+
+    Falls back from subscription_plan -> intended_plan the same
+    way plan_allows does (MARSOUD-PLAN-BUNDLE-FIXES-01) so a
+    company mid-onboarding renders correctly.
+
+    Always includes _ALWAYS_ALLOWED so 'settings' is never
+    hidden — otherwise the owner locks themselves out of the
+    very page they're using.
+    """
+    modules = set(_ALWAYS_ALLOWED)
+    if company is None:
+        return modules
+    plan = (getattr(company, "subscription_plan", None)
+            or getattr(company, "intended_plan", None))
+    if plan is not None:
+        modules |= set(plan.modules or [])
+    # Future: modules = (modules | grants) - denies
+    return modules
+
+
+def effective_subitems(company):
+    """Same shape for the per-sidebar-item catalog. None means
+    'all allowed' — matches the Plan.subitems back-compat
+    convention at plan.py:49-60. Not consumed by this ticket
+    but exposed now so the companion 'sidebar items' ticket
+    plugs in without re-writing every caller."""
+    if company is None:
+        return None
+    plan = (getattr(company, "subscription_plan", None)
+            or getattr(company, "intended_plan", None))
+    if plan is None:
+        return None
+    return plan.subitems
+
+
 # ─── MARSOUD-58 / MARSOUD-PERM-EXPAND — per-section sub-item catalog ───
 # Sections mirror the 9 sidebar sections currently rendered by base.html.
 # Each entry lists the sub-items (endpoint, label, icon) the section can
