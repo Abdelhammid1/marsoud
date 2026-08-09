@@ -30,16 +30,47 @@
         {% endfor %}
       </select>
     </div>
+    {# MARSOUD-SUBITEM-OVERRIDES (2026-08-09) — scope radio +
+       two feature selects; JS below flips display + required. #}
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">
+        مستوى الاستثناء
+      </label>
+      <div class="flex gap-4">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="radio" name="scope" value="MODULE" checked
+                 onchange="_toggleOverrideScope('MODULE')">
+          <span>موديول كامل</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="radio" name="scope" value="SUBITEM"
+                 onchange="_toggleOverrideScope('SUBITEM')">
+          <span>عنصر واحد بعينه</span>
+        </label>
+      </div>
+    </div>
     <div>
       <label class="block text-sm font-semibold text-slate-700 mb-1">
         الميزة
       </label>
-      <select name="feature_code" class="input w-full" required>
-        <option value="">— اختر ميزة —</option>
+      <select name="feature_code_module" id="feature-module"
+              class="input w-full" required>
+        <option value="">— اختر موديول —</option>
         {% for m in modules %}
         <option value="{{ m.code }}">
           {{ m.icon }} {{ m.label_ar }}
         </option>
+        {% endfor %}
+      </select>
+      <select name="feature_code_subitem" id="feature-subitem"
+              class="input w-full" style="display:none">
+        <option value="">— اختر عنصر —</option>
+        {% for section_key, items in subitems_by_section %}
+        <optgroup label="{{ section_labels[section_key] }}">
+          {% for endpoint, label, icon in items %}
+          <option value="{{ endpoint }}">{{ icon }} {{ label }}</option>
+          {% endfor %}
+        </optgroup>
         {% endfor %}
       </select>
     </div>
@@ -156,7 +187,21 @@
             {{ r.company.name if r.company else '#' ~ r.company_id }}
           </a>
         </td>
-        <td class="font-mono text-xs">{{ r.feature_code }}</td>
+        <td class="font-mono text-xs">
+          {{ r.feature_code }}
+          {# MARSOUD-SUBITEM-OVERRIDES (2026-08-09) — scope chip so
+             a reader tells a module row apart from a subitem row
+             at a glance. #}
+          {% if r.scope == 'SUBITEM' %}
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 mx-1">
+            عنصر
+          </span>
+          {% else %}
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 mx-1">
+            موديول
+          </span>
+          {% endif %}
+        </td>
         <td>
           {% if r.mode == 'GRANT' %}
           <span class="badge badge-paid">⚡ منح</span>
@@ -210,4 +255,21 @@
   </table>
 </div>
 
+{# MARSOUD-SUBITEM-OVERRIDES (2026-08-09) — the scope radio flips
+   which feature <select> is visible + required. Same shape as the
+   `_toggleScheduleFields` pattern in tasks/form.html. #}
+<script>
+function _toggleOverrideScope(scope) {
+  var mod = document.getElementById('feature-module');
+  var sub = document.getElementById('feature-subitem');
+  if (!mod || !sub) return;
+  var showMod = (scope === 'MODULE');
+  mod.style.display = showMod ? '' : 'none';
+  mod.required = showMod;
+  if (!showMod) mod.value = '';
+  sub.style.display = showMod ? 'none' : '';
+  sub.required = !showMod;
+  if (showMod) sub.value = '';
+}
+</script>
 {% endblock %}

@@ -36,11 +36,21 @@ class CompanyFeatureOverride(db.Model):
         nullable=False, index=True,
     )
     # Registry code — validated in company_overrides.upsert_override
-    # against feature_registry.all_modules(). Free string in the DB so
-    # a code disappearing from the registry doesn't break the row
-    # (get_override returns None for unknown codes — same fail-safe
-    # shape FeatureFlag uses).
+    # against feature_registry.all_modules() (MODULE scope) or
+    # plan_gating.ALL_SUB_ITEM_ENDPOINTS (SUBITEM scope). Free
+    # string in the DB so a code disappearing from the registry
+    # doesn't break the row (get_override returns None for unknown
+    # codes — same fail-safe shape FeatureFlag uses).
     feature_code = db.Column(db.String(60), nullable=False, index=True)
+    # MARSOUD-SUBITEM-OVERRIDES (2026-08-09) — MODULE = whole
+    # module code ("inventory"); SUBITEM = a single endpoint from
+    # SUB_ITEM_CATALOG ("inventory.count"). Widened unique below
+    # so a SUBITEM row can coexist with a MODULE row on the same
+    # company (they're different features and must not collide).
+    scope = db.Column(
+        db.String(8), nullable=False, index=True,
+        default="MODULE",
+    )
     mode = db.Column(db.String(8), nullable=False, index=True)
     reason = db.Column(db.Text, nullable=False)
     expires_at = db.Column(db.DateTime, nullable=True, index=True)
@@ -53,10 +63,12 @@ class CompanyFeatureOverride(db.Model):
     )
 
     __table_args__ = (
-        db.UniqueConstraint("company_id", "feature_code",
-                             name="uq_override_company_feature"),
+        db.UniqueConstraint("company_id", "scope", "feature_code",
+                             name="uq_override_company_scope_feature"),
         db.CheckConstraint("mode IN ('GRANT', 'DENY')",
                             name="ck_override_mode"),
+        db.CheckConstraint("scope IN ('MODULE', 'SUBITEM')",
+                            name="ck_override_scope"),
     )
     company = db.relationship("Company")
     created_by = db.relationship("User", foreign_keys=[created_by_id])

@@ -105,27 +105,20 @@ def plan_allows(action, company):
     return module in plan.modules
 
 
-# ─── MARSOUD-ROLES-REFLECT-SCOPE (2026-08-09) — per-company effective set ─
+# ─── MARSOUD-ROLES-REFLECT-SCOPE + MARSOUD-SUBITEM-OVERRIDES seam ─────
+# Single source of truth for "what does this company have RIGHT NOW".
+# Wraps plan.modules + intended-plan fallback (same convention as
+# plan_allows), always includes _ALWAYS_ALLOWED so 'settings' is
+# never hidden, and — since MARSOUD-SUBITEM-OVERRIDES (2026-08-09) —
+# unions in the parent modules of any active SUBITEM GRANT so the
+# roles page perms + the plan-module gate in access.py step 3 both
+# agree that the granted subitem is usable by delegated users.
+#
+# NOTE: this function ALSO ships (in almost the same shape, minus
+# the subitem sweep) on the fix/roles-reflect-scope branch. When
+# both branches merge, resolve the conflict by keeping the version
+# that includes the subitem-sweep block below — it's a superset.
 def effective_modules(company):
-    """The set of module codes actually enabled for `company`
-    RIGHT NOW — plan modules ∪ always-allowed (∪ future grant
-    exceptions, minus future deny exceptions).
-
-    Single source of truth for "what does this company actually
-    have". Today it wraps plan.modules + intended-plan fallback;
-    when the company-level plan-exception ticket lands, this is
-    the ONE function that widens. Every caller (roles page, POST
-    validator, future sidebar filter) reads the same set, so
-    grants/denies only need one insert point.
-
-    Falls back from subscription_plan -> intended_plan the same
-    way plan_allows does (MARSOUD-PLAN-BUNDLE-FIXES-01) so a
-    company mid-onboarding renders correctly.
-
-    Always includes _ALWAYS_ALLOWED so 'settings' is never
-    hidden — otherwise the owner locks themselves out of the
-    very page they're using.
-    """
     modules = set(_ALWAYS_ALLOWED)
     if company is None:
         return modules
@@ -133,23 +126,66 @@ def effective_modules(company):
             or getattr(company, "intended_plan", None))
     if plan is not None:
         modules |= set(plan.modules or [])
-    # Future: modules = (modules | grants) - denies
+    # MARSOUD-SUBITEM-OVERRIDES (2026-08-09) — subitem grants
+    # unlock their parent module so the granted page's plan-gate
+    # (access.py step 3) + the owner's roles-page perms (via
+    # grouped_permissions filter) both flow. DENYs don't remove
+    # a module (they only remove one endpoint from it —
+    # subitem_allowed handles that).
+    try:
+        from app.services.company_overrides import list_for_company
+        from app.services.feature_registry import module_for_endpoint
+        for row in list_for_company(company.id):
+            if (row.scope == "SUBITEM" and row.mode == "GRANT"
+                    and row.is_active):
+                m = module_for_endpoint(row.feature_code)
+                if m:
+                    modules.add(m)
+    except Exception:
+        try:
+            from flask import current_app
+            current_app.logger.exception(
+                "effective_modules: subitem-grant sweep failed")
+        except Exception:
+            pass
     return modules
 
 
 def effective_subitems(company):
     """Same shape for the per-sidebar-item catalog. None means
     'all allowed' — matches the Plan.subitems back-compat
-    convention at plan.py:49-60. Not consumed by this ticket
-    but exposed now so the companion 'sidebar items' ticket
-    plugs in without re-writing every caller."""
+    convention at plan.py:49-60.
+
+    MARSOUD-SUBITEM-OVERRIDES (2026-08-09) — layers active subitem
+    grants/denies on top of plan.subitems. If nothing is scoped
+    (no plan AND no override rows) returns None so callers see
+    the same 'all allowed' signal they always saw. Otherwise
+    materialises the set so grants can add and denies can
+    subtract. `is_active` guards past-`expires_at` rows.
+    """
     if company is None:
         return None
     plan = (getattr(company, "subscription_plan", None)
             or getattr(company, "intended_plan", None))
-    if plan is None:
-        return None
-    return plan.subitems
+    base = None if plan is None else plan.subitems
+    try:
+        from app.services.company_overrides import list_for_company
+        rows = [r for r in list_for_company(company.id)
+                if r.scope == "SUBITEM" and r.is_active]
+    except Exception:
+        rows = []
+    if not rows:
+        return base
+    # Materialise: if plan had no filter (base is None), start
+    # from ALL known subitems so DENY can subtract.
+    materialised = set(base) if base is not None else set(
+        ALL_SUB_ITEM_ENDPOINTS)
+    for r in rows:
+        if r.mode == "GRANT":
+            materialised.add(r.feature_code)
+        else:  # DENY
+            materialised.discard(r.feature_code)
+    return sorted(materialised)
 
 
 # ─── MARSOUD-58 / MARSOUD-PERM-EXPAND — per-section sub-item catalog ───
@@ -329,6 +365,9 @@ def subitem_allowed(endpoint, company):
     """True if the company's plan allows this sub-item endpoint.
 
     Returns True when:
+      - a company-level SUBITEM GRANT override is active for this
+        endpoint (MARSOUD-SUBITEM-OVERRIDES 2026-08-09 — wins over
+        plan)
       - the company has no plan attached (back-compat)
       - the plan's allowed_subitems is None (legacy / not yet set)
       - the endpoint is in the plan's allowed_subitems list
@@ -339,9 +378,37 @@ def subitem_allowed(endpoint, company):
         with this one via `has_permission`) is what enforces the
         picked-plan restrictions during trial — see MARSOUD-PLAN-
         BUNDLE-FIXES-01.
+
+    Returns False when a SUBITEM DENY override is active. That
+    branch runs BEFORE the trial-window check on purpose — a
+    super-admin explicitly denying a subitem should refuse even
+    inside the trial (parity with the module-level DENY, which
+    also refuses inside the trial via `plan_allows`).
     """
     if not company:
         return True
+    # MARSOUD-SUBITEM-OVERRIDES (2026-08-09) — subitem-level
+    # override wins over any plan check for the specific
+    # endpoint. Same shape as the module-override step in
+    # access.py: DENY refuses, GRANT allows, None falls
+    # through. Kill-switch (platform FeatureFlag on the parent
+    # module) still beats the GRANT — checked one level up in
+    # access.py::can_access step 1 via module_for_endpoint,
+    # so no additional guard needed here.
+    try:
+        from app.services.company_overrides import get_subitem_override
+        ov = get_subitem_override(company.id, endpoint)
+        if ov == "DENY":
+            return False
+        if ov == "GRANT":
+            return True
+    except Exception:
+        try:
+            from flask import current_app
+            current_app.logger.exception(
+                "subitem_allowed: override lookup failed")
+        except Exception:
+            pass
     # Trial keeps sub-items unlocked; the coarse module gate on
     # plan_allows already blocks features that aren't in the picked
     # plan's modules. Sub-item toggles are a fine-grained super-admin

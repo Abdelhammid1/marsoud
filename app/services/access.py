@@ -88,7 +88,30 @@ def can_access(endpoint, user, company):
             "access.can_access: feature-flag check failed")
         # fail open — don't break the app on a helper crash
 
-    # Step 2 — Company override (T4 hook — stub returns None today).
+    # Step 2 — Company overrides. Order matters (MARSOUD-SUBITEM-
+    # OVERRIDES 2026-08-09):
+    #   2a — subitem DENY refuses first. More specific wins over
+    #        module GRANT (AC #4: "الاستثناء الأدق هو اللي يفوز").
+    #   2b — module GRANT / DENY (existing shape, unchanged).
+    #   2c — subitem GRANT bypasses the plan gate (step 3) AND the
+    #        subitem gate (step 4) for THIS endpoint, so a company
+    #        can be granted one page even if its plan lacks the
+    #        parent module.
+    sub_ov = None
+    si = None
+    try:
+        from app.services.plan_gating import endpoint_to_subitem
+        from app.services.company_overrides import (
+            get_subitem_override, )
+        si = endpoint_to_subitem(endpoint)
+        if si and company:
+            sub_ov = get_subitem_override(company.id, si)
+            if sub_ov == "DENY":
+                return False, REASON_COMPANY_DENIED
+    except Exception:
+        current_app.logger.exception(
+            "access.can_access: subitem-override lookup failed")
+
     try:
         override = _company_override(company, module)
         if override == "DENY":
@@ -97,11 +120,21 @@ def can_access(endpoint, user, company):
             # A GRANT override skips plan + role checks entirely
             # (per ticket § step 2). Still refuses if super-admin
             # kills the whole platform via FeatureFlag (already
-            # checked above).
+            # checked above). Also NOT reached when a subitem DENY
+            # fired at 2a — that ordering is deliberate so a more
+            # specific DENY beats a coarser GRANT.
             return True, None
     except Exception:
         current_app.logger.exception(
             "access.can_access: company-override hook failed")
+
+    # 2c — subitem GRANT: allow the specific endpoint even if the
+    # plan doesn't include the parent module. The kill-switch at
+    # step 1 already refused if the module is globally off, so a
+    # GRANT here can only cover a plan-shortfall — not a platform
+    # kill.
+    if sub_ov == "GRANT":
+        return True, None
 
     # Step 3 — plan module gate. `plan_allows` derives the module
     # from the permission code, so we need to route via a feature

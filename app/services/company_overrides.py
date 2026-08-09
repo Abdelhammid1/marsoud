@@ -29,7 +29,12 @@ from app.models import CompanyFeatureOverride
 # ─── Cache (mirror of feature_flags._cache pattern) ─────────────────
 _CACHE_TTL_SECONDS = 60
 _cache_lock = threading.Lock()
-# {company_id: (loaded_at, {feature_code: (mode, expires_at)})}
+# MARSOUD-SUBITEM-OVERRIDES (2026-08-09) — cache key widened from
+# `feature_code` to `(scope, feature_code)` so a subitem row for
+# 'inventory.count' can coexist with a module row for 'inventory'
+# on the same company without one clobbering the other in the
+# cache dict.
+# {company_id: (loaded_at, {(scope, feature_code): (mode, expires_at)})}
 _cache: dict = {}
 
 
@@ -45,7 +50,10 @@ def _load_company_if_stale(company_id):
         try:
             rows = CompanyFeatureOverride.query.filter_by(
                 company_id=company_id).all()
-            data = {r.feature_code: (r.mode, r.expires_at) for r in rows}
+            # Key by (scope, feature_code) so subitem + module rows
+            # on the same feature name are addressable separately.
+            data = {(r.scope, r.feature_code): (r.mode, r.expires_at)
+                    for r in rows}
         except Exception:
             data = {}
         _cache[company_id] = (now, data)
@@ -63,12 +71,35 @@ def _invalidate_all():
 
 
 # ─── Validation ────────────────────────────────────────────────────
-def _validate_feature_code(feature_code):
-    """Raise ValueError if the code isn't a known module in the
-    registry. Rationale: an override written for a typo'd code
-    would sit in the DB doing nothing forever."""
+def _validate_scope(scope):
+    """MARSOUD-SUBITEM-OVERRIDES (2026-08-09) — scope decides
+    which catalogue we validate feature_code against."""
+    if scope not in ("MODULE", "SUBITEM"):
+        raise ValueError(
+            f"نوع الاستثناء غير صحيح (MODULE|SUBITEM)")
+
+
+def _validate_feature_code(feature_code, scope="MODULE"):
+    """Raise ValueError if the code isn't a known feature. An
+    override written for a typo'd code would sit in the DB doing
+    nothing forever.
+
+    MODULE  → validated against feature_registry.all_module_codes()
+    SUBITEM → validated against plan_gating.ALL_SUB_ITEM_ENDPOINTS
+             (the same catalogue the sidebar + super-admin plan
+             editor render). Keeping the two source-of-truth
+             lists literally the same guarantees the picker only
+             ever offers rows the resolver can actually honour.
+    """
     if not feature_code:
         raise ValueError("رمز الميزة مطلوب")
+    if scope == "SUBITEM":
+        from app.services.plan_gating import ALL_SUB_ITEM_ENDPOINTS
+        if feature_code not in ALL_SUB_ITEM_ENDPOINTS:
+            raise ValueError(
+                f"عنصر غير معروف: {feature_code!r}")
+        return
+    # scope == "MODULE"
     from app.services.feature_registry import all_module_codes
     if feature_code not in all_module_codes():
         raise ValueError(
@@ -87,21 +118,37 @@ def _validate_reason(reason):
 
 
 # ─── Readers ───────────────────────────────────────────────────────
-def get_override(company_id, feature_code):
+def get_override(company_id, feature_code, scope="MODULE"):
     """Returns 'GRANT' | 'DENY' | None. Expired rows treated as None.
 
-    This is the function `access._company_override` delegates to.
-    Called on every gated request → hot path → cache-backed."""
+    This is the function `access._company_override` delegates to
+    for MODULE scope; SUBITEM callers should use the thin
+    `get_subitem_override` wrapper below so the intent reads
+    cleanly at the call site.
+
+    MARSOUD-SUBITEM-OVERRIDES (2026-08-09) — scope keyword grew;
+    the cache key is `(scope, feature_code)` so a subitem row and
+    a module row on the same feature name are addressable
+    separately. Called on every gated request → hot path →
+    cache-backed."""
     if not company_id or not feature_code:
         return None
     data = _load_company_if_stale(company_id)
-    entry = data.get(feature_code)
+    entry = data.get((scope, feature_code))
     if entry is None:
         return None
     mode, expires_at = entry
     if expires_at is not None and expires_at <= datetime.utcnow():
         return None
     return mode
+
+
+def get_subitem_override(company_id, subitem_endpoint):
+    """MARSOUD-SUBITEM-OVERRIDES (2026-08-09) — thin wrapper so
+    every subitem-read call site reads `get_subitem_override(...)`
+    (self-documenting) instead of a bare `get_override(..., scope=
+    'SUBITEM')`. Same fail-safe (None on empty inputs)."""
+    return get_override(company_id, subitem_endpoint, scope="SUBITEM")
 
 
 def list_for_company(company_id):
@@ -112,14 +159,18 @@ def list_for_company(company_id):
     ).order_by(CompanyFeatureOverride.created_at.desc()).all()
 
 
-def list_all(company_id=None, mode=None, status=None):
+def list_all(company_id=None, mode=None, status=None, scope=None):
     """Every override on the platform for /admin/overrides.
-    status ∈ ('active', 'expired', 'all'); active is the default."""
+    status ∈ ('active', 'expired', 'all'); active is the default.
+    MARSOUD-SUBITEM-OVERRIDES (2026-08-09) — optional scope
+    filter (None = both MODULE and SUBITEM)."""
     q = CompanyFeatureOverride.query
     if company_id:
         q = q.filter(CompanyFeatureOverride.company_id == company_id)
     if mode in ("GRANT", "DENY"):
         q = q.filter(CompanyFeatureOverride.mode == mode)
+    if scope in ("MODULE", "SUBITEM"):
+        q = q.filter(CompanyFeatureOverride.scope == scope)
     if status == "active" or status is None:
         # NULL expires_at counts as active; a past date does not.
         now = datetime.utcnow()
@@ -139,24 +190,36 @@ def list_all(company_id=None, mode=None, status=None):
 
 # ─── Writer ────────────────────────────────────────────────────────
 def upsert_override(company_id, feature_code, mode, reason, *,
-                     expires_at=None, actor_id=None):
+                     expires_at=None, actor_id=None,
+                     scope="MODULE"):
     """Insert-or-update a company override. Validates everything up
     front, then commits + invalidates cache + writes audit log.
 
     Returns the row.
     Raises ValueError on validation failure (empty reason, unknown
-    feature code, bad mode)."""
-    _validate_feature_code(feature_code)
+    feature code, bad mode, bad scope).
+
+    MARSOUD-SUBITEM-OVERRIDES (2026-08-09) — scope keyword grew.
+    Uniqueness is `(company_id, scope, feature_code)` so a subitem
+    row for 'inventory.count' can coexist with a module row for
+    'inventory' on the same company without one overwriting the
+    other. Audit `details` gains `scope=` so the audit log
+    distinguishes the two without a new action code (the
+    audit-viewer UI needs no change)."""
+    _validate_scope(scope)
+    _validate_feature_code(feature_code, scope)
     _validate_mode(mode)
     _validate_reason(reason)
 
     row = CompanyFeatureOverride.query.filter_by(
-        company_id=company_id, feature_code=feature_code,
+        company_id=company_id, scope=scope,
+        feature_code=feature_code,
     ).first()
     was_new = row is None
     if was_new:
         row = CompanyFeatureOverride(
             company_id=company_id,
+            scope=scope,
             feature_code=feature_code,
         )
         db.session.add(row)
@@ -179,8 +242,8 @@ def upsert_override(company_id, feature_code, mode, reason, *,
             "override_" + mode.lower(),
             target_company_id=company_id,
             actor_id=actor_id,
-            details=(f"feature={feature_code}{exp_str} "
-                     f"reason={reason.strip()[:200]}"),
+            details=(f"scope={scope} feature={feature_code}"
+                     f"{exp_str} reason={reason.strip()[:200]}"),
         )
     except Exception:
         pass
@@ -189,12 +252,14 @@ def upsert_override(company_id, feature_code, mode, reason, *,
 
 def revoke_override(override_id, actor_id=None):
     """Delete an override + write an audit line preserving the
-    reason (in details). Returns True if a row was removed."""
+    reason + scope (in details). Returns True if a row was
+    removed."""
     row = db.session.get(CompanyFeatureOverride, override_id)
     if row is None:
         return False
     company_id = row.company_id
-    snap = (f"feature={row.feature_code} mode={row.mode} "
+    snap = (f"scope={row.scope} feature={row.feature_code} "
+            f"mode={row.mode} "
             f"was_reason={(row.reason or '')[:200]}")
     db.session.delete(row)
     db.session.commit()
