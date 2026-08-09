@@ -65,6 +65,10 @@ class AnthropicProvider(AiProvider):
 
     def run_turn(self, *, system, messages, tools, model,
                  max_tokens=4096):
+        # MARSOUD-SUPERADMIN-CONTROL-01 T7 — clamp to the platform
+        # cap so a rogue caller can't spend past the super-admin's
+        # ceiling.
+        max_tokens = min(max_tokens, get_max_tokens_setting())
         resp = self._client.messages.create(
             model=model,
             max_tokens=max_tokens,
@@ -195,6 +199,9 @@ class DeepseekProvider(AiProvider):
 
     def run_turn(self, *, system, messages, tools, model,
                  max_tokens=4096):
+        # MARSOUD-SUPERADMIN-CONTROL-01 T7 — same clamp as
+        # AnthropicProvider.
+        max_tokens = min(max_tokens, get_max_tokens_setting())
         openai_tools = self._anthropic_to_openai_tools(tools)
         openai_msgs = self._anthropic_to_openai_messages(
             system, messages)
@@ -255,3 +262,86 @@ def get_provider(key: str) -> AiProvider:
     if key == "deepseek":
         return DeepseekProvider()
     raise ValueError(f"unknown AI provider: {key!r}")
+
+
+# ─── MARSOUD-SUPERADMIN-CONTROL-01 T7 (2026-08-08) ─────────────
+# PlatformSetting-driven resolver: kill switch + fallback chain +
+# max-tokens clamp. Keys are duplicated as constants so this file
+# stays importable without a hard dep on ai_control.
+_MAX_TOKENS_KEY   = "ai_max_tokens_per_turn"
+_KILL_SWITCH_KEY  = "ai_globally_disabled"
+_FALLBACK_KEY     = "ai_provider_fallback_order"
+_KNOWN_PROVIDERS  = ("anthropic", "deepseek")
+
+
+def get_max_tokens_setting(default=4096):
+    """T7 per-turn cap. Clamped to [256, 32000]; missing/bad
+    settings fall back to `default`. Cheap enough to call every
+    turn (one indexed SELECT)."""
+    from app.services.subscription import _get_setting_raw
+    try:
+        raw = _get_setting_raw(_MAX_TOKENS_KEY)
+        n = int(raw) if raw else default
+        return max(256, min(n, 32_000))
+    except Exception:
+        return default
+
+
+def kill_switch_active():
+    """When True, resolve_provider raises before doing anything."""
+    from app.services.subscription import _get_setting_raw
+    raw = (_get_setting_raw(_KILL_SWITCH_KEY) or "").lower()
+    return raw in ("1", "true", "yes", "on")
+
+
+def _fallback_chain(preferred):
+    """Ordered, deduped list of providers to try: [preferred] +
+    configured fallback list, minus unknowns."""
+    from app.services.subscription import _get_setting_raw
+    seen = set()
+    out = []
+    if preferred:
+        p = preferred.lower()
+        if p in _KNOWN_PROVIDERS:
+            seen.add(p); out.append(p)
+    raw = _get_setting_raw(_FALLBACK_KEY) or ""
+    try:
+        if raw.startswith("["):
+            parsed = json.loads(raw)
+        else:
+            parsed = raw.split(",")
+    except Exception:
+        parsed = []
+    for name in parsed:
+        n = (name or "").strip().lower()
+        if n in _KNOWN_PROVIDERS and n not in seen:
+            seen.add(n); out.append(n)
+    return out
+
+
+def resolve_provider(preferred=None):
+    """T7's chokepoint. Every persona/loop that would call
+    get_provider() directly should call resolve_provider() instead:
+
+      · kill switch on  → raise Arabic 'AI disabled' error
+      · else try preferred; if construction raises RuntimeError,
+        fall through to the configured fallback list in order
+      · if the whole chain fails, re-raise the LAST RuntimeError
+    """
+    if kill_switch_active():
+        raise RuntimeError(
+            "الذكاء الاصطناعي معطّل مؤقتاً من مركز التحكم "
+            "(/admin/ai-control).")
+    chain = _fallback_chain(preferred)
+    if not chain:
+        # No preferred + no fallback → keep old behaviour.
+        return get_provider(preferred or "anthropic")
+    last_err = None
+    for name in chain:
+        try:
+            return get_provider(name)
+        except RuntimeError as e:
+            last_err = e
+            continue
+    raise last_err or RuntimeError(
+        "لا يوجد مزود ذكاء اصطناعي متاح")
