@@ -517,6 +517,102 @@ def create_app(config_class=Config):
         if si and not subitem_allowed(si, company):
             abort(403)
 
+    # MARSOUD-SUPERADMIN-CONTROL-01 T2 (2026-08-08) — the unified
+    # access resolver. Runs AFTER enforce_subitem_gating so the
+    # older gate is still a safety net during rollout; both will
+    # collapse into one when T3 lands. Uses can_access() — the
+    # SAME function visible_nav() calls — so 'شفت الرابط' ⟺
+    # 'يفتح' by construction.
+    @app.before_request
+    def enforce_access():
+        from flask_login import current_user
+        from flask import render_template, jsonify, abort
+        if not current_user.is_authenticated:
+            return
+        if getattr(current_user, "is_superadmin", False):
+            return
+        endpoint = request.endpoint or ""
+        try:
+            from app.services.access import (
+                can_access, ACCESS_EXEMPT_PREFIXES,
+                REASON_PLATFORM_DISABLED, REASON_PLAN_MODULE,
+                REASON_PLAN_FEATURE, REASON_COMPANY_DENIED,
+            )
+        except Exception:
+            return   # helper import failed — fall open
+        if endpoint.startswith(ACCESS_EXEMPT_PREFIXES):
+            return
+        company = g.get("active_company")
+        try:
+            allowed, reason = can_access(endpoint, current_user, company)
+        except Exception:
+            app.logger.exception("enforce_access resolver failed")
+            return   # fail open
+        if allowed:
+            return
+        # JSON for /api/*, friendly HTML page otherwise.
+        if request.path.startswith("/api/"):
+            status = 503 if reason == REASON_PLATFORM_DISABLED else 403
+            msg_map = {
+                REASON_PLATFORM_DISABLED: "الميزة متوقفة مؤقتاً",
+                REASON_PLAN_MODULE:       "الميزة غير متاحة في باقتك",
+                REASON_PLAN_FEATURE:      "الميزة غير متاحة في باقتك",
+                REASON_COMPANY_DENIED:    "الميزة غير متاحة لشركتك",
+            }
+            return jsonify({"error": msg_map.get(reason, "غير مسموح"),
+                             "reason": reason}), status
+        if reason == REASON_PLATFORM_DISABLED:
+            try:
+                from app.services.feature_registry import module_for_endpoint
+                from app.services.feature_flags import disabled_reason
+                mod = module_for_endpoint(endpoint)
+                r = disabled_reason(mod) if mod else None
+            except Exception:
+                mod, r = None, None
+            return render_template(
+                "errors/module_disabled.html",
+                module_key=mod or endpoint, reason=r), 503
+        if reason in (REASON_PLAN_MODULE, REASON_PLAN_FEATURE,
+                      REASON_COMPANY_DENIED):
+            # Look up module label + which plans include it for the
+            # upgrade CTA. Errors here degrade to a bare page.
+            module_label = None
+            current_plan = None
+            required_plans = []
+            try:
+                from app.services.feature_registry import (
+                    module_for_endpoint, get_module,
+                )
+                mod_code = module_for_endpoint(endpoint)
+                if mod_code:
+                    mod = get_module(mod_code)
+                    if mod:
+                        module_label = mod.label_ar
+                    # Which plans include this module?
+                    from app.cli import PLAN_SEED
+                    for cfg in PLAN_SEED:
+                        if mod_code in cfg["modules"]:
+                            required_plans.append(cfg["name_ar"])
+                if company and getattr(company, "intended_plan", None):
+                    current_plan = company.intended_plan.name_ar
+                elif company and getattr(company, "subscription_plan", None):
+                    current_plan = company.subscription_plan.name_ar
+            except Exception:
+                pass
+            return render_template(
+                "errors/plan_upgrade_required.html",
+                endpoint=endpoint,
+                module_label=module_label,
+                current_plan=current_plan,
+                required_plans=required_plans), 200
+        # REASON_PERMISSION → fall through to the route's own
+        # @require_permission decorator, which redirects with a
+        # flash rather than aborting 403. This preserves the
+        # existing UX for role-gated pages (E6 in audit_portal_403
+        # explicitly asserts 302, not 403). Route decorators are
+        # already correct — my hook only owns plan-vs-platform.
+        return
+
     # TICKET 1 — subscription read-only enforcement.
     # When a company's subscription is past its grace period AND the
     # read-only toggle is on, reject any unsafe-method request unless the
@@ -728,11 +824,29 @@ def create_app(config_class=Config):
                 my_employee_here = Employee.query.filter_by(
                     company_id=active_company.id, user_id=_cu.id,
                 ).first()
+        # MARSOUD-SUPERADMIN-CONTROL-01 T2 (2026-08-08) — expose
+        # the unified access resolver so the sidebar template can
+        # ask the SAME predicate the request-time guard uses. The
+        # old `permission_map.get(endpoint)` + `has_permission(req)`
+        # dance in base.html called two different maps, one of
+        # which was 10 endpoints short. This closes that gap.
+        def _can_access_endpoint(endpoint):
+            from flask_login import current_user as _cu2
+            if not _cu2 or not getattr(_cu2, "is_authenticated", False):
+                return False
+            try:
+                from app.services.access import can_access
+                allowed, _ = can_access(endpoint, _cu2, active_company)
+                return allowed
+            except Exception:
+                # fail open — matches the request-time guard
+                return True
         return {
             "active_company": active_company,
             "user_companies": g.get("user_companies", []),
             "now": datetime.utcnow(),
             "has_permission": has_permission,
+            "can_access_endpoint": _can_access_endpoint,
             "current_role": current_role,
             "impersonating": g.get("impersonating", False),
             "subscription": sub_state,
@@ -1218,5 +1332,110 @@ def create_app(config_class=Config):
                 print(f"  ✓ company #{c.id} {c.name!r}: all present")
         if not any_missing:
             print("All companies have a complete CoA.")
+
+    # MARSOUD-SUPERADMIN-CONTROL-01 T1 (2026-08-08) — CLI:
+    # flask check-registry
+    @app.cli.command("check-registry")
+    def _check_registry():
+        """Report drift between the feature registry and the rest
+        of the app. Exits nonzero on any finding — safe to wire
+        into pre-deploy CI."""
+        import sys
+        from app.services.feature_registry import (
+            all_modules, all_features,
+            module_for_permission, all_module_codes,
+        )
+        findings = []
+
+        # (a) plan seed lists a module the registry doesn't know.
+        try:
+            from app.cli import PLAN_SEED
+            registry_codes = all_module_codes()
+            for cfg in PLAN_SEED:
+                for m in cfg["modules"]:
+                    if m not in registry_codes:
+                        findings.append(
+                            f"PLAN_SEED[{cfg['code']!r}] lists module "
+                            f"{m!r} that has no entry in feature_registry")
+        except Exception as e:
+            findings.append(f"PLAN_SEED check failed: {e}")
+
+        # (b) DB-side FeatureFlag rows keyed by a module we don't
+        # know. Skip cleanly if the table isn't there.
+        try:
+            from app.models import FeatureFlag
+            for ff in FeatureFlag.query.all():
+                if ff.module_key not in registry_codes:
+                    findings.append(
+                        f"FeatureFlag row {ff.module_key!r} points "
+                        f"at an unknown module")
+        except Exception:
+            pass   # table missing → fresh install, safe to skip
+
+        # (c) Every P permission code maps to some module.
+        # MARSOUD-4-BRANCH-REPAIR (2026-08-08) — the 4 crm.* fine-
+        # grained codes intentionally have no plan-level module
+        # gate (see the "3. Every P permission maps..." check in
+        # tests/audit_registry_and_access.py for the rationale).
+        # Whitelist them so `flask check-registry` stays green.
+        _UNGATED_AT_PLAN = {
+            "crm.campaigns.view",
+            "crm.activities.view",
+            "crm.contacts.view",
+            "crm.analytics.view",
+        }
+        try:
+            from app.services.permissions import P
+            missing_perm_module = []
+            for perm in sorted(P.keys()):
+                if module_for_permission(perm) is None:
+                    # Filter out the `settings`-owned perms
+                    # (users.view/manage) that don't have a
+                    # prefix mapping because settings has no
+                    # prefix — this is fine, they're always
+                    # allowed. Only report unknown prefixes.
+                    if (not perm.startswith(("users.",))
+                            and perm not in _UNGATED_AT_PLAN):
+                        missing_perm_module.append(perm)
+            if missing_perm_module:
+                findings.append(
+                    f"{len(missing_perm_module)} permission code(s) "
+                    f"in permissions.P have no module in the "
+                    f"registry: {missing_perm_module[:5]}"
+                    + (" …" if len(missing_perm_module) > 5 else ""))
+        except Exception as e:
+            findings.append(f"permissions.P check failed: {e}")
+
+        # (d) Every module has at least one feature (helps catch a
+        # module code introduced without wiring endpoints).
+        try:
+            feats_by_module = {}
+            for f in all_features():
+                feats_by_module.setdefault(f.module, []).append(f)
+            for m in all_modules():
+                if not feats_by_module.get(m.code):
+                    findings.append(
+                        f"module {m.code!r} has zero features "
+                        f"tied to it")
+        except Exception as e:
+            findings.append(f"module→feature check failed: {e}")
+
+        # Report
+        # ASCII-only prints — Windows cp1252 stdout crashes on the
+        # ✓ / ❌ glyphs, which the pre-commit hook triggers.
+        def _p(msg):
+            try:
+                print(msg)
+            except UnicodeEncodeError:
+                print(msg.encode("ascii", errors="replace").decode())
+        if not findings:
+            _p("OK feature registry is in sync - no drift detected")
+            _p(f"  - {len(list(all_modules()))} modules")
+            _p(f"  - {len(list(all_features()))} features")
+            sys.exit(0)
+        _p("FAIL feature registry drift detected:")
+        for f in findings:
+            _p(f"  - {f}")
+        sys.exit(1)
 
     return app

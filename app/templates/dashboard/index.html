@@ -813,9 +813,13 @@
     {% if has_permission('inventory.manage') %}
     <a class="q" href="{{ url_for('inventory_counts.new') }}"><span class="q-ico">📊</span><span class="q-label">جرد جديد</span></a>
     {% endif %}
-    {% if has_permission('journals.create') %}
-    <a class="q" href="{{ url_for('journals.new') }}"><span class="q-ico">📒</span><span class="q-label">قيد يدوي</span></a>
-    {% endif %}
+    {# MARSOUD-4-BRANCH-REPAIR (2026-08-08) — the «قيد يدوي» tile was
+       removed from the FIRST quick-action strip earlier in this file
+       as part of T1/T2, but this SECOND copy at the accounting strip
+       was left behind, so the tile still appeared for users with
+       journals.create. Removed here to match the first strip.
+       The «العمليات المحاسبية» tile stays — it's the correct entry
+       point for wizard-driven journal entries. #}
     {% if has_permission('journals.create') %}
     <a class="q" href="{{ url_for('accounting_ops.index') }}"><span class="q-ico">🧮</span><span class="q-label">العمليات المحاسبية</span></a>
     {% endif %}
