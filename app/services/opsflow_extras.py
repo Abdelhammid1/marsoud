@@ -217,7 +217,18 @@ def save_document(*, company_id, source_type, source_id, file_storage,
         raise DocumentError("الملف يتجاوز 50 ميجا — اضغطه أو قسّمه")
 
     src = source_type.value if hasattr(source_type, "value") else source_type
-    if src not in ("LEAD", "PROJECT", "TASK"):
+    # MARSOUD-CUSTODY-REQUEST-APPROVE-01 (2026-08-10) — three
+    # custody source types layered on. CASH_CUSTODY_SETTLEMENT +
+    # ITEM_CUSTODY were in the enum + _can_attach_to since the
+    # custody cycle but this whitelist was never widened — the
+    # accountant would click Upload and hit "نوع غير صالح" 500.
+    # Fixed here + adds CASH_CUSTODY_REQUEST for the transfer-
+    # receipt attach at approval time. Also ships (widening the
+    # first two only) on fix/custody-attach; merge conflict
+    # resolves by keeping the widest set — this branch's version.
+    if src not in ("LEAD", "PROJECT", "TASK",
+                    "CASH_CUSTODY_SETTLEMENT", "ITEM_CUSTODY",
+                    "CASH_CUSTODY_REQUEST"):
         raise DocumentError("نوع غير صالح")
 
     doc_dir = Path(current_app.root_path) / "static" / "docs" / str(company_id) / src.lower()

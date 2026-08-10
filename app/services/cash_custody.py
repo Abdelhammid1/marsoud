@@ -247,12 +247,36 @@ def request_custody(company_id, holder_type, holder_id, amount,
 def approve_custody_request(req, *, reviewer_id, issued_on=None,
                              payment_method_id=None,
                              settlement_due_date=None,
-                             review_note=None):
+                             review_note=None,
+                             amount=None):
     """Approve a PENDING request → real custody + issue journal.
     Delegates to issue_custody so both request-approval and direct-
-    issue land in the same funnel."""
+    issue land in the same funnel.
+
+    MARSOUD-CUSTODY-REQUEST-APPROVE-01 (2026-08-10) — `amount` grew
+    from an implicit `req.amount` copy to an optional override so
+    the accountant can approve a different figure than the
+    employee requested (e.g. partial disbursement, or a higher
+    figure if the employee undershot). Passing None keeps the old
+    behaviour bit-for-bit — approves for exactly what was asked.
+    The override lands on CashCustody.amount_issued only;
+    req.amount stays untouched so the audit trail of what the
+    employee originally requested is preserved.
+    """
     if req.status != CustodyRequestStatus.PENDING:
         raise CustodyError("يمكن اعتماد الطلبات في حالة الانتظار فقط")
+
+    from decimal import Decimal, InvalidOperation
+    if amount is None:
+        effective_amount = req.amount
+    else:
+        try:
+            effective_amount = (amount if isinstance(amount, Decimal)
+                                 else Decimal(str(amount)))
+        except (InvalidOperation, TypeError):
+            raise CustodyError("المبلغ غير صالح")
+    if effective_amount <= 0:
+        raise CustodyError("المبلغ يجب أن يكون أكبر من صفر")
 
     custody = issue_custody(
         req.company_id,
@@ -260,7 +284,7 @@ def approve_custody_request(req, *, reviewer_id, issued_on=None,
         holder_id=(req.employee_id
                    if req.holder_type == CustodyHolderType.EMPLOYEE
                    else req.department_id),
-        amount=float(req.amount),
+        amount=float(effective_amount),
         purpose=req.purpose,
         issued_on=issued_on or date.today(),
         settlement_due_date=settlement_due_date,

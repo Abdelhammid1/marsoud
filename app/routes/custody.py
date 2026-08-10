@@ -198,6 +198,11 @@ def request_approve(req_id):
 
     if request.method == "POST":
         try:
+            # MARSOUD-CUSTODY-REQUEST-APPROVE-01 (2026-08-10) —
+            # optional amount override. Empty string / missing →
+            # None → service uses req.amount (old behaviour).
+            amount_raw = (request.form.get("amount") or "").strip()
+            amount = amount_raw or None
             custody = approve_custody_request(
                 req, reviewer_id=current_user.id,
                 issued_on=(_parse_date(request.form.get("issued_on"))
@@ -207,6 +212,7 @@ def request_approve(req_id):
                 payment_method_id=(
                     request.form.get("payment_method_id") or None),
                 review_note=request.form.get("review_note"),
+                amount=amount,
             )
             flash(
                 f"تم اعتماد الطلب وصرف العهدة — "
@@ -214,6 +220,32 @@ def request_approve(req_id):
                 f"لـ {custody.holder_name}",
                 "success",
             )
+            # MARSOUD-CUSTODY-REQUEST-APPROVE-01 (2026-08-10) —
+            # transfer-receipt upload rides in the same POST
+            # (approve_form.html carries enctype=multipart). We
+            # save AFTER the approve commits so a bad file
+            # (wrong extension, too big) doesn't roll back a
+            # money-moving operation — the accountant can retry
+            # the upload from the request list. Flash a warning
+            # on file failure but leave the approval standing.
+            file_storage = request.files.get("receipt")
+            if file_storage and file_storage.filename:
+                try:
+                    from app.services.opsflow_extras import (
+                        save_document,
+                    )
+                    save_document(
+                        company_id=req.company_id,
+                        source_type="CASH_CUSTODY_REQUEST",
+                        source_id=req.id,
+                        file_storage=file_storage,
+                        uploaded_by_id=current_user.id,
+                    )
+                except Exception as e:  # noqa: BLE001
+                    flash(
+                        f"⚠ تم الاعتماد، لكن رفع الإيصال فشل: {e}",
+                        "warning",
+                    )
             return redirect(url_for("custody.detail",
                                     custody_id=custody.id))
         except (CustodyError, ValueError, TypeError) as e:
