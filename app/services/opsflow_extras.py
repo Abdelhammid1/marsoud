@@ -217,7 +217,17 @@ def save_document(*, company_id, source_type, source_id, file_storage,
         raise DocumentError("الملف يتجاوز 50 ميجا — اضغطه أو قسّمه")
 
     src = source_type.value if hasattr(source_type, "value") else source_type
-    if src not in ("LEAD", "PROJECT", "TASK"):
+    # MARSOUD-CUSTODY-ATTACH-01 (2026-08-10) — the two custody
+    # source types have been present in DocumentSourceType +
+    # honoured by _can_attach_to (routes/opsflow_extras.py:75-109)
+    # since the custody cycle, but this whitelist was never
+    # widened. The accountant would click Upload on a cash-
+    # custody receipt and hit "نوع غير صالح" 500. Adding them
+    # closes the loop — the on-disk directory `.lower()`s to
+    # cash_custody_settlement/ and item_custody/ respectively,
+    # both harmless to the rest of the save path.
+    if src not in ("LEAD", "PROJECT", "TASK",
+                    "CASH_CUSTODY_SETTLEMENT", "ITEM_CUSTODY"):
         raise DocumentError("نوع غير صالح")
 
     doc_dir = Path(current_app.root_path) / "static" / "docs" / str(company_id) / src.lower()
