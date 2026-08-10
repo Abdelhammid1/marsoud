@@ -146,8 +146,15 @@ def index():
     # else sees the union of: projects they manage, projects they're a
     # member of, and (for sales) projects converted from a lead they own.
     # MARSOUD-L: soft-deleted projects always hidden from the list.
+    # MARSOUD-PROJECT-ARCHIVE (2026-08-10) — hide archived
+    # projects from the default list. They land on
+    # /projects/archive/ instead. The `scope=archive` query
+    # arg opts back in so users can find them from a
+    # bookmarked filter URL.
     query = Project.query.filter_by(company_id=cid).filter(
         Project.deleted_at.is_(None))
+    if request.args.get("scope") != "archive":
+        query = query.filter(Project.archived_at.is_(None))
     role = _role()
     if not has_permission("projects.view_all"):
         member_pids = db.session.query(ProjectMember.project_id).filter(
@@ -471,3 +478,63 @@ def delete(project_id):
     soft_delete_project(p, actor_id=current_user.id, reason=reason)
     flash(f"تم حذف المشروع '{p.name}' (قابل للاستعادة).", "success")
     return redirect(url_for("projects.index"))
+
+
+# ─── MARSOUD-PROJECT-ARCHIVE (2026-08-10) — archive lifecycle ─────
+# Users' mental model is "when a project is done, put it away"
+# — an action task-archive already ships for tasks. These three
+# routes mirror app/routes/tasks.py:984-1072's shape so the two
+# archives feel consistent from the sidebar to the button labels.
+@bp.route("/<int:project_id>/archive", methods=["POST"])
+@login_required
+@require_permission("projects.archive")
+def archive(project_id):
+    p = _project_or_403(project_id)
+    if not _user_can_edit_project(p):
+        # Same scope as edit: owner/admin globally, PM for their
+        # own projects. `has_permission("projects.archive")`
+        # covers the role catalogue but a PM shouldn't archive
+        # someone else's project.
+        abort(403)
+    from app.services.project_archive import archive_project
+    changed = archive_project(p, actor_id=current_user.id)
+    if changed:
+        flash(f"✅ تم أرشفة المشروع: {p.name}", "success")
+    else:
+        flash("المشروع مؤرشف بالفعل", "info")
+    return redirect(url_for("projects.index"))
+
+
+@bp.route("/<int:project_id>/unarchive", methods=["POST"])
+@login_required
+@require_permission("projects.archive")
+def unarchive(project_id):
+    p = _project_or_403(project_id)
+    if not _user_can_edit_project(p):
+        abort(403)
+    from app.services.project_archive import unarchive_project
+    changed = unarchive_project(p, actor_id=current_user.id)
+    if changed:
+        flash(f"✅ تم استعادة المشروع: {p.name}", "success")
+    else:
+        flash("المشروع غير مؤرشف", "info")
+    return redirect(url_for("projects.detail", project_id=p.id))
+
+
+@bp.route("/archive/")
+@login_required
+@require_permission("projects.archive")
+def archive_index():
+    """List every archived project the current user can see.
+    Owners/admins see the whole company's archive; PMs see
+    only their own archived projects."""
+    from app.services.project_archive import archived_projects_for
+    role = _role()
+    full = (role in FULL_VISIBILITY) or has_permission(
+        "projects.view_all")
+    rows = archived_projects_for(
+        current_user, g.active_company.id, full_view=full)
+    return render_template(
+        "projects/archive.html",
+        projects=rows, can_full_view=full,
+    )

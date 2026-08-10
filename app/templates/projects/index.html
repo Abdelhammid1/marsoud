@@ -6,9 +6,18 @@
     <h2 class="font-bold text-navy-900">المشاريع</h2>
     <p class="text-xs text-slate-500">من التخطيط حتى الإغلاق — نسبة التقدم تُحسب من المهام تلقائياً.</p>
   </div>
-  {% if has_permission('projects.create') %}
-  <a href="{{ url_for('projects.new') }}" class="btn-primary text-sm">+ مشروع جديد</a>
-  {% endif %}
+  <div class="flex items-center gap-2">
+    {# MARSOUD-PROJECT-ARCHIVE (2026-08-10) — same shape task-index
+       uses to expose the personal archive. Only visible to users
+       who can actually archive/restore. #}
+    {% if has_permission('projects.archive') %}
+    <a href="{{ url_for('projects.archive_index') }}"
+       class="btn-secondary text-sm">🗂 الأرشيف</a>
+    {% endif %}
+    {% if has_permission('projects.create') %}
+    <a href="{{ url_for('projects.new') }}" class="btn-primary text-sm">+ مشروع جديد</a>
+    {% endif %}
+  </div>
 </div>
 
 <form method="GET" class="flex flex-wrap items-end gap-3 mb-4 card p-4">

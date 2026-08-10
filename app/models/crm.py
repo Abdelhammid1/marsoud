@@ -271,6 +271,18 @@ class Project(db.Model):
     deleted_by_id = db.Column(db.Integer,
                               db.ForeignKey("users.id"), nullable=True)
     deletion_reason = db.Column(db.Text, nullable=True)
+    # MARSOUD-PROJECT-ARCHIVE (2026-08-10) — archived_at flips to
+    # now() when a user "puts the project away" after it's
+    # finished. Orthogonal to status: a project can be archived
+    # at any status (the AC-09 CLIENT_FEEDBACK → CLOSED gate is
+    # separate). Cleared to NULL on unarchive. See
+    # app/services/project_archive.py for the lifecycle.
+    archived_at = db.Column(db.DateTime, index=True)
+    archived_by_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", name="fk_projects_archived_by_id"),
+        nullable=True,
+    )
 
     company = db.relationship("Company")
     lead = db.relationship("Lead", foreign_keys=[lead_id])
@@ -294,7 +306,15 @@ class Project(db.Model):
         return target in PROJECT_TRANSITIONS.get(self.status, [])
 
     def recompute_progress(self):
-        """Recompute progress_pct from task completion ratio."""
+        """Recompute progress_pct from task completion ratio.
+
+        MARSOUD-PROJECT-ARCHIVE (2026-08-10) — freeze the value on
+        archived projects. A user who has "put the project away"
+        won't expect its progress bar to keep drifting because
+        someone finished (or archived) a task under it.
+        """
+        if self.archived_at is not None:
+            return
         total = Task.query.filter_by(project_id=self.id).count()
         if total == 0:
             self.progress_pct = Decimal("0.00")

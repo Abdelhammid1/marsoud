@@ -11,8 +11,33 @@
         </div>
         <div class="text-sm text-slate-500 mt-1">{{ project.type }} · العميل: {{ project.customer.name if project.customer else '—' }}</div>
       </div>
-      <div class="text-left flex items-center gap-2">
+      <div class="text-left flex items-center gap-2 flex-wrap">
         <span class="badge {{ project.status.badge_class }} text-base px-3 py-1.5">{{ project.status.label_ar }}</span>
+        {# MARSOUD-PROJECT-ARCHIVE (2026-08-10) — archived badge +
+           restore button when archived; archive button when live.
+           Same shape as tasks/detail.html. `has_permission` on
+           projects.archive gates the write; the route additionally
+           enforces _user_can_edit_project so a PM can only archive
+           projects they personally manage. #}
+        {% if project.archived_at %}
+        <span class="badge badge-neutral text-xs">
+          🗂 مؤرشف {{ project.archived_at | company_dt('%Y-%m-%d') }}
+        </span>
+        {% if has_permission('projects.archive') %}
+        <form method="POST"
+              action="{{ url_for('projects.unarchive', project_id=project.id) }}"
+              class="inline">
+          <button type="submit" class="btn-secondary text-sm">↩ استعادة</button>
+        </form>
+        {% endif %}
+        {% elif has_permission('projects.archive') %}
+        <form method="POST"
+              action="{{ url_for('projects.archive', project_id=project.id) }}"
+              onsubmit="return confirm('أرشفة المشروع؟ يمكن استعادته لاحقًا من صفحة الأرشيف.');"
+              class="inline">
+          <button type="submit" class="btn-secondary text-sm">🗂 أرشفة المشروع</button>
+        </form>
+        {% endif %}
         {# MARSOUD-L — owner-only edit + delete entry point. #}
         {% if current_role in ('owner', 'admin') %}
         <a href="{{ url_for('projects.edit', project_id=project.id) }}"

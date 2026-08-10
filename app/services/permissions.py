@@ -127,6 +127,13 @@ P = {
     "projects.view_all": {"owner", "admin", "ceo"},
     "projects.create": {"owner", "admin", "project_manager"},
     "projects.manage": {"owner", "admin", "project_manager"},
+    # MARSOUD-PROJECT-ARCHIVE (2026-08-10) — same scope as
+    # projects.manage. The route itself also enforces
+    # `_user_can_edit_project` so a PM can only archive
+    # projects they personally manage (not every project in
+    # the company). team_member has view but can't archive —
+    # matches the "put it away" being an ownership decision.
+    "projects.archive": {"owner", "admin", "project_manager"},
 
     # ─── Tasks ─────────────────────────────────────────────────────────
     # ASMAA-FIX 2026-07-03 — broadened .view + .manage to every
