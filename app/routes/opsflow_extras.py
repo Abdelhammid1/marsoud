@@ -107,6 +107,25 @@ def _can_attach_to(source_type, source_id, company_id):
                 and custody.employee.user_id == current_user.id):
             return True
         return False
+    if source_type == "CASH_CUSTODY_REQUEST":
+        # MARSOUD-CUSTODY-REQUEST-APPROVE-01 (2026-08-10) —
+        # source_id is the CashCustodyRequest.id. Same auth
+        # shape as the two custody types above: custody-
+        # managing roles always allowed; the request's
+        # holder-employee can also attach (so they can add
+        # supporting proof from their portal side if the
+        # workflow evolves that way).
+        from app.models import CashCustodyRequest, CustodyHolderType
+        req = db.session.get(CashCustodyRequest, source_id)
+        if not req or req.company_id != company_id:
+            return False
+        if role in ("owner", "admin", "accountant"):
+            return True
+        if (req.holder_type == CustodyHolderType.EMPLOYEE
+                and req.employee
+                and req.employee.user_id == current_user.id):
+            return True
+        return False
     return False
 
 
@@ -149,6 +168,11 @@ def upload(source_type, source_id):
     elif source_type == "ITEM_CUSTODY":
         target = url_for("item_custody.detail",
                          custody_id=source_id)
+    elif source_type == "CASH_CUSTODY_REQUEST":
+        # MARSOUD-CUSTODY-REQUEST-APPROVE-01 (2026-08-10) —
+        # no per-request detail page today, so bounce back
+        # to the requests list (same place reject lands).
+        target = url_for("custody.requests")
     return redirect(target or url_for("dashboard.index"))
 
 

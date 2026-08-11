@@ -23,6 +23,13 @@ class DocumentSourceType(str, enum.Enum):
     # handover/return + optional damage evidence. source_id points
     # at ItemCustody.id.
     ITEM_CUSTODY = "ITEM_CUSTODY"
+    # MARSOUD-CUSTODY-REQUEST-APPROVE-01 (2026-08-10) — transfer-
+    # receipt (bank slip / screenshot) attached to the request at
+    # approval time. source_id = CashCustodyRequest.id. Tied to the
+    # request row on purpose so the receipt stays as historical
+    # proof even if the resulting custody is later cancelled or
+    # reversed.
+    CASH_CUSTODY_REQUEST = "CASH_CUSTODY_REQUEST"
 
 
 class DocumentVisibility(str, enum.Enum):

@@ -42,7 +42,29 @@
       <tr>
         <td class="text-xs">#{{ r.id }}</td>
         <td class="text-xs">{{ (r.purpose or '—')[:60] }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(r.amount) }}</td>
+        <td class="text-left font-mono">
+          {{ "%.2f"|format(r.amount) }}
+          {# MARSOUD-CUSTODY-REQUEST-APPROVE-01 (2026-08-10) —
+             the employee sees what they asked for AND what was
+             actually approved when the accountant overrode.
+             Same info the accountant sees on the requests
+             page — transparency both directions. #}
+          {% if r.custody and r.custody.amount_issued != r.amount %}
+          <div class="text-xs text-emerald-700 mt-1">
+            اعتُمد: {{ "%.2f"|format(r.custody.amount_issued) }}
+          </div>
+          {% endif %}
+          {# Read-only view of the transfer receipt the
+             accountant attached. Portal is view-only by design
+             (confine_client_to_portal gate). #}
+          {% set req_docs = documents_for('CASH_CUSTODY_REQUEST', r.id) %}
+          {% for d in req_docs %}
+          <a href="{{ d.file_path }}" target="_blank"
+             class="block text-xs text-brand-600 hover:underline mt-1">
+            📎 {{ d.name }}
+          </a>
+          {% endfor %}
+        </td>
         <td>
           {% if r.status.value == 'PENDING' %}<span class="badge badge-draft">قيد الانتظار</span>
           {% elif r.status.value == 'APPROVED' %}<span class="badge badge-paid">معتمدة</span>
