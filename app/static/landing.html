@@ -169,25 +169,42 @@
   .mod ul li{font-size:.8rem;background:var(--slate-100);color:var(--slate-600);padding:4px 10px;border-radius:7px;font-weight:500}
 
   /* ===== differentiator (GL real) ===== */
-  .diff{background:var(--slate-900);color:#fff;border-radius:26px;overflow:hidden;position:relative}
-  .diff-bg{position:absolute;inset:0;opacity:.5;background:
-    radial-gradient(600px 300px at 85% 0%,rgba(5,150,105,.22),transparent),
-    radial-gradient(500px 300px at 10% 100%,rgba(12,36,97,.5),transparent)}
+  .diff{
+    background:linear-gradient(160deg,#f4fbf8 0%,#ecfdf5 55%,#e8f3fb 100%);
+    color:var(--slate-800);border-radius:26px;overflow:hidden;position:relative;
+    border:1px solid var(--emerald-light);
+    box-shadow:0 24px 60px -28px rgba(5,150,105,.28);
+  }
+  .diff-bg{position:absolute;inset:0;opacity:.85;background:
+    radial-gradient(620px 320px at 88% -5%,rgba(5,150,105,.13),transparent),
+    radial-gradient(520px 320px at 6% 105%,rgba(24,73,169,.10),transparent)}
   .diff-in{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:50px;align-items:center;padding:60px}
-  .diff h2{font-size:clamp(1.7rem,3vw,2.3rem);font-weight:900;color:#fff;margin-bottom:18px}
-  .diff h2 .g{color:#34d399}
-  .diff p{color:#cbd5e1;font-size:1.08rem;margin-bottom:26px}
+  .diff h2{font-size:clamp(1.7rem,3vw,2.3rem);font-weight:900;color:var(--slate-900);margin-bottom:18px}
+  .diff h2 .g{color:var(--emerald-600)}
+  .diff p{color:var(--slate-600);font-size:1.08rem;margin-bottom:26px}
   .diff-list{display:flex;flex-direction:column;gap:16px}
   .diff-list .it{display:flex;gap:13px;align-items:flex-start}
-  .diff-list .it .chk{width:26px;height:26px;flex-shrink:0;border-radius:8px;background:rgba(52,211,153,.16);display:grid;place-items:center;color:#34d399;font-weight:900}
-  .diff-list .it b{color:#fff;font-weight:700}
-  .diff-list .it span{color:#94a3b8;font-size:.95rem;display:block}
-  .flow{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:18px;padding:26px}
+  .diff-list .it .chk{
+    width:26px;height:26px;flex-shrink:0;border-radius:8px;
+    background:var(--emerald);display:grid;place-items:center;color:#fff;font-weight:900;
+    box-shadow:0 4px 10px -3px rgba(5,150,105,.5);
+  }
+  .diff-list .it b{color:var(--slate-900);font-weight:700}
+  .diff-list .it span{color:var(--slate-600);font-size:.95rem;display:block}
+  .flow{
+    background:#fff;border:1px solid var(--slate-200);border-radius:18px;padding:26px;
+    box-shadow:0 14px 36px -16px rgba(15,23,42,.14);
+  }
   .flow .step{display:flex;align-items:center;gap:14px;padding:13px 0}
-  .flow .step:not(:last-child){border-bottom:1px solid rgba(255,255,255,.07)}
-  .flow .step .n{width:30px;height:30px;border-radius:9px;background:rgba(52,211,153,.16);color:#34d399;display:grid;place-items:center;font-family:'Cairo';font-weight:700;font-size:.85rem;flex-shrink:0}
-  .flow .step .lbl{color:#e2e8f0;font-weight:500;font-size:.98rem}
-  .flow .arrow{text-align:center;color:#475569;font-size:1.1rem;padding:2px 0}
+  .flow .step:not(:last-child){border-bottom:1px solid var(--slate-100)}
+  .flow .step .n{
+    width:30px;height:30px;border-radius:9px;background:var(--emerald-50);
+    color:var(--emerald-600);display:grid;place-items:center;
+    font-family:'Cairo';font-weight:700;font-size:.85rem;flex-shrink:0;
+    border:1px solid var(--emerald-light);
+  }
+  .flow .step .lbl{color:var(--slate-700);font-weight:500;font-size:.98rem}
+  .flow .arrow{text-align:center;color:var(--emerald);opacity:.45;font-size:1.1rem;padding:2px 0}
 
   /* ===== AI agent ===== */
   .ai-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:50px;align-items:center}
@@ -206,6 +223,52 @@
   .bubble.bot{align-self:flex-end;background:var(--emerald);color:#fff;border-bottom-left-radius:4px}
   .bubble.bot .mini-je{margin-top:9px;background:rgba(255,255,255,.13);border-radius:9px;padding:9px 12px;font-size:.83rem;font-family:'Cairo'}
   .bubble.bot .mini-je div{display:flex;justify-content:space-between;padding:2px 0}
+
+  /* ===== AI analyst ===== */
+  .analyst-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:50px;align-items:center}
+  .analyst-card{background:#fff;border:1px solid var(--slate-200);border-radius:var(--radius);box-shadow:var(--shadow-md);overflow:hidden}
+  .analyst-head{
+    padding:15px 20px;border-bottom:1px solid var(--slate-200);
+    display:flex;align-items:center;gap:11px;
+  }
+  .analyst-head .av{
+    width:36px;height:36px;border-radius:10px;
+    background:linear-gradient(135deg,var(--navy),#1849a9);
+    display:grid;place-items:center;color:#fff;
+  }
+  .analyst-head .nm{font-family:'Cairo';font-weight:700;color:var(--slate-900);font-size:.98rem}
+  .analyst-head .st{font-size:.78rem;color:#1849a9;display:flex;align-items:center;gap:5px}
+  .analyst-head .st::before{content:"";width:7px;height:7px;border-radius:50%;background:#1849a9}
+  .analyst-body{padding:20px;background:var(--slate-50);display:flex;flex-direction:column;gap:14px}
+  .analyst-q{
+    align-self:flex-start;max-width:88%;background:#fff;border:1px solid var(--slate-200);
+    color:var(--slate-700);padding:12px 16px;border-radius:14px;border-bottom-right-radius:4px;font-size:.95rem;
+  }
+  .insight{
+    background:#fff;border:1px solid var(--slate-200);border-radius:14px;padding:16px 18px;
+    box-shadow:var(--shadow-sm);
+  }
+  .insight .ttl{
+    font-family:'Cairo';font-weight:700;color:var(--slate-900);font-size:.95rem;
+    display:flex;align-items:center;gap:8px;margin-bottom:14px;
+  }
+  .bars{display:flex;flex-direction:column;gap:11px}
+  .bar-row{display:grid;grid-template-columns:78px 1fr 62px;align-items:center;gap:10px;font-size:.85rem}
+  .bar-row .bl{color:var(--slate-600)}
+  .bar-row .track{height:9px;background:var(--slate-100);border-radius:99px;overflow:hidden}
+  .bar-row .fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--emerald),#34d399)}
+  .bar-row .fill.alt{background:linear-gradient(90deg,#1849a9,#078fd2)}
+  .bar-row .bv{font-family:'Cairo';font-weight:700;color:var(--slate-900);text-align:left;font-variant-numeric:tabular-nums}
+  .insight-note{
+    margin-top:14px;padding-top:13px;border-top:1px dashed var(--slate-200);
+    font-size:.88rem;color:var(--slate-600);line-height:1.65;
+  }
+  .insight-note b{color:var(--emerald-600)}
+  .analyst-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+  .analyst-tags span{
+    font-size:.83rem;background:var(--emerald-50);color:var(--emerald-600);
+    border:1px solid var(--emerald-light);padding:6px 13px;border-radius:99px;font-weight:600;
+  }
 
   /* ===== final CTA ===== */
   .cta-band{padding:90px 0}
@@ -327,7 +390,9 @@
   .price-foot a{color:var(--emerald);font-weight:700}
 
   @media(max-width:900px){
-    .hero-grid,.diff-in,.ai-grid{grid-template-columns:1fr;gap:40px}
+    .hero-grid,.diff-in,.ai-grid,.analyst-grid{grid-template-columns:1fr;gap:40px}
+    .analyst-grid .analyst-card{order:2}
+    .analyst-grid .ai-txt{order:1}
     .mods{grid-template-columns:repeat(2,1fr)}
     .diff-in{padding:40px 28px}
     .nav-links{display:none}
@@ -345,6 +410,7 @@
     .plan-price .amt{font-size:2.2rem}
     .plan-limits{grid-template-columns:1fr;padding:12px}
     .plan-limits .li + .li{border-right:none;border-top:1px solid var(--slate-200);padding-right:0;padding-top:8px;margin-top:8px}
+    .bar-row{grid-template-columns:62px 1fr 58px;gap:8px;font-size:.8rem}
   }
   @media(prefers-reduced-motion:reduce){
     *{animation:none!important;transition:none!important}
@@ -456,7 +522,7 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
       <div class="ledger-body">
         <div class="ledger-trigger">
           <span class="ic">🧾</span>
-          <span class="txt">سجّلت فاتورة بيع بقيمة <b>5,000 </b> + ضريبة 15% — مرصود ولّد القيد فورًا</span>
+          <span class="txt">سجّلت فاتورة بيع بقيمة <b>5,000 </b> + ضريبة 14% — مرصود ولّد القيد فورًا</span>
         </div>
         <table class="je">
           <thead>
@@ -465,7 +531,7 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
           <tbody>
             <tr>
               <td><span class="acct debit"><span class="code">1110</span> النقدية / العملاء</span></td>
-              <td class="num">5,750</td><td class="num">—</td>
+              <td class="num">5,700</td><td class="num">—</td>
             </tr>
             <tr>
               <td><span class="acct credit"><span class="code">4100</span> إيرادات المبيعات</span></td>
@@ -473,7 +539,7 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
             </tr>
             <tr>
               <td><span class="acct credit"><span class="code">2310</span> ضريبة القيمة المضافة</span></td>
-              <td class="num">—</td><td class="num">750</td>
+              <td class="num">—</td><td class="num">700</td>
             </tr>
           </tbody>
         </table>
@@ -483,8 +549,8 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
             القيد متوازن
           </span>
           <span class="sums">
-            <span class="s-d">مدين 5,750</span>
-            <span class="s-c">دائن 5,750</span>
+            <span class="s-d">مدين 5,700</span>
+            <span class="s-c">دائن 5,700</span>
           </span>
         </div>
       </div>
@@ -495,9 +561,9 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
 <!-- TRUST BAR -->
 <div class="trust">
   <div class="wrap trust-in">
-    <div class="stat"><div class="n">7<span class="u"> موديولات</span></div><div class="l">في نظام واحد متكامل</div></div>
+    <div class="stat"><div class="n">8<span class="u"> موديولات</span></div><div class="l">في نظام واحد متكامل</div></div>
     <div class="stat"><div class="n">100<span class="u">%</span></div><div class="l">قيد مزدوج حقيقي</div></div>
-    <div class="stat"><div class="n">15<span class="u">%</span></div><div class="l">ضريبة سعودية جاهزة</div></div>
+    <div class="stat"><div class="n">14<span class="u">%</span></div><div class="l">ضريبة القيمة المضافة جاهزة</div></div>
     <div class="stat"><div class="n">∞</div><div class="l">تعدد شركات وفروع</div></div>
   </div>
 </div>
@@ -507,7 +573,7 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
   <div class="wrap">
     <div class="sec-head reveal">
       <div class="kick">نظام واحد · كل العمليات</div>
-      <h2>سبع موديولات مترابطة </h2>
+      <h2>ثماني موديولات مترابطة</h2>
       <p>مش أنظمة منفصلة بتجمّعها بنفسك، كل موديول مربوط بالدفتر المحاسبي.</p>
     </div>
     <div class="mods">
@@ -515,37 +581,49 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
         <div class="ic">📊</div>
         <h3>المحاسبة والقيود</h3>
         <p>دفتر أستاذ عام، دليل حسابات، قيود يومية، قيود دورية وقوالب، وتقارير مالية كاملة.</p>
-        <ul><li>الميزانية</li><li>قائمة الدخل</li><li>التدفق النقدي</li><li>الضريبة</li></ul>
+        <ul><li>الميزانية</li><li>قائمة الدخل</li><li>التدفق النقدي</li><li>الضريبة</li><li>أعمار الديون</li><li>المحلل الذكي</li></ul>
       </div>
-      <div class="mod reveal" style="--accent:#0ea5e9;--accent-bg:#e0f2fe">
+      <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
         <div class="ic">📦</div>
         <h3>المخزون و POS</h3>
         <p>أصناف وباركود، حركات مخزون بتكلفة متوسط مرجّح، نقاط بيع، وتقارير ربحية.</p>
-        <ul><li>SKU / باركود</li><li>مستودعات</li><li>تحويلات</li><li>الورديات</li></ul>
+        <ul><li>SKU / باركود</li><li>مستودعات</li><li>تحويلات</li><li>الورديات</li><li>تقييم FIFO</li></ul>
       </div>
-      <div class="mod reveal" style="--accent:#f59e0b;--accent-bg:#fef3c7">
+      <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
         <div class="ic">🧾</div>
         <h3>الفواتير والموردين</h3>
         <p>فواتير عملاء بخصومات وضريبة، فواتير موردين بأسطر مختلطة، ودفعات وذمم.</p>
-        <ul><li>خصم بعد الضريبة</li><li>ذمم مدينة/دائنة</li><li>استرجاعات</li></ul>
+        <ul><li>خصم بعد الضريبة</li><li>ذمم مدينة/دائنة</li><li>استرجاعات</li><li>إشعارات دائنة</li></ul>
       </div>
-      <div class="mod reveal" style="--accent:#8b5cf6;--accent-bg:#f3e8ff">
+      <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
         <div class="ic">👥</div>
         <h3>الرواتب والموارد البشرية</h3>
         <p>رواتب باستحقاقات، حضور بالاستثناءات، إجازات، وبوابة موظف ذاتية.</p>
-        <ul><li>مسيّر رواتب</li><li>الاستحقاقات</li><li>الإجازات</li><li>بوابة الموظف</li></ul>
+        <ul><li>مسيّر رواتب</li><li>الاستحقاقات</li><li>الحضور والإجازات</li><li>بوابة الموظف</li></ul>
       </div>
-      <div class="mod reveal" style="--accent:#0c2461;--accent-bg:#e0e7ff">
+      <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
         <div class="ic">✅</div>
         <h3>المشاريع والمهام</h3>
         <p>لوحات Kanban، مهام متعددة المسؤولين، تقويم، وإشعارات لحظية.</p>
-        <ul><li>Kanban</li><li>تقويم</li><li>إشعارات</li></ul>
+        <ul><li>Kanban</li><li>تقويم</li><li>إشعارات</li><li>مهام متعددة المسؤولين</li></ul>
       </div>
-      <div class="mod reveal" style="--accent:#e11d48;--accent-bg:#ffe4e6">
+      <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
         <div class="ic">🎯</div>
         <h3>CRM وإدارة العملاء</h3>
         <p>إدارة العملاء المحتملين (Leads)، تحويلهم لعملاء، ومتابعة المبيعات.</p>
-        <ul><li>Leads</li><li>تحويل</li><li>متابعة</li></ul>
+        <ul><li>Leads</li><li>تحويل</li><li>متابعة</li><li>حملات تسويقية</li></ul>
+      </div>
+      <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
+        <div class="ic">🏭</div>
+        <h3>التصنيع</h3>
+        <p>قوائم مواد (BOM)، أوامر إنتاج، واحتساب تكلفة صناعية دقيقة تتربط بالمخزون تلقائيًا.</p>
+        <ul><li>BOM</li><li>أوامر إنتاج</li><li>تكلفة صناعية</li></ul>
+      </div>
+      <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
+        <div class="ic">📈</div>
+        <h3>تقييم الأداء</h3>
+        <p>دورات تقييم دورية للموظفين، مؤشرات أداء مرتبطة بالنشاط الفعلي على النظام، وأهداف قابلة للتتبع.</p>
+        <ul><li>دورات تقييم</li><li>مؤشرات أداء</li><li>أهداف</li></ul>
       </div>
     </div>
   </div>
@@ -587,7 +665,7 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
       <div class="kick">ميزة تفرّد مرصود</div>
       <h2>محاسب ذكي يفهم العربي وينفّذ فعليًا</h2>
       <p>كلّم مرصود بالعربي زي ما تكلّم محاسبك. اطلب قيد، اسأل عن صافي الربح، أو راجع رصيد عميل — والوكيل ينفّذ عبر نفس المحرك المحاسبي.</p>
-      <p style="color:var(--slate-500);font-size:.97rem">مدعوم بنماذج Claude مع tool-calling حقيقي — مش مجرد ردود نصية.</p>
+      <p style="color:var(--slate-500);font-size:.97rem">مدعوم بنماذج ذكاء اصطناعي مع tool-calling حقيقي — محاسب ذكي للتنفيذ، ومحلل ذكي لقراءة أرقامك وتحليلها.</p>
     </div>
     <div class="chat reveal">
       <div class="chat-head">
@@ -608,6 +686,60 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
         </div>
         <div class="bubble user">إيه صافي الربح الشهر ده؟</div>
         <div class="bubble bot">صافي ربح شهر يونيو = <b>42,300 </b> 📈 بزيادة 12% عن الشهر اللي فات.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- AI ANALYST -->
+<section class="blk" id="analyst" style="padding-top:0">
+  <div class="wrap analyst-grid">
+    <div class="analyst-card reveal">
+      <div class="analyst-head">
+        <div class="av">📊</div>
+        <div>
+          <div class="nm">المحلل الذكي</div>
+          <div class="st">جاهز للتحليل</div>
+        </div>
+      </div>
+      <div class="analyst-body">
+        <div class="analyst-q">حلّلي أداء المبيعات وقارن بالربع اللي فات</div>
+        <div class="insight">
+          <div class="ttl">📈 تحليل إيرادات الربع الحالي</div>
+          <div class="bars">
+            <div class="bar-row">
+              <span class="bl">أبريل</span>
+              <span class="track"><span class="fill" style="width:62%"></span></span>
+              <span class="bv">128,400</span>
+            </div>
+            <div class="bar-row">
+              <span class="bl">مايو</span>
+              <span class="track"><span class="fill" style="width:78%"></span></span>
+              <span class="bv">161,750</span>
+            </div>
+            <div class="bar-row">
+              <span class="bl">يونيو</span>
+              <span class="track"><span class="fill alt" style="width:96%"></span></span>
+              <span class="bv">198,900</span>
+            </div>
+          </div>
+          <div class="insight-note">
+            الإيرادات بتنمو بمعدل <b>+24% شهريًا</b>. أعلى مساهمة من قطاع التجزئة (41%).
+            تنبيه: هامش الربح نزل 3 نقاط بسبب ارتفاع تكلفة المشتريات — راجع أسعار الموردين.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="ai-txt reveal">
+      <div class="kick">الطبقة التانية من الذكاء</div>
+      <h2>محلل ذكي يقرأ أرقامك ويقولك معناها</h2>
+      <p>المحاسب الذكي بينفّذ، والمحلل الذكي بيفهم. يقرأ بياناتك الفعلية من الدفاتر، يكشف الاتجاهات والانحرافات، ويطلعلك خلاصة تنفع تاخد عليها قرار — من غير ما تفتح تقرير واحد بنفسك.</p>
+      <div class="analyst-tags">
+        <span>تحليل الاتجاهات</span>
+        <span>مقارنة الفترات</span>
+        <span>كشف الانحرافات</span>
+        <span>تحليل الربحية</span>
+        <span>توصيات عملية</span>
       </div>
     </div>
   </div>
@@ -659,6 +791,7 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
           <li>المخزون والمخازن ونقطة البيع (POS)</li>
           <li>المشتريات</li>
           <li>المحاسب الذكي (AI)</li>
+          <li>المحلل الذكي (AI)</li>
           <li>الأدوار والصلاحيات وسجل التدقيق</li>
         </ul>
       </div>
@@ -689,6 +822,7 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
           <li>إدارة المهام والمشاريع والتقويم</li>
           <li>الموظفين والرواتب</li>
           <li>الحضور والإجازات</li>
+          <li>بوابة الموظف الذاتية</li>
         </ul>
       </div>
 
@@ -713,6 +847,7 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
 
         <ul class="plan-features">
           <li>كل مميزات Growth</li>
+          <li>تقييم الأداء الدوري للموظفين</li>
           <li>تقارير الموظفين اليومية</li>
           <li>التصنيع (BOM + أوامر إنتاج)</li>
           <li>تقارير التكلفة الصناعية</li>
@@ -877,8 +1012,16 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
    // WhatsApp
   document.querySelectorAll('a[href*="wa.me"], a[href*="whatsapp"]').forEach(function(el) {
     el.addEventListener('click', function() {
+      // Google Analytics (fires only if GA is loaded)
       if (typeof gtag === 'function') {
         gtag('event', 'click_whatsapp', { event_category: 'Contact' });
+      }
+      // Meta Pixel — standard Contact event
+      if (typeof fbq === 'function') {
+        fbq('track', 'Contact', {
+          content_category: 'whatsapp',
+          content_name: (el.textContent || '').trim()
+        });
       }
     });
   });
