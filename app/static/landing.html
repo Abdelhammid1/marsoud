@@ -140,6 +140,7 @@
   .stat{text-align:center;min-width:140px}
   .stat .n{font-family:'Cairo';font-weight:900;font-size:1.9rem;color:var(--slate-900)}
   .stat .n .u{color:var(--emerald)}
+  .stat .n.accent{color:var(--emerald)}
   .stat .l{font-size:.9rem;color:var(--slate-500);margin-top:2px}
 
   /* ===== section base ===== */
@@ -519,26 +520,26 @@
   .hl-grid{
     display:grid;grid-template-columns:repeat(3,1fr);gap:18px;
   }
-  .hl{
+  .hl-item{
     background:#fff;border:1px solid var(--slate-200);border-radius:14px;
     padding:22px 20px;position:relative;overflow:hidden;
     box-shadow:var(--shadow-sm);transition:transform .22s ease,box-shadow .22s ease;
   }
-  .hl:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
-  .hl::before{
+  .hl-item:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
+  .hl-item::before{
     content:"";position:absolute;top:0;right:0;width:4px;height:100%;
     background:linear-gradient(180deg,var(--emerald),var(--navy));
   }
-  .hl .hl-ic{
+  .hl-item .hl-ic{
     width:42px;height:42px;border-radius:11px;
     background:var(--emerald-50);color:var(--emerald-600);
     display:grid;place-items:center;font-size:1.3rem;margin-bottom:13px;
   }
-  .hl h4{
+  .hl-item h4{
     font-family:'Cairo';font-weight:700;font-size:1.05rem;
     color:var(--slate-900);margin-bottom:6px;
   }
-  .hl p{color:var(--slate-600);font-size:.9rem;line-height:1.6}
+  .hl-item p{color:var(--slate-600);font-size:.9rem;line-height:1.6}
 
   /* SVG section divider — sits between color-transitioning bands */
   .divider-wave{display:block;width:100%;height:44px;line-height:0}
@@ -682,10 +683,10 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
 <!-- TRUST BAR -->
 <div class="trust">
   <div class="wrap trust-in">
-    <div class="stat"><div class="n">8<span class="u"> موديولات</span></div><div class="l">في نظام واحد متكامل</div></div>
-    <div class="stat"><div class="n">100<span class="u">%</span></div><div class="l">قيد مزدوج حقيقي</div></div>
-    <div class="stat"><div class="n">14<span class="u">%</span></div><div class="l">ضريبة القيمة المضافة جاهزة</div></div>
-    <div class="stat"><div class="n">∞</div><div class="l">تعدد شركات وفروع</div></div>
+    <div class="stat"><div class="n accent">8<span class="u"> موديولات</span></div><div class="l">في نظام واحد متكامل</div></div>
+    <div class="stat"><div class="n"><span class="u">%</span>100</div><div class="l">قيد مزدوج حقيقي</div></div>
+    <div class="stat"><div class="n"><span class="u">%</span>14</div><div class="l">ضريبة القيمة المضافة جاهزة</div></div>
+    <div class="stat"><div class="n">🤖</div><div class="l">مدعوم بالذكاء الاصطناعي</div></div>
   </div>
 </div>
 
@@ -702,37 +703,37 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
     </div>
 
     <div class="hl-grid">
-      <div class="hl reveal">
+      <div class="hl-item reveal">
         <div class="hl-ic">💰</div>
         <h4>عهدة نقدية بإيصالات</h4>
         <p>أي صرف من العهدة معاه صورة إيصاله. المحاسب يعتمد الطلب بمبلغ مختلف عن اللي اتطلب ويرفق تحويل البنك، والموظف يشوف الاتنين على بورتاله.</p>
       </div>
 
-      <div class="hl reveal">
+      <div class="hl-item reveal">
         <div class="hl-ic">📦</div>
         <h4>عهدة عينية بصور</h4>
         <p>لابتوب، سيارة، مفتاح — كل عهدة معاها صور التسليم والاسترجاع. لو حصل تلف، الصورة دليل موثّق لا يقبل الجدل.</p>
       </div>
 
-      <div class="hl reveal">
+      <div class="hl-item reveal">
         <div class="hl-ic">🧩</div>
         <h4>مهام فرعية بلا حدود</h4>
         <p>قسّم أي مهمة كبيرة لمهام فرعية على أي عدد من المستويات. Breadcrumb يوضّح المسار، وكل مهمة فرعية بصلاحياتها كاملة.</p>
       </div>
 
-      <div class="hl reveal">
+      <div class="hl-item reveal">
         <div class="hl-ic">🗂</div>
         <h4>أرشفة المشاريع الخالصة</h4>
         <p>خلصت مشروع؟ اضغط "أرشفة" — يختفي من القوائم النشطة ويفضل محفوظ بكل مهامه وعهده وتقاريره. تستعيده بضغطة زر أي وقت.</p>
       </div>
 
-      <div class="hl reveal">
+      <div class="hl-item reveal">
         <div class="hl-ic">🔑</div>
         <h4>بوابة الموظف الذاتية</h4>
         <p>الموظف يشوف عهده وحضوره وسلفه وأرشيف مهامه من غير ما يفتح تذكرة على الموارد البشرية. أقل بيروقراطية، أقل شكاوى.</p>
       </div>
 
-      <div class="hl reveal">
+      <div class="hl-item reveal">
         <div class="hl-ic">🎛</div>
         <h4>تحكم دقيق بالباقات</h4>
         <p>السوبرأدمن يقدر يفتح أو يقفل ميزة واحدة (مش موديول كامل) لشركة بعينها — مؤقتاً أو دائماً — من غير ما ينشئ باقة خاصة لكل حالة.</p>
