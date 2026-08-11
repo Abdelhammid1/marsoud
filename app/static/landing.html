@@ -455,6 +455,118 @@
 }
 .whatsapp-float-menu a:hover{background:var(--slate-50);color:var(--emerald)}
 .whatsapp-country-float:hover .whatsapp-float-menu{display:block}
+
+  /* ═══════ LANDING-REFRESH (2026-08-11) ═══════ */
+
+  /* Persona-based CTA chips under the hero button */
+  .personas{
+    margin-top:22px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+  }
+  .personas .lbl{font-size:.85rem;color:var(--slate-500);margin-inline-end:4px}
+  .persona-chip{
+    display:inline-flex;align-items:center;gap:6px;
+    font-family:'Tajawal';font-weight:600;font-size:.86rem;
+    background:#fff;color:var(--slate-700);
+    border:1.5px solid var(--slate-200);border-radius:99px;
+    padding:7px 14px;transition:all .18s ease;cursor:pointer;
+  }
+  .persona-chip:hover{
+    border-color:var(--emerald);color:var(--emerald-600);
+    transform:translateY(-1px);box-shadow:0 4px 12px -4px rgba(5,150,105,.25);
+  }
+  .persona-chip .ic{font-size:.98rem}
+
+  /* NEW / AI pills for module cards */
+  .mod-pill{
+    position:absolute;top:16px;left:16px;
+    font-family:'Cairo';font-weight:800;font-size:.66rem;letter-spacing:.05em;
+    padding:3px 9px;border-radius:99px;text-transform:uppercase;
+    box-shadow:0 3px 8px -2px rgba(5,150,105,.35);
+  }
+  .mod-pill.new{background:var(--amber);color:#fff}
+  .mod-pill.ai{
+    background:linear-gradient(135deg,var(--navy),#1849a9);color:#fff;
+    box-shadow:0 3px 8px -2px rgba(12,36,97,.4);
+  }
+
+  /* NEW inline pill inside a bullet list */
+  .li-new{
+    display:inline-block;
+    background:var(--amber);color:#fff;
+    font-size:.62rem;font-weight:800;letter-spacing:.05em;
+    padding:1px 6px;border-radius:99px;margin-inline-start:5px;
+    vertical-align:middle;text-transform:uppercase;
+  }
+
+  /* "What's new" highlights strip between trust bar and modules */
+  .highlights{
+    background:linear-gradient(180deg,#fff,var(--slate-50));
+    border-bottom:1px solid var(--slate-200);padding:56px 0 68px;
+  }
+  .highlights-head{text-align:center;margin-bottom:36px}
+  .highlights-head .kick{
+    display:inline-flex;align-items:center;gap:8px;
+    background:var(--amber);color:#fff;
+    font-family:'Cairo';font-weight:800;font-size:.72rem;letter-spacing:.06em;
+    padding:5px 13px;border-radius:99px;margin-bottom:12px;
+  }
+  .highlights-head .kick::before{content:"✦";font-size:.8rem}
+  .highlights-head h2{
+    font-size:clamp(1.5rem,2.6vw,2rem);font-weight:900;
+    color:var(--slate-900);margin-bottom:6px;
+  }
+  .highlights-head p{color:var(--slate-500);font-size:.98rem;max-width:520px;margin:0 auto}
+  .hl-grid{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:18px;
+  }
+  .hl{
+    background:#fff;border:1px solid var(--slate-200);border-radius:14px;
+    padding:22px 20px;position:relative;overflow:hidden;
+    box-shadow:var(--shadow-sm);transition:transform .22s ease,box-shadow .22s ease;
+  }
+  .hl:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
+  .hl::before{
+    content:"";position:absolute;top:0;right:0;width:4px;height:100%;
+    background:linear-gradient(180deg,var(--emerald),var(--navy));
+  }
+  .hl .hl-ic{
+    width:42px;height:42px;border-radius:11px;
+    background:var(--emerald-50);color:var(--emerald-600);
+    display:grid;place-items:center;font-size:1.3rem;margin-bottom:13px;
+  }
+  .hl h4{
+    font-family:'Cairo';font-weight:700;font-size:1.05rem;
+    color:var(--slate-900);margin-bottom:6px;
+  }
+  .hl p{color:var(--slate-600);font-size:.9rem;line-height:1.6}
+
+  /* SVG section divider — sits between color-transitioning bands */
+  .divider-wave{display:block;width:100%;height:44px;line-height:0}
+  .divider-wave svg{display:block;width:100%;height:100%}
+
+  /* Sticky mobile CTA bar */
+  .mobile-cta-bar{display:none}
+  @media(max-width:768px){
+    .mobile-cta-bar{
+      display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;
+      background:#fff;border-top:1px solid var(--slate-200);
+      padding:10px 14px;gap:10px;align-items:center;
+      box-shadow:0 -6px 20px -8px rgba(15,23,42,.12);
+    }
+    .mobile-cta-bar .mcta-txt{
+      flex:1;font-size:.82rem;color:var(--slate-600);line-height:1.4;
+    }
+    .mobile-cta-bar .mcta-txt b{color:var(--slate-900);font-weight:800}
+    .mobile-cta-bar .mcta-btn{
+      background:var(--emerald);color:#fff;font-family:'Tajawal';font-weight:700;
+      padding:11px 18px;border-radius:10px;font-size:.9rem;flex-shrink:0;
+      box-shadow:0 6px 14px -4px rgba(5,150,105,.5);
+    }
+    /* Nudge whatsapp float up so it doesn't overlap */
+    .whatsapp-country-float{bottom:88px !important}
+    /* Body needs padding so the bar doesn't cover the footer */
+    body{padding-bottom:72px}
+  }
 </style>
 <!-- MARSOUD-META-PIXEL-01 (Abdelhamid 2026-08-07) -->
 <script>
@@ -480,10 +592,11 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
   <div class="wrap nav-in">
         <a href="/" class="logo"><img src="/static/img/logo.png" alt="مرصود" class="logo-img"> مرصود</a>
     <div class="nav-links">
+      <a href="#highlights">الجديد</a>
       <a href="#modules">الموديولات</a>
+      <a href="#ai">المحاسب الذكي</a>
       <a href="#why">ليه مرصود</a>
       <a href="#pricing">الأسعار</a>
-      <a href="https://manasety.ai/">الشركة المطورة</a>
       <a href="https://manasety.ai/contact-page.html">تواصل معنا</a>
     </div>
     <div class="nav-cta">
@@ -502,14 +615,22 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
       <h1>كل عملية في شركتك <span class="hl">تتحوّل لقيد محاسبي</span> متوازن تلقائيًا</h1>
       <p class="lead">مرصود يجمع المحاسبة، المخزون والـ POS، الفواتير والموردين، الرواتب والموارد البشرية، إدارة المشاريع والمهام، والـ CRM — في نظام واحد مبني على دفتر أستاذ عام حقيقي.</p>
       <div class="hero-cta">
-        <a href="/register" class="btn btn-primary">ابدأ مجانًا
+        <a href="/register" class="btn btn-primary">ابدأ مجانًا 14 يوم
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
         </a>
-        <!-- <a href="#ai" class="btn btn-ghost">شوف المحاسب الذكي</a> -->
+        <a href="#ai" class="btn btn-ghost">شوف المحاسب الذكي</a>
       </div>
       <div class="micro">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>
-        تجربة كاملة بدون بطاقة · جاهز بالعربي · يدعم تعدد العملات والشركات
+        <b style="color:var(--slate-700);font-weight:700">14 يوم مجانًا</b> · بدون بطاقة · جاهز بالعربي · تعدد شركات وعملات
+      </div>
+      <!-- Persona chips — jump the reader to the section that fits them -->
+      <div class="personas">
+        <span class="lbl">إنت:</span>
+        <a href="#modules" class="persona-chip"><span class="ic">🏢</span> صاحب شركة</a>
+        <a href="#why" class="persona-chip"><span class="ic">🧮</span> محاسب</a>
+        <a href="#modules" class="persona-chip"><span class="ic">📋</span> مدير مشاريع</a>
+        <a href="#ai" class="persona-chip"><span class="ic">🤖</span> عايز أشوف الـ AI</a>
       </div>
     </div>
 
@@ -568,6 +689,58 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
   </div>
 </div>
 
+<!-- WHAT'S NEW — LANDING-REFRESH (2026-08-11) — features that
+     shipped in the last cycles and deserve a spot on the landing:
+     custody with attachments, task hierarchy, project archive,
+     employee self-service portal, AI insights analyst, kill-switch. -->
+<section class="highlights" id="highlights">
+  <div class="wrap">
+    <div class="highlights-head reveal">
+      <div class="kick">جديد في مرصود</div>
+      <h2>آخر ما نزل — بيحل مشاكل واقعية</h2>
+      <p>مش بس تحديثات شكلية — كل ميزة اتصممت لسيناريو محدد قالك عليه المحاسب أو صاحب الشركة.</p>
+    </div>
+
+    <div class="hl-grid">
+      <div class="hl reveal">
+        <div class="hl-ic">💰</div>
+        <h4>عهدة نقدية بإيصالات</h4>
+        <p>أي صرف من العهدة معاه صورة إيصاله. المحاسب يعتمد الطلب بمبلغ مختلف عن اللي اتطلب ويرفق تحويل البنك، والموظف يشوف الاتنين على بورتاله.</p>
+      </div>
+
+      <div class="hl reveal">
+        <div class="hl-ic">📦</div>
+        <h4>عهدة عينية بصور</h4>
+        <p>لابتوب، سيارة، مفتاح — كل عهدة معاها صور التسليم والاسترجاع. لو حصل تلف، الصورة دليل موثّق لا يقبل الجدل.</p>
+      </div>
+
+      <div class="hl reveal">
+        <div class="hl-ic">🧩</div>
+        <h4>مهام فرعية بلا حدود</h4>
+        <p>قسّم أي مهمة كبيرة لمهام فرعية على أي عدد من المستويات. Breadcrumb يوضّح المسار، وكل مهمة فرعية بصلاحياتها كاملة.</p>
+      </div>
+
+      <div class="hl reveal">
+        <div class="hl-ic">🗂</div>
+        <h4>أرشفة المشاريع الخالصة</h4>
+        <p>خلصت مشروع؟ اضغط "أرشفة" — يختفي من القوائم النشطة ويفضل محفوظ بكل مهامه وعهده وتقاريره. تستعيده بضغطة زر أي وقت.</p>
+      </div>
+
+      <div class="hl reveal">
+        <div class="hl-ic">🔑</div>
+        <h4>بوابة الموظف الذاتية</h4>
+        <p>الموظف يشوف عهده وحضوره وسلفه وأرشيف مهامه من غير ما يفتح تذكرة على الموارد البشرية. أقل بيروقراطية، أقل شكاوى.</p>
+      </div>
+
+      <div class="hl reveal">
+        <div class="hl-ic">🎛</div>
+        <h4>تحكم دقيق بالباقات</h4>
+        <p>السوبرأدمن يقدر يفتح أو يقفل ميزة واحدة (مش موديول كامل) لشركة بعينها — مؤقتاً أو دائماً — من غير ما ينشئ باقة خاصة لكل حالة.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- MODULES -->
 <section class="blk" id="modules">
   <div class="wrap">
@@ -578,10 +751,11 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
     </div>
     <div class="mods">
       <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
+        <span class="mod-pill ai">AI</span>
         <div class="ic">📊</div>
         <h3>المحاسبة والقيود</h3>
         <p>دفتر أستاذ عام، دليل حسابات، قيود يومية، قيود دورية وقوالب، وتقارير مالية كاملة.</p>
-        <ul><li>الميزانية</li><li>قائمة الدخل</li><li>التدفق النقدي</li><li>الضريبة</li><li>أعمار الديون</li><li>المحلل الذكي</li></ul>
+        <ul><li>الميزانية</li><li>قائمة الدخل</li><li>التدفق النقدي</li><li>الضريبة</li><li>أعمار الديون</li><li>المحلل الذكي</li><li>العهد النقدية <span class="li-new">جديد</span></li></ul>
       </div>
       <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
         <div class="ic">📦</div>
@@ -598,14 +772,14 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
       <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
         <div class="ic">👥</div>
         <h3>الرواتب والموارد البشرية</h3>
-        <p>رواتب باستحقاقات، حضور بالاستثناءات، إجازات، وبوابة موظف ذاتية.</p>
-        <ul><li>مسيّر رواتب</li><li>الاستحقاقات</li><li>الحضور والإجازات</li><li>بوابة الموظف</li></ul>
+        <p>رواتب باستحقاقات، حضور بالاستثناءات، إجازات، وبوابة موظف ذاتية بعهد وسلف.</p>
+        <ul><li>مسيّر رواتب</li><li>الاستحقاقات</li><li>الحضور والإجازات</li><li>بوابة الموظف <span class="li-new">جديد</span></li><li>العهد العينية <span class="li-new">جديد</span></li></ul>
       </div>
       <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
         <div class="ic">✅</div>
         <h3>المشاريع والمهام</h3>
-        <p>لوحات Kanban، مهام متعددة المسؤولين، تقويم، وإشعارات لحظية.</p>
-        <ul><li>Kanban</li><li>تقويم</li><li>إشعارات</li><li>مهام متعددة المسؤولين</li></ul>
+        <p>Kanban بمهام متعددة المسؤولين، مهام فرعية بلا حدود، أرشفة المشاريع الخالصة، وتقويم موحّد.</p>
+        <ul><li>Kanban</li><li>تقويم</li><li>مهام فرعية <span class="li-new">جديد</span></li><li>أرشفة المشاريع <span class="li-new">جديد</span></li></ul>
       </div>
       <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
         <div class="ic">🎯</div>
@@ -614,12 +788,14 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
         <ul><li>Leads</li><li>تحويل</li><li>متابعة</li><li>حملات تسويقية</li></ul>
       </div>
       <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
+        <span class="mod-pill new">جديد</span>
         <div class="ic">🏭</div>
         <h3>التصنيع</h3>
         <p>قوائم مواد (BOM)، أوامر إنتاج، واحتساب تكلفة صناعية دقيقة تتربط بالمخزون تلقائيًا.</p>
         <ul><li>BOM</li><li>أوامر إنتاج</li><li>تكلفة صناعية</li></ul>
       </div>
       <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
+        <span class="mod-pill new">جديد</span>
         <div class="ic">📈</div>
         <h3>تقييم الأداء</h3>
         <p>دورات تقييم دورية للموظفين، مؤشرات أداء مرتبطة بالنشاط الفعلي على النظام، وأهداف قابلة للتتبع.</p>
@@ -968,6 +1144,13 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
 </footer>>
     -->
 <!-- FOOTER -->
+  <!-- LANDING-REFRESH (2026-08-11) — sticky mobile-only CTA bar.
+       CSS hides it > 768px; JS toggles based on hero scroll position. -->
+  <div class="mobile-cta-bar" role="complementary" aria-label="ابدأ مجانًا">
+    <div class="mcta-txt"><b>14 يوم مجانًا</b> — بدون بطاقة</div>
+    <a href="/register" class="mcta-btn">ابدأ الآن</a>
+  </div>
+
   <!-- ═══════ FLOATING WHATSAPP COUNTRY SWITCHER ═══════ -->
 <div class="whatsapp-country-float">
   <button class="whatsapp-main-btn" type="button" aria-label="WhatsApp">
@@ -1025,6 +1208,27 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
       }
     });
   });
+  // LANDING-REFRESH (2026-08-11) — sticky mobile CTA bar shows
+  // after the user scrolls past the hero. Hides on the final CTA
+  // section so it doesn't stack over the big button.
+  const mcta = document.querySelector('.mobile-cta-bar');
+  const heroEnd = document.querySelector('.trust');
+  const finalCta = document.querySelector('.cta-band');
+  if (mcta && heroEnd) {
+    const io2 = new IntersectionObserver((entries)=>{
+      entries.forEach(e=>{
+        if (e.target === heroEnd) {
+          mcta.style.display = e.isIntersecting || e.boundingClientRect.top > 0 ? 'none' : 'flex';
+        }
+        if (e.target === finalCta && e.isIntersecting) {
+          mcta.style.display = 'none';
+        }
+      });
+    }, {threshold:0});
+    io2.observe(heroEnd);
+    if (finalCta) io2.observe(finalCta);
+  }
+
   // WhatsApp float toggle
   const waBtn = document.querySelector('.whatsapp-main-btn');
   const waMenu = document.querySelector('.whatsapp-float-menu');
