@@ -282,6 +282,11 @@ SUB_ITEM_CATALOG = {
         ("calendar.index", "التقويم", "📅"),
         # MARSOUD-PLAN-SUBITEMS-27 (2026-08-09).
         ("tasks.archive_mine", "أرشيف مهامي", "📦"),
+        # MARSOUD-PROJECT-ARCHIVE (2026-08-10) — new subitem;
+        # every plan starts unticked (no visibility to preserve
+        # — the endpoint didn't exist pre-ticket, so no
+        # migration back-fill is needed).
+        ("projects.archive_index", "أرشيف المشاريع", "🗂"),
     ],
     "hr": [
         ("hr.index", "الموظفين", "👤"),

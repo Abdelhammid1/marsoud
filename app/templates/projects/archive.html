@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block page_title %}🗂 أرشيف المشاريع{% endblock %}
+{% block content %}
+{# MARSOUD-PROJECT-ARCHIVE (2026-08-10) — clone of
+   tasks/archive.html. Same layout so users familiar with the
+   task archive read this page the same way; only the columns
+   differ (project has customer + manager + status + progress
+   instead of project + creator). #}
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h2 class="font-bold text-navy-900">🗂 أرشيف المشاريع</h2>
+    <p class="text-xs text-slate-500">
+      المشاريع المؤرشفة لم تُحذف — تستطيع استعادتها للقائمة النشطة بضغطة زر.
+      {% if not can_full_view %}
+      <br>عرض المشاريع اللي أنت مديرها فقط.
+      {% endif %}
+    </p>
+  </div>
+  <a href="{{ url_for('projects.index') }}" class="btn-secondary text-sm">
+    ← رجوع للقائمة
+  </a>
+</div>
+
+<div class="card p-6">
+  {% if projects %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>الاسم</th>
+        <th>العميل</th>
+        <th>مدير المشروع</th>
+        <th>الحالة عند الأرشفة</th>
+        <th>تاريخ الأرشفة</th>
+        <th>أُرشف بواسطة</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in projects %}
+      <tr>
+        <td>
+          <a href="{{ url_for('projects.detail', project_id=p.id) }}"
+             class="font-semibold text-navy-900 hover:text-emerald-700">
+            {{ p.name }}
+          </a>
+        </td>
+        <td class="text-xs">
+          {% if p.customer %}{{ p.customer.name }}
+          {% else %}<em class="text-slate-400">—</em>{% endif %}
+        </td>
+        <td class="text-xs">
+          {{ p.manager.full_name if p.manager else '—' }}
+        </td>
+        <td>
+          <span class="badge text-[10px]">{{ p.status.label_ar }}</span>
+        </td>
+        <td class="text-xs font-mono text-slate-500">
+          {{ p.archived_at | company_dt('%Y-%m-%d %H:%M') if p.archived_at else '—' }}
+        </td>
+        <td class="text-xs">
+          {% if p.archived_by_id %}
+            {# archived_by relationship not declared on the model — the id is
+               enough for the audit trail; keep the row cheap. #}
+            <span class="text-slate-500">#{{ p.archived_by_id }}</span>
+          {% else %}<em class="text-slate-400">تلقائي</em>{% endif %}
+        </td>
+        <td>
+          <form method="POST"
+                action="{{ url_for('projects.unarchive', project_id=p.id) }}"
+                onsubmit="return confirm('استعادة المشروع للقائمة النشطة؟');">
+            <button type="submit" class="text-emerald-700 text-xs hover:underline">
+              ↩ استعادة
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-sm text-slate-400 text-center py-12">
+    لا توجد مشاريع مؤرشفة.
+    <br>
+    <a href="{{ url_for('projects.index') }}"
+       class="text-emerald-700 hover:underline text-xs">
+      رجوع للقائمة النشطة
+    </a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
