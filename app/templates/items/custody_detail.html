@@ -127,6 +127,58 @@
 </div>
 {% endif %}
 
+{# MARSOUD-CUSTODY-ATTACH-01 (2026-08-10) — receipt / photo
+   attachments for this item-custody row. Renders outside the
+   settle-form's status guard so the accountant can attach
+   proof at any point in the lifecycle (during, at settlement,
+   or afterwards for audit). Upload form is gated on
+   custody.manage; the list itself is visible to anyone who
+   can view the page — including the holder employee via
+   the portal template. See MARSOUD-CUSTODY-ATTACH-01 plan
+   for why we don't add a receipt_file_path column
+   (polymorphic Document is the codebase design). #}
+<div class="card p-4 mb-4">
+  <h3 class="font-bold text-navy-900 mb-3">📎 مرفقات العهدة</h3>
+  <div class="space-y-2 mb-3">
+    {% set docs = documents_for('ITEM_CUSTODY', custody.id) %}
+    {% for d in docs %}
+    <div class="flex items-center justify-between bg-slate-50 rounded p-2">
+      <a href="{{ d.file_path }}" target="_blank"
+         class="text-sm font-semibold text-navy-900 hover:text-emerald-600">
+        📄 {{ d.name }}
+      </a>
+      {% if has_permission('custody.manage') %}
+      <form method="POST"
+            action="{{ url_for('documents.delete', doc_id=d.id) }}"
+            onsubmit="return confirm('حذف الملف؟')"
+            class="inline">
+        <button type="submit" class="text-xs text-rose-600 hover:underline">
+          حذف
+        </button>
+      </form>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="text-sm text-slate-400">لا توجد مرفقات بعد.</div>
+    {% endfor %}
+  </div>
+  {% if has_permission('custody.manage') %}
+  <form method="POST"
+        action="{{ url_for('documents.upload',
+                            source_type='ITEM_CUSTODY',
+                            source_id=custody.id) }}"
+        enctype="multipart/form-data"
+        class="flex flex-wrap items-end gap-2">
+    <input type="file" name="file" required
+           accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.zip"
+           class="text-sm">
+    <button type="submit" class="btn-secondary text-sm">
+      + رفع صورة/ملف
+    </button>
+  </form>
+  {% endif %}
+</div>
+
 {# ─── Settlement form (only when ACTIVE) ─────────────────────── #}
 {% if custody.status.value == 'ACTIVE' %}
 <div class="card p-6">
