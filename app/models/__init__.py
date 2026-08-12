@@ -194,6 +194,11 @@ from app.models.platform_audit import (
     PlatformAuditLog, SuperadminImpersonation, PlatformError,
     PlatformCronRun,
 )
+# MARSOUD-APPROVAL-GATED-SUPERADMIN (2026-08-12) — pending
+# queue for restricted-superadmin write attempts.
+from app.models.pending_superadmin_action import (
+    PendingSuperadminAction,
+)
 from app.models.api_token import ApiToken
 from app.models.activity import UserSession, UserActivityLog, ACTION_TYPES, SESSION_STATUS
 from app.models.user_file import UserFile
@@ -207,6 +212,7 @@ from app.models.evaluation import (
 __all__ = [
     "PlatformAuditLog", "SuperadminImpersonation", "PlatformError",
     "PlatformCronRun",
+    "PendingSuperadminAction",
     "ApiToken",
     "UserFile",
     "EvaluationCycle", "EvaluationCyclePeriod", "EvaluationCycleStatus",

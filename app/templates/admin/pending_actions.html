@@ -1,0 +1,107 @@
+{% extends "admin/base.html" %}
+{% block page_title %}موافقات مُعلَّقة{% endblock %}
+{% block content %}
+
+<div class="mb-4 flex items-center justify-between">
+  <div>
+    <h2 class="font-bold text-navy-900 text-lg">
+      طلبات في انتظار الموافقة
+      <span class="text-slate-500 text-sm mr-2">({{ rows|length }})</span>
+    </h2>
+    <p class="text-xs text-slate-500 mt-1">
+      كل طلب هنا كان محاولة كتابة من مسؤول مقيَّد (requires_approval).
+      اختر ما تريد الموافقة عليه أو رفضه، ثم استخدم الأزرار أسفل الجدول.
+    </p>
+  </div>
+</div>
+
+{% if not rows %}
+<div class="card p-10 text-center">
+  <div class="text-4xl mb-3">✅</div>
+  <div class="text-slate-600">لا توجد طلبات في انتظار الموافقة.</div>
+</div>
+{% else %}
+<form method="POST"
+      action="{{ url_for('superadmin.pending_actions_decide') }}"
+      onsubmit="return document.querySelectorAll('input[name=action_id]:checked').length > 0;">
+  <div class="card p-4 mb-4">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width:36px">
+            <input type="checkbox" onchange="
+              document.querySelectorAll('input[name=action_id]')
+                .forEach(cb => cb.checked = this.checked);">
+          </th>
+          <th>الإجراء</th>
+          <th>مقدِّم الطلب</th>
+          <th>الهدف/المعاملات</th>
+          <th class="text-center">الطريقة</th>
+          <th>وقت الطلب</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td>
+            <input type="checkbox" name="action_id" value="{{ r.id }}">
+          </td>
+          <td>
+            <div class="font-semibold text-navy-900">
+              {{ endpoint_labels.get(r.endpoint, r.endpoint) }}
+            </div>
+            <div class="text-xs text-slate-400 font-mono mt-1">{{ r.endpoint }}</div>
+          </td>
+          <td>
+            <div class="font-semibold">{{ r.actor.full_name if r.actor else '—' }}</div>
+            <div class="text-xs text-slate-500">{{ r.actor.email if r.actor else '' }}</div>
+          </td>
+          <td class="text-xs">
+            {% set va = r.view_args %}
+            {% if va and va != '{}' %}
+            <div class="text-slate-600 font-mono">args: {{ va }}</div>
+            {% endif %}
+            {% set fd = r.form_data %}
+            {% if fd and fd != '{}' %}
+            <div class="text-slate-600 font-mono mt-1"
+                 style="max-width: 340px; overflow-wrap: anywhere;">
+              form: {{ fd[:180] }}{% if fd|length > 180 %}…{% endif %}
+            </div>
+            {% endif %}
+            {% if r.staged_files %}
+            <div class="text-emerald-700 text-xs mt-1">📎 ملف مرفوع</div>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            <span class="badge badge-neutral font-mono">{{ r.method }}</span>
+          </td>
+          <td class="text-xs text-slate-500 font-mono">
+            {{ r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else '' }}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card p-4 flex flex-wrap items-end gap-3">
+    <div class="flex-1 min-w-[240px]">
+      <label class="block text-xs font-semibold text-slate-700 mb-1">
+        ملاحظة (اختيارية)
+      </label>
+      <input type="text" name="note" class="input text-sm"
+             placeholder="سبب الرفض أو ملاحظة على الموافقة">
+    </div>
+    <button type="submit" name="decision" value="approve"
+            class="btn-primary text-sm">
+      ✅ موافقة على المحدد
+    </button>
+    <button type="submit" name="decision" value="reject"
+            class="btn-danger text-sm">
+      ❌ رفض المحدد
+    </button>
+  </div>
+</form>
+{% endif %}
+
+{% endblock %}

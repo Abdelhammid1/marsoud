@@ -17,13 +17,30 @@ from app.models import (
 
 
 def superadmin_required(fn):
-    """Block every non-superadmin from a route (403 instead of redirect)."""
+    """Block every non-superadmin from a route (403 instead of redirect).
+
+    MARSOUD-APPROVAL-GATED-SUPERADMIN (2026-08-12) — when the
+    caller is a superadmin with `requires_approval=True`, the
+    request is routed through the approval gate. The gate returns
+    None to let the call fall through (GET / self-scoped exempt /
+    an in-flight approval replay), or a redirect/abort response to
+    intercept it. All destructive superadmin.* write attempts
+    become pending rows for the primary superadmin to decide
+    from /admin/pending-actions.
+    """
     @wraps(fn)
     def wrapper(*args, **kwargs):
         if not current_user.is_authenticated or not getattr(
             current_user, "is_superadmin", False
         ):
             abort(403)
+        if getattr(current_user, "requires_approval", False):
+            # Local import — the approval service imports models
+            # that eventually import back through this module.
+            from app.services.superadmin_approval import gate_request
+            gated = gate_request()
+            if gated is not None:
+                return gated
         return fn(*args, **kwargs)
     return wrapper
 

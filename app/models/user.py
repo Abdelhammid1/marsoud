@@ -58,6 +58,17 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     locale = db.Column(db.String(5), default="ar")
     is_superadmin = db.Column(db.Boolean, default=False, nullable=False)
+    # MARSOUD-APPROVAL-GATED-SUPERADMIN (2026-08-12) — when True on
+    # a user that ALSO has is_superadmin=True, every write attempt
+    # under superadmin.* gets intercepted at the shared
+    # @superadmin_required decorator and queued in
+    # pending_superadmin_actions instead of executing. Only the
+    # primary superadmin (this flag False) can decide the queue.
+    # False for existing users — the migration adds the column
+    # with server_default="0" so no accidental lock-out.
+    requires_approval = db.Column(
+        db.Boolean, default=False, nullable=False,
+    )
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     last_login_at = db.Column(db.DateTime, nullable=True)
     # When this user is a client portal account, links them to a Customer row

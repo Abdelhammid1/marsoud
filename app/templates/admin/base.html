@@ -181,6 +181,27 @@ tailwind.config = {
         </a>
         {% endfor %}
       {% endfor %}
+      {# MARSOUD-APPROVAL-GATED-SUPERADMIN (2026-08-12) — the
+         approval inbox is only meaningful to the PRIMARY
+         superadmin. Hidden from restricted superadmins because
+         they can't approve anyway (view aborts 403). Pending
+         count queried once per request; cheap indexed COUNT. #}
+      {% if current_user.is_authenticated
+             and current_user.is_superadmin
+             and not current_user.requires_approval %}
+        {% set _pending_n = pending_actions_nav_count() %}
+        <div class="px-5 pt-3 pb-1 text-[10px] font-bold text-ink-200 uppercase tracking-wider">
+          الموافقات
+        </div>
+        <a href="{{ url_for('superadmin.pending_actions') }}"
+           class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-slate-100 transition-colors {% if request.endpoint == 'superadmin.pending_actions' %}active{% endif %}">
+          <span class="text-base">✅</span>
+          <span class="flex-1">موافقات مُعلَّقة</span>
+          {% if _pending_n %}
+          <span class="badge badge-amber font-mono">{{ _pending_n }}</span>
+          {% endif %}
+        </a>
+      {% endif %}
       <div class="px-5 pt-4 pb-2 text-[10px] text-ink-200">
         اضغط
         <kbd class="px-1 py-0.5 rounded bg-slate-100 border font-mono">Ctrl</kbd>
