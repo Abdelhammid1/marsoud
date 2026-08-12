@@ -1090,6 +1090,20 @@ def create_app(config_class=Config):
     from app.services.opsflow_extras import documents_for as _docs_for
     app.jinja_env.globals["documents_for"] = _docs_for
 
+    # MARSOUD-APPROVAL-GATED-SUPERADMIN (2026-08-12) — badge on
+    # the /admin sidebar's "موافقات مُعلَّقة" nav row. Cheap
+    # indexed COUNT queried once per request. Wrapped so
+    # anonymous / non-superadmin renders never explode if the
+    # migration hasn't run yet.
+    def _pending_actions_nav_count():
+        try:
+            from app.services.superadmin_approval import pending_count
+            return pending_count()
+        except Exception:
+            return 0
+    app.jinja_env.globals["pending_actions_nav_count"] = (
+        _pending_actions_nav_count)
+
     # MARSOUD-ACTLOG-01 — log every successful GET as a VIEW activity
     # row. Wrapped in try/except so a logging hiccup never blocks the
     # response. Heavy skip-list to keep the table from drowning.

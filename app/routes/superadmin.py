@@ -7,7 +7,7 @@ a PlatformAuditLog entry.
 from datetime import datetime
 from flask import (
     Blueprint, render_template, redirect, url_for, flash, request, session, g,
-    current_app,
+    current_app, abort,
 )
 from flask_login import current_user, login_required
 from sqlalchemy import or_
@@ -2326,3 +2326,76 @@ def ai_settings():
         daily_write_cap=daily_write_cap(),
         conversation_retention_days=retention_days(),
     )
+
+
+# ── MARSOUD-APPROVAL-GATED-SUPERADMIN (2026-08-12) ───────── #
+# Two routes: the approval inbox + the bulk decide endpoint.
+# Both are unwrapped POST/GET and NOT registered in
+# services/superadmin_approval.py::DESTRUCTIVE_ENDPOINTS —
+# so the gate's fail-safe would 403 a restricted user on
+# POST, and the explicit `if requires_approval → abort(403)`
+# in the view body enforces it on GET too (belt + braces).
+@bp.route("/pending-actions")
+@login_required
+@superadmin_required
+def pending_actions():
+    """Primary superadmin's approval inbox. Lists every
+    pending row across all restricted actors, newest first."""
+    from app.models import PendingSuperadminAction
+    if getattr(current_user, "requires_approval", False):
+        # A restricted user cannot approve their own actions.
+        abort(403)
+    rows = (PendingSuperadminAction.query
+            .filter_by(status="pending")
+            .order_by(PendingSuperadminAction.created_at.desc())
+            .all())
+    from app.services.superadmin_approval import ENDPOINT_LABELS_AR
+    return render_template(
+        "admin/pending_actions.html",
+        rows=rows,
+        endpoint_labels=ENDPOINT_LABELS_AR,
+    )
+
+
+@bp.route("/pending-actions/decide", methods=["POST"])
+@login_required
+@superadmin_required
+def pending_actions_decide():
+    """Bulk approve or reject the ticked rows. Reads
+    action_id[] + decision + note from the form."""
+    from app.services.superadmin_approval import (
+        execute_pending, reject_pending, ApprovalError,
+    )
+    if getattr(current_user, "requires_approval", False):
+        abort(403)
+    ids = [int(x) for x in request.form.getlist("action_id") if x]
+    decision = (request.form.get("decision") or "").strip()
+    note = (request.form.get("note") or "").strip() or None
+    if decision not in ("approve", "reject") or not ids:
+        flash("اختر إجراء واحد على الأقل وحدد موافقة أو رفض",
+              "error")
+        return redirect(url_for("superadmin.pending_actions"))
+    ok = err = 0
+    errors = []
+    for aid in ids:
+        try:
+            if decision == "approve":
+                execute_pending(aid, approver_id=current_user.id,
+                                 note=note)
+            else:
+                reject_pending(aid, approver_id=current_user.id,
+                                note=note)
+            ok += 1
+        except ApprovalError as e:
+            err += 1
+            errors.append(f"#{aid}: {e}")
+        except Exception as e:  # noqa: BLE001 — surface, don't swallow
+            db.session.rollback()
+            err += 1
+            errors.append(f"#{aid}: {type(e).__name__}: {e}")
+    if ok:
+        label = "الموافقة على" if decision == "approve" else "رفض"
+        flash(f"تمت {label} {ok} إجراء بنجاح", "success")
+    if err:
+        flash(f"فشل {err} إجراء — " + " · ".join(errors), "error")
+    return redirect(url_for("superadmin.pending_actions"))
