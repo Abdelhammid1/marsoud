@@ -1140,8 +1140,13 @@ def comment_add(task_id):
                     company_id=t.company_id,
                     entity_kind="task",
                     entity_label=f"مهمة: {t.title}",
+                    # MARSOUD-MENTION-EMAIL-FIX (2026-08-13) —
+                    # _external=True so the email button is a
+                    # clickable absolute URL, not a relative
+                    # path that Gmail refuses to render.
                     link_url=(
-                        url_for("tasks.detail", task_id=t.id)
+                        url_for("tasks.detail", task_id=t.id,
+                                 _external=True)
                         + "#comments"
                     ),
                     snippet=content,
