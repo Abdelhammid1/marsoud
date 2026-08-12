@@ -34,6 +34,7 @@ from app.models import (
 )
 from app.services.cash_custody import (
     request_custody, approve_custody_request, reject_custody_request,
+    delete_pending_request, reopen_settlement,
     issue_custody, add_settlement_line, close_settlement,
     cancel_custody, custodies_for_company,
     requests_for_company, CustodyError,
@@ -355,3 +356,74 @@ def cancel(custody_id):
     except CustodyError as e:
         flash(str(e), "error")
     return redirect(url_for("custody.index"))
+
+
+# ─── MARSOUD-CUSTODY-DELETE-CONSISTENCY (2026-08-12) ─────────────
+# Three new endpoints. Delete-pending-request (AC #1) enables safe
+# hard-delete of a request that has no journal yet. Delete-custody
+# always refuses (AC #2 defense-in-depth at the route layer, even
+# though no UI button offers it). Reopen (AC #4) undoes a
+# close_settlement by reversing the settlement JE.
+@bp.route("/requests/<int:req_id>/delete", methods=["POST"])
+@login_required
+@require_permission("custody.manage")
+def request_delete(req_id):
+    """AC #1 — hard-delete a PENDING request. Any other status
+    refuses (use reject / cancel instead)."""
+    req = _own(CashCustodyRequest, req_id)
+    if not req:
+        flash("الطلب غير موجود", "error")
+        return redirect(url_for("custody.requests"))
+    try:
+        delete_pending_request(req, actor_id=current_user.id)
+        flash("تم حذف الطلب", "success")
+    except CustodyError as e:
+        flash(str(e), "error")
+    return redirect(url_for("custody.requests"))
+
+
+@bp.route("/<int:custody_id>/delete", methods=["POST"])
+@login_required
+@require_permission("custody.manage")
+def custody_delete_refused(custody_id):
+    """AC #2 — any attempted delete on an issued custody is
+    refused; the accountant is redirected to /cancel instead.
+    No UI offers this — the endpoint exists so a crafted POST
+    or future UI mistake can't accidentally hard-delete a row
+    with a live journal entry."""
+    custody = _own(CashCustody, custody_id)
+    if not custody:
+        flash("العهدة غير موجودة", "error")
+        return redirect(url_for("custody.index"))
+    flash(
+        "لا يمكن حذف عهدة صادرة — أي حركة مالية اتم صرفها فعلاً "
+        "لازم تتعكس بقيد يومية، مش تتمسح. "
+        "استخدم زر 'إلغاء العهدة' من صفحة التفاصيل بدل الحذف.",
+        "error",
+    )
+    return redirect(url_for("custody.detail",
+                             custody_id=custody.id))
+
+
+@bp.route("/<int:custody_id>/reopen", methods=["POST"])
+@login_required
+@require_permission("custody.manage")
+def reopen(custody_id):
+    """AC #4 — undo a close_settlement. Reverses the settlement
+    JE, flips custody back to PARTIALLY_SETTLED / ISSUED.
+    Original issue JE stays untouched."""
+    custody = _own(CashCustody, custody_id)
+    if not custody:
+        flash("العهدة غير موجودة", "error")
+        return redirect(url_for("custody.index"))
+    try:
+        reopen_settlement(
+            custody, actor_id=current_user.id,
+            reason=request.form.get("reason"),
+        )
+        flash("تم التراجع عن التسوية — القيد العكسي مُرحّل",
+              "success")
+    except CustodyError as e:
+        flash(str(e), "error")
+    return redirect(url_for("custody.detail",
+                             custody_id=custody.id))

@@ -120,7 +120,8 @@ def post_journal(
     return entry
 
 
-def reverse_journal(entry_id, created_by=None):
+def reverse_journal(entry_id, created_by=None, *,
+                    _domain_bypass=False):
     """Create a reversing entry that nullifies the original.
 
     Also undoes domain-level side-effects when the original journal was
@@ -128,6 +129,14 @@ def reverse_journal(entry_id, created_by=None):
     this, reversing the journal made the ledger balance again but the
     source row (EmployeeAccrual.settled_at, etc.) stayed dirty and the
     UI never reflected the reversal — see MARSOUD-28.
+
+    MARSOUD-CUSTODY-DELETE-CONSISTENCY (2026-08-12) — the
+    `_domain_bypass` kwarg lets a caller SKIP the source-side-effects
+    hook. Currently used only by
+    `services/cash_custody.py::reopen_settlement` so the generic
+    cash_custody_settlement refusal at :333-336 (which is the right
+    default for anyone reversing from the /journals page) doesn't
+    block a purpose-built reopen flow.
     """
     original = db.session.get(JournalEntry, entry_id)
     if not original:
@@ -200,7 +209,13 @@ def reverse_journal(entry_id, created_by=None):
     # ─── Domain side-effects: undo the action the original posted ──────
     # If we ever post more journal types via services (vendor-bill payment,
     # invoice payment, etc.), add their reversal here too.
-    _undo_source_side_effects(original, reversal=entry)
+    # MARSOUD-CUSTODY-DELETE-CONSISTENCY (2026-08-12) —
+    # _domain_bypass=True lets purpose-built reversers
+    # (e.g. cash_custody.reopen_settlement) skip this hook when
+    # they'll do their own state fix-up. Generic /journals-page
+    # reversals still get the full source-side-effects treatment.
+    if not _domain_bypass:
+        _undo_source_side_effects(original, reversal=entry)
 
     db.session.commit()
     try:

@@ -70,10 +70,14 @@
         </td>
         <td class="text-xs text-slate-500">{{ r.created_at | company_dt('%Y-%m-%d') if r.created_at else '' }}</td>
         <td>
-          {% set s = r.status.value %}
-          {% if s == 'PENDING' %}<span class="badge badge-draft">قيد الانتظار</span>
-          {% elif s == 'APPROVED' %}<span class="badge badge-paid">معتمدة</span>
-          {% else %}<span class="badge badge-cancelled">مرفوضة</span>{% endif %}
+          {# MARSOUD-CUSTODY-DELETE-CONSISTENCY (2026-08-12) —
+             render effective_status instead of r.status.value so
+             an approved-then-cancelled row shows "ملغاة (بعد
+             الاعتماد)" here AND on the employee portal. Both
+             screens read the same property → they always agree
+             per AC #5. #}
+          {% set eff = r.effective_status %}
+          <span class="badge {{ eff[2] }}">{{ eff[1] }}</span>
           {% if r.review_note %}<div class="text-xs text-slate-400 mt-1">{{ r.review_note }}</div>{% endif %}
         </td>
         <td>
@@ -86,6 +90,18 @@
               <input type="text" name="review_note" placeholder="السبب"
                      class="input text-xs w-24 inline-block">
               <button type="submit" class="text-rose-600 text-xs hover:underline mr-2">رفض</button>
+            </form>
+            {# MARSOUD-CUSTODY-DELETE-CONSISTENCY AC #1
+               (2026-08-12) — hard-delete affordance for PENDING
+               requests only. Non-pending rows fall to the "—"
+               branch (their delete endpoint refuses; audit
+               trail preserved). #}
+            <form method="POST" action="{{ url_for('custody.request_delete', req_id=r.id) }}"
+                  class="inline"
+                  onsubmit="return confirm('حذف الطلب نهائياً؟ لن يتم إنشاء أي عهدة.');">
+              <button type="submit" class="text-slate-500 text-xs hover:text-rose-600 hover:underline mr-2">
+                🗑 حذف
+              </button>
             </form>
           {% else %}—{% endif %}
         </td>

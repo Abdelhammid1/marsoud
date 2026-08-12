@@ -66,9 +66,13 @@
           {% endfor %}
         </td>
         <td>
-          {% if r.status.value == 'PENDING' %}<span class="badge badge-draft">قيد الانتظار</span>
-          {% elif r.status.value == 'APPROVED' %}<span class="badge badge-paid">معتمدة</span>
-          {% else %}<span class="badge badge-cancelled">مرفوضة</span>{% endif %}
+          {# MARSOUD-CUSTODY-DELETE-CONSISTENCY (2026-08-12) —
+             render effective_status so the employee sees "ملغاة
+             (بعد الاعتماد)" instead of a stale "معتمدة" when
+             the accountant cancelled the linked custody. Matches
+             the accountant's requests screen — AC #5. #}
+          {% set eff = r.effective_status %}
+          <span class="badge {{ eff[2] }}">{{ eff[1] }}</span>
         </td>
         <td class="text-xs text-slate-500">{{ r.review_note or '—' }}</td>
         <td class="text-xs text-slate-500">
