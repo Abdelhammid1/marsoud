@@ -385,6 +385,100 @@ def users():
     return render_template("admin/users.html", rows=rows, q=q, sort=sort)
 
 
+# ── MARSOUD-RESTRICTED-SUPERADMIN-CREATE-UI (2026-08-13) ── #
+# Follow-up on MARSOUD-APPROVAL-GATED-SUPERADMIN. Two routes:
+#  · GET  /admin/users/create-restricted — the form.
+#  · POST /admin/users/create-restricted — promote-or-create.
+# Behavior mirrors the shipped `make_superadmin.py` script
+# (email exists → flip flags, don't touch other fields;
+# email missing → new User with name + password) but via the
+# admin UI so a shell is no longer required. Only the primary
+# superadmin (requires_approval=False) can use it — a
+# restricted user gets 403 in the view body on top of the
+# fail-safe from DESTRUCTIVE_ENDPOINTS registration.
+@bp.route("/users/create-restricted", methods=["GET"])
+@login_required
+@superadmin_required
+def user_create_restricted_form():
+    if getattr(current_user, "requires_approval", False):
+        abort(403)
+    return render_template(
+        "admin/users_create_restricted.html")
+
+
+@bp.route("/users/create-restricted", methods=["POST"])
+@login_required
+@superadmin_required
+def user_create_restricted():
+    from app.services.password_policy import validate_password
+    from app.models import UserStatus
+    if getattr(current_user, "requires_approval", False):
+        abort(403)
+
+    email = (request.form.get("email") or "").strip().lower()
+    if not email or "@" not in email:
+        flash("أدخل بريدًا إلكترونيًا صحيحًا", "error")
+        return redirect(url_for(
+            "superadmin.user_create_restricted_form"))
+
+    existing = User.query.filter_by(email=email).first()
+
+    if existing:
+        # PROMOTE — flip the two flags, leave everything
+        # else untouched. Least-surprise for an existing
+        # employee being elevated (no forced re-login).
+        if (existing.is_superadmin
+                and existing.requires_approval):
+            flash(
+                f"المستخدم {email} مسؤول مقيَّد بالفعل",
+                "info")
+            return redirect(url_for("superadmin.users"))
+        existing.is_superadmin = True
+        existing.requires_approval = True
+        existing.is_active = True
+        db.session.commit()
+        log_platform_action(
+            "user_promoted_to_restricted_superadmin",
+            target_user_id=existing.id,
+            details=f"email={email}",
+        )
+        flash(f"تم ترقية {email} إلى مسؤول مقيَّد",
+              "success")
+        return redirect(url_for("superadmin.users"))
+
+    # CREATE — name + password required for a brand-new
+    # user. Password validated via the shared policy so
+    # signup + reset + this all agree on the same rules.
+    full_name = (request.form.get("full_name") or "").strip()
+    password = request.form.get("password") or ""
+    if not full_name:
+        flash("الاسم الكامل مطلوب لمستخدم جديد", "error")
+        return redirect(url_for(
+            "superadmin.user_create_restricted_form"))
+    ok, reason = validate_password(password)
+    if not ok:
+        flash(reason, "error")
+        return redirect(url_for(
+            "superadmin.user_create_restricted_form"))
+
+    u = User(
+        email=email, full_name=full_name,
+        is_superadmin=True, requires_approval=True,
+        is_active=True,
+        status=UserStatus.ACTIVE.value,
+    )
+    u.set_password(password)
+    db.session.add(u)
+    db.session.commit()
+    log_platform_action(
+        "user_created_restricted_superadmin",
+        target_user_id=u.id,
+        details=f"email={email}",
+    )
+    flash(f"تم إنشاء المسؤول المقيَّد: {email}", "success")
+    return redirect(url_for("superadmin.users"))
+
+
 @bp.route("/users/<int:user_id>/toggle", methods=["POST"])
 @login_required
 @superadmin_required

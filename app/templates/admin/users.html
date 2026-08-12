@@ -2,7 +2,7 @@
 {% block page_title %}إدارة المستخدمين{% endblock %}
 {% block content %}
 
-<div class="card p-4 mb-4 flex items-end gap-3">
+<div class="card p-4 mb-4 flex items-end gap-3 flex-wrap">
   <form method="GET" class="flex items-end gap-3 flex-grow">
     <div class="flex-grow">
       <label class="block text-xs text-ink-200 mb-1">بحث (بريد / اسم)</label>
@@ -10,6 +10,20 @@
     </div>
     <button type="submit" class="btn btn-primary">بحث</button>
   </form>
+  {# MARSOUD-RESTRICTED-SUPERADMIN-CREATE-UI (2026-08-13) —
+     button visible only to the PRIMARY superadmin. A
+     restricted user would just get their POST queued
+     (and their own request needs a peer to approve),
+     so hide the entry point entirely for them. #}
+  {% if current_user.is_authenticated
+         and current_user.is_superadmin
+         and not current_user.requires_approval %}
+  <a href="{{ url_for('superadmin.user_create_restricted_form') }}"
+     class="btn btn-primary text-sm whitespace-nowrap"
+     title="مسؤول له صلاحيات superadmin مع اعتماد إجباري لكل تعديل">
+    ➕ إنشاء مسؤول مقيَّد
+  </a>
+  {% endif %}
 </div>
 
 <div class="card p-0 overflow-hidden">
@@ -31,6 +45,12 @@
       <td>
         {{ u.full_name }}
         {% if u.is_superadmin %}<span class="badge badge-bad mr-2">ADMIN</span>{% endif %}
+        {# MARSOUD-RESTRICTED-SUPERADMIN-CREATE-UI (2026-08-13) —
+           small pill next to ADMIN so the primary can tell
+           restricted superadmins apart from primaries at a
+           glance. Same visual weight as ADMIN, different color. #}
+        {% if u.is_superadmin and u.requires_approval
+              %}<span class="badge badge-amber mr-1">مقيَّد</span>{% endif %}
       </td>
       <td class="text-ink-200">{{ u.email }}</td>
       <td class="font-mono text-xs">{{ u.created_at | company_dt('%Y-%m-%d') if u.created_at else '—' }}</td>
