@@ -97,17 +97,26 @@ def platform_overview():
     }
 
 
-def companies_with_stats():
+def companies_with_stats(include_deleted=False):
     """Every company with a few cross-tenant counts. Used by /admin/companies.
 
     MARSOUD-BOT-PROTECTION-01 (Abdelhamid 2026-07-24) — also annotates
     each row with `owner_verified` (True iff the owner's status is
     not PENDING_VERIFICATION). The admin list uses this to hide bot
     signups by default until they verify their email.
+
+    MARSOUD-COMPANIES-BULK-DELETE (2026-08-12) — soft-deleted rows
+    (deleted_at IS NOT NULL) are hidden from the default query.
+    /admin/companies/deleted passes include_deleted=True to see them.
+    Callers that need EVERYTHING (both live + deleted, e.g. audit
+    routes) can still pass include_deleted=True and filter downstream.
     """
     from app.models import UserStatus
+    q = Company.query
+    if not include_deleted:
+        q = q.filter(Company.deleted_at.is_(None))
     rows = []
-    for c in Company.query.order_by(Company.created_at.desc()).all():
+    for c in q.order_by(Company.created_at.desc()).all():
         users = db.session.query(func.count()).select_from(user_companies).filter(
             user_companies.c.company_id == c.id
         ).scalar() or 0

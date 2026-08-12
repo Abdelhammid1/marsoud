@@ -243,6 +243,125 @@ def company_restore(company_id):
                              company_id=company.id))
 
 
+# ── MARSOUD-COMPANIES-BULK-DELETE (2026-08-12) ───────────── #
+# Three routes:
+#  · POST /companies/bulk-soft-delete — mark N companies as
+#    soft-deleted in one submit from the main table.
+#  · GET  /companies/deleted — dedicated page listing every
+#    soft-deleted company with a bulk hard-delete toolbar.
+#  · POST /companies/bulk-hard-delete — permanent wipe. A
+#    JSON snapshot of every row referencing the company is
+#    dumped to app/static/backups/company_purges/ BEFORE
+#    the cascade runs, so a mistaken purge is still
+#    recoverable from disk.
+@bp.route("/companies/bulk-soft-delete", methods=["POST"])
+@login_required
+@superadmin_required
+def companies_bulk_soft_delete():
+    """Bulk soft-delete. Reads `company_id` (multi) + optional
+    `reason` from the form. Each row goes through the same
+    `soft_delete_company` helper the per-row route uses, so
+    audit + is_active semantics stay identical."""
+    from app.services.lifecycle import soft_delete_company
+    ids = [int(x) for x in request.form.getlist("company_id") if x]
+    reason = ((request.form.get("reason") or "").strip()
+               or "bulk soft-delete")
+    if not ids:
+        flash("لم يتم تحديد أي شركة", "error")
+        return redirect(url_for("superadmin.companies"))
+    ok = err = 0
+    for cid in ids:
+        c = db.session.get(Company, cid)
+        if c is None:
+            err += 1
+            continue
+        try:
+            soft_delete_company(c, actor_id=current_user.id,
+                                 reason=reason)
+            ok += 1
+        except Exception:  # noqa: BLE001
+            db.session.rollback()
+            err += 1
+    if ok and not err:
+        flash(f"تم حذف {ok} شركة مؤقتاً", "success")
+    elif ok and err:
+        flash(f"تم حذف {ok} شركة مؤقتاً — فشل {err}",
+              "warning")
+    else:
+        flash("لم يُحذف أي شركة", "error")
+    return redirect(url_for("superadmin.companies"))
+
+
+@bp.route("/companies/deleted")
+@login_required
+@superadmin_required
+def companies_deleted():
+    """List every soft-deleted company. Bulk toolbar sends
+    the ticked ids to companies_bulk_hard_delete."""
+    from app.services.superadmin import companies_with_stats
+    all_rows = companies_with_stats(include_deleted=True)
+    rows = [r for r in all_rows
+            if r["company"].deleted_at is not None]
+    return render_template("admin/companies_deleted.html",
+                            rows=rows)
+
+
+@bp.route("/companies/bulk-hard-delete", methods=["POST"])
+@login_required
+@superadmin_required
+def companies_bulk_hard_delete():
+    """Permanent wipe, gated by a typed confirmation. For each
+    ticked company: (1) dump a JSON snapshot to disk, (2)
+    fire hard_delete_company. Per-row try/except so one
+    broken cascade doesn't abort the batch."""
+    from app.services.lifecycle import hard_delete_company
+    from app.services.company_purge_backup import (
+        dump_company_to_json,
+    )
+    if (request.form.get("confirm_word") or "").strip() != "تأكيد":
+        flash("لم تكتب كلمة التأكيد الصحيحة", "error")
+        return redirect(url_for("superadmin.companies_deleted"))
+    ids = [int(x) for x in request.form.getlist("company_id") if x]
+    reason = ((request.form.get("reason") or "").strip()
+               or "bulk hard-delete")
+    if not ids:
+        flash("لم يتم تحديد أي شركة", "error")
+        return redirect(url_for("superadmin.companies_deleted"))
+    ok = err = 0
+    errors = []
+    for cid in ids:
+        c = db.session.get(Company, cid)
+        if c is None:
+            err += 1
+            errors.append(f"#{cid}: not found")
+            continue
+        # 1) snapshot to disk BEFORE the destructive commit.
+        try:
+            path = dump_company_to_json(cid)
+        except Exception as e:  # noqa: BLE001 — surface, don't wipe
+            err += 1
+            errors.append(f"#{cid}: backup failed — "
+                           f"{type(e).__name__}")
+            continue
+        # 2) fire the existing cascade helper.
+        try:
+            hard_delete_company(
+                c, actor_id=current_user.id,
+                reason=f"{reason} (backup={path.name})")
+            ok += 1
+        except Exception as e:  # noqa: BLE001
+            db.session.rollback()
+            err += 1
+            errors.append(f"#{cid}: cascade — "
+                           f"{type(e).__name__}")
+    if ok:
+        flash(f"تم الحذف النهائي لـ {ok} شركة", "success")
+    if err:
+        flash(f"فشل {err} شركة — " + " · ".join(errors),
+              "error")
+    return redirect(url_for("superadmin.companies_deleted"))
+
+
 # ── Ticket 4: users management ───────────────────────────────────────────── #
 @bp.route("/users")
 @login_required
