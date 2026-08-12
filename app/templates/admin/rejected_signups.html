@@ -1,0 +1,124 @@
+{% extends "admin/base.html" %}
+{% block page_title %}محاولات التسجيل المرفوضة{% endblock %}
+{% block content %}
+
+<div class="mb-4 flex items-center justify-between flex-wrap gap-3">
+  <div>
+    <h2 class="font-bold text-navy-900 text-lg">
+      🚫 محاولات التسجيل المرفوضة
+    </h2>
+    <p class="text-xs text-slate-500 mt-1">
+      كل محاولة تسجيل يرفضها أي حاجب من حواجز الحماية بتتسجل هنا،
+      والدومينز اللي بتلاقي نفسها معلمة بـ <b>honeypot</b>
+      {{ trigger_count }} مرات في {{ trigger_window_hours }} ساعة
+      بتنضاف تلقائياً للـ blocklist.
+    </p>
+  </div>
+</div>
+
+<div class="card p-3 mb-4 bg-sky-50 border border-sky-200 text-xs">
+  <b>الدومينز المستثناة تماماً من الحظر التلقائي</b>
+  (اللائحة البيضاء — مايفوتش أي auto-block منها مهما ترفض):
+  <div class="mt-1 font-mono text-slate-700"
+       style="overflow-wrap: anywhere;">
+    {{ whitelist|join(' · ') }}
+  </div>
+</div>
+
+<div class="card p-4 mb-4">
+  <h3 class="font-semibold text-navy-900 mb-2">
+    🔒 الدومينز المحظورة تلقائياً
+    <span class="text-slate-500 text-sm mr-2">({{ blocked|length }})</span>
+  </h3>
+  {% if blocked %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>الدومين</th>
+        <th>تاريخ الحظر</th>
+        <th>السبب</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for b in blocked %}
+      <tr>
+        <td class="font-mono">{{ b.domain }}</td>
+        <td class="font-mono text-xs">
+          {{ b.blocked_at | company_dt('%Y-%m-%d %H:%M')
+             if b.blocked_at else '—' }}
+        </td>
+        <td class="text-xs text-slate-600"
+            style="max-width: 340px; overflow-wrap: anywhere;">
+          {{ b.reason or '—' }}
+        </td>
+        <td>
+          <form method="POST"
+                action="{{ url_for('superadmin.rejected_signups_unblock') }}"
+                onsubmit="return confirm('فك الحظر عن {{ b.domain|e }}؟');">
+            <input type="hidden" name="domain" value="{{ b.domain }}">
+            <button type="submit" class="btn-secondary text-xs">
+              ♻️ فك الحظر
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-center text-slate-400 py-4 text-sm">
+    لا توجد دومينز محظورة تلقائياً حالياً.
+  </div>
+  {% endif %}
+</div>
+
+<div class="card p-4">
+  <h3 class="font-semibold text-navy-900 mb-2">
+    📋 آخر الرفض ({{ rejections|length }})
+  </h3>
+  {% if rejections %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>الوقت</th>
+        <th>الدومين</th>
+        <th>السبب</th>
+        <th>IP</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rejections %}
+      <tr>
+        <td class="font-mono text-xs text-slate-500">
+          {{ r.created_at | company_dt('%Y-%m-%d %H:%M')
+             if r.created_at else '—' }}
+        </td>
+        <td class="font-mono">{{ r.email_domain }}</td>
+        <td>
+          {% set reason_class = {
+            'honeypot': 'badge-bad',
+            'rate_limit': 'badge-amber',
+            'spam_domain': 'badge-neutral',
+            'turnstile': 'badge-sent',
+            'blocked_domain': 'badge-draft',
+          }.get(r.reason, 'badge-neutral') %}
+          <span class="badge {{ reason_class }} font-mono">
+            {{ r.reason }}
+          </span>
+        </td>
+        <td class="font-mono text-xs text-slate-500">
+          {{ r.ip_address or '—' }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-center text-slate-400 py-4 text-sm">
+    لا توجد محاولات رفض مسجّلة.
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

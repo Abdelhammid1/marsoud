@@ -181,13 +181,37 @@ def register():
             honeypot_tripped, register_rate_ok, is_spam_email, client_ip,
             verify_turnstile, is_turnstile_enabled,
         )
+        # MARSOUD-SIGNUP-AUTO-BLOCK (2026-08-12) — dynamic domain
+        # blocklist + rejection log. `is_domain_blocked` runs BEFORE
+        # any other gate — a known-bad domain skips honeypot / rate-
+        # limit / turnstile entirely (saves Cloudflare API calls +
+        # keeps the rate-limit bucket clean for good users), and
+        # every gate below now calls `record_rejection` on trip so
+        # the auto-learning has fuel to work with.
+        from app.services.signup_rejections import (
+            is_domain_blocked, record_rejection,
+        )
+        early_email = (request.form.get("email") or "").strip().lower()
+        early_ip = client_ip(request)
+        if is_domain_blocked(early_email):
+            # Same soft-success decoy the honeypot returns — a bot
+            # cannot distinguish "your domain is banned" from
+            # "your submit worked". Keeps them wasting time.
+            record_rejection("blocked_domain", early_email,
+                              ip_address=early_ip)
+            return render_template(
+                "auth/register_success_decoy.html"), 200
         if honeypot_tripped(request.form):
             # DO NOT return an error — that tells the bot the trap
             # exists. Answer with a plain "OK" page and quietly
             # discard the request. To the bot, everything worked.
+            record_rejection("honeypot", early_email,
+                              ip_address=early_ip)
             return render_template("auth/register_success_decoy.html"), 200
         ip = client_ip(request)
         if not register_rate_ok(ip):
+            record_rejection("rate_limit", early_email,
+                              ip_address=ip)
             flash("تم تجاوز الحد المسموح من محاولات التسجيل. حاول لاحقاً.",
                   "error")
             return render_template("auth/register.html"), 429
@@ -196,6 +220,8 @@ def register():
         # skip the widget or reuse tokens are rejected here.
         ts_token = request.form.get("cf-turnstile-response", "")
         if not verify_turnstile(ts_token, remote_ip=ip):
+            record_rejection("turnstile", early_email,
+                              ip_address=ip)
             flash("فشل التحقق من كونك بشراً. حاول تحديث الصفحة.", "error")
             return render_template("auth/register.html"), 403
 
@@ -222,6 +248,7 @@ def register():
             return render_template("auth/register.html")
 
         if is_spam_email(email):
+            record_rejection("spam_domain", email, ip_address=ip)
             flash("عنوان بريد إلكتروني غير مقبول. استخدم بريدك الحقيقي.",
                   "error")
             return render_template("auth/register.html"), 403
