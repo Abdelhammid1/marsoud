@@ -2,7 +2,7 @@
 {% block page_title %}إدارة الشركات{% endblock %}
 {% block content %}
 
-<div class="card p-4 mb-4 flex items-end gap-3">
+<div class="card p-4 mb-4 flex items-end gap-3 flex-wrap">
   <form method="GET" class="flex items-end gap-3 flex-grow">
     <div class="flex-grow">
       <label class="block text-xs text-ink-200 mb-1">بحث باسم الشركة</label>
@@ -13,7 +13,45 @@
     {% endif %}
     <button type="submit" class="btn btn-primary">بحث</button>
   </form>
+  {# MARSOUD-COMPANIES-BULK-DELETE — always-visible link to
+     the sibling page listing every soft-deleted company. #}
+  <a href="{{ url_for('superadmin.companies_deleted') }}"
+     class="btn btn-secondary text-sm whitespace-nowrap"
+     title="الشركات المحذوفة مؤقتاً">
+    🗑️ الشركات المحذوفة
+  </a>
 </div>
+
+{# ── MARSOUD-COMPANIES-BULK-DELETE (2026-08-12) —
+   bulk-select toolbar. The `form` attribute on each
+   checkbox associates it with the standalone
+   #bulk-soft-form below, so we don't have to wrap the
+   entire <table> in a <form> (which would nest with the
+   5 per-row action forms and break them). #}
+<form id="bulk-soft-form" method="POST"
+      action="{{ url_for('superadmin.companies_bulk_soft_delete') }}"
+      onsubmit="return window.__confirmBulkSoft();">
+  <div id="bulk-toolbar"
+       class="card p-3 mb-4 hidden items-center gap-3
+              bg-amber-50 border-amber-200"
+       style="display: none;">
+    <span class="text-sm font-semibold text-slate-800">
+      <span id="bulk-count">0</span> شركة محددة
+    </span>
+    <input type="text" name="reason" class="input text-sm flex-grow"
+           placeholder="سبب الحذف (اختياري — يظهر في سجل التدقيق)">
+    <button type="submit" class="btn-danger text-sm">
+      🗑️ حذف مؤقت للمحدد
+    </button>
+    <button type="button" class="btn-secondary text-sm"
+            onclick="window.__clearBulkSelection();">
+      إلغاء التحديد
+    </button>
+  </div>
+</form>{# NB: this form has NO body other than hidden checkboxes
+        associated via form="bulk-soft-form" below. Kept
+        outside the table so nested-form parsing bugs stay
+        out of scope. #}
 
 {# MARSOUD-BOT-PROTECTION-01 (Abdelhamid 2026-07-24) — hide
    unverified-owner companies by default so bot signups don't
@@ -42,6 +80,11 @@
 <table class="data-table">
   <thead>
     <tr>
+      <th style="width:36px">
+        <input type="checkbox" id="bulk-select-all"
+               title="تحديد الكل"
+               onclick="window.__toggleAllBulkChecks(this);">
+      </th>
       <th>الشركة</th>
       <th><a href="{{ url_for('superadmin.companies', q=q, sort='created_asc') }}" class="text-slate-700 hover:underline">تاريخ الإنشاء ↑</a> / <a href="{{ url_for('superadmin.companies', q=q, sort='created_desc') }}" class="text-slate-700 hover:underline">↓</a></th>
       <th>المستخدمون</th>
@@ -55,6 +98,15 @@
   <tbody>
     {% for r in rows %}
     <tr>
+      <td>
+        {# form="bulk-soft-form" associates this checkbox with
+           the standalone form above; the checkbox lives inside
+           <table> here but its value ships with the bulk POST. #}
+        <input type="checkbox" name="company_id" value="{{ r.company.id }}"
+               form="bulk-soft-form"
+               class="js-bulk-check"
+               onchange="window.__refreshBulkToolbar();">
+      </td>
       <td>
         <a href="{{ url_for('superadmin.company_detail', company_id=r.company.id) }}"
            class="text-slate-900 font-semibold hover:underline">{{ r.company.name }}</a>
@@ -93,10 +145,48 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="8" class="text-center text-ink-200 py-6">لا توجد شركات.</td></tr>
+    <tr><td colspan="9" class="text-center text-ink-200 py-6">لا توجد شركات.</td></tr>
     {% endfor %}
   </tbody>
 </table>
 </div>
+
+{# ── MARSOUD-COMPANIES-BULK-DELETE — toolbar JS wiring ─── #}
+<script>
+(function() {
+  function checkedBoxes() {
+    return Array.from(document.querySelectorAll('.js-bulk-check'))
+      .filter(cb => cb.checked);
+  }
+  window.__refreshBulkToolbar = function () {
+    var n = checkedBoxes().length;
+    var bar = document.getElementById('bulk-toolbar');
+    var counter = document.getElementById('bulk-count');
+    if (counter) counter.textContent = n;
+    if (bar) {
+      bar.style.display = n > 0 ? 'flex' : 'none';
+    }
+  };
+  window.__toggleAllBulkChecks = function (master) {
+    document.querySelectorAll('.js-bulk-check').forEach(function (cb) {
+      cb.checked = master.checked;
+    });
+    window.__refreshBulkToolbar();
+  };
+  window.__clearBulkSelection = function () {
+    document.querySelectorAll('.js-bulk-check').forEach(function (cb) {
+      cb.checked = false;
+    });
+    var master = document.getElementById('bulk-select-all');
+    if (master) master.checked = false;
+    window.__refreshBulkToolbar();
+  };
+  window.__confirmBulkSoft = function () {
+    var n = checkedBoxes().length;
+    if (n === 0) { alert('لم يتم تحديد أي شركة'); return false; }
+    return confirm('متأكد إنك عايز تعمل soft delete لـ ' + n + ' شركة؟');
+  };
+})();
+</script>
 
 {% endblock %}
