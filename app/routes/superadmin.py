@@ -1378,6 +1378,53 @@ def companies_inactive():
     )
 
 
+# ── MARSOUD-SIGNUP-AUTO-BLOCK (2026-08-12) ──────────────── #
+# Two routes for the auto-learning blocklist review:
+#  · GET  /admin/rejected-signups — inbox listing last 200
+#    rejections + every actively-blocked domain.
+#  · POST /admin/rejected-signups/unblock — human review
+#    escape hatch (lifts an auto-block that turned out to
+#    be a false positive).
+@bp.route("/rejected-signups")
+@login_required
+@superadmin_required
+def rejected_signups():
+    from app.models import SignupRejection, BlockedDomain
+    from app.services.signup_rejections import (
+        WHITELISTED_DOMAINS, HONEYPOT_TRIGGER_COUNT,
+        HONEYPOT_TRIGGER_WINDOW_HOURS,
+    )
+    rejections = (SignupRejection.query
+                   .order_by(SignupRejection.created_at.desc())
+                   .limit(200).all())
+    blocked = (BlockedDomain.query
+                .filter_by(is_active=True)
+                .order_by(BlockedDomain.blocked_at.desc())
+                .all())
+    return render_template(
+        "admin/rejected_signups.html",
+        rejections=rejections, blocked=blocked,
+        whitelist=sorted(WHITELISTED_DOMAINS),
+        trigger_count=HONEYPOT_TRIGGER_COUNT,
+        trigger_window_hours=HONEYPOT_TRIGGER_WINDOW_HOURS,
+    )
+
+
+@bp.route("/rejected-signups/unblock", methods=["POST"])
+@login_required
+@superadmin_required
+def rejected_signups_unblock():
+    from app.services.signup_rejections import unblock_domain
+    domain = (request.form.get("domain") or "").strip().lower()
+    if not domain:
+        flash("لم يتم تحديد دومين", "error")
+    elif unblock_domain(domain, actor_id=current_user.id):
+        flash(f"تم فك الحظر عن {domain}", "success")
+    else:
+        flash("الدومين ليس محظوراً حالياً", "info")
+    return redirect(url_for("superadmin.rejected_signups"))
+
+
 # MARSOUD-FEATURE-FLAGS-KILL-SWITCH (Abdelhamid 2026-07-22) — runtime
 # module on/off. Super-admin picks a module + optional reason;
 # every non-super-admin request into that module gets the friendly

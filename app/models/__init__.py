@@ -194,6 +194,10 @@ from app.models.platform_audit import (
     PlatformAuditLog, SuperadminImpersonation, PlatformError,
     PlatformCronRun,
 )
+# MARSOUD-SIGNUP-AUTO-BLOCK (2026-08-12) — signup rejection
+# log + auto-learned domain blocklist.
+from app.models.signup_rejection import SignupRejection
+from app.models.blocked_domain import BlockedDomain
 from app.models.api_token import ApiToken
 from app.models.activity import UserSession, UserActivityLog, ACTION_TYPES, SESSION_STATUS
 from app.models.user_file import UserFile
@@ -207,6 +211,7 @@ from app.models.evaluation import (
 __all__ = [
     "PlatformAuditLog", "SuperadminImpersonation", "PlatformError",
     "PlatformCronRun",
+    "SignupRejection", "BlockedDomain",
     "ApiToken",
     "UserFile",
     "EvaluationCycle", "EvaluationCyclePeriod", "EvaluationCycleStatus",
