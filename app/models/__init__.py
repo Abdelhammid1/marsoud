@@ -103,7 +103,7 @@ from app.models.advances import (
 from app.models.cash_custody import (
     CashCustodyRequest, CashCustody, CashCustodySettlementLine,
     CustodyHolderType, CustodyRequestStatus, CustodyStatus,
-    ShortfallDisposition,
+    ShortfallDisposition, EffectiveRequestStatus,
 )
 # MARSOUD-ITEM-CUSTODY-01 (2026-08-07) — reuses CustodyHolderType
 # from cash_custody. Item custody is the physical-things

@@ -183,13 +183,41 @@
 <div class="card p-6 border-l-4 border-rose-300">
   <h3 class="font-semibold text-rose-900 mb-2">إلغاء العهدة</h3>
   <p class="text-xs text-slate-500 mb-3">
-    سيتم عكس قيد الصرف. يُرفض لو أضفت أي بند تسوية.
+    {# MARSOUD-CUSTODY-DELETE-CONSISTENCY (2026-08-12) —
+       reworded per AC #2: user must know this posts a
+       reversal JE and does NOT erase history. #}
+    سيتم توليد قيد يومية عكسي بنفس مبلغ الصرف — التاريخ
+    لن يُمسح. يُرفض لو أضفت أي بند تسوية.
   </p>
   <form method="POST" action="{{ url_for('custody.cancel', custody_id=custody.id) }}"
         class="flex gap-2"
-        onsubmit="return confirm('إلغاء العهدة؟');">
+        onsubmit="return confirm('إلغاء العهدة سيولّد قيد يومية عكسي ويعكس أثر الصرف. التاريخ لن يُمسح. متأكد؟');">
     <input type="text" name="reason" placeholder="السبب" class="input text-sm">
     <button type="submit" class="btn-secondary text-sm text-rose-600">إلغاء العهدة</button>
+  </form>
+</div>
+{% endif %}
+
+{% if custody.status.value == 'SETTLED' %}
+{# MARSOUD-CUSTODY-DELETE-CONSISTENCY AC #4 (2026-08-12) —
+   reopen a closed settlement. Posts a reversal for the
+   settlement JE (opposite legs; is_reversal=True), flips
+   custody back to PARTIALLY_SETTLED / ISSUED, leaves the
+   original issue JE untouched. Settlement lines stay in
+   place so re-closing picks them up. #}
+<div class="card p-6 border-l-4 border-amber-300 mb-6">
+  <h3 class="font-semibold text-amber-900 mb-2">التراجع عن التسوية</h3>
+  <p class="text-xs text-slate-500 mb-3">
+    فتح التسوية بيعكس قيد الإقفال بقيد عكسي، وترجع العهدة
+    لحالة "قيد التسوية". قيد الصرف الأصلي لن يتغير،
+    وبنود التسوية الحالية تفضل زي ما هي.
+  </p>
+  <form method="POST" action="{{ url_for('custody.reopen', custody_id=custody.id) }}"
+        class="flex gap-2"
+        onsubmit="return confirm('التراجع عن إقفال التسوية سيولّد قيد عكسي لقيد التسوية، وترجع العهدة لحالة غير مقفلة. قيد الصرف الأصلي لن يتغير. متأكد؟');">
+    <input type="text" name="reason" placeholder="سبب التراجع" required
+           class="input text-sm">
+    <button type="submit" class="btn-secondary text-sm">↩ تراجع عن التسوية</button>
   </form>
 </div>
 {% endif %}
@@ -200,7 +228,13 @@
     ✓ تم إقفال التسوية بواسطة <b>{{ custody.settler.full_name if custody.settler else '—' }}</b>
     في {{ custody.settled_at | company_dt('%Y-%m-%d %H:%M') if custody.settled_at else '' }}.
     قيد الإقفال:
-    <a href="{{ url_for('journals.view_entry', entry_id=custody.settlement_entry.id) }}"
+    {# MARSOUD-CUSTODY-DELETE-CONSISTENCY (2026-08-12) —
+       companion fix to boss's b23682d: line 15 above was
+       fixed 'journals.view_entry' → 'journals.view' but this
+       twin instance at line 231 was missed. Rendering
+       /custody/<any-SETTLED-id> 500'd until this landed.
+       Caught by the workflow's browser-render smoke rule. #}
+    <a href="{{ url_for('journals.view', entry_id=custody.settlement_entry.id) }}"
        class="text-brand-600 hover:underline">#{{ custody.settlement_entry.number }}</a>
   </div>
 </div>

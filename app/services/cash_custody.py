@@ -303,6 +303,55 @@ def approve_custody_request(req, *, reviewer_id, issued_on=None,
     return custody
 
 
+def delete_pending_request(req, *, actor_id=None):
+    """MARSOUD-CUSTODY-DELETE-CONSISTENCY AC #1 (2026-08-12) —
+    Hard-delete a PENDING request row. Safe because:
+
+      · PENDING = no custody yet, so no journal entry exists.
+      · REJECTED / APPROVED = must use reject / cancel — those
+        preserve the audit trail and reverse the JE cleanly.
+
+    Refuses if a `CashCustody` somehow got linked to a PENDING
+    request (invariant guard — shouldn't happen but preserves
+    the "no orphan JE" contract even if some future bug creates
+    that state).
+    """
+    if req.status != CustodyRequestStatus.PENDING:
+        raise CustodyError(
+            "الطلب لم يعد معلّقاً — استخدم إلغاء العهدة "
+            "بدلاً من الحذف")
+    # Defense in depth: PENDING with a linked custody is
+    # theoretically impossible (approve is the only path that
+    # links, and it flips PENDING→APPROVED atomically), but
+    # refuse anyway so the invariant "no JE orphan" holds
+    # even under weird DB states.
+    from app.models import CashCustody
+    if CashCustody.query.filter_by(request_id=req.id).first():
+        raise CustodyError(
+            "لا يمكن حذف طلب مرتبط بعهدة — استخدم إلغاء")
+    _log_platform(
+        req.company_id, actor_id, "custody_request_deleted",
+        details=(f"req#{req.id} "
+                 f"amount={float(req.amount):.2f} "
+                 f"holder={req.holder_name}"),
+    )
+    db.session.delete(req)
+    db.session.commit()
+
+
+def _log_platform(company_id, actor_id, action, *, details=""):
+    """Best-effort audit log — never raises so the caller's
+    delete/update commit always wins."""
+    try:
+        from app.services.superadmin import log_platform_action
+        log_platform_action(
+            action, target_company_id=company_id,
+            actor_id=actor_id, details=details,
+        )
+    except Exception:
+        pass
+
+
 def reject_custody_request(req, *, reviewer_id, review_note=None):
     if req.status != CustodyRequestStatus.PENDING:
         raise CustodyError("يمكن رفض الطلبات في حالة الانتظار فقط")
@@ -674,6 +723,77 @@ def cancel_custody(custody, *, actor_id, reason=None):
     _log(custody, "UPDATE",
          f"إلغاء عهدة — {custody.holder_name}")
     return custody
+
+
+# ═══════════ Reopen a settled custody ═══════════════════════════
+def reopen_settlement(custody, *, actor_id=None, reason=None):
+    """MARSOUD-CUSTODY-DELETE-CONSISTENCY AC #4 (2026-08-12) —
+    Undo a `close_settlement`. Posts a reversal JE for the
+    settlement journal (opposite-legs, `is_reversal=True`,
+    `reversal_of=<original>`) so the ledger stays balanced and
+    the accountant has full audit trail.
+
+    Flips custody back to PARTIALLY_SETTLED (or ISSUED if no
+    lines exist), clears settlement-computed fields, and
+    leaves the ORIGINAL issue JE untouched so `journal_entry_id`
+    still points at the same disbursement row.
+
+    Settlement lines are NOT deleted — re-closing later picks
+    them up transparently through the normal close_settlement
+    path.
+
+    `_domain_bypass=True` on `reverse_journal` skips the
+    generic /journals-page refusal at
+    `ledger.py::_undo_source_side_effects` for the
+    cash_custody_settlement source type. That refusal is the
+    right default for the generic UI (an accountant reversing
+    directly from the JE page shouldn't be able to
+    accidentally reopen a settlement without going through
+    this dedicated flow); it's only bypassed here.
+    """
+    if custody.status != CustodyStatus.SETTLED:
+        raise CustodyError(
+            "لا يمكن التراجع عن التسوية — العهدة ليست مُقفلة")
+    if not custody.settlement_journal_entry_id:
+        raise CustodyError(
+            "قيد التسوية غير موجود — لا يمكن التراجع")
+
+    reversal = reverse_journal(
+        custody.settlement_journal_entry_id,
+        created_by=actor_id,
+        _domain_bypass=True,
+    )
+
+    # Clear settlement fields; recomputed on next close_settlement.
+    from decimal import Decimal
+    custody.settlement_journal_entry_id = None
+    custody.settled_at = None
+    custody.settled_by = None
+    custody.shortfall_disposition = None
+    custody.amount_settled = Decimal("0.00")
+    custody.amount_returned = Decimal("0.00")
+    custody.amount_shortfall = Decimal("0.00")
+
+    # Status back to PARTIALLY_SETTLED iff lines exist, else
+    # ISSUED. settlement_lines rows are preserved so re-close
+    # picks them up.
+    has_lines = (CashCustodySettlementLine.query
+                 .filter_by(custody_id=custody.id).count() > 0)
+    custody.status = (CustodyStatus.PARTIALLY_SETTLED
+                       if has_lines else CustodyStatus.ISSUED)
+
+    db.session.commit()
+
+    _notify_holder(
+        custody,
+        title=(f"تم فتح تسوية العهدة "
+               f"({float(custody.amount_issued):.2f})"),
+        body=(reason or "").strip() or None,
+    )
+    _log(custody, "UPDATE",
+         f"تراجع عن تسوية عهدة — {custody.holder_name} "
+         f"(قيد عكسي #{reversal.number or reversal.id})")
+    return reversal
 
 
 # ═══════════ Helpers ════════════════════════════════════════════

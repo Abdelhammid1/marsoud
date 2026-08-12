@@ -43,6 +43,28 @@ class CustodyRequestStatus(enum.Enum):
     REJECTED = "REJECTED"
 
 
+class EffectiveRequestStatus:
+    """MARSOUD-CUSTODY-DELETE-CONSISTENCY (2026-08-12) —
+    screen-visible status for a CashCustodyRequest. NOT an
+    enum stored in the DB — it's a pure derivation off the
+    request's raw status + the linked custody's state.
+
+    Purpose: `req.status` records what the accountant DECIDED
+    (approved / rejected). This class expresses what
+    ULTIMATELY HAPPENED — most importantly, distinguishing
+    "approved custody was later cancelled" from "still
+    approved and live", without mutating req.status (and
+    without an ALTER TYPE migration for a new enum value).
+
+    Tuple shape used by templates: (code, label_ar, badge_class).
+    """
+    PENDING = ("PENDING", "قيد الانتظار", "badge-draft")
+    APPROVED = ("APPROVED", "معتمدة", "badge-paid")
+    REJECTED = ("REJECTED", "مرفوضة", "badge-cancelled")
+    CANCELLED = ("CANCELLED", "ملغاة (بعد الاعتماد)",
+                 "badge-cancelled")
+
+
 class CustodyStatus(enum.Enum):
     ISSUED = "ISSUED"                        # money out, no settlement yet
     PARTIALLY_SETTLED = "PARTIALLY_SETTLED"  # some expense lines added
@@ -143,6 +165,35 @@ class CashCustodyRequest(db.Model):
     def holder_name(self):
         h = self.holder
         return h.name if h else "—"
+
+    @property
+    def effective_status(self):
+        """MARSOUD-CUSTODY-DELETE-CONSISTENCY (2026-08-12) —
+        screen-visible status. Returns an EffectiveRequestStatus
+        3-tuple: (code, label_ar, badge_class).
+
+        The rule that closes drift-A/B (cancel_custody +
+        _undo_source_side_effects both leave req.status stale):
+        when the raw status is APPROVED but the LINKED custody
+        was later cancelled, this returns CANCELLED. Both the
+        accountant's requests screen and the employee's portal
+        read this property, so they always agree.
+
+        Raw req.status remains a faithful record of the review
+        decision (approved / rejected) — never mutated by
+        cancel/reopen paths.
+        """
+        if self.status == CustodyRequestStatus.PENDING:
+            return EffectiveRequestStatus.PENDING
+        if self.status == CustodyRequestStatus.REJECTED:
+            return EffectiveRequestStatus.REJECTED
+        # APPROVED — check the linked custody's actual state.
+        # `self.custody` is the backref set by CashCustody.request
+        # relationship (uselist=False) below at line ~248.
+        if (self.custody is not None
+                and self.custody.status == CustodyStatus.CANCELLED):
+            return EffectiveRequestStatus.CANCELLED
+        return EffectiveRequestStatus.APPROVED
 
 
 # ─── CashCustody ───────────────────────────────────────────────
