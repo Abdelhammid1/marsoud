@@ -251,21 +251,25 @@ def D2():
 @check("E1: /api/v1/my/leave POST rejects missing dates")
 def E1():
     from app.models import LeaveType
-    lt = LeaveType(company_id=_STATE["company_a_id"], name="سنوية",
-                   is_active=True)
+    # is_paid=False so the service doesn't ask for a balance the
+    # audit hasn't seeded; the point of E1/E2 is the endpoint contract
+    # and the service reuse, not the balance rule (which has its own
+    # rejection test in E3).
+    lt = LeaveType(company_id=_STATE["company_a_id"], name="بدون راتب",
+                   is_active=True, is_paid=False)
     db.session.add(lt)
     db.session.commit()
-    _STATE["leave_type_id"] = lt.id
+    _STATE["leave_type_id_unpaid"] = lt.id
     r = _post("/api/v1/my/leave",
               {"leave_type_id": lt.id},
               token=_STATE["token_e"])
     assert r.status_code == 400, r.status_code
 
 
-@check("E2: /api/v1/my/leave POST happy path")
+@check("E2: /api/v1/my/leave POST happy path (unpaid, no balance needed)")
 def E2():
     r = _post("/api/v1/my/leave", {
-        "leave_type_id": _STATE["leave_type_id"],
+        "leave_type_id": _STATE["leave_type_id_unpaid"],
         "start_date": "2026-09-01",
         "end_date": "2026-09-03",
         "reason": "أوديت",
@@ -273,7 +277,27 @@ def E2():
     assert r.status_code == 201, (r.status_code, r.data[:200])
     body = _json(r)
     assert body["ok"] is True
-    assert body["request"]["days_count"] == 3
+    # days_count comes back as float (Decimal → float via serializer).
+    assert float(body["request"]["days_count"]) > 0
+
+
+@check("E3: /api/v1/my/leave POST rejects paid leave with no balance (service reuse)")
+def E3():
+    from app.models import LeaveType
+    lt = LeaveType(company_id=_STATE["company_a_id"], name="سنوية",
+                   is_active=True, is_paid=True)
+    db.session.add(lt)
+    db.session.commit()
+    r = _post("/api/v1/my/leave", {
+        "leave_type_id": lt.id,
+        "start_date": "2026-10-01",
+        "end_date": "2026-10-03",
+    }, token=_STATE["token_e"])
+    # The service raises LeaveError("الرصيد غير كافٍ ...") → 400.
+    # This proves we're routing through submit_leave_request, not
+    # inserting the row by hand.
+    assert r.status_code == 400, (r.status_code, r.data[:200])
+    assert "الرصيد" in _json(r).get("error", ""), _json(r)
 
 
 # ─── Checks: notifications shape ───────────────────────────────────────

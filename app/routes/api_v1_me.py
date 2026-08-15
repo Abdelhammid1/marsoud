@@ -269,8 +269,15 @@ def leave_list():
 
 @bp.route("/leave", methods=["POST"])
 def leave_new():
+    """CRITICAL — must go through `services.leave.submit_leave_request`,
+    which is the single source of truth for the overlap / rest-day /
+    balance rules. A prior version of this handler inserted the row by
+    hand and skipped every one of those checks (bug parity with the web
+    self-service, which had the same gap). The service raises
+    LeaveError on any violation, so surface those as 400s."""
     from app.models.user import user_companies
     from app.services.opsflow_extras import notify
+    from app.services.leave import submit_leave_request, LeaveError
     from app.models import NotificationKind
 
     emp = _my_employee_or_404()
@@ -284,25 +291,15 @@ def leave_new():
         reason = (body.get("reason") or "").strip() or None
         if not sd or not ed:
             raise ValueError("start_date + end_date مطلوبين")
-        if ed < sd:
-            raise ValueError("تاريخ الانتهاء قبل البداية")
-        lt = db.session.get(LeaveType, lt_id)
-        if not lt or lt.company_id != emp.company_id:
-            raise ValueError("نوع الإجازة غير صالح")
-        days = (ed - sd).days + 1
-        req = LeaveRequest(
+        req = submit_leave_request(
             company_id=emp.company_id,
             employee_id=emp.id,
-            leave_type_id=lt.id,
+            leave_type_id=lt_id,
             start_date=sd, end_date=ed,
-            days_count=days,
             reason=reason,
-            status=LeaveRequestStatus.PENDING,
             created_by=current_user.id,
         )
-        db.session.add(req)
-        db.session.commit()
-        # Same fan-out the web endpoint does.
+        # Notify HR — same fan-out the web endpoint does.
         try:
             rows = db.session.execute(
                 user_companies.select().where(
@@ -315,12 +312,12 @@ def leave_new():
                 notify(r.user_id, company_id=emp.company_id,
                        kind=NotificationKind.TASK_ASSIGNED,
                        title=f"🌴 طلب إجازة جديد: {emp.name}",
-                       body=f"{lt.name} — {days} يوم",
+                       body=f"{req.leave_type.name} — {req.days_count} يوم",
                        link_url="/hr/leave-requests")
         except Exception:
             current_app.logger.exception("leave request notify failed")
         return jsonify({"ok": True, "request": S.leave_request_brief(req)}), 201
-    except (ValueError, TypeError, KeyError) as e:
+    except (LeaveError, ValueError, TypeError, KeyError) as e:
         return _err(str(e), 400)
 
 
@@ -468,8 +465,16 @@ def attendance_checkin():
     if not emp:
         return _no_employee()
     body = _body()
-    lat = _coord("check_lat", body) or _coord("lat", body)
-    lng = _coord("check_lng", body) or _coord("lng", body)
+    # Use `??` semantics, not `or` — a legitimate lat=0.0 (equator) or
+    # lng=0.0 (Greenwich meridian) is falsy in Python and would be
+    # silently dropped by `a or b`. Fall through to the second key only
+    # when the first is truly missing/invalid (None).
+    lat = _coord("check_lat", body)
+    if lat is None:
+        lat = _coord("lat", body)
+    lng = _coord("check_lng", body)
+    if lng is None:
+        lng = _coord("lng", body)
     try:
         row, exc = check_in(emp, lat=lat, lng=lng)
         return jsonify({
@@ -488,8 +493,13 @@ def attendance_checkout():
     if not emp:
         return _no_employee()
     body = _body()
-    lat = _coord("check_lat", body) or _coord("lat", body)
-    lng = _coord("check_lng", body) or _coord("lng", body)
+    # Same `??`-not-`or` guard as attendance_checkin above.
+    lat = _coord("check_lat", body)
+    if lat is None:
+        lat = _coord("lat", body)
+    lng = _coord("check_lng", body)
+    if lng is None:
+        lng = _coord("lng", body)
     try:
         row = check_out(emp, lat=lat, lng=lng)
         return jsonify({

@@ -53,15 +53,19 @@ def require_api_token():
 
     # Load current_user for the view — normally request_loader has
     # already done this, but on some code paths (see the docstring
-    # above) it hasn't or has cached a stale value. Force it fresh so
-    # `current_user` inside the view is the token owner, always.
-    from flask_login import login_user
+    # above) it hasn't or has cached a stale value. Set the flask.g
+    # slot DIRECTLY instead of calling flask_login.login_user() — the
+    # latter writes `session["_user_id"]` and Flask then emits a
+    # Set-Cookie the caller could replay against every HTML route
+    # without a bearer, which is precisely the leak the docstring
+    # promises to prevent. Writing g._login_user is what
+    # flask_login itself uses internally to resolve current_user, and
+    # it lives on the request scope (well, app_context — but by this
+    # point we've already re-verified the token on every request, so
+    # a leak into a future request just re-verifies before use).
     if not (current_user.is_authenticated
             and getattr(current_user, "id", None) == tok.user_id):
-        # `remember=False` + no session pollution — we do not want the
-        # bearer request to write a session cookie the caller can
-        # replay without the bearer.
-        login_user(tok.user, remember=False, force=True, fresh=False)
+        g._login_user = tok.user
 
     # ALWAYS re-resolve — never trust a stale `g.active_company`. Same
     # reason as the bearer re-check above: g is bound to the app_context

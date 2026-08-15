@@ -59,6 +59,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         return 'أدخل البريد وكلمة السر.';
       case 'invalid_credentials':
         return 'البريد أو كلمة السر غير صحيحة.';
+      case 'rate_limited':
+        final sec = (e.body is Map)
+            ? (e.body['retry_after_seconds'] ?? '?')
+            : '?';
+        return 'محاولات كثيرة — انتظر $sec ثانية.';
       case 'account_locked':
         final min = (e.body is Map)
             ? (e.body['retry_after_minutes'] ?? '?')
@@ -69,14 +74,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       case 'no_companies':
       case 'all_companies_suspended':
         return 'لا توجد شركة نشطة مرتبطة بحسابك.';
+      // The three onboarding gates. Mobile has no verify-email /
+      // accept-terms / choose-plan screens yet — direct the user to
+      // the web app for these one-time actions.
+      case 'email_verification_required':
+        return 'يجب تفعيل بريدك الإلكتروني أولاً — افتح تطبيق مرصود من المتصفح لإكمال التفعيل.';
+      case 'terms_acceptance_required':
+        return 'يجب قبول شروط الاستخدام المحدّثة — افتح تطبيق مرصود من المتصفح لقبولها.';
+      case 'plan_selection_required':
+        return 'يجب اختيار باقة اشتراك — افتح تطبيق مرصود من المتصفح لاختيارها.';
       default:
         return e.message;
     }
   }
 
   String _deviceLabel() {
+    // Dart's `String.substring(start, end)` throws RangeError when
+    // `end` is past the string length; use the safer 2-arg form via
+    // an explicit clamp so short labels ("ios-17.5" is 8 chars) don't
+    // fall through to the "unknown" catch-all — that used to make
+    // every token in /settings/api-tokens/ read "mobile:unknown".
     try {
-      return '${Platform.operatingSystem}-${Platform.operatingSystemVersion}'.substring(0, 40);
+      final s = '${Platform.operatingSystem}-${Platform.operatingSystemVersion}';
+      final end = s.length < 40 ? s.length : 40;
+      return s.substring(0, end);
     } catch (_) {
       return 'unknown';
     }

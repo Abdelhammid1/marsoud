@@ -21,6 +21,8 @@ Design:
 - All responses follow the `/api/*` JSON error contract enforced by the
   global `_api_http_error` handler in `app/__init__.py`.
 """
+import threading
+from collections import deque
 from datetime import datetime, timedelta
 
 from flask import Blueprint, jsonify, request
@@ -35,6 +37,67 @@ from app.services.password_policy import validate_password
 
 
 bp = Blueprint("api_v1_auth", __name__)
+
+
+# ─── Login-attempt throttle ───────────────────────────────────────────
+# Complements the per-user 5-strikes-in-15min lockout with a per-IP
+# + per-email sliding-window limiter. Solves two attacks the lockout
+# alone cannot:
+#   · **Password spray**: `POST /login` for many DIFFERENT unknown
+#     emails from one IP. The lockout counter intentionally does not
+#     bump on unknown emails (that would leak email existence), so
+#     without an IP throttle the attacker is unrestricted.
+#   · **Targeted lockout DoS**: 5 POSTs to any real email locks that
+#     user for 15 minutes. Without an IP throttle a single attacker can
+#     enumerate the org's mailing list and knock everyone out.
+#
+# Keys are (ip, ~) and (~, email); either exhausting its window returns
+# 429. In-memory + threading.Lock — same pattern as
+# app/services/rate_limit.py, no external cache needed.
+_LOGIN_WINDOW_SECS = 60
+_LOGIN_MAX_PER_IP = 20            # unique-ish emails per minute per IP
+_LOGIN_MAX_PER_EMAIL = 6          # attempts per minute per email
+_LOGIN_HISTORY = {}                # key -> deque[datetime]
+_LOGIN_LOCK = threading.Lock()
+
+
+def _login_throttled(key, cap):
+    """Sliding-window counter. Returns (True, retry_after_secs) if
+    `cap` requests have already landed in the last `_LOGIN_WINDOW_SECS`.
+    Also records the current attempt when returning (False, 0), so
+    every call counts — a rejected caller cannot dodge the window by
+    checking-first."""
+    now = datetime.utcnow()
+    horizon = now - timedelta(seconds=_LOGIN_WINDOW_SECS)
+    with _LOGIN_LOCK:
+        dq = _LOGIN_HISTORY.get(key)
+        if dq is None:
+            dq = deque()
+            _LOGIN_HISTORY[key] = dq
+        while dq and dq[0] < horizon:
+            dq.popleft()
+        if len(dq) >= cap:
+            oldest = dq[0]
+            retry = _LOGIN_WINDOW_SECS - int((now - oldest).total_seconds())
+            return True, max(1, retry)
+        dq.append(now)
+        # Periodic prune of empty keys so the dict doesn't grow forever
+        # on a busy public endpoint.
+        if len(_LOGIN_HISTORY) > 4096:
+            for k in list(_LOGIN_HISTORY.keys()):
+                if not _LOGIN_HISTORY[k]:
+                    _LOGIN_HISTORY.pop(k, None)
+        return False, 0
+
+
+def _throttle_response(retry_after):
+    r = jsonify({
+        "error": "rate_limited",
+        "retry_after_seconds": retry_after,
+    })
+    r.status_code = 429
+    r.headers["Retry-After"] = str(retry_after)
+    return r
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────
@@ -79,6 +142,20 @@ def login():
     email = (body.get("email") or "").strip().lower()
     password = body.get("password") or ""
     device = (body.get("device_name") or "").strip()[:40]
+
+    # Throttle BEFORE looking anything up in the DB — cheap probes
+    # shouldn't warm caches or waste bcrypt cycles.
+    ip = request.headers.get(
+        "X-Forwarded-For", request.remote_addr or "unknown"
+    ).split(",")[0].strip() or "unknown"
+    blocked, retry = _login_throttled(("ip", ip), _LOGIN_MAX_PER_IP)
+    if blocked:
+        return _throttle_response(retry)
+    if email:
+        blocked, retry = _login_throttled(
+            ("email", email), _LOGIN_MAX_PER_EMAIL)
+        if blocked:
+            return _throttle_response(retry)
 
     if not email or not password:
         return _err("missing_credentials", 400)
@@ -132,6 +209,36 @@ def login():
     user.locked_until = None
     user.last_login_at = datetime.utcnow()
     db.session.commit()
+
+    # Pre-flight the same before_request gates the API surface enforces
+    # so mobile users don't get a bearer they can't actually use. Each
+    # returns 403 with a specific error code the Flutter side humanizes;
+    # `web_action_url` points to the web page that resolves it (mobile
+    # doesn't yet have verify-email / accept-terms / choose-plan
+    # screens, so the current recovery path is a browser hand-off).
+    if getattr(user, "is_pending_verification", False):
+        return _err("email_verification_required", 403,
+                    web_action_url="/auth/verify-pending")
+    try:
+        from app.services.legal import (
+            get_terms_version, has_published_legal,
+        )
+        if has_published_legal():
+            current_v = get_terms_version()
+            if current_v and getattr(user, "terms_version", None) != current_v:
+                return _err("terms_acceptance_required", 403,
+                            web_action_url="/re-accept-terms")
+    except Exception:
+        # Legal service unavailable at boot → don't block login.
+        pass
+    # Plan selection is an OWNER-only gate. Applied to the DEFAULT
+    # (first) company — if that owner picks a token whose default
+    # company still hasn't chosen, they'd 403 on the very first call.
+    default_co = active_companies[0]
+    if (not default_co.plan_id and not default_co.intended_plan_id
+            and role_by_cid.get(default_co.id) == "owner"):
+        return _err("plan_selection_required", 403,
+                    web_action_url="/auth/choose-plan")
 
     # Mint the token — name it after the device so revoking from the
     # web /settings/api-tokens page is legible.
@@ -187,6 +294,20 @@ def change_password():
     # gate doesn't run here — enforce auth manually.
     if not current_user.is_authenticated:
         return _err("missing or invalid bearer token", 401)
+
+    # Same throttle shape as /login — an attacker who's captured a bearer
+    # can otherwise brute-force `old` at wire speed until they match.
+    ip = request.headers.get(
+        "X-Forwarded-For", request.remote_addr or "unknown"
+    ).split(",")[0].strip() or "unknown"
+    blocked, retry = _login_throttled(
+        ("chpw-user", current_user.id), _LOGIN_MAX_PER_EMAIL)
+    if blocked:
+        return _throttle_response(retry)
+    blocked, retry = _login_throttled(
+        ("chpw-ip", ip), _LOGIN_MAX_PER_IP)
+    if blocked:
+        return _throttle_response(retry)
 
     body = request.get_json(silent=True) or request.form
     old = body.get("old") or body.get("old_password") or ""

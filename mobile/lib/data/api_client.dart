@@ -84,11 +84,23 @@ class ApiClient {
       return r.data;
     } on DioException catch (e) {
       final status = e.response?.statusCode ?? 0;
+      final body = e.response?.data;
+      final message = _errorMessage(body) ?? _networkMessage(e);
+      // 401 = the bearer is dead or wasn't sent → force logout so the
+      // router bounces to /login.
       if (status == 401) {
         _onUnauthorized();
       }
-      final body = e.response?.data;
-      final message = _errorMessage(body) ?? _networkMessage(e);
+      // 403 for an onboarding gate is the "you logged in fine, then the
+      // very next call hit an unresolvable gate" trap — nuke the session
+      // too so the user is asked to log in again (which will re-emit
+      // the specific 403 with a friendly humanized message).
+      if (status == 403 &&
+          (message == 'email verification required' ||
+              message == 'terms acceptance required' ||
+              message == 'plan selection required')) {
+        _onUnauthorized();
+      }
       throw ApiException(status, message, body: body);
     }
   }

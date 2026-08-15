@@ -347,9 +347,14 @@ def daily_report_full(r):
 def notification_brief(n):
     if not n:
         return None
+    # NotificationKind is `str, enum.Enum` (see models/opsflow_extras.py:59)
+    # so `n.kind` is both the string value AND an enum member. Route it
+    # through enum_of() to match the module's {value, label_ar} contract
+    # — a client that reads notif["kind"]["value"] on the wire needs
+    # the same shape it gets from every other status field.
     return {
         "id": n.id,
-        "kind": n.kind if isinstance(n.kind, str) else getattr(n.kind, "value", str(n.kind)),
+        "kind": enum_of(n.kind),
         "title": n.title,
         "body": n.body,
         "link_url": n.link_url,
