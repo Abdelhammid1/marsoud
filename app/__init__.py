@@ -110,6 +110,13 @@ def create_app(config_class=Config):
     from app.routes.inventory import bp as inventory_bp
     from app.routes.pos import bp as pos_bp
     from app.routes.api_v1 import bp as api_v1_bp
+    # MARSOUD-MOBILE-FLUTTER — split JSON surface for the Flutter app.
+    # api_v1_auth is intentionally its own blueprint (login can't require
+    # a bearer). The other two share the same before_request guard via
+    # app.services.api_guard.install_api_guard.
+    from app.routes.api_v1_auth import bp as api_v1_auth_bp
+    from app.routes.api_v1_me import bp as api_v1_me_bp
+    from app.routes.api_v1_notifications import bp as api_v1_notif_bp
     from app.routes.settings_api_tokens import bp as settings_api_tokens_bp
     from app.routes.activity_views import (
         admin_activity_bp, settings_activity_bp,
@@ -176,6 +183,10 @@ def create_app(config_class=Config):
     app.register_blueprint(inventory_bp, url_prefix="/inventory")
     app.register_blueprint(pos_bp, url_prefix="/pos")
     app.register_blueprint(api_v1_bp, url_prefix="/api/v1")
+    # MARSOUD-MOBILE-FLUTTER — mount the mobile-facing surface.
+    app.register_blueprint(api_v1_auth_bp, url_prefix="/api/v1/auth")
+    app.register_blueprint(api_v1_me_bp, url_prefix="/api/v1/my")
+    app.register_blueprint(api_v1_notif_bp, url_prefix="/api/v1/notifications")
     app.register_blueprint(settings_api_tokens_bp, url_prefix="/settings/api-tokens")
     app.register_blueprint(admin_activity_bp, url_prefix="/admin/activity")
     app.register_blueprint(settings_activity_bp, url_prefix="/settings/activity")
@@ -699,6 +710,14 @@ def create_app(config_class=Config):
         from flask import abort, redirect, url_for
         from app.services.permissions import get_user_role
         if not current_user.is_authenticated or not g.get("active_company"):
+            return
+        # MARSOUD-MOBILE-FLUTTER — the JSON API has its own bearer +
+        # rate-limit + per-endpoint scoping gate (see api_v1.py and
+        # app/services/api_guard.py). The HTML portal-confinement rule
+        # doesn't apply here; without this skip, an employee-role user
+        # gets 403 on every /api/v1/my/* call and the mobile app can't
+        # start.
+        if request.path.startswith("/api/"):
             return
         endpoint = (request.endpoint or "")
         role = get_user_role(current_user.id, g.active_company.id)
