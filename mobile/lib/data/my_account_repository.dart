@@ -62,6 +62,16 @@ class MyAccountRepository {
     });
   }
 
+  Future<void> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    await _api.post('/api/v1/my/account/password', body: {
+      'old': oldPassword,
+      'new': newPassword,
+    });
+  }
+
   Future<void> submitAdvance({
     required num amount,
     String? reason,
@@ -72,6 +82,138 @@ class MyAccountRepository {
     });
   }
 
+  // ─── Daily reports ─────────────────────────────────────────────
+  Future<Map<String, dynamic>> dailyReports() async =>
+      (await _api.get('/api/v1/my/daily-reports')) as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> dailyReport(int id) async =>
+      (await _api.get('/api/v1/my/daily-reports/$id'))
+          as Map<String, dynamic>;
+
+  Future<void> submitDailyReport(int id) async {
+    await _api.post('/api/v1/my/daily-reports/$id/submit');
+  }
+
+  Future<void> saveDailyReportNotes(int id, String notes) async {
+    await _api.post('/api/v1/my/daily-reports/$id/notes',
+        body: {'employee_notes': notes});
+  }
+
+  // ─── My archive ────────────────────────────────────────────────
+  Future<Map<String, dynamic>> archive() async =>
+      (await _api.get('/api/v1/my/archive')) as Map<String, dynamic>;
+
+  Future<void> restoreArchived(int taskId) async {
+    await _api.post('/api/v1/my/archive/$taskId/restore');
+  }
+
+  // ─── Cash custody ──────────────────────────────────────────────
+  Future<Map<String, dynamic>> custody() async =>
+      (await _api.get('/api/v1/my/custody')) as Map<String, dynamic>;
+
+  Future<void> requestCustody({
+    required num amount,
+    required String purpose,
+    String? neededByDate,
+  }) async {
+    await _api.post('/api/v1/my/custody/request', body: {
+      'amount': amount,
+      'purpose': purpose,
+      if (neededByDate != null) 'needed_by_date': neededByDate,
+    });
+  }
+
+  // ─── Item custody ──────────────────────────────────────────────
+  Future<Map<String, dynamic>> items() async =>
+      (await _api.get('/api/v1/my/items')) as Map<String, dynamic>;
+
+  Future<void> requestItem({
+    required int itemId,
+    required String purpose,
+  }) async {
+    await _api.post('/api/v1/my/items/request', body: {
+      'item_id': itemId,
+      'purpose': purpose,
+    });
+  }
+
+  // ─── Activity log ──────────────────────────────────────────────
+  Future<Map<String, dynamic>> activity() async =>
+      (await _api.get('/api/v1/my/activity')) as Map<String, dynamic>;
+
+  // ─── Files (my own uploads) ────────────────────────────────────
+  Future<Map<String, dynamic>> files() async =>
+      (await _api.get('/api/v1/misc/files')) as Map<String, dynamic>;
+
+  // ─── Support tickets ───────────────────────────────────────────
+  Future<Map<String, dynamic>> supportTickets() async =>
+      (await _api.get('/api/v1/misc/support/tickets'))
+          as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> supportTicket(int id) async =>
+      (await _api.get('/api/v1/misc/support/tickets/$id'))
+          as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> createSupportTicket({
+    required String title,
+    required String description,
+    String priority = 'MEDIUM',
+  }) async =>
+      (await _api.post('/api/v1/misc/support/tickets', body: {
+        'title': title,
+        'description': description,
+        'priority': priority,
+      })) as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> supportComment({
+    required int ticketId,
+    required String content,
+  }) async =>
+      (await _api.post(
+        '/api/v1/misc/support/tickets/$ticketId/comments',
+        body: {'content': content},
+      )) as Map<String, dynamic>;
+
+  // ─── Tasks + projects (existing /api/v1/* endpoints) ──────────
+  Future<Map<String, dynamic>> myTasks({
+    String? status,
+    bool includeArchived = false,
+    int limit = 100,
+  }) async =>
+      (await _api.get('/api/v1/me/tasks', query: {
+        if (status != null) 'status': status,
+        if (includeArchived) 'include_archived': 1,
+        'limit': limit,
+      })) as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> taskDetail(int id) async =>
+      (await _api.get('/api/v1/tasks/$id')) as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> setTaskStatus(int id, String status) async =>
+      (await _api.post('/api/v1/tasks/$id/status', body: {'status': status}))
+          as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> addTaskComment(int id, String content) async =>
+      (await _api.post('/api/v1/tasks/$id/comments',
+              body: {'content': content}))
+          as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> projects({String? q, int limit = 50}) async =>
+      (await _api.get('/api/v1/projects', query: {
+        if (q != null && q.isNotEmpty) 'q': q,
+        'limit': limit,
+      })) as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> projectDetail(int id) async =>
+      (await _api.get('/api/v1/projects/$id')) as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> projectTasks(int id,
+      {bool assignedToMe = true}) async =>
+      (await _api.get('/api/v1/projects/$id/tasks',
+              query: {'assigned_to_me': assignedToMe.toString()}))
+          as Map<String, dynamic>;
+
+  // ─── Notifications ─────────────────────────────────────────────
   Future<Map<String, dynamic>> notifications({int limit = 50}) async =>
       (await _api.get('/api/v1/notifications', query: {'limit': limit}))
           as Map<String, dynamic>;

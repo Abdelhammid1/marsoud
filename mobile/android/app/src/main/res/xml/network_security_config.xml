@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MARSOUD-MOBILE-FLUTTER — allow cleartext HTTP only to the dev Flask
+  server on the local LAN. Android 9+ blocks cleartext by default; a
+  release build against the real https://api.marsoud.example still
+  goes through TLS and NEVER matches this exception.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">192.168.1.101</domain>
+        <domain includeSubdomains="true">192.168.1.111</domain>
+    </domain-config>
+</network-security-config>

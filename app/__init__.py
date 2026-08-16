@@ -117,6 +117,7 @@ def create_app(config_class=Config):
     from app.routes.api_v1_auth import bp as api_v1_auth_bp
     from app.routes.api_v1_me import bp as api_v1_me_bp
     from app.routes.api_v1_notifications import bp as api_v1_notif_bp
+    from app.routes.api_v1_misc import bp as api_v1_misc_bp
     from app.routes.settings_api_tokens import bp as settings_api_tokens_bp
     from app.routes.activity_views import (
         admin_activity_bp, settings_activity_bp,
@@ -187,6 +188,7 @@ def create_app(config_class=Config):
     app.register_blueprint(api_v1_auth_bp, url_prefix="/api/v1/auth")
     app.register_blueprint(api_v1_me_bp, url_prefix="/api/v1/my")
     app.register_blueprint(api_v1_notif_bp, url_prefix="/api/v1/notifications")
+    app.register_blueprint(api_v1_misc_bp, url_prefix="/api/v1/misc")
     app.register_blueprint(settings_api_tokens_bp, url_prefix="/settings/api-tokens")
     app.register_blueprint(admin_activity_bp, url_prefix="/admin/activity")
     app.register_blueprint(settings_activity_bp, url_prefix="/settings/activity")
