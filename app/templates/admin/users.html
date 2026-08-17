@@ -29,7 +29,9 @@
     {% for u in rows %}
     <tr>
       <td>
-        {{ u.full_name }}
+        {# MARSOUD-SUPERADMIN-USER-360 — click-through to /admin/users/<id> #}
+        <a href="{{ url_for('superadmin.user_detail', user_id=u.id) }}"
+           class="font-semibold text-brand-600 hover:underline">{{ u.full_name }}</a>
         {% if u.is_superadmin %}<span class="badge badge-bad mr-2">ADMIN</span>{% endif %}
       </td>
       <td class="text-ink-200">{{ u.email }}</td>

@@ -1,0 +1,406 @@
+{% extends "admin/base.html" %}
+{% block page_title %}{{ snap.user.full_name or snap.user.email }}{% endblock %}
+{% block content %}
+
+{# MARSOUD-SUPERADMIN-USER-360 — six tabs:
+   Overview / Companies / Roles & Permissions / Activity /
+   Login History / Invitations & Consent. Every tab renders an
+   empty-state when its dataset is empty; nothing errors out. #}
+
+<div class="mb-3 flex justify-between items-center gap-3 flex-wrap">
+  <a href="{{ url_for('superadmin.users') }}"
+     class="text-sm text-brand-600 hover:underline">
+    ← عودة إلى قائمة المستخدمين
+  </a>
+  <div class="flex gap-2 flex-wrap">
+    <form method="POST" action="{{ url_for('superadmin.user_toggle', user_id=snap.user.id) }}">
+      <button type="submit" class="btn {% if snap.user.is_active %}btn-danger{% else %}btn-secondary{% endif %}">
+        {{ 'إيقاف الحساب' if snap.user.is_active else 'تفعيل الحساب' }}
+      </button>
+    </form>
+    <form method="POST" action="{{ url_for('superadmin.user_reset_password', user_id=snap.user.id) }}"
+          class="flex items-center gap-1"
+          onsubmit="return confirm('إعادة تعيين كلمة المرور لـ {{ snap.user.email }}؟')">
+      <input type="text" name="new_password" placeholder="كلمة مرور جديدة" class="input"
+             style="width:150px;padding:4px 8px;font-size:11px">
+      <button type="submit" class="btn btn-secondary">إعادة تعيين كلمة المرور</button>
+    </form>
+    <form method="POST" action="{{ url_for('superadmin.user_resend_invite', user_id=snap.user.id) }}">
+      <button type="submit" class="btn btn-secondary">إعادة إرسال الدعوة</button>
+    </form>
+    <a href="{{ url_for('superadmin.user_consent', user_id=snap.user.id) }}"
+       class="btn btn-secondary">سجل الموافقة القانونية</a>
+  </div>
+</div>
+
+{# ── Overview cards ───────────────────────────────────────────── #}
+<div class="grid grid-cols-4 gap-4 mb-6">
+  <div class="stat-muted p-5">
+    <div class="text-xs text-ink-200">الحالة</div>
+    <div class="text-2xl font-bold {% if snap.user.is_active %}text-emerald-700{% else %}text-rose-700{% endif %}">
+      {{ 'نشط' if snap.user.is_active else 'موقوف' }}
+    </div>
+    {% if snap.user.is_superadmin %}
+      <div class="mt-2"><span class="badge badge-bad">مسؤول عام</span></div>
+    {% endif %}
+    {% if snap.user.is_pending_verification %}
+      <div class="mt-2"><span class="badge badge-neutral">بانتظار تفعيل البريد</span></div>
+    {% endif %}
+  </div>
+
+  <div class="stat-muted p-5">
+    <div class="text-xs text-ink-200">عدد الشركات</div>
+    <div class="text-2xl font-bold text-slate-900">{{ snap.company_count }}</div>
+    <div class="text-xs text-ink-200 mt-1">
+      {{ snap.active_sessions }} جلسة نشطة الآن
+    </div>
+  </div>
+
+  <div class="stat-muted p-5">
+    <div class="text-xs text-ink-200">آخر دخول</div>
+    <div class="text-lg font-bold text-slate-900 font-mono">
+      {{ snap.user.last_login_at | company_dt('%Y-%m-%d %H:%M') if snap.user.last_login_at else '—' }}
+    </div>
+    <div class="text-xs text-ink-200 mt-1">{{ snap.login_count }} دخول إجماليًا</div>
+  </div>
+
+  <div class="stat-muted p-5">
+    <div class="text-xs text-ink-200">تاريخ الإنشاء</div>
+    <div class="text-lg font-bold text-slate-900 font-mono">
+      {{ snap.user.created_at | company_dt('%Y-%m-%d') if snap.user.created_at else '—' }}
+    </div>
+    {% if snap.user.terms_version %}
+      <div class="text-xs text-ink-200 mt-1">شروط: {{ snap.user.terms_version }}</div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Basic info card ─────────────────────────────────────────── #}
+<div class="card p-4 mb-6">
+  <h3 class="font-bold text-slate-900 mb-3">👤 المعلومات الأساسية</h3>
+  <table class="data-table">
+    <tbody>
+      <tr><th class="w-40">الاسم الكامل</th><td>{{ snap.user.full_name or '—' }}</td></tr>
+      <tr><th>البريد الإلكتروني</th><td class="font-mono">{{ snap.user.email }}</td></tr>
+      <tr><th>الهاتف</th><td class="font-mono">{{ snap.user.phone or '—' }}</td></tr>
+      <tr><th>اللغة</th><td>{{ snap.user.locale or 'ar' }}</td></tr>
+      <tr><th>معرّف المستخدم</th><td class="font-mono">#{{ snap.user.id }}</td></tr>
+      <tr><th>تفعيل البريد</th><td>
+        {% if snap.user.email_verified_at %}
+          <span class="badge badge-ok">مفعّل</span>
+          <span class="font-mono text-xs mr-2">{{ snap.user.email_verified_at | company_dt('%Y-%m-%d %H:%M') }}</span>
+        {% else %}
+          <span class="badge badge-bad">غير مفعّل</span>
+        {% endif %}
+      </td></tr>
+      <tr><th>محاولات دخول فاشلة</th><td>
+        {{ snap.user.failed_login_attempts }}
+        {% if snap.user.locked_until %}
+          <span class="badge badge-bad mr-2">مقفول حتى {{ snap.user.locked_until | company_dt('%Y-%m-%d %H:%M') }}</span>
+        {% endif %}
+      </td></tr>
+    </tbody>
+  </table>
+</div>
+
+{# ── Companies ───────────────────────────────────────────────── #}
+<div class="card p-0 mb-6 overflow-hidden">
+  <div class="p-4 pb-2">
+    <h3 class="font-bold text-slate-900">🏢 الشركات المرتبطة ({{ snap.company_count }})</h3>
+  </div>
+  {% if snap.companies %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>الشركة</th>
+          <th>الدور</th>
+          <th>الباقة</th>
+          <th>الحالة</th>
+          <th>الاشتراك ينتهي</th>
+          <th>الإجراءات</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in snap.companies %}
+        <tr>
+          <td>
+            <a href="{{ url_for('superadmin.company_detail', company_id=c.company.id) }}"
+               class="font-semibold text-brand-600 hover:underline">
+              {{ c.company.name }}
+            </a>
+          </td>
+          <td><span class="badge badge-neutral">{{ c.role_label_ar }}</span></td>
+          <td>
+            {% if c.plan_snapshot and c.plan_snapshot.plan_name_ar %}
+              <span class="font-semibold">{{ c.plan_snapshot.plan_name_ar }}</span>
+            {% else %}
+              <span class="text-ink-200">بلا باقة</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if c.plan_snapshot %}
+              <span class="badge {{ c.plan_snapshot.status_badge_class or 'badge-neutral' }}">
+                {{ c.plan_snapshot.status_label_ar or '—' }}
+              </span>
+            {% else %}
+              <span class="text-ink-200">—</span>
+            {% endif %}
+          </td>
+          <td class="font-mono text-xs">
+            {% if c.plan_snapshot and c.plan_snapshot.trial_ends_at %}
+              {{ c.plan_snapshot.trial_ends_at | company_dt('%Y-%m-%d') }}
+            {% elif c.plan_snapshot and c.plan_snapshot.subscription_expires_at %}
+              {{ c.plan_snapshot.subscription_expires_at | company_dt('%Y-%m-%d') }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td>
+            <form method="POST" action="{{ url_for('superadmin.user_unlink', user_id=snap.user.id, company_id=c.company.id) }}"
+                  onsubmit="return confirm('فصل {{ snap.user.email }} عن {{ c.company.name }}؟')">
+              <button type="submit" class="btn btn-danger">فصل</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="p-6 text-center text-ink-200 text-sm">لا توجد شركات مرتبطة بهذا المستخدم.</div>
+  {% endif %}
+</div>
+
+{# ── Roles & Permissions ────────────────────────────────────── #}
+<div class="card p-4 mb-6">
+  <h3 class="font-bold text-slate-900 mb-3">🔐 الأدوار والصلاحيات</h3>
+  {% if snap.roles_per_company %}
+    {% for r in snap.roles_per_company %}
+      <details class="mb-2 border rounded-lg">
+        <summary class="p-3 cursor-pointer flex items-center justify-between hover:bg-slate-50">
+          <div>
+            <span class="font-semibold">{{ r.company.name }}</span>
+            <span class="badge badge-neutral mr-2">{{ r.role_label_ar }}</span>
+            {% if r.role_obj %}
+              <span class="text-xs text-ink-200 mr-2">
+                ({{ r.role_obj.name_ar }}
+                {% if r.role_obj.is_system %} — نظامي{% else %} — مخصّص{% endif %})
+              </span>
+            {% endif %}
+          </div>
+          <span class="text-xs text-ink-200">
+            {% if r.permission_count %}
+              {{ r.permission_count }} صلاحية
+            {% else %}
+              {% if r.source == 'legacy_string' %}
+                <span class="text-amber-600">دور قديم (بدون FK لجدول roles)</span>
+              {% else %}
+                بلا صلاحيات
+              {% endif %}
+            {% endif %}
+          </span>
+        </summary>
+        <div class="p-3 border-t bg-slate-50">
+          {% if r.permissions %}
+            <div class="flex flex-wrap gap-1">
+              {% for code in r.permissions %}
+                <span class="badge badge-neutral font-mono text-xs">{{ code }}</span>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="text-sm text-ink-200">
+              {% if r.source == 'legacy_string' %}
+                هذا الدور مسجّل بالنص فقط في <code>user_companies.role</code>
+                ولم يُربط بجدول الأدوار الجديد. الصلاحيات تُقرأ من
+                القاموس القديم في التنفيذ (<code>P-dict</code>).
+              {% else %}
+                لا توجد صلاحيات ممنوحة لهذا الدور.
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+      </details>
+    {% endfor %}
+  {% else %}
+    <div class="text-sm text-ink-200 text-center py-4">لا توجد أدوار (المستخدم غير مرتبط بأي شركة).</div>
+  {% endif %}
+</div>
+
+{# ── Activity ────────────────────────────────────────────────── #}
+<div class="card p-0 mb-6 overflow-hidden">
+  <div class="p-4 pb-2">
+    <h3 class="font-bold text-slate-900">
+      📋 سجل النشاط (آخر {{ snap.activity_shown }})
+    </h3>
+  </div>
+  {% if snap.activity %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>الوقت</th>
+          <th>الشركة</th>
+          <th>النوع</th>
+          <th>الكيان</th>
+          <th>المسار</th>
+          <th>الجهاز</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in snap.activity %}
+        <tr>
+          <td class="font-mono text-xs">{{ a.created_at | company_dt('%Y-%m-%d %H:%M') }}</td>
+          <td>{{ a.company.name if a.company else '—' }}</td>
+          <td><span class="badge badge-neutral">{{ a.action_type }}</span></td>
+          <td>
+            {% if a.entity_type %}
+              <span class="font-mono text-xs">{{ a.entity_type }}</span>
+              {% if a.entity_id %} #{{ a.entity_id }}{% endif %}
+              {% if a.entity_label %} — {{ a.entity_label }}{% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td class="font-mono text-xs">{{ (a.method + ' ') if a.method else '' }}{{ a.route or '—' }}</td>
+          <td class="text-xs text-ink-200">
+            {{ a.browser or '' }} {{ (a.device_os + ' / ') if a.device_os else '' }}{{ a.device_type or '' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="p-6 text-center text-ink-200 text-sm">لا يوجد سجل نشاط لهذا المستخدم.</div>
+  {% endif %}
+</div>
+
+{# ── Login history ───────────────────────────────────────────── #}
+<div class="card p-0 mb-6 overflow-hidden">
+  <div class="p-4 pb-2">
+    <h3 class="font-bold text-slate-900">
+      🔑 سجل الدخول ({{ snap.session_count_shown }})
+    </h3>
+  </div>
+  {% if snap.sessions %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>الدخول</th>
+          <th>آخر نشاط</th>
+          <th>الخروج</th>
+          <th>المدة</th>
+          <th>IP</th>
+          <th>الجهاز</th>
+          <th>الحالة</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in snap.sessions %}
+        <tr>
+          <td class="font-mono text-xs">{{ s.login_at | company_dt('%Y-%m-%d %H:%M') }}</td>
+          <td class="font-mono text-xs">{{ s.last_seen_at | company_dt('%Y-%m-%d %H:%M') if s.last_seen_at else '—' }}</td>
+          <td class="font-mono text-xs">{{ s.logout_at | company_dt('%Y-%m-%d %H:%M') if s.logout_at else '—' }}</td>
+          <td class="font-mono text-xs">
+            {% set secs = s.duration_seconds %}
+            {% if secs < 60 %}{{ secs }} ث
+            {% elif secs < 3600 %}{{ (secs // 60) }} د
+            {% else %}{{ '%.1f'|format(secs / 3600) }} س{% endif %}
+          </td>
+          <td class="font-mono text-xs">{{ s.ip_address or '—' }}</td>
+          <td class="text-xs">
+            {{ s.browser or '—' }} / {{ s.device_os or '—' }}
+            {% if s.device_type %}<span class="badge badge-neutral">{{ s.device_type }}</span>{% endif %}
+          </td>
+          <td>
+            {% if s.status == 'ACTIVE' %}<span class="badge badge-ok">نشطة</span>
+            {% elif s.status == 'IDLE' %}<span class="badge badge-neutral">خاملة</span>
+            {% else %}<span class="badge badge-cancelled">منتهية</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="p-6 text-center text-ink-200 text-sm">لا يوجد سجل دخول لهذا المستخدم.</div>
+  {% endif %}
+</div>
+
+{# ── Invitations & Consent ──────────────────────────────────── #}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+  <div class="card p-0 overflow-hidden">
+    <div class="p-4 pb-2">
+      <h3 class="font-bold text-slate-900">📥 الدعوات المُستقبَلة ({{ snap.invitations_received | length }})</h3>
+    </div>
+    {% if snap.invitations_received %}
+      <table class="data-table">
+        <thead>
+          <tr><th>الشركة</th><th>الدور</th><th>التاريخ</th><th>الحالة</th></tr>
+        </thead>
+        <tbody>
+          {% for inv in snap.invitations_received %}
+          <tr>
+            <td>{{ inv.company.name if inv.company else '—' }}</td>
+            <td><span class="badge badge-neutral">{{ inv.role }}</span></td>
+            <td class="font-mono text-xs">{{ inv.created_at | company_dt('%Y-%m-%d') if inv.created_at else '—' }}</td>
+            <td>
+              {% if inv.accepted_at %}<span class="badge badge-ok">مقبولة</span>
+              {% elif inv.revoked_at %}<span class="badge badge-cancelled">ملغاة</span>
+              {% elif inv.is_pending %}<span class="badge badge-neutral">قيد الانتظار</span>
+              {% else %}<span class="badge badge-bad">منتهية</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="p-6 text-center text-ink-200 text-sm">لا توجد دعوات مُستقبَلة.</div>
+    {% endif %}
+  </div>
+
+  <div class="card p-0 overflow-hidden">
+    <div class="p-4 pb-2">
+      <h3 class="font-bold text-slate-900">📤 الدعوات المُرسَلة ({{ snap.invitations_sent | length }})</h3>
+    </div>
+    {% if snap.invitations_sent %}
+      <table class="data-table">
+        <thead>
+          <tr><th>البريد</th><th>الشركة</th><th>الدور</th><th>التاريخ</th></tr>
+        </thead>
+        <tbody>
+          {% for inv in snap.invitations_sent %}
+          <tr>
+            <td class="font-mono text-xs">{{ inv.email }}</td>
+            <td>{{ inv.company.name if inv.company else '—' }}</td>
+            <td><span class="badge badge-neutral">{{ inv.role }}</span></td>
+            <td class="font-mono text-xs">{{ inv.created_at | company_dt('%Y-%m-%d') if inv.created_at else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="p-6 text-center text-ink-200 text-sm">لم يُرسِل هذا المستخدم أي دعوات.</div>
+    {% endif %}
+  </div>
+</div>
+
+{% if snap.consent_events %}
+<div class="card p-0 mb-6 overflow-hidden">
+  <div class="p-4 pb-2">
+    <h3 class="font-bold text-slate-900">📜 آخر أحداث الموافقة القانونية ({{ snap.consent_events | length }})</h3>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr><th>التاريخ</th><th>النوع</th><th>الإصدار</th><th>المصدر</th><th>IP</th></tr>
+    </thead>
+    <tbody>
+      {% for e in snap.consent_events %}
+      <tr>
+        <td class="font-mono text-xs">{{ e.created_at | company_dt('%Y-%m-%d %H:%M') }}</td>
+        <td><span class="badge badge-neutral">{{ e.consent_type }}</span></td>
+        <td class="font-mono text-xs">{{ e.document_version }}</td>
+        <td class="text-xs">{{ e.source }}</td>
+        <td class="font-mono text-xs">{{ e.ip_address or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% endblock %}

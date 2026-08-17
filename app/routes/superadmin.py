@@ -599,6 +599,26 @@ def user_resend_invite(user_id):
     return redirect(url_for("superadmin.users"))
 
 
+# ── MARSOUD-SUPERADMIN-USER-360 (2026-08-17) — User Detail page. ─────────── #
+# One-shot view of everything the super-admin might want to see about a
+# specific user: basic account fields, all companies they belong to (with
+# per-company plan snapshot), roles + granted permissions, recent activity
+# log, session/login history, invitations tied to their email, and
+# consent-event history. The existing per-action endpoints
+# (user_toggle / user_reset_password / user_unlink / user_resend_invite /
+# user_consent) stay as the write endpoints — this page just renders and
+# links to them.
+@bp.route("/users/<int:user_id>")
+@login_required
+@superadmin_required
+def user_detail(user_id):
+    from app.services.user_360 import user_snapshot
+    snap = user_snapshot(user_id)
+    if snap is None:
+        abort(404)
+    return render_template("admin/user_detail.html", snap=snap)
+
+
 # ── Ticket 5: activity / audit log ───────────────────────────────────────── #
 @bp.route("/audit")
 @login_required
