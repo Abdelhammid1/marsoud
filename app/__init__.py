@@ -1025,6 +1025,29 @@ def create_app(config_class=Config):
         from app.services.currency import currency_name_ar
         return currency_name_ar(code)
 
+    # MARSOUD-VBILL-CURRENCY-DISPLAY (2026-08-17) — one shared filter for
+    # "amount + currency" rendering. Every vendor-bill / invoice template
+    # used to hand-roll `{{ "%.2f"|format(x) }} {{ code|currency_ar }}`,
+    # which meant most cells dropped the currency entirely and the ones
+    # that kept it disagreed on formatting (%.2f vs {:,.0f}). Now every
+    # template calls `{{ amount|amount_ar(currency) }}` and gets a
+    # consistent "1,234.50 جنيه مصري" back. Passing currency=None (the
+    # default) renders the number only — same behaviour as `money` but
+    # with thousand separators, so a bare number stays consistent too.
+    @app.template_filter("amount_ar")
+    def amount_ar_filter(value, currency=None):
+        if value is None:
+            return ""
+        try:
+            formatted = f"{float(value):,.2f}"
+        except (TypeError, ValueError):
+            return str(value)
+        if not currency:
+            return formatted
+        from app.services.currency import currency_name_ar
+        name = currency_name_ar(currency)
+        return f"{formatted} {name}" if name else formatted
+
     @app.template_filter("mentions")
     def _mentions_filter(text):
         """MARSOUD-MENTIONS — replace `@[Name](user:ID)` tokens with

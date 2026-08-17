@@ -1203,6 +1203,11 @@ def dashboard_metrics(company_id, period="month"):
                 "vendor_name": vendor_name,
                 "vendor_initials": _initials_for(vendor_name),
                 "amount": amt,
+                # MARSOUD-VBILL-CURRENCY-DISPLAY (2026-08-17) — mirror
+                # upcoming_bills's `currency` key so the dashboard row
+                # can render the per-bill currency instead of dropping
+                # the label entirely.
+                "currency": b.currency or currency,
                 "days_late": days_late,
                 "title_for_display": title,
                 "source_recurring_bill_id": None,
@@ -1230,6 +1235,7 @@ def dashboard_metrics(company_id, period="month"):
                 "vendor_name": row.get("vendor_name") or "—",
                 "vendor_initials": _initials_for(row.get("vendor_name")),
                 "amount": amt,
+                "currency": row.get("currency") or currency,
                 "days_late": days_late,
                 "title_for_display": (
                     row.get("template_label") or "توقع فاتورة دورية"),
@@ -1237,6 +1243,11 @@ def dashboard_metrics(company_id, period="month"):
                 "occurrence_date": row["date"],
             })
     except Exception:
+        # MARSOUD-VBILL-CURRENCY-DISPLAY (2026-08-17) — the historical
+        # `except Exception: pass` here silently dropped the whole panel
+        # when any downstream helper (e.g. unmaterialised_past_due after
+        # a schema drift) threw. It's the "empty state that isn't
+        # actually empty" bug. Log it now — never silent.
         _log.exception(
             "late_vendor_bills(forecast) failed for company=%s",
             company_id)
