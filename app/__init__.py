@@ -862,6 +862,12 @@ def create_app(config_class=Config):
             except Exception:
                 # fail open — matches the request-time guard
                 return True
+        # MARSOUD-PLAN-SSOT (2026-08-17) — expose plan_snapshot as a
+        # Jinja global so every template (super-admin, tenant settings,
+        # dashboard, etc.) resolves the plan through the SAME helper.
+        # Never render Company.plan (the legacy String column,
+        # defaulted to "FREE") directly.
+        from app.services.plan_snapshot import plan_snapshot
         return {
             "active_company": active_company,
             "user_companies": g.get("user_companies", []),
@@ -871,6 +877,7 @@ def create_app(config_class=Config):
             "current_role": current_role,
             "impersonating": g.get("impersonating", False),
             "subscription": sub_state,
+            "plan_snapshot": plan_snapshot,
             "subitem_allowed": _subitem_allowed_template,
             "my_employee_here": my_employee_here,
             # MARSOUD-CURRENCY-AR — every currency <select> in the app

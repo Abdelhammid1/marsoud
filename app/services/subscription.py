@@ -49,10 +49,19 @@ def set_trial_days(n):
     _set_setting_raw("subscription_trial_days", str(n))
 
 
-def activate_default_subscription(company, *, plan_code="enterprise"):
+def activate_default_subscription(company, *, plan_code=None):
     """Stamp a newly-created company with default subscription dates and
-    plan. Safe to call before or after the row is flushed. No commit —
-    the caller controls the transaction."""
+    (optionally) plan. Safe to call before or after the row is flushed.
+    No commit — the caller controls the transaction.
+
+    MARSOUD-PLAN-SSOT (2026-08-17) — default was `plan_code="enterprise"`
+    which was a silent no-op after PLAN_SEED renamed enterprise → pro
+    (the query would return None and quietly leave plan_id NULL). We
+    made the default explicit (`None`) so no caller silently binds to
+    a non-existent code. Signup already passes `plan_code=None` on
+    purpose (owner picks the plan on /choose-plan); tests / scripts
+    that want a specific plan must name it.
+    """
     from app.models import Plan
     now = datetime.utcnow()
     if not company.subscription_started_at:

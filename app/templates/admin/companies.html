@@ -118,11 +118,32 @@
       <td>{{ r.invoices }}</td>
       <td class="font-mono text-xs">{{ r.last_activity | company_dt('%Y-%m-%d %H:%M') if r.last_activity else '—' }}</td>
       <td>
+        {# MARSOUD-PLAN-SSOT — was `r.company.plan or 'FREE'` reading the
+           legacy String column. Now reads from plan_snapshot so the
+           label + status badge match the Active Subscription
+           everywhere (Company / Settings / Super Admin / API). #}
+        {% set ps = plan_snapshot(r.company) %}
+        <div class="flex items-center gap-1 flex-wrap">
+          <span class="badge badge-neutral">
+            {{ ps.plan_name_ar or 'بلا باقة' }}
+          </span>
+          <span class="badge {{ ps.status_badge_class }}">
+            {{ ps.status_label_ar }}
+          </span>
+          {% if ps.is_trial and ps.trial_ends_at %}
+          <span class="text-xs text-ink-200 font-mono mr-1">
+            حتى {{ ps.trial_ends_at | company_dt('%Y-%m-%d') }}
+          </span>
+          {% elif ps.status == 'warning' and ps.warning_days_left is not none %}
+          <span class="text-xs text-amber-300 mr-1">
+            متبقّي {{ ps.warning_days_left }} يوم
+          </span>
+          {% endif %}
+        </div>
         {% set s = r.company.status or 'ACTIVE' %}
-        {% if s == 'ACTIVE' %}<span class="badge badge-ok">نشطة</span>
-        {% elif s == 'TRIAL' %}<span class="badge" style="background:rgba(245,158,11,0.18);color:#FCD34D;">تجريبية</span>
-        {% else %}<span class="badge badge-bad">موقوفة</span>{% endif %}
-        <span class="badge badge-neutral mr-1">{{ r.company.plan or 'FREE' }}</span>
+        {% if s == 'SUSPENDED' %}
+        <span class="badge badge-bad mt-1">موقوفة</span>
+        {% endif %}
       </td>
       <td>
         <div class="flex items-center gap-2">

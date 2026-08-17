@@ -55,7 +55,11 @@
         </div>
         {% endif %}
         {% else %}
-        <div class="text-xl font-bold text-slate-700 mb-3">مجاني</div>
+        {# MARSOUD-PLAN-SSOT — was rendering "مجاني" here when
+           Plan.price_for() returned None (missing price row for the
+           tenant's currency). Marsoud has no Free plan — a missing
+           price is a config gap, not a free plan. Say so instead. #}
+        <div class="text-sm text-slate-500 mb-3">السعر غير محدد لهذه العملة — راسل الدعم</div>
         {% endif %}
         {% if plan.description %}
         <p class="text-sm text-slate-600 flex-1">{{ plan.description }}</p>
