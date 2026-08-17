@@ -28,7 +28,7 @@
           <option value="">— اختر صنف —</option>
           {% for v in variants %}<option value="{{ v.id }}" data-name="{{ v.display_name }}" data-sku="{{ v.sku }}">{{ v.sku }} — {{ v.display_name }}</option>{% endfor %}
         </select>
-        <input type="number" id="qty-input" min="0.01" step="0.01" class="input text-sm w-24" placeholder="الكمية">
+        <input type="number" id="qty-input" min="0.001" step="0.001" class="input text-sm w-24" placeholder="الكمية">
         <button type="button" onclick="addItem()" class="btn-secondary text-sm">+ إضافة</button>
       </div>
       <div id="items-list" class="space-y-1 text-sm"></div>

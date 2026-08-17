@@ -222,7 +222,7 @@ function renderCart() {
         <button type="button" onclick="removeLine(${i})" class="text-rose-500 hover:underline text-xs">حذف</button>
       </div>
       <div class="flex items-center gap-2 mt-1 flex-wrap">
-        <input type="number" min="0.01" step="0.01" value="${r.qty}" onchange="setQty(${i}, this.value)" class="input text-sm w-20 text-center">
+        <input type="number" min="0.001" step="0.001" value="${r.qty}" onchange="setQty(${i}, this.value)" class="input text-sm w-20 text-center">
         ${unitPickerHtml}
         <span class="text-slate-400">×</span>
         <input type="number" min="0" step="0.01" value="${r.unit_price}" onchange="setPrice(${i}, this.value)" class="input text-sm w-24 text-center">
@@ -231,7 +231,7 @@ function renderCart() {
       ${r.tracks_piece_count ? `
       <div class="flex items-center gap-2 mt-1 text-xs bg-amber-50 rounded p-1">
         <span class="text-amber-800">⚖️ عدد القطع:</span>
-        <input type="number" min="0.01" step="0.01" value="${r.sold_pieces}"
+        <input type="number" min="0.001" step="0.001" value="${r.sold_pieces}"
                 onchange="setPieces(${i}, this.value)"
                 class="input text-xs w-16 text-center">
         <span class="text-slate-500">(الوزن أعلاه بالجرام)</span>

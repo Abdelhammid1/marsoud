@@ -56,7 +56,7 @@ class ProductVariant(db.Model):
     name = db.Column(db.String(200), default="", nullable=False)
     attrs_json = db.Column(db.Text)
     unit_cost = db.Column(db.Numeric(15, 4), default=0, nullable=False)
-    reorder_level = db.Column(db.Numeric(15, 2), default=0, nullable=False)
+    reorder_level = db.Column(db.Numeric(15, 3), default=0, nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
@@ -161,13 +161,13 @@ class StockBalance(db.Model):
                            db.ForeignKey("companies.id",
                                          ondelete="CASCADE"),
                            nullable=False, index=True)
-    qty = db.Column(db.Numeric(15, 2), default=0, nullable=False)
+    qty = db.Column(db.Numeric(15, 3), default=0, nullable=False)
     value = db.Column(db.Numeric(15, 4), default=0, nullable=False)
     # MARSOUD-DUAL-UOM-WEIGHT-01 (Abdelhamid 2026-07-24) — parallel
     # counter for products where tracks_piece_count=True. Independent
     # of qty (the weight); no impact on cost math (avg_cost is
     # weight-based only).
-    piece_count = db.Column(db.Numeric(15, 2), default=0,
+    piece_count = db.Column(db.Numeric(15, 3), default=0,
                              nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow,
                            onupdate=datetime.utcnow, nullable=False)
@@ -246,7 +246,7 @@ class StockMovement(db.Model):
                            nullable=False, index=True)
     warehouse_id = db.Column(db.Integer, db.ForeignKey("warehouses.id"),
                              nullable=False, index=True)
-    qty_delta = db.Column(db.Numeric(15, 2), nullable=False)
+    qty_delta = db.Column(db.Numeric(15, 3), nullable=False)
     unit_cost_at_time = db.Column(db.Numeric(15, 4), default=0, nullable=False)
     kind = db.Column(db.String(20), nullable=False, index=True)
     source_type = db.Column(db.String(40), index=True)
@@ -255,7 +255,7 @@ class StockMovement(db.Model):
                                  db.ForeignKey("journal_entries.id"))
     actor_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     reason = db.Column(db.Text)
-    balance_qty_after = db.Column(db.Numeric(15, 2), default=0, nullable=False)
+    balance_qty_after = db.Column(db.Numeric(15, 3), default=0, nullable=False)
     balance_value_after = db.Column(db.Numeric(15, 4), default=0, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow,
                            nullable=False, index=True)
@@ -356,7 +356,7 @@ class StockTransferItem(db.Model):
     variant_id = db.Column(db.Integer,
                            db.ForeignKey("product_variants.id"),
                            nullable=False, index=True)
-    qty = db.Column(db.Numeric(15, 2), nullable=False)
+    qty = db.Column(db.Numeric(15, 3), nullable=False)
     unit_cost_at_time = db.Column(db.Numeric(15, 4), default=0, nullable=False)
     out_movement_id = db.Column(db.Integer,
                                 db.ForeignKey("stock_movements.id"))
@@ -390,7 +390,7 @@ class StockLot(db.Model):
                              nullable=False, index=True)
     received_at = db.Column(db.DateTime, default=datetime.utcnow,
                             nullable=False, index=True)
-    qty_remaining = db.Column(db.Numeric(15, 2), default=0, nullable=False)
+    qty_remaining = db.Column(db.Numeric(15, 3), default=0, nullable=False)
     unit_cost = db.Column(db.Numeric(15, 4), default=0, nullable=False)
     source_movement_id = db.Column(db.Integer,
                                    db.ForeignKey("stock_movements.id"))
@@ -469,15 +469,15 @@ class InventoryCount(db.Model):
     warehouse_id = db.Column(db.Integer,
                               db.ForeignKey("warehouses.id"),
                               nullable=False)
-    book_qty = db.Column(db.Numeric(15, 2), nullable=False)
-    book_pieces = db.Column(db.Numeric(15, 2), nullable=False,
+    book_qty = db.Column(db.Numeric(15, 3), nullable=False)
+    book_pieces = db.Column(db.Numeric(15, 3), nullable=False,
                               default=0)
-    counted_qty = db.Column(db.Numeric(15, 2), nullable=False)
-    counted_pieces = db.Column(db.Numeric(15, 2), nullable=False,
+    counted_qty = db.Column(db.Numeric(15, 3), nullable=False)
+    counted_pieces = db.Column(db.Numeric(15, 3), nullable=False,
                                  default=0)
-    variance_qty = db.Column(db.Numeric(15, 2), nullable=False,
+    variance_qty = db.Column(db.Numeric(15, 3), nullable=False,
                               default=0)
-    variance_pieces = db.Column(db.Numeric(15, 2), nullable=False,
+    variance_pieces = db.Column(db.Numeric(15, 3), nullable=False,
                                  default=0)
     status = db.Column(db.String(20), nullable=False,
                        default=INV_COUNT_DRAFT)

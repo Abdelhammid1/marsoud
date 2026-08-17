@@ -184,7 +184,7 @@ class InvoiceItem(db.Model):
                            nullable=False, index=True)
     product_id = db.Column(db.Integer, db.ForeignKey("products.id"))
     description = db.Column(db.String(255), nullable=False)
-    quantity = db.Column(db.Numeric(10, 2), default=1)
+    quantity = db.Column(db.Numeric(10, 3), default=1)
     unit_price = db.Column(db.Numeric(15, 4), default=0)
     discount_type = db.Column(db.Enum(DiscountType), default=DiscountType.NONE)
     discount_value = db.Column(db.Numeric(15, 4), default=0)
