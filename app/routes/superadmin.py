@@ -1508,21 +1508,71 @@ def companies_inactive():
 @login_required
 @superadmin_required
 def rejected_signups():
+    """MARSOUD-SIGNUP-AUTO-BLOCK inbox — was silently rendering
+    an empty "لا توجد محاولات" state whenever the underlying
+    query broke (e.g. the signup_rejections migration hadn't run
+    on prod). Now every failure mode surfaces as a clear
+    diagnostic banner instead of hiding.
+
+    Detection order:
+      1. Both tables missing → migration not applied on this DB.
+      2. Query raises → wrap and log the exception, surface the
+         message on the page so it's obvious the panel is broken,
+         not just quiet.
+    """
+    import sqlalchemy as sa
+    import logging
     from app.models import SignupRejection, BlockedDomain
     from app.services.signup_rejections import (
         WHITELISTED_DOMAINS, HONEYPOT_TRIGGER_COUNT,
         HONEYPOT_TRIGGER_WINDOW_HOURS,
     )
-    rejections = (SignupRejection.query
-                   .order_by(SignupRejection.created_at.desc())
-                   .limit(200).all())
-    blocked = (BlockedDomain.query
-                .filter_by(is_active=True)
-                .order_by(BlockedDomain.blocked_at.desc())
-                .all())
+
+    _log = logging.getLogger("marsoud.rejected_signups")
+    error = None
+    rejections = []
+    blocked = []
+
+    # Cheap schema probe — if the tables don't exist, the migration
+    # never ran and we should say so instead of showing an empty
+    # panel that looks like "everything is fine".
+    try:
+        insp = sa.inspect(db.engine)
+        tables = set(insp.get_table_names())
+        missing = [t for t in ("signup_rejections", "blocked_domains")
+                   if t not in tables]
+        if missing:
+            error = (
+                "الجداول التالية غير موجودة في قاعدة البيانات: "
+                + ", ".join(missing)
+                + ". شغّل `flask db upgrade` على السيرفر — كل شكاوى "
+                + "التسجيل بتُرمَى ذاكرةً حتى يوجد الجدول."
+            )
+    except Exception:
+        _log.exception("schema inspect failed")
+
+    if not error:
+        try:
+            rejections = (SignupRejection.query
+                           .order_by(SignupRejection.created_at.desc())
+                           .limit(200).all())
+        except Exception as e:
+            _log.exception("SignupRejection query failed")
+            error = f"فشل تحميل سجل الرفض: {e}"
+
+        try:
+            blocked = (BlockedDomain.query
+                        .filter_by(is_active=True)
+                        .order_by(BlockedDomain.blocked_at.desc())
+                        .all())
+        except Exception as e:
+            _log.exception("BlockedDomain query failed")
+            error = (error or "") + f" · فشل تحميل الدومينز المحظورة: {e}"
+
     return render_template(
         "admin/rejected_signups.html",
         rejections=rejections, blocked=blocked,
+        error=error,
         whitelist=sorted(WHITELISTED_DOMAINS),
         trigger_count=HONEYPOT_TRIGGER_COUNT,
         trigger_window_hours=HONEYPOT_TRIGGER_WINDOW_HOURS,
