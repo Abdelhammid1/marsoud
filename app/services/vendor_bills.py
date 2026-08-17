@@ -685,6 +685,98 @@ def post_vendor_bill_refund(bill, refund_type, amount=None,
     return vbr
 
 
+# MARSOUD-VBILL-STATUS-VISIBILITY (2026-08-17) — TKT-D. Single
+# source of truth for a bill's business bucket. Every reader (list
+# template row coloring, dashboard panels, AP aging, super-admin
+# cross-tenant panel) MUST go through this helper so cron lag
+# never leaves the four surfaces disagreeing.
+#
+# Bucket priority (evaluated top-down; first match wins):
+#   1. deleted           → soft-deleted, ignored everywhere financial
+#   2. cancelled         → CANCELLED status
+#   3. refunded          → REFUNDED (fully returned)
+#   4. paid              → balance ≤ 0 OR status PAID
+#   5. overdue           → open + due_date < today + balance > 0
+#   6. due_today         → open + due_date == today + balance > 0
+#   7. upcoming          → open + due_date > today + balance > 0
+#   8. draft             → DRAFT status (the fallback)
+#
+# The "open" gate for 5/6/7 accepts any status that still carries a
+# receivable balance: POSTED, PARTIALLY_PAID, OVERDUE,
+# PARTIALLY_REFUNDED. This matches `late_vendor_bills` in
+# app/services/reports.py so the dashboard panel and the list agree
+# even when cron hasn't yet flipped POSTED → OVERDUE.
+_OPEN_STATUSES = (
+    VendorBillStatus.POSTED,
+    VendorBillStatus.PARTIALLY_PAID,
+    VendorBillStatus.OVERDUE,
+    VendorBillStatus.PARTIALLY_REFUNDED,
+)
+
+
+def vendor_bill_bucket(bill, *, today=None):
+    """Return the current UI bucket string for a VendorBill.
+
+    Never raises — a NULL due_date or missing status falls through
+    to the `draft` label so the caller always gets a rendering
+    string.
+    """
+    if bill is None:
+        return "draft"
+    if getattr(bill, "deleted_at", None):
+        return "deleted"
+    status = getattr(bill, "status", None)
+    if status == VendorBillStatus.CANCELLED:
+        return "cancelled"
+    if status == VendorBillStatus.REFUNDED:
+        return "refunded"
+    try:
+        balance = float(bill.balance or 0)
+    except Exception:
+        balance = 0.0
+    if status == VendorBillStatus.PAID or balance <= 0.005:
+        return "paid"
+    if status in _OPEN_STATUSES:
+        d = today or date.today()
+        due = bill.due_date
+        if due is None:
+            # Missing due_date on an open bill is bad data; call it
+            # upcoming rather than crash the render.
+            return "upcoming"
+        if due < d:
+            return "overdue"
+        if due == d:
+            return "due_today"
+        return "upcoming"
+    return "draft"
+
+
+# Arabic labels for the buckets, matching MARSOUD's tenant tone.
+VENDOR_BILL_BUCKET_LABELS_AR = {
+    "draft":     "مسودة",
+    "upcoming":  "قادمة",
+    "due_today": "مستحقة اليوم",
+    "overdue":   "متأخرة",
+    "paid":      "مدفوعة",
+    "cancelled": "ملغاة",
+    "refunded":  "مرتجعة",
+    "deleted":   "محذوفة",
+}
+
+# Badge class per bucket — matches the existing `.badge-*` palette
+# in app/templates/base.html:37-427 so no template edit is needed.
+VENDOR_BILL_BUCKET_BADGES = {
+    "draft":     "badge-draft",
+    "upcoming":  "badge-sent",
+    "due_today": "badge-amber",
+    "overdue":   "badge-overdue",
+    "paid":      "badge-paid",
+    "cancelled": "badge-cancelled",
+    "refunded":  "badge-refunded",
+    "deleted":   "badge-cancelled",
+}
+
+
 def update_overdue_vendor_bills(company_id):
     """Mark vendor bills as OVERDUE if past due_date and unpaid.
 

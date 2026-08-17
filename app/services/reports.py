@@ -1255,6 +1255,45 @@ def dashboard_metrics(company_id, period="month"):
     # Most-overdue first (real + forecast unified).
     late_vendor_bills.sort(key=lambda r: r["days_late"], reverse=True)
 
+    # MARSOUD-VBILL-STATUS-VISIBILITY (2026-08-17) — TKT-D. The
+    # "Due Today" bucket the ticket asks for. Uses the canonical
+    # vendor_bill_bucket helper so the dashboard, the list, and
+    # the AP aging report all agree. Kept as its own key rather
+    # than sharing late_vendor_bills so the panel wording stays
+    # crisp — "متأخرة" vs "مستحقة اليوم" are semantically
+    # different for the user.
+    due_today_vendor_bills = []
+    due_today_total = 0.0
+    try:
+        from app.models import VendorBill, VendorBillStatus
+        from app.services.vendor_bills import vendor_bill_bucket
+        _due_candidates = VendorBill.query.filter(
+            VendorBill.company_id == company_id,
+            VendorBill.deleted_at.is_(None),
+            VendorBill.due_date == today,
+        ).all()
+        for b in _due_candidates:
+            if vendor_bill_bucket(b, today=today) != "due_today":
+                continue
+            vendor_name = b.vendor.name if b.vendor else "—"
+            amt = float(b.balance or 0)
+            due_today_total += amt
+            due_today_vendor_bills.append({
+                "id": b.id,
+                "number": b.number,
+                "vendor_name": vendor_name,
+                "vendor_initials": _initials_for(vendor_name),
+                "amount": amt,
+                "currency": b.currency or currency,
+                "title_for_display": (
+                    b.notes.strip()[:60]
+                    if b.notes and b.notes.strip() else b.number),
+            })
+    except Exception:
+        # Same rule as late_vendor_bills — log rather than silent.
+        _log.exception(
+            "due_today_vendor_bills failed")
+
     # Upcoming bills via the MARSOUD-65 forecast helper.
     upcoming_bills = []
     upcoming_total = 0.0
@@ -1463,6 +1502,10 @@ def dashboard_metrics(company_id, period="month"):
         "late_vendor_bills": late_vendor_bills,
         "late_vendor_bills_total": late_vendor_total,
         "late_vendor_bills_count": len(late_vendor_bills),
+        # MARSOUD-VBILL-STATUS-VISIBILITY (2026-08-17) — TKT-D.
+        "due_today_vendor_bills": due_today_vendor_bills,
+        "due_today_vendor_bills_total": due_today_total,
+        "due_today_vendor_bills_count": len(due_today_vendor_bills),
         "upcoming_bills": upcoming_bills,
         "upcoming_bills_total": upcoming_total,
         "upcoming_bills_count": len(upcoming_bills),

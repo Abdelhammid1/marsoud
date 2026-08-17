@@ -693,6 +693,28 @@ def user_resend_invite(user_id):
     return redirect(url_for("superadmin.users"))
 
 
+# ── MARSOUD-VBILL-STATUS-VISIBILITY (2026-08-17) — TKT-D ── #
+# Cross-tenant view of every overdue supplier bill in the platform.
+# Uses the same vendor_bill_bucket helper the tenant dashboard +
+# list use, so the super-admin never sees a different picture than
+# the company itself. Click-through links go to the tenant's own
+# bill view (behind impersonation to keep the tenant-scoped route
+# working).
+@bp.route("/vendor-bills/overdue")
+@login_required
+@superadmin_required
+def vendor_bills_overdue():
+    from app.services.superadmin import overdue_vendor_bills_by_company
+    rows = overdue_vendor_bills_by_company()
+    return render_template(
+        "admin/vendor_bills_overdue.html",
+        rows=rows,
+        total_companies=len(rows),
+        total_amount=sum(r["total_amount"] for r in rows),
+        total_bills=sum(len(r["bills"]) for r in rows),
+    )
+
+
 # ── Ticket 5: activity / audit log ───────────────────────────────────────── #
 @bp.route("/audit")
 @login_required

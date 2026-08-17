@@ -266,3 +266,68 @@ def ai_usage_overview():
 
     rows.sort(key=lambda r: r["month_used"], reverse=True)
     return rows
+
+
+# ── MARSOUD-VBILL-STATUS-VISIBILITY (2026-08-17) — TKT-D ── #
+
+def overdue_vendor_bills_by_company():
+    """Cross-tenant super-admin view of every open, overdue vendor
+    bill across all non-deleted companies.
+
+    Returns a list of {company, bills:[{...bill dict}, ...],
+    total_amount, currency}. Uses the SAME `vendor_bill_bucket`
+    helper as the tenant dashboard + list so the super-admin never
+    sees a different picture from the company it's mirroring.
+
+    Skipped: deleted companies, tenants with zero overdue bills.
+    Sorted most-overdue-total first so the busiest tenants surface
+    at the top.
+    """
+    from datetime import date as _date
+    from app.models import VendorBill, VendorBillStatus, Company
+    from app.services.vendor_bills import vendor_bill_bucket
+
+    today = _date.today()
+    _OPEN = (VendorBillStatus.POSTED,
+             VendorBillStatus.PARTIALLY_PAID,
+             VendorBillStatus.OVERDUE,
+             VendorBillStatus.PARTIALLY_REFUNDED)
+
+    # One query. Group by company in Python — cheap for the number
+    # of tenants Marsoud has (bill count matters more, and the
+    # bucket check filters that down).
+    raw = (VendorBill.query
+           .join(Company, VendorBill.company_id == Company.id)
+           .filter(Company.deleted_at.is_(None))
+           .filter(VendorBill.deleted_at.is_(None))
+           .filter(VendorBill.status.in_(_OPEN))
+           .filter(VendorBill.due_date < today)
+           .order_by(VendorBill.due_date.asc())
+           .all())
+
+    by_co = {}
+    for b in raw:
+        if vendor_bill_bucket(b, today=today) != "overdue":
+            continue
+        co = b.company
+        entry = by_co.setdefault(co.id, {
+            "company": co,
+            "bills": [],
+            "total_amount": 0.0,
+        })
+        amt = float(b.balance or 0)
+        entry["total_amount"] += amt
+        entry["bills"].append({
+            "id": b.id,
+            "number": b.number,
+            "vendor_name": b.vendor.name if b.vendor else "—",
+            "amount": amt,
+            "currency": b.currency,
+            "due_date": b.due_date,
+            "days_late": (today - b.due_date).days
+                         if b.due_date else 0,
+        })
+
+    rows = list(by_co.values())
+    rows.sort(key=lambda r: r["total_amount"], reverse=True)
+    return rows

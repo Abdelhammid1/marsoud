@@ -582,6 +582,44 @@
       {% endif %}
     </div>
 
+    {# MARSOUD-VBILL-STATUS-VISIBILITY (2026-08-17) — TKT-D. The
+       ticket calls out four states (Upcoming / Due Today /
+       Overdue / Paid). "Due Today" was missing entirely — added
+       here as its own panel so the user sees bills that must be
+       paid TODAY separately from those already late. #}
+    {% if metrics.due_today_vendor_bills_count %}
+    <div class="d-panel panel-amber">
+      <div class="panel-head">
+        <div class="panel-head-l">
+          <div class="panel-ico i-amber">⏰</div>
+          <div>
+            <div class="panel-title">فواتير مستحقة اليوم</div>
+            <div class="panel-meta">يجب دفعها قبل نهاية اليوم</div>
+          </div>
+        </div>
+        <span class="pill pill-amber">{{ metrics.due_today_vendor_bills_count }} فاتورة</span>
+      </div>
+      {% for b in metrics.due_today_vendor_bills %}
+      <a class="d-row" href="{{ url_for('vendor_bills.view', bill_id=b.id) }}">
+        <div class="row-l">
+          <div class="row-ava">{{ b.vendor_initials }}</div>
+          <div>
+            <div class="row-name">{{ b.title_for_display }}</div>
+            <div class="row-sub">{{ b.vendor_name }}</div>
+          </div>
+        </div>
+        <div class="row-r">
+          <div class="row-amt">{{ "{:,.0f}".format(b.amount) }} {{ (b.currency or cur)|currency_ar }}</div>
+          <div class="row-tag tag-amber">اليوم</div>
+        </div>
+      </a>
+      {% endfor %}
+      <div class="panel-foot">
+        <div class="sum">إجمالي المستحق اليوم: <b>{{ cur|currency_ar }} {{ "{:,.0f}".format(metrics.due_today_vendor_bills_total) }}</b></div>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Upcoming bills -->
     <div class="d-panel panel-amber">
       <div class="panel-head">

@@ -51,6 +51,7 @@ def _safe_float(raw, default=0):
 
 @bp.route("/")
 @login_required
+@require_permission("vendor_bills.view")
 def index():
     if not g.active_company:
         return redirect(url_for("companies.new"))
@@ -169,6 +170,14 @@ def index():
         except (TypeError, ValueError):
             pass
     sub_cats_dd = sub_cats_q.order_by(VendorSubCategory.name).all()
+    # MARSOUD-VBILL-STATUS-VISIBILITY (2026-08-17) — TKT-D. The
+    # list template used to color rows red on `b.status.value ==
+    # 'OVERDUE'`, which meant a POSTED bill past its due_date
+    # showed neutral coloring until the daily cron flipped its
+    # status. Compute the canonical bucket here per row so the
+    # list, dashboard, and AP aging never disagree.
+    from app.services.vendor_bills import vendor_bill_bucket
+    bucket_by_id = {b.id: vendor_bill_bucket(b) for b in bills}
     return render_template(
         "vendor_bills/index.html",
         bills=bills, statuses=VendorBillStatus, totals=totals,
@@ -176,6 +185,7 @@ def index():
         vendor_filter=vendor_filter,
         sub_category_filter=sub_category_filter,
         deleted_filter=deleted_filter,
+        bucket_by_id=bucket_by_id,
     )
 
 
@@ -639,6 +649,7 @@ def _prefill_from_recurring(recurring_id):
 
 @bp.route("/<int:bill_id>")
 @login_required
+@require_permission("vendor_bills.view")
 def view(bill_id):
     bill = db.session.get(VendorBill, bill_id)
     if not bill or bill.company_id != g.active_company.id or bill.deleted_at is not None:
