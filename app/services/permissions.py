@@ -163,6 +163,16 @@ P = {
     "customers.view":  {"owner", "admin", "accountant", "ceo",
                         "sales_manager", "sales_rep", "viewer"},
 
+    # MARSOUD-VBILL-STATUS-VISIBILITY (2026-08-17) — TKT-D.
+    # The `vendor_bills.view` permission was referenced by the
+    # dashboard tile (dashboard/index.html:367) but NEVER defined
+    # in P — every `has_permission("vendor_bills.view")` call was
+    # returning False, so the tile was dead. Same reach as
+    # `reports.view` (owner/admin/accountant/ceo/viewer) — matches
+    # the ticket's acceptance criteria for who can monitor
+    # overdue supplier bills.
+    "vendor_bills.view":    {"owner", "admin", "accountant",
+                              "ceo", "viewer"},
     "vendor_bills.create":  {"owner", "admin", "accountant"},
     "vendor_bills.delete":  {"owner", "admin"},  # MARSOUD-52 — DRAFT only, gated
 
@@ -377,6 +387,11 @@ _IMPLIES = {
     "refunds.view":        "invoices.refund",
     "refunds.manage":      "invoices.refund",
     "vendor_bills.refund": "invoices.refund",
+    # MARSOUD-VBILL-STATUS-VISIBILITY (2026-08-17) — TKT-D. Anyone
+    # who can create / delete / refund a vendor bill obviously
+    # needs to view it. Without this, a custom role that only has
+    # vendor_bills.create loses view access under the new gate.
+    "vendor_bills.view":   "vendor_bills.create",
     # MARSOUD-ASSET-DISPOSAL-01 (2026-08-07) — new perm inherits from
     # its umbrella so existing accountants get it without a role
     # re-seed on deploy. roles_seed doesn't touch custom roles, so a

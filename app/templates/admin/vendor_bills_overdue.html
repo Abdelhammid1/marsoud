@@ -1,0 +1,94 @@
+{% extends "admin/base.html" %}
+{% block page_title %}فواتير الموردين المتأخرة (كل الشركات){% endblock %}
+{% block content %}
+
+{# MARSOUD-VBILL-STATUS-VISIBILITY (2026-08-17) — TKT-D.
+   Cross-tenant view. One section per company that has open
+   overdue supplier bills. Uses the same bucket helper as the
+   tenant dashboard + list. #}
+
+<div class="mb-4">
+  <h2 class="font-bold text-navy-900 text-lg">
+    ⏰ فواتير الموردين المتأخرة
+  </h2>
+  <p class="text-sm text-slate-500 mt-1">
+    كل الفواتير المفتوحة اللي عدى موعد استحقاقها ولسه فيها رصيد
+    مطلوب سداده — عبر كل الشركات النشطة على المنصة.
+  </p>
+</div>
+
+<div class="grid grid-cols-3 gap-3 mb-4">
+  <div class="stat-muted p-5">
+    <div class="text-xs text-ink-200">شركات متأثرة</div>
+    <div class="text-2xl font-bold text-slate-900">{{ total_companies }}</div>
+  </div>
+  <div class="stat-muted p-5">
+    <div class="text-xs text-ink-200">إجمالي الفواتير</div>
+    <div class="text-2xl font-bold text-slate-900">{{ total_bills }}</div>
+  </div>
+  <div class="stat-muted p-5">
+    <div class="text-xs text-ink-200">إجمالي المتأخر</div>
+    <div class="text-2xl font-bold text-rose-700 font-mono">
+      {{ "{:,.2f}".format(total_amount) }}
+    </div>
+  </div>
+</div>
+
+{% if rows %}
+  {% for r in rows %}
+    <div class="card p-4 mb-4">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <a href="{{ url_for('superadmin.company_detail', company_id=r.company.id) }}"
+             class="font-bold text-slate-900 hover:underline">
+            {{ r.company.name }}
+          </a>
+          <span class="text-xs text-ink-200 mr-2">
+            ({{ r.bills|length }} فاتورة)
+          </span>
+        </div>
+        <div class="font-mono font-bold text-rose-700">
+          {{ "{:,.2f}".format(r.total_amount) }}
+        </div>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>الرقم</th>
+            <th>المورد</th>
+            <th>الاستحقاق</th>
+            <th>متأخرة (يوم)</th>
+            <th class="text-left">المتبقي</th>
+            <th class="text-left">العملة</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in r.bills %}
+          <tr>
+            <td class="font-mono">{{ b.number }}</td>
+            <td>{{ b.vendor_name }}</td>
+            <td class="font-mono text-xs">
+              {{ b.due_date.isoformat() if b.due_date else '—' }}
+            </td>
+            <td>
+              <span class="badge badge-bad">{{ b.days_late }} يوم</span>
+            </td>
+            <td class="text-left font-mono font-bold text-rose-700">
+              {{ "{:,.2f}".format(b.amount) }}
+            </td>
+            <td class="text-left text-xs text-ink-200 font-mono">
+              {{ b.currency or '—' }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endfor %}
+{% else %}
+  <div class="card p-8 text-center text-ink-200">
+    ✅ لا توجد فواتير موردين متأخرة في أي شركة حالياً.
+  </div>
+{% endif %}
+
+{% endblock %}

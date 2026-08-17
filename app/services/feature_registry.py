@@ -283,9 +283,14 @@ _FEATURES: tuple = (
              permissions=("products.manage",), icon="🏷️"),
 
     # ─── Purchases ──────────────────────────────────────────────
+    # MARSOUD-VBILL-STATUS-VISIBILITY (2026-08-17) — TKT-D. Was
+    # gated on vendor_bills.create, which excluded viewer + ceo
+    # from seeing the sidebar link even though the ticket says
+    # they should be able to monitor overdue bills. Switched to
+    # the new vendor_bills.view gate.
     Feature("vendor_bills_index", "purchases", "فواتير الموردين",
              endpoints=("vendor_bills.index",),
-             permissions=("vendor_bills.create",), icon="📥"),
+             permissions=("vendor_bills.view",), icon="📥"),
     Feature("recurring_bills_index", "purchases", "الفواتير المتكررة",
              endpoints=("recurring_bills.index",),
              permissions=("vendor_bills.create",), icon="🔁"),
