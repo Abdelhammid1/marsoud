@@ -115,7 +115,7 @@ class VendorBillItem(db.Model):
     description = db.Column(db.String(255), nullable=False)
     line_type = db.Column(db.Enum(BillLineType), nullable=False, default=BillLineType.EXPENSE)
     account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=False)
-    quantity = db.Column(db.Numeric(10, 2), default=1)
+    quantity = db.Column(db.Numeric(10, 3), default=1)
     unit_price = db.Column(db.Numeric(15, 4), default=0)
     line_total = db.Column(db.Numeric(15, 4), default=0)
     # Fixed-asset specific (only used when line_type == FIXED_ASSET)

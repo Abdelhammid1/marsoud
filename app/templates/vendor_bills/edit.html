@@ -101,7 +101,7 @@
             </td>
             <td class="font-mono">
               {% if full_edit %}
-              <input type="number" name="item_quantity[]" step="0.01" value="{{ item.quantity }}" class="input text-sm font-mono">
+              <input type="number" name="item_quantity[]" step="0.001" value="{{ item.quantity }}" class="input text-sm font-mono">
               {% else %}
               <span class="text-slate-500">{{ "%.2f"|format(item.quantity) }}</span>
               {% endif %}

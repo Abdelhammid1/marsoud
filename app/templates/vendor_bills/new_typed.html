@@ -328,7 +328,7 @@ function addItem() {
 {% endif %}
     <td>
       <div class="flex gap-1 items-center">
-        <input type="number" name="item_quantity[]" step="0.01" value="1" required class="input text-sm font-mono" oninput="calcTotals(){% if is_inventory %}; updatePackHint(this.closest('tr')){% endif %}" style="width:4.5rem">
+        <input type="number" name="item_quantity[]" step="0.001" value="1" required class="input text-sm font-mono" oninput="calcTotals(){% if is_inventory %}; updatePackHint(this.closest('tr')){% endif %}" style="width:4.5rem">
 {% if is_inventory %}
         {# MARSOUD-UNIT-CONVERSION-01 — populated when a variant is picked and its product has >1 unit. #}
         <select name="item_unit_id[]" class="select text-xs unit-picker" style="width:5.5rem;display:none">

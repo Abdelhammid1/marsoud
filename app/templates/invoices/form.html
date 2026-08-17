@@ -151,7 +151,7 @@ function addItem(prefill) {
     </td>
     <td>
       <div class="flex gap-1 items-center">
-        <input type="number" name="item_quantity[]" step="0.01" value="${prefill?.quantity || 1}" required class="input text-sm font-mono" oninput="calcTotals()" style="width:4.5rem">
+        <input type="number" name="item_quantity[]" step="0.001" value="${prefill?.quantity || 1}" required class="input text-sm font-mono" oninput="calcTotals()" style="width:4.5rem">
         {# MARSOUD-UNIT-CONVERSION-01 — hidden until a product with >1 unit is picked. #}
         <select name="item_unit_id[]" class="select text-xs unit-picker" style="width:5.5rem;display:none">
           <option value="">—</option>
