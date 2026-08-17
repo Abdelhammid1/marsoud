@@ -1147,11 +1147,28 @@ def dashboard_metrics(company_id, period="month"):
     # cron has not yet materialised. The second half is belt-and-
     # suspenders: if cron fails on a given day, the row still surfaces
     # as red with an "اعمل الفاتورة" button instead of disappearing.
+    # MARSOUD-DASHBOARD-VBILL-EMPTY-FIX — the panel is split into
+    # two INDEPENDENT try blocks now. A bug in the recurring-bills
+    # forecast used to blow up the whole thing via one shared
+    # `except Exception: pass`, leaving the panel silently empty even
+    # though real overdue bills existed. Two separate excepts + real
+    # logging make that class of bug visible in prod logs.
+    #
+    # Filter details worth remembering:
+    #   · status IN (OVERDUE | POSTED | PARTIALLY_PAID) — POSTED
+    #     stays in because the OVERDUE cron might not have flipped
+    #     it yet; the dashboard is the fallback.
+    #   · balance > 0 was NOT filtered before; add it now so a bill
+    #     whose status is stuck at OVERDUE but is actually fully
+    #     paid (rare, but possible after a manual payment race)
+    #     doesn't linger as a red row.
     late_vendor_bills = []
     late_vendor_total = 0.0
+    import logging as _logging
+    _log = _logging.getLogger("marsoud.dashboard")
+
     try:
         from app.models import VendorBill, VendorBillStatus
-        from app.services.recurring_bills import unmaterialised_past_due
 
         real_overdue = VendorBill.query.filter(
             VendorBill.company_id == company_id,
@@ -1164,12 +1181,20 @@ def dashboard_metrics(company_id, period="month"):
             VendorBill.due_date < today,
         ).order_by(VendorBill.due_date.asc()).all()
 
+        _log.info(
+            "late_vendor_bills(real): company=%s today=%s found=%s",
+            company_id, today, len(real_overdue))
+
         for b in real_overdue:
+            amt = float(b.balance or 0)
+            if amt <= 0:
+                # Bill was paid off — skip so it doesn't stay red
+                # forever if the status column drifted from the truth.
+                continue
             days_late = (today - b.due_date).days if b.due_date else 0
             vendor_name = b.vendor.name if b.vendor else "—"
             title = (b.notes.strip()[:60] if b.notes and b.notes.strip()
                      else b.number)
-            amt = float(b.balance or 0)
             late_vendor_total += amt
             late_vendor_bills.append({
                 "kind": "bill",
@@ -1183,8 +1208,18 @@ def dashboard_metrics(company_id, period="month"):
                 "source_recurring_bill_id": None,
                 "occurrence_date": None,
             })
+    except Exception:
+        # Log the traceback so a future prod run leaves breadcrumbs.
+        _log.exception(
+            "late_vendor_bills(real) failed for company=%s", company_id)
 
-        for row in unmaterialised_past_due(company_id, as_of=today):
+    try:
+        from app.services.recurring_bills import unmaterialised_past_due
+        forecast_rows = unmaterialised_past_due(company_id, as_of=today)
+        _log.info(
+            "late_vendor_bills(forecast): company=%s found=%s",
+            company_id, len(forecast_rows))
+        for row in forecast_rows:
             days_late = (today - row["date"]).days
             amt = float(row.get("amount") or 0)
             late_vendor_total += amt
@@ -1201,13 +1236,13 @@ def dashboard_metrics(company_id, period="month"):
                 "source_recurring_bill_id": row["recurring_bill_id"],
                 "occurrence_date": row["date"],
             })
-
-        # Most-overdue first (real + forecast unified).
-        late_vendor_bills.sort(key=lambda r: r["days_late"], reverse=True)
     except Exception:
-        # Never crash the dashboard on a downstream problem; the panel
-        # just goes empty instead.
-        pass
+        _log.exception(
+            "late_vendor_bills(forecast) failed for company=%s",
+            company_id)
+
+    # Most-overdue first (real + forecast unified).
+    late_vendor_bills.sort(key=lambda r: r["days_late"], reverse=True)
 
     # Upcoming bills via the MARSOUD-65 forecast helper.
     upcoming_bills = []

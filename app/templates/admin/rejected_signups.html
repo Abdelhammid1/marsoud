@@ -16,6 +16,15 @@
   </div>
 </div>
 
+{# Diagnostic banner. When the schema or query breaks, this replaces
+   the "لا توجد" empty-state so we don't quietly hide the real problem. #}
+{% if error %}
+<div class="card p-4 mb-4 border border-red-200 bg-red-50">
+  <div class="font-bold text-red-700 mb-1">⚠️ لا يمكن قراءة سجل الرفض</div>
+  <div class="text-sm text-red-800" style="line-height:1.8">{{ error }}</div>
+</div>
+{% endif %}
+
 <div class="card p-3 mb-4 bg-sky-50 border border-sky-200 text-xs">
   <b>الدومينز المستثناة تماماً من الحظر التلقائي</b>
   (اللائحة البيضاء — مايفوتش أي auto-block منها مهما ترفض):
