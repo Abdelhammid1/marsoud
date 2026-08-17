@@ -44,7 +44,7 @@ from datetime import datetime, timedelta
 from flask import current_app
 
 from app import db
-from app.models import BlockedDomain, SignupRejection
+from app.models import BlockedDomain, BlockedEmail, SignupRejection
 
 
 # ── constants ────────────────────────────────────────────── #
@@ -75,21 +75,33 @@ def _extract_domain(email):
 
 # ── public API ───────────────────────────────────────────── #
 
-def record_rejection(reason, email, ip_address=None):
+def record_rejection(reason, email, ip_address=None,
+                     honeypot_value=None):
     """Persist one rejection row + fire auto-block check
     for honeypot trips.
 
     reason ∈ {"honeypot", "rate_limit", "spam_domain",
-              "turnstile", "blocked_domain"}.
+              "turnstile", "blocked_domain", "blocked_email",
+              "bot_immediate"}.
 
     Never raises. If the log write fails, we swallow the
     exception, log to app.logger, and return — bot
     protection must not become a signup outage.
+
+    MARSOUD-BOT-REGISTRATION-VISIBILITY (2026-08-17) — TKT-17.
+    Now persists the full email + the raw honeypot payload so
+    the super-admin can see exactly what the bot injected. Both
+    columns are nullable to keep the write best-effort.
     """
     domain = _extract_domain(email) or "(unknown)"
+    normalized_email = (email or "").strip().lower() or None
+    hp_val = (honeypot_value or "").strip() or None
     try:
         db.session.add(SignupRejection(
-            email_domain=domain, reason=reason,
+            email_domain=domain,
+            email=normalized_email,
+            honeypot_value=hp_val,
+            reason=reason,
             ip_address=ip_address))
         db.session.commit()
     except Exception:  # noqa: BLE001
@@ -185,6 +197,152 @@ def is_domain_blocked(email):
         except Exception:
             pass
         return False
+
+
+# ── MARSOUD-BOT-REGISTRATION-VISIBILITY (2026-08-17) — TKT-17 ── #
+
+def block_domain_now(domain, reason, actor_id=None):
+    """Immediately add `domain` to `blocked_domains` — bypasses
+    the 3-in-24h counter used by `maybe_auto_block`.
+
+    TKT-17: when a bot signup is detected (honeypot trip), block
+    the domain IMMEDIATELY if it's outside `WHITELISTED_DOMAINS`.
+    We already know it's a bot; there's no need to wait for a
+    counter to trip. Whitelisted domains are still exempt — a
+    burner-gmail bot must not lock out all real gmail users.
+
+    Returns True when a new row was added, False when the
+    domain was whitelisted, already blocked, or malformed.
+    Idempotent + safe on the "already blocked" case.
+    """
+    if not domain:
+        return False
+    d = domain.strip().lower()
+    if not d or d == "(unknown)":
+        return False
+    if d in WHITELISTED_DOMAINS:
+        return False
+    existing = BlockedDomain.query.filter_by(
+        domain=d, is_active=True).first()
+    if existing:
+        return False
+    row = BlockedDomain(
+        domain=d, is_active=True,
+        reason=reason or "immediate block on bot detection",
+    )
+    db.session.add(row)
+    db.session.commit()
+    try:
+        from app.services.superadmin import log_platform_action
+        log_platform_action(
+            "signup_domain_immediate_blocked",
+            actor_id=actor_id,
+            details=f"domain={d}, reason={reason}",
+        )
+    except Exception:  # noqa: BLE001
+        pass
+    return True
+
+
+def block_email(email, reason, actor_id=None):
+    """Permanently block a specific email address. Sibling of
+    `block_domain_now` — used by TKT-17's honeypot path to lock
+    out the exact address that submitted, even on whitelisted
+    domains where the domain itself must stay unblocked.
+
+    Idempotent — a second call for an already-active row is a
+    no-op and returns False. Returns True on the first insert.
+    Never raises — write failures are swallowed with a logger
+    entry so the signup form never 500s on a log-table hiccup.
+    """
+    if not email:
+        return False
+    e = email.strip().lower()
+    if not e or "@" not in e:
+        return False
+    try:
+        existing = BlockedEmail.query.filter_by(
+            email=e, is_active=True).first()
+        if existing:
+            return False
+        row = BlockedEmail(
+            email=e, is_active=True,
+            reason=reason or "immediate block on bot detection",
+        )
+        db.session.add(row)
+        db.session.commit()
+    except Exception:  # noqa: BLE001
+        db.session.rollback()
+        try:
+            current_app.logger.exception(
+                "block_email failed for %s", e)
+        except Exception:
+            pass
+        return False
+    try:
+        from app.services.superadmin import log_platform_action
+        log_platform_action(
+            "signup_email_blocked",
+            actor_id=actor_id,
+            details=f"email={e}, reason={reason}",
+        )
+    except Exception:  # noqa: BLE001
+        pass
+    return True
+
+
+def is_email_blocked(email):
+    """Hot-path check. Called BEFORE the other bot_guard gates
+    in `auth.register`. Returns True iff the email is in an
+    active BlockedEmail row.
+
+    Safe on malformed input — returns False for anything without
+    an `@` or where the log-table read fails (never DoS signup
+    because the log table is unreachable).
+    """
+    if not email:
+        return False
+    e = email.strip().lower()
+    if not e or "@" not in e:
+        return False
+    try:
+        return BlockedEmail.query.filter_by(
+            email=e, is_active=True).first() is not None
+    except Exception:  # noqa: BLE001
+        try:
+            current_app.logger.exception(
+                "is_email_blocked check failed for %s", e)
+        except Exception:
+            pass
+        return False
+
+
+def unblock_email(email, actor_id):
+    """Superadmin escape hatch — lift a false-positive email
+    block. Idempotent: returns False when the email isn't
+    currently blocked.
+    """
+    if not email:
+        return False
+    e = email.strip().lower()
+    row = BlockedEmail.query.filter_by(
+        email=e, is_active=True).first()
+    if not row:
+        return False
+    row.is_active = False
+    row.unblocked_at = datetime.utcnow()
+    row.unblocked_by_id = actor_id
+    db.session.commit()
+    try:
+        from app.services.superadmin import log_platform_action
+        log_platform_action(
+            "signup_email_unblocked",
+            actor_id=actor_id,
+            details=f"email={e}",
+        )
+    except Exception:  # noqa: BLE001
+        pass
+    return True
 
 
 def unblock_domain(domain, actor_id):

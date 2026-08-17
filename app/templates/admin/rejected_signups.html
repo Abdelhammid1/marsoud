@@ -25,6 +25,64 @@
   </div>
 </div>
 
+{# MARSOUD-BOT-REGISTRATION-VISIBILITY (2026-08-17) — TKT-17.
+   Per-email blocklist table. Sibling of the domain table below.
+   A bot email is added here on every honeypot trip; the domain
+   is added below ONLY when it's not in the safe-list (gmail /
+   outlook / yahoo / hotmail / icloud / …). #}
+<div class="card p-4 mb-4">
+  <h3 class="font-semibold text-navy-900 mb-2">
+    🔒 البريد الإلكتروني المحظور
+    <span class="text-slate-500 text-sm mr-2">({{ blocked_emails|length }})</span>
+  </h3>
+  <p class="text-xs text-slate-500 mb-3">
+    كل بريد إلكتروني عمل trigger للـ honeypot بيتحفظ هنا نهائياً،
+    حتى لو كان على دومين آمن (زي gmail أو outlook).
+    البوت مايقدرش يستخدم نفس البريد تاني.
+  </p>
+  {% if blocked_emails %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>البريد الإلكتروني</th>
+        <th>تاريخ الحظر</th>
+        <th>السبب</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for be in blocked_emails %}
+      <tr>
+        <td class="font-mono">{{ be.email }}</td>
+        <td class="font-mono text-xs">
+          {{ be.blocked_at | company_dt('%Y-%m-%d %H:%M')
+             if be.blocked_at else '—' }}
+        </td>
+        <td class="text-xs text-slate-600"
+            style="max-width: 340px; overflow-wrap: anywhere;">
+          {{ be.reason or '—' }}
+        </td>
+        <td>
+          <form method="POST"
+                action="{{ url_for('superadmin.rejected_signups_unblock_email') }}"
+                onsubmit="return confirm('فك الحظر عن {{ be.email|e }}؟');">
+            <input type="hidden" name="email" value="{{ be.email }}">
+            <button type="submit" class="btn-secondary text-xs">
+              ♻️ فك الحظر
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="text-center text-slate-400 py-4 text-sm">
+    لا توجد بريدات محظورة حالياً.
+  </div>
+  {% endif %}
+</div>
+
 <div class="card p-4 mb-4">
   <h3 class="font-semibold text-navy-900 mb-2">
     🔒 الدومينز المحظورة تلقائياً
@@ -82,8 +140,15 @@
     <thead>
       <tr>
         <th>الوقت</th>
+        <th>البريد</th>
         <th>الدومين</th>
         <th>السبب</th>
+        {# MARSOUD-BOT-REGISTRATION-VISIBILITY (2026-08-17) —
+           TKT-17. Show the raw string the bot typed into the
+           hidden `website` field so the super-admin can see
+           the injection payload directly (URL / promo text /
+           XSS attempt). #}
+        <th>قيمة الحقل المخفي</th>
         <th>IP</th>
       </tr>
     </thead>
@@ -94,7 +159,11 @@
           {{ r.created_at | company_dt('%Y-%m-%d %H:%M')
              if r.created_at else '—' }}
         </td>
-        <td class="font-mono">{{ r.email_domain }}</td>
+        <td class="font-mono text-xs"
+            style="max-width: 220px; overflow-wrap: anywhere;">
+          {{ r.email or '—' }}
+        </td>
+        <td class="font-mono text-xs">{{ r.email_domain }}</td>
         <td>
           {% set reason_class = {
             'honeypot': 'badge-bad',
@@ -102,10 +171,16 @@
             'spam_domain': 'badge-neutral',
             'turnstile': 'badge-sent',
             'blocked_domain': 'badge-draft',
+            'blocked_email': 'badge-draft',
+            'bot_immediate': 'badge-bad',
           }.get(r.reason, 'badge-neutral') %}
           <span class="badge {{ reason_class }} font-mono">
             {{ r.reason }}
           </span>
+        </td>
+        <td class="font-mono text-xs text-slate-600"
+            style="max-width: 260px; overflow-wrap: anywhere;">
+          {{ r.honeypot_value or '—' }}
         </td>
         <td class="font-mono text-xs text-slate-500">
           {{ r.ip_address or '—' }}

@@ -198,6 +198,9 @@ from app.models.platform_audit import (
 # log + auto-learned domain blocklist.
 from app.models.signup_rejection import SignupRejection
 from app.models.blocked_domain import BlockedDomain
+# MARSOUD-BOT-REGISTRATION-VISIBILITY (2026-08-17) — per-email
+# blocklist sibling of blocked_domains for TKT-17.
+from app.models.blocked_email import BlockedEmail
 # MARSOUD-APPROVAL-GATED-SUPERADMIN (2026-08-12) — pending
 # queue for restricted-superadmin write attempts.
 from app.models.pending_superadmin_action import (
@@ -216,7 +219,7 @@ from app.models.evaluation import (
 __all__ = [
     "PlatformAuditLog", "SuperadminImpersonation", "PlatformError",
     "PlatformCronRun",
-    "SignupRejection", "BlockedDomain",
+    "SignupRejection", "BlockedDomain", "BlockedEmail",
     "PendingSuperadminAction",
     "ApiToken",
     "UserFile",
