@@ -1,0 +1,80 @@
+{% extends "admin/base.html" %}
+{% block page_title %}إنشاء مسؤول مقيَّد{% endblock %}
+{% block content %}
+
+<div class="mb-4 flex items-center justify-between">
+  <h2 class="font-bold text-navy-900 text-lg">
+    ➕ إنشاء / ترقية مسؤول مقيَّد
+  </h2>
+  <a href="{{ url_for('superadmin.users') }}"
+     class="btn btn-secondary text-sm">← عودة للمستخدمين</a>
+</div>
+
+<div class="card p-4 mb-4 bg-sky-50 border border-sky-200
+            text-xs text-slate-700 leading-6">
+  <p class="mb-1">
+    <b>مسؤول مقيَّد</b> = مستخدم له صلاحيات
+    <code class="font-mono">superadmin</code> لكن كل محاولات
+    الكتابة (POST) تحت <code class="font-mono">/admin/*</code>
+    تُعرَض عليك للموافقة في صفحة
+    <b>موافقات مُعلَّقة</b> قبل التنفيذ.
+  </p>
+  <p class="mb-1">
+    <b>لو المستخدم موجود بالفعل بنفس البريد</b> — هيتم
+    ترقيته فقط دون أي تغيير في اسمه أو كلمة مروره أو
+    ارتباطه بالشركات.
+  </p>
+  <p>
+    <b>لو غير موجود</b> — هيتم إنشاؤه بالبيانات المدخلة
+    (الاسم + كلمة المرور مطلوبان).
+  </p>
+</div>
+
+<form method="POST"
+      action="{{ url_for('superadmin.user_create_restricted') }}"
+      class="card p-6 max-w-xl">
+
+  <div class="mb-4">
+    <label class="block text-sm font-semibold text-slate-700 mb-1">
+      البريد الإلكتروني
+      <span class="text-rose-600">*</span>
+    </label>
+    <input type="email" name="email" required
+           class="input" autocomplete="off"
+           placeholder="user@example.com">
+  </div>
+
+  <div class="mb-4">
+    <label class="block text-sm font-semibold text-slate-700 mb-1">
+      الاسم الكامل
+      <span class="text-slate-400 text-xs">
+        — مطلوب فقط للمستخدمين الجدد
+      </span>
+    </label>
+    <input type="text" name="full_name"
+           class="input" autocomplete="off"
+           placeholder="مثلاً: أحمد صالح">
+  </div>
+
+  <div class="mb-6">
+    <label class="block text-sm font-semibold text-slate-700 mb-1">
+      كلمة المرور
+      <span class="text-slate-400 text-xs">
+        — مطلوبة فقط للمستخدمين الجدد
+      </span>
+    </label>
+    <input type="password" name="password" minlength="8"
+           class="input" autocomplete="new-password"
+           placeholder="8 أحرف على الأقل">
+  </div>
+
+  <div class="flex items-center gap-3">
+    <button type="submit" class="btn btn-primary">
+      إنشاء / ترقية
+    </button>
+    <a href="{{ url_for('superadmin.users') }}"
+       class="btn btn-secondary">إلغاء</a>
+  </div>
+</form>
+
+{% endblock %}

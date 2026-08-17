@@ -61,6 +61,12 @@ DESTRUCTIVE_ENDPOINTS = {
     "superadmin.user_reset_password",
     "superadmin.user_unlink",
     "superadmin.user_resend_invite",
+    # MARSOUD-RESTRICTED-SUPERADMIN-CREATE-UI (2026-08-13) —
+    # a restricted user must not silently create MORE
+    # restricted users. The view body also 403s them, but
+    # the registry entry is defense in depth so a future
+    # copy-paste that drops the view guard still holds.
+    "superadmin.user_create_restricted",
     # AI + Ops
     "superadmin.ai_control",
     "superadmin.ai_settings",
@@ -129,6 +135,8 @@ ENDPOINT_LABELS_AR = {
     "superadmin.user_reset_password": "إعادة تعيين كلمة المرور",
     "superadmin.user_unlink": "فك ربط مستخدم من شركة",
     "superadmin.user_resend_invite": "إعادة إرسال دعوة",
+    "superadmin.user_create_restricted":
+        "إنشاء / ترقية مسؤول مقيَّد",
     "superadmin.ai_control": "تحكم في الذكاء الاصطناعي",
     "superadmin.ai_settings": "إعدادات الذكاء الاصطناعي",
     "superadmin.email_test": "اختبار إرسال بريد",
