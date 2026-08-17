@@ -11,7 +11,8 @@
       </div>
       <div class="flex items-center gap-2">
         {% set sc = {'DRAFT':'badge-draft','POSTED':'badge-sent','PARTIALLY_PAID':'badge-partial','PAID':'badge-paid','OVERDUE':'badge-overdue','CANCELLED':'badge-cancelled','REFUNDED':'badge-refunded','PARTIALLY_REFUNDED':'badge-refunded'} %}
-        <span class="badge {{ sc.get(bill.status.value, 'badge-draft') }} text-base px-3 py-1.5">{{ bill.status.value }}</span>
+        {% set sl = {'DRAFT':'مسودة','POSTED':'مسجّلة','PARTIALLY_PAID':'مدفوعة جزئياً','PAID':'مدفوعة','OVERDUE':'متأخرة','CANCELLED':'ملغاة','REFUNDED':'مرتجعة','PARTIALLY_REFUNDED':'مرتجعة جزئياً'} %}
+        <span class="badge {{ sc.get(bill.status.value, 'badge-draft') }} text-base px-3 py-1.5">{{ sl.get(bill.status.value, bill.status.value) }}</span>
         {% if bill.status.value != 'CANCELLED' and has_permission('vendor_bills.create') %}
         <a href="{{ url_for('vendor_bills.edit', bill_id=bill.id) }}" class="btn-secondary text-sm">✎ تعديل</a>
         {% endif %}
@@ -119,15 +120,15 @@
               {% endif %}
             {% endif %}
           </td>
-          <td class="font-mono">{{ "%.2f"|format(item.unit_price) }}</td>
-          <td class="text-left font-mono">{{ "%.2f"|format(item.line_total) }}</td>
+          <td class="font-mono">{{ item.unit_price|amount_ar(bill.currency) }}</td>
+          <td class="text-left font-mono">{{ item.line_total|amount_ar(bill.currency) }}</td>
         </tr>
         {% endfor %}
-        <tr><td colspan="5" class="text-left font-semibold py-2">المجموع قبل الضريبة</td><td class="text-left font-mono">{{ "%.2f"|format(bill.subtotal) }}</td></tr>
-        <tr><td colspan="5" class="text-left py-2">الضريبة ({{ "%.2f"|format(bill.tax_rate) }}%)</td><td class="text-left font-mono">{{ "%.2f"|format(bill.tax_amount) }}</td></tr>
-        <tr class="border-t-2 border-navy-900"><td colspan="5" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold text-lg">{{ "%.2f"|format(bill.total) }} {{ bill.currency|currency_ar }}</td></tr>
-        <tr><td colspan="5" class="text-left text-emerald-600 py-2">المدفوع</td><td class="text-left font-mono text-emerald-600">{{ "%.2f"|format(bill.paid_amount or 0) }}</td></tr>
-        <tr><td colspan="5" class="text-left font-bold text-amber-600 py-2">المتبقي</td><td class="text-left font-mono font-bold text-amber-600">{{ "%.2f"|format(bill.balance) }}</td></tr>
+        <tr><td colspan="5" class="text-left font-semibold py-2">المجموع قبل الضريبة</td><td class="text-left font-mono">{{ bill.subtotal|amount_ar(bill.currency) }}</td></tr>
+        <tr><td colspan="5" class="text-left py-2">الضريبة ({{ "%.2f"|format(bill.tax_rate) }}%)</td><td class="text-left font-mono">{{ bill.tax_amount|amount_ar(bill.currency) }}</td></tr>
+        <tr class="border-t-2 border-navy-900"><td colspan="5" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold text-lg">{{ bill.total|amount_ar(bill.currency) }}</td></tr>
+        <tr><td colspan="5" class="text-left text-emerald-600 py-2">المدفوع</td><td class="text-left font-mono text-emerald-600">{{ (bill.paid_amount or 0)|amount_ar(bill.currency) }}</td></tr>
+        <tr><td colspan="5" class="text-left font-bold text-amber-600 py-2">المتبقي</td><td class="text-left font-mono font-bold text-amber-600">{{ bill.balance|amount_ar(bill.currency) }}</td></tr>
       </tbody>
     </table>
 
@@ -172,7 +173,7 @@
       <form method="POST" action="{{ url_for('vendor_bills.refund', bill_id=bill.id) }}" class="space-y-3"
             onsubmit="return confirm('تأكيد إنشاء مرتجع لهذه الفاتورة؟');">
         <select name="type" required class="select text-sm">
-          <option value="FULL">مرتجع كامل ({{ "%.2f"|format(bill.total) }})</option>
+          <option value="FULL">مرتجع كامل ({{ bill.total|amount_ar(bill.currency) }})</option>
           <option value="PARTIAL">مرتجع جزئي</option>
           <option value="DEBIT_NOTE">إشعار مدين</option>
         </select>
@@ -190,7 +191,7 @@
       {% for r in bill.refunds %}
         <div class="flex justify-between py-2 border-b border-slate-100">
           <span class="text-slate-600">{{ r.number or '—' }} · {{ r.type.label_ar }}</span>
-          <span class="font-mono font-semibold text-amber-600">{{ "%.2f"|format(r.amount) }}</span>
+          <span class="font-mono font-semibold text-amber-600">{{ r.amount|amount_ar(bill.currency) }}</span>
         </div>
       {% endfor %}
       </div>
@@ -204,7 +205,7 @@
       {% for p in bill.payments %}
         <div class="flex justify-between py-2 border-b border-slate-100">
           <span>{{ p.payment_date.isoformat() }} · {% if p.payment_method %}{{ p.payment_method.name_ar or p.payment_method.name }}{% else %}{{ p.method }}{% endif %}</span>
-          <span class="font-mono font-semibold text-emerald-600">{{ "%.2f"|format(p.amount) }}</span>
+          <span class="font-mono font-semibold text-emerald-600">{{ p.amount|amount_ar(bill.currency) }}</span>
         </div>
       {% endfor %}
       </div>

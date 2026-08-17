@@ -539,13 +539,16 @@
             </div>
           </div>
           <div class="row-r">
-            <div class="row-amt">{{ "{:,.0f}".format(b.amount) }}</div>
+            {# MARSOUD-VBILL-CURRENCY-DISPLAY (2026-08-17) — per-bill
+               currency label; falls back to base currency if the row
+               dict lacks one (older cached data). #}
+            <div class="row-amt">{{ b.amount|amount_ar(b.currency or cur) }}</div>
             <div class="row-tag tag-red">متأخرة {{ b.days_late }} يوم</div>
           </div>
         </div>
         {% endfor %}
         <div class="panel-foot">
-          <div class="sum">الإجمالي المتأخر: <b>{{ cur|currency_ar }} {{ "{:,.0f}".format(metrics.late_vendor_bills_total) }}</b></div>
+          <div class="sum">الإجمالي المتأخر: <b>{{ metrics.late_vendor_bills_total|amount_ar(cur) }}</b></div>
           <a href="{{ url_for('vendor_bills.index') }}" style="color:var(--d-green-deep);font-weight:600;font-size:12.5px;text-decoration:none">فواتير الموردين →</a>
         </div>
       {% else %}
@@ -588,7 +591,7 @@
             </div>
           </div>
           <div class="row-r">
-            <div class="row-amt">{{ "{:,.0f}".format(b.amount) }}</div>
+            <div class="row-amt">{{ b.amount|amount_ar(b.currency or cur) }}</div>
             <div class="row-tag tag-amber">
               {% if b.days_until == 0 %}اليوم{% elif b.days_until == 1 %}غداً{% else %}بعد {{ b.days_until }} أيام{% endif %}
             </div>
@@ -596,7 +599,7 @@
         </a>
         {% endfor %}
         <div class="panel-foot">
-          <div class="sum">الإجمالي المتوقع: <b>{{ cur|currency_ar }} {{ "{:,.0f}".format(metrics.upcoming_bills_total) }}</b></div>
+          <div class="sum">الإجمالي المتوقع: <b>{{ metrics.upcoming_bills_total|amount_ar(cur) }}</b></div>
           <a href="{{ url_for('forecast.index') }}" style="color:var(--d-green-deep);font-weight:600;font-size:12.5px;text-decoration:none">الجدول الكامل →</a>
         </div>
       {% else %}
