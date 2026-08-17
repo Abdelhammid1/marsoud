@@ -1,0 +1,56 @@
+name: marsoud
+description: "Marsoud — mobile app for employees, HR, and sales."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # Networking
+  dio: ^5.7.0
+
+  # State management
+  flutter_riverpod: ^2.5.1
+
+  # Routing
+  go_router: ^14.6.2
+
+  # Secure storage (bearer token)
+  flutter_secure_storage: ^9.2.2
+
+  # Non-secret prefs (active company id)
+  shared_preferences: ^2.3.3
+
+  # Formatting + locale
+  intl: ^0.20.2
+
+  # Fonts — Cairo, same as the web
+  google_fonts: ^6.2.1
+
+  # GPS for attendance
+  geolocator: ^13.0.2
+
+  # File pickers (receipts, lead uploads)
+  image_picker: ^1.1.2
+  file_picker: ^8.1.4
+
+  # OS permissions
+  permission_handler: ^11.3.1
+
+  # PDF preview (payslip)
+  syncfusion_flutter_pdfviewer: ^28.2.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
