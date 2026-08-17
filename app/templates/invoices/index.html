@@ -101,7 +101,15 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="8" class="text-center text-slate-400 py-8">لا توجد فواتير مطابقة</td></tr>
+      {# MARSOUD-UI-DESIGN-SYSTEM (2026-08-18) — was a bare
+         `text-slate-400 py-8` cell. #}
+      <tr><td colspan="8" style="padding:0">
+        <div class="empty-state">
+          <div class="empty-state-icon">🧾</div>
+          <div class="empty-state-title">لا توجد فواتير مطابقة</div>
+          <div class="empty-state-sub">جرّب تعديل الفلاتر أو أضف فاتورة جديدة.</div>
+        </div>
+      </td></tr>
       {% endfor %}
     </tbody>
   </table>

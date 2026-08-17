@@ -1,0 +1,207 @@
+{# MARSOUD-UI-DESIGN-SYSTEM (2026-08-18) — TKT-06/07/08/09.
+
+   Central design-token layer. Included by both `base.html` (tenant
+   shell) and `admin/base.html` (super-admin shell). Every colour,
+   radius, shadow, spacing, and typography scale reads from here
+   so a designer can tune the whole app by editing one file.
+
+   Prefix `--ms-` = Marsoud. Existing `.card`, `.btn-primary`,
+   `.badge-*`, `.data-table`, `.input` etc. classes in base.html /
+   admin/base.html are additive on top of this file — those
+   remain the working classes, but now consume the variables so
+   palette drift is impossible.
+
+   Palette policy:
+   - Brand green is `--ms-brand`. All shades derive from it so
+     the dashboard (was #159b54), tenant btn-primary gradient
+     (was #047857 → #059669) and gradient-heading (was #065F46)
+     stop disagreeing.
+   - Ink is a 4-step neutral (900/700/500/300) — matches the
+     Cairo weight-with-slate-ink pattern already used across the
+     app.
+   - Surfaces use paper white (`--ms-surface`) on a soft grey bg
+     (`--ms-bg`).
+#}
+<style>
+  :root {
+    /* Brand — one canonical Marsoud green + its ramps */
+    --ms-brand:        #159b54;
+    --ms-brand-dark:   #0f7a41;
+    --ms-brand-tint:   #f1faf4;
+    --ms-brand-soft:   #e7f6ed;
+
+    /* Semantic status colors */
+    --ms-success:      #16a34a;
+    --ms-success-soft: #dcfce7;
+    --ms-warning:      #d97706;
+    --ms-warning-soft: #fef3c7;
+    --ms-danger:       #dc2626;
+    --ms-danger-soft:  #fee2e2;
+    --ms-info:         #2563eb;
+    --ms-info-soft:    #dbeafe;
+
+    /* Ink — 4-step neutral for text hierarchy */
+    --ms-ink-1:        #0f172a;  /* strongest — headings, values */
+    --ms-ink-2:        #334155;  /* body text */
+    --ms-ink-3:        #64748b;  /* meta / muted body */
+    --ms-ink-4:        #94a3b8;  /* placeholders / hints */
+
+    /* Surface & background */
+    --ms-surface:      #ffffff;
+    --ms-surface-soft: #f8fafc;
+    --ms-bg:           #f5f7f6;
+
+    /* Line / borders */
+    --ms-line:         #e5e7eb;
+    --ms-line-strong:  #cbd5e1;
+
+    /* Radius scale */
+    --ms-radius-sm:    8px;
+    --ms-radius-md:    12px;
+    --ms-radius-lg:    16px;
+    --ms-radius-pill:  9999px;
+
+    /* Shadow scale */
+    --ms-shadow-sm:    0 1px 2px rgba(15,23,42,.05);
+    --ms-shadow-md:    0 4px 12px rgba(15,23,42,.06);
+    --ms-shadow-lg:    0 10px 30px rgba(15,23,42,.09);
+
+    /* Typography scale */
+    --ms-font-body:    'Cairo', 'Inter', system-ui, sans-serif;
+    --ms-font-mono:    ui-monospace, 'SF Mono', Menlo, monospace;
+    --ms-fs-xs:        11.5px;
+    --ms-fs-sm:        12.5px;
+    --ms-fs-base:      13.5px;
+    --ms-fs-lg:        15px;
+    --ms-fs-xl:        18px;
+    --ms-fs-h1:        22px;
+
+    /* Space scale — matches Tailwind's 4px unit */
+    --ms-gap-1:        4px;
+    --ms-gap-2:        8px;
+    --ms-gap-3:        12px;
+    --ms-gap-4:        16px;
+    --ms-gap-5:        20px;
+    --ms-gap-6:        24px;
+  }
+
+  /* ── Shared primitives ────────────────────────────────────
+     Introduced by this pass because the codebase had ZERO
+     consistent versions of these.
+  */
+
+  /* Empty state — replaces the 4+ ad-hoc patterns.
+     Structure: <div class="empty-state">
+                  <div class="empty-state-icon">🆕</div>
+                  <div class="empty-state-title">لا توجد بيانات</div>
+                  <div class="empty-state-sub">أضف أول بند لتبدأ.</div>
+                </div>
+  */
+  .empty-state {
+    text-align: center;
+    padding: 40px 24px;
+    color: var(--ms-ink-3);
+    background: var(--ms-surface-soft);
+    border-radius: var(--ms-radius-md);
+  }
+  .empty-state-icon {
+    font-size: 34px;
+    margin-bottom: 8px;
+    opacity: .75;
+  }
+  .empty-state-title {
+    font-size: var(--ms-fs-base);
+    font-weight: 600;
+    color: var(--ms-ink-2);
+    margin-bottom: 4px;
+  }
+  .empty-state-sub {
+    font-size: var(--ms-fs-sm);
+    color: var(--ms-ink-4);
+  }
+
+  /* Loading spinner — the codebase had NONE. Now htmx requests
+     that pair an element with `hx-indicator` get one for free. */
+  .ms-spinner,
+  .htmx-indicator {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--ms-line-strong);
+    border-top-color: var(--ms-brand);
+    border-radius: 50%;
+    animation: ms-spin 0.7s linear infinite;
+    vertical-align: middle;
+  }
+  .htmx-indicator {
+    opacity: 0;
+    transition: opacity .2s;
+  }
+  .htmx-request .htmx-indicator,
+  .htmx-request.htmx-indicator {
+    opacity: 1;
+  }
+  @keyframes ms-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* KPI stat tile — used to be copy-pasted verbatim on every
+     list page (`.card p-4` + `.text-xs text-slate-500` +
+     `.text-2xl font-bold`). One class, one tone modifier. */
+  .stat-tile {
+    background: var(--ms-surface);
+    border: 1px solid var(--ms-line);
+    border-radius: var(--ms-radius-lg);
+    padding: 16px 18px;
+    box-shadow: var(--ms-shadow-sm);
+  }
+  .stat-tile-label {
+    font-size: var(--ms-fs-sm);
+    color: var(--ms-ink-3);
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .stat-tile-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ms-ink-1);
+    line-height: 1.15;
+    letter-spacing: -0.4px;
+  }
+  .stat-tile-hint {
+    font-size: var(--ms-fs-xs);
+    color: var(--ms-ink-3);
+    margin-top: 4px;
+  }
+  .stat-tile.tone-success { background: var(--ms-success-soft); }
+  .stat-tile.tone-success .stat-tile-value { color: var(--ms-success); }
+  .stat-tile.tone-warning { background: var(--ms-warning-soft); }
+  .stat-tile.tone-warning .stat-tile-value { color: var(--ms-warning); }
+  .stat-tile.tone-danger  { background: var(--ms-danger-soft); }
+  .stat-tile.tone-danger  .stat-tile-value { color: var(--ms-danger); }
+  .stat-tile.tone-brand   { background: var(--ms-brand-soft); }
+  .stat-tile.tone-brand   .stat-tile-value { color: var(--ms-brand-dark); }
+
+  /* Page header wrapper — every page rolled its own inline
+     title-plus-actions strip. One consistent spacing rule now. */
+  .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ms-gap-3);
+    margin-bottom: var(--ms-gap-5);
+    flex-wrap: wrap;
+  }
+  .page-header .page-title {
+    font-size: var(--ms-fs-xl);
+    font-weight: 700;
+    color: var(--ms-ink-1);
+    margin: 0;
+  }
+  .page-header .page-actions {
+    display: flex;
+    gap: var(--ms-gap-2);
+    align-items: center;
+    flex-wrap: wrap;
+  }
+</style>

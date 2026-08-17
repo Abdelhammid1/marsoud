@@ -14,18 +14,44 @@
 <!-- DASH-01 styles, scoped via #dash-root so they can't leak into other
      pages. Mirrors the reference HTML 1:1 minus the standalone shell. -->
 <style>
+  /* MARSOUD-UI-DESIGN-SYSTEM (2026-08-18) — TKT-06/07/08/09.
+     The dashboard used to define its own private palette + font
+     (`IBM Plex Sans Arabic` vs base `Cairo`, `#159b54` vs base
+     `#059669`). Now every `--d-*` alias resolves to the central
+     `--ms-*` token from _design_tokens.html so the dashboard and
+     the rest of the app stop looking like different products.
+     No dashboard markup change needed — every `.kpi` / `.d-panel`
+     rule still reads `var(--d-green)`, they just now redirect
+     one level deeper. */
   #dash-root{
-    --d-green:#159b54;--d-green-deep:#0f7a41;--d-green-soft:#e7f6ed;--d-green-tint:#f1faf4;
-    --d-red:#dc4640;--d-red-soft:#fceceb;
-    --d-amber:#c47d10;--d-amber-soft:#fdf3e1;
-    --d-blue:#2d6fb3;--d-blue-soft:#e9f1fb;
+    --d-green:var(--ms-brand);
+    --d-green-deep:var(--ms-brand-dark);
+    --d-green-soft:var(--ms-brand-soft);
+    --d-green-tint:var(--ms-brand-tint);
+    --d-red:var(--ms-danger);
+    --d-red-soft:var(--ms-danger-soft);
+    --d-amber:var(--ms-warning);
+    --d-amber-soft:var(--ms-warning-soft);
+    --d-blue:var(--ms-info);
+    --d-blue-soft:var(--ms-info-soft);
     --d-violet:#6a52c4;--d-violet-soft:#efebfb;
     --d-teal:#0e9b86;--d-teal-soft:#e3f6f2;
-    --d-ink:#16241d;--d-ink-2:#586660;--d-ink-3:#8b988f;
-    --d-line:#e8ece9;--d-line-strong:#d6ded8;--d-bg:#f5f7f6;--d-surface:#fff;
-    --d-radius:16px;--d-radius-sm:11px;
-    --d-shadow:0 1px 2px rgba(22,36,29,.04);--d-shadow-hov:0 10px 30px rgba(22,36,29,.09);
-    font-family:'IBM Plex Sans Arabic','Cairo',system-ui,sans-serif;color:var(--d-ink);
+    --d-ink:var(--ms-ink-1);
+    --d-ink-2:var(--ms-ink-2);
+    --d-ink-3:var(--ms-ink-3);
+    --d-line:var(--ms-line);
+    --d-line-strong:var(--ms-line-strong);
+    --d-bg:var(--ms-bg);
+    --d-surface:var(--ms-surface);
+    --d-radius:var(--ms-radius-lg);
+    --d-radius-sm:var(--ms-radius-sm);
+    --d-shadow:var(--ms-shadow-sm);
+    --d-shadow-hov:var(--ms-shadow-lg);
+    /* Unified font — was IBM Plex Sans Arabic; now the app's
+       Cairo so the dashboard doesn't stand out as a different
+       typeface. */
+    font-family:var(--ms-font-body);
+    color:var(--d-ink);
   }
   #dash-root .section-label{font-size:12.5px;font-weight:600;color:var(--d-ink-3);margin:24px 2px 13px;display:flex;align-items:center;gap:8px;letter-spacing:.3px}
   #dash-root .section-label:first-of-type{margin-top:6px}
@@ -458,7 +484,7 @@
           <a href="{{ url_for('reports.ar_aging') }}" style="color:var(--d-green-deep);font-weight:600;font-size:12.5px;text-decoration:none">عرض الكل →</a>
         </div>
       {% else %}
-        <div style="padding:34px 19px;text-align:center;color:var(--d-ink-3);font-size:13px">لا توجد فواتير متأخرة حالياً ✅</div>
+        <div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-title">لا توجد فواتير متأخرة حالياً</div></div>
       {% endif %}
     </div>
 
@@ -549,7 +575,7 @@
           <a href="{{ url_for('vendor_bills.index') }}" style="color:var(--d-green-deep);font-weight:600;font-size:12.5px;text-decoration:none">فواتير الموردين →</a>
         </div>
       {% else %}
-        <div style="padding:34px 19px;text-align:center;color:var(--d-ink-3);font-size:13px">لا توجد فواتير موردين متأخرة ✅</div>
+        <div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-title">لا توجد فواتير موردين متأخرة</div></div>
       {% endif %}
     </div>
 
@@ -600,7 +626,7 @@
           <a href="{{ url_for('forecast.index') }}" style="color:var(--d-green-deep);font-weight:600;font-size:12.5px;text-decoration:none">الجدول الكامل →</a>
         </div>
       {% else %}
-        <div style="padding:34px 19px;text-align:center;color:var(--d-ink-3);font-size:13px">لا توجد فواتير قادمة خلال 7 أيام</div>
+        <div class="empty-state"><div class="empty-state-icon">📅</div><div class="empty-state-title">لا توجد فواتير قادمة خلال 7 أيام</div></div>
       {% endif %}
     </div>
   </div>

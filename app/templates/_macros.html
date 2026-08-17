@@ -1,0 +1,101 @@
+{# MARSOUD-UI-DESIGN-SYSTEM (2026-08-18) — TKT-06/07/08/09.
+
+   Shared Jinja macros. Import at the top of a template with:
+      {% import '_macros.html' as ui %}
+   then call:
+      {{ ui.empty_state("لا توجد فواتير", sub="أضف أول فاتورة لتبدأ.", icon="📥") }}
+      {{ ui.stat_tile("عدد الفواتير", totals.count) }}
+      {{ ui.stat_tile("المدفوع", totals.paid, hint="إجمالي المدفوع للموردين", tone="success") }}
+      {{ ui.status_badge(bill.status.value, kind="invoice") }}
+#}
+
+{% macro empty_state(title, sub="", icon="🗂️", cta_url=None, cta_label=None) -%}
+  <div class="empty-state">
+    <div class="empty-state-icon">{{ icon }}</div>
+    <div class="empty-state-title">{{ title }}</div>
+    {% if sub %}<div class="empty-state-sub">{{ sub }}</div>{% endif %}
+    {% if cta_url and cta_label %}
+      <div style="margin-top:12px">
+        <a href="{{ cta_url }}" class="btn-primary text-sm">{{ cta_label }}</a>
+      </div>
+    {% endif %}
+  </div>
+{%- endmacro %}
+
+
+{% macro stat_tile(label, value, hint="", tone="", value_class="font-mono") -%}
+  <div class="stat-tile {% if tone %}tone-{{ tone }}{% endif %}">
+    <div class="stat-tile-label">{{ label }}</div>
+    <div class="stat-tile-value {{ value_class }}">{{ value }}</div>
+    {% if hint %}<div class="stat-tile-hint">{{ hint }}</div>{% endif %}
+  </div>
+{%- endmacro %}
+
+
+{# MARSOUD-UI-DESIGN-SYSTEM — collapses the status-class map that
+   was duplicated verbatim across invoices/index.html, view.html,
+   vendor_bills/index.html, view.html. `kind` picks the label set
+   ('invoice' | 'bill') — enum values are the same, only the
+   Arabic labels differ slightly (فاتورة عميل vs فاتورة مورد
+   status wording). #}
+{% set _STATUS_CLASSES = {
+  'DRAFT':              'badge-draft',
+  'POSTED':             'badge-sent',
+  'PARTIALLY_PAID':     'badge-partial',
+  'PAID':               'badge-paid',
+  'OVERDUE':            'badge-overdue',
+  'CANCELLED':          'badge-cancelled',
+  'REFUNDED':           'badge-refunded',
+  'PARTIALLY_REFUNDED': 'badge-refunded',
+  'SENT':               'badge-sent',
+  'VOIDED':             'badge-cancelled',
+  'DUE_TODAY':          'badge-amber',
+  'UPCOMING':           'badge-sent',
+} %}
+
+{% set _INVOICE_STATUS_LABELS_AR = {
+  'DRAFT':              'مسودة',
+  'POSTED':             'مسجّلة',
+  'SENT':               'مرسلة',
+  'PARTIALLY_PAID':     'مدفوعة جزئياً',
+  'PAID':               'مدفوعة',
+  'OVERDUE':            'متأخرة',
+  'CANCELLED':          'ملغاة',
+  'REFUNDED':           'مرتجعة',
+  'PARTIALLY_REFUNDED': 'مرتجعة جزئياً',
+  'VOIDED':             'ملغاة',
+} %}
+
+{% set _BILL_STATUS_LABELS_AR = {
+  'DRAFT':              'مسودة',
+  'POSTED':             'مسجّلة',
+  'PARTIALLY_PAID':     'مدفوعة جزئياً',
+  'PAID':               'مدفوعة',
+  'OVERDUE':            'متأخرة',
+  'CANCELLED':          'ملغاة',
+  'REFUNDED':           'مرتجعة',
+  'PARTIALLY_REFUNDED': 'مرتجعة جزئياً',
+  'DUE_TODAY':          'مستحقة اليوم',
+  'UPCOMING':           'قادمة',
+} %}
+
+
+{% macro status_badge(status_code, kind='invoice') -%}
+  {% set klass = _STATUS_CLASSES.get(status_code, 'badge-draft') %}
+  {% if kind == 'bill' %}
+    {% set label = _BILL_STATUS_LABELS_AR.get(status_code, status_code) %}
+  {% else %}
+    {% set label = _INVOICE_STATUS_LABELS_AR.get(status_code, status_code) %}
+  {% endif %}
+  <span class="badge {{ klass }}">{{ label }}</span>
+{%- endmacro %}
+
+
+{% macro page_header(title, actions="") -%}
+  <div class="page-header">
+    <h2 class="page-title">{{ title }}</h2>
+    {% if actions %}
+      <div class="page-actions">{{ actions|safe }}</div>
+    {% endif %}
+  </div>
+{%- endmacro %}

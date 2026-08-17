@@ -160,7 +160,17 @@
         <td><a href="{{ url_for('vendor_bills.view', bill_id=b.id) }}" class="text-brand-600 hover:underline text-sm">عرض</a></td>
       </tr>
       {% else %}
-      <tr><td colspan="12" class="text-center text-slate-400 py-8">لا توجد فواتير موردين</td></tr>
+      {# MARSOUD-UI-DESIGN-SYSTEM (2026-08-18) — was a bare
+         `text-slate-400 py-8` cell. Now uses the canonical
+         `.empty-state` primitive so every empty-state in the
+         app renders identically. #}
+      <tr><td colspan="12" style="padding:0">
+        <div class="empty-state">
+          <div class="empty-state-icon">📥</div>
+          <div class="empty-state-title">لا توجد فواتير موردين</div>
+          <div class="empty-state-sub">أضف أول فاتورة مورد لتبدأ.</div>
+        </div>
+      </td></tr>
       {% endfor %}
     </tbody>
   </table>
