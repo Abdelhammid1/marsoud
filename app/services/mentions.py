@@ -23,7 +23,7 @@ import re
 from typing import Set
 
 from app import db
-from app.models import User, Notification, NotificationKind
+from app.models import Company, User, Notification, NotificationKind
 
 
 # `@[Name with spaces](user:12345)`
@@ -115,6 +115,12 @@ def notify_mentions(*, actor_user_id, mentioned_user_ids, company_id,
                 entity_label=entity_label,
                 link_url=link_url,
                 snippet=trimmed,
+                # MARSOUD-MENTION-EMAIL-FIX (2026-08-13) — pass
+                # the company through so the shared email
+                # shell (_base.html) can pick up the tenant's
+                # logo + name for the header, matching every
+                # other transactional email.
+                company_id=company_id,
             )
         except Exception:
             import logging
@@ -126,21 +132,40 @@ def notify_mentions(*, actor_user_id, mentioned_user_ids, company_id,
 
 
 def _send_mention_email(*, user_id, actor_name, entity_kind,
-                             entity_label, link_url, snippet):
+                             entity_label, link_url, snippet,
+                             company_id=None):
+    """Render + send the mention notification email.
+
+    MARSOUD-MENTION-EMAIL-FIX (2026-08-13) —
+      · Callers supply `link_url` as an ABSOLUTE URL (they
+        build it with `_external=True`). The old
+        `SERVER_URL` prefix hack read a config key that
+        was never set, so the button rendered as an inert
+        relative href in Gmail / Outlook.
+      · `company_id` is resolved best-effort into a
+        `Company` object and passed as `company=` to the
+        template, so the shared shell picks up the
+        tenant's logo + name. Any resolution failure
+        downgrades to the default header — the email is
+        still sent (fail-safe requirement from the DoD).
+    """
     from app.services.email import send_email
-    from flask import render_template, current_app
+    from flask import render_template
     u = db.session.get(User, user_id)
     if not u or not (u.email or "").strip():
         return
-    # Absolute URL for the button in the email — falls back to the
-    # relative path if SERVER_NAME isn't configured (dev env).
-    base = current_app.config.get("SERVER_URL")
-    href = link_url if not base else base.rstrip("/") + link_url
+    co = None
+    if company_id:
+        try:
+            co = db.session.get(Company, company_id)
+        except Exception:
+            co = None
     html = render_template(
         "emails/mention.html",
         recipient=u, actor_name=actor_name,
         entity_kind=entity_kind, entity_label=entity_label,
-        link_url=href, snippet=snippet,
+        link_url=link_url, snippet=snippet,
+        company=co,
     )
     subject = f"💬 {actor_name} ذكرك في {entity_label}"
     send_email(u.email, subject, html)

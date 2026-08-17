@@ -700,8 +700,13 @@ def comment_add(lead_id):
                 company_id=lead.company_id,
                 entity_kind="lead",
                 entity_label=f"عميل محتمل: {lead.client_name}",
+                # MARSOUD-MENTION-EMAIL-FIX (2026-08-13) —
+                # _external=True so Gmail/Outlook render the
+                # email button as a clickable link.
                 link_url=(
-                    url_for("leads.detail", lead_id=lead.id) + "#comments"
+                    url_for("leads.detail", lead_id=lead.id,
+                             _external=True)
+                    + "#comments"
                 ),
                 snippet=content,
             )
