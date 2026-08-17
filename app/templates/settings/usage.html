@@ -7,8 +7,16 @@
     <div class="flex items-start justify-between mb-4">
       <div>
         <h2 class="font-bold text-navy-900 text-lg">📊 استهلاك الباقة</h2>
+        {# MARSOUD-PLAN-SSOT — was `active_company.plan.name` which
+           reads the LEGACY Company.plan String column and calls
+           `.name` on it (strings have no .name → renders empty
+           or errors). Goes through plan_snapshot now for parity
+           with the super-admin and API. #}
+        {% set ps = plan_snapshot(active_company) %}
         <p class="text-sm text-slate-500 mt-1">
-          استهلاكك الحالي من الحدود المخصّصة لباقة {{ active_company.plan.name if active_company.plan else '—' }}.
+          استهلاكك الحالي من الحدود المخصّصة لباقة
+          <span class="font-semibold text-navy-900">{{ ps.plan_name_ar or 'بلا باقة' }}</span>
+          <span class="badge {{ ps.status_badge_class }} mr-2">{{ ps.status_label_ar }}</span>.
           الأشرطة الحمراء تعني أنّك اقتربت أو تجاوزت الحد.
         </p>
       </div>

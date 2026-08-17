@@ -66,49 +66,64 @@ def _e500(e):
 # ─── Auth guard ─────────────────────────────────────────────────────────
 @bp.before_request
 def _require_api_token():
-    """Every endpoint requires a valid bearer token (resolved upstream
-    by Flask-Login's request_loader). If `current_user` isn't set or
-    isn't active, return 401 JSON instead of Flask-Login's default HTML
-    redirect to /login.
+    """Every endpoint requires a valid bearer token.
+
+    MARSOUD-PLAN-SSOT (2026-08-17) — trusts the Authorization header
+    as the sole source of truth for bearer identity, never
+    `current_user` alone. Flask 2+ binds `flask.g` to the app_context,
+    not the request context; a test harness that pushes an app_context
+    and then makes multiple test_client requests (or a session-cookie
+    login in one call followed by a bearer call in the next) would
+    see `g._login_user` leak between requests and falsely authorize
+    the bearer call. Verifying the bearer header fresh on every
+    request kills that leak.
 
     Company resolution:
       - `?company_id=N` query param → use that company if the caller is
-        a member; 403 otherwise. Lets a single token query any company
-        the user belongs to per request.
-      - Otherwise → first company in `current_user.companies`.
+        a member; 403 otherwise.
+      - Otherwise → first company in the token owner's companies.
     """
-    if not current_user.is_authenticated:
-        return _err("missing or invalid bearer token", 401)
-    if not getattr(current_user, "is_active", False):
-        return _err("inactive user", 401)
-    if g.get("active_company"):
-        pass
-    else:
-        companies = list(current_user.companies)
-        if not companies:
-            return _err("user has no company", 403)
-        cid_arg = request.args.get("company_id", type=int)
-        if cid_arg:
-            match = next((c for c in companies if c.id == cid_arg), None)
-            if not match:
-                return _err(
-                    f"you are not a member of company {cid_arg}", 403)
-            g.active_company = match
-        else:
-            g.active_company = companies[0]
-
-    # MARSOUD-API-RATE-LIMIT (Abdelhamid 2026-07-22) — per-ApiToken
-    # rate limit AFTER auth so we know which token is spending. Always
-    # re-verify the bearer header here — Flask-Login can cache the
-    # resolved user across requests in a client session, which means
-    # `request_loader` (and any g.api_token_id it stashes) only runs
-    # on the FIRST request. Re-reading is O(1) hash lookup, cheap.
-    token_id = None
+    # ── Fresh bearer verify ──────────────────────────────────────
     auth = request.headers.get("Authorization", "")
+    tok = None
     if auth.startswith("Bearer "):
-        from app.services.api_tokens import verify_token
-        tok = verify_token(auth[7:].strip())
-        token_id = tok.id if tok else None
+        raw = auth[7:].strip()
+        if raw:
+            try:
+                from app.services.api_tokens import verify_token
+                tok = verify_token(raw)
+            except Exception:
+                tok = None
+    if tok is None:
+        return _err("missing or invalid bearer token", 401)
+    if not tok.user or not tok.user.is_active:
+        return _err("inactive user", 401)
+
+    # ── Load current_user for the view, without polluting session ──
+    from flask_login import login_user
+    if not (current_user.is_authenticated
+            and getattr(current_user, "id", None) == tok.user_id):
+        # Directly install on g — do NOT call login_user() with force,
+        # which writes session["_user_id"] and lets a proxy leak the
+        # bearer-authenticated session to future non-bearer requests.
+        g._login_user = tok.user
+
+    # ── Always re-resolve active company from the fresh user ──────
+    companies = list(tok.user.companies)
+    if not companies:
+        return _err("user has no company", 403)
+    cid_arg = request.args.get("company_id", type=int)
+    if cid_arg:
+        match = next((c for c in companies if c.id == cid_arg), None)
+        if not match:
+            return _err(
+                f"you are not a member of company {cid_arg}", 403)
+        g.active_company = match
+    else:
+        g.active_company = companies[0]
+
+    # ── Rate limit — reuse the token we already verified. ─────────
+    token_id = tok.id
     if token_id is not None:
         from app.services.rate_limit import check_and_increment
         ok, retry_after = check_and_increment(token_id)
@@ -392,10 +407,16 @@ def my_tasks_global():
 @bp.route("/me", methods=["GET"])
 def me():
     from app.services.permissions import get_user_role, P, _IMPLIES
+    from app.services.plan_snapshot import plan_snapshot
     role = get_user_role(current_user.id, g.active_company.id)
     # List every permission this user has (via DB-backed role + legacy)
     perms = sorted([code for code in P
                     if has_permission(code)])
+    # MARSOUD-PLAN-SSOT (2026-08-17) — include the plan snapshot so
+    # mobile clients + third-party integrations read the plan from
+    # the SAME single source of truth the web uses. Trial is a
+    # subscription STATUS, not a plan — never returns "Free".
+    ps = plan_snapshot(g.active_company)
     return jsonify({
         "user": _user_brief(current_user),
         "company": {"id": g.active_company.id,
@@ -403,6 +424,16 @@ def me():
                     "base_currency": g.active_company.base_currency},
         "role": role,
         "permissions": perms,
+        "subscription": {
+            "plan_code":    ps["plan_code"],
+            "plan_name_ar": ps["plan_name_ar"],
+            "status":       ps["status"],
+            "access_mode":  ps["access_mode"],
+            "trial_ends_at": _iso(ps["trial_ends_at"]),
+            "subscription_started_at": _iso(ps["subscription_started_at"]),
+            "subscription_expires_at": _iso(ps["subscription_expires_at"]),
+            "warning_days_left": ps["warning_days_left"],
+        },
     })
 
 

@@ -35,13 +35,20 @@
           {% endfor %}
         </select>
       </div>
+      {# MARSOUD-PLAN-SSOT — the FREE/PRO/ENTERPRISE selector wrote to
+         Company.plan (a legacy String column) and was the primary
+         source of "FREE" leaking into the super-admin UI. The
+         authoritative way to change a company's plan is the plan-
+         switcher on the detail page (POSTs to
+         superadmin.companies_assign_plan and updates plan_id +
+         subscription rows). This selector is removed intentionally. #}
       <div>
         <label class="block text-sm text-ink-200 mb-1">الباقة</label>
-        <select name="plan" class="select">
-          {% for p in ['FREE','PRO','ENTERPRISE'] %}
-          <option value="{{ p }}" {% if (company.plan or 'FREE')==p %}selected{% endif %}>{{ p }}</option>
-          {% endfor %}
-        </select>
+        <div class="text-xs text-ink-200">
+          تُغيَّر الباقة من زر «تحديث الباقة» في صفحة الشركة
+          — <a href="{{ url_for('superadmin.company_detail', company_id=company.id) }}"
+                class="text-brand-400 hover:underline">افتح الصفحة</a>.
+        </div>
       </div>
     </div>
   </div>

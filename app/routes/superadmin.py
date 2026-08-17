@@ -181,9 +181,13 @@ def company_edit(company_id):
         if new_status in ("ACTIVE", "SUSPENDED", "TRIAL"):
             company.status = new_status
             company.is_active = (new_status != "SUSPENDED")
-        new_plan = (request.form.get("plan") or company.plan or "FREE").upper()
-        if new_plan in ("FREE", "PRO", "ENTERPRISE"):
-            company.plan = new_plan
+        # MARSOUD-PLAN-SSOT — the `plan` form field was writing to
+        # Company.plan (a legacy String column, defaulted to "FREE")
+        # which was the primary source of the "FREE" label leaking into
+        # the super-admin UI. The plan-switcher on the company detail
+        # page (POSTs to `companies_assign_plan` and updates plan_id)
+        # is now the ONLY supported way to change a company's plan.
+        # We deliberately ignore any `plan` field on this form.
         db.session.commit()
         log_platform_action("company_edit", target_company_id=company_id,
                             details=f"name={company.name}")
