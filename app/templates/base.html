@@ -34,6 +34,12 @@ tailwind.config = {
   },
 };
 </script>
+{# MARSOUD-UI-DESIGN-SYSTEM (2026-08-18) — TKT-06/07/08/09.
+   Central design tokens (--ms-* CSS vars) + shared primitives
+   (.empty-state, .htmx-indicator, .stat-tile, .page-header).
+   MUST load before the inline <style> block below so any rule
+   in that block can consume the variables. #}
+{% include '_design_tokens.html' %}
 <style>
   body {
     font-family: 'Cairo', sans-serif;
