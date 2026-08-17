@@ -189,8 +189,11 @@ def register():
         # every gate below now calls `record_rejection` on trip so
         # the auto-learning has fuel to work with.
         from app.services.signup_rejections import (
-            is_domain_blocked, record_rejection,
+            is_domain_blocked, is_email_blocked, record_rejection,
+            block_domain_now, block_email, WHITELISTED_DOMAINS,
+            _extract_domain,
         )
+        from app.services.bot_guard import honeypot_value
         early_email = (request.form.get("email") or "").strip().lower()
         early_ip = client_ip(request)
         if is_domain_blocked(early_email):
@@ -201,12 +204,39 @@ def register():
                               ip_address=early_ip)
             return render_template(
                 "auth/register_success_decoy.html"), 200
+        # MARSOUD-BOT-REGISTRATION-VISIBILITY (2026-08-17) — TKT-17.
+        # Per-email blocklist check. Same soft-success decoy so a
+        # bot cannot tell "your email is banned" from "submit ok".
+        if is_email_blocked(early_email):
+            record_rejection("blocked_email", early_email,
+                              ip_address=early_ip)
+            return render_template(
+                "auth/register_success_decoy.html"), 200
         if honeypot_tripped(request.form):
             # DO NOT return an error — that tells the bot the trap
             # exists. Answer with a plain "OK" page and quietly
             # discard the request. To the bot, everything worked.
+            #
+            # MARSOUD-BOT-REGISTRATION-VISIBILITY (2026-08-17) —
+            # TKT-17. Capture the raw honeypot payload so the
+            # super-admin can see what the bot was trying to inject.
+            # Then permanently block the exact email (works even on
+            # whitelisted domains), and immediately block the domain
+            # if it's OUTSIDE the whitelisted safe-list (gmail,
+            # outlook, yahoo, hotmail, icloud, …). No 3-in-24h
+            # counter — one bot trip is enough.
+            hp_val = honeypot_value(request.form)
             record_rejection("honeypot", early_email,
-                              ip_address=early_ip)
+                              ip_address=early_ip,
+                              honeypot_value=hp_val)
+            block_email(early_email,
+                         reason=f"bot honeypot trip: {hp_val[:80]}"
+                                if hp_val else "bot honeypot trip")
+            d = _extract_domain(early_email)
+            if d and d not in WHITELISTED_DOMAINS:
+                block_domain_now(
+                    d, reason="bot honeypot trip (non-whitelisted "
+                    "domain)")
             return render_template("auth/register_success_decoy.html"), 200
         ip = client_ip(request)
         if not register_rate_ok(ip):

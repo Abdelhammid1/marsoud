@@ -51,6 +51,18 @@ def honeypot_tripped(form):
     return bool(val)
 
 
+def honeypot_value(form):
+    """MARSOUD-BOT-REGISTRATION-VISIBILITY (2026-08-17) — TKT-17.
+
+    Return the raw string the caller submitted in the honeypot
+    field. Empty string when the field is missing or blank. Used
+    by `auth.register` to persist the payload onto the
+    SignupRejection row so the super-admin can see exactly what
+    the bot was trying to inject (URLs, promo text, XSS
+    attempts). Never raises."""
+    return (form.get(HONEYPOT_FIELD) or "").strip()
+
+
 # ─── 2. Rate limit (per-IP sliding window, in-memory) ────────────
 _REGISTER_WINDOW_SECS = 3600   # 1 hour
 _REGISTER_MAX_PER_WINDOW = 5   # per the ticket

@@ -1508,7 +1508,11 @@ def companies_inactive():
 @login_required
 @superadmin_required
 def rejected_signups():
-    from app.models import SignupRejection, BlockedDomain
+    # MARSOUD-BOT-REGISTRATION-VISIBILITY (2026-08-17) — TKT-17.
+    # Now also queries the per-email blocklist so the super-admin
+    # sees the emails that tripped the honeypot alongside the
+    # domains.
+    from app.models import SignupRejection, BlockedDomain, BlockedEmail
     from app.services.signup_rejections import (
         WHITELISTED_DOMAINS, HONEYPOT_TRIGGER_COUNT,
         HONEYPOT_TRIGGER_WINDOW_HOURS,
@@ -1520,9 +1524,14 @@ def rejected_signups():
                 .filter_by(is_active=True)
                 .order_by(BlockedDomain.blocked_at.desc())
                 .all())
+    blocked_emails = (BlockedEmail.query
+                       .filter_by(is_active=True)
+                       .order_by(BlockedEmail.blocked_at.desc())
+                       .all())
     return render_template(
         "admin/rejected_signups.html",
         rejections=rejections, blocked=blocked,
+        blocked_emails=blocked_emails,
         whitelist=sorted(WHITELISTED_DOMAINS),
         trigger_count=HONEYPOT_TRIGGER_COUNT,
         trigger_window_hours=HONEYPOT_TRIGGER_WINDOW_HOURS,
@@ -1541,6 +1550,23 @@ def rejected_signups_unblock():
         flash(f"تم فك الحظر عن {domain}", "success")
     else:
         flash("الدومين ليس محظوراً حالياً", "info")
+    return redirect(url_for("superadmin.rejected_signups"))
+
+
+# MARSOUD-BOT-REGISTRATION-VISIBILITY (2026-08-17) — TKT-17.
+# Sibling of rejected_signups_unblock for the per-email blocklist.
+@bp.route("/rejected-signups/unblock-email", methods=["POST"])
+@login_required
+@superadmin_required
+def rejected_signups_unblock_email():
+    from app.services.signup_rejections import unblock_email
+    email = (request.form.get("email") or "").strip().lower()
+    if not email:
+        flash("لم يتم تحديد بريد إلكتروني", "error")
+    elif unblock_email(email, actor_id=current_user.id):
+        flash(f"تم فك الحظر عن {email}", "success")
+    else:
+        flash("البريد ليس محظوراً حالياً", "info")
     return redirect(url_for("superadmin.rejected_signups"))
 
 

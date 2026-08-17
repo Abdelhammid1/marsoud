@@ -65,9 +65,15 @@ def _teardown():
     with db.engine.begin() as conn:
         conn.execute(text("DELETE FROM signup_rejections"))
         conn.execute(text("DELETE FROM blocked_domains"))
+        # MARSOUD-BOT-REGISTRATION-VISIBILITY (2026-08-17) —
+        # TKT-17 introduced BlockedEmail. Purge here too so
+        # test 2's honeypot POST doesn't get short-circuited
+        # by a leftover row from a previous run.
+        conn.execute(text("DELETE FROM blocked_emails"))
         conn.execute(text(
             "DELETE FROM platform_audit_logs "
-            "WHERE action LIKE 'signup_domain_%'"))
+            "WHERE action LIKE 'signup_domain_%' "
+            "OR action LIKE 'signup_email_%'"))
         conn.execute(text(
             "DELETE FROM users WHERE email LIKE 'sab-%@x.test' "
             "OR email LIKE 'sab-super@x.test' "
@@ -212,57 +218,64 @@ def _():
     return f"{len(rl_rows)} rate_limit rows"
 
 
-@check("4. 2 honeypot trips → NO BlockedDomain yet")
+@check("4. Any single honeypot trip → BlockedDomain immediately (TKT-17)")
 def _():
+    # MARSOUD-BOT-REGISTRATION-VISIBILITY (2026-08-17) — TKT-17
+    # inverted the old 3-in-24h rule. A bot honeypot trip on a
+    # non-whitelisted domain now blocks the domain IMMEDIATELY
+    # (via `block_domain_now`, not `maybe_auto_block`).
     from flask import current_app
     from app.models import BlockedDomain
     _teardown()
     client = current_app.test_client()
-    for i in range(2):
-        _post_signup(client,
-                      email=f"sab-t4{i}@bot4-evil.test",
-                      honeypot="x", ip=f"10.99.4.{i}")
+    _post_signup(client,
+                  email="sab-t4@bot4-evil.test",
+                  honeypot="x", ip="10.99.4.1")
     n = BlockedDomain.query.filter_by(
-        domain="bot4-evil.test").count()
-    assert n == 0, f"blocked too early ({n})"
-    return "no premature block"
+        domain="bot4-evil.test", is_active=True).count()
+    assert n == 1, f"expected immediate block, got {n}"
+    return "immediate block (TKT-17)"
 
 
-@check("5. 3rd honeypot trip → BlockedDomain + PAL entry")
+@check("5. Honeypot trip on non-whitelisted domain → PAL entry")
 def _():
+    # MARSOUD-BOT-REGISTRATION-VISIBILITY (2026-08-17) — TKT-17.
+    # Action name changed from `signup_domain_auto_blocked`
+    # (the 3-in-24h path) to `signup_domain_immediate_blocked`.
     from flask import current_app
     from app.models import BlockedDomain, PlatformAuditLog
     _teardown()
     client = current_app.test_client()
-    for i in range(3):
-        _post_signup(client,
-                      email=f"sab-t5{i}@bot5-evil.test",
-                      honeypot="x", ip=f"10.99.5.{i}")
+    _post_signup(client,
+                  email="sab-t5@bot5-evil.test",
+                  honeypot="x", ip="10.99.5.0")
     row = BlockedDomain.query.filter_by(
         domain="bot5-evil.test", is_active=True).first()
     assert row is not None, "domain not auto-blocked"
     pal = PlatformAuditLog.query.filter_by(
-        action="signup_domain_auto_blocked").count()
-    assert pal >= 1, "no PAL entry for auto-block"
+        action="signup_domain_immediate_blocked").count()
+    assert pal >= 1, "no PAL entry for immediate-block"
     return f"blocked + audit line"
 
 
-@check("6. Auto-block enforcement — 4th POST returns decoy + logs")
+@check("6. Auto-block enforcement — subsequent POST returns decoy + logs")
 def _():
+    # MARSOUD-BOT-REGISTRATION-VISIBILITY (2026-08-17) — TKT-17.
+    # Was "3 honeypots then 4th intercepted". Now one honeypot
+    # is enough (see test 4 above) so we trip once + verify a
+    # second POST is intercepted by the block gate.
     from flask import current_app
     from app.models import (
         SignupRejection, BlockedDomain, User, Company,
     )
     _teardown()
     client = current_app.test_client()
-    # Trigger the block first (3 honeypots).
-    for i in range(3):
-        _post_signup(client,
-                      email=f"sab-t6{i}@bot6-evil.test",
-                      honeypot="x", ip=f"10.99.6.{i}")
+    _post_signup(client,
+                  email="sab-t6@bot6-evil.test",
+                  honeypot="x", ip="10.99.6.0")
     assert BlockedDomain.query.filter_by(
         domain="bot6-evil.test", is_active=True).first()
-    # 4th POST (WITHOUT honeypot) — must be intercepted by
+    # 2nd POST (WITHOUT honeypot) — must be intercepted by
     # the pre-gate block check and return the decoy.
     r = _post_signup(client,
                       email="sab-t6-legit@bot6-evil.test",
@@ -311,37 +324,36 @@ def _():
     return f"logged {n_rej}, block skipped"
 
 
-@check("8. Windowing — 3 honeypots older than 24h don't trigger")
+@check("8. Windowing still applies for WHITELISTED domains (3-in-24h)")
 def _():
+    # MARSOUD-BOT-REGISTRATION-VISIBILITY (2026-08-17) — TKT-17
+    # inverted the invariant for NON-whitelisted domains
+    # (immediate block, see test 4). But for whitelisted
+    # domains (gmail / outlook / …) the safe path is unchanged:
+    # a burner-gmail bot must never lock out real gmail users,
+    # so gmail.com is NEVER domain-blocked at all — the old
+    # window check for those hits `maybe_auto_block` which
+    # short-circuits on WHITELISTED_DOMAINS. We assert that
+    # even 5 backdated + 1 fresh honeypot trip from gmail
+    # produces NO BlockedDomain row.
     from flask import current_app
     from sqlalchemy import text
     from app.models import BlockedDomain, SignupRejection
     _teardown()
     client = current_app.test_client()
-    # Insert 3 honeypot rejections directly, backdated.
-    old = datetime.utcnow() - timedelta(hours=25)
-    for i in range(3):
+    for i in range(5):
         db.session.add(SignupRejection(
-            email_domain="stale-bot.test",
+            email_domain="gmail.com",
             reason="honeypot", ip_address=f"10.99.8.{i}"))
     db.session.commit()
-    db.session.execute(text(
-        "UPDATE signup_rejections "
-        "SET created_at = :old "
-        "WHERE email_domain = 'stale-bot.test'"),
-        {"old": old})
-    db.session.commit()
-    # A new honeypot rejection today should NOT trigger the
-    # block — the old 3 are outside the window, so the new
-    # one alone (window count = 1) is below the threshold.
     r = _post_signup(client,
-                      email="sab-t8@stale-bot.test",
+                      email="sab-t8@gmail.com",
                       honeypot="x", ip="10.99.8.99")
     assert r.status_code == 200
     n = BlockedDomain.query.filter_by(
-        domain="stale-bot.test").count()
-    assert n == 0, f"stale rejections triggered block ({n})"
-    return "window respected"
+        domain="gmail.com").count()
+    assert n == 0, f"gmail.com must never be blocked ({n})"
+    return "whitelist immunity"
 
 
 @check("9. Unblock flow — superadmin lifts + subsequent signup passes")
