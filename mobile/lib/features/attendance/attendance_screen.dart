@@ -55,6 +55,27 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final loc = await _tryLocation();
+      // MARSOUD-MOBILE-TKT-04 (2026-08-18) — GPS is mandatory.
+      // If _tryLocation() returned (null, null) — either the service
+      // is off, the permission was denied, or the fix timed out — DO
+      // NOT hit the network. Show a clear message + an "open
+      // settings" action so the user can turn on Location without
+      // hunting through Android/iOS menus.
+      if (loc.lat == null || loc.lng == null) {
+        messenger.showSnackBar(SnackBar(
+          duration: const Duration(seconds: 6),
+          content: const Text(
+            'لا يمكن تسجيل الحضور بدون GPS. تأكد من تفعيل الموقع '
+            '+ الإذن ثم حاول مرة أخرى.'),
+          action: SnackBarAction(
+            label: 'فتح الإعدادات',
+            onPressed: () async {
+              await Geolocator.openLocationSettings();
+            },
+          ),
+        ));
+        return;
+      }
       final repo = ref.read(myAccountRepoProvider);
       final r = checkin
           ? await repo.checkin(lat: loc.lat, lng: loc.lng)
@@ -198,7 +219,10 @@ class _TodayCard extends StatelessWidget {
           const SizedBox(height: 14),
           const _HintRow(
             icon: Icons.gps_fixed,
-            text: 'إن كان GPS مفعّلاً — نسجّل موقعك تلقائياً كإثبات. رفض الإذن لا يمنع التسجيل.',
+            // MARSOUD-MOBILE-TKT-04 (2026-08-18) — GPS is now
+            // mandatory (was optional). Copy updated to reflect
+            // that a missing/denied location blocks the check-in.
+            text: 'الموقع مطلوب لتسجيل الحضور — فعّل GPS واسمح بالإذن.',
           ),
         ],
       ),

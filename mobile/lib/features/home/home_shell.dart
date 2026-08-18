@@ -26,6 +26,15 @@ class _DrawerLink {
 // points was noise — matches the web sidebar convention (base.html:566-575).
 const _employeeDrawer = <_DrawerLink>[
   _DrawerLink('حسابي', '👤', '/home'),
+  // MARSOUD-MOBILE-TKT-01 (2026-08-18) — three modules added:
+  // leads, meetings, schedule. Placed near the top since the
+  // ticket lists them as employee-critical.
+  _DrawerLink('عملائي المحتملين', '🎯', '/leads'),
+  _DrawerLink('اجتماعاتي', '📅', '/meetings'),
+  _DrawerLink('جدولي', '🗓', '/schedule'),
+  // MARSOUD-MOBILE-TKT-03 (2026-08-18) — طلبات الموظف
+  // (leave / permission / advance forms).
+  _DrawerLink('طلباتي', '📮', '/requests'),
   // إدارة العمل — matches base.html:658-664
   _DrawerLink('المهام', '✅', '/tasks'),
   _DrawerLink('المشاريع', '📂', '/projects'),
