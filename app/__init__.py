@@ -118,6 +118,8 @@ def create_app(config_class=Config):
     from app.routes.api_v1_me import bp as api_v1_me_bp
     from app.routes.api_v1_notifications import bp as api_v1_notif_bp
     from app.routes.api_v1_misc import bp as api_v1_misc_bp
+    # MARSOUD-MOBILE-TKT-05 (2026-08-18) — push-token registration.
+    from app.routes.api_v1_push import bp as api_v1_push_bp
     from app.routes.settings_api_tokens import bp as settings_api_tokens_bp
     from app.routes.activity_views import (
         admin_activity_bp, settings_activity_bp,
@@ -189,6 +191,9 @@ def create_app(config_class=Config):
     app.register_blueprint(api_v1_me_bp, url_prefix="/api/v1/my")
     app.register_blueprint(api_v1_notif_bp, url_prefix="/api/v1/notifications")
     app.register_blueprint(api_v1_misc_bp, url_prefix="/api/v1/misc")
+    # MARSOUD-MOBILE-TKT-05 (2026-08-18)
+    app.register_blueprint(api_v1_push_bp,
+                            url_prefix="/api/v1/my/push-tokens")
     app.register_blueprint(settings_api_tokens_bp, url_prefix="/settings/api-tokens")
     app.register_blueprint(admin_activity_bp, url_prefix="/admin/activity")
     app.register_blueprint(settings_activity_bp, url_prefix="/settings/activity")

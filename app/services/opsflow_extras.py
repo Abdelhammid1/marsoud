@@ -24,6 +24,36 @@ from app.models import (
 from app.models.user import user_companies
 
 
+# MARSOUD-MOBILE-TKT-05 (2026-08-18) — which NotificationKinds
+# fire an FCM push (in addition to always writing the in-app
+# row). User picked "All employee-visible events" — every kind
+# an employee would care about on their phone. Owner-only /
+# platform-cron kinds (VENDOR_BILL_OVERDUE, QUOTA_THRESHOLD)
+# stay in-app-only so a 3am overdue-bill flip doesn't wake
+# every owner up.
+_PUSH_ENABLED_KINDS = frozenset({
+    "TASK_ASSIGNED",
+    "TASK_STATUS_CHANGED",
+    "TASK_COMMENT",
+    "TASK_UPDATED",
+    "TASK_DEADLINE_24H",
+    "PROJECT_DELIVERED",
+    "PROJECT_FEEDBACK_REQUESTED",
+    "PROJECT_FEEDBACK_SUBMITTED",
+    "LEAD_STATUS_CHANGED",
+    "MEETING_REMINDER",
+    "DIGEST_DRAFT_READY",
+    "EMPLOYEE_REPORT_SUBMITTED",
+    "MENTION",
+    "BROADCAST",
+    "NEW_LEAD",
+})
+
+
+def _kind_key(kind):
+    return kind.value if hasattr(kind, "value") else str(kind or "")
+
+
 # ─── Notifications ──────────────────────────────────────────────────────
 def notify(user_id, *, company_id, kind, title, body=None, link_url=None):
     """Insert a notification row. Commits the session (callers can rely on it
@@ -31,14 +61,40 @@ def notify(user_id, *, company_id, kind, title, body=None, link_url=None):
 
     `kind` should be a NotificationKind value (or a free-form string for
     forward-compat).
+
+    MARSOUD-MOBILE-TKT-05 (2026-08-18) — also fires an FCM push
+    to every active device of `user_id` when the kind is on the
+    push-allow list. Push is best-effort — a Firebase outage or
+    a missing service-account file MUST NOT block the in-app
+    notification (which is the load-bearing record). See
+    `app/services/fcm.py` for the send path.
     """
     n = Notification(
         company_id=company_id, user_id=user_id,
-        kind=kind.value if hasattr(kind, "value") else kind,
+        kind=_kind_key(kind),
         title=title, body=body, link_url=link_url,
     )
     db.session.add(n)
     db.session.commit()
+
+    kind_key = _kind_key(kind)
+    if kind_key in _PUSH_ENABLED_KINDS:
+        try:
+            from app.services.fcm import push_to_user
+            push_to_user(
+                user_id,
+                title=title, body=body, link_url=link_url,
+                kind=kind_key,
+                data_extras={"notification_id": n.id,
+                              "company_id": company_id},
+            )
+        except Exception:
+            # Absolutely never let a push failure roll back the
+            # in-app notification the caller relies on.
+            import logging as _l
+            _l.getLogger("marsoud.fcm").exception(
+                "push_to_user failed (user=%s kind=%s)",
+                user_id, kind_key)
     return n
 
 

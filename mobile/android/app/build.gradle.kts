@@ -3,6 +3,12 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // MARSOUD-MOBILE-TKT-05 (2026-08-18) — google-services
+    // must be applied AFTER the Android plugin. Requires
+    // mobile/android/app/google-services.json present at
+    // build time (dropped in from the Firebase console —
+    // gitignored).
+    id("com.google.gms.google-services")
 }
 
 android {

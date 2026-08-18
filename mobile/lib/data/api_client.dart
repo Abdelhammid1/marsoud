@@ -70,6 +70,14 @@ class ApiClient {
     return _run(() => _dio.post(path, data: body, queryParameters: query));
   }
 
+  // MARSOUD-MOBILE-TKT-05 (2026-08-18) — DELETE with an optional
+  // body. Used by the push-token revoke-by-token endpoint.
+  Future<dynamic> delete(String path,
+      {Object? body, Map<String, dynamic>? query}) async {
+    return _run(() =>
+        _dio.delete(path, data: body, queryParameters: query));
+  }
+
   Future<Response<T>> raw<T>(String path, {ResponseType? responseType,
       Options? options, Map<String, dynamic>? query}) async {
     final r = await _dio.get<T>(path,

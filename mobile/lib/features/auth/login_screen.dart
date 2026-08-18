@@ -7,6 +7,7 @@
 //     · email + password inputs (12px radius, blue focus ring)
 //     · navy-gradient submit button
 //   inline error surface
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ import '../../app/theme.dart';
 import '../../data/api_client.dart';
 import '../../data/auth_repository.dart';
 import '../../data/auth_state.dart';
+import '../../data/push_service.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/gradient_heading.dart';
 
@@ -54,6 +56,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         deviceName: _deviceLabel(),
       );
       await ref.read(authProvider.notifier).setSession(session);
+      // MARSOUD-MOBILE-TKT-05 (2026-08-18) — register the FCM
+      // token with the backend right after login. Best-effort —
+      // silent on any Firebase/permission failure. Fire-and-
+      // forget: we don't want a Firebase hiccup to hold up the
+      // login navigation.
+      unawaited(ref.read(pushServiceProvider).onLogin());
     } on ApiException catch (e) {
       setState(() => _error = _humanize(e));
     } catch (e) {
