@@ -19,6 +19,13 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // MARSOUD-MOBILE-TKT-05 (2026-08-18) — flutter_local_notifications
+        // uses java.time.LocalDateTime + java.util.concurrent.Flow which
+        // require core-library desugaring on Android < API 26. Without
+        // this flag the release build fails with:
+        //   "Dependency ':flutter_local_notifications' requires core
+        //    library desugaring to be enabled".
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -47,4 +54,12 @@ android {
 
 flutter {
     source = "../.."
+}
+
+// MARSOUD-MOBILE-TKT-05 (2026-08-18) — desugaring runtime library.
+// Version pinned to what flutter_local_notifications v18 requires
+// (2.1.4+). Google publishes the coordinate; safe to bump but
+// this floor is the tested one.
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
