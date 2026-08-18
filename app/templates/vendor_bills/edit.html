@@ -5,7 +5,13 @@
   {% if not full_edit %}
   <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4 text-sm">
     <div class="font-bold text-amber-900 mb-1">⚠ هذه الفاتورة مسجَّلة بالفعل في القيود</div>
-    <p class="text-amber-800">يمكنك تعديل <strong>الوصف، اسم المورد، رقم فاتورة المورد، والملاحظات</strong> فقط. المبالغ والحسابات مقفلة لحماية القيد المحاسبي والميزانية. لو محتاج تعدل المبالغ، الحل الصحيح هو عمل قيد عكسي + إعادة إصدار.</p>
+    {# MARSOUD-VBILL-CURRENCY-INLINE-EDIT (2026-08-18) — the
+       "الوصف" edit list now also includes "العملة" since
+       currency is a display-only label on a single-currency
+       bill (it doesn't touch the journal amounts). Users who
+       created a bill in the wrong currency by mistake can
+       correct it without SQL. #}
+    <p class="text-amber-800">يمكنك تعديل <strong>الوصف، اسم المورد، رقم فاتورة المورد، العملة، والملاحظات</strong> فقط. المبالغ والحسابات مقفلة لحماية القيد المحاسبي والميزانية. لو محتاج تعدل المبالغ، الحل الصحيح هو عمل قيد عكسي + إعادة إصدار.</p>
   </div>
   {% endif %}
 
@@ -36,6 +42,29 @@
           </select>
           {% else %}
           <input type="text" disabled value="{{ bill.payment_method.value }}" class="input bg-slate-100 cursor-not-allowed">
+          {% endif %}
+        </div>
+      </div>
+
+      {# MARSOUD-VBILL-CURRENCY-INLINE-EDIT (2026-08-18) —
+         currency picker. Available on BOTH DRAFT and POSTED bills
+         because changing a currency LABEL does not touch the
+         journal amounts (a bill posted for 500 SAR that should
+         have been 500 EGP still holds a 500 journal entry — only
+         the label changes). Whitelisted against CURRENCY_ORDER
+         server-side so a typo like "eGP" can't corrupt the row. #}
+      <div class="grid grid-cols-3 gap-4 mt-4">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">العملة</label>
+          <select name="currency" class="select">
+            {% for code, label in currency_choices %}
+            <option value="{{ code }}" {% if (bill.currency or 'EGP')|upper == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          {% if not full_edit %}
+          <p class="text-xs text-slate-500 mt-1">
+            العملة عبارة عن label بس — مش بتغير قيمة القيد.
+          </p>
           {% endif %}
         </div>
       </div>

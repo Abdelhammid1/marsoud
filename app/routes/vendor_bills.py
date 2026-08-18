@@ -746,6 +746,22 @@ def edit(bill_id):
 
     if request.method == "POST":
         try:
+            # MARSOUD-VBILL-CURRENCY-INLINE-EDIT (2026-08-18) —
+            # currency edit is available on BOTH DRAFT and POSTED
+            # bills. Whitelisted against CURRENCY_ORDER server-
+            # side so a typo can't write "eGP" into the column.
+            # Since currency is only a display label on a single-
+            # currency bill, applying it after the ledger is
+            # posted does not invalidate the journal (the amount
+            # stays the same number).
+            from app.services.currency import CURRENCY_ORDER
+            _new_currency_raw = (
+                request.form.get("currency") or "").strip().upper()
+            _currency_before = bill.currency
+            if _new_currency_raw and _new_currency_raw in CURRENCY_ORDER \
+                    and _new_currency_raw != (bill.currency or "").upper():
+                bill.currency = _new_currency_raw
+
             if full_edit:
                 # DRAFT — every field is fair game
                 _populate_from_form(bill, request.form)
@@ -783,15 +799,41 @@ def edit(bill_id):
                             ).first()
                             item.sub_category_id = row.id if row else None
                 db.session.commit()
+            # MARSOUD-VBILL-CURRENCY-INLINE-EDIT (2026-08-18) —
+            # audit trail for the currency swap. Best-effort so a
+            # log-table hiccup can't undo the edit; the DB
+            # transaction is already committed above.
+            if bill.currency and bill.currency != _currency_before:
+                try:
+                    import json as _json
+                    from app.models.activity import UserActivityLog
+                    db.session.add(UserActivityLog(
+                        company_id=bill.company_id,
+                        user_id=current_user.id,
+                        action_type="UPDATE",
+                        entity_type="VendorBill",
+                        entity_id=bill.id,
+                        entity_label=bill.number,
+                        extra_data=_json.dumps({
+                            "field": "currency",
+                            "before": _currency_before,
+                            "after": bill.currency,
+                        }),
+                    ))
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
             flash("تم حفظ التعديلات", "success")
             return redirect(url_for("vendor_bills.view", bill_id=bill.id))
         except (LedgerError, ValueError) as e:
             db.session.rollback()
             flash(str(e), "error")
 
+    from app.services.currency import currency_choices
     return render_template(
         "vendor_bills/edit.html",
         bill=bill, vendors=vendors, full_edit=full_edit,
+        currency_choices=currency_choices(),
     )
 
 
