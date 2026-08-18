@@ -70,13 +70,44 @@ def _tenant_owner_email(company):
     return row[0] if row and row[0] else None
 
 
+def _tenant_owner_phone(company):
+    """MARSOUD-SAAS-CUSTOMER-PHONE (2026-08-18) — TKT for the
+    "SaaS-mirror Customer has phone=NULL" bug. Mirrors
+    `_tenant_owner_email` above: same owner→admin→any fallback
+    order so email + phone stay in sync per tenant."""
+    from sqlalchemy import text
+    row = db.session.execute(text(
+        "SELECT u.phone FROM users u "
+        "JOIN user_companies uc ON uc.user_id = u.id "
+        "WHERE uc.company_id = :c "
+        "ORDER BY (CASE WHEN uc.role='owner' THEN 0 "
+        "               WHEN uc.role='admin' THEN 1 ELSE 2 END), "
+        "         u.id LIMIT 1"), {"c": company.id}).fetchone()
+    return row[0] if row and row[0] else None
+
+
 # ─── Customer mirror ─────────────────────────────────────────────
 def ensure_saas_customer(company):
     """Get-or-create the Customer row in Manasty's books that
     represents this tenant. Idempotent. Copies the owner's email
-    to Customer.email so the invoice notification has a real
-    recipient (MARSOUD-SAAS-EMAIL-01, 2026-07-29)."""
+    (and now phone) to the mirror so invoice notifications reach
+    a real recipient and the super-admin sees the tenant's contact
+    info on the customer page.
+
+    MARSOUD-SAAS-EMAIL-01 (2026-07-29) — email sync.
+    MARSOUD-SAAS-CUSTOMER-PHONE (2026-08-18) — phone sync + create
+    with `company.phone` (preferred, business-facing) or the
+    owner's `User.phone` (fallback). Was hard-coded `phone=None`,
+    which meant every tenant Customer row on the SaaS side showed
+    a dash for phone — even though both signup phone fields
+    (`company_phone`, `owner_phone`) were correctly persisted on
+    Company + User. The reuse branch also syncs a NULL phone to
+    heal existing mirrors on their next call — never overwrites
+    a non-NULL value (idempotent, safe if a super-admin edited by
+    hand)."""
     owner_email = _tenant_owner_email(company)
+    owner_phone = _tenant_owner_phone(company)
+    resolved_phone = company.phone or owner_phone
     if company.saas_customer_id:
         cust = db.session.get(Customer, company.saas_customer_id)
         if cust:
@@ -84,7 +115,12 @@ def ensure_saas_customer(company):
             # have changed their address between invoices.
             if owner_email and cust.email != owner_email:
                 cust.email = owner_email
-                db.session.flush()
+            # MARSOUD-SAAS-CUSTOMER-PHONE — heal NULL phone on
+            # existing mirrors. Never overwrite an already-set
+            # value (super-admin may have corrected it by hand).
+            if not cust.phone and resolved_phone:
+                cust.phone = resolved_phone
+            db.session.flush()
             return cust
         # Stale FK — fall through and re-create.
     mid = manasty_id()
@@ -92,7 +128,7 @@ def ensure_saas_customer(company):
         company_id=mid,
         name=company.name,
         email=owner_email,
-        phone=None,
+        phone=resolved_phone,
         is_active=True,
     )
     db.session.add(cust)
