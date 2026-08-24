@@ -73,6 +73,9 @@ _SOURCE_TYPES = {
     "sales_commission_refund": ("عكس عمولة مبيعات",   None, None),
     "payroll_settlement":      ("سداد راتب مستحق",     None, None),
     "accrual_settle":          ("تسوية استحقاق راتب", None, None),
+    # MARSOUD-COMM-SETTLE (2026-08-25) — cash payment of a sales
+    # commission outside the payroll run (Dr 2150 / Cr 1110).
+    "commission_settle":       ("سداد عمولة مبيعات",  None, None),
     # MARSOUD-SOURCE-LABEL-UNIFY — "POS" is Latin text in front of an
     # Arabic-speaking user, which is what the ticket's «مفيش أي نص
     # إنجليزي» rules out. Both POS labels now say نقطة البيع, so the

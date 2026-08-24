@@ -492,6 +492,54 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
          "debit": salary_debit, "credit": 0,
          "memo": f"مصروف رواتب {month}/{year}"},
     ]
+
+    # ── MARSOUD-COMM-SETTLE (2026-08-25) — close 2150 when a run pays out
+    # commissions ────────────────────────────────────────────────────────
+    # A commission is recognised as expense ONCE, when it accrues:
+    #     Dr 5280 / Cr 2150   (services/sales_commissions.py)
+    # settle_commissions_for_employee then folds the amount into `gross`,
+    # so it rides inside `total_net` and therefore inside `salary_debit`
+    # above. Before this block nothing ever debited 2150, which left two
+    # defects at once:
+    #   · 2150 accrued forever, never closing against commissions that had
+    #     genuinely been paid;
+    #   · the same commission hit the P&L twice — once in 5280 at accrual,
+    #     again inside 5210 at payout.
+    # Reported on company 8: 2150 stood at 8000 with 4800 of it already
+    # paid out through payroll.
+    #
+    # Dr 2150 closes the liability; Cr 5210 backs the duplicate out of
+    # salary expense. Cash and the employee's 2130 leaf are deliberately
+    # untouched — the rep is still paid through the normal net-salary
+    # legs; this pair only corrects the classification.
+    #
+    # Written as two explicit lines rather than netting `salary_debit`
+    # down, so both 5210 and 2150 statements show the movement. Same
+    # reasoning as MARSOUD-PAYROLL-LEDGER-03 above, which shows an
+    # employee both legs even when they cancel to zero.
+    total_commissions = round(
+        sum(float(l.commissions or 0) for _, l in lines_created), 2)
+    if total_commissions > 0.005:
+        commission_liab = get_account_by_code(company_id, "2150")
+        if not commission_liab:
+            # A commission can only exist if 2150 existed when it accrued
+            # (record_commission_for_invoice refuses without it), so this
+            # means the account was deleted underneath us. Refuse loudly:
+            # posting the run without this pair would silently re-create
+            # the double-count this block exists to prevent.
+            raise LedgerError(
+                "حساب عمولات المبيعات المستحقة (2150) غير موجود — "
+                "لا يمكن تصفية العمولات ضمن كشف الرواتب")
+        accrual_lines.append({
+            "account_id": commission_liab.id,
+            "debit": total_commissions, "credit": 0,
+            "memo": f"تصفية عمولات مبيعات {month}/{year}",
+        })
+        accrual_lines.append({
+            "account_id": salary_expense.id,
+            "debit": 0, "credit": total_commissions,
+            "memo": "تخفيض مصروف الرواتب بمقدار العمولة المسجلة سابقاً في 5280",
+        })
     # Track sub-accounts so the settlement entry can reuse them
     emp_subaccounts = {}
     for emp, line in lines_created:
