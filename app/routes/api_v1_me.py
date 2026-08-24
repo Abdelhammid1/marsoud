@@ -149,6 +149,48 @@ def _body():
     return request.get_json(silent=True) or request.form or {}
 
 
+# MARSOUD-MOBILE-TKT-04 (2026-08-18) — Mandatory GPS enforcement.
+# The client-side `_tryLocation()` in the Flutter app can be bypassed
+# on rooted phones stubbing geolocator; and the ticket explicitly
+# says a submission without GPS "لا يتم اعتبار الموظف حاضرًا".
+# Both routes below (checkin + checkout) call `_require_gps()` after
+# `_coord()`. Platform-setting `attendance_gps_required` (default
+# "true" per the ticket) can flip the guard off from super-admin if
+# a real-world edge case surfaces — no redeploy needed.
+def _gps_required_enabled():
+    """Read the platform-settings toggle. Defaults to True per the
+    ticket ('mandatory'). Any string other than 'false'/'0'/'off'/
+    'no' keeps enforcement on so a typo can't accidentally weaken
+    the guard."""
+    try:
+        from app.services.subscription import _get_setting_raw
+        raw = _get_setting_raw("attendance_gps_required")
+        if raw is None:
+            return True
+        return str(raw).strip().lower() not in ("false", "0", "off",
+                                                  "no")
+    except Exception:
+        # Never DoS attendance because the settings table is
+        # unreachable — fall back to enforcement ON (the safer
+        # side of the ticket's intent).
+        return True
+
+
+def _require_gps(lat, lng):
+    """Return an (error_response, status) tuple when GPS is
+    missing while enforcement is on; else None."""
+    if not _gps_required_enabled():
+        return None
+    if lat is None or lng is None:
+        return jsonify({
+            "error": "gps_required",
+            "message_ar":
+                "لا يمكن تسجيل الحضور بدون تحديد الموقع (GPS). "
+                "فعّل الموقع ثم أعِد المحاولة.",
+        }), 400
+    return None
+
+
 # ─── Account bundle ───────────────────────────────────────────────────
 @bp.route("/account", methods=["GET"])
 def account():
@@ -475,6 +517,10 @@ def attendance_checkin():
     lng = _coord("check_lng", body)
     if lng is None:
         lng = _coord("lng", body)
+    # MARSOUD-MOBILE-TKT-04 — enforce GPS presence.
+    gps_err = _require_gps(lat, lng)
+    if gps_err is not None:
+        return gps_err
     try:
         row, exc = check_in(emp, lat=lat, lng=lng)
         return jsonify({
@@ -500,6 +546,10 @@ def attendance_checkout():
     lng = _coord("check_lng", body)
     if lng is None:
         lng = _coord("lng", body)
+    # MARSOUD-MOBILE-TKT-04 — same GPS enforcement as checkin.
+    gps_err = _require_gps(lat, lng)
+    if gps_err is not None:
+        return gps_err
     try:
         row = check_out(emp, lat=lat, lng=lng)
         return jsonify({

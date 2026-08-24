@@ -14,10 +14,16 @@ import '../features/daily_reports/daily_reports_screen.dart';
 import '../features/files/files_screen.dart';
 import '../features/home/home_shell.dart';
 import '../features/items/items_screen.dart';
+// MARSOUD-MOBILE-TKT-01 (2026-08-18) — three new modules.
+import '../features/leads/lead_detail_screen.dart';
+import '../features/leads/leads_screen.dart';
+import '../features/meetings/meetings_screen.dart';
 import '../features/my_account/my_account_screen.dart';
 import '../features/notifications/notifications_screen.dart';
 import '../features/projects/project_detail_screen.dart';
 import '../features/projects/projects_screen.dart';
+import '../features/requests/requests_screen.dart';
+import '../features/schedule/schedule_screen.dart';
 import '../features/splash/splash_screen.dart';
 import '../features/support/support_screen.dart';
 import '../features/tasks/task_detail_screen.dart';
@@ -90,6 +96,22 @@ final routerProvider = Provider<GoRouter>((ref) {
               projectId: int.parse(state.pathParameters['id']!),
             ),
           ),
+          // MARSOUD-MOBILE-TKT-01 (2026-08-18)
+          GoRoute(path: '/leads',
+              builder: (_, __) => const LeadsScreen()),
+          GoRoute(
+            path: '/leads/:id',
+            builder: (context, state) => LeadDetailScreen(
+              leadId: int.parse(state.pathParameters['id']!),
+            ),
+          ),
+          GoRoute(path: '/meetings',
+              builder: (_, __) => const MeetingsScreen()),
+          GoRoute(path: '/schedule',
+              builder: (_, __) => const ScheduleScreen()),
+          // MARSOUD-MOBILE-TKT-03 (2026-08-18) — طلباتي
+          GoRoute(path: '/requests',
+              builder: (_, __) => const RequestsScreen()),
         ],
       ),
     ],
