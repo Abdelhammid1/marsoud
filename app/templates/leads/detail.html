@@ -90,7 +90,10 @@
         <div class="font-bold text-emerald-800">جاهز للتحويل لمشروع</div>
         <div class="text-sm text-emerald-700">سننشئ عميل جديد في Marsoud + مشروع مرتبط به.</div>
       </div>
+      {# MARSOUD-PERMISSION-BOUNCE-02 — page needs leads.view, convert enforces leads.convert (ceo bounced). #}
+      {% if can_access_endpoint('leads.convert') %}
       <a href="{{ url_for('leads.convert', lead_id=lead.id) }}" class="btn-primary text-sm">→ تحويل لمشروع</a>
+      {% endif %}
     </div>
     {% endif %}
 
@@ -183,7 +186,8 @@
     </div>
   </div>
 
-  {% if not lead.is_converted %}
+  {# MARSOUD-PERMISSION-BOUNCE-02 — status change enforces leads.manage (ceo bounced). #}
+  {% if not lead.is_converted and can_access_endpoint('leads.status') %}
   <div class="card p-5">
     <h3 class="font-bold text-navy-900 mb-3">تغيير الحالة</h3>
     <form method="POST" action="{{ url_for('leads.status', lead_id=lead.id) }}" class="space-y-3">

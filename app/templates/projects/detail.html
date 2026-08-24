@@ -61,7 +61,14 @@
       <div><span class="text-slate-500">مدير المشروع:</span> {{ project.manager.full_name if project.manager else '—' }}</div>
       <div><span class="text-slate-500">تاريخ البداية:</span> <span class="font-mono">{{ project.start_date.isoformat() }}</span></div>
       <div><span class="text-slate-500">تاريخ النهاية:</span> <span class="font-mono">{{ project.end_date.isoformat() }}</span></div>
-      {% if project.lead %}<div><span class="text-slate-500">جاء من:</span> <a href="{{ url_for('leads.detail', lead_id=project.lead.id) }}" class="text-brand-600 hover:underline">عميل محتمل {{ project.lead.number or ('#' ~ project.lead.id) }}</a></div>{% endif %}
+      {# MARSOUD-PERMISSION-BOUNCE-02 — leads.detail enforces leads.view,
+         which project_manager and team_member lack. Keep the provenance
+         visible as text rather than hiding it behind a link that bounces. #}
+      {% if project.lead %}<div><span class="text-slate-500">جاء من:</span>
+        {% set lead_label = 'عميل محتمل ' ~ (project.lead.number or ('#' ~ project.lead.id)) %}
+        {% if can_access_endpoint('leads.detail') %}<a href="{{ url_for('leads.detail', lead_id=project.lead.id) }}" class="text-brand-600 hover:underline">{{ lead_label }}</a>
+        {% else %}<span class="text-slate-700">{{ lead_label }}</span>{% endif %}
+      </div>{% endif %}
     </div>
 
     {% if project.notes %}

@@ -22,7 +22,15 @@
         <td>{{ r.next_run_date.isoformat() }}</td>
         <td>{% if r.is_active %}<span class="badge badge-paid">نشط</span>{% else %}<span class="badge badge-cancelled">موقوف</span>{% endif %}</td>
         <td>
+          {# MARSOUD-PERMISSION-BOUNCE-02 (2026-08-24) — the page needs
+             journals.view; every control here enforces journals.recurring,
+             which ceo and viewer do not hold. The reveal buttons are gated
+             too: an ungated «تعديل» that opens a form the user cannot
+             submit is the same dead end, one click later. السجل is a
+             read-only log and stays visible. #}
+          {% set can_manage_recurring = can_access_endpoint('journals.recurring_edit') %}
           <div class="flex items-center gap-2 text-xs">
+            {% if can_manage_recurring %}
             <button type="button" onclick="document.getElementById('edit-{{r.id}}').classList.toggle('hidden')" class="text-brand-600 hover:underline">تعديل</button>
             <span class="text-slate-300">·</span>
             {% if r.is_active %}
@@ -35,8 +43,10 @@
             <span class="text-slate-300">·</span>
             <button type="button" onclick="document.getElementById('del-{{r.id}}').classList.toggle('hidden')" class="text-red-600 hover:underline">حذف</button>
             <span class="text-slate-300">·</span>
+            {% endif %}
             <a href="{{ url_for('journals.recurring_log', rec_id=r.id) }}" class="text-slate-600 hover:underline">السجل</a>
           </div>
+          {% if can_manage_recurring %}
           <form id="edit-{{r.id}}" method="POST" action="{{ url_for('journals.recurring_edit', rec_id=r.id) }}" class="hidden mt-3 grid grid-cols-2 gap-2 p-3 bg-slate-50 rounded-lg text-xs">
             <input type="text" name="name" value="{{r.name}}" placeholder="الاسم" class="input text-xs">
             <select name="frequency" class="select text-xs">
@@ -57,6 +67,7 @@
             <input type="text" name="reason" placeholder="سبب الحذف (اختياري)" class="input text-xs flex-1">
             <button type="submit" class="btn-danger text-xs">حذف نهائي</button>
           </form>
+          {% endif %}
         </td>
       </tr>
     {% else %}

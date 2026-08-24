@@ -57,10 +57,13 @@
           {% else %}—{% endif %}
         </td>
         <td>
+          {# MARSOUD-PERMISSION-BOUNCE-02 — page needs leads.view, delete enforces leads.manage (ceo bounced). #}
+          {% if can_access_endpoint('crm.contact_delete') %}
           <form method="POST" action="{{ url_for('crm.contact_delete', contact_id=c.id) }}"
                 onsubmit="return confirm('حذف جهة الاتصال {{ c.name|e }}؟');">
             <button type="submit" class="text-xs text-rose-600 hover:underline">🗑 حذف</button>
           </form>
+          {% else %}<span class="text-slate-400 text-xs">—</span>{% endif %}
         </td>
       </tr>
     {% endfor %}

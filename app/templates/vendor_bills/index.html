@@ -90,7 +90,11 @@
     <button type="submit" class="btn-primary text-sm">تطبيق</button>
     {% if request.args %}<a href="{{ url_for('vendor_bills.index') }}" class="text-sm text-slate-500 hover:text-red-600">مسح</a>{% endif %}
     <div class="flex-grow"></div>
+    {# MARSOUD-PERMISSION-BOUNCE (2026-08-24) — ungated; the route needs
+       vendor_bills.create. Reported for viewer, which can read the list. #}
+    {% if can_access_endpoint('vendor_bills.new') %}
     <a href="{{ url_for('vendor_bills.new') }}" class="btn-primary">+ فاتورة مورد جديدة</a>
+    {% endif %}
   </form>
   <script>
   // When the vendor filter changes, refresh the sub-category options

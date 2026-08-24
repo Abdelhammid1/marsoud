@@ -4,7 +4,12 @@
 <div class="card p-6">
   <div class="flex items-center justify-between mb-5">
     <h2 class="font-bold text-navy-900">الموردون</h2>
+    {# MARSOUD-PERMISSION-BOUNCE (2026-08-24) — ungated, but vendors.new
+       requires partners.manage. Roles with only a read view of the
+       vendor list saw the button and bounced. #}
+    {% if can_access_endpoint('vendors.new') %}
     <a href="{{ url_for('vendors.new') }}" class="btn-primary">+ مورد جديد</a>
+    {% endif %}
   </div>
   <table class="data-table">
     <thead>

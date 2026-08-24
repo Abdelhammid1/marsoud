@@ -55,6 +55,25 @@ ACCESS_EXEMPT_PREFIXES = (
 
 
 # ─── The single decision function ────────────────────────────────────
+def _enforced_permission(endpoint):
+    """The permission `@require_permission` guards `endpoint` with.
+
+    Returns None when the endpoint has no such decorator (login-only
+    pages, `@hr_required` / `@forbid_roles` routes, blueprints not
+    registered on this app). Callers fall back to the feature registry
+    in that case.
+
+    Stamped by services/permissions.py::require_permission. Read off the
+    registered view function, so it reflects the code that will actually
+    run — not a hand-maintained table that can drift away from it.
+    """
+    try:
+        view = current_app.view_functions.get(endpoint)
+    except Exception:
+        return None
+    return getattr(view, "__required_permission__", None) if view else None
+
+
 def can_access(endpoint, user, company):
     """Return `(allowed, reason)`.
 
@@ -173,14 +192,29 @@ def can_access(endpoint, user, company):
         current_app.logger.exception(
             "access.can_access: subitem_allowed check failed")
 
-    # Step 5 — role permission. Skip when the feature declares no
-    # permissions (login-required-only endpoints like user_files.index
-    # and portal_emp.*).
+    # Step 5 — role permission. Skip when neither the route nor the
+    # feature names a permission (login-required-only endpoints like
+    # user_files.index and portal_emp.*).
+    #
+    # MARSOUD-PERMISSION-BOUNCE (2026-08-24) — ask the route what it
+    # actually enforces before falling back to the registry. The
+    # registry's declarations are authored by hand and had drifted from
+    # the routes on 8 endpoints, so the sidebar was answering a
+    # different question than the request-time guard and rendering rows
+    # that bounce with «ليس لديك صلاحية لهذا الإجراء». `require_permission`
+    # now stamps `__required_permission__` on the view, which makes
+    # "visible" and "openable" the same predicate by construction.
     try:
         from app.services.permissions import has_permission
-        if feat and feat.permissions:
-            # ANY of the feature's declared permissions is enough —
-            # both "view" and "create" satisfy "can see the page".
+        enforced = _enforced_permission(endpoint)
+        if enforced is not None:
+            if not has_permission(enforced):
+                return False, REASON_PERMISSION
+        elif feat and feat.permissions:
+            # No route-level guard to consult (the endpoint gates some
+            # other way, or not at all). Fall back to the registry, where
+            # ANY of the declared permissions is enough — both "view" and
+            # "create" satisfy "can see the page".
             if not any(has_permission(p) for p in feat.permissions):
                 return False, REASON_PERMISSION
     except Exception:

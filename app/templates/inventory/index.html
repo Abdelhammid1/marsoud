@@ -25,9 +25,12 @@
   <div class="flex flex-wrap items-center justify-between mb-3 gap-2">
     <h3 class="font-bold text-navy-900">⚠ تحت حد الطلب</h3>
     <div class="flex gap-2">
+      {# MARSOUD-PERMISSION-BOUNCE-02 — page needs inventory.view, recheck enforces inventory.manage (viewer bounced). #}
+      {% if can_access_endpoint('inventory.recheck') %}
       <form method="POST" action="{{ url_for('inventory.recheck') }}" class="inline">
         <button type="submit" class="btn-secondary text-sm">🔄 إعادة فحص الأرصدة</button>
       </form>
+      {% endif %}
       <a href="{{ url_for('inventory.inventory_balance') }}" class="btn-secondary text-sm">📊 رصيد المخزون</a>
       <a href="{{ url_for('inventory.export_low_stock', fmt='xlsx') }}" class="btn-secondary text-sm">⬇ Excel: تحت حد الطلب</a>
       <a href="{{ url_for('inventory.export_low_stock', fmt='pdf') }}" class="btn-secondary text-sm">⬇ PDF: تحت حد الطلب</a>
