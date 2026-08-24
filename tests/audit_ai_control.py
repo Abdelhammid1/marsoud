@@ -330,8 +330,19 @@ def _():
     r = client.get("/admin/ai-control")
     assert r.status_code == 200, f"got {r.status_code}"
     body = r.get_data(as_text=True)
-    for marker in ("⚡", "🧠", "🔁", "🎛", "📊", "🧬"):
-        assert marker in body, f"card marker {marker!r} missing"
+    # MARSOUD-UI-SETTINGS-KIT (2026-08-24) — this used to look for the
+    # emoji that prefixed each card heading ("⚡", "🧠", "🔁", "🎛", "📊",
+    # "🧬"). The page moved to inline SVG icons, so those markers no
+    # longer exist. Assert on the section HEADINGS instead: they are the
+    # actual content the check cares about ("every card rendered"), they
+    # survive a restyle, and a missing card now names itself in the
+    # failure instead of printing a glyph.
+    for heading in ("حالة مفاتيح المزوّدين",
+                    "مسار الموديلات لكل شخصية",
+                    "ترتيب الاحتياط بين المزوّدين",
+                    "الحدود العالمية",
+                    "سجل التنفيذ اللحظي"):
+        assert heading in body, f"card {heading!r} missing"
 
 
 # ─── Runner ────────────────────────────────────────────────────

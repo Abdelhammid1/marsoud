@@ -2,39 +2,156 @@
 {% block page_title %}تعديل {{ company.name }}{% endblock %}
 {% block content %}
 
-<form method="POST" class="max-w-2xl">
-  <div class="card p-6 space-y-4">
-    <div>
-      <label class="block text-sm text-ink-200 mb-1">اسم الشركة</label>
-      <input type="text" name="name" value="{{ company.name }}" class="input" required>
-    </div>
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label class="block text-sm text-ink-200 mb-1">العملة الأساسية</label>
-        <select name="base_currency" class="select">
-          {% for code in currency_codes %}
-          <option value="{{ code }}" {% if company.base_currency==code %}selected{% endif %}>{{ code }} — {{ code|currency_ar }}</option>
-          {% endfor %}
-        </select>
+{# MARSOUD-UI-SETTINGS-KIT (2026-08-24) — converted to the shared
+   settings primitives.
+
+   Two real bugs fixed on the way past:
+   - The «افتح الصفحة» link used `text-brand-400`, but admin/base.html
+     only defines brand 500/600/700 — so Tailwind emitted no rule and
+     the link rendered as plain body text with no link colour at all.
+   - Labels used `text-ink-200`, part of the inverted dark-theme relic
+     scale (`ink-900` is WHITE in that config). Now on --ms-ink tokens.
+#}
+
+<div id="company-edit" class="ms-settings">
+
+  <p class="ms-lead">
+    تعديل البيانات الأساسية لشركة <strong>{{ company.name }}</strong>.
+    البيانات دي بتظهر على الفواتير والتقارير بتاعة الشركة.
+  </p>
+
+  <form method="POST">
+
+    <div class="ms-panel">
+      <div class="ms-panel-head">
+        <h2>بيانات الشركة</h2>
+        <p>الاسم والعملة والبيانات الضريبية.</p>
       </div>
-      <div>
-        <label class="block text-sm text-ink-200 mb-1">نسبة الضريبة %</label>
-        <input type="number" step="0.01" name="vat_rate" value="{{ company.vat_rate }}" class="input">
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3.5 20.5h17M5.5 20.5V5a1.5 1.5 0 011.5-1.5h6A1.5 1.5 0 0114.5 5v15.5"/>
+              <path d="M14.5 9.5h3a1.5 1.5 0 011.5 1.5v9.5M8.5 7.5h3M8.5 11h3M8.5 14.5h3"/>
+            </svg>
+          </span>
+          <div>
+            <label class="ms-row-title" for="f-name">
+              اسم الشركة <span class="ms-req">*</span>
+            </label>
+            <p class="ms-row-desc">الاسم الرسمي اللي يظهر على المستندات.</p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <input type="text" id="f-name" name="name" value="{{ company.name }}"
+                 class="ms-input" required style="width:260px">
+        </div>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico tone-info">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="8.5"/>
+              <path d="M14.5 9.25A2.75 2.75 0 0012 8c-1.5 0-2.5.9-2.5 2s1 1.75 2.5 2 2.5.9 2.5 2-1 2-2.5 2a2.75 2.75 0 01-2.5-1.25M12 6.5v11"/>
+            </svg>
+          </span>
+          <div>
+            <label class="ms-row-title" for="f-currency">العملة الأساسية</label>
+            <p class="ms-row-desc">
+              كل الأرصدة والتقارير بتتحسب بيها. تغييرها بعد ما يبقى فيه
+              حركات مالية بيأثر على قراءة الأرقام التاريخية.
+            </p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <select id="f-currency" name="base_currency" class="ms-select" style="width:260px">
+            {% for code in currency_codes %}
+            <option value="{{ code }}" {% if company.base_currency == code %}selected{% endif %}>
+              {{ code }} — {{ code|currency_ar }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico tone-warn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 5L5 19M8 5.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5zM16 13.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5z"/>
+            </svg>
+          </span>
+          <div>
+            <label class="ms-row-title" for="f-vat">نسبة الضريبة</label>
+            <p class="ms-row-desc">النسبة الافتراضية على الفواتير الجديدة.</p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <div class="ms-field">
+            <input type="number" step="0.01" id="f-vat" name="vat_rate"
+                   value="{{ company.vat_rate }}" class="ms-num">
+            <span class="ms-unit">%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico tone-muted">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3.5" y="5.5" width="17" height="13" rx="2"/>
+              <path d="M3.5 10h17M7 14.5h4"/>
+            </svg>
+          </span>
+          <div>
+            <label class="ms-row-title" for="f-tax">الرقم الضريبي</label>
+            <p class="ms-row-desc">يظهر على الفواتير الرسمية. اتركه فارغاً لو مش متاح.</p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <input type="text" id="f-tax" name="tax_number"
+                 value="{{ company.tax_number or '' }}"
+                 class="ms-input is-mono" style="width:260px">
+        </div>
       </div>
     </div>
-    <div>
-      <label class="block text-sm text-ink-200 mb-1">الرقم الضريبي</label>
-      <input type="text" name="tax_number" value="{{ company.tax_number or '' }}" class="input">
-    </div>
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label class="block text-sm text-ink-200 mb-1">الحالة</label>
-        <select name="status" class="select">
-          {% for s, label in [('ACTIVE','نشطة'),('TRIAL','تجريبية'),('SUSPENDED','موقوفة')] %}
-          <option value="{{ s }}" {% if (company.status or 'ACTIVE')==s %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
+
+    <div class="ms-panel">
+      <div class="ms-panel-head">
+        <h2>الحالة والباقة</h2>
+        <p>حالة الحساب على المنصة.</p>
       </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico tone-info">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="8.5"/><path d="M12 8v4.5l3 1.75"/>
+            </svg>
+          </span>
+          <div>
+            <label class="ms-row-title" for="f-status">الحالة</label>
+            <p class="ms-row-desc">
+              <strong>موقوفة</strong> بتمنع كل مستخدمي الشركة من الدخول.
+            </p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <select id="f-status" name="status" class="ms-select" style="width:260px">
+            {% for s, label in [('ACTIVE','نشطة'),('TRIAL','تجريبية'),('SUSPENDED','موقوفة')] %}
+            <option value="{{ s }}" {% if (company.status or 'ACTIVE') == s %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
       {# MARSOUD-PLAN-SSOT — the FREE/PRO/ENTERPRISE selector wrote to
          Company.plan (a legacy String column) and was the primary
          source of "FREE" leaking into the super-admin UI. The
@@ -42,20 +159,70 @@
          switcher on the detail page (POSTs to
          superadmin.companies_assign_plan and updates plan_id +
          subscription rows). This selector is removed intentionally. #}
-      <div>
-        <label class="block text-sm text-ink-200 mb-1">الباقة</label>
-        <div class="text-xs text-ink-200">
-          تُغيَّر الباقة من زر «تحديث الباقة» في صفحة الشركة
-          — <a href="{{ url_for('superadmin.company_detail', company_id=company.id) }}"
-                class="text-brand-400 hover:underline">افتح الصفحة</a>.
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico tone-muted">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20.5 7.5L12 3.5 3.5 7.5v9L12 20.5l8.5-4z"/>
+              <path d="M3.5 7.5L12 11.5l8.5-4M12 11.5v9"/>
+            </svg>
+          </span>
+          <div>
+            <div class="ms-row-title">الباقة</div>
+            <p class="ms-row-desc">
+              الباقة مش بتتغيّر من هنا — عشان تغييرها بيلمس الاشتراك
+              كمان، مش بس اسم الباقة.
+            </p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <a href="{{ url_for('superadmin.company_detail', company_id=company.id) }}"
+             class="btn btn-secondary">افتح صفحة الشركة ←</a>
+          <span class="ms-hint">زر «تحديث الباقة» هناك</span>
         </div>
       </div>
     </div>
-  </div>
-  <div class="flex justify-end gap-2 mt-4">
-    <a href="{{ url_for('superadmin.company_detail', company_id=company.id) }}" class="btn btn-secondary">إلغاء</a>
-    <button type="submit" class="btn btn-primary">حفظ</button>
-  </div>
-</form>
+
+    <div class="ms-savebar">
+      <span class="ms-dirty">فيه تغييرات ما اتحفظتش</span>
+      <a href="{{ url_for('superadmin.company_detail', company_id=company.id) }}"
+         class="btn btn-secondary">إلغاء</a>
+      <button type="submit" class="btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+             stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true">
+          <path d="M4.5 12.5l5 5 10-11"/>
+        </svg>
+        حفظ
+      </button>
+    </div>
+
+  </form>
+</div>
+
+<script>
+(function () {
+  var root = document.getElementById('company-edit');
+  if (!root) return;
+  var form = root.querySelector('form');
+  var fields = Array.prototype.slice.call(root.querySelectorAll('input[name], select[name]'));
+  var initial = fields.map(function (f) { return f.value; });
+  function checkDirty() {
+    root.classList.toggle('is-dirty', fields.some(function (f, i) {
+      return f.value !== initial[i];
+    }));
+  }
+  fields.forEach(function (f) {
+    ['input', 'change'].forEach(function (e) { f.addEventListener(e, checkDirty); });
+  });
+  var saving = false;
+  if (form) form.addEventListener('submit', function () { saving = true; });
+  window.addEventListener('beforeunload', function (e) {
+    if (saving || !root.classList.contains('is-dirty')) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+})();
+</script>
 
 {% endblock %}

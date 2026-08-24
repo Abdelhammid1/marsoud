@@ -2,38 +2,115 @@
 {% block page_title %}Feature Flags & Kill Switch{% endblock %}
 {% block content %}
 
-<div class="card p-6 max-w-4xl">
-  <h2 class="font-bold text-navy-900 mb-1">🎛️ التحكم في الموديولات</h2>
-  <p class="text-sm text-slate-500 mb-6">
-    كل صف موديول. لما تعطّله، كل الشركات هتشوف صفحة "متوقف مؤقتاً" بدل ما تدخل عليه.
-    Super Admin دايماً بيعدي حتى لو الموديول متعطل، عشان يقدر يرجعه.
+{# MARSOUD-UI-SETTINGS-KIT (2026-08-24) — converted to the shared
+   settings primitives. Each module is still its own <form> (one
+   POST per row, as the route expects) but now renders as an
+   `.ms-row` with a real toggle instead of a bare checkbox plus an
+   emoji status string. #}
+
+<div id="feature-flags" class="ms-settings">
+
+  <p class="ms-lead">
+    كل صف موديول. لما تعطّله، كل الشركات هتشوف صفحة
+    <strong>«متوقف مؤقتاً»</strong> بدل ما تدخل عليه.
   </p>
 
-  <div class="space-y-3">
+  <div class="ms-callout tone-info">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/><path d="M12 11.5v5M12 7.75h.01"/>
+    </svg>
+    <div>
+      Super Admin دايماً بيعدّي حتى لو الموديول متعطّل، عشان يقدر
+      يرجّعه. سبب التوقف اللي تكتبه هنا بيظهر للمستخدمين على صفحة
+      الإيقاف — اكتبه بلغة مفهومة.
+    </div>
+  </div>
+
+  <div class="ms-panel">
+    <div class="ms-panel-head">
+      <h2>التحكم في الموديولات</h2>
+      <p>{{ rows|length }} موديول — كل صف بيتحفظ لوحده.</p>
+    </div>
+
     {% for r in rows %}
-    <form method="POST" class="border border-slate-200 rounded-lg p-4">
+    <form method="POST" class="ms-row ff-row" data-enabled="{{ 1 if r.enabled else 0 }}">
       <input type="hidden" name="module_key" value="{{ r.module_key }}">
-      <div class="flex items-center justify-between mb-2">
-        <div class="font-semibold text-navy-900">
-          <span class="font-mono text-emerald-700">{{ r.module_key }}</span>
+
+      <div class="ms-row-info">
+        <span class="ms-ico {% if r.enabled %}tone-muted{% else %}tone-danger{% endif %}">
+          {% if r.enabled %}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4.5 12.5l5 5 10-11"/>
+          </svg>
+          {% else %}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/>
+          </svg>
+          {% endif %}
+        </span>
+        <div>
+          <label class="ms-row-title" for="ff-{{ r.module_key }}">
+            <span class="font-mono">{{ r.module_key }}</span>
+          </label>
+          <div style="margin-top:6px">
+            <input type="text" name="reason" value="{{ r.reason or '' }}"
+                   placeholder="سبب التوقف (يظهر للمستخدمين)"
+                   class="ms-input" style="max-width:420px"
+                   aria-label="سبب توقف {{ r.module_key }}">
+          </div>
         </div>
-        <label class="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" name="enabled" {% if r.enabled %}checked{% endif %}
-                 class="w-5 h-5 accent-emerald-600">
-          <span class="text-sm {% if r.enabled %}text-emerald-700{% else %}text-rose-700{% endif %}">
-            {% if r.enabled %}✅ مفعّل{% else %}🚫 متوقف{% endif %}
-          </span>
-        </label>
       </div>
-      <div class="flex gap-2">
-        <input type="text" name="reason" value="{{ r.reason or '' }}"
-               placeholder="سبب التوقف (يظهر للمستخدمين)"
-               class="input text-sm flex-1">
-        <button type="submit" class="btn-primary text-sm">💾 حفظ</button>
+
+      <div class="ms-row-control">
+        <label class="ms-toggle">
+          <input type="checkbox" id="ff-{{ r.module_key }}" name="enabled"
+                 {% if r.enabled %}checked{% endif %}>
+          <span class="ms-track"></span>
+          <span class="ms-toggle-label">{% if r.enabled %}مفعّل{% else %}متوقف{% endif %}</span>
+        </label>
+        <button type="submit" class="btn-primary" style="padding:6px 14px;font-size:var(--ms-fs-sm)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+               stroke-linecap="round" stroke-linejoin="round" width="13" height="13" aria-hidden="true">
+            <path d="M4.5 12.5l5 5 10-11"/>
+          </svg>
+          حفظ
+        </button>
       </div>
     </form>
+    {% else %}
+    <div class="ms-row">
+      <div class="empty-state" style="grid-column:1/-1">
+        <div class="empty-state-icon">🎛️</div>
+        <div class="empty-state-title">لا توجد موديولات مسجّلة</div>
+        <div class="empty-state-sub">سجّل الموديولات في feature_registry الأول.</div>
+      </div>
+    </div>
     {% endfor %}
   </div>
 </div>
+
+<script>
+(function () {
+  var root = document.getElementById('feature-flags');
+  if (!root) return;
+
+  /* Per-row live label + a nudge that the row still needs saving. */
+  root.querySelectorAll('.ff-row').forEach(function (row) {
+    var box = row.querySelector('input[name="enabled"]');
+    var label = row.querySelector('.ms-toggle-label');
+    var was = row.dataset.enabled === '1';
+    if (!box || !label) return;
+    box.addEventListener('change', function () {
+      label.textContent = box.checked ? 'مفعّل' : 'متوقف';
+      var changed = box.checked !== was;
+      label.style.color = changed ? 'var(--ms-warning)' : '';
+      label.title = changed ? 'اضغط حفظ عشان التغيير ينزل' : '';
+    });
+  });
+})();
+</script>
 
 {% endblock %}

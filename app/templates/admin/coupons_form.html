@@ -2,65 +2,230 @@
 {% block page_title %}كود خصم جديد{% endblock %}
 {% block content %}
 
-<div class="card p-6 max-w-2xl">
-  <h2 class="font-bold text-navy-900 mb-5">🎟️ كود خصم جديد</h2>
-  <form method="POST" class="space-y-4">
-    <div>
-      <label class="block text-sm font-semibold mb-1">الكود</label>
-      <input type="text" name="code" required class="input font-mono uppercase"
-             placeholder="SUMMER25">
+{# MARSOUD-UI-SETTINGS-KIT (2026-08-24) — converted to the shared
+   settings primitives. The plan-target checkboxes are now
+   `.ms-choice` pills (selected state visible without reading the
+   box) instead of bare checkboxes in a grey tray. #}
+
+<div id="coupon-form" class="ms-settings">
+
+  <p class="ms-lead">
+    كود خصم بيتطبّق على فواتير الاشتراك. اتركه بدون تواريخ لو عايزه
+    شغال من دلوقتي وللأبد.
+  </p>
+
+  <form method="POST">
+
+    <div class="ms-panel">
+      <div class="ms-panel-head">
+        <h2>الكود والخصم</h2>
+        <p>اللي العميل بيكتبه، وقد إيه بيوفّر.</p>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3.5 9V6.5A1.5 1.5 0 015 5h14a1.5 1.5 0 011.5 1.5V9a3 3 0 000 6v2.5A1.5 1.5 0 0119 19H5a1.5 1.5 0 01-1.5-1.5V15a3 3 0 000-6z"/>
+              <path d="M14 5v14"/>
+            </svg>
+          </span>
+          <div>
+            <label class="ms-row-title" for="f-code">الكود <span class="ms-req">*</span></label>
+            <p class="ms-row-desc">حروف وأرقام إنجليزية. بيتحوّل لحروف كبيرة تلقائياً.</p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <input type="text" id="f-code" name="code" required
+                 class="ms-input is-mono" placeholder="SUMMER25"
+                 style="width:220px;text-transform:uppercase">
+        </div>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico tone-info">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 5L5 19M8 5.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5zM16 13.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5z"/>
+            </svg>
+          </span>
+          <div>
+            <label class="ms-row-title" for="f-value">قيمة الخصم <span class="ms-req">*</span></label>
+            <p class="ms-row-desc">
+              اختر النوع الأول — النسبة بتتحسب على إجمالي الفاتورة،
+              والمبلغ الثابت بيتخصم كما هو.
+            </p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <div class="ms-choice-group">
+            <label class="ms-choice">
+              <input type="radio" name="discount_type" value="PERCENT" checked>
+              <span>نسبة مئوية</span>
+            </label>
+            <label class="ms-choice">
+              <input type="radio" name="discount_type" value="FIXED">
+              <span>مبلغ ثابت</span>
+            </label>
+          </div>
+          <div class="ms-field">
+            <input type="number" id="f-value" name="discount_value" step="0.01"
+                   required class="ms-num">
+            <span class="ms-unit" id="value-unit">%</span>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label class="block text-sm font-semibold mb-1">نوع الخصم</label>
-        <select name="discount_type" class="select">
-          <option value="PERCENT">نسبة مئوية %</option>
-          <option value="FIXED">مبلغ ثابت (جنيه)</option>
-        </select>
+
+    <div class="ms-panel">
+      <div class="ms-panel-head">
+        <h2>الصلاحية والحدود</h2>
+        <p>امتى يشتغل الكود، وكام مرة.</p>
       </div>
-      <div>
-        <label class="block text-sm font-semibold mb-1">قيمة الخصم</label>
-        <input type="number" name="discount_value" step="0.01" required class="input font-mono">
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico tone-warn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3.5" y="5" width="17" height="15.5" rx="2"/>
+              <path d="M3.5 9.5h17M8 3v4M16 3v4"/>
+            </svg>
+          </span>
+          <div>
+            <div class="ms-row-title">فترة الصلاحية</div>
+            <p class="ms-row-desc">اتركها فارغة لكود شغال من دلوقتي وبلا نهاية.</p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <div class="ms-field">
+            <label class="ms-hint" for="f-from">من</label>
+            <input type="date" id="f-from" name="valid_from" class="ms-input" style="width:150px">
+          </div>
+          <div class="ms-field">
+            <label class="ms-hint" for="f-until">حتى</label>
+            <input type="date" id="f-until" name="valid_until" class="ms-input" style="width:150px">
+          </div>
+          <div class="ms-chips" id="range-hint"></div>
+        </div>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico tone-muted">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3.5v17M4.5 8.5h15M4.5 15.5h15"/>
+            </svg>
+          </span>
+          <div>
+            <label class="ms-row-title" for="f-max">حدود الاستخدام</label>
+            <p class="ms-row-desc">
+              الحد الكلي بيقفل الكود لما يتستهلك. الحد لكل عميل بيمنع
+              نفس الشركة إنها تستخدمه أكتر من مرة.
+            </p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <div class="ms-field">
+            <label class="ms-hint" for="f-max">كلي</label>
+            <input type="number" id="f-max" name="max_uses" min="1"
+                   placeholder="∞" class="ms-num">
+          </div>
+          <div class="ms-field">
+            <label class="ms-hint" for="f-max-cust">لكل عميل</label>
+            <input type="number" id="f-max-cust" name="max_uses_per_customer"
+                   min="1" value="1" class="ms-num">
+          </div>
+          <span class="ms-hint">فارغ = بلا حد</span>
+        </div>
+      </div>
+
+      <div class="ms-row is-stacked">
+        <div class="ms-row-info">
+          <span class="ms-ico tone-info">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20.5 7.5L12 3.5 3.5 7.5v9L12 20.5l8.5-4z"/>
+              <path d="M3.5 7.5L12 11.5l8.5-4M12 11.5v9"/>
+            </svg>
+          </span>
+          <div>
+            <div class="ms-row-title">الباقات المستهدفة</div>
+            <p class="ms-row-desc">اتركها كلها فاضية عشان الكود يشتغل على كل الباقات.</p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <div class="ms-choice-group">
+            {% for p in plans %}
+            <label class="ms-choice">
+              <input type="checkbox" name="plan_ids" value="{{ p.id }}">
+              <span>{{ p.name_ar or p.name }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
       </div>
     </div>
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label class="block text-sm font-semibold mb-1">صالح من</label>
-        <input type="date" name="valid_from" class="input">
-      </div>
-      <div>
-        <label class="block text-sm font-semibold mb-1">صالح حتى</label>
-        <input type="date" name="valid_until" class="input">
-      </div>
+
+    <div class="ms-savebar">
+      <a href="{{ url_for('superadmin.coupons_index') }}" class="btn btn-secondary">إلغاء</a>
+      <button type="submit" class="btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+             stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true">
+          <path d="M4.5 12.5l5 5 10-11"/>
+        </svg>
+        حفظ الكود
+      </button>
     </div>
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label class="block text-sm font-semibold mb-1">أقصى عدد استخدام (كلي)</label>
-        <input type="number" name="max_uses" min="1" placeholder="فارغ = بلا حد"
-               class="input font-mono">
-      </div>
-      <div>
-        <label class="block text-sm font-semibold mb-1">أقصى استخدام لكل عميل</label>
-        <input type="number" name="max_uses_per_customer" min="1" value="1"
-               class="input font-mono">
-      </div>
-    </div>
-    <div>
-      <label class="block text-sm font-semibold mb-2">الباقات المستهدفة (فارغ = كل الباقات)</label>
-      <div class="flex flex-wrap gap-2 bg-slate-50 rounded p-3">
-        {% for p in plans %}
-        <label class="flex items-center gap-2 text-sm cursor-pointer">
-          <input type="checkbox" name="plan_ids" value="{{ p.id }}">
-          <span>{{ p.name_ar or p.name }}</span>
-        </label>
-        {% endfor %}
-      </div>
-    </div>
-    <div class="flex justify-between items-center pt-2">
-      <a href="{{ url_for('superadmin.coupons_index') }}" class="btn-secondary text-sm">إلغاء</a>
-      <button type="submit" class="btn-primary">💾 حفظ الكود</button>
-    </div>
+
   </form>
 </div>
+
+<script>
+(function () {
+  var root = document.getElementById('coupon-form');
+  if (!root) return;
+
+  /* Unit next to the amount follows the discount type. */
+  var unit = document.getElementById('value-unit');
+  function syncType() {
+    var picked = root.querySelector('input[name="discount_type"]:checked');
+    if (unit && picked) unit.textContent = picked.value === 'PERCENT' ? '%' : 'جنيه';
+  }
+  root.querySelectorAll('input[name="discount_type"]').forEach(function (r) {
+    r.addEventListener('change', syncType);
+  });
+
+  /* Flag an end-before-start date range before the server has to. */
+  var from = document.getElementById('f-from');
+  var until = document.getElementById('f-until');
+  var rangeHint = document.getElementById('range-hint');
+  function syncRange() {
+    if (!from || !until || !rangeHint) return;
+    rangeHint.innerHTML = '';
+    if (!from.value && !until.value) return;
+    var el = document.createElement('span');
+    if (from.value && until.value && until.value < from.value) {
+      el.className = 'ms-chip tone-danger';
+      el.textContent = 'تاريخ النهاية قبل البداية';
+    } else if (from.value && until.value) {
+      var days = Math.round((new Date(until.value) - new Date(from.value)) / 86400000);
+      el.className = 'ms-chip';
+      el.textContent = 'صالح ' + days + (days >= 3 && days <= 10 ? ' أيام' : ' يوم');
+    } else {
+      el.className = 'ms-chip tone-muted';
+      el.textContent = from.value ? 'بلا تاريخ نهاية' : 'بلا تاريخ بداية';
+    }
+    rangeHint.appendChild(el);
+  }
+  [from, until].forEach(function (f) { if (f) f.addEventListener('change', syncRange); });
+
+  syncType();
+  syncRange();
+})();
+</script>
 
 {% endblock %}

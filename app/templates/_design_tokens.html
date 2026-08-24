@@ -204,4 +204,442 @@
     align-items: center;
     flex-wrap: wrap;
   }
+
+  /* ══════════════════════════════════════════════════════════
+     SETTINGS KIT — MARSOUD-UI-SETTINGS-KIT (2026-08-24)
+
+     Shared primitives for every single-form settings / form page
+     (admin + tenant). Introduced when `subscription_settings.html`
+     was redesigned and then applied to the 7 other admin form
+     pages, so that redesign lives in ONE place instead of being
+     copy-pasted into 8 scoped <style> blocks.
+
+     Every class here is NEW — nothing above or in base.html /
+     admin/base.html is redefined, so no existing page can change
+     appearance by this block being added.
+
+     Page skeleton:
+       <div class="ms-settings">
+         <p class="ms-lead">…</p>
+         <div class="ms-callout tone-warn">…</div>
+         <form method="POST">
+           <div class="ms-panel">
+             <div class="ms-panel-head"><h2>…</h2><p>…</p></div>
+             <div class="ms-row">
+               <div class="ms-row-info">
+                 <span class="ms-ico tone-info">svg</span>
+                 <div>
+                   <label class="ms-row-title" for="x">…</label>
+                   <p class="ms-row-desc">…</p>
+                 </div>
+               </div>
+               <div class="ms-row-control">…</div>
+             </div>
+           </div>
+           <div class="ms-savebar">…</div>
+         </form>
+       </div>
+     ────────────────────────────────────────────────────────── */
+
+  .ms-settings {
+    /* Both shells use a w-64 (256px) fixed sidebar; a page that
+       hides it can override this one variable. */
+    --ms-shell-inset: 256px;
+    max-width: 1000px;
+    font-size: var(--ms-fs-base);
+    color: var(--ms-ink-2);
+    padding-bottom: 88px;
+  }
+  .ms-settings.is-wide { max-width: 1180px; }
+
+  .ms-lead {
+    font-size: var(--ms-fs-lg);
+    color: var(--ms-ink-2);
+    line-height: 1.75;
+    max-width: 68ch;
+    margin: 0 0 var(--ms-gap-5);
+  }
+  .ms-lead strong { color: var(--ms-ink-1); font-weight: 700; }
+  .ms-lead a { color: var(--ms-brand-dark); font-weight: 600; text-decoration: underline; }
+
+  /* ── Panel (section card) ─────────────────────────────── */
+  .ms-panel {
+    background: var(--ms-surface);
+    border: 1px solid var(--ms-line);
+    border-radius: var(--ms-radius-lg);
+    box-shadow: var(--ms-shadow-sm);
+    margin-bottom: var(--ms-gap-4);
+    overflow: hidden;
+  }
+  .ms-panel-head {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--ms-line);
+    background: var(--ms-surface-soft);
+  }
+  .ms-panel-head h2,
+  .ms-panel-head h3 {
+    font-size: var(--ms-fs-base);
+    font-weight: 700;
+    color: var(--ms-ink-1);
+    margin: 0;
+  }
+  .ms-panel-head p {
+    font-size: var(--ms-fs-sm);
+    color: var(--ms-ink-3);
+    margin: 3px 0 0;
+  }
+  .ms-panel-body { padding: 20px; }
+  .ms-panel-body > * + * { margin-top: var(--ms-gap-4); }
+
+  /* ── Setting row ──────────────────────────────────────── */
+  .ms-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 270px;
+    gap: var(--ms-gap-5);
+    align-items: start;
+    padding: 20px;
+    border-bottom: 1px solid var(--ms-line);
+  }
+  .ms-row:last-child { border-bottom: 0; }
+  /* Full-width variant for controls that need the whole row
+     (textareas, wide tables, choice grids). */
+  .ms-row.is-stacked { grid-template-columns: 1fr; gap: var(--ms-gap-3); }
+  .ms-row.is-stacked .ms-row-control { align-items: stretch; }
+
+  .ms-row-info { display: flex; gap: 12px; min-width: 0; }
+  /* The text column must claim the leftover width. Without this it
+     is `flex: 0 1 auto` and collapses to its widest word — which
+     squashes any control rendered inside the info column (e.g. the
+     per-module reason field on the feature-flags page, where the
+     title is a single short token). */
+  .ms-row-info > :not(.ms-ico) { flex: 1 1 auto; min-width: 0; }
+
+  .ms-ico {
+    flex: none;
+    width: 34px; height: 34px;
+    border-radius: var(--ms-radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    background: var(--ms-brand-soft);
+    color: var(--ms-brand-dark);
+  }
+  .ms-ico svg { width: 17px; height: 17px; }
+  .ms-ico.tone-info   { background: var(--ms-info-soft);    color: #1e40af; }
+  .ms-ico.tone-warn   { background: var(--ms-warning-soft); color: #92400e; }
+  .ms-ico.tone-danger { background: var(--ms-danger-soft);  color: #991b1b; }
+  .ms-ico.tone-muted  { background: var(--ms-surface-soft); color: var(--ms-ink-3); }
+
+  .ms-row-title {
+    display: block;
+    font-size: var(--ms-fs-base);
+    font-weight: 600;
+    color: var(--ms-ink-1);
+    margin: 0 0 4px;
+    line-height: 1.4;
+  }
+  label.ms-row-title { cursor: pointer; }
+  .ms-row-desc {
+    font-size: var(--ms-fs-sm);
+    color: var(--ms-ink-3);
+    line-height: 1.7;
+    margin: 0;
+  }
+  .ms-row-desc code,
+  .ms-lead code,
+  .ms-callout code {
+    font-family: var(--ms-font-mono);
+    font-size: var(--ms-fs-xs);
+    background: var(--ms-surface-soft);
+    border: 1px solid var(--ms-line);
+    border-radius: 5px;
+    padding: 1px 5px;
+    color: var(--ms-ink-2);
+    direction: ltr;
+    display: inline-block;
+  }
+  .ms-row-control {
+    display: flex; flex-direction: column;
+    align-items: flex-end;
+    gap: 7px;
+    padding-top: 2px;
+    min-width: 0;
+  }
+  .ms-field { display: flex; align-items: center; gap: 8px; }
+  .ms-unit {
+    font-size: var(--ms-fs-sm);
+    color: var(--ms-ink-3);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .ms-req { color: var(--ms-danger); font-weight: 700; }
+  .ms-hint { font-size: var(--ms-fs-xs); color: var(--ms-ink-3); font-weight: 400; }
+
+  /* ── Inputs ───────────────────────────────────────────── */
+  .ms-input, .ms-num, .ms-textarea, .ms-select {
+    font-family: inherit;
+    font-size: var(--ms-fs-base);
+    font-weight: 500;
+    color: var(--ms-ink-1);
+    background: var(--ms-surface);
+    border: 1px solid var(--ms-line-strong);
+    border-radius: var(--ms-radius-sm);
+    padding: 9px 12px;
+    transition: border-color .15s, box-shadow .15s;
+    width: 100%;
+    max-width: 100%;
+  }
+  .ms-num {
+    font-family: var(--ms-font-mono);
+    font-size: var(--ms-fs-lg);
+    font-weight: 600;
+    width: 104px;
+    text-align: center;
+    direction: ltr;
+  }
+  .ms-input.is-mono, .ms-textarea.is-mono {
+    font-family: var(--ms-font-mono);
+    direction: ltr;
+    text-align: left;
+    letter-spacing: .3px;
+  }
+  .ms-textarea { min-height: 90px; resize: vertical; line-height: 1.7; }
+  .ms-select { cursor: pointer; }
+  .ms-input:focus, .ms-num:focus, .ms-textarea:focus, .ms-select:focus {
+    outline: none;
+    border-color: var(--ms-brand);
+    box-shadow: 0 0 0 3px rgba(21, 155, 84, .16);
+  }
+  .ms-input::placeholder, .ms-textarea::placeholder {
+    color: var(--ms-ink-4);
+  }
+
+  /* ── Choice pills (radio / checkbox) ──────────────────── */
+  .ms-choice-group { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ms-choice {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 14px;
+    border: 1px solid var(--ms-line-strong);
+    border-radius: var(--ms-radius-pill);
+    background: var(--ms-surface);
+    font-size: var(--ms-fs-sm);
+    color: var(--ms-ink-2);
+    cursor: pointer;
+    transition: border-color .15s, background .15s, color .15s;
+    white-space: nowrap;
+  }
+  .ms-choice input { accent-color: var(--ms-brand); cursor: pointer; margin: 0; }
+  .ms-choice:hover { border-color: var(--ms-brand); }
+  .ms-choice:has(input:checked) {
+    border-color: var(--ms-brand);
+    background: var(--ms-brand-tint);
+    color: var(--ms-brand-dark);
+    font-weight: 600;
+  }
+  .ms-choice:has(input:focus-visible) {
+    box-shadow: 0 0 0 3px rgba(21, 155, 84, .3);
+  }
+
+  /* ── Toggle ───────────────────────────────────────────── */
+  .ms-toggle { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; }
+  .ms-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .ms-track {
+    width: 46px; height: 26px;
+    border-radius: var(--ms-radius-pill);
+    background: var(--ms-line-strong);
+    position: relative;
+    transition: background .2s;
+    flex: none;
+  }
+  .ms-track::after {
+    content: "";
+    position: absolute; top: 3px; right: 3px;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: var(--ms-shadow-sm);
+    transition: transform .2s;
+  }
+  .ms-toggle input:checked + .ms-track { background: var(--ms-brand); }
+  .ms-toggle input:checked + .ms-track::after { transform: translateX(-20px); }
+  .ms-toggle input:focus-visible + .ms-track {
+    box-shadow: 0 0 0 3px rgba(21, 155, 84, .35);
+  }
+  .ms-toggle-label {
+    font-size: var(--ms-fs-sm);
+    font-weight: 600;
+    color: var(--ms-ink-2);
+    min-width: 42px;
+  }
+  /* Danger toggle — for kill-switches, where ON is the alarming state. */
+  .ms-toggle.is-danger input:checked + .ms-track { background: var(--ms-danger); }
+
+  /* ── Reset-to-default chip ────────────────────────────── */
+  .ms-default {
+    font-size: var(--ms-fs-xs);
+    font-family: inherit;
+    color: var(--ms-ink-3);
+    background: var(--ms-surface-soft);
+    border: 1px solid var(--ms-line);
+    border-radius: var(--ms-radius-pill);
+    padding: 3px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  .ms-default:hover {
+    color: var(--ms-brand-dark);
+    border-color: var(--ms-brand);
+    background: var(--ms-brand-tint);
+  }
+  .ms-default:focus-visible { outline: 2px solid var(--ms-brand); outline-offset: 2px; }
+  .ms-default[data-at-default="1"] { opacity: .55; cursor: default; }
+  .ms-default[data-at-default="1"]:hover {
+    color: var(--ms-ink-3);
+    border-color: var(--ms-line);
+    background: var(--ms-surface-soft);
+  }
+
+  /* ── Chips ────────────────────────────────────────────── */
+  .ms-chips { display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; }
+  .ms-chip {
+    font-size: var(--ms-fs-xs);
+    font-weight: 600;
+    background: var(--ms-info-soft);
+    color: #1e40af;
+    border-radius: var(--ms-radius-pill);
+    padding: 2px 9px;
+    white-space: nowrap;
+  }
+  .ms-chip.tone-warn   { background: var(--ms-warning-soft); color: #92400e; }
+  .ms-chip.tone-danger { background: var(--ms-danger-soft);  color: #991b1b; }
+  .ms-chip.tone-brand  { background: var(--ms-brand-soft);   color: var(--ms-brand-dark); }
+  .ms-chip.tone-muted  { background: var(--ms-surface-soft); color: var(--ms-ink-3); }
+
+  /* ── Callout ──────────────────────────────────────────── */
+  .ms-callout {
+    border: 1px solid var(--ms-line);
+    background: var(--ms-surface-soft);
+    border-radius: var(--ms-radius-md);
+    padding: 14px 16px;
+    display: flex;
+    gap: 11px;
+    align-items: flex-start;
+    font-size: var(--ms-fs-sm);
+    line-height: 1.75;
+    color: var(--ms-ink-2);
+    margin-bottom: var(--ms-gap-4);
+  }
+  .ms-callout svg { width: 17px; height: 17px; flex: none; margin-top: 2px; }
+  .ms-callout-title { font-weight: 700; display: block; margin-bottom: 3px; }
+  .ms-callout p { margin: 0 0 6px; }
+  .ms-callout p:last-child { margin-bottom: 0; }
+  .ms-callout a { font-weight: 600; text-decoration: underline; color: inherit; }
+  .ms-callout.tone-warn {
+    background: var(--ms-warning-soft);
+    border-color: #fcd34d;
+    color: #78350f;
+  }
+  .ms-callout.tone-info {
+    background: var(--ms-info-soft);
+    border-color: #93c5fd;
+    color: #1e3a8a;
+  }
+  .ms-callout.tone-danger {
+    background: var(--ms-danger-soft);
+    border-color: #fca5a5;
+    color: #7f1d1d;
+  }
+  .ms-callout.tone-brand {
+    background: var(--ms-brand-soft);
+    border-color: #86d5a8;
+    color: var(--ms-brand-dark);
+  }
+
+  /* ── Notes list ───────────────────────────────────────── */
+  .ms-notes {
+    background: var(--ms-surface-soft);
+    border: 1px solid var(--ms-line);
+    border-radius: var(--ms-radius-lg);
+    padding: 16px 20px;
+  }
+  .ms-notes h3 {
+    font-size: var(--ms-fs-sm);
+    font-weight: 700;
+    color: var(--ms-ink-1);
+    margin: 0 0 10px;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .ms-notes ul { margin: 0; padding: 0; list-style: none; }
+  .ms-notes li {
+    font-size: var(--ms-fs-sm);
+    color: var(--ms-ink-3);
+    line-height: 1.75;
+    padding-right: 18px;
+    position: relative;
+    margin-bottom: 6px;
+  }
+  .ms-notes li:last-child { margin-bottom: 0; }
+  .ms-notes li::before {
+    content: "";
+    position: absolute; right: 0; top: 9px;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--ms-line-strong);
+  }
+  .ms-notes a {
+    color: var(--ms-brand-dark);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  /* ── Layout helpers ───────────────────────────────────── */
+  .ms-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--ms-gap-4);
+  }
+  .ms-actions {
+    display: flex; align-items: center; gap: var(--ms-gap-2);
+    flex-wrap: wrap;
+  }
+
+  /* ── Sticky save bar ──────────────────────────────────── */
+  .ms-savebar {
+    position: fixed;
+    bottom: 0; left: 0;
+    right: var(--ms-shell-inset, 256px);
+    background: rgba(255, 255, 255, .93);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid var(--ms-line);
+    padding: 12px 32px;
+    display: flex; align-items: center; justify-content: flex-end;
+    gap: var(--ms-gap-4);
+    z-index: 20;
+  }
+  .ms-savebar .ms-savebar-start { margin-left: auto; }
+  .ms-dirty {
+    font-size: var(--ms-fs-sm);
+    color: var(--ms-warning);
+    font-weight: 600;
+    display: none;
+    align-items: center;
+    gap: 6px;
+  }
+  .is-dirty .ms-dirty { display: flex; }
+  .ms-dirty::before {
+    content: "";
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--ms-warning);
+  }
+
+  @media (max-width: 900px) {
+    .ms-row { grid-template-columns: 1fr; gap: var(--ms-gap-3); }
+    .ms-row-control { align-items: flex-start; }
+    .ms-chips { justify-content: flex-start; }
+    .ms-grid-2 { grid-template-columns: 1fr; }
+    .ms-savebar { right: 0; padding: 12px 16px; }
+    .ms-num { width: 100%; max-width: 140px; }
+  }
+
 </style>
