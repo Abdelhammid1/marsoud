@@ -1488,6 +1488,33 @@ def create_app(config_class=Config):
         # Report
         # ASCII-only prints — Windows cp1252 stdout crashes on the
         # ✓ / ❌ glyphs, which the pre-commit hook triggers.
+        #
+        # MARSOUD-CLI-MERGE-REPAIR (2026-08-24) — this report block
+        # was lost from here by the f5105ed "merge: T8 route-audit"
+        # merge and landed at the TOP of `_audit_routes` below. That
+        # broke both commands at once: `check-registry` computed
+        # `findings` and then fell off the end of the function, so it
+        # always exited 0 and printed nothing no matter how much
+        # drift there was; and `audit-routes` raised NameError on
+        # `findings` (a local of THIS function) before reaching a
+        # single line of its own route-coverage logic. Restored here,
+        # deleted there.
+        def _p(msg):
+            try:
+                print(msg)
+            except UnicodeEncodeError:
+                print(msg.encode("ascii", errors="replace").decode())
+
+        if not findings:
+            _p("OK feature registry is in sync - no drift detected")
+            _p(f"  - {len(list(all_modules()))} modules")
+            _p(f"  - {len(list(all_features()))} features")
+            sys.exit(0)
+        _p("FAIL feature registry drift detected:")
+        for finding in findings:
+            _p(f"  - {finding}")
+        sys.exit(1)
+
     # MARSOUD-SUPERADMIN-CONTROL-01 T8 (2026-08-08) — CLI:
     # flask audit-routes
     @app.cli.command("audit-routes")
@@ -1505,15 +1532,7 @@ def create_app(config_class=Config):
                 print(msg)
             except UnicodeEncodeError:
                 print(msg.encode("ascii", errors="replace").decode())
-        if not findings:
-            _p("OK feature registry is in sync - no drift detected")
-            _p(f"  - {len(list(all_modules()))} modules")
-            _p(f"  - {len(list(all_features()))} features")
-            sys.exit(0)
-        _p("FAIL feature registry drift detected:")
-        for f in findings:
-            _p(f"  - {f}")
-        sys.exit(1)
+
         try:
             from app.services.route_audit import (
                 build_coverage, orphans, stale_ignores, summary,

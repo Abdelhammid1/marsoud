@@ -135,7 +135,23 @@ tailwind.config = {
       {# MARSOUD-SUPERADMIN-CONTROL-01 T10 (2026-08-08) — grouped
          nav. 20 endpoints under 6 section headers so scanning is
          6 targets, not 20. Order within each section matches the
-         legacy flat order. #}
+         legacy flat order.
+
+         NB: do not put a Jinja comment inside the list literal below.
+         Jinja cannot parse one inside an expression and it fails as a
+         500 on every /admin page — same trap that is documented on the
+         tenant sidebar in base.html. Annotate rows from up here.
+
+         MARSOUD-VBILL-STATUS-VISIBILITY TKT-D nav row (2026-08-24) —
+         `superadmin.vendor_bills_overdue` under المراقبة والسجلات. The
+         page shipped 2026-08-17 with a template but no inbound link
+         from anywhere, so it was reachable only by typing the URL.
+         `flask audit-routes` would have caught it that same day, but
+         that command was itself crashing on a NameError from the
+         f5105ed merge and reported nothing until it was repaired.
+         Filed under المراقبة rather than الاشتراكات والفوترة: that
+         section is the platform billing ITS OWN customers, while this
+         is a cross-tenant view of the tenants' supplier bills. #}
       {% set nav_sections = [
         ('الشركات والمستخدمون', [
           ('superadmin.dashboard',          'النظرة العامة',        '📊'),
@@ -169,6 +185,7 @@ tailwind.config = {
         ]),
         ('المراقبة والسجلات', [
           ('superadmin.ops_health',          'صحة المنصة',           '🩺'),
+          ('superadmin.vendor_bills_overdue', 'فواتير موردين متأخرة', '🧾'),
           ('superadmin.routes_index',        'تدقيق الروتس',         '🧭'),
           ('superadmin.audit',               'سجل النشاط',           '📜'),
           ('superadmin.errors_global',       'سجل الأخطاء',          '🛑'),
