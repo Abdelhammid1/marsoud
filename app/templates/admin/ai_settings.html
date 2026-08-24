@@ -2,151 +2,380 @@
 {% block page_title %}إعدادات الذكاء الاصطناعي{% endblock %}
 {% block content %}
 
-{# MARSOUD-SUPERADMIN-CONTROL-01 T7 — soft redirect banner to
-   the new hub. This page still works (its keys are still read
-   by the accountant) but the hub is the recommended entry. #}
-<div class="card p-3 mb-4 border-emerald-200 bg-emerald-50">
-  <a href="{{ url_for('superadmin.ai_control') }}"
-     class="text-sm text-emerald-700 hover:underline">
-    🧬 تجربة الإصدار الموحّد: مركز التحكم في الذكاء الاصطناعي →
-  </a>
-</div>
+{# MARSOUD-UI-SETTINGS-KIT (2026-08-24) — converted to the shared
+   settings primitives in _design_tokens.html. Was: one flat
+   max-w-3xl card, emoji headings, help text at full card width
+   under narrow inputs, a native checkbox, and an ad-hoc amber
+   warning div. No CSS lives on this page any more.
 
-
-{# MARSOUD-AGENT-DEEPSEEK-02 (2026-08-06) — runtime knobs for the
+   MARSOUD-AGENT-DEEPSEEK-02 (2026-08-06) — runtime knobs for the
    accountant agent's provider and model. Saved settings land on the
    NEXT agent turn — no app restart. Insights agent has its own knobs
    (unchanged by this ticket). #}
 
-<div class="card p-6 max-w-3xl">
-  <h2 class="font-bold text-navy-900 mb-1">🧠 إعدادات الذكاء الاصطناعي</h2>
-  <p class="text-sm text-slate-500 mb-5">
-    التحكم في المزود والموديل المستخدَمَين للمحاسب الذكي على مستوى المنصة.
-    أي تغيير هنا ينزل على المحادثة التالية بدون إعادة تشغيل.
-  </p>
+<div id="ai-settings" class="ms-settings">
 
-  {# High-stakes warning banner — the agent moves real money. #}
-  <div class="bg-amber-50 border border-amber-300 rounded-lg p-4 mb-6 text-sm">
-    <div class="font-bold text-amber-900 mb-1">⚠️ تحذير</div>
-    <div class="text-amber-800 leading-relaxed">
-      المحاسب الذكي ينفّذ عمليات مالية فعلية (يكتب قيود وفواتير ودفعات في الدفاتر).
-      أي تبديل للمزود أو الموديل لازم يتجرّب على شركة تجريبية قبل ما يتساب شغال في الإنتاج.
+  {# MARSOUD-SUPERADMIN-CONTROL-01 T7 — soft redirect to the hub.
+     This page still works (its keys are still read by the
+     accountant) but the hub is the recommended entry. #}
+  <div class="ms-callout tone-brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 3v18M5 7.5l7-4.5 7 4.5v9l-7 4.5-7-4.5z"/>
+    </svg>
+    <div>
+      <span class="ms-callout-title">فيه إصدار موحّد لكل إعدادات الذكاء الاصطناعي</span>
+      <a href="{{ url_for('superadmin.ai_control') }}">افتح مركز التحكم في الذكاء الاصطناعي ←</a>
     </div>
   </div>
 
-  <form method="POST" class="space-y-6">
-    {# ─── Provider picker ────────────────────────────────────────── #}
+  <p class="ms-lead">
+    التحكم في المزود والموديل المستخدَمَين <strong>للمحاسب الذكي</strong>
+    على مستوى المنصة. أي تغيير هنا ينزل على المحادثة التالية بدون
+    إعادة تشغيل.
+  </p>
+
+  {# High-stakes warning — the agent moves real money. #}
+  <div class="ms-callout tone-warn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M10.3 3.9L1.8 18.4a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/>
+      <path d="M12 9v4M12 17h.01"/>
+    </svg>
     <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">
-        مزود المحاسب الذكي
-      </label>
-      <div class="flex gap-4">
-        {% for p in providers %}
-        <label class="flex items-center gap-2 cursor-pointer">
-          <input type="radio" name="accountant_provider" value="{{ p }}"
-                 {% if current_provider == p %}checked{% endif %}
-                 class="text-navy-600">
-          <span class="text-sm font-mono">{{ p }}</span>
-        </label>
-        {% endfor %}
+      <span class="ms-callout-title">تحذير</span>
+      المحاسب الذكي ينفّذ عمليات مالية فعلية (يكتب قيود وفواتير ودفعات
+      في الدفاتر). أي تبديل للمزود أو الموديل لازم يتجرّب على شركة
+      تجريبية قبل ما يتساب شغال في الإنتاج.
+    </div>
+  </div>
+
+  <form method="POST">
+
+    {# ─── Provider + model ──────────────────────────────────── #}
+    <div class="ms-panel">
+      <div class="ms-panel-head">
+        <h2>المزوّد والموديل</h2>
+        <p>مين بيشغّل المحاسب الذكي، وبأي موديل.</p>
       </div>
-      <p class="text-xs text-slate-500 mt-2">
-        الافتراضي: <span class="font-mono">anthropic</span> —
-        نُبقي هذا التبديل تحت سيطرة المشغّل لضمان الرجوع الفوري
-        لو أداء المزود الجديد ما كانش مرضي.
-      </p>
-    </div>
 
-    {# ─── Model input ────────────────────────────────────────────── #}
-    <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">
-        موديل المحاسب الذكي
-      </label>
-      <input type="text" name="accountant_model"
-             value="{{ current_model }}"
-             class="input font-mono" dir="ltr"
-             placeholder="e.g. deepseek-reasoner">
-      <p class="text-xs text-slate-500 mt-1">
-        اترك الحقل فارغًا لاستخدام الافتراضي حسب المزود:
-        <span class="font-mono">{{ provider_defaults['anthropic'] }}</span>
-        لـ anthropic،
-        <span class="font-mono">{{ provider_defaults['deepseek'] }}</span>
-        لـ deepseek (وهو أقوى موديل reasoning عند DeepSeek —
-        ليس موديل الـ flash المستخدم في وكيل التحليلات).
-      </p>
-    </div>
-
-    {# ─── DeepSeek env-var note ──────────────────────────────────── #}
-    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600">
-      <div class="font-semibold text-slate-700 mb-1">ملاحظة تقنية</div>
-      لتشغيل DeepSeek لازم يكون
-      <span class="font-mono">DEEPSEEK_API_KEY</span>
-      مضبوطاً في ملف <span class="font-mono">.env</span> على السيرفر.
-      لو الاختيار deepseek والمفتاح ناقص، أول محادثة هترجّع رسالة خطأ واضحة.
-    </div>
-
-    {# ─── MARSOUD-AGENT-SAFETY-03 (2026-08-06): confirmation + cap ── #}
-    <div class="border-t border-slate-200 pt-5 mt-2">
-      <h3 class="font-bold text-navy-900 mb-3">🛡 أمان الكتابة</h3>
-
-      <label class="flex items-start gap-2 mb-4 cursor-pointer">
-        <input type="checkbox" name="agent_require_confirmation"
-               {% if require_confirmation %}checked{% endif %}
-               class="mt-1">
-        <span class="text-sm">
-          <span class="font-semibold text-slate-700">
-            تأكيد قبل تنفيذ أي عملية كتابة
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico tone-info">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3.5" y="6" width="17" height="12" rx="2.5"/>
+              <path d="M7.5 10v4M12 10v4M16.5 10v4"/>
+            </svg>
           </span>
-          <span class="block text-xs text-slate-500 mt-1">
-            لما مفعّل، أدوات الكتابة (إنشاء عميل / قيد / فاتورة / دفعة)
-            تعرض العملية على المستخدم أولاً بزراريّ تأكيد وإلغاء.
-            لو معطّل، الأدوات تنفّذ فوراً — مايتعطّلش إلا لو تعرف تحديداً
-            أنك محتاج الوضع القديم.
+          <div>
+            <div class="ms-row-title">مزود المحاسب الذكي</div>
+            <p class="ms-row-desc">
+              نُبقي هذا التبديل تحت سيطرة المشغّل لضمان الرجوع الفوري
+              لو أداء المزود الجديد ما كانش مرضي.
+            </p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <div class="ms-choice-group">
+            {% for p in providers %}
+            <label class="ms-choice">
+              <input type="radio" name="accountant_provider" value="{{ p }}"
+                     {% if current_provider == p %}checked{% endif %}>
+              <span class="font-mono">{{ p }}</span>
+            </label>
+            {% endfor %}
+          </div>
+          <button type="button" class="ms-default" data-target="prov-anthropic">
+            افتراضي: anthropic
+          </button>
+        </div>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico tone-info">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 3.5a3 3 0 00-3 3 3 3 0 00-1.5 5.6A3 3 0 006 17.5a3 3 0 003 3 2.5 2.5 0 003-2.4V5.9A2.5 2.5 0 009 3.5z"/>
+              <path d="M15 3.5a3 3 0 013 3 3 3 0 011.5 5.6A3 3 0 0118 17.5a3 3 0 01-3 3 2.5 2.5 0 01-3-2.4"/>
+            </svg>
           </span>
-        </span>
-      </label>
-
-      <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-1">
-          سقف عمليات الكتابة اليومي لكل مستخدم
-        </label>
-        <input type="number" name="agent_daily_write_cap"
-               value="{{ daily_write_cap }}"
-               min="0" max="10000"
-               class="input font-mono w-32" dir="ltr">
-        <p class="text-xs text-slate-500 mt-1">
-          الحد الأقصى لعدد العمليات المكتوبة (create/…) اللي المستخدم
-          الواحد يقدر يعملها خلال يوم واحد بتوقيت الشركة.
-          <span class="font-mono">0</span> يعني بلا حد.
-        </p>
-      </div>
-
-      {# MARSOUD-AGENT-MEMORY-05 (2026-08-06) — retention days for
-         auto-delete of old agent conversations. Non-destructive
-         default (0 = never expire) is deliberate. #}
-      <div class="mt-4">
-        <label class="block text-sm font-semibold text-slate-700 mb-1">
-          مدة الاحتفاظ بمحادثات المحاسب الذكي (بالأيام)
-        </label>
-        <input type="number" name="agent_conversation_retention_days"
-               value="{{ conversation_retention_days }}"
-               min="0" max="3650"
-               class="input font-mono w-32" dir="ltr">
-        <p class="text-xs text-slate-500 mt-1">
-          المحادثات الأقدم من ده تتحذف تلقائياً من الـ cron اليومي مع كل رسائلها.
-          <span class="font-mono">0</span> يعني بلا حذف.
-          الافتراضي <span class="font-mono">90</span> يوم — كافي لمراجعة ربع سنة،
-          ويقصر ذيل الأرشيف للتينانتات المهجورة.
-        </p>
+          <div>
+            <label class="ms-row-title" for="f-model">موديل المحاسب الذكي</label>
+            <p class="ms-row-desc">
+              اتركه فارغًا لاستخدام الافتراضي حسب المزود.
+              <code>{{ provider_defaults['deepseek'] }}</code> هو أقوى موديل
+              reasoning عند DeepSeek — ليس موديل الـ flash المستخدم في
+              وكيل التحليلات.
+            </p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <input type="text" id="f-model" name="accountant_model"
+                 value="{{ current_model }}"
+                 class="ms-input is-mono" dir="ltr"
+                 placeholder="{{ provider_defaults['anthropic'] }}">
+          <div class="ms-chips">
+            <span class="ms-chip tone-muted" id="model-default-hint">
+              افتراضي {{ current_provider }}:
+              {{ provider_defaults.get(current_provider, '—') }}
+            </span>
+          </div>
+          <button type="button" class="ms-default" data-target="f-model"
+                  data-clear="1">استخدم الافتراضي (فارغ)</button>
+        </div>
       </div>
     </div>
 
-    <div class="flex gap-2">
-      <button type="submit" class="btn btn-primary">حفظ</button>
-      <a href="{{ url_for('superadmin.ai_usage') }}"
-         class="btn btn-secondary">عرض الاستهلاك</a>
+    {# ─── Write safety ──────────────────────────────────────── #}
+    <div class="ms-panel">
+      <div class="ms-panel-head">
+        <h2>أمان الكتابة</h2>
+        <p>حواجز على أدوات الكتابة اللي بينفّذها الوكيل في الدفاتر.</p>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico tone-danger">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3l7.5 3v5.5c0 4.4-3 8.2-7.5 9.5-4.5-1.3-7.5-5.1-7.5-9.5V6z"/>
+              <path d="M9.2 12l2 2 3.6-3.8"/>
+            </svg>
+          </span>
+          <div>
+            <div class="ms-row-title">تأكيد قبل تنفيذ أي عملية كتابة</div>
+            <p class="ms-row-desc">
+              لما مفعّل، أدوات الكتابة (إنشاء عميل / قيد / فاتورة / دفعة)
+              تعرض العملية على المستخدم أولاً بزراريّ تأكيد وإلغاء.
+              لو معطّل، الأدوات تنفّذ فوراً — ماتعطّلوش إلا لو تعرف
+              تحديداً أنك محتاج الوضع القديم.
+            </p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <label class="ms-toggle">
+            <input type="checkbox" id="f-confirm" name="agent_require_confirmation"
+                   {% if require_confirmation %}checked{% endif %}
+                   data-default="1">
+            <span class="ms-track"></span>
+            <span class="ms-toggle-label" id="confirm-label">{% if require_confirmation %}مفعّل{% else %}معطّل{% endif %}</span>
+          </label>
+          <button type="button" class="ms-default" data-target="f-confirm">
+            افتراضي: مفعّل
+          </button>
+        </div>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico tone-warn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3.5v17M4.5 8.5h15M4.5 15.5h15"/>
+            </svg>
+          </span>
+          <div>
+            <label class="ms-row-title" for="f-cap">سقف عمليات الكتابة اليومي لكل مستخدم</label>
+            <p class="ms-row-desc">
+              الحد الأقصى لعدد العمليات المكتوبة اللي المستخدم الواحد
+              يقدر يعملها خلال يوم واحد بتوقيت الشركة.
+              <code>0</code> يعني بلا حد.
+            </p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <div class="ms-field">
+            <input type="number" id="f-cap" name="agent_daily_write_cap"
+                   value="{{ daily_write_cap }}" min="0" max="10000"
+                   class="ms-num">
+            <span class="ms-unit">عملية / يوم</span>
+          </div>
+          <div class="ms-chips" id="cap-hint"></div>
+        </div>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico tone-muted">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4.5 7.5c0-1.7 3.4-3 7.5-3s7.5 1.3 7.5 3-3.4 3-7.5 3-7.5-1.3-7.5-3z"/>
+              <path d="M4.5 7.5v9c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-9"/>
+              <path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/>
+            </svg>
+          </span>
+          <div>
+            <label class="ms-row-title" for="f-retention">مدة الاحتفاظ بمحادثات المحاسب الذكي</label>
+            <p class="ms-row-desc">
+              المحادثات الأقدم من ده تتحذف تلقائياً من الـ cron اليومي
+              مع كل رسائلها. <code>0</code> يعني بلا حذف. 90 يوم كافية
+              لمراجعة ربع سنة، وبتقصّر ذيل الأرشيف للتينانتات المهجورة.
+            </p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <div class="ms-field">
+            <input type="number" id="f-retention" name="agent_conversation_retention_days"
+                   value="{{ conversation_retention_days }}" min="0" max="3650"
+                   class="ms-num" data-default="90">
+            <span class="ms-unit" id="u-retention">يوم</span>
+          </div>
+          <div class="ms-chips" id="retention-hint"></div>
+          <button type="button" class="ms-default" data-target="f-retention">
+            افتراضي: 90
+          </button>
+        </div>
+      </div>
     </div>
+
+    <div class="ms-notes">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M12 11.5v5M12 7.75h.01"/>
+        </svg>
+        ملاحظات تقنية
+      </h3>
+      <ul>
+        <li>
+          لتشغيل DeepSeek لازم يكون <code>DEEPSEEK_API_KEY</code> مضبوطاً
+          في ملف <code>.env</code> على السيرفر. لو الاختيار deepseek
+          والمفتاح ناقص، أول محادثة هترجّع رسالة خطأ واضحة.
+        </li>
+        <li>المفاتيح الخاصة لا تُخزَّن في قاعدة البيانات — تتقرا من البيئة وقت التشغيل.</li>
+        <li>
+          المحلل الذكي (insights) له مفاتيحه المستقلة — عدّلها من
+          <a href="{{ url_for('superadmin.ai_control') }}">مركز التحكم</a>.
+        </li>
+      </ul>
+    </div>
+
+    <div class="ms-savebar">
+      <span class="ms-dirty">فيه تغييرات ما اتحفظتش</span>
+      <a href="{{ url_for('superadmin.ai_usage') }}" class="btn btn-secondary">عرض الاستهلاك</a>
+      <button type="submit" class="btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+             stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true">
+          <path d="M4.5 12.5l5 5 10-11"/>
+        </svg>
+        حفظ
+      </button>
+    </div>
+
   </form>
 </div>
+
+<script>
+(function () {
+  var root = document.getElementById('ai-settings');
+  if (!root) return;
+  var form = root.querySelector('form');
+
+  var PROVIDER_DEFAULTS = {{ provider_defaults|tojson }};
+
+  /* Arabic numeral agreement: 3–10 takes the plural. */
+  function dayWord(n) { return (n >= 3 && n <= 10) ? 'أيام' : 'يوم'; }
+
+  /* ── Model placeholder + hint follow the selected provider ── */
+  var model = document.getElementById('f-model');
+  var modelHint = document.getElementById('model-default-hint');
+  function syncProvider() {
+    var picked = root.querySelector('input[name="accountant_provider"]:checked');
+    if (!picked) return;
+    var def = PROVIDER_DEFAULTS[picked.value] || '';
+    if (model) model.placeholder = def;
+    if (modelHint) modelHint.textContent = 'افتراضي ' + picked.value + ': ' + (def || '—');
+  }
+  root.querySelectorAll('input[name="accountant_provider"]').forEach(function (r) {
+    r.addEventListener('change', function () { syncProvider(); checkDirty(); });
+  });
+
+  /* ── "0 = unlimited / never" hints ────────────────────────── */
+  function hint(fieldId, boxId, zeroText, fmt) {
+    var f = document.getElementById(fieldId);
+    var box = document.getElementById(boxId);
+    if (!f || !box) return;
+    var sync = function () {
+      var n = Number(f.value);
+      box.innerHTML = '';
+      var el = document.createElement('span');
+      if (!f.value || isNaN(n)) { return; }
+      if (n === 0) { el.className = 'ms-chip tone-warn'; el.textContent = zeroText; }
+      else { el.className = 'ms-chip'; el.textContent = fmt(n); }
+      box.appendChild(el);
+    };
+    f.addEventListener('input', sync);
+    sync();
+  }
+  hint('f-cap', 'cap-hint', 'بلا حد', function (n) { return n + ' عملية لكل مستخدم يومياً'; });
+  hint('f-retention', 'retention-hint', 'بلا حذف — الأرشيف يفضل للأبد',
+       function (n) { return 'حذف بعد ' + n + ' ' + dayWord(n); });
+
+  var retention = document.getElementById('f-retention');
+  var uRetention = document.getElementById('u-retention');
+  if (retention && uRetention) {
+    retention.addEventListener('input', function () {
+      uRetention.textContent = dayWord(Number(retention.value));
+    });
+    uRetention.textContent = dayWord(Number(retention.value));
+  }
+
+  /* ── Confirmation toggle label ────────────────────────────── */
+  var confirmField = document.getElementById('f-confirm');
+  var confirmLabel = document.getElementById('confirm-label');
+  if (confirmField && confirmLabel) {
+    confirmField.addEventListener('change', function () {
+      confirmLabel.textContent = confirmField.checked ? 'مفعّل' : 'معطّل';
+    });
+  }
+
+  /* ── Reset-to-default chips ───────────────────────────────── */
+  root.querySelectorAll('.ms-default').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var id = chip.dataset.target;
+      if (id === 'prov-anthropic') {
+        var r = root.querySelector('input[name="accountant_provider"][value="anthropic"]');
+        if (r) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); }
+        return;
+      }
+      var field = document.getElementById(id);
+      if (!field) return;
+      if (chip.dataset.clear === '1') field.value = '';
+      else if (field.type === 'checkbox') field.checked = field.dataset.default === '1';
+      else field.value = field.dataset.default;
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+      field.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+
+  /* ── Dirty tracking ───────────────────────────────────────── */
+  var fields = Array.prototype.slice.call(root.querySelectorAll('input[name], select[name], textarea[name]'));
+  var initial = fields.map(function (f) {
+    return (f.type === 'checkbox' || f.type === 'radio') ? f.checked : f.value;
+  });
+  function checkDirty() {
+    var dirty = fields.some(function (f, i) {
+      var now = (f.type === 'checkbox' || f.type === 'radio') ? f.checked : f.value;
+      return now !== initial[i];
+    });
+    root.classList.toggle('is-dirty', dirty);
+  }
+  fields.forEach(function (f) {
+    ['input', 'change'].forEach(function (e) { f.addEventListener(e, checkDirty); });
+  });
+
+  var saving = false;
+  if (form) form.addEventListener('submit', function () { saving = true; });
+  window.addEventListener('beforeunload', function (e) {
+    if (saving || !root.classList.contains('is-dirty')) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
+  syncProvider();
+})();
+</script>
 
 {% endblock %}

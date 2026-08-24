@@ -2,79 +2,132 @@
 {% block page_title %}إنشاء مسؤول مقيَّد{% endblock %}
 {% block content %}
 
-<div class="mb-4 flex items-center justify-between">
-  <h2 class="font-bold text-navy-900 text-lg">
-    ➕ إنشاء / ترقية مسؤول مقيَّد
-  </h2>
-  <a href="{{ url_for('superadmin.users') }}"
-     class="btn btn-secondary text-sm">← عودة للمستخدمين</a>
+{# MARSOUD-UI-SETTINGS-KIT (2026-08-24) — converted to the shared
+   settings primitives. The three-paragraph sky-blue explainer block
+   became one `.ms-callout tone-info`, and the "مطلوب فقط للمستخدمين
+   الجدد" notes moved from inline label spans into the row
+   descriptions where the rest of the help text lives. #}
+
+<div id="restricted-admin" class="ms-settings">
+
+  <p class="ms-lead">
+    <strong>مسؤول مقيَّد</strong> = مستخدم له صلاحيات
+    <code>superadmin</code> لكن كل محاولات الكتابة (POST) تحت
+    <code>/admin/*</code> تُعرَض عليك للموافقة في صفحة
+    <strong>موافقات مُعلَّقة</strong> قبل التنفيذ.
+  </p>
+
+  <div class="ms-callout tone-info">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/><path d="M12 11.5v5M12 7.75h.01"/>
+    </svg>
+    <div>
+      <p>
+        <strong>لو المستخدم موجود بالفعل بنفس البريد</strong> — هيتم
+        ترقيته فقط، دون أي تغيير في اسمه أو كلمة مروره أو ارتباطه
+        بالشركات.
+      </p>
+      <p>
+        <strong>لو غير موجود</strong> — هيتم إنشاؤه بالبيانات المدخلة،
+        والاسم وكلمة المرور بيبقوا مطلوبين ساعتها.
+      </p>
+    </div>
+  </div>
+
+  <form method="POST" action="{{ url_for('superadmin.user_create_restricted') }}">
+
+    <div class="ms-panel">
+      <div class="ms-panel-head">
+        <h2>بيانات الحساب</h2>
+        <p>البريد وحده كفاية لو الحساب موجود.</p>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="5.5" width="18" height="13" rx="2"/>
+              <path d="M3.5 7l8.5 6 8.5-6"/>
+            </svg>
+          </span>
+          <div>
+            <label class="ms-row-title" for="f-email">
+              البريد الإلكتروني <span class="ms-req">*</span>
+            </label>
+            <p class="ms-row-desc">
+              ده اللي بيحدّد هل هيتعمل حساب جديد ولا ترقية لحساب قائم.
+            </p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <input type="email" id="f-email" name="email" required
+                 class="ms-input is-mono" autocomplete="off"
+                 placeholder="user@example.com" style="width:260px">
+        </div>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico tone-muted">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="8.5" r="4"/>
+              <path d="M4.5 20.5a7.5 7.5 0 0115 0"/>
+            </svg>
+          </span>
+          <div>
+            <label class="ms-row-title" for="f-name">الاسم الكامل</label>
+            <p class="ms-row-desc">
+              مطلوب فقط لو الحساب جديد. بيتجاهل لو البريد موجود بالفعل.
+            </p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <input type="text" id="f-name" name="full_name"
+                 class="ms-input" autocomplete="off"
+                 placeholder="مثلاً: أحمد صالح" style="width:260px">
+        </div>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico tone-warn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="4.5" y="10.5" width="15" height="10.5" rx="2.25"/>
+              <path d="M8 10.5V7a4 4 0 018 0v3.5"/>
+            </svg>
+          </span>
+          <div>
+            <label class="ms-row-title" for="f-password">كلمة المرور</label>
+            <p class="ms-row-desc">
+              مطلوبة فقط للمستخدمين الجدد — 8 أحرف على الأقل.
+              كلمة مرور الحساب القائم ما بتتغيّرش من هنا.
+            </p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <input type="password" id="f-password" name="password" minlength="8"
+                 class="ms-input" autocomplete="new-password"
+                 placeholder="8 أحرف على الأقل" style="width:260px">
+        </div>
+      </div>
+    </div>
+
+    <div class="ms-savebar">
+      <a href="{{ url_for('superadmin.users') }}" class="btn btn-secondary">إلغاء</a>
+      <button type="submit" class="btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+             stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+        إنشاء / ترقية
+      </button>
+    </div>
+
+  </form>
 </div>
-
-<div class="card p-4 mb-4 bg-sky-50 border border-sky-200
-            text-xs text-slate-700 leading-6">
-  <p class="mb-1">
-    <b>مسؤول مقيَّد</b> = مستخدم له صلاحيات
-    <code class="font-mono">superadmin</code> لكن كل محاولات
-    الكتابة (POST) تحت <code class="font-mono">/admin/*</code>
-    تُعرَض عليك للموافقة في صفحة
-    <b>موافقات مُعلَّقة</b> قبل التنفيذ.
-  </p>
-  <p class="mb-1">
-    <b>لو المستخدم موجود بالفعل بنفس البريد</b> — هيتم
-    ترقيته فقط دون أي تغيير في اسمه أو كلمة مروره أو
-    ارتباطه بالشركات.
-  </p>
-  <p>
-    <b>لو غير موجود</b> — هيتم إنشاؤه بالبيانات المدخلة
-    (الاسم + كلمة المرور مطلوبان).
-  </p>
-</div>
-
-<form method="POST"
-      action="{{ url_for('superadmin.user_create_restricted') }}"
-      class="card p-6 max-w-xl">
-
-  <div class="mb-4">
-    <label class="block text-sm font-semibold text-slate-700 mb-1">
-      البريد الإلكتروني
-      <span class="text-rose-600">*</span>
-    </label>
-    <input type="email" name="email" required
-           class="input" autocomplete="off"
-           placeholder="user@example.com">
-  </div>
-
-  <div class="mb-4">
-    <label class="block text-sm font-semibold text-slate-700 mb-1">
-      الاسم الكامل
-      <span class="text-slate-400 text-xs">
-        — مطلوب فقط للمستخدمين الجدد
-      </span>
-    </label>
-    <input type="text" name="full_name"
-           class="input" autocomplete="off"
-           placeholder="مثلاً: أحمد صالح">
-  </div>
-
-  <div class="mb-6">
-    <label class="block text-sm font-semibold text-slate-700 mb-1">
-      كلمة المرور
-      <span class="text-slate-400 text-xs">
-        — مطلوبة فقط للمستخدمين الجدد
-      </span>
-    </label>
-    <input type="password" name="password" minlength="8"
-           class="input" autocomplete="new-password"
-           placeholder="8 أحرف على الأقل">
-  </div>
-
-  <div class="flex items-center gap-3">
-    <button type="submit" class="btn btn-primary">
-      إنشاء / ترقية
-    </button>
-    <a href="{{ url_for('superadmin.users') }}"
-       class="btn btn-secondary">إلغاء</a>
-  </div>
-</form>
 
 {% endblock %}

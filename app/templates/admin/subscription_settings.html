@@ -2,107 +2,444 @@
 {% block page_title %}إعدادات الاشتراك{% endblock %}
 {% block content %}
 
-<div class="card p-6 max-w-3xl">
-  <h2 class="font-bold text-navy-900 mb-1">⚙️ إعدادات الاشتراك</h2>
-  <p class="text-sm text-slate-500 mb-5">
-    التحكم في دورة حياة الاشتراك على مستوى المنصة. الإعدادات دي بتأثر
-    على كل الشركات. النظام بيشتغل بالقيم الافتراضية من أول لحظة لو
-    ماغيّرتش حاجة هنا.
+{# MARSOUD-SUBS-SETTINGS-UI (2026-08-24) — page redesign.
+
+   Was: one flat max-w-3xl card, five unrelated settings stacked in a
+   single column, help text running the full ~900px card width under
+   8rem-wide inputs, emoji icons, a native checkbox, and the save
+   button below the fold.
+
+   Now: a lifecycle diagram that renders the four numbers being
+   edited, settings grouped into two labelled sections, and a
+   two-column row (info on the start edge, control on the end edge)
+   so help text keeps a readable measure.
+
+   All styles are scoped under #subs-settings so nothing leaks into
+   the other 39 admin templates, and they read the central --ms-*
+   tokens from _design_tokens.html. The save button deliberately
+   stays the admin shell's own .btn-primary navy — this page should
+   match the rest of /admin, not start yet another palette. #}
+
+<style>
+  /* MARSOUD-UI-SETTINGS-KIT (2026-08-24) — the ~290 lines that used
+     to live here are now shared primitives in _design_tokens.html
+     (.ms-settings/.ms-panel/.ms-row/.ms-toggle/.ms-num/.ms-default…).
+     Only the lifecycle diagram, which no other page has, stays local. */
+  #subs-settings .ss-tl-wrap {
+    background: var(--ms-surface);
+    border: 1px solid var(--ms-line);
+    border-radius: var(--ms-radius-lg);
+    padding: 18px 20px 20px;
+    box-shadow: var(--ms-shadow-sm);
+    margin-bottom: var(--ms-gap-6);
+  }
+  #subs-settings .ss-tl-head {
+    display: flex; align-items: baseline; gap: var(--ms-gap-2);
+    margin-bottom: 14px; flex-wrap: wrap;
+  }
+  #subs-settings .ss-tl-head h3 {
+    font-size: var(--ms-fs-base); font-weight: 700;
+    color: var(--ms-ink-1); margin: 0;
+  }
+  #subs-settings .ss-tl-head span {
+    font-size: var(--ms-fs-xs); color: var(--ms-ink-3);
+  }
+  #subs-settings .ss-timeline { display: flex; gap: 6px; align-items: stretch; }
+  #subs-settings .ss-tl-seg {
+    border-radius: var(--ms-radius-sm);
+    padding: 11px 13px; min-width: 0;
+    transition: opacity .18s;
+  }
+  #subs-settings .ss-tl-label {
+    font-size: var(--ms-fs-xs); font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  #subs-settings .ss-tl-val {
+    font-size: var(--ms-fs-sm); font-weight: 700;
+    margin-top: 3px; white-space: nowrap;
+  }
+  #subs-settings .ss-tl-val .u {
+    font-weight: 500; opacity: .7; font-size: var(--ms-fs-xs);
+  }
+  #subs-settings .ss-tl-seg.tone-trial  { background: var(--ms-info-soft);    color: #1e40af; flex: 14; }
+  #subs-settings .ss-tl-seg.tone-active { background: var(--ms-brand-soft);   color: var(--ms-brand-dark); flex: 30; }
+  #subs-settings .ss-tl-seg.tone-warn   { background: var(--ms-warning-soft); color: #92400e; flex: 12; }
+  #subs-settings .ss-tl-seg.tone-grace  { background: #ffedd5;                color: #9a3412; flex: 10; }
+  #subs-settings .ss-tl-seg.tone-locked { background: var(--ms-danger-soft);  color: #991b1b; flex: 11; }
+  #subs-settings .ss-tl-seg.tone-locked.is-off { opacity: .4; }
+  #subs-settings .ss-chips { max-width: 260px; }
+  #subs-settings .ss-text  { width: 260px; }
+
+  @media (max-width: 900px) {
+    #subs-settings .ss-timeline { flex-wrap: wrap; }
+    #subs-settings .ss-tl-seg { flex: 1 1 44%; }
+    #subs-settings .ss-text { width: 100%; max-width: 260px; }
+  }
+</style>
+
+<div id="subs-settings" class="ms-settings">
+
+  <p class="ms-lead">
+    التحكم في دورة حياة الاشتراك على مستوى المنصة.
+    الإعدادات دي بتأثر على <strong>كل الشركات</strong> —
+    النظام بيشتغل بالقيم الافتراضية من أول لحظة لو ماغيّرتش حاجة هنا.
   </p>
 
-  <form method="POST" class="space-y-6">
-    {# ─── Reminder thresholds ───────────────────────────────────── #}
-    <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">
-        📨 مواعيد التنبيهات قبل الانتهاء (أيام)
-      </label>
-      <input type="text" name="reminder_thresholds"
-             value="{{ thresholds|join(',') }}"
-             class="input font-mono" dir="ltr"
-             placeholder="7, 5, 3, 1, 0">
-      <p class="text-xs text-slate-500 mt-1">
-        قائمة أرقام (افتراضي: <span class="font-mono">{{ default_thresholds|join(', ') }}</span>).
-        مثلاً 7 يعني تذكير قبل الانتهاء بأسبوع. 0 يعني التذكير يوم الانتهاء نفسه.
-      </p>
+  <div class="ss-tl-wrap">
+    <div class="ss-tl-head">
+      <h3>المخطط الزمني للاشتراك</h3>
+      <span>— توضيحي، بيتحدّث مع تغيير القيم تحت</span>
     </div>
-
-    {# ─── Grace days ────────────────────────────────────────────── #}
-    <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">
-        ⏱️ فترة السماح بعد الانتهاء (GRACE_DAYS)
-      </label>
-      <input type="number" name="grace_days" min="0" max="365" value="{{ grace_days }}" class="input font-mono w-32">
-      <p class="text-xs text-slate-500 mt-1">
-        خلال الفترة دي بعد انتهاء الاشتراك، النظام يشتغل عادي بس مع
-        banner تحذيري. بعدها يدخل وضع القراءة فقط (لو مفعّل).
-        افتراضي: <span class="font-mono">{{ default_grace }}</span> يوم.
-      </p>
+    <div class="ss-timeline">
+      <div class="ss-tl-seg tone-trial">
+        <div class="ss-tl-label">فترة تجريبية</div>
+        <div class="ss-tl-val"><span id="tl-trial">{{ trial_days }}</span> <span class="u" id="tlu-trial">{% if 3 <= trial_days <= 10 %}أيام{% else %}يوم{% endif %}</span></div>
+      </div>
+      <div class="ss-tl-seg tone-active">
+        <div class="ss-tl-label">اشتراك نشط</div>
+        <div class="ss-tl-val">حسب الباقة</div>
+      </div>
+      <div class="ss-tl-seg tone-warn">
+        <div class="ss-tl-label">تنبيهات قبل الانتهاء</div>
+        <div class="ss-tl-val"><span id="tl-reminders">{{ thresholds|length }}</span> <span class="u" id="tlu-reminders">{% if 3 <= thresholds|length <= 10 %}تنبيهات{% else %}تنبيه{% endif %}</span></div>
+      </div>
+      <div class="ss-tl-seg tone-grace">
+        <div class="ss-tl-label">فترة سماح</div>
+        <div class="ss-tl-val"><span id="tl-grace">{{ grace_days }}</span> <span class="u" id="tlu-grace">{% if 3 <= grace_days <= 10 %}أيام{% else %}يوم{% endif %}</span></div>
+      </div>
+      <div class="ss-tl-seg tone-locked{% if not readonly_enabled %} is-off{% endif %}" id="tl-locked-seg">
+        <div class="ss-tl-label">قراءة فقط</div>
+        <div class="ss-tl-val" id="tl-locked">{% if readonly_enabled %}مفعّل{% else %}معطّل{% endif %}</div>
+      </div>
     </div>
+  </div>
 
-    {# MARSOUD-TRIAL-DAYS-SETTING (Abdelhamid 2026-07-22) — trial
-       length is now admin-tunable instead of a hardcoded constant. #}
-    <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">
-        🎁 مدة الفترة التجريبية للحسابات الجديدة (أيام)
-      </label>
-      <input type="number" name="trial_days" min="1" max="365"
-             value="{{ trial_days }}" class="input font-mono w-32">
-      <p class="text-xs text-slate-500 mt-1">
-        كل شركة جديدة بتدخل النظام تاخد الفترة دي مجاناً بجميع
-        المميزات. بعدها بتتحكم فيها قيود الباقة المختارة.
-        افتراضي: <span class="font-mono">{{ default_trial_days }}</span> يوم.
-      </p>
-    </div>
+  <form method="POST">
 
-    {# MARSOUD-API-RATE-LIMIT (Abdelhamid 2026-07-22) — cap on
-       per-ApiToken requests per minute. Applies to /api/v1/*. #}
-    <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">
-        ⚡ حد الطلبات للـ API (لكل توكن، لكل دقيقة)
-      </label>
-      <input type="number" name="api_rate_limit_per_minute"
-             min="1" max="100000"
-             value="{{ api_rate_limit_per_minute }}"
-             class="input font-mono w-32">
-      <p class="text-xs text-slate-500 mt-1">
-        كل توكن API بيقدر يبعت هذا العدد من الطلبات على /api/v1/*
-        في الدقيقة الواحدة. لو تجاوز، النظام بيرجّع HTTP 429.
-        افتراضي: <span class="font-mono">{{ default_api_rate_limit }}</span> طلب/دقيقة.
-      </p>
-    </div>
+    <div class="ms-panel">
+      <div class="ms-panel-head">
+        <h2>دورة حياة الاشتراك</h2>
+        <p>من أول يوم تجريبي لحد وضع القراءة فقط بعد انتهاء فترة السماح.</p>
+      </div>
 
-    {# ─── Read-only enforcement toggle ─────────────────────────── #}
-    <div>
-      <label class="flex items-start gap-3 cursor-pointer">
-        <input type="checkbox" name="readonly_enabled" {% if readonly_enabled %}checked{% endif %} class="mt-1">
-        <div>
-          <div class="text-sm font-semibold text-slate-700">
-            🔒 تفعيل وضع القراءة فقط بعد فترة السماح
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <div class="ms-ico tone-info">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19.5 11.75V19a2 2 0 01-2 2h-11a2 2 0 01-2-2v-7.25"/>
+              <path d="M3.5 8h17v3.75h-17zM12 21V8"/>
+              <path d="M12 8H8.75a2.25 2.25 0 110-4.5C10.9 3.5 12 8 12 8zm0 0h3.25a2.25 2.25 0 100-4.5C13.1 3.5 12 8 12 8z"/>
+            </svg>
           </div>
-          <p class="text-xs text-slate-500 mt-1">
-            لما مفعّل، بعد ما تنتهي فترة السماح النظام بيرفض أي إضافة/تعديل/حذف
-            ويسمح بالقراءة والتقارير فقط. لو متعطّل، الـ banner التحذيري يفضل
-            ظاهر لكن ما فيش تقييد فعلي.
-            <br>
-            افتراضي: <span class="font-mono">{% if default_readonly %}مفعّل{% else %}معطّل{% endif %}</span>.
-          </p>
+          <div>
+            <label class="ms-row-title" for="f-trial">مدة الفترة التجريبية للحسابات الجديدة</label>
+            <p class="ms-row-desc">
+              كل شركة جديدة بتدخل النظام تاخد الفترة دي مجاناً بجميع المميزات.
+              بعدها بتتحكم فيها قيود الباقة المختارة.
+            </p>
+          </div>
         </div>
-      </label>
+        <div class="ms-row-control">
+          <div class="ms-field">
+            <input type="number" id="f-trial" name="trial_days" min="1" max="365"
+                   value="{{ trial_days }}" class="ms-num" data-default="{{ default_trial_days }}">
+            <span class="ms-unit" id="u-trial">{% if 3 <= trial_days <= 10 %}أيام{% else %}يوم{% endif %}</span>
+          </div>
+          <button type="button" class="ms-default" data-target="f-trial">افتراضي: {{ default_trial_days }}</button>
+        </div>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <div class="ms-ico tone-warn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 8.5a6 6 0 10-12 0c0 4.5-1.75 6-1.75 6h15.5S18 13 18 8.5z"/>
+              <path d="M13.75 19a2 2 0 01-3.5 0"/>
+            </svg>
+          </div>
+          <div>
+            <label class="ms-row-title" for="f-thresholds">مواعيد التنبيهات قبل الانتهاء</label>
+            <p class="ms-row-desc">
+              قائمة أرقام مفصولة بفواصل. <code>7</code> يعني تذكير قبل الانتهاء
+              بأسبوع، و<code>0</code> يعني التذكير يوم الانتهاء نفسه.
+              أي قيمة مش رقم صحيح بين 0 و365 بتتجاهل عند الحفظ.
+            </p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <input type="text" id="f-thresholds" name="reminder_thresholds"
+                 value="{{ thresholds|join(',') }}" class="ms-input is-mono ss-text" dir="ltr"
+                 placeholder="7,5,3,1,0" data-default="{{ default_thresholds|join(',') }}"
+                 aria-describedby="thresholds-preview">
+          <div class="ms-chips ss-chips" id="thresholds-preview" aria-live="polite"></div>
+          <button type="button" class="ms-default" data-target="f-thresholds">افتراضي: {{ default_thresholds|join(',') }}</button>
+        </div>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <div class="ms-ico tone-warn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="13.5" r="7.5"/>
+              <path d="M12 10v3.5l2.5 1.5M9.5 2.5h5M19.5 6l-1.5 1.5"/>
+            </svg>
+          </div>
+          <div>
+            <label class="ms-row-title" for="f-grace">فترة السماح بعد الانتهاء</label>
+            <p class="ms-row-desc">
+              خلال الفترة دي بعد انتهاء الاشتراك النظام يشتغل عادي بس مع
+              banner تحذيري. بعدها يدخل وضع القراءة فقط — لو مفعّل تحت.
+            </p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <div class="ms-field">
+            <input type="number" id="f-grace" name="grace_days" min="0" max="365"
+                   value="{{ grace_days }}" class="ms-num" data-default="{{ default_grace }}">
+            <span class="ms-unit" id="u-grace">{% if 3 <= grace_days <= 10 %}أيام{% else %}يوم{% endif %}</span>
+          </div>
+          <button type="button" class="ms-default" data-target="f-grace">افتراضي: {{ default_grace }}</button>
+        </div>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <div class="ms-ico tone-danger">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="4.5" y="10.5" width="15" height="10.5" rx="2.25"/>
+              <path d="M8 10.5V7a4 4 0 018 0v3.5"/>
+            </svg>
+          </div>
+          <div>
+            <div class="ms-row-title">تفعيل وضع القراءة فقط بعد فترة السماح</div>
+            <p class="ms-row-desc">
+              لما مفعّل، بعد ما تنتهي فترة السماح النظام بيرفض أي إضافة أو تعديل
+              أو حذف، ويسمح بالقراءة والتقارير فقط. لو متعطّل، الـ banner
+              التحذيري يفضل ظاهر لكن ما فيش تقييد فعلي.
+            </p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <label class="ms-toggle">
+            <input type="checkbox" id="f-readonly" name="readonly_enabled"
+                   {% if readonly_enabled %}checked{% endif %}
+                   data-default="{{ 1 if default_readonly else 0 }}">
+            <span class="ms-track"></span>
+            <span class="ms-toggle-label" id="readonly-label">{% if readonly_enabled %}مفعّل{% else %}معطّل{% endif %}</span>
+          </label>
+          <button type="button" class="ms-default" data-target="f-readonly">افتراضي: {% if default_readonly %}مفعّل{% else %}معطّل{% endif %}</button>
+        </div>
+      </div>
     </div>
 
-    <div class="flex justify-end pt-2">
-      <button type="submit" class="btn-primary">💾 حفظ الإعدادات</button>
+    <div class="ms-panel">
+      <div class="ms-panel-head">
+        <h2>حدود الاستخدام</h2>
+        <p>قيود على مستوى المنصة مش مرتبطة بدورة حياة الاشتراك.</p>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <div class="ms-ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M13 2.5L4.5 13.5H11l-1 8 8.5-11H12l1-8z"/>
+            </svg>
+          </div>
+          <div>
+            <label class="ms-row-title" for="f-rate">حد الطلبات للـ API</label>
+            <p class="ms-row-desc">
+              كل توكن API بيقدر يبعت هذا العدد من الطلبات على
+              <code>/api/v1/*</code> في الدقيقة الواحدة.
+              لو تجاوز، النظام بيرجّع <code>HTTP 429</code>.
+            </p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <div class="ms-field">
+            <input type="number" id="f-rate" name="api_rate_limit_per_minute"
+                   min="1" max="100000" value="{{ api_rate_limit_per_minute }}"
+                   class="ms-num" data-default="{{ default_api_rate_limit }}">
+            <span class="ms-unit">طلب / دقيقة / توكن</span>
+          </div>
+          <button type="button" class="ms-default" data-target="f-rate">افتراضي: {{ default_api_rate_limit }}</button>
+        </div>
+      </div>
     </div>
+
+    <div class="ms-notes">
+      <h3>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M12 11.5v5M12 7.75h.01"/>
+        </svg>
+        ملاحظات
+      </h3>
+      <ul>
+        <li>تنبيهات الإيميل بتتبعت لمالك الشركة على المواعيد المحدّدة. مفيش تكرار — كل تنبيه بيتبعت مرة واحدة لكل دورة اشتراك.</li>
+        <li>الـ super-admin و auth (login/logout) و cron وتجديد الاشتراك دايماً مستثنيين من تقييد القراءة فقط.</li>
+        <li>لما تجدد اشتراك أي شركة من <a href="{{ url_for('superadmin.subscriptions_index') }}">إدارة الاشتراكات</a>، تاريخ التذكيرات بيتمسح عشان الدورة الجديدة تشتغل.</li>
+      </ul>
+    </div>
+
+    <div class="ms-savebar">
+      <span class="ms-dirty">فيه تغييرات ما اتحفظتش</span>
+      <button type="submit" class="btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+             stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true">
+          <path d="M4.5 12.5l5 5 10-11"/>
+        </svg>
+        حفظ الإعدادات
+      </button>
+    </div>
+
   </form>
 </div>
 
-<div class="card p-5 max-w-3xl mt-4 bg-slate-50">
-  <h3 class="font-bold text-navy-900 text-sm mb-2">📖 ملاحظات</h3>
-  <ul class="text-xs text-slate-600 space-y-1 list-disc pr-4">
-    <li>تنبيهات الإيميل بتتبعت لمالك الشركة على المواعيد المحدّدة. مفيش تكرار — كل تنبيه بيتبعت مرة واحدة لكل دورة اشتراك.</li>
-    <li>الـ super-admin + auth (login/logout) + cron + تجديد الاشتراك دايماً مستثنيين من تقييد القراءة فقط.</li>
-    <li>لما تجدد اشتراك أي شركة من <a href="{{ url_for('superadmin.subscriptions_index') }}" class="text-emerald-700 underline">إدارة الاشتراكات</a>، تاريخ التذكيرات بيتمسح عشان الدورة الجديدة تشتغل.</li>
-  </ul>
-</div>
+<script>
+(function () {
+  var root = document.getElementById('subs-settings');
+  if (!root) return;
+  var form = root.querySelector('form');
+  var thresholds = document.getElementById('f-thresholds');
+  var preview = document.getElementById('thresholds-preview');
+
+  /* Arabic numeral agreement: 3–10 takes the plural (أيام),
+     1, 2 and 11+ take the singular (يوم). */
+  function dayWord(n) {
+    return (n >= 3 && n <= 10) ? 'أيام' : 'يوم';
+  }
+
+  function isAtDefault(field) {
+    if (field.type === 'checkbox') {
+      return field.checked === (field.dataset.default === '1');
+    }
+    var strip = function (s) { return String(s).replace(/\s/g, ''); };
+    return strip(field.value) === strip(field.dataset.default);
+  }
+
+  function syncDefaultChip(field) {
+    var chip = root.querySelector('.ms-default[data-target="' + field.id + '"]');
+    if (!chip) return;
+    var at = isAtDefault(field);
+    chip.dataset.atDefault = at ? '1' : '0';
+    chip.title = at ? 'القيمة الحالية هي الافتراضية'
+                    : 'اضغط للرجوع للقيمة الافتراضية';
+  }
+
+  root.querySelectorAll('.ms-default').forEach(function (chip) {
+    var field = document.getElementById(chip.dataset.target);
+    if (!field) return;
+    chip.addEventListener('click', function () {
+      if (field.type === 'checkbox') {
+        field.checked = field.dataset.default === '1';
+      } else {
+        field.value = field.dataset.default;
+      }
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+      field.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+
+  function renderThresholds() {
+    if (!thresholds || !preview) return;
+    preview.innerHTML = '';
+    var valid = 0;
+    thresholds.value.split(',').forEach(function (raw) {
+      var p = raw.trim();
+      if (p === '') return;
+      var ok = /^[0-9]+$/.test(p) && Number(p) >= 0 && Number(p) <= 365;
+      var n = Number(p);
+      var el = document.createElement('span');
+      el.className = 'ms-chip' + (!ok ? ' tone-danger' : (n === 0 ? ' tone-warn' : ''));
+      if (!ok) {
+        el.textContent = p + ' ✕';
+      } else if (n === 0) {
+        el.textContent = 'يوم الانتهاء';
+      } else if (n === 1) {
+        el.textContent = 'قبل يوم';
+      } else {
+        el.textContent = 'قبل ' + n + ' ' + dayWord(n);
+      }
+      preview.appendChild(el);
+      if (ok) valid++;
+    });
+    var tl = document.getElementById('tl-reminders');
+    if (tl) tl.textContent = valid;
+    var tlu = document.getElementById('tlu-reminders');
+    if (tlu) tlu.textContent = (valid >= 3 && valid <= 10) ? 'تنبيهات' : 'تنبيه';
+  }
+
+  function bindMirror(fieldId, targetId, unitIds) {
+    var f = document.getElementById(fieldId);
+    var t = document.getElementById(targetId);
+    if (!f || !t) return;
+    var units = (unitIds || []).map(function (id) {
+      return document.getElementById(id);
+    }).filter(Boolean);
+    var sync = function () {
+      t.textContent = f.value || '0';
+      var w = dayWord(Number(f.value));
+      units.forEach(function (u) { u.textContent = w; });
+    };
+    f.addEventListener('input', sync);
+    sync();
+  }
+  bindMirror('f-trial', 'tl-trial', ['u-trial', 'tlu-trial']);
+  bindMirror('f-grace', 'tl-grace', ['u-grace', 'tlu-grace']);
+
+  var readonly = document.getElementById('f-readonly');
+  var readonlyLabel = document.getElementById('readonly-label');
+  var lockedSeg = document.getElementById('tl-locked-seg');
+  var lockedVal = document.getElementById('tl-locked');
+  function syncReadonly() {
+    if (!readonly) return;
+    var on = readonly.checked;
+    if (readonlyLabel) readonlyLabel.textContent = on ? 'مفعّل' : 'معطّل';
+    if (lockedVal) lockedVal.textContent = on ? 'مفعّل' : 'معطّل';
+    if (lockedSeg) lockedSeg.classList.toggle('is-off', !on);
+  }
+  if (readonly) readonly.addEventListener('change', syncReadonly);
+
+  var fields = Array.prototype.slice.call(root.querySelectorAll('input[name]'));
+  var initial = {};
+  fields.forEach(function (f) {
+    initial[f.name] = f.type === 'checkbox' ? f.checked : f.value;
+  });
+
+  function checkDirty() {
+    var dirty = fields.some(function (f) {
+      return (f.type === 'checkbox' ? f.checked : f.value) !== initial[f.name];
+    });
+    root.classList.toggle('is-dirty', dirty);
+  }
+
+  fields.forEach(function (f) {
+    ['input', 'change'].forEach(function (evt) {
+      f.addEventListener(evt, function () {
+        syncDefaultChip(f);
+        checkDirty();
+        if (f === thresholds) renderThresholds();
+      });
+    });
+    syncDefaultChip(f);
+  });
+
+  var saving = false;
+  if (form) form.addEventListener('submit', function () { saving = true; });
+  window.addEventListener('beforeunload', function (e) {
+    if (saving || !root.classList.contains('is-dirty')) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
+  renderThresholds();
+  syncReadonly();
+})();
+</script>
 
 {% endblock %}

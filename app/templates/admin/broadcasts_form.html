@@ -2,59 +2,189 @@
 {% block page_title %}رسالة جماعية جديدة{% endblock %}
 {% block content %}
 
-<div class="card p-6 max-w-2xl">
-  <h2 class="font-bold text-navy-900 mb-5">📣 رسالة جديدة</h2>
-  <form method="POST" class="space-y-4">
-    <div>
-      <label class="block text-sm font-semibold mb-1">العنوان</label>
-      <input type="text" name="title" required class="input" placeholder="صيانة الليلة">
-    </div>
-    <div>
-      <label class="block text-sm font-semibold mb-1">المحتوى (HTML)</label>
-      <textarea name="body_html" rows="8" required class="textarea"
-                placeholder="<p>مرحباً...</p>"></textarea>
-    </div>
-    <div>
-      <label class="block text-sm font-semibold mb-2">الجمهور</label>
-      <select name="audience_kind" class="select" id="audience-kind">
-        <option value="all">جميع العملاء</option>
-        <option value="trial">العملاء في فترة التجربة</option>
-        <option value="active">العملاء ذوو الاشتراك النشط</option>
-        <option value="expired">العملاء ذوو الاشتراك المنتهي</option>
-        <option value="by_plan">حسب الباقة</option>
-      </select>
-      <div id="plan-picker" class="mt-2" style="display:none">
-        <label class="block text-xs font-semibold mb-1">الباقة</label>
-        <select name="plan_id" class="select text-sm">
-          {% for p in plans %}
-          <option value="{{ p.id }}">{{ p.name_ar or p.name }}</option>
-          {% endfor %}
-        </select>
+{# MARSOUD-UI-SETTINGS-KIT (2026-08-24) — converted to the shared
+   settings primitives. The audience picker and the channel
+   checkboxes are `.ms-choice` pills now, and the plan sub-picker
+   still reveals itself only for `by_plan` (same behaviour, moved
+   off an inline style="display:none" onto a class). #}
+
+<div id="broadcast-form" class="ms-settings">
+
+  <p class="ms-lead">
+    رسالة بتتبعت لمالكي الشركات المطابقين للجمهور المختار.
+    بتتحفظ <strong>كمسودة</strong> الأول — الإرسال الفعلي خطوة منفصلة
+    من صفحة الإشعارات.
+  </p>
+
+  <form method="POST">
+
+    <div class="ms-panel">
+      <div class="ms-panel-head">
+        <h2>المحتوى</h2>
+        <p>العنوان بيظهر في قائمة الإشعارات، والمحتوى عند الفتح.</p>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3.5 10.5v3a1.5 1.5 0 001.5 1.5h2l6 4.5V4.5l-6 4.5H5a1.5 1.5 0 00-1.5 1.5z"/>
+              <path d="M17 9.5a4 4 0 010 5M19.5 7a7.5 7.5 0 010 10"/>
+            </svg>
+          </span>
+          <div>
+            <label class="ms-row-title" for="f-title">العنوان <span class="ms-req">*</span></label>
+            <p class="ms-row-desc">قصير ومباشر — ده اللي بيتقرا في القائمة.</p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <input type="text" id="f-title" name="title" required
+                 class="ms-input" placeholder="صيانة الليلة" style="width:260px">
+        </div>
+      </div>
+
+      <div class="ms-row is-stacked">
+        <div class="ms-row-info">
+          <span class="ms-ico">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3.5" y="4.5" width="17" height="15" rx="2"/>
+              <path d="M7 9h10M7 12.5h10M7 16h6"/>
+            </svg>
+          </span>
+          <div>
+            <label class="ms-row-title" for="f-body">المحتوى <span class="ms-req">*</span></label>
+            <p class="ms-row-desc">HTML مبسّط — <code>p</code>, <code>b</code>, <code>ul</code>, <code>a</code>.</p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <textarea id="f-body" name="body_html" rows="8" required
+                    class="ms-textarea is-mono"
+                    placeholder="&lt;p&gt;مرحباً...&lt;/p&gt;"></textarea>
+        </div>
       </div>
     </div>
-    <div>
-      <label class="block text-sm font-semibold mb-2">قنوات الإرسال</label>
-      <div class="flex gap-4">
-        <label class="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" name="channels" value="INAPP" checked>
-          <span>إشعار داخل النظام</span>
-        </label>
-        <label class="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" name="channels" value="EMAIL">
-          <span>بريد إلكتروني</span>
-        </label>
+
+    <div class="ms-panel">
+      <div class="ms-panel-head">
+        <h2>الجمهور والقنوات</h2>
+        <p>مين يستقبل، وفين.</p>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico tone-info">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="9" cy="8.5" r="3.5"/>
+              <path d="M2.5 20a6.5 6.5 0 0113 0M16 5.3a3.5 3.5 0 010 6.4M18.5 20a6.5 6.5 0 00-3-5.5"/>
+            </svg>
+          </span>
+          <div>
+            <label class="ms-row-title" for="audience-kind">الجمهور</label>
+            <p class="ms-row-desc">بيتحسب وقت الإرسال، مش وقت الحفظ.</p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <select name="audience_kind" id="audience-kind" class="ms-select" style="width:260px">
+            <option value="all">جميع العملاء</option>
+            <option value="trial">العملاء في فترة التجربة</option>
+            <option value="active">العملاء ذوو الاشتراك النشط</option>
+            <option value="expired">العملاء ذوو الاشتراك المنتهي</option>
+            <option value="by_plan">حسب الباقة</option>
+          </select>
+          <div id="plan-picker" hidden>
+            <label class="ms-hint" for="f-plan">الباقة</label>
+            <select name="plan_id" id="f-plan" class="ms-select" style="width:260px">
+              {% for p in plans %}
+              <option value="{{ p.id }}">{{ p.name_ar or p.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="ms-row">
+        <div class="ms-row-info">
+          <span class="ms-ico tone-warn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="5.5" width="18" height="13" rx="2"/>
+              <path d="M3.5 7l8.5 6 8.5-6"/>
+            </svg>
+          </span>
+          <div>
+            <div class="ms-row-title">قنوات الإرسال</div>
+            <p class="ms-row-desc">
+              اختر واحدة على الأقل. البريد بيتبعت لمالك الشركة فقط،
+              والإشعار الداخلي بيظهر لكل مستخدمي الشركة.
+            </p>
+          </div>
+        </div>
+        <div class="ms-row-control">
+          <div class="ms-choice-group">
+            <label class="ms-choice">
+              <input type="checkbox" name="channels" value="INAPP" checked>
+              <span>إشعار داخل النظام</span>
+            </label>
+            <label class="ms-choice">
+              <input type="checkbox" name="channels" value="EMAIL">
+              <span>بريد إلكتروني</span>
+            </label>
+          </div>
+          <div class="ms-chips" id="channel-warn"></div>
+        </div>
       </div>
     </div>
-    <div class="flex justify-between items-center pt-2">
-      <a href="{{ url_for('superadmin.broadcasts_index') }}" class="btn-secondary text-sm">إلغاء</a>
-      <button type="submit" class="btn-primary">💾 حفظ المسودة</button>
+
+    <div class="ms-savebar">
+      <a href="{{ url_for('superadmin.broadcasts_index') }}" class="btn btn-secondary">إلغاء</a>
+      <button type="submit" class="btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+             stroke-linecap="round" stroke-linejoin="round" width="15" height="15" aria-hidden="true">
+          <path d="M4.5 12.5l5 5 10-11"/>
+        </svg>
+        حفظ المسودة
+      </button>
     </div>
+
   </form>
 </div>
+
 <script>
-document.getElementById('audience-kind').addEventListener('change', function() {
-  document.getElementById('plan-picker').style.display =
-    (this.value === 'by_plan') ? 'block' : 'none';
-});
+(function () {
+  var root = document.getElementById('broadcast-form');
+  if (!root) return;
+
+  var kind = document.getElementById('audience-kind');
+  var picker = document.getElementById('plan-picker');
+  function syncKind() {
+    if (picker && kind) picker.hidden = (kind.value !== 'by_plan');
+  }
+  if (kind) kind.addEventListener('change', syncKind);
+
+  /* Warn when every channel is unchecked — the route would save a
+     draft that can never actually reach anyone. */
+  var warn = document.getElementById('channel-warn');
+  var channels = Array.prototype.slice.call(
+    root.querySelectorAll('input[name="channels"]'));
+  function syncChannels() {
+    if (!warn) return;
+    var none = channels.every(function (c) { return !c.checked; });
+    warn.innerHTML = '';
+    if (none) {
+      var el = document.createElement('span');
+      el.className = 'ms-chip tone-danger';
+      el.textContent = 'من غير قناة، الرسالة مش هتوصل لحد';
+      warn.appendChild(el);
+    }
+  }
+  channels.forEach(function (c) { c.addEventListener('change', syncChannels); });
+
+  syncKind();
+  syncChannels();
+})();
 </script>
+
 {% endblock %}
