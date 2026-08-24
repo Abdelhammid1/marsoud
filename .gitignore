@@ -41,3 +41,4 @@ instance/
 .env.*
 instance/
 migrations/versions/__pycache__/
+releases/

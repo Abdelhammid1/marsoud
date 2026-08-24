@@ -207,6 +207,9 @@ from app.models.pending_superadmin_action import (
     PendingSuperadminAction,
 )
 from app.models.api_token import ApiToken
+# MARSOUD-MOBILE-TKT-05 (2026-08-18) — FCM registration tokens
+# for push notifications on Flutter clients.
+from app.models.push_token import PushToken
 from app.models.activity import UserSession, UserActivityLog, ACTION_TYPES, SESSION_STATUS
 from app.models.user_file import UserFile
 from app.models.evaluation import (
@@ -221,7 +224,7 @@ __all__ = [
     "PlatformCronRun",
     "SignupRejection", "BlockedDomain", "BlockedEmail",
     "PendingSuperadminAction",
-    "ApiToken",
+    "ApiToken", "PushToken",
     "UserFile",
     "EvaluationCycle", "EvaluationCyclePeriod", "EvaluationCycleStatus",
     "EvaluationCategory", "ActualSource", "BonusTier", "AggregationMethod",

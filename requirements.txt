@@ -26,3 +26,10 @@ Pillow>=10.0.0
 #   macOS dev:     brew install pango
 weasyprint>=60.0
 python-dateutil
+# MARSOUD-MOBILE-TKT-05 (2026-08-18) — Firebase Cloud Messaging
+# for the Flutter push notifications. `firebase-admin` bundles
+# `google-auth` + `google-api-core`; no extra pinning needed.
+# Silently skipped when the service-account JSON is absent (see
+# app/services/fcm.py) so dev + CI environments don't need the
+# credentials file.
+firebase-admin>=6.5.0

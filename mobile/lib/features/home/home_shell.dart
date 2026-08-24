@@ -12,6 +12,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
 import '../../data/auth_state.dart';
 import '../../data/my_account_repository.dart';
+import '../../data/push_service.dart';
 
 class _DrawerLink {
   final String label;
@@ -70,6 +71,21 @@ class HomeShell extends ConsumerWidget {
         body: Center(child: CircularProgressIndicator()),
       );
     }
+    // MARSOUD-MOBILE-TKT-05 (2026-08-18) — consume pending
+    // deep-link from a push tap. Notifier gets set by
+    // PushService when the user opens the app from a push;
+    // navigate then clear.
+    ref.listen<String?>(pendingDeepLinkProvider,
+        (previous, next) {
+      if (next != null && next.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (context.mounted) {
+            context.go(next);
+            ref.read(pendingDeepLinkProvider.notifier).state = null;
+          }
+        });
+      }
+    });
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: Colors.transparent,
@@ -327,6 +343,12 @@ class _SideDrawer extends ConsumerWidget {
                   )),
               onTap: () async {
                 Navigator.of(context).pop();
+                // MARSOUD-MOBILE-TKT-05 (2026-08-18) — revoke
+                // the FCM token BEFORE clearing the bearer, so
+                // the DELETE call still has auth. Best-effort.
+                try {
+                  await ref.read(pushServiceProvider).onLogout();
+                } catch (_) {}
                 await ref.read(authProvider.notifier).clear();
               },
             ),
