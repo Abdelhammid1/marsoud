@@ -24,7 +24,11 @@
           <div class="text-xs text-slate-500 mt-1">عملة أساسية: {{ c.base_currency|currency_ar }}</div>
           {% if c.tax_number %}<div class="text-xs text-slate-500">ضريبي: {{ c.tax_number }}</div>{% endif %}
         </div>
+        {# MARSOUD-PERMISSION-BOUNCE (2026-08-24) — ungated «تعديل»
+           pointing at a company.edit route. #}
+        {% if can_access_endpoint('companies.edit') %}
         <a href="{{ url_for('companies.edit', company_id=c.id) }}" class="btn-secondary text-sm">تعديل</a>
+        {% endif %}
       </div>
     </div>
     {% endfor %}

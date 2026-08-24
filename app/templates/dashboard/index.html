@@ -871,7 +871,12 @@
     {% if has_permission('invoices.create') %}
     <a class="q" href="{{ url_for('recurring_invoices.index') }}"><span class="q-ico">🔁</span><span class="q-label">فواتير متكررة</span></a>
     {% endif %}
-    {% if has_permission('vendor_bills.create') %}
+    {# MARSOUD-PERMISSION-BOUNCE (2026-08-24) — this tile was gated on
+       `vendor_bills.create`, but it links to vendors.new, which enforces
+       `partners.manage`. A role holding the first and not the second (ceo,
+       viewer) saw the tile and bounced. Ask about the endpoint being
+       linked, not a permission that happens to be nearby. #}
+    {% if can_access_endpoint('vendors.new') %}
     <a class="q" href="{{ url_for('vendors.new') }}"><span class="q-ico">🏢</span><span class="q-label">مورد جديد</span></a>
     {% endif %}
     {% if has_permission('vendor_bills.create') %}

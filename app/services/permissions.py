@@ -494,6 +494,26 @@ def require_permission(action):
                 flash("ليس لديك صلاحية لهذا الإجراء", "error")
                 return redirect(url_for("dashboard.index"))
             return fn(*args, **kwargs)
+        # MARSOUD-PERMISSION-BOUNCE (2026-08-24) — record the permission
+        # this route ACTUALLY enforces, so link-visibility helpers can ask
+        # the real question instead of guessing from the feature registry.
+        #
+        # Before this, services/access.py::can_access (which gates every
+        # sidebar row) resolved permissions via feature_for_endpoint().
+        # Those declarations drifted from the routes in two ways:
+        #   - 3 endpoints (projects.archive_index, vendors.new,
+        #     vendor_bills.new) declare NO permissions, so can_access
+        #     skipped its role check entirely and showed the row to
+        #     everyone — who then bounced off the route's guard;
+        #   - 5 more (companies.edit, tasks.archive_list, party_ledger.
+        #     index, inventory.warehouses, the crm.* pages) declare a
+        #     DIFFERENT permission than the route demands.
+        # Either way the sidebar answered a different question than the
+        # request-time gate, which is the «يظهر لكن ما يفتحش» bounce.
+        #
+        # functools.wraps copies __dict__ upward, so this attribute
+        # survives outer decorators like @login_required.
+        wrapper.__required_permission__ = action
         return wrapper
     return decorator
 

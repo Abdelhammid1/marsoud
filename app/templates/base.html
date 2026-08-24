@@ -840,7 +840,15 @@ tailwind.config = {
             <span class="text-base">🔐</span>
             <span>الأدوار والصلاحيات</span>
           </a>
-          {% if active_company %}
+          {# MARSOUD-PERMISSION-BOUNCE (2026-08-24) — was gated on
+             `active_company` alone, with no permission check, so every
+             role that could see the الإعدادات section got «إعدادات
+             الشركة» and then bounced off companies.edit's
+             @require_permission("company.edit"). Reported for accountant
+             and viewer. can_access_endpoint now resolves the permission
+             the route actually enforces, so this stays correct if that
+             decorator ever changes. #}
+          {% if active_company and can_access_endpoint('companies.edit') %}
           {% set is_settings_active = request.endpoint == 'companies.edit' %}
           <a href="{{ url_for('companies.edit', company_id=active_company.id) }}"
              class="nav-link flex items-center gap-3 pr-9 pl-5 py-2 text-sm text-slate-600 hover:bg-emerald-50/40 transition-colors {% if is_settings_active %}active{% endif %}">
