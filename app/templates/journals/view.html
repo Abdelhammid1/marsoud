@@ -64,18 +64,30 @@
   </div>
 
   <div class="space-y-4">
-    {% if not entry.is_reversal and entry.is_active %}
+    {# MARSOUD-PERMISSION-BOUNCE-02 (2026-08-24) — this page needs only
+       journals.view, but these three controls enforce journals.reverse /
+       journals.pause. ceo and viewer hold the first and neither of the
+       others, so they saw the whole إجراءات card and bounced off every
+       button in it. Each control now asks about its own endpoint, and the
+       card disappears when nothing in it is usable. #}
+    {% set can_reverse = can_access_endpoint('journals.reverse') %}
+    {% set can_pause = can_access_endpoint('journals.pause') %}
+    {% if not entry.is_reversal and entry.is_active and (can_reverse or can_pause) %}
     <div class="card p-5">
       <h3 class="font-bold text-navy-900 mb-3">إجراءات</h3>
+      {% if can_reverse %}
       <form method="POST" action="{{ url_for('journals.reverse', entry_id=entry.id) }}" onsubmit="return confirm('إنشاء قيد عكسي؟')" class="mb-3">
         <button type="submit" class="btn-secondary w-full text-sm">↺ إنشاء قيد عكسي</button>
       </form>
+      {% endif %}
+      {% if can_pause %}
       <form method="POST" action="{{ url_for('journals.pause', entry_id=entry.id) }}" class="space-y-2">
         <textarea name="reason" rows="2" required placeholder="سبب الإيقاف (إلزامي)" class="textarea text-sm"></textarea>
         <button type="submit" class="btn-danger w-full text-sm">⏸ إيقاف القيد</button>
       </form>
+      {% endif %}
     </div>
-    {% elif not entry.is_active %}
+    {% elif not entry.is_active and can_access_endpoint('journals.reactivate') %}
     <div class="card p-5 bg-emerald-50/30 border-emerald-100">
       <h3 class="font-bold text-emerald-800 mb-3">إعادة التنشيط</h3>
       <form method="POST" action="{{ url_for('journals.reactivate', entry_id=entry.id) }}" class="space-y-2">

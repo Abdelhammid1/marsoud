@@ -1,8 +1,22 @@
 {% extends "base.html" %}
 {% block page_title %}أعضاء الشركة{% endblock %}
 {% block content %}
+
+{# MARSOUD-PERMISSION-BOUNCE-02 (2026-08-24) — every control on this page
+   routes to a users.manage endpoint, but the page itself only needs
+   users.view. P grants users.view to {owner, admin} and users.manage to
+   {owner} alone, so an admin saw all six controls and bounced off every
+   one of them with «ليس لديك صلاحية لهذا الإجراء». Gated per control on
+   the endpoint it actually posts to.
+
+   NOTE for review: the alternative fix is to widen the matrix —
+   P["users.manage"] = {"owner", "admin"} — if admins are meant to manage
+   members. That is a product decision, so this ticket takes the safe
+   reading (hide what the route will refuse) and leaves the matrix alone. #}
+{% set can_invite = can_access_endpoint('users.invite') %}
+
 <div class="grid grid-cols-3 gap-4">
-  <div class="card p-6 col-span-2">
+  <div class="card p-6 {% if can_invite %}col-span-2{% else %}col-span-3{% endif %}">
     <h2 class="font-bold text-navy-900 mb-4">الأعضاء</h2>
     <table class="data-table">
       <thead>
@@ -19,7 +33,7 @@
             </span>
           </td>
           <td class="text-xs">
-            {% if m.role != 'owner' %}
+            {% if m.role != 'owner' and can_access_endpoint('users.change_role') %}
             <form method="POST" action="{{ url_for('users.change_role', user_id=m.user.id) }}" class="inline">
               <select name="role" class="select text-xs inline-block w-auto" onchange="this.form.submit()">
                 {% for r in roles %}
@@ -29,14 +43,21 @@
                 {% endfor %}
               </select>
             </form>
+            {% endif %}
+            {% if m.role != 'owner' and can_access_endpoint('users.send_password_link') %}
             <form method="POST" action="{{ url_for('users.send_password_link', user_id=m.user.id) }}" class="inline ms-2"
                   onsubmit="return confirm('إرسال رابط تعيين كلمة سر جديدة لـ {{ m.user.full_name|e }}؟')"
                   title="يولّد رابط فيه token جديد. لو SMTP مفعّل، يبعت إيميل. لو مفعّلش، الرابط يظهر لك تنسخه يدوياً.">
               <button type="submit" class="text-emerald-700 hover:underline">🔑 إرسال رابط كلمة السر</button>
             </form>
+            {% endif %}
+            {% if m.role != 'owner' and can_access_endpoint('users.revoke') %}
             <form method="POST" action="{{ url_for('users.revoke', user_id=m.user.id) }}" class="inline ms-2" onsubmit="return confirm('إزالة العضو من الشركة؟')">
               <button type="submit" class="text-red-600 hover:underline">إزالة</button>
             </form>
+            {% endif %}
+            {% if not can_access_endpoint('users.change_role') %}
+            <span class="text-slate-400">—</span>
             {% endif %}
           </td>
         </tr>
@@ -62,7 +83,8 @@
             {% else %}<span class="badge badge-sent">معلّقة</span>{% endif %}
           </td>
           <td class="text-xs">
-            {% if not inv.accepted_at and not inv.revoked_at %}
+            {% if not inv.accepted_at and not inv.revoked_at
+                  and can_access_endpoint('users.revoke_invitation') %}
             <form method="POST" action="{{ url_for('users.revoke_invitation', inv_id=inv.id) }}" class="inline" onsubmit="return confirm('إلغاء الدعوة؟')">
               <button type="submit" class="text-red-600 hover:underline">إلغاء</button>
             </form>
@@ -75,6 +97,10 @@
     {% endif %}
   </div>
 
+  {# The whole invite panel posts to users.invite (users.manage), and the
+     «إدارة الأدوار والصلاحيات» link inside it needs the same permission —
+     gating the panel covers both. #}
+  {% if can_invite %}
   <div class="card p-6">
     <h3 class="font-bold text-navy-900 mb-3">دعوة عضو جديد</h3>
     <form method="POST" action="{{ url_for('users.invite') }}" class="space-y-3">
@@ -97,5 +123,6 @@
       <p class="text-xs text-slate-500">سيستلم العضو الجديد إيميل برابط ينقله لإنشاء حسابه أو تسجيل الدخول.</p>
     </form>
   </div>
+  {% endif %}
 </div>
 {% endblock %}

@@ -141,7 +141,9 @@
   </div>
 
   <div class="space-y-4">
-    {% if bill.status.value == 'DRAFT' %}
+    {# MARSOUD-PERMISSION-BOUNCE-02 — page needs vendor_bills.view; post
+       and pay both enforce vendor_bills.create (ceo, viewer bounced). #}
+    {% if bill.status.value == 'DRAFT' and can_access_endpoint('vendor_bills.post') %}
     <div class="card p-5">
       <h3 class="font-bold text-navy-900 mb-3">تسجيل الفاتورة</h3>
       <form method="POST" action="{{ url_for('vendor_bills.post', bill_id=bill.id) }}">
@@ -150,7 +152,8 @@
     </div>
     {% endif %}
 
-    {% if bill.balance > 0.01 and bill.status.value in ['POSTED', 'PARTIALLY_PAID', 'OVERDUE'] %}
+    {% if bill.balance > 0.01 and bill.status.value in ['POSTED', 'PARTIALLY_PAID', 'OVERDUE']
+          and can_access_endpoint('vendor_bills.pay') %}
     <div class="card p-5">
       <h3 class="font-bold text-navy-900 mb-3">تسجيل دفعة للمورد</h3>
       <form method="POST" action="{{ url_for('vendor_bills.pay', bill_id=bill.id) }}" class="space-y-3">

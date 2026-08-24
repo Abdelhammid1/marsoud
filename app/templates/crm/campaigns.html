@@ -10,6 +10,8 @@
 </div>
 
 {# ─── Quick-add form ─── #}
+{# MARSOUD-PERMISSION-BOUNCE-02 (2026-08-24) — page needs leads.view, this control enforces leads.manage (ceo bounced). #}
+{% if can_access_endpoint('crm.campaigns_create') %}
 <form method="POST" action="{{ url_for('crm.campaigns_create') }}"
       class="card p-4 mb-4 flex items-end gap-3">
   <div class="flex-1">
@@ -24,6 +26,7 @@
   </div>
   <button type="submit" class="btn-primary text-sm">+ إضافة حملة</button>
 </form>
+{% endif %}
 
 {# ─── Campaigns list with stats ─── #}
 <div class="card p-6">
@@ -61,11 +64,13 @@
           {% else %}<span class="badge badge-cancelled">معطّلة</span>{% endif %}
         </td>
         <td>
+          {% if can_access_endpoint('crm.campaigns_toggle') %}
           <form method="POST" action="{{ url_for('crm.campaigns_toggle', cid=c.id) }}">
             <button type="submit" class="text-xs text-brand-600 hover:underline">
               {% if c.active %}تعطيل{% else %}تفعيل{% endif %}
             </button>
           </form>
+          {% else %}<span class="text-slate-400 text-xs">—</span>{% endif %}
         </td>
       </tr>
     {% endfor %}

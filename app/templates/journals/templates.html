@@ -19,7 +19,13 @@
         <td class="font-semibold">{{ t.name }}</td>
         <td class="text-sm text-slate-500">{{ t.description or '—' }}</td>
         <td>{{ t.lines | length }}</td>
-        <td class="text-left"><a href="{{ url_for('journals.use_template', template_id=t.id) }}" class="text-brand-600 hover:underline text-sm">استخدام</a></td>
+        {# MARSOUD-PERMISSION-BOUNCE-02 — page needs journals.view,
+           use_template enforces journals.create (ceo, viewer bounce). #}
+        <td class="text-left">
+          {% if can_access_endpoint('journals.use_template') %}
+          <a href="{{ url_for('journals.use_template', template_id=t.id) }}" class="text-brand-600 hover:underline text-sm">استخدام</a>
+          {% else %}<span class="text-slate-400 text-sm">—</span>{% endif %}
+        </td>
       </tr>
     {% else %}
       <tr><td colspan="4" class="text-center text-slate-400 py-8">لا توجد قوالب</td></tr>

@@ -25,7 +25,12 @@
       <div class="flex-1 min-w-0">
         <h2 class="text-2xl font-bold text-navy-900 break-words">{{ task.title }}</h2>
         <div class="text-sm text-slate-500 mt-1">
-          {% if task.project %}في مشروع: <a href="{{ url_for('projects.detail', project_id=task.project_id) }}" class="text-emerald-600 hover:underline">{{ task.project.name }}</a>
+          {# MARSOUD-PERMISSION-BOUNCE-02 — projects.detail enforces
+             projects.view; accountant and hr_manager reach tasks but not
+             projects. Show the project NAME either way. #}
+          {% if task.project %}في مشروع:
+            {% if can_access_endpoint('projects.detail') %}<a href="{{ url_for('projects.detail', project_id=task.project_id) }}" class="text-emerald-600 hover:underline">{{ task.project.name }}</a>
+            {% else %}<span class="text-slate-700">{{ task.project.name }}</span>{% endif %}
           {% else %}<span class="text-amber-700">📌 مهمة مستقلة (بدون مشروع)</span>
           {% endif %}
         </div>

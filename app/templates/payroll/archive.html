@@ -62,6 +62,10 @@
             {% else %}—{% endif %}
           </td>
           <td>
+            {# MARSOUD-PERMISSION-BOUNCE-02 (2026-08-24) — page needs
+               employees.view, reactivate enforces payroll.employees.
+               ceo / project_manager / sales_manager / viewer bounced. #}
+            {% if can_access_endpoint('payroll.reactivate') %}
             <form method="POST"
                   action="{{ url_for('payroll.reactivate', employee_id=e.id) }}"
                   onsubmit="return confirm('إرجاع {{ e.name|e }} للعمل النشط؟ هيظهر في كل الشاشات مجدداً.');"
@@ -71,6 +75,7 @@
                 ↩ إعادة إلى العمل
               </button>
             </form>
+            {% else %}<span class="text-slate-400 text-xs">—</span>{% endif %}
           </td>
         </tr>
         {% endfor %}
