@@ -1375,8 +1375,79 @@ function toggleSidebar(force) {
       var w = Math.ceil(th1.getBoundingClientRect().width);
       wrap.style.setProperty('--sticky-c1-w', w + 'px');
     }
+    /* MARSOUD-MOBILE-STACKED-TABLES (2026-08-25) — give every cell the
+       name of its column, so CSS can render a row as a card on phones
+       (`td::before { content: attr(data-label) }`) instead of making the
+       user drag sideways through 8-12 columns.
+
+       Done here, in the pass that already visits every table in the app,
+       so all 112 templates that render a .data-table are covered without
+       editing any of them.
+
+       Cells are classified, not just labelled — a label prefix on a
+       button cell or on an empty-state row reads as broken:
+         · colspan cell  -> full-width, no label (71 templates use
+                            <td colspan> for "لا توجد بيانات")
+         · controls only -> card footer, no label (50 tables end in an
+                            actions column)
+         · truly empty   -> hidden, so cards carry no blank rows        */
+    function stampLabels(t) {
+      if (t.classList.contains('no-stack')) return;
+      var heads = [].map.call(
+        t.querySelectorAll('thead th'),
+        function (th) { return (th.textContent || '').trim(); });
+      if (!heads.length) return;
+
+      [].forEach.call(t.querySelectorAll('tbody tr'), function (tr) {
+        var col = 0;
+        [].forEach.call(tr.children, function (td) {
+          if (td.tagName !== 'TD') return;
+          var span = parseInt(td.getAttribute('colspan') || '1', 10) || 1;
+          var text = (td.textContent || '').trim();
+          var controls = td.querySelectorAll(
+            'button, a, input, select, textarea');
+          var hasControl = controls.length > 0 || !!td.querySelector('form');
+          // Text that comes only from the cell's own controls means the
+          // cell IS the controls — «تعديل حذف» rather than a value.
+          var controlText = [].map.call(controls, function (c) {
+            return (c.textContent || '').trim();
+          }).join('').replace(/\s/g, '');
+          var ctrlOnly = !!controlText
+            && text.replace(/\s/g, '') === controlText;
+          // Two or more controls, or a form, is an action strip. ONE
+          // link is usually the record's own name pointing at its detail
+          // page — that stays a labelled field, not a button row.
+          var isActionStrip = ctrlOnly
+            && (controls.length > 1 || !!td.querySelector('form'));
+
+          if (span > 1) {
+            // Empty-state / summary row — it is not a field of a record.
+            td.classList.add('ms-cell-full');
+          } else if (isActionStrip || (!text && hasControl)) {
+            td.classList.add('ms-cell-actions');
+          } else if (!text && !hasControl) {
+            td.classList.add('ms-cell-empty');
+          } else {
+            // Walk by index honouring earlier colspans, so the label
+            // mapping cannot drift on rows with merged cells.
+            var label = heads[col];
+            if (label) td.setAttribute('data-label', label);
+            // A cell whose header is blank (the usual actions column)
+            // still shouldn't print an empty label.
+            if (!label && hasControl) td.classList.add('ms-cell-actions');
+          }
+          col += span;
+        });
+      });
+      // Only tables this pass actually processed get the card treatment.
+      // A table the JS never reached keeps today's scroll behaviour
+      // rather than half-transforming into something broken.
+      t.setAttribute('data-stacked', '1');
+    }
+
     function wrapTables() {
       document.querySelectorAll('table.data-table').forEach(function(t) {
+        stampLabels(t);
         if (t.parentElement && t.parentElement.classList.contains('table-scroll')) return;
         var wrap = document.createElement('div');
         wrap.className = 'table-scroll';
@@ -1398,6 +1469,16 @@ function toggleSidebar(force) {
     } else {
       wrapTables();
     }
+
+    /* MARSOUD-MOBILE-STACKED-TABLES (2026-08-25) — tables that arrive by
+       htmx were never processed at all. journals/_results.html and
+       _activity_page.html are swapped in after load, so they got neither
+       .table-scroll nor (now) the card stamping: filtering the journals
+       page — المالية, one of the two the user reported — left a raw
+       overflowing table behind. wrapTables is idempotent (it skips
+       tables already wrapped), so re-running it after every swap is
+       safe. */
+    document.body.addEventListener('htmx:afterSwap', wrapTables);
   })();
 </script>
 
