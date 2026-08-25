@@ -777,7 +777,24 @@ tailwind.config = {
              plan-or-permission. #}
           {% set _ok_support = (not endpoint.startswith('support_admin.'))
                                 or is_support_agent %}
-          {% if can_access_endpoint(endpoint) and _ok_support %}
+          {# MARSOUD-NAV-BUILDERROR (2026-08-25) — an item that DECLARES
+             url_for kwargs but resolves to an empty dict cannot build a
+             URL, and url_for raises BuildError, which is a 500 on the
+             whole page rather than one missing link.
+
+             Live case: `companies.edit` carries
+             `{'company_id': active_company.id} if active_company else {}`.
+             The author guarded the kwargs but an empty dict still breaks
+             url_for. can_access_endpoint returns True unconditionally for
+             a super-admin (the bypass in services/access.py), so a
+             super-admin with no active company rendered the row and 500'd
+             on /companies/new — reproducible with dbg@x.test.
+
+             Phrased on `item|length > 3` rather than the endpoint name so
+             it covers any future nav row that needs arguments. #}
+          {% set _has_required_args = (item|length <= 3) or kwargs %}
+          {% if can_access_endpoint(endpoint) and _ok_support
+                and _has_required_args %}
             {% set _ = ns.visible.append((endpoint, label, icon, kwargs)) %}
             {% if request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
               {% set ns.active = true %}
