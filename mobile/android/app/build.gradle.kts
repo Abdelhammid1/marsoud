@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -9,6 +12,42 @@ plugins {
     // build time (dropped in from the Firebase console —
     // gitignored).
     id("com.google.gms.google-services")
+}
+
+// ── MARSOUD-MOBILE-RELEASE-SIGNING (2026-08-25) ──────────────────────
+// Release builds were signed with the Android DEBUG key: build.gradle
+// still carried the Flutter template's
+//   signingConfig = signingConfigs.getByName("debug")
+// and apksigner on the built artifact reported
+//   Signer #1 certificate DN: C=US, O=Android, CN=Android Debug
+// Google Play refuses debug-signed uploads, so the app could not ship.
+//
+// The upload key now comes from `android/key.properties`, which is
+// gitignored — a keystore in the repo is a keystore in everyone's hands,
+// and losing control of it means losing the ability to update the app.
+// See android/key.properties.example for the shape and RELEASE.md for
+// how to generate one.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+val hasKeystore = keystorePropertiesFile.exists()
+if (hasKeystore) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
+// Fail LOUDLY instead of quietly falling back to the debug key. Silence
+// is exactly how a debug-signed build got as far as being ready to
+// upload. Only trips when a release artifact is actually being
+// assembled, so `flutter run` and debug builds are unaffected.
+val buildingRelease = gradle.startParameter.taskNames.any {
+    it.contains("Release", ignoreCase = true)
+}
+if (buildingRelease && !hasKeystore) {
+    throw GradleException(
+        "\n\n  Release build requested but android/key.properties is missing.\n" +
+        "  An unsigned or debug-signed bundle is REJECTED by Google Play.\n\n" +
+        "  Create the upload keystore, then key.properties:\n" +
+        "    see mobile/RELEASE.md  (template: android/key.properties.example)\n"
+    )
 }
 
 android {
@@ -43,11 +82,30 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        // Only declared when key.properties is present. Referencing a
+        // config with null paths makes Gradle emit an UNSIGNED artifact
+        // rather than fail, which would put us back where we started.
+        if (hasKeystore) {
+            create("release") {
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasKeystore) {
+                signingConfigs.getByName("release")
+            } else {
+                // Unreachable for release tasks — the GradleException
+                // above stops those. This branch only keeps the script
+                // configurable for debug work with no keystore present.
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }
