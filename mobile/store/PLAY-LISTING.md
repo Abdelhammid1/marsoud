@@ -227,3 +227,141 @@ The data behind them is a seeded demo employee ("سارة عبد الرحمن",
 EMP-1042) in the existing demo company. The seed script is
 `tools/seed_demo.py` and it has an `--undo` flag; the rows live only in
 the local dev database.
+
+---
+
+## 8. "App content" — answer sheet
+
+The Play Console's App content checklist, in the order it lists them.
+Every answer below is checked against what the code actually does, not
+against what the app is described as doing.
+
+### Set privacy policy
+
+```
+https://marsoud.com/privacy
+```
+
+⚠️ **Fix the policy before submitting this.** The published text never
+mentions location, but Data safety (below) must declare precise and
+approximate location because attendance check-in sends GPS coordinates.
+Google cross-checks the declaration against the policy and rejects the
+mismatch — it is the most common rejection for apps like this.
+
+Paste `privacy-addendum-ar.html` from this folder into
+**/admin/legal → سياسة الخصوصية**, appended to the existing text (do not
+replace it). It covers location, the FCM device identifier, employment
+data, encryption in transit, retention/deletion, and the no-ads
+statement — i.e. exactly the set Data safety declares.
+
+### Sign-in details
+
+**This is the one that will get the app rejected if you skip it.** The
+app is login-only: a reviewer who opens it sees nothing but the login
+screen and no way past it, and "we couldn't access the functionality"
+is a rejection, not a query.
+
+Create a **real account on production** (`marsoud.com`) for Google to
+use, and give it data worth looking at — an employee record, a few
+tasks, a lead or two, some attendance history. An empty account looks
+broken. Then fill in:
+
+- Username / password of that account
+- Any instructions: the app is Arabic/RTL; sign in, and the drawer
+  (top-right ☰) reaches every screen
+
+Keep the account alive — Google re-reviews on later updates too.
+
+### Ads
+
+**No**, this app contains no ads. Verified: no ad SDK in `pubspec.yaml`
+(no AdMob, google_mobile_ads, AppLovin, Unity Ads, Facebook Audience).
+
+### Content rating
+
+Answer the questionnaire; category **Utility / Productivity / Other**.
+Everything is No: no violence, sexual content, profanity, controlled
+substances, gambling, or horror. Expected outcome: **Everyone / 3+**.
+
+Two questions worth reading carefully rather than clicking through:
+
+- *Do users interact or exchange content?* Users are assigned tasks and
+  send daily reports to their own manager. It is a closed company
+  workspace with no public feed and no stranger-to-stranger contact —
+  but answer it for what the questionnaire actually asks, since a wrong
+  answer here changes the rating.
+- *Does the app share user location with other users?* Attendance
+  coordinates are visible to the **employer**. Not to other users
+  generally, and not publicly.
+
+### Target audience
+
+**18 and over** only. Do not tick any under-18 bracket: it pulls the app
+into the Families policy programme, which brings much stricter
+requirements the app is not built for. This is a workplace tool for
+employed adults, so 18+ is both accurate and the easy path.
+
+Then: *"Do you want your app to appeal to children?"* → **No**.
+
+### Data safety
+
+The table in §3 above. In the form:
+
+- **Data is encrypted in transit** → Yes (HTTPS/TLS to marsoud.com)
+- **Users can request data deletion** → Yes, and the addendum documents
+  the route (HR, or the contact address in the policy)
+- **Is data shared with third parties?** → No. Firebase Cloud Messaging
+  is a service provider processing on your behalf, not third-party
+  sharing.
+- Location must be marked **required**, not optional, with the purpose
+  "App functionality" — it gates attendance.
+
+### Government apps
+
+**No.** Marsoud is a private commercial product, not published by or on
+behalf of a government body.
+
+### Financial features
+
+**None of the above.**
+
+The one that looks like it might qualify is السلف (advances): an
+employee submits an `AdvanceRequest` and their employer approves it.
+There is no lender, no credit product, no interest, and no money moves
+through the app — it is an internal HR approval workflow, and the app
+carries no payment gateway of any kind (verified: no Stripe, PayPal,
+Paymob, Fawry or card handling anywhere in `mobile/lib`). Displaying an
+employee their own salary figure is not a financial feature either.
+
+### Health
+
+**No.** No health, medical, fitness or wellness features. Sick leave is
+a leave-request type with a day count; the app stores no medical
+information.
+
+### App category and contact details
+
+| field | value |
+|---|---|
+| Category | **Business** |
+| Tags | Business, Productivity, Human Resources |
+| Email | a monitored public address — Google shows it on the listing |
+| Website | `https://marsoud.com` |
+| Phone | optional |
+
+### Store listing
+
+Everything is in §1 and §2 — title, both descriptions, icon, feature
+graphic, and screenshots from `screenshots-9x16/` or `framed/`.
+
+---
+
+## 9. Order to do them in
+
+1. Privacy policy addendum via /admin/legal — **before** Data safety,
+   so the two agree
+2. Create the reviewer account on production, with real data in it
+3. App content checklist (the nine items above)
+4. Store listing
+5. Upload the `.aab` to internal testing and install it yourself
+6. Promote
