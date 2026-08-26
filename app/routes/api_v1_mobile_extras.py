@@ -192,7 +192,7 @@ def leads_list():
 @leads_bp.route("/<int:lead_id>", methods=["GET"])
 def lead_detail(lead_id):
     lead = _get_lead_or_404(lead_id)
-    if isinstance(lead, tuple):  # error response
+    if not isinstance(lead, Lead):   # error Response — re-return it
         return lead
     activities = (LeadActivity.query
                    .filter_by(lead_id=lead.id)
@@ -220,7 +220,7 @@ def lead_change_status(lead_id):
     helper so the LeadStatusEvent row + notification fanout stay
     consistent with the web flow."""
     lead = _get_lead_or_404(lead_id)
-    if isinstance(lead, tuple):
+    if not isinstance(lead, Lead):   # error Response — re-return it
         return lead
     body = _body()
     new_status = (body.get("new_status") or "").strip().upper()
@@ -244,7 +244,7 @@ def lead_change_status(lead_id):
 @leads_bp.route("/<int:lead_id>/activities", methods=["GET"])
 def lead_activities(lead_id):
     lead = _get_lead_or_404(lead_id)
-    if isinstance(lead, tuple):
+    if not isinstance(lead, Lead):   # error Response — re-return it
         return lead
     rows = (LeadActivity.query
              .filter_by(lead_id=lead.id)
@@ -259,7 +259,7 @@ def lead_activities(lead_id):
 @leads_bp.route("/<int:lead_id>/activities", methods=["POST"])
 def lead_add_activity(lead_id):
     lead = _get_lead_or_404(lead_id)
-    if isinstance(lead, tuple):
+    if not isinstance(lead, Lead):   # error Response — re-return it
         return lead
     body = _body()
     type_raw = (body.get("type") or "NOTE").strip().upper()
@@ -294,7 +294,16 @@ def lead_add_activity(lead_id):
 
 def _get_lead_or_404(lead_id):
     """Fetch a lead scoped to the caller. Returns the Lead OR an
-    error response tuple (which the caller re-returns)."""
+    error Response (which the caller re-returns).
+
+    MARSOUD-MOBILE-LEAD-GUARD (2026-08-24) — this used to say "error
+    response tuple", and every caller guarded with
+    `isinstance(lead, tuple)`. `_err()` builds a Response via jsonify(),
+    never a tuple, so that guard was ALWAYS False: a forbidden or
+    missing lead fell straight through to `lead.id` and raised
+    AttributeError: 'Response' object has no attribute 'id' -> HTTP 500
+    on four of the five lead endpoints, for both the 403 and the 404
+    path. Callers now test for the positive type instead."""
     from app.services.permissions import has_permission
     lead = db.session.get(Lead, lead_id)
     if (not lead
@@ -426,7 +435,7 @@ def meetings_create():
         except (TypeError, ValueError):
             return _err("invalid_lead_id", 400)
         lead = _get_lead_or_404(lid)
-        if isinstance(lead, tuple):
+        if not isinstance(lead, Lead):   # error Response — re-return it
             return lead
         row = LeadActivity(
             company_id=lead.company_id,
