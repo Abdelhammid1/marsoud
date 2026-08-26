@@ -642,4 +642,187 @@
     .ms-num { width: 100%; max-width: 140px; }
   }
 
+
+  /* ══════════════════════════════════════════════════════════
+     STACKED TABLES — MARSOUD-MOBILE-STACKED-TABLES (2026-08-25)
+
+     Below 768px a data-table row becomes a card instead of a row you
+     drag sideways through.
+
+     Why: the shell, forms and grids already fit a 390px screen; the
+     only thing overflowing was `table.data-table`. 112 templates render
+     one, median 6 columns and worst 12, so reading an invoice meant
+     swiping 1.5-2.3 screen-widths horizontally. Reported as
+     "الفواتير والمالية very very bad on mobile".
+
+     The labels come from JS in base.html (wrapTables -> stampLabels),
+     which copies each column's <th> text onto its cells as data-label.
+     CSS only styles what that pass marked — hence every selector is
+     keyed on [data-stacked], so a table the JS never reached keeps the
+     old horizontal-scroll behaviour instead of half-transforming.
+
+     Opt out per table with `class="no-stack"` — for a numeric matrix
+     where column alignment IS the information (a trial balance), a card
+     reads worse than a scroll. Nothing uses it yet.
+     ────────────────────────────────────────────────────────── */
+  @media (max-width: 767px) {
+
+    /* ── 1. Undo the horizontal-scroll machinery, for stacked tables
+       only. base.html sets width:max-content + nowrap + sticky columns
+       to make swiping work; all of it fights a card layout. Tables that
+       opted out keep every bit of it. ────────────────────────────── */
+    .table-scroll:has(table[data-stacked]) {
+      overflow: visible;
+      max-width: none;
+    }
+    /* The swipe affordances are meaningless once nothing scrolls. */
+    .table-scroll:has(table[data-stacked])::before,
+    .table-scroll:has(table[data-stacked])::after {
+      content: none;
+    }
+
+    table.data-table[data-stacked],
+    .table-scroll table.data-table[data-stacked] {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      white-space: normal;
+      border-collapse: separate;
+      border-spacing: 0;
+    }
+    table.data-table[data-stacked] thead {
+      /* Column names live in the cells now. Keep it in the accessibility
+         tree — screen readers still announce the header association. */
+      position: absolute;
+      width: 1px; height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+    table.data-table[data-stacked] tbody { display: block; }
+
+    table.data-table[data-stacked] tbody tr,
+    .table-scroll table.data-table[data-stacked] tbody tr {
+      display: block;
+      background: var(--ms-surface);
+      border: 1px solid var(--ms-line);
+      border-radius: var(--ms-radius-md);
+      box-shadow: var(--ms-shadow-sm);
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+    table.data-table[data-stacked] tbody tr:last-child { margin-bottom: 0; }
+    /* The desktop row-hover tint would paint the whole card grey. */
+    table.data-table[data-stacked] tbody tr:hover { background: var(--ms-surface); }
+
+    /* ── 2. Cells become label / value lines ───────────────────── */
+    table.data-table[data-stacked] tbody td,
+    .table-scroll table.data-table[data-stacked] tbody td {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: var(--ms-gap-3);
+      width: auto;
+      padding: 5px 0;
+      border: 0;
+      font-size: var(--ms-fs-sm);
+      text-align: start;
+      /* base.html forces physical alignment inside .data-table for the
+         RTL column-alignment fix. In a card there are no columns to
+         align, so let the flex row place things. */
+      position: static;
+    }
+    table.data-table[data-stacked] tbody td::before {
+      content: attr(data-label);
+      flex: 0 0 auto;
+      max-width: 45%;
+      color: var(--ms-ink-3);
+      font-size: var(--ms-fs-xs);
+      font-weight: 500;
+      /* The label must NOT inherit the cell's font. Numeric cells carry
+         .font-mono, and Arabic in a monospace face renders with broken
+         spacing — «الرصيد» came out visibly stretched. Same reason it
+         resets weight and letter-spacing: a label is chrome, it should
+         not pick up the value's typography. */
+      font-family: var(--ms-font-body);
+      font-variant-numeric: normal;
+      letter-spacing: 0;
+      text-align: start;
+      direction: rtl;
+    }
+    /* A cell with no data-label (first cell, actions, colspan) must not
+       reserve the label gutter. */
+    table.data-table[data-stacked] tbody td:not([data-label])::before {
+      content: none;
+    }
+
+    /* ── 3. First cell is the card title ───────────────────────── */
+    table.data-table[data-stacked] tbody td:first-child {
+      display: block;
+      font-size: var(--ms-fs-lg);
+      font-weight: 600;
+      color: var(--ms-ink-1);
+      padding: 0 0 8px;
+      margin-bottom: 6px;
+      border-bottom: 1px solid var(--ms-line-soft, var(--ms-line));
+    }
+    table.data-table[data-stacked] tbody td:first-child::before { content: none; }
+
+    /* ── 4. Special cells ──────────────────────────────────────── */
+    /* Buttons: a footer strip, not a labelled field. */
+    table.data-table[data-stacked] tbody td.ms-cell-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      gap: var(--ms-gap-2);
+      padding-top: 10px;
+      margin-top: 6px;
+      border-top: 1px solid var(--ms-line-soft, var(--ms-line));
+    }
+    table.data-table[data-stacked] tbody td.ms-cell-actions::before { content: none; }
+    /* Tap targets — a 24px link in a table is fine with a mouse, not a
+       thumb. */
+    table.data-table[data-stacked] tbody td.ms-cell-actions a,
+    table.data-table[data-stacked] tbody td.ms-cell-actions button {
+      min-height: 36px;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    /* Empty-state / summary rows span the card with no label. */
+    table.data-table[data-stacked] tbody td.ms-cell-full {
+      display: block;
+      text-align: center;
+      padding: 6px 0;
+      color: var(--ms-ink-3);
+    }
+    table.data-table[data-stacked] tbody td.ms-cell-full::before { content: none; }
+    /* A colspan row is the whole card — drop the title styling it would
+       otherwise inherit from :first-child. */
+    table.data-table[data-stacked] tbody td.ms-cell-full:first-child {
+      font-size: var(--ms-fs-sm);
+      font-weight: 400;
+      border-bottom: 0;
+      margin-bottom: 0;
+    }
+
+    /* Nothing to show: don't leave a blank line in the card. */
+    table.data-table[data-stacked] tbody td.ms-cell-empty { display: none; }
+
+    /* ── 5. Numbers stay legible ───────────────────────────────── */
+    /* base.html flips numeric cells to direction:ltr so the sign sits
+       right of the digits. That still applies; just stop it forcing a
+       physical text-align now that the value is a flex item. */
+    table.data-table[data-stacked] tbody td.font-mono {
+      font-variant-numeric: tabular-nums;
+    }
+    table.data-table[data-stacked] tbody td.text-end,
+    table.data-table[data-stacked] tbody td.text-start,
+    table.data-table[data-stacked] tbody td.text-center,
+    table.data-table[data-stacked] tbody td.text-left,
+    table.data-table[data-stacked] tbody td.text-right {
+      text-align: start !important;
+    }
+  }
+
 </style>
