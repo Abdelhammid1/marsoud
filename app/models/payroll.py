@@ -8,6 +8,22 @@ class ContractType(enum.Enum):
     PART_TIME = "PART_TIME"
     TEMPORARY = "TEMPORARY"
 
+    # MARSOUD-MOBILE-BRANDING (2026-08-26) — this enum was the one HR
+    # enum with no label_ar, so api_serializers.enum_of() fell back to
+    # the raw value and the mobile account screen showed a bare
+    # "FULL_TIME" in an otherwise fully Arabic page. The web had the
+    # same gap in payroll/index.html and employee_profile.html, which
+    # both printed .value; the Arabic wording existed only as hardcoded
+    # <option> text in employee_form.html. Single source, matching the
+    # wording that form already used.
+    @property
+    def label_ar(self):
+        return {
+            "FULL_TIME": "دوام كامل",
+            "PART_TIME": "دوام جزئي",
+            "TEMPORARY": "مؤقت",
+        }[self.value]
+
 
 class EmployeeStatus(enum.Enum):
     ACTIVE = "ACTIVE"

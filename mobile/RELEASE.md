@@ -119,8 +119,12 @@ Checks worth repeating each release:
 
 ## Known gaps
 
-- `android:label` in `AndroidManifest.xml` is `marsoud`, lowercase and
-  English. It is what shows under the icon on the phone; everything else
-  in the product is مرصود.
-- `pubspec.yaml` is at `0.1.0+1`.
+- `pubspec.yaml` is at `0.1.0+1`. Play rejects a versionCode it has
+  already accepted, so bump it before the first upload.
 - No iOS signing is set up; this covers Android only.
+
+Closed since this was written (MARSOUD-MOBILE-BRANDING, 2026-08-26):
+the launcher label is now `@string/app_name` = مرصود, and the icon is a
+real adaptive icon built from the brand mark rather than the Flutter
+template default. Store assets and the full listing copy are in
+`store/` — see `store/PLAY-LISTING.md`.

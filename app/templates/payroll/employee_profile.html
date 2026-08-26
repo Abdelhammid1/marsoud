@@ -43,7 +43,7 @@
         {% if employee.department %}<span class="badge badge-sent">{{ employee.department.name }}</span>{% else %}—{% endif %}
       </div>
       <div><span class="text-slate-500">المدير المباشر:</span> {{ employee.manager.name if employee.manager else '—' }}</div>
-      <div><span class="text-slate-500">نوع العقد:</span> {{ employee.contract_type.value if employee.contract_type else '—' }}</div>
+      <div><span class="text-slate-500">نوع العقد:</span> {{ employee.contract_type.label_ar if employee.contract_type else '—' }}</div>
       <div><span class="text-slate-500">بدء العمل:</span> {{ employee.start_date.isoformat() if employee.start_date else '—' }}</div>
       <div>
         <span class="text-slate-500">انتهاء العقد:</span>

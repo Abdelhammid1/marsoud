@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- MARSOUD-MOBILE-BRANDING (2026-08-25) — adaptive-icon backdrop.
+         White, matching how the mark is presented in the web header.
+         The brand green (#159b54) lives in the mark itself. -->
+    <color name="ic_launcher_background">#FFFFFF</color>
+</resources>
