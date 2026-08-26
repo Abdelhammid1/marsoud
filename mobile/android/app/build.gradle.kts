@@ -51,7 +51,7 @@ if (buildingRelease && !hasKeystore) {
 }
 
 android {
-    namespace = "com.marsoud.marsoud"
+    namespace = "com.manasety.marsoud"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -72,8 +72,12 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.marsoud.marsoud"
+        // MARSOUD-MOBILE-APPID (2026-08-26) — reverse-DNS of the
+        // company domain, then the product: Manasety is the org,
+        // Marsoud is this app. LOCKED once Play accepts the first
+        // bundle — a different id is a different listing with no
+        // installs, reviews or update path. Do not "tidy" it.
+        applicationId = "com.manasety.marsoud"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

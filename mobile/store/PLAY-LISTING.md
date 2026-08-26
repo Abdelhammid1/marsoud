@@ -180,8 +180,8 @@ only reason it is short.
 
 | field | value |
 |---|---|
-| Package name | `com.marsoud.marsoud` |
-| Current version | `0.1.0+1` → **bump before upload** |
+| Package name | `com.manasety.marsoud` — **locked** once Play accepts the first bundle |
+| Current version | `1.0.0+1` |
 | Target SDK | 36 |
 | Signing | upload keystore via `android/key.properties` — see `../RELEASE.md` |
 

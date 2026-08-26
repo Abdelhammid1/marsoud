@@ -114,6 +114,13 @@ Checks worth repeating each release:
 - its `project_id` matches the server's
   `instance/firebase-service-account.json` (both `marsoud-5e3e1`),
   otherwise push tokens register and notifications silently never arrive
+- its `package_name` matches `applicationId` (`com.manasety.marsoud`).
+  A mismatch fails the build at `:app:processReleaseGoogleServices` with
+  "No matching client found for package name" — loud, and preferable to
+  the alternative. `google-services.json` is per-package, so changing the
+  applicationId means registering the new package in the Firebase console
+  and downloading a fresh file; editing the old one by hand leaves
+  `mobilesdk_app_id` pointing at the previous registration
 - `version:` in `pubspec.yaml` bumped — Play rejects a versionCode it has
   already seen
 
