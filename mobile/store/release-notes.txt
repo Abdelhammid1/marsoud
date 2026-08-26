@@ -1,17 +1,3 @@
-<en-US>
-First release of the Marsoud employee app.
-
-• Clock in and out from your phone with location capture
-• Track your tasks, priorities and due dates
-• Manage your leads through every pipeline stage
-• Meetings and schedule in one place
-• Leave, advance and permission requests
-• Daily reports, cash and item custody
-• Instant notifications
-
-Interface is in Arabic (right-to-left).
-</en-US>
-<ar>
 الإصدار الأول من تطبيق مرصود للموظفين.
 
 • تسجيل الحضور والانصراف من الجوال مع تحديد الموقع
@@ -21,4 +7,3 @@ Interface is in Arabic (right-to-left).
 • طلبات الإجازة والسلفة والإذن
 • التقارير اليومية والعهد النقدية والعينية
 • إشعارات فورية بكل جديد
-</ar>

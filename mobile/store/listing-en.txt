@@ -1,3 +1,8 @@
+# NOT IN USE — the listing's default language is العربية (ar).
+# Kept only in case English is later added as an extra translation;
+# if it is, the interface-is-Arabic line below matters, because an
+# English listing is the fallback for every non-Arabic locale.
+
 TITLE (max 30)
 مرصود – Marsoud
 
