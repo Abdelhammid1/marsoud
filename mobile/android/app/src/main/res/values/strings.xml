@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- MARSOUD-MOBILE-BRANDING (2026-08-25) — the label drawn under the
+         launcher icon. Deliberately the SHORT form: Android gives a home
+         -screen label roughly 11-12 characters before it ellipsises, so
+         the full "مرصود – Marsoud" (15) would render as "مرصود – Mars…".
+         The full name belongs on the Play listing title, which allows 30
+         characters and is what users read in the store. -->
+    <string name="app_name">مرصود</string>
+</resources>

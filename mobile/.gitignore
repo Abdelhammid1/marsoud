@@ -49,3 +49,14 @@ app.*.map.json
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 ios/Runner/GoogleService-Info-*.plist
+
+# MARSOUD-MOBILE-RELEASE-SIGNING (2026-08-25) — upload key material.
+# The Play upload key CANNOT be rotated by you once an app is published
+# (only Google can reset it, via a support request). A committed keystore
+# is therefore permanent exposure, so these never enter the repo.
+android/build/
+android/.gradle/
+android/key.properties
+*.jks
+*.keystore
+*.p12

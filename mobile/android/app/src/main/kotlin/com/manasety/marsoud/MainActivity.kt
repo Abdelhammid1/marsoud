@@ -1,4 +1,4 @@
-package com.marsoud.marsoud
+package com.manasety.marsoud
 
 import io.flutter.embedding.android.FlutterActivity
 

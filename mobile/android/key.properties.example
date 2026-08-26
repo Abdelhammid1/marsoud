@@ -1,0 +1,13 @@
+# MARSOUD-MOBILE-RELEASE-SIGNING (2026-08-25)
+#
+# Copy this file to `key.properties` (same directory) and fill in the
+# real values. `key.properties` is gitignored and must STAY that way —
+# see RELEASE.md for why losing control of the upload key is permanent.
+#
+# storeFile is resolved relative to mobile/android/app/, so a keystore
+# kept next to this file is "../upload-keystore.jks".
+
+storeFile=../upload-keystore.jks
+storePassword=CHANGE_ME
+keyAlias=upload
+keyPassword=CHANGE_ME
