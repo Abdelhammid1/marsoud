@@ -410,6 +410,25 @@ def run():
     # open advance instead of leaving it at 0 for the accountant to
     # remember. Still editable.
     from app.services.advances import installment_due_for
+
+    # MARSOUD-COMM-SETTLE (2026-08-25) — show what will be settled BEFORE
+    # the run is committed. The commission column is derived, not typed,
+    # so without this the operator only discovers the figure after the
+    # journal is posted. Reads the SAME helper run_payroll settles from
+    # (open_commissions_for_employee), so the preview and the posted
+    # amount cannot drift apart.
+    from app.services.sales_commissions import open_commissions_for_employee
+
+    def open_commission_total(emp):
+        try:
+            rows = open_commissions_for_employee(
+                emp, g.active_company.id,
+                period_year=year, period_month=month)
+            return round(sum(r.remaining for r in rows), 2)
+        except Exception:
+            # A preview must never be the reason a payroll page 500s.
+            return 0.0
+
     return render_template(
         "payroll/run_form.html",
         employees=employees, today=today,
@@ -417,6 +436,7 @@ def run():
         billable_days=billable_days_in_period,
         auto_attendance=auto_absence_late_for,
         advance_due=installment_due_for,
+        open_commission_total=open_commission_total,
     )
 
 

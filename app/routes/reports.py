@@ -1,6 +1,8 @@
 from datetime import datetime, date
-from flask import Blueprint, render_template, redirect, url_for, request, g, send_file
-from flask_login import login_required
+from flask import (Blueprint, render_template, redirect, url_for, request, g,
+                   send_file, flash, abort)
+from flask_login import login_required, current_user
+from app import db
 from app.services.reports import (
     balance_sheet, income_statement, cash_flow,
     income_summary, expenses_summary, income_statement_compared,
@@ -360,6 +362,50 @@ def sales_commissions():
         "reports/sales_commissions.html",
         rep_buckets=rows, start=start, end=end,
     )
+
+
+# ─── MARSOUD-COMM-SETTLE (2026-08-25) — pay a commission in cash ────
+@bp.route("/sales-commissions/<int:commission_id>/settle", methods=["POST"])
+@login_required
+@require_permission("payroll.run")
+def settle_commission(commission_id):
+    """Record a commission paid to the rep outside the payroll run.
+
+    This is the path for the June-2026 style payments: money handed over
+    directly, never passing through `payroll_lines`, so 2150 kept
+    accruing against cash that had already left. Posts Dr 2150 / Cr 1110
+    and closes the row (fully or partially).
+
+    Gated on payroll.run rather than reports.view: the page is a report,
+    but this button MOVES MONEY. A read-only role must not reach it.
+    """
+    from app.models import SalesCommission
+    from app.services.sales_commissions import settle_commission_manual
+    from app.services.ledger import LedgerError
+
+    row = db.session.get(SalesCommission, commission_id)
+    if not row or row.company_id != g.active_company.id:
+        abort(404)
+
+    raw = (request.form.get("amount") or "").strip()
+    amount = None
+    if raw:
+        try:
+            amount = round(float(raw), 2)
+        except (TypeError, ValueError):
+            flash("قيمة السداد غير صحيحة", "error")
+            return redirect(url_for("reports.sales_commissions"))
+
+    try:
+        settle_commission_manual(row, amount=amount,
+                                  created_by=current_user.id)
+    except LedgerError as e:
+        flash(str(e), "error")
+        return redirect(url_for("reports.sales_commissions"))
+
+    flash(f"تم تسجيل سداد العمولة ({row.settled_amount:.2f} من "
+          f"{row.amount:.2f})", "success")
+    return redirect(url_for("reports.sales_commissions"))
 
 
 # ─── MARSOUD-EMPLOYEE-DAILY-REPORTS — owner-side viewing ────────────

@@ -334,6 +334,114 @@ def record_commission_refund(invoice, refund, refund_amount,
 
 
 # ─── Phase C: payroll integration ──────────────────────────────────
+def settle_commission_manual(commission, *, amount=None,
+                              payment_account_code="1110", created_by=None):
+    """MARSOUD-COMM-SETTLE (2026-08-25) — pay a commission in cash,
+    outside the payroll run.
+
+    This is the path for commissions handed to the rep directly — the
+    June 2026 payments on company 8 that never touched `payroll_lines`
+    and so left 2150 accruing against money that had actually gone out.
+
+    Posts `Dr 2150 / Cr 1110`: the liability closes and cash leaves. It
+    deliberately does NOT touch 5280 — the expense was already recognised
+    when the commission accrued, and recognising it again here is the
+    very double-count this ticket exists to remove.
+
+    Deliberately shaped like payroll.settle_accrual (services/payroll.py):
+    same guards, same partial-payment semantics, same "pay the remainder
+    when amount is omitted" default, so the two settlement paths behave
+    identically for an operator who has used either.
+
+    Raises LedgerError when the row is already settled or the amount
+    exceeds what is left.
+    """
+    from datetime import datetime
+    if commission.is_settled:
+        raise LedgerError("هذه العمولة تم سدادها بالكامل مسبقاً")
+
+    remaining = commission.remaining
+    if remaining <= 0.005:
+        # Negative remaining = a carry-forward clawback. It is not
+        # something you pay out; it consumes future earnings instead.
+        raise LedgerError("لا يوجد رصيد مستحق للسداد على هذه العمولة")
+
+    pay_amt = round(float(remaining if amount is None else amount), 2)
+    if pay_amt <= 0.005:
+        raise LedgerError("قيمة السداد يجب أن تكون أكبر من صفر")
+    if pay_amt > remaining + 0.005:
+        raise LedgerError(
+            f"القيمة ({pay_amt:.2f}) أكبر من الرصيد المتبقي ({remaining:.2f})"
+        )
+    pay_amt = min(pay_amt, remaining)
+
+    company_id = commission.company_id
+    liab_acct = get_account_by_code(company_id, "2150")
+    cash_acc = get_account_by_code(company_id, payment_account_code)
+    if not liab_acct or not cash_acc:
+        raise LedgerError("حسابات العمولات أو النقدية غير موجودة")
+
+    rep_name = (commission.sales_rep.full_name
+                if commission.sales_rep else "مندوب")
+    is_partial = pay_amt < remaining - 0.005
+    label = "سداد جزئي" if is_partial else "سداد كامل"
+
+    entry = post_journal(
+        company_id=company_id,
+        description=f"{label} لعمولة مبيعات — {rep_name} ({pay_amt:.2f})",
+        lines=[
+            {"account_id": liab_acct.id, "debit": pay_amt, "credit": 0,
+             "memo": f"{label} عمولة — {rep_name}"},
+            {"account_id": cash_acc.id, "debit": 0, "credit": pay_amt,
+             "memo": f"صرف نقدي — {rep_name}"},
+        ],
+        reference=f"COMM-SETTLE-{commission.id}",
+        created_by=created_by,
+        source_type="commission_settle",
+        source_id=commission.id,
+    )
+
+    commission.mark_settled(pay_amt, when=datetime.utcnow())
+    db.session.commit()
+    return commission, entry
+
+
+def open_commissions_for_employee(employee, company_id, *,
+                                   period_year, period_month):
+    """MARSOUD-COMM-SETTLE (2026-08-25) — the rep's still-open commission
+    rows for a payroll period.
+
+    Extracted from settle_commissions_for_employee so the payroll SCREEN
+    and the payroll COMMIT read the same rows from the same query. When
+    the two drifted apart the operator could be shown one number and have
+    a different one settled, which is how a 2150 balance quietly stops
+    matching its accruals.
+
+    "Open" means `remaining != 0`: a partially settled row still counts
+    for whatever is left on it.
+    """
+    from app.models import User
+    if not employee.user_id:
+        return []
+    user = db.session.get(User, employee.user_id)
+    if not user:
+        return []
+
+    rows = SalesCommission.query.filter(
+        SalesCommission.sales_rep_id == user.id,
+        SalesCommission.company_id == company_id,
+        SalesCommission.status == "UNPAID",
+        db.or_(
+            SalesCommission.period_year < period_year,
+            db.and_(
+                SalesCommission.period_year == period_year,
+                SalesCommission.period_month <= period_month,
+            ),
+        ),
+    ).all()
+    return [r for r in rows if abs(r.remaining) > 0.005]
+
+
 def settle_commissions_for_employee(employee, run, *, period_year, period_month):
     """MARSOUD-COMM-01 Phase C — fold the employee's outstanding sales
     commissions into a payroll run.
@@ -353,29 +461,18 @@ def settle_commissions_for_employee(employee, run, *, period_year, period_month)
     rep's earned commission for the period. The caller (run_payroll)
     just adds this to the line.commissions field; payroll math handles
     the negative naturally."""
-    from app.models import User
-    if not employee.user_id:
-        return 0.0, []
-    user = db.session.get(User, employee.user_id)
-    if not user:
-        return 0.0, []
-
-    rows = SalesCommission.query.filter(
-        SalesCommission.sales_rep_id == user.id,
-        SalesCommission.company_id == run.company_id,
-        SalesCommission.status == "UNPAID",
-        db.or_(
-            SalesCommission.period_year < period_year,
-            db.and_(
-                SalesCommission.period_year == period_year,
-                SalesCommission.period_month <= period_month,
-            ),
-        ),
-    ).all()
+    rows = open_commissions_for_employee(
+        employee, run.company_id,
+        period_year=period_year, period_month=period_month,
+    )
     if not rows:
         return 0.0, []
 
-    net = sum(float(r.amount or 0) for r in rows)
+    # MARSOUD-COMM-SETTLE — sum what is still OPEN on each row, not the
+    # full original amount. A row half-settled by a manual cash payment
+    # must only bring its remainder into the payroll run, otherwise the
+    # rep is paid the same commission twice and 2150 goes negative.
+    net = sum(r.remaining for r in rows)
 
     # MARSOUD-COMM-01 #9 — multi-month rollover. If the running balance is
     # negative (clawbacks > earned commissions), DON'T touch the rep's
@@ -387,7 +484,10 @@ def settle_commissions_for_employee(employee, run, *, period_year, period_month)
         return 0.0, []
 
     for r in rows:
-        r.status = "PAID"
+        # MARSOUD-COMM-SETTLE — record HOW MUCH was settled, not just that
+        # it was. Settling the remainder keeps a partially-paid row honest
+        # and lets the reversal path put the exact amount back.
+        r.mark_settled(r.remaining)
         r.payroll_run_id = run.id
     db.session.flush()
     return round(net, 2), rows

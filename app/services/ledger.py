@@ -248,7 +248,38 @@ def _undo_source_side_effects(original, reversal=None):
     if not src_type or not src_id:
         return
 
-    if src_type == "accrual_settle":
+    if src_type == "payroll":
+        # MARSOUD-COMM-SETTLE (2026-08-25) — a payroll run settles the
+        # rep's commission rows (flips them settled + debits 2150).
+        # Reversing the run has to give them back, or the commission is
+        # gone from 2150 while never actually having been paid — the
+        # mirror image of the bug this ticket fixes.
+        from app.models import SalesCommission
+        from app.models.payroll import PayrollRun
+        run = db.session.get(PayrollRun, src_id)
+        if run:
+            for c in SalesCommission.query.filter_by(
+                    payroll_run_id=run.id).all():
+                c.settled_amount = 0
+                c.settled_at = None
+                c.status = "UNPAID"
+                c.payroll_run_id = None
+
+    elif src_type == "commission_settle":
+        # Reversing a manual cash settlement re-opens exactly what that
+        # entry closed — not the whole row, which may have been settled
+        # in several parts.
+        from app.models import SalesCommission
+        from decimal import Decimal
+        commission = db.session.get(SalesCommission, src_id)
+        if commission:
+            reversed_amt = sum(float(l.debit or 0) for l in original.lines)
+            commission.settled_amount = Decimal(str(max(0.0, round(
+                float(commission.settled_amount or 0) - reversed_amt, 4))))
+            commission.settled_at = None
+            commission.status = "UNPAID"
+
+    elif src_type == "accrual_settle":
         # The original journal came from settle_accrual(). Find the row
         # and mark it un-settled so the employee's outstanding balance
         # picks the amount back up.

@@ -77,6 +77,12 @@
         {% set default_days = billable_days(e, year, month) if billable_days else 30 %}
         {% set auto_abs, auto_late_amt, has_ex, auto_abs_count = (auto_attendance(e, year, month) if auto_attendance else (0.0, 0.0, False, 0)) %}
         {% set adv_due = advance_due(e) if advance_due else 0.0 %}
+        {# MARSOUD-COMM-SETTLE — commissions are DERIVED from the rep's
+           open sales_commissions rows, not typed, so there is no input
+           for them. Surfacing the figure here is the only way the
+           operator sees what the run will settle out of 2150 before
+           committing it. #}
+        {% set comm_open = open_commission_total(e) if open_commission_total else 0.0 %}
         <tr>
           <td>
             <div class="font-semibold">{{ e.name }}</div>
@@ -89,6 +95,17 @@
             {% endif %}
             {% if adv_due > 0 %}
             <div class="text-xs text-amber-700 mt-1">💵 قسط سلفة مستحق: {{ "%.2f"|format(adv_due) }}</div>
+            {% endif %}
+            {% if comm_open > 0.005 %}
+            <div class="text-xs text-emerald-700 mt-1"
+                 title="مجموع عمولات المبيعات المفتوحة لهذا المندوب حتى {{ month }}/{{ year }}. هتتضاف للإجمالي وهيتقفل بيها حساب 2150 تلقائياً عند الحفظ.">
+              💼 عمولات مستحقة هتتصفّى: {{ "%.2f"|format(comm_open) }}
+            </div>
+            {% elif comm_open < -0.005 %}
+            <div class="text-xs text-rose-700 mt-1"
+                 title="رصيد مرحّل سالب (استرداد عمولة). مش هيتخصم من الراتب — هيستهلك أرباح الشهور الجاية.">
+              ⏩ رصيد عمولة مرحّل: {{ "%.2f"|format(comm_open) }}
+            </div>
             {% endif %}
           </td>
           <td><input type="number" name="working_days_{{ e.id }}" value="{{ default_days }}" min="0" max="31" class="input w-full text-sm font-mono"></td>
