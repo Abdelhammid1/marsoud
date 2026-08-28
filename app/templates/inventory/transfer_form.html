@@ -51,7 +51,7 @@ let items = [];
 function renderItems() {
   const wrap = document.getElementById('items-list');
   if (items.length === 0) {
-    wrap.innerHTML = '<div class="text-xs text-slate-400">لم تُضَف بنود بعد.</div>';
+    wrap.innerHTML = '<div class="text-xs text-slate-500">لم تُضَف بنود بعد.</div>';
   } else {
     wrap.innerHTML = items.map((r, i) => `
       <div class="flex items-center justify-between bg-slate-50 rounded p-2">

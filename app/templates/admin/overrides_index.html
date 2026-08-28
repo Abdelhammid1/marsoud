@@ -94,7 +94,7 @@
         ينتهي في (اختياري)
       </label>
       <input type="date" name="expires_at" class="input w-full">
-      <p class="text-xs text-slate-400 mt-1">
+      <p class="text-xs text-slate-500 mt-1">
         اتركه فارغاً للاستثناء الدائم
       </p>
     </div>
@@ -216,10 +216,10 @@
             <span class="text-slate-600">{{ r.expires_at.strftime('%Y-%m-%d') }}</span>
             {% else %}
             <span class="text-rose-600 line-through">{{ r.expires_at.strftime('%Y-%m-%d') }}</span>
-            <span class="text-xs text-slate-400">(منتهية)</span>
+            <span class="text-xs text-slate-500">(منتهية)</span>
             {% endif %}
           {% else %}
-            <span class="text-slate-400">— دائم —</span>
+            <span class="text-slate-500">— دائم —</span>
           {% endif %}
         </td>
         <td class="text-xs text-slate-500">
@@ -242,7 +242,7 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="8" class="text-center text-slate-400 py-8">
+        <td colspan="8" class="text-center text-slate-500 py-8">
           لا توجد استثناءات.
           <a href="{{ url_for('superadmin.overrides_index', add=1) }}"
              class="text-brand-600 hover:underline">

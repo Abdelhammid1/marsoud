@@ -53,7 +53,7 @@
         </td>
         <td class="text-xs text-slate-500">
           {% if r.reviewer %}{{ r.reviewer.full_name }}<br>{{ r.reviewed_at | company_dt('%Y-%m-%d') if r.reviewed_at else '' }}{% else %}—{% endif %}
-          {% if r.review_note %}<div class="text-slate-400">{{ r.review_note }}</div>{% endif %}
+          {% if r.review_note %}<div class="text-slate-500">{{ r.review_note }}</div>{% endif %}
         </td>
         <td>
           {% if r.status.value == 'PENDING' %}
@@ -72,7 +72,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="7" class="text-center text-slate-400 py-6">لا توجد طلبات.</td></tr>
+      <tr><td colspan="7" class="text-center text-slate-500 py-6">لا توجد طلبات.</td></tr>
     {% endfor %}
     </tbody>
   </table>

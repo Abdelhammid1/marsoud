@@ -30,15 +30,15 @@
           مصدر: {{ e.source }}
         </div>
         {% if e.ip_address %}
-        <div class="text-xs text-slate-400 font-mono">IP: {{ e.ip_address }}</div>
+        <div class="text-xs text-slate-500 font-mono">IP: {{ e.ip_address }}</div>
         {% endif %}
         {% if e.user_agent %}
-        <div class="text-xs text-slate-400 truncate">{{ e.user_agent }}</div>
+        <div class="text-xs text-slate-500 truncate">{{ e.user_agent }}</div>
         {% endif %}
       </div>
     </li>
     {% else %}
-    <li class="text-slate-400 text-center py-6">لا سجلات لهذا المستخدم.</li>
+    <li class="text-slate-500 text-center py-6">لا سجلات لهذا المستخدم.</li>
     {% endfor %}
   </ol>
 </div>

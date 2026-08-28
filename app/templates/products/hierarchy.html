@@ -41,7 +41,7 @@
        💾 to forget, and losing a visibility change by navigating away would
        be a bad trade for a setting that hides products from the cashier. #}
     <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pr-9">
-      <span class="text-xs text-slate-400">تظهر في:</span>
+      <span class="text-xs text-slate-500">تظهر في:</span>
       {% for key, col, label, icon in vis_modules %}
       <label class="inline-flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none"
              title="تظهر منتجات هذه المجموعة في {{ label }} — وترثها الفئات تحتها">
@@ -75,7 +75,7 @@
            to, so the effective answer is on screen without opening the
            group. Saves on change, like the group above. #}
         <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 pr-7">
-          <span class="text-xs text-slate-400">تظهر في:</span>
+          <span class="text-xs text-slate-500">تظهر في:</span>
           {% for key, col, label, icon in vis_modules %}
           {% set own = cat|attr(col) %}
           {% set resolved = effective[cat.id][key][0] %}
@@ -103,7 +103,7 @@
       </form>
     </div>
     {% else %}
-    <div class="text-xs text-slate-400 py-2">لا توجد فئات — أضف واحدة.</div>
+    <div class="text-xs text-slate-500 py-2">لا توجد فئات — أضف واحدة.</div>
     {% endfor %}
   </div>
 
@@ -116,13 +116,13 @@
     {# A new category inherits everything — the group already carries the
        decision, so there is nothing to choose here. Override it afterwards
        on the row if you need to. #}
-    <p class="text-xs text-slate-400 mt-2">
+    <p class="text-xs text-slate-500 mt-2">
       الفئة الجديدة هترث ظهورها من «{{ g_row.name }}» — تقدر تعمل أوفررايد بعد الإنشاء.
     </p>
   </form>
 </div>
 {% else %}
-<div class="card p-6 text-center text-slate-400">
+<div class="card p-6 text-center text-slate-500">
   لا توجد مجموعات بعد — أضف واحدة من الفورم أعلاه.
 </div>
 {% endfor %}

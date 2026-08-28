@@ -31,7 +31,7 @@
         <td class="text-left font-mono font-bold">{{ "%.2f"|format(r.nbv) }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="8" class="text-center text-slate-400 py-8">لا توجد أصول ثابتة</td></tr>
+      <tr><td colspan="8" class="text-center text-slate-500 py-8">لا توجد أصول ثابتة</td></tr>
       {% endfor %}
       <tr class="border-t-2 border-navy-900 font-bold bg-navy-50">
         <td colspan="4" class="py-3">الإجمالي</td>
@@ -42,7 +42,7 @@
       </tr>
     </tbody>
   </table>
-  <p class="text-xs text-slate-400 mt-3">⚠ إجمالي القيمة الدفترية يطابق رصيد الأصول الثابتة في الميزانية</p>
+  <p class="text-xs text-slate-500 mt-3">⚠ إجمالي القيمة الدفترية يطابق رصيد الأصول الثابتة في الميزانية</p>
 </div>
 
 {# MARSOUD-ASSET-DISPOSAL-01 (2026-08-07) — separate section for
@@ -61,7 +61,7 @@
           {{ "%.2f"|format(data.disposed.totals.cost) }})
         </span>
       </h2>
-      <span class="text-xs text-slate-400">اضغط للتوسيع</span>
+      <span class="text-xs text-slate-500">اضغط للتوسيع</span>
     </summary>
     <table class="data-table mt-4">
       <thead><tr>

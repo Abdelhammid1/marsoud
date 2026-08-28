@@ -36,7 +36,7 @@
     {% endif %}
     <tr class="{{ row_bg }}">
       <td><input type="checkbox" name="entry_ids[]" value="{{ e.id }}" form="bulk-form" class="entry-cb rounded text-brand-600" onchange="updateBulkBar()"></td>
-      <td class="font-mono text-xs font-semibold {% if e.is_active %}text-navy-900{% else %}text-slate-400 line-through{% endif %}">{{ e.number or '#' + e.id|string }}</td>
+      <td class="font-mono text-xs font-semibold {% if e.is_active %}text-navy-900{% else %}text-slate-500 line-through{% endif %}">{{ e.number or '#' + e.id|string }}</td>
       <td class="text-sm">{{ e.date.isoformat() }}</td>
       <td>
         {{ e.description }}
@@ -57,7 +57,7 @@
       <td><a href="{{ url_for('journals.view', entry_id=e.id) }}" class="text-brand-600 hover:underline text-sm">عرض</a></td>
     </tr>
     {% else %}
-    <tr><td colspan="9" class="text-center text-slate-400 py-8">لا توجد قيود مطابقة</td></tr>
+    <tr><td colspan="9" class="text-center text-slate-500 py-8">لا توجد قيود مطابقة</td></tr>
     {% endfor %}
   </tbody>
 </table>

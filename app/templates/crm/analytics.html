@@ -20,7 +20,7 @@
     <div class="text-3xl font-bold text-emerald-700 font-mono">
       {{ "%.1f"|format(conversion_rate) }}%
     </div>
-    <div class="text-[10px] text-slate-400 mt-1">
+    <div class="text-[10px] text-slate-500 mt-1">
       {{ won_count }} فوز / {{ won_count + lost_count }} صفقة مغلقة
     </div>
   </div>
@@ -35,7 +35,7 @@
     <div class="text-3xl font-bold text-navy-900 font-mono">
       {{ "%.0f"|format(avg_close_days) }}
     </div>
-    <div class="text-[10px] text-slate-400 mt-1">يوم من إنشاء الـ lead للتحويل</div>
+    <div class="text-[10px] text-slate-500 mt-1">يوم من إنشاء الـ lead للتحويل</div>
   </div>
 </div>
 
@@ -49,7 +49,7 @@
     <div class="text-3xl font-bold text-amber-600 font-mono">
       {{ no_response_count }}
     </div>
-    <div class="text-[10px] text-slate-400 mt-1">
+    <div class="text-[10px] text-slate-500 mt-1">
       عملاء موقوفون — ليسوا WON ولا LOST
     </div>
   </a>
@@ -107,7 +107,7 @@
       </tbody>
     </table>
     {% else %}
-    <div class="text-center text-slate-400 py-6 text-sm">لا توجد حملات مسجلة.</div>
+    <div class="text-center text-slate-500 py-6 text-sm">لا توجد حملات مسجلة.</div>
     {% endif %}
   </div>
 
@@ -123,7 +123,7 @@
             <span class="font-mono text-slate-500">{{ cnt }}</span>
           </li>
           {% else %}
-          <li class="text-slate-400">—</li>
+          <li class="text-slate-500">—</li>
           {% endfor %}
         </ul>
       </div>
@@ -136,7 +136,7 @@
             <span class="font-mono text-slate-500">{{ cnt }}</span>
           </li>
           {% else %}
-          <li class="text-slate-400">—</li>
+          <li class="text-slate-500">—</li>
           {% endfor %}
         </ul>
       </div>

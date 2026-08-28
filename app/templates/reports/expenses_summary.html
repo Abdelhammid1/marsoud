@@ -31,7 +31,7 @@
         <td class="text-left font-mono">{{ "%.2f"|format(r.balance) }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="4" class="text-center text-slate-400 py-6">لا توجد مصروفات في الفترة</td></tr>
+      <tr><td colspan="4" class="text-center text-slate-500 py-6">لا توجد مصروفات في الفترة</td></tr>
       {% endfor %}
       <tr class="border-t-2 border-navy-900 font-bold bg-red-50">
         <td colspan="3" class="py-3 text-red-800">إجمالي المصروفات</td>
@@ -39,6 +39,6 @@
       </tr>
     </tbody>
   </table>
-  <p class="text-xs text-center text-slate-400 mt-4">⚠ هذا الرقم يطابق Expenses في قائمة الدخل · اضغط على عدد القيود للتفاصيل</p>
+  <p class="text-xs text-center text-slate-500 mt-4">⚠ هذا الرقم يطابق Expenses في قائمة الدخل · اضغط على عدد القيود للتفاصيل</p>
 </div>
 {% endblock %}

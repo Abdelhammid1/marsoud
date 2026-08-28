@@ -17,7 +17,7 @@
     <div class="inline-block w-12 h-12 bg-brand-600 text-white rounded-xl flex items-center justify-center font-bold text-xl mb-3">م</div>
     <h2 class="text-2xl font-bold text-navy-900">دعوة للانضمام</h2>
     <p class="text-slate-500 mt-2">{{ company.name }}</p>
-    <p class="text-sm text-slate-400 mt-1">الدعوة لـ <span dir="ltr">{{ invitation.email }}</span> — صلاحية حتى {{ invitation.expires_at | company_dt('%Y-%m-%d') }}</p>
+    <p class="text-sm text-slate-500 mt-1">الدعوة لـ <span dir="ltr">{{ invitation.email }}</span> — صلاحية حتى {{ invitation.expires_at | company_dt('%Y-%m-%d') }}</p>
   </div>
 
   <form method="POST" class="space-y-4">

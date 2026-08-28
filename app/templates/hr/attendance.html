@@ -118,7 +118,7 @@ function promptReason(form) {
         {% endfor %}
       </tr>
     {% else %}
-      <tr><td colspan="32" class="text-center text-slate-400 py-6">لا يوجد موظفون</td></tr>
+      <tr><td colspan="32" class="text-center text-slate-500 py-6">لا يوجد موظفون</td></tr>
     {% endfor %}
     </tbody>
   </table>
@@ -161,7 +161,7 @@ function promptReason(form) {
             {% if ex.leave_request_id %}من طلب إجازة #{{ ex.leave_request_id }}{% else %}يدوي{% endif %}
             {% if ex.is_cancelled %}
             <span class="badge badge-cancelled">ملغى</span>
-            <span class="block text-slate-400 mt-1">{{ ex.cancel_reason }}</span>
+            <span class="block text-slate-500 mt-1">{{ ex.cancel_reason }}</span>
             {% endif %}
           </td>
           <td>
@@ -177,7 +177,7 @@ function promptReason(form) {
       {% endfor %}
     {% endfor %}
     {% if not seen_any %}
-      <tr><td colspan="7" class="text-center text-slate-400 py-4">لا توجد استثناءات في هذا الشهر</td></tr>
+      <tr><td colspan="7" class="text-center text-slate-500 py-4">لا توجد استثناءات في هذا الشهر</td></tr>
     {% endif %}
     </tbody>
   </table>

@@ -41,7 +41,7 @@
           <a href="{{ url_for('hr.employee_balances', employee_id=r.employee_id) }}" class="hover:text-brand-600">{{ r.employee.name }}</a>
         </td>
         <td>{{ r.leave_type.name }}
-          {% if not r.leave_type.is_paid %}<span class="text-xs text-slate-400">(بدون راتب)</span>{% endif %}
+          {% if not r.leave_type.is_paid %}<span class="text-xs text-slate-500">(بدون راتب)</span>{% endif %}
         </td>
         <td class="font-mono text-xs">{{ r.start_date.isoformat() }}</td>
         <td class="font-mono text-xs">{{ r.end_date.isoformat() }}</td>
@@ -75,7 +75,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="8" class="text-center text-slate-400 py-6">لا توجد طلبات.</td></tr>
+      <tr><td colspan="8" class="text-center text-slate-500 py-6">لا توجد طلبات.</td></tr>
     {% endfor %}
     </tbody>
   </table>

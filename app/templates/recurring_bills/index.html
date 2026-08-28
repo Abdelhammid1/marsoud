@@ -43,7 +43,7 @@
           <td class="font-mono">{{ "%.2f"|format(rb.amount|float) }} <span class="text-xs text-slate-500">{{ rb.currency|currency_ar }}</span></td>
           <td class="text-xs">{{ rb.label_ar }}</td>
           <td class="font-mono text-xs">{{ rb.start_date.isoformat() }}</td>
-          <td class="font-mono text-xs">{% if rb.end_date %}{{ rb.end_date.isoformat() }}{% else %}<span class="text-slate-400">مفتوح</span>{% endif %}</td>
+          <td class="font-mono text-xs">{% if rb.end_date %}{{ rb.end_date.isoformat() }}{% else %}<span class="text-slate-500">مفتوح</span>{% endif %}</td>
           <td>
             {% if rb.active %}<span class="badge badge-paid">نشط</span>
             {% else %}<span class="badge badge-cancelled">موقوف</span>{% endif %}
@@ -95,7 +95,7 @@
     </table>
   </div>
   {% else %}
-  <div class="text-center text-sm text-slate-400 py-8">
+  <div class="text-center text-sm text-slate-500 py-8">
     لا توجد فواتير متكررة. افتح أي فاتورة مورد واضغط زرار "🔁 اعمل الفاتورة دي متكررة".
   </div>
   {% endif %}

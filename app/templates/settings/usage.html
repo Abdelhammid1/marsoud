@@ -29,7 +29,7 @@
           <div class="border rounded-lg p-4">
             <div class="flex justify-between items-baseline">
               <div class="text-slate-700 font-semibold">{{ card.label }}</div>
-              <div class="text-xs text-slate-400">{{ card.enforcement }}</div>
+              <div class="text-xs text-slate-500">{{ card.enforcement }}</div>
             </div>
             <div class="text-sm text-slate-600 mt-1">
               {% if card.display_used %}
@@ -37,7 +37,7 @@
               {% else %}
                 {{ card.used | int }} / {{ card.limit | int }}
               {% endif %}
-              <span class="ml-1 text-slate-400">({{ card.pct }}%)</span>
+              <span class="ml-1 text-slate-500">({{ card.pct }}%)</span>
             </div>
             <div class="w-full bg-slate-100 rounded-full h-2 mt-2">
               {% set bar_class = 'bg-green-500' if card.color == 'green' else ('bg-yellow-500' if card.color == 'yellow' else 'bg-red-500') %}
@@ -112,7 +112,7 @@
               <td class="py-2">{{ row.user.full_name or row.user.email }}</td>
               <td class="py-2">{{ '{:,}'.format(row.used) }}</td>
               <td class="py-2">
-                {% if row.cap %}{{ '{:,}'.format(row.cap) }}{% else %}<span class="text-slate-400">بدون حد</span>{% endif %}
+                {% if row.cap %}{{ '{:,}'.format(row.cap) }}{% else %}<span class="text-slate-500">بدون حد</span>{% endif %}
               </td>
               <td class="py-2">
                 <form method="post" action="{{ url_for('settings_usage.set_cap', user_id=row.user.id) }}" class="flex gap-2">

@@ -43,7 +43,7 @@
         <td class="font-mono text-xs">{{ "{:,}".format(r.month_used) }}</td>
         <td class="text-xs">
           {% if r.unlimited %}
-            <span class="text-slate-400">غير محدود</span>
+            <span class="text-slate-500">غير محدود</span>
           {% else %}
             {{ "{:,}".format(r.included) }}
           {% endif %}
@@ -68,7 +68,7 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="8" class="text-center text-slate-400 py-6">
+        <td colspan="8" class="text-center text-slate-500 py-6">
           لا يوجد استهلاك مسجل بعد.
         </td>
       </tr>
@@ -76,7 +76,7 @@
     </tbody>
   </table>
 
-  <p class="text-xs text-slate-400 mt-4">
+  <p class="text-xs text-slate-500 mt-4">
     * التكلفة التقديرية محسوبة على أساس أسعار claude-sonnet-4-5 (٣$ لكل مليون توكن إدخال، ١٥$ لكل مليون توكن إخراج) وقد تختلف قليلاً عن فاتورة Anthropic الفعلية.
   </p>
 </div>

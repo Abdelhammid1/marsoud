@@ -59,7 +59,7 @@
           {% if c.settlement_due_date %}
             {{ c.settlement_due_date.isoformat() }}
             {% if c.is_overdue %}<span class="badge badge-overdue mr-1">متأخر</span>{% endif %}
-          {% else %}<span class="text-slate-400">—</span>{% endif %}
+          {% else %}<span class="text-slate-500">—</span>{% endif %}
         </td>
         <td>
           {% set s = c.status.value %}
@@ -74,7 +74,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="9" class="text-center text-slate-400 py-6">لا توجد عهد.</td></tr>
+      <tr><td colspan="9" class="text-center text-slate-500 py-6">لا توجد عهد.</td></tr>
     {% endfor %}
     </tbody>
   </table>

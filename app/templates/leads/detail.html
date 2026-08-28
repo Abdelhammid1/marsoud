@@ -135,7 +135,7 @@
     <hr class="my-5">
     <h3 id="comments" class="font-bold text-navy-900 mb-3">
       💬 التعليقات
-      <span class="text-xs text-slate-400 font-normal">({{ lead.comments|length }})</span>
+      <span class="text-xs text-slate-500 font-normal">({{ lead.comments|length }})</span>
     </h3>
     <div class="space-y-2 mb-3">
     {% for c in lead.comments %}
@@ -146,14 +146,14 @@
         <div class="flex-1 min-w-0">
           <div class="flex items-baseline justify-between gap-2">
             <div class="text-sm font-semibold text-navy-900">{{ c.user.full_name if c.user else '—' }}</div>
-            <div class="text-xs text-slate-400 font-mono">{{ c.created_at | company_dt('%Y-%m-%d %H:%M') }}</div>
+            <div class="text-xs text-slate-500 font-mono">{{ c.created_at | company_dt('%Y-%m-%d %H:%M') }}</div>
           </div>
           {# MARSOUD-MENTIONS — render @[Name](user:ID) as anchor tags. #}
           <div class="text-sm text-slate-700 whitespace-pre-wrap mt-1">{{ c.content | mentions | linkify }}</div>
         </div>
       </div>
     {% else %}
-      <div class="text-sm text-slate-400">لا توجد تعليقات بعد. ابدأ الحوار 👇</div>
+      <div class="text-sm text-slate-500">لا توجد تعليقات بعد. ابدأ الحوار 👇</div>
     {% endfor %}
     </div>
     {# MARSOUD-FORM-ONCE — one-shot submit guard, see base.html.
@@ -178,10 +178,10 @@
           </div>
           {% if ev.note %}<div class="text-xs text-slate-500 mt-1">{{ ev.note }}</div>{% endif %}
         </div>
-        <div class="text-xs text-slate-400 font-mono whitespace-nowrap">{{ ev.created_at | company_dt('%Y-%m-%d %H:%M') }}</div>
+        <div class="text-xs text-slate-500 font-mono whitespace-nowrap">{{ ev.created_at | company_dt('%Y-%m-%d %H:%M') }}</div>
       </div>
     {% else %}
-      <div class="text-sm text-slate-400">لا يوجد سجل بعد.</div>
+      <div class="text-sm text-slate-500">لا يوجد سجل بعد.</div>
     {% endfor %}
     </div>
   </div>
@@ -332,7 +332,7 @@
             <span class="badge badge-partial text-[10px]">🎯 {{ a.outcome }}</span>
             {% endif %}
             {% if a.subject %}<span class="font-semibold">{{ a.subject }}</span>{% endif %}
-            <span class="text-slate-400 font-mono">{{ a.activity_date | company_dt('%Y-%m-%d %H:%M') }}</span>
+            <span class="text-slate-500 font-mono">{{ a.activity_date | company_dt('%Y-%m-%d %H:%M') }}</span>
           </div>
           {% if a.body %}<div class="text-sm text-slate-600 mt-1">{{ a.body }}</div>{% endif %}
           {% if a.follow_up_date %}
@@ -353,7 +353,7 @@
     {% endfor %}
     </div>
     {% else %}
-    <div class="text-sm text-slate-400 text-center py-3">لا توجد أنشطة مسجلة بعد.</div>
+    <div class="text-sm text-slate-500 text-center py-3">لا توجد أنشطة مسجلة بعد.</div>
     {% endif %}
   </div>
 
@@ -461,7 +461,7 @@
     }
     </script>
     {% else %}
-    <div class="text-xs text-slate-400 text-center py-3">لا توجد جهات اتصال بعد.</div>
+    <div class="text-xs text-slate-500 text-center py-3">لا توجد جهات اتصال بعد.</div>
     {% endif %}
   </div>
 </div>

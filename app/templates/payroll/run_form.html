@@ -132,7 +132,7 @@
           <td><input type="number" name="amount_paid_{{ e.id }}" step="0.01" value="{{ e.net|default(0) }}" required class="input w-full text-sm font-mono"></td>
         </tr>
         {% else %}
-        <tr><td colspan="10" class="text-center text-slate-400 py-6">لا يوجد موظفون نشطون</td></tr>
+        <tr><td colspan="10" class="text-center text-slate-500 py-6">لا يوجد موظفون نشطون</td></tr>
         {% endfor %}
       </tbody>
     </table>

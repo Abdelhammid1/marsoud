@@ -63,16 +63,16 @@
                 onsubmit="return confirm('حذف جهة الاتصال {{ c.name|e }}؟');">
             <button type="submit" class="text-xs text-rose-600 hover:underline">🗑 حذف</button>
           </form>
-          {% else %}<span class="text-slate-400 text-xs">—</span>{% endif %}
+          {% else %}<span class="text-slate-500 text-xs">—</span>{% endif %}
         </td>
       </tr>
     {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <div class="text-center text-slate-400 py-8">
+  <div class="text-center text-slate-500 py-8">
     لا توجد جهات اتصال بعد.
-    <div class="text-xs text-slate-400 mt-1">
+    <div class="text-xs text-slate-500 mt-1">
       لإضافة جهة اتصال، افتح صفحة عميل محتمل واستخدم نموذج "جهات الاتصال" أسفلها.
     </div>
   </div>

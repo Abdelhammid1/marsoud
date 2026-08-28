@@ -92,12 +92,12 @@
             {% if ex.note %}<span class="text-xs text-slate-500 mr-1">— {{ ex.note }}</span>{% endif %}
             {% if ex.is_cancelled %}
               <span class="badge badge-cancelled text-[10px] mr-1">ملغى</span>
-              <span class="block text-[10px] text-slate-400">{{ ex.cancel_reason }}</span>
+              <span class="block text-[10px] text-slate-500">{{ ex.cancel_reason }}</span>
             {% endif %}
           {% elif r.checkin and r.checkin.check_in_time %}
             <span class="badge badge-paid text-[10px]">حاضر</span>
           {% elif r.is_future %}
-            <span class="text-slate-400 text-xs">—</span>
+            <span class="text-slate-500 text-xs">—</span>
           {% else %}
             <span class="text-slate-500 text-xs">لم يسجّل</span>
           {% endif %}

@@ -29,7 +29,7 @@
 
     <div id="chat-messages" class="flex-1 overflow-y-auto space-y-3 mb-4 bg-amber-50/40 -mx-6 px-6 py-4 border-y border-amber-100">
       {% if not history %}
-      <div class="text-center text-slate-400 py-8">
+      <div class="text-center text-slate-500 py-8">
         <div class="text-5xl mb-3">📊</div>
         <p class="font-semibold text-slate-700">مرحباً! أنا المحلل الذكي — بقرا الأرقام وبلخّصهالك</p>
         <p class="text-sm mt-2">جرّب واحد من الأسئلة دي:</p>
@@ -85,11 +85,11 @@
           </div>
         </div>
         <button onclick="deleteConversation(event, {{ c.id }})"
-                class="text-xs text-slate-400 hover:text-rose-600"
+                class="text-xs text-slate-500 hover:text-rose-600"
                 title="حذف من القائمة">🗑</button>
       </div>
       {% else %}
-      <div class="text-xs text-slate-400 text-center py-6">
+      <div class="text-xs text-slate-500 text-center py-6">
         لا توجد محادثات بعد. ابدأ الكتابة يمين.
       </div>
       {% endfor %}
@@ -144,7 +144,7 @@ async function sendMessage(e) {
       box.innerHTML += `<div class="flex justify-start"><div class="bg-white border border-amber-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">${renderMarkdownTables(data.reply)}</div></div>`;
       if (data.tools && data.tools.length) {
         const usedTools = data.tools.map(t => t.tool).join(', ');
-        box.innerHTML += `<div class="text-xs text-slate-400 px-2">🔧 استخدم: ${escapeHtml(usedTools)}</div>`;
+        box.innerHTML += `<div class="text-xs text-slate-500 px-2">🔧 استخدم: ${escapeHtml(usedTools)}</div>`;
       }
     }
   } catch (err) {
@@ -168,7 +168,7 @@ async function newConversation() {
   const data = await res.json();
   if (!data.id) return;
   const box = document.getElementById('chat-messages');
-  box.innerHTML = '<div class="text-center text-slate-400 py-8"><div class="text-3xl mb-2">🆕</div><p class="text-sm">محادثة جديدة — اطرح سؤالك</p></div>';
+  box.innerHTML = '<div class="text-center text-slate-500 py-8"><div class="text-3xl mb-2">🆕</div><p class="text-sm">محادثة جديدة — اطرح سؤالك</p></div>';
   document.getElementById('conversations-list').dataset.activeId = data.id;
   location.reload();
 }
@@ -180,7 +180,7 @@ async function loadConversation(cid) {
   const box = document.getElementById('chat-messages');
   box.innerHTML = '';
   if (data.messages.length === 0) {
-    box.innerHTML = '<div class="text-center text-slate-400 py-8"><div class="text-3xl mb-2">💬</div><p class="text-sm">المحادثة فاضية</p></div>';
+    box.innerHTML = '<div class="text-center text-slate-500 py-8"><div class="text-3xl mb-2">💬</div><p class="text-sm">المحادثة فاضية</p></div>';
   }
   data.messages.forEach(m => {
     if (m.role === 'user') {

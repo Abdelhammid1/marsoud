@@ -27,7 +27,7 @@
             {% endif %}
           </span>
           — {{ a.lead.client_name if a.lead else '—' }}
-          <span class="text-slate-400">({{ a.type.label_ar }})</span>
+          <span class="text-slate-500">({{ a.type.label_ar }})</span>
         </a>
       </li>
     {% endfor %}
@@ -88,7 +88,7 @@
              class="font-semibold text-navy-900 hover:text-brand-600">
             {{ a.lead.client_name if a.lead else '—' }}
           </a>
-          <span class="text-xs text-slate-400 font-mono">{{ a.activity_date | company_dt('%Y-%m-%d %H:%M') }}</span>
+          <span class="text-xs text-slate-500 font-mono">{{ a.activity_date | company_dt('%Y-%m-%d %H:%M') }}</span>
         </div>
         {% if a.subject %}<div class="text-sm font-semibold mt-1">{{ a.subject }}</div>{% endif %}
         {% if a.body %}<div class="text-sm text-slate-600 mt-1">{{ a.body }}</div>{% endif %}
@@ -102,7 +102,7 @@
           {% endif %}
         </div>
         {% endif %}
-        <div class="text-xs text-slate-400 mt-1">
+        <div class="text-xs text-slate-500 mt-1">
           بواسطة {{ a.created_by.full_name if a.created_by else '—' }}
         </div>
       </div>
@@ -110,7 +110,7 @@
   {% endfor %}
   </div>
   {% else %}
-  <div class="text-center text-slate-400 py-8">
+  <div class="text-center text-slate-500 py-8">
     لا توجد أنشطة مسجلة بعد.
   </div>
   {% endif %}

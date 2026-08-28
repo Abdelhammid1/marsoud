@@ -55,7 +55,7 @@
         </div>
         {% endif %}
         <div class="text-sm text-slate-500">
-          بواسطة: {% if _creator %}<span class="text-navy-900 font-semibold">{{ _creator.full_name }}</span>{% else %}<span class="text-slate-400">غير معروف</span>{% endif %}
+          بواسطة: {% if _creator %}<span class="text-navy-900 font-semibold">{{ _creator.full_name }}</span>{% else %}<span class="text-slate-500">غير معروف</span>{% endif %}
         </div>
       </div>
     </div>
@@ -67,7 +67,7 @@
         <tr>
           <td>
             {{ item.description }}
-            {% if item.product %}<span class="text-xs text-slate-400">({{ item.product.name }})</span>{% endif %}
+            {% if item.product %}<span class="text-xs text-slate-500">({{ item.product.name }})</span>{% endif %}
           </td>
           <td class="font-mono">
             {{ "%.2f"|format(item.quantity) }}
@@ -75,7 +75,7 @@
             {% if item.unit %}
               <span class="text-xs text-slate-500">{{ item.unit.unit_name }}</span>
               {% if not item.unit.is_base and item.base_quantity is not none %}
-                <div class="text-[10px] text-slate-400">= {{ "%.2f"|format(item.base_quantity|float) }} {{ item.product.base_unit.unit_name if item.product and item.product.base_unit else '' }}</div>
+                <div class="text-[10px] text-slate-500">= {{ "%.2f"|format(item.base_quantity|float) }} {{ item.product.base_unit.unit_name if item.product and item.product.base_unit else '' }}</div>
               {% endif %}
             {% endif %}
           </td>
@@ -181,7 +181,7 @@
             </label>
             <button class="btn-primary w-full text-sm">+ إنشاء خطة</button>
           </form>
-          <p class="text-[10px] text-slate-400 mt-2">
+          <p class="text-[10px] text-slate-500 mt-2">
             توزيع تلقائي شهرياً بالتساوي؛ الفرق يذهب لآخر قسط لتفادي الكسور.
           </p>
         </div>
@@ -412,7 +412,7 @@
         <label class="flex items-center gap-2 text-sm text-slate-600">
           <input type="checkbox" name="email_customer" value="1" {% if invoice.customer.email %}checked{% else %}disabled{% endif %}>
           إرسال إيميل تأكيد للعميل
-          {% if not invoice.customer.email %}<span class="text-xs text-slate-400">(لا يوجد إيميل مسجل)</span>{% endif %}
+          {% if not invoice.customer.email %}<span class="text-xs text-slate-500">(لا يوجد إيميل مسجل)</span>{% endif %}
         </label>
         <button type="submit" class="btn-danger w-full" onclick="return confirm('تأكيد الاسترداد؟')">تسجيل</button>
       </form>

@@ -99,7 +99,7 @@
           <td><a href="{{ url_for('payroll.payslip_pdf', run_id=line.run_id, line_id=line.id) }}" target="_blank" class="text-brand-600 hover:underline text-xs">PDF</a></td>
         </tr>
         {% else %}
-        <tr><td colspan="8" class="text-center text-slate-400 py-6">لا توجد كشوفات بعد</td></tr>
+        <tr><td colspan="8" class="text-center text-slate-500 py-6">لا توجد كشوفات بعد</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -132,7 +132,7 @@
               <span class="font-mono font-bold text-amber-800">{{ "%.2f"|format(a.remaining) }}</span>
               <span class="text-xs text-slate-500">من كشف {{ a.source_run.period_month }}/{{ a.source_run.period_year }}</span>
               {% if a.paid_amount and a.paid_amount|float > 0 %}
-              <div class="text-[10px] text-slate-400 mt-0.5">
+              <div class="text-[10px] text-slate-500 mt-0.5">
                 (اتسدد قبل كده: {{ "%.2f"|format(a.paid_amount) }} من {{ "%.2f"|format(a.amount) }})
               </div>
               {% endif %}
@@ -234,7 +234,7 @@
             {% for r in advance_repayments %}
             <tr>
               <td class="font-mono">{{ r.period_year }}-{{ "%02d"|format(r.period_month) }}</td>
-              <td class="text-left font-mono {{ 'text-slate-400' if r.amount|float < 0.005 else '' }}">
+              <td class="text-left font-mono {{ 'text-slate-500' if r.amount|float < 0.005 else '' }}">
                 {{ "%.2f"|format(r.amount) }}
               </td>
               <td class="text-slate-500">{{ r.payroll_run.number if r.payroll_run else '—' }}</td>
@@ -270,7 +270,7 @@
         </tbody>
       </table>
       {% elif not active_advance %}
-      <p class="text-sm text-slate-400">لا توجد سلف.</p>
+      <p class="text-sm text-slate-500">لا توجد سلف.</p>
       {% endif %}
     </div>
     {% endif %}

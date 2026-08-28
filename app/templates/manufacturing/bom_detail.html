@@ -13,11 +13,11 @@
       <tbody>
       {% for l in bom.lines %}
         <tr>
-          <td>{{ l.component_variant.name or l.component_variant.sku }} <span class="text-xs text-slate-400">({{ l.component_variant.sku }})</span></td>
+          <td>{{ l.component_variant.name or l.component_variant.sku }} <span class="text-xs text-slate-500">({{ l.component_variant.sku }})</span></td>
           <td class="text-left font-mono">{{ "%.4f"|format(l.qty_per_unit|float) }}</td>
         </tr>
       {% else %}
-        <tr><td colspan="2" class="text-center text-slate-400 py-8">لا توجد مكونات.</td></tr>
+        <tr><td colspan="2" class="text-center text-slate-500 py-8">لا توجد مكونات.</td></tr>
       {% endfor %}
       </tbody>
     </table>

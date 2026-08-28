@@ -73,7 +73,7 @@
     <p class="text-sm text-slate-500">
       تم التنفيذ في {{ transfer.posted_at | company_dt('%Y-%m-%d %H:%M') }}{% if transfer.posted_by %} بواسطة {{ transfer.posted_by.full_name }}{% endif %}.
     </p>
-    <p class="text-xs text-slate-400 mt-2">
+    <p class="text-xs text-slate-500 mt-2">
       للتراجع عن تحويل منفّذ، أنشئ تحويل عكسي.
     </p>
     {% endif %}

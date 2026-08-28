@@ -40,7 +40,7 @@
   <!-- ─── RIGHT PANE: role detail ────────────────────────────────── -->
   <div class="card p-6 col-span-2">
     {% if not selected %}
-    <div class="text-center text-slate-400 py-12">اختر دوراً من الجانب الأيمن</div>
+    <div class="text-center text-slate-500 py-12">اختر دوراً من الجانب الأيمن</div>
     {% else %}
     <div class="flex items-start justify-between mb-4">
       <div>
@@ -102,7 +102,7 @@
           </form>
         </div>
         {% else %}
-        <div class="text-sm text-slate-400 text-center py-6">لا يوجد أدمن في هذا الدور بعد.</div>
+        <div class="text-sm text-slate-500 text-center py-6">لا يوجد أدمن في هذا الدور بعد.</div>
         {% endfor %}
       </div>
       {% if candidates %}
@@ -140,7 +140,7 @@
                      {% if selected.is_system %}disabled{% endif %}
                      class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500">
               <span class="text-sm text-slate-700">{{ p.label_ar }}</span>
-              <span class="text-[10px] font-mono text-slate-400 mr-auto" dir="ltr">{{ p.code }}</span>
+              <span class="text-[10px] font-mono text-slate-500 mr-auto" dir="ltr">{{ p.code }}</span>
             </label>
             {% endfor %}
           </div>
