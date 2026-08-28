@@ -1379,6 +1379,8 @@ def _export_expenses_summary_pdf_legacy(company, data, period):
 
 # ─── P&L Compared ───────────────────────────────────────────────────────
 def export_pl_compared(company, fmt, start, end):
+    """P&L Compared — PDF or Excel (MARSOUD-TKT-PDFS-05-LISTS 2026-08-29
+    for the PDF branch)."""
     data = income_statement_compared(company.id, start_date=start, end_date=end)
     cur_label = f"{start.isoformat()} → {end.isoformat()}"
     prior_label = f"{data['prior_start'].isoformat()} → {data['prior_end'].isoformat()}"
@@ -1389,33 +1391,56 @@ def export_pl_compared(company, fmt, start, end):
         ("Net Profit", data["current"]["net_income"], data["prior"]["net_income"], data["delta_net"]),
     ]
     if fmt == "pdf":
-        headers = [("Line", "left"), (cur_label, "right"), (prior_label, "right"), ("Δ", "right")]
-        rows = [[label, f"{cur:,.2f}", f"{pri:,.2f}", f"{delta:+,.2f}"] for label, cur, pri, delta in rows_data]
-        return _list_pdf(company, "P&L Compared (vs Prior Year)", period, headers, rows,
-                         col_widths=[5, 5, 5, 4]), f"pl-compared-{start}-{end}.pdf", "application/pdf"
+        try:
+            buf = _weasyprint_render(
+                "pdfs/pl_compared.html",
+                company=company, data=data,
+                start_date=start, end_date=end,
+                currency_ar=currency_name_ar(company.base_currency),
+                company_logo_data_uri=_company_logo_data_uri(company),
+            )
+        except Exception as e:  # noqa: BLE001
+            _export_logger.error(
+                "[PDF-FALLBACK] P&L Compared %s→%s: WeasyPrint failed (%s: %s)",
+                start, end, type(e).__name__, str(e)[:200])
+            buf = _export_pl_compared_pdf_legacy(company, rows_data, cur_label, prior_label, period)
+        return buf, f"pl-compared-{start}-{end}.pdf", "application/pdf"
     return _list_excel(company, "P&L Compared", period,
                        ["البند", "الفترة الحالية", "الفترة السابقة", "التغير"],
                        [[label, cur, pri, delta] for label, cur, pri, delta in rows_data]), \
         f"pl-compared-{start}-{end}.xlsx", XLSX_MIME
 
 
+def _export_pl_compared_pdf_legacy(company, rows_data, cur_label, prior_label, period):
+    """Legacy _list_pdf renderer for P&L Compared — kept as safety net."""
+    headers = [("Line", "left"), (cur_label, "right"), (prior_label, "right"), ("Δ", "right")]
+    rows = [[label, f"{cur:,.2f}", f"{pri:,.2f}", f"{delta:+,.2f}"] for label, cur, pri, delta in rows_data]
+    return _list_pdf(company, "P&L Compared (vs Prior Year)", period, headers, rows,
+                     col_widths=[5, 5, 5, 4])
+
+
 # ─── AR Aging ───────────────────────────────────────────────────────────
 def export_ar_aging(company, fmt, end):
+    """AR Aging — PDF (MARSOUD-TKT-PDFS-05-LISTS) or Excel."""
     data = aging_report(company.id, as_of=end)
     rows_data = [(r["customer"], r["current"], r["d30"], r["d60"], r["d90"], r["d90plus"], r["total"])
                  for r in data["rows"]]
     t = data["totals"]
     period = f"As of {end}"
     if fmt == "pdf":
-        headers = [("Customer", "left"), ("Current", "right"), ("1-30", "right"),
-                   ("31-60", "right"), ("61-90", "right"), ("90+", "right"), ("Total", "right")]
-        rows = [[name, f"{c:,.2f}", f"{d30:,.2f}", f"{d60:,.2f}", f"{d90:,.2f}", f"{d90p:,.2f}", f"{tot:,.2f}"]
-                for name, c, d30, d60, d90, d90p, tot in rows_data]
-        totals = ["TOTAL", f"{t['current']:,.2f}", f"{t['d30']:,.2f}", f"{t['d60']:,.2f}",
-                  f"{t['d90']:,.2f}", f"{t['d90plus']:,.2f}", f"{t['total']:,.2f}"]
-        return _list_pdf(company, "Accounts Receivable Aging", period, headers, rows, totals,
-                         col_widths=[5, 2.5, 2.5, 2.5, 2.5, 2.5, 1.5]), \
-            f"ar-aging-{end}.pdf", "application/pdf"
+        try:
+            buf = _weasyprint_render(
+                "pdfs/ar_aging.html",
+                company=company, data=data, end_date=end,
+                currency_ar=currency_name_ar(company.base_currency),
+                company_logo_data_uri=_company_logo_data_uri(company),
+            )
+        except Exception as e:  # noqa: BLE001
+            _export_logger.error(
+                "[PDF-FALLBACK] AR Aging %s: WeasyPrint failed (%s: %s)",
+                end, type(e).__name__, str(e)[:200])
+            buf = _export_ar_aging_pdf_legacy(company, rows_data, t, period)
+        return buf, f"ar-aging-{end}.pdf", "application/pdf"
     return _list_excel(company, "AR Aging", period,
                        ["العميل", "جاري", "1-30", "31-60", "61-90", "90+", "الإجمالي"],
                        [list(r) for r in rows_data],
@@ -1423,28 +1448,57 @@ def export_ar_aging(company, fmt, end):
         f"ar-aging-{end}.xlsx", XLSX_MIME
 
 
+def _export_ar_aging_pdf_legacy(company, rows_data, t, period):
+    """Legacy _list_pdf renderer for AR Aging."""
+    headers = [("Customer", "left"), ("Current", "right"), ("1-30", "right"),
+               ("31-60", "right"), ("61-90", "right"), ("90+", "right"), ("Total", "right")]
+    rows = [[name, f"{c:,.2f}", f"{d30:,.2f}", f"{d60:,.2f}", f"{d90:,.2f}", f"{d90p:,.2f}", f"{tot:,.2f}"]
+            for name, c, d30, d60, d90, d90p, tot in rows_data]
+    totals = ["TOTAL", f"{t['current']:,.2f}", f"{t['d30']:,.2f}", f"{t['d60']:,.2f}",
+              f"{t['d90']:,.2f}", f"{t['d90plus']:,.2f}", f"{t['total']:,.2f}"]
+    return _list_pdf(company, "Accounts Receivable Aging", period, headers, rows, totals,
+                     col_widths=[5, 2.5, 2.5, 2.5, 2.5, 2.5, 1.5])
+
+
 # ─── AP Aging ───────────────────────────────────────────────────────────
 def export_ap_aging(company, fmt, end):
+    """AP Aging — PDF (MARSOUD-TKT-PDFS-05-LISTS) or Excel."""
     data = ap_aging_report(company.id, as_of=end)
     rows_data = [(r["vendor"], r["current"], r["d30"], r["d60"], r["d90"], r["d90plus"], r["total"])
                  for r in data["rows"]]
     t = data["totals"]
     period = f"As of {end}"
     if fmt == "pdf":
-        headers = [("Vendor", "left"), ("Current", "right"), ("1-30", "right"),
-                   ("31-60", "right"), ("61-90", "right"), ("90+", "right"), ("Total", "right")]
-        rows = [[name, f"{c:,.2f}", f"{d30:,.2f}", f"{d60:,.2f}", f"{d90:,.2f}", f"{d90p:,.2f}", f"{tot:,.2f}"]
-                for name, c, d30, d60, d90, d90p, tot in rows_data]
-        totals = ["TOTAL", f"{t['current']:,.2f}", f"{t['d30']:,.2f}", f"{t['d60']:,.2f}",
-                  f"{t['d90']:,.2f}", f"{t['d90plus']:,.2f}", f"{t['total']:,.2f}"]
-        return _list_pdf(company, "Accounts Payable Aging", period, headers, rows, totals,
-                         col_widths=[5, 2.5, 2.5, 2.5, 2.5, 2.5, 1.5]), \
-            f"ap-aging-{end}.pdf", "application/pdf"
+        try:
+            buf = _weasyprint_render(
+                "pdfs/ap_aging.html",
+                company=company, data=data, end_date=end,
+                currency_ar=currency_name_ar(company.base_currency),
+                company_logo_data_uri=_company_logo_data_uri(company),
+            )
+        except Exception as e:  # noqa: BLE001
+            _export_logger.error(
+                "[PDF-FALLBACK] AP Aging %s: WeasyPrint failed (%s: %s)",
+                end, type(e).__name__, str(e)[:200])
+            buf = _export_ap_aging_pdf_legacy(company, rows_data, t, period)
+        return buf, f"ap-aging-{end}.pdf", "application/pdf"
     return _list_excel(company, "AP Aging", period,
                        ["المورد", "جاري", "1-30", "31-60", "61-90", "90+", "الإجمالي"],
                        [list(r) for r in rows_data],
                        ["الإجمالي", t["current"], t["d30"], t["d60"], t["d90"], t["d90plus"], t["total"]]), \
         f"ap-aging-{end}.xlsx", XLSX_MIME
+
+
+def _export_ap_aging_pdf_legacy(company, rows_data, t, period):
+    """Legacy _list_pdf renderer for AP Aging."""
+    headers = [("Vendor", "left"), ("Current", "right"), ("1-30", "right"),
+               ("31-60", "right"), ("61-90", "right"), ("90+", "right"), ("Total", "right")]
+    rows = [[name, f"{c:,.2f}", f"{d30:,.2f}", f"{d60:,.2f}", f"{d90:,.2f}", f"{d90p:,.2f}", f"{tot:,.2f}"]
+            for name, c, d30, d60, d90, d90p, tot in rows_data]
+    totals = ["TOTAL", f"{t['current']:,.2f}", f"{t['d30']:,.2f}", f"{t['d60']:,.2f}",
+              f"{t['d90']:,.2f}", f"{t['d90plus']:,.2f}", f"{t['total']:,.2f}"]
+    return _list_pdf(company, "Accounts Payable Aging", period, headers, rows, totals,
+                     col_widths=[5, 2.5, 2.5, 2.5, 2.5, 2.5, 1.5])
 
 
 # ─── VAT Report ─────────────────────────────────────────────────────────
@@ -1585,6 +1639,7 @@ def _export_payroll_summary_pdf_legacy(company, rows_data, totals, period):
 
 # ─── Fixed Assets Report ────────────────────────────────────────────────
 def export_fixed_assets(company, fmt):
+    """Fixed Assets Register — PDF (MARSOUD-TKT-PDFS-05-LISTS) or Excel."""
     data = fixed_assets_report(company.id)
     rows_data = [(r["name"], r["vendor"] or "—", str(r["purchase_date"]),
                   f"{r['useful_life_years']}y", r["cost"], r["annual_dep"],
@@ -1592,21 +1647,37 @@ def export_fixed_assets(company, fmt):
     t = data["totals"]
     period = "All active fixed assets"
     if fmt == "pdf":
-        headers = [("Asset", "left"), ("Vendor", "left"), ("Purchase", "left"),
-                   ("Life", "left"), ("Cost", "right"), ("Annual Dep", "right"),
-                   ("Acc. Dep", "right"), ("NBV", "right")]
-        rows = [[n, v, p, l, f"{c:,.2f}", f"{ad:,.2f}", f"{accd:,.2f}", f"{nbv:,.2f}"]
-                for n, v, p, l, c, ad, accd, nbv in rows_data]
-        totals = ["TOTAL", "", "", "", f"{t['cost']:,.2f}", f"{t['annual_dep']:,.2f}",
-                  f"{t['accumulated_dep']:,.2f}", f"{t['nbv']:,.2f}"]
-        return _list_pdf(company, "Fixed Assets Report", period, headers, rows, totals,
-                         col_widths=[3, 2.5, 2, 1.2, 2.5, 2.5, 2.5, 2.8]), \
-            f"fixed-assets.pdf", "application/pdf"
+        try:
+            buf = _weasyprint_render(
+                "pdfs/fixed_assets.html",
+                company=company, data=data, as_of_date=date.today(),
+                currency_ar=currency_name_ar(company.base_currency),
+                company_logo_data_uri=_company_logo_data_uri(company),
+            )
+        except Exception as e:  # noqa: BLE001
+            _export_logger.error(
+                "[PDF-FALLBACK] Fixed Assets: WeasyPrint failed (%s: %s)",
+                type(e).__name__, str(e)[:200])
+            buf = _export_fixed_assets_pdf_legacy(company, rows_data, t, period)
+        return buf, f"fixed-assets.pdf", "application/pdf"
     return _list_excel(company, "Fixed Assets", period,
                        ["الأصل", "المورد", "تاريخ الشراء", "العمر", "التكلفة", "إهلاك سنوي", "مجمع الإهلاك", "القيمة الدفترية"],
                        [list(r) for r in rows_data],
                        ["الإجمالي", "", "", "", t["cost"], t["annual_dep"], t["accumulated_dep"], t["nbv"]]), \
         f"fixed-assets.xlsx", XLSX_MIME
+
+
+def _export_fixed_assets_pdf_legacy(company, rows_data, t, period):
+    """Legacy _list_pdf renderer for Fixed Assets."""
+    headers = [("Asset", "left"), ("Vendor", "left"), ("Purchase", "left"),
+               ("Life", "left"), ("Cost", "right"), ("Annual Dep", "right"),
+               ("Acc. Dep", "right"), ("NBV", "right")]
+    rows = [[n, v, p, l, f"{c:,.2f}", f"{ad:,.2f}", f"{accd:,.2f}", f"{nbv:,.2f}"]
+            for n, v, p, l, c, ad, accd, nbv in rows_data]
+    totals = ["TOTAL", "", "", "", f"{t['cost']:,.2f}", f"{t['annual_dep']:,.2f}",
+              f"{t['accumulated_dep']:,.2f}", f"{t['nbv']:,.2f}"]
+    return _list_pdf(company, "Fixed Assets Report", period, headers, rows, totals,
+                     col_widths=[3, 2.5, 2, 1.2, 2.5, 2.5, 2.5, 2.8])
 
 
 # ─── Dispatcher ─────────────────────────────────────────────────────────
@@ -1889,7 +1960,30 @@ def export_inventory_balance_excel(company, warehouse_id=None):
 
 
 def export_inventory_balance_pdf(company, warehouse_id=None):
+    """Inventory Balance PDF (MARSOUD-TKT-PDFS-05-LISTS). WeasyPrint
+    first, ReportLab _simple_pdf_table fallback."""
     rows = _inventory_balance_rows(company.id, warehouse_id=warehouse_id)
+    warehouse_label = None
+    if warehouse_id and rows:
+        warehouse_label = f"مخزن: {rows[0]['warehouse']}"
+    try:
+        return _weasyprint_render(
+            "pdfs/inventory_balance.html",
+            company=company, rows=rows,
+            warehouse_label=warehouse_label,
+            as_of_date=date.today(),
+            currency_ar=currency_name_ar(company.base_currency),
+            company_logo_data_uri=_company_logo_data_uri(company),
+        )
+    except Exception as e:  # noqa: BLE001
+        _export_logger.error(
+            "[PDF-FALLBACK] Inventory Balance: WeasyPrint failed (%s: %s)",
+            type(e).__name__, str(e)[:200])
+        return _export_inventory_balance_pdf_legacy(company, rows, warehouse_id)
+
+
+def _export_inventory_balance_pdf_legacy(company, rows, warehouse_id):
+    """Legacy _simple_pdf_table renderer for Inventory Balance."""
     out = [
         [r["sku"], r["name"], r["warehouse"],
          f"{r['qty']:,.2f}", f"{r['avg_cost']:,.4f}", f"{r['value']:,.2f}"]
@@ -2098,7 +2192,26 @@ def export_cashier_sales_excel(company, start, end):
 
 
 def export_cashier_sales_pdf(company, start, end):
+    """Cashier Sales PDF (MARSOUD-TKT-PDFS-05-LISTS). WeasyPrint first,
+    ReportLab _simple_pdf_table fallback."""
     rows = _cashier_sales_rows(company.id, start, end)
+    try:
+        return _weasyprint_render(
+            "pdfs/cashier_sales.html",
+            company=company, rows=rows,
+            start_date=start, end_date=end,
+            currency_ar=currency_name_ar(company.base_currency),
+            company_logo_data_uri=_company_logo_data_uri(company),
+        )
+    except Exception as e:  # noqa: BLE001
+        _export_logger.error(
+            "[PDF-FALLBACK] Cashier Sales %s→%s: WeasyPrint failed (%s: %s)",
+            start, end, type(e).__name__, str(e)[:200])
+        return _export_cashier_sales_pdf_legacy(company, rows, start, end)
+
+
+def _export_cashier_sales_pdf_legacy(company, rows, start, end):
+    """Legacy _simple_pdf_table renderer for Cashier Sales."""
     out = [
         [r["cashier"], str(r["orders"]), str(r["voids"]),
          f"{r['gross']:,.2f}", f"{r['net']:,.2f}",
@@ -2115,46 +2228,92 @@ def export_cashier_sales_pdf(company, start, end):
 
 # ─── 4. Low-stock PDF (Excel already exists) ───────────────────────────
 def export_low_stock_pdf(company):
+    """Low Stock Alert PDF (MARSOUD-TKT-PDFS-05-LISTS). WeasyPrint first,
+    ReportLab _simple_pdf_table fallback."""
     from app.services.inventory import low_stock_variants
-    rows = []
-    for v in low_stock_variants(company.id):
-        rows.append([v.sku, v.display_name,
-                     f"{v.total_qty:,.2f}",
-                     f"{float(v.reorder_level or 0):,.2f}",
-                     f"{v.average_cost:,.2f}",
-                     f"{v.total_value:,.2f}"])
+    variants = low_stock_variants(company.id)
+    # Build a normalized dict-list once for both paths
+    rows = [{
+        "sku": v.sku,
+        "name": v.display_name,
+        "on_hand": v.total_qty,
+        "reorder_level": v.reorder_level or 0,
+        "avg_cost": v.average_cost,
+        "total_value": v.total_value,
+    } for v in variants]
+    try:
+        return _weasyprint_render(
+            "pdfs/low_stock.html",
+            company=company, rows=rows, as_of_date=date.today(),
+            currency_ar=currency_name_ar(company.base_currency),
+            company_logo_data_uri=_company_logo_data_uri(company),
+        )
+    except Exception as e:  # noqa: BLE001
+        _export_logger.error(
+            "[PDF-FALLBACK] Low Stock: WeasyPrint failed (%s: %s)",
+            type(e).__name__, str(e)[:200])
+        return _export_low_stock_pdf_legacy(company, rows)
+
+
+def _export_low_stock_pdf_legacy(company, rows):
+    """Legacy _simple_pdf_table renderer for Low Stock."""
+    out = [[r["sku"], r["name"],
+            f"{float(r['on_hand']):,.2f}",
+            f"{float(r['reorder_level']):,.2f}",
+            f"{float(r['avg_cost']):,.2f}",
+            f"{float(r['total_value']):,.2f}"] for r in rows]
     buf = io.BytesIO()
     return _simple_pdf_table(
         buf, company, "أصناف تحت حد الطلب", f"كما في {date.today()}",
         ["SKU", "المنتج", "المتاح", "حد الطلب",
          "متوسط التكلفة", "القيمة"],
-        rows, col_widths=[2.5, 6.0, 2.5, 2.5, 2.5, 3.0],
+        out, col_widths=[2.5, 6.0, 2.5, 2.5, 2.5, 3.0],
     )
 
 
 # ─── 5. Movement log PDF (Excel already exists) ────────────────────────
 def export_stock_movements_pdf(company, start, end):
+    """Stock Movements Log PDF (MARSOUD-TKT-PDFS-05-LISTS). WeasyPrint
+    first, ReportLab _simple_pdf_table fallback."""
     from app.models import StockMovement, StockMovementKind
     from datetime import datetime as _dt, timedelta as _td
-    rows = StockMovement.query.filter(
+    from app.services.time import to_company_tz_str
+    kind_labels = {k.value: k.label_ar for k in StockMovementKind}
+    movements = StockMovement.query.filter(
         StockMovement.company_id == company.id,
         StockMovement.created_at >= _dt.combine(start, _dt.min.time()),
         StockMovement.created_at < _dt.combine(end, _dt.min.time()) + _td(days=1),
     ).order_by(StockMovement.created_at.asc()).all()
-    kind_labels = {k.value: k.label_ar for k in StockMovementKind}
-    out = []
-    from app.services.time import to_company_tz_str
-    for m in rows:
-        out.append([
-            to_company_tz_str(m.created_at, company,
-                                 "%Y-%m-%d %H:%M") or "",
-            kind_labels.get(m.kind, m.kind),
-            m.variant.sku if m.variant else "",
-            m.warehouse.code if m.warehouse else "",
-            f"{float(m.qty_delta or 0):+,.2f}",
-            f"{float(m.balance_qty_after or 0):,.2f}",
-            m.actor.full_name if m.actor else "نظام",
-        ])
+    # Normalize once for both paths
+    rows = [{
+        "when": to_company_tz_str(m.created_at, company, "%Y-%m-%d %H:%M") or "",
+        "kind_label": kind_labels.get(m.kind, m.kind),
+        "sku": m.variant.sku if m.variant else "",
+        "warehouse": m.warehouse.code if m.warehouse else "",
+        "qty_delta": float(m.qty_delta or 0),
+        "balance_after": float(m.balance_qty_after or 0),
+        "actor": m.actor.full_name if m.actor else "نظام",
+    } for m in movements]
+    try:
+        return _weasyprint_render(
+            "pdfs/stock_movements.html",
+            company=company, rows=rows,
+            start_date=start, end_date=end,
+            currency_ar=currency_name_ar(company.base_currency),
+            company_logo_data_uri=_company_logo_data_uri(company),
+        )
+    except Exception as e:  # noqa: BLE001
+        _export_logger.error(
+            "[PDF-FALLBACK] Stock Movements %s→%s: WeasyPrint failed (%s: %s)",
+            start, end, type(e).__name__, str(e)[:200])
+        return _export_stock_movements_pdf_legacy(company, rows, start, end)
+
+
+def _export_stock_movements_pdf_legacy(company, rows, start, end):
+    """Legacy _simple_pdf_table renderer for Stock Movements."""
+    out = [[r["when"], r["kind_label"], r["sku"], r["warehouse"],
+            f"{r['qty_delta']:+,.2f}",
+            f"{r['balance_after']:,.2f}", r["actor"]] for r in rows]
     buf = io.BytesIO()
     return _simple_pdf_table(
         buf, company, "سجل حركات المخزون", f"من {start} إلى {end}",

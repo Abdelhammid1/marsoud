@@ -1,0 +1,80 @@
+{# MARSOUD-TKT-PDFS-05-LISTS (2026-08-29) — P&L Compared PDF,
+   WeasyPrint. Extends pdfs/_shell.html.
+
+   Was ReportLab via _list_pdf.
+
+   Context:
+     - company, currency_ar, company_logo_data_uri, amiri_font_face
+     - data: {current: {total_revenue, total_expense, net_income},
+              prior: {…}, delta_revenue, delta_expense, delta_net,
+              prior_start, prior_end}
+     - start_date, end_date (current period)
+#}
+{% extends "pdfs/_shell.html" %}
+{% import "pdfs/_report_macros.html" as rpt %}
+
+{% block title %}P&L Compared — {{ company.display_name if company else 'Marsoud' }}{% endblock %}
+{% block doc_title %}قائمة الدخل — مقارنة بالفترة السابقة{% endblock %}
+
+{% block status_badge %}
+<div class="status-badge-wrap">
+  <span class="status-badge" style="color:#0A2540;background:#F1F5F9">
+    من {{ ar_date(start_date) }} إلى {{ ar_date(end_date) }}
+  </span>
+</div>
+{% endblock %}
+
+{% block footer_year %}{{ end_date.year if end_date else '' }}{% endblock %}
+
+{% block content %}
+<table class="kv">
+  <tr><td class="k">الفترة الحالية</td><td class="c">:</td>
+      <td class="v">{{ ar_date(start_date) }} → {{ ar_date(end_date) }}</td></tr>
+  <tr><td class="k">الفترة السابقة</td><td class="c">:</td>
+      <td class="v">{{ ar_date(data.prior_start) }} → {{ ar_date(data.prior_end) }}</td></tr>
+  <tr><td class="k">العملة</td><td class="c">:</td><td class="v">{{ currency_ar or '' }}</td></tr>
+</table>
+
+<div class="section-title">المقارنة بين الفترتين</div>
+<table class="items">
+  <thead>
+    <tr>
+      <th>البند</th>
+      <th class="num">الفترة الحالية</th>
+      <th class="num">الفترة السابقة</th>
+      <th class="num">التغير</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for label, cur_k, pri_k, delta_k, tone in [
+      ("الإيرادات", "total_revenue", "total_revenue", "delta_revenue", "revenue"),
+      ("المصروفات", "total_expense", "total_expense", "delta_expense", "expense"),
+      ("صافي الربح", "net_income", "net_income", "delta_net", "profit"),
+    ] %}
+      {% set cur = data.current[cur_k]|float %}
+      {% set pri = data.prior[pri_k]|float %}
+      {% set delta = data[delta_k]|float %}
+      {# Delta tone: revenue up = good (green); expense up = bad (red);
+         profit up = good. Sign is reversed for expenses. #}
+      {% if tone == "expense" %}
+        {% set is_good = delta <= 0 %}
+      {% else %}
+        {% set is_good = delta >= 0 %}
+      {% endif %}
+    <tr>
+      <td style="font-weight:{% if label == 'صافي الربح' %}800{% else %}600{% endif %};color:#0A2540">{{ label }}</td>
+      <td class="num">{{ "%.2f"|format(cur) }}</td>
+      <td class="num" style="color:#64748B">{{ "%.2f"|format(pri) }}</td>
+      <td class="num" style="color:{% if is_good %}#059669{% else %}#DC2626{% endif %};font-weight:700">
+        {{ "%+.2f"|format(delta) }}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{{ rpt.outcome_block("التغير في صافي الربح",
+                     data.delta_net|float,
+                     data.delta_net|float >= 0,
+                     currency_ar=currency_ar) }}
+{% endblock %}

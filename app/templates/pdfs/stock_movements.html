@@ -1,0 +1,69 @@
+{# MARSOUD-TKT-PDFS-05-LISTS (2026-08-29) — Stock Movements Log PDF,
+   WeasyPrint. Extends pdfs/_shell.html.
+
+   Context:
+     - company, currency_ar, company_logo_data_uri, amiri_font_face
+     - rows: list of dicts {when, kind_label, sku, warehouse,
+              qty_delta, balance_after, actor}
+     - start_date, end_date
+#}
+{% extends "pdfs/_shell.html" %}
+{% import "pdfs/_report_macros.html" as rpt %}
+
+{% block title %}Stock Movements — {{ company.display_name if company else 'Marsoud' }}{% endblock %}
+{% block doc_title %}سجل حركات المخزون{% endblock %}
+
+{% block status_badge %}
+<div class="status-badge-wrap">
+  <span class="status-badge" style="color:#0A2540;background:#F1F5F9">
+    من {{ ar_date(start_date) }} إلى {{ ar_date(end_date) }}
+  </span>
+</div>
+{% endblock %}
+
+{% block footer_year %}{{ end_date.year if end_date else '' }}{% endblock %}
+
+{% block content %}
+<table class="kv">
+  <tr><td class="k">عدد الحركات</td><td class="c">:</td>
+      <td class="v mono">{{ rows|length }}</td></tr>
+</table>
+
+<div class="section-title">تفاصيل الحركات</div>
+<table class="items">
+  <thead>
+    <tr>
+      <th>التاريخ</th>
+      <th>النوع</th>
+      <th>الصنف</th>
+      <th>المخزن</th>
+      <th class="num">الكمية</th>
+      <th class="num">الرصيد بعد</th>
+      <th>المنفّذ</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    {% set qty = r.qty_delta|float %}
+    <tr>
+      <td class="mono" style="font-size:11px">{{ r.when or '' }}</td>
+      <td style="font-size:11px">{{ r.kind_label }}</td>
+      <td class="mono">{{ r.sku or '—' }}</td>
+      <td class="mono">{{ r.warehouse or '—' }}</td>
+      <td class="num" style="color:{% if qty < 0 %}#DC2626{% else %}#059669{% endif %};font-weight:600">
+        {{ "%+.2f"|format(qty) }}
+      </td>
+      <td class="num" style="color:#0A2540">{{ "%.2f"|format(r.balance_after|float) }}</td>
+      <td style="font-size:11px;color:#64748B">{{ r.actor or 'نظام' }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" style="text-align:center;color:#94A3B8;padding:24px">لا توجد حركات مخزون في الفترة المحددة.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{{ rpt.outcome_block(
+     "إجمالي الحركات",
+     rows|length,
+     true) }}
+{% endblock %}
