@@ -13,7 +13,11 @@ tailwind.config = {
       fontFamily: { sans: ['Cairo', 'system-ui', 'sans-serif'] },
       colors: {
         ink: { 900: '#FFFFFF', 800: '#F8FAFC', 700: '#F0F7FF', 200: '#64748B' },
-        crimson: { 400: '#059669', 500: '#047857', 600: '#065F46', 700: '#064E3B' },
+        // MARSOUD-TKT-P1-TOKENS (2026-08-28) — `crimson: {…}` used to
+        // sit here as a misnamed alias whose values were actually the
+        // brand green. Retired. Its only call site (shield tile below)
+        // now uses brand-600 / brand-800, which are byte-identical to
+        // crimson-500 / crimson-700 respectively.
         amber500: '#F59E0B',
         // MARSOUD-SUPERADMIN-CONTROL-01 T9 (2026-08-08) — aliases so
         // admin/*.html templates that reference navy/brand/sky
@@ -21,8 +25,10 @@ tailwind.config = {
         // adequate contrast on the light body. Values mirror the
         // tenant base.html palette so the two sides stay visually
         // consistent when a user bounces between them.
+        // MARSOUD-TKT-P1-TOKENS (2026-08-28) — brand.800 added
+        // (#064E3B) so the retired crimson.700 has a namesake here.
         navy:  { 700: '#1E3A8A', 800: '#1E293B', 900: '#0F172A' },
-        brand: { 500: '#059669', 600: '#047857', 700: '#065F46' },
+        brand: { 500: '#059669', 600: '#047857', 700: '#065F46', 800: '#064E3B' },
         sky:   { 100: '#F0F9FF', 300: '#7DD3FC', 700: '#0369A1',
                  800: '#075985', 900: '#0C4A6E' },
       },
@@ -43,7 +49,8 @@ tailwind.config = {
 <style>
   body {
     font-family: 'Cairo', sans-serif;
-    background: linear-gradient(180deg, #FFFFFF 0%, #F0F7FF 100%);
+    /* MARSOUD-TKT-P1-TOKENS — body ground via token, matches tenant. */
+    background: var(--ms-app-bg);
     color: #0F172A;
     min-height: 100vh;
   }
@@ -65,7 +72,10 @@ tailwind.config = {
   .input, .select { background: #FFFFFF; color: #0F172A;
                     border: 1px solid #CBD5E1; border-radius: 10px;
                     padding: 8px 12px; width: 100%; }
-  .input:focus, .select:focus { outline: none; border-color: #059669;
+  /* MARSOUD-TKT-P1-TOKENS — focus border via --ms-brand; the rgba glow
+     is a translucent form of the brand and has no token today, so
+     stays inline. */
+  .input:focus, .select:focus { outline: none; border-color: var(--ms-brand);
                                 box-shadow: 0 0 0 3px rgba(5,150,105,0.15); }
   textarea.input { min-height: 68px; resize: vertical; }
   /* Some templates use .textarea (not .input) for their textareas —
@@ -85,7 +95,16 @@ tailwind.config = {
     cursor: pointer; text-decoration: none;
     transition: filter 0.15s;
   }
-  .btn-primary   { background: linear-gradient(135deg, #1849A9, #0C2461);
+  /* MARSOUD-TKT-P1-TOKENS (2026-08-28) — unified with tenant .btn-primary.
+     Was `linear-gradient(135deg, #1849A9, #0C2461)` (navy). Design audit
+     finding P0-04 flagged that same class name rendered opposite colors
+     across the two shells; owner watched CTA change identity mid-flow.
+     Now both shells resolve .btn-primary through --ms-brand tokens, so a
+     single palette edit governs the CTA everywhere.
+     Visible change: admin CTAs at 39 sites in 27 files flip navy→green.
+     Risk survey confirmed no admin page renders a .btn-primary on a
+     dark surface, so no clash. */
+  .btn-primary   { background: linear-gradient(135deg, var(--ms-brand-dark) 0%, var(--ms-brand) 100%);
                    color: #FFFFFF; border: 0; }
   .btn-secondary { background: #F1F5F9; color: #0F172A;
                    border: 1px solid #E2E8F0; }
@@ -98,8 +117,9 @@ tailwind.config = {
   .data-table th { text-align: right; font-weight: 600; font-size: 12px;
                    color: #64748B; padding: 10px 12px; border-bottom: 1px solid #E2E8F0; }
   .data-table td { padding: 12px; font-size: 13px; border-bottom: 1px solid #F1F5F9; }
-  .nav-link.active { background: #ECFDF5; color: #047857;
-                     border-right: 3px solid #059669; }
+  /* MARSOUD-TKT-P1-TOKENS — brand hexes via tokens. Byte-identical. */
+  .nav-link.active { background: var(--ms-brand-tint); color: var(--ms-brand-dark);
+                     border-right: 3px solid var(--ms-brand); }
 
   .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 999px;
            font-size: 11px; font-weight: 600; }
@@ -124,7 +144,11 @@ tailwind.config = {
   <aside class="w-64 fixed inset-y-0 right-0 bg-ink-900/80 backdrop-blur border-l border-slate-200 flex flex-col">
     <div class="p-5 border-b border-slate-200">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-crimson-500 to-crimson-700 flex items-center justify-center text-white font-bold">🛡️</div>
+        {# MARSOUD-TKT-P1-TOKENS — was `from-crimson-500 to-crimson-700`;
+           crimson.500 (#047857) = brand.600, crimson.700 (#064E3B) = the
+           newly-added brand.800. Byte-identical gradient, no more
+           misnamed-alias. #}
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-600 to-brand-800 flex items-center justify-center text-white font-bold">🛡️</div>
         <div>
           <div class="font-bold text-slate-900 text-lg leading-none">لوحة المالك</div>
           <div class="text-[11px] text-ink-200 mt-1">Marsoud Platform Admin</div>

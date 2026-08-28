@@ -43,21 +43,31 @@ tailwind.config = {
 <style>
   body {
     font-family: 'Cairo', sans-serif;
-    background: linear-gradient(180deg, #FFFFFF 0%, #F0F7FF 100%);
+    /* MARSOUD-TKT-P1-TOKENS — body ground now consumes --ms-app-bg from
+       _design_tokens.html so a single tokens edit swings the shell for
+       both tenant + admin. Value is byte-identical to the previous
+       inline gradient. */
+    background: var(--ms-app-bg);
     min-height: 100vh;
     color: #0F172A;
   }
   .gradient-heading {
-    background: linear-gradient(135deg, #065F46 0%, #059669 100%);
+    /* MARSOUD-TKT-P1-TOKENS — end stop now via --ms-brand. The origin
+       stop #065F46 is one shade darker than --ms-brand-dark (#047857)
+       and has no matching token today, so it stays inline; a follow-up
+       ticket can add --ms-brand-darker if this pattern spreads. */
+    background: linear-gradient(135deg, #065F46 0%, var(--ms-brand) 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
   .nav-link.active {
-    background: #ECFDF5;
-    color: #059669;
+    /* MARSOUD-TKT-P1-TOKENS — three brand hexes → --ms-brand tokens.
+       Byte-identical output. */
+    background: var(--ms-brand-tint);
+    color: var(--ms-brand);
     font-weight: 700;
-    border-right: 3px solid #059669;
+    border-right: 3px solid var(--ms-brand);
   }
 
   .section-body { overflow: hidden; transition: max-height 0.3s ease, opacity 0.2s ease; max-height: 500px; opacity: 1; }
@@ -67,9 +77,12 @@ tailwind.config = {
   .sidebar-section { border-bottom: 1px solid rgba(148,163,184,0.08); padding-bottom: 2px; }
   .sidebar-section:last-of-type { border-bottom: none; }
   .section-body .nav-link.active {
+    /* MARSOUD-TKT-P1-TOKENS — border/text via tokens. The tint rgba is
+       a translucent form of --ms-brand-mid; no rgba-form token today,
+       so left inline. */
     background: rgba(16,185,129,0.12);
-    border-right: 3px solid #10b981;
-    color: #059669;
+    border-right: 3px solid var(--ms-brand-mid);
+    color: var(--ms-brand);
     font-weight: 600;
   }
 
@@ -93,7 +106,12 @@ tailwind.config = {
 
   .card { background: white; border: 1px solid #E2E8F0; border-radius: 16px; }
   .btn-primary {
-    background: linear-gradient(135deg, #047857 0%, #059669 100%);
+    /* MARSOUD-TKT-P1-TOKENS — gradient stops now via --ms-brand tokens.
+       Path A: the tokens file's brand values were updated to match this
+       primitive's actual literals, so this rule produces byte-identical
+       output today; from now on a rebrand touches _design_tokens.html
+       only. */
+    background: linear-gradient(135deg, var(--ms-brand-dark) 0%, var(--ms-brand) 100%);
     color: white; padding: 0.625rem 1.25rem; border-radius: 12px;
     font-weight: 600; transition: all 0.2s; display: inline-flex;
     align-items: center; gap: 0.5rem;
