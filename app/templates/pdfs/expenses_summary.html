@@ -1,0 +1,67 @@
+{# MARSOUD-TKT-PDFS-03-EXTRA-REPORTS (2026-08-29) — Expenses Summary
+   PDF, WeasyPrint. Extends pdfs/_shell.html.
+
+   Was ReportLab via _list_pdf helper. Migrated to a 4-column items
+   table (الكود / الحساب / عدد القيود / المبلغ) + total outcome_block.
+
+   Context expected:
+     - company                    Company object
+     - data                       expenses_summary() dict — rows[], total
+     - start_date, end_date       date objects for the period pill
+     - currency_ar                localised currency label
+     - company_logo_data_uri      base64 URI or None
+     - amiri_font_face            auto-injected
+#}
+{% extends "pdfs/_shell.html" %}
+{% import "pdfs/_report_macros.html" as rpt %}
+
+{% block title %}Expenses Summary — {{ company.display_name if company else 'Marsoud' }}{% endblock %}
+
+{% block doc_title %}ملخص المصروفات{% endblock %}
+
+{% block status_badge %}
+<div class="status-badge-wrap">
+  <span class="status-badge" style="color:#0A2540;background:#F1F5F9">
+    من {{ ar_date(start_date) }} إلى {{ ar_date(end_date) }}
+  </span>
+</div>
+{% endblock %}
+
+{% block footer_year %}{{ end_date.year if end_date else '' }}{% endblock %}
+
+{% block content %}
+{% if company.tax_number %}
+<table class="kv">
+  <tr><td class="k">الرقم الضريبي</td><td class="c">:</td><td class="v mono">{{ company.tax_number }}</td></tr>
+  <tr><td class="k">العملة</td><td class="c">:</td><td class="v">{{ currency_ar or '' }}</td></tr>
+  <tr><td class="k">عدد الحسابات</td><td class="c">:</td><td class="v mono">{{ data.rows|length }}</td></tr>
+</table>
+{% endif %}
+
+<div class="section-title">تفصيل المصروفات حسب الحساب</div>
+<table class="items">
+  <thead>
+    <tr>
+      <th>الكود</th>
+      <th>الحساب</th>
+      <th class="num">عدد القيود</th>
+      <th class="num">المبلغ</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in data.rows %}
+    <tr>
+      <td class="mono">{{ r.code }}</td>
+      <td>{{ r.name }}</td>
+      <td class="num">{{ r.entry_count }}</td>
+      <td class="num">{{ "%.2f"|format(r.balance|float) }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4" style="text-align:center;color:#94A3B8;padding:24px">لا توجد مصروفات في الفترة المحددة.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{# Total expenses — displayed neutrally (green) as the summary figure. #}
+{{ rpt.outcome_block("إجمالي المصروفات", data.total, true, currency_ar=currency_ar) }}
+{% endblock %}

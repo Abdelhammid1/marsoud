@@ -1,0 +1,48 @@
+{# MARSOUD-TKT-PDFS-03-EXTRA-REPORTS (2026-08-29) — Income Summary PDF,
+   WeasyPrint. Extends pdfs/_shell.html.
+
+   Same shape as expenses_summary but 3 columns (no entry-count) since
+   income_summary() returns {rows: [{code, name, balance}], total}
+   without an entry_count field.
+
+   Context expected:
+     - company                    Company object
+     - data                       income_summary() dict — rows[], total
+     - start_date, end_date       date objects for the period pill
+     - currency_ar                localised currency label
+     - company_logo_data_uri      base64 URI or None
+     - amiri_font_face            auto-injected
+#}
+{% extends "pdfs/_shell.html" %}
+{% import "pdfs/_report_macros.html" as rpt %}
+
+{% block title %}Income Summary — {{ company.display_name if company else 'Marsoud' }}{% endblock %}
+
+{% block doc_title %}ملخص الإيرادات{% endblock %}
+
+{% block status_badge %}
+<div class="status-badge-wrap">
+  <span class="status-badge" style="color:#0A2540;background:#F1F5F9">
+    من {{ ar_date(start_date) }} إلى {{ ar_date(end_date) }}
+  </span>
+</div>
+{% endblock %}
+
+{% block footer_year %}{{ end_date.year if end_date else '' }}{% endblock %}
+
+{% block content %}
+{% if company.tax_number %}
+<table class="kv">
+  <tr><td class="k">الرقم الضريبي</td><td class="c">:</td><td class="v mono">{{ company.tax_number }}</td></tr>
+  <tr><td class="k">العملة</td><td class="c">:</td><td class="v">{{ currency_ar or '' }}</td></tr>
+  <tr><td class="k">عدد الحسابات</td><td class="c">:</td><td class="v mono">{{ data.rows|length }}</td></tr>
+</table>
+{% endif %}
+
+{{ rpt.account_group("تفصيل الإيرادات حسب الحساب",
+                     data.rows, "إجمالي الإيرادات", data.total,
+                     currency_ar=currency_ar) }}
+
+{# Signature block — matches invoice's big-green outcome slot #}
+{{ rpt.outcome_block("إجمالي الإيرادات", data.total, true, currency_ar=currency_ar) }}
+{% endblock %}

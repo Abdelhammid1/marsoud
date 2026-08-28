@@ -1211,19 +1211,47 @@ def _list_excel(company, title, period_label, headers, rows, totals_row=None):
 
 # ─── Income Summary ─────────────────────────────────────────────────────
 def export_income_summary(company, fmt, start, end):
+    """Income Summary — PDF or Excel (MARSOUD-TKT-PDFS-03-EXTRA-REPORTS
+    2026-08-29 for the PDF branch). Returns (buf, filename, mime).
+
+    PDF branch now WeasyPrint (pdfs/income_summary.html) matching the
+    invoice design. Falls back to the legacy _list_pdf-based renderer
+    when WeasyPrint's system libs are missing. Excel branch untouched.
+    """
+    from app.services.currency import currency_name_ar
     data = income_summary(company.id, start_date=start, end_date=end)
-    headers = [("Code", "left"), ("Account", "left"), ("Amount", "right")]
-    rows = [[r["code"], r["name"], f"{r['balance']:,.2f}"] for r in data["rows"]]
-    totals = ["", "TOTAL REVENUE", f"{data['total']:,.2f}"]
     period = f"{start} → {end}"
     if fmt == "pdf":
-        return _list_pdf(company, "Income Summary", period, headers, rows, totals,
-                         col_widths=[3, 12, 4]), f"income-summary-{start}-{end}.pdf", "application/pdf"
+        try:
+            buf = _weasyprint_render(
+                "pdfs/income_summary.html",
+                company=company, data=data,
+                start_date=start, end_date=end,
+                currency_ar=currency_name_ar(company.base_currency),
+                company_logo_data_uri=_company_logo_data_uri(company),
+            )
+        except Exception as e:  # noqa: BLE001
+            _export_logger.error(
+                "[PDF-FALLBACK] Income Summary %s→%s: WeasyPrint failed "
+                "(%s: %s) — rendering the OLD ReportLab layout.",
+                start, end, type(e).__name__, str(e)[:200],
+            )
+            buf = _export_income_summary_pdf_legacy(company, data, period)
+        return buf, f"income-summary-{start}-{end}.pdf", "application/pdf"
     return _list_excel(company, "Income Summary", period,
                        ["الكود", "الحساب", "المبلغ"],
                        [[r["code"], r["name"], r["balance"]] for r in data["rows"]],
                        ["", "إجمالي الإيرادات", data["total"]]), \
         f"income-summary-{start}-{end}.xlsx", XLSX_MIME
+
+
+def _export_income_summary_pdf_legacy(company, data, period):
+    """Legacy _list_pdf-based renderer — kept as the safety net."""
+    headers = [("Code", "left"), ("Account", "left"), ("Amount", "right")]
+    rows = [[r["code"], r["name"], f"{r['balance']:,.2f}"] for r in data["rows"]]
+    totals = ["", "TOTAL REVENUE", f"{data['total']:,.2f}"]
+    return _list_pdf(company, "Income Summary", period, headers,
+                     rows, totals, col_widths=[3, 12, 4])
 
 
 # ─── Cash Flow ──────────────────────────────────────────────────────────
@@ -1287,19 +1315,42 @@ def _export_cash_flow_pdf_legacy(company, data, start, end):
 
 # ─── Expenses Summary ───────────────────────────────────────────────────
 def export_expenses_summary(company, fmt, start, end):
+    """Expenses Summary — PDF or Excel (MARSOUD-TKT-PDFS-03-EXTRA-REPORTS
+    2026-08-29 for the PDF branch). Returns (buf, filename, mime)."""
+    from app.services.currency import currency_name_ar
     data = expenses_summary(company.id, start_date=start, end_date=end)
     period = f"{start} → {end}"
     if fmt == "pdf":
-        headers = [("Code", "left"), ("Account", "left"), ("Entries", "right"), ("Amount", "right")]
-        rows = [[r["code"], r["name"], str(r["entry_count"]), f"{r['balance']:,.2f}"] for r in data["rows"]]
-        totals = ["", "TOTAL EXPENSES", "", f"{data['total']:,.2f}"]
-        return _list_pdf(company, "Expenses Summary", period, headers, rows, totals,
-                         col_widths=[3, 10, 2, 4]), f"expenses-summary-{start}-{end}.pdf", "application/pdf"
+        try:
+            buf = _weasyprint_render(
+                "pdfs/expenses_summary.html",
+                company=company, data=data,
+                start_date=start, end_date=end,
+                currency_ar=currency_name_ar(company.base_currency),
+                company_logo_data_uri=_company_logo_data_uri(company),
+            )
+        except Exception as e:  # noqa: BLE001
+            _export_logger.error(
+                "[PDF-FALLBACK] Expenses Summary %s→%s: WeasyPrint failed "
+                "(%s: %s) — rendering the OLD ReportLab layout.",
+                start, end, type(e).__name__, str(e)[:200],
+            )
+            buf = _export_expenses_summary_pdf_legacy(company, data, period)
+        return buf, f"expenses-summary-{start}-{end}.pdf", "application/pdf"
     return _list_excel(company, "Expenses Summary", period,
                        ["الكود", "الحساب", "عدد القيود", "المبلغ"],
                        [[r["code"], r["name"], r["entry_count"], r["balance"]] for r in data["rows"]],
                        ["", "إجمالي المصروفات", "", data["total"]]), \
         f"expenses-summary-{start}-{end}.xlsx", XLSX_MIME
+
+
+def _export_expenses_summary_pdf_legacy(company, data, period):
+    """Legacy _list_pdf-based renderer — kept as the safety net."""
+    headers = [("Code", "left"), ("Account", "left"), ("Entries", "right"), ("Amount", "right")]
+    rows = [[r["code"], r["name"], str(r["entry_count"]), f"{r['balance']:,.2f}"] for r in data["rows"]]
+    totals = ["", "TOTAL EXPENSES", "", f"{data['total']:,.2f}"]
+    return _list_pdf(company, "Expenses Summary", period, headers,
+                     rows, totals, col_widths=[3, 10, 2, 4])
 
 
 # ─── P&L Compared ───────────────────────────────────────────────────────
@@ -1374,45 +1425,33 @@ def export_ap_aging(company, fmt, end):
 
 # ─── VAT Report ─────────────────────────────────────────────────────────
 def export_vat_report(company, fmt, start, end):
+    """VAT Return — PDF or Excel (MARSOUD-TKT-PDFS-03-EXTRA-REPORTS
+    2026-08-29 for the PDF branch). Returns (buf, filename, mime).
+
+    PDF branch now WeasyPrint (pdfs/vat_return.html) matching the
+    invoice design: green-header items table for collected+paid rows
+    + outcome_block for NET DUE (label + tone flip on sign). Falls
+    back to the OLD gov-ready 3-block ReportLab layout when WeasyPrint
+    isn't available. Excel branch untouched.
+    """
     data = vat_report(company.id, start_date=start, end_date=end)
     period = f"{start} → {end}"
     if fmt == "pdf":
-        # Special gov-ready layout — single-page summary
-        buf = io.BytesIO()
-        p = canvas.Canvas(buf, pagesize=A4)
-        _pdf_header(p, company, "VAT Return", period)
-        y = 24 * cm
-        p.setFillColor(colors.HexColor("#475569"))
-        p.setFont(_FONT_REGULAR, 11)
-        if company.tax_number:
-            p.drawString(1.5 * cm, y, ar(f"Tax Number: {company.tax_number}"))
-            y -= 0.8 * cm
-
-        # Three rows: collected, paid, net — large summary cards
-        for label, amount, color in [
-            ("VAT Collected (from sales)", data["collected"], colors.HexColor("#10B981")),
-            ("VAT Paid (to suppliers)", data["paid"], colors.HexColor("#F59E0B")),
-        ]:
-            p.setFillColor(color)
-            p.rect(1 * cm, y - 1.5 * cm, 19 * cm, 1.2 * cm, fill=1, stroke=0)
-            p.setFillColor(colors.white)
-            p.setFont(_FONT_BOLD, 12)
-            p.drawString(1.5 * cm, y - 0.8 * cm, ar(label))
-            p.setFont(_FONT_BOLD, 16)
-            p.drawRightString(19.5 * cm, y - 0.8 * cm, f"{amount:,.2f} {currency_name_ar(company.base_currency)}")
-            y -= 2 * cm
-
-        p.setFillColor(NAVY)
-        p.rect(1 * cm, y - 1.5 * cm, 19 * cm, 1.4 * cm, fill=1, stroke=0)
-        p.setFillColor(colors.white)
-        p.setFont(_FONT_BOLD, 13)
-        p.drawString(1.5 * cm, y - 0.8 * cm, ar("NET DUE TO GOVERNMENT"))
-        p.setFont(_FONT_BOLD, 18)
-        p.drawRightString(19.5 * cm, y - 0.8 * cm, f"{data['net']:,.2f} {currency_name_ar(company.base_currency)}")
-
-        p.showPage()
-        p.save()
-        buf.seek(0)
+        try:
+            buf = _weasyprint_render(
+                "pdfs/vat_return.html",
+                company=company, data=data,
+                start_date=start, end_date=end,
+                currency_ar=currency_name_ar(company.base_currency),
+                company_logo_data_uri=_company_logo_data_uri(company),
+            )
+        except Exception as e:  # noqa: BLE001
+            _export_logger.error(
+                "[PDF-FALLBACK] VAT Return %s→%s: WeasyPrint failed "
+                "(%s: %s) — rendering the OLD ReportLab layout.",
+                start, end, type(e).__name__, str(e)[:200],
+            )
+            buf = _export_vat_report_pdf_legacy(company, data, period)
         return buf, f"vat-{start}-{end}.pdf", "application/pdf"
 
     return _list_excel(company, "VAT Report", period,
@@ -1421,6 +1460,46 @@ def export_vat_report(company, fmt, start, end):
                         ["الضريبة المدفوعة", data["paid"]],
                         ["الصافي المستحق", data["net"]]]), \
         f"vat-{start}-{end}.xlsx", XLSX_MIME
+
+
+def _export_vat_report_pdf_legacy(company, data, period):
+    """Legacy gov-ready 3-block ReportLab renderer — kept as the safety
+    net for hosts without libpango."""
+    buf = io.BytesIO()
+    p = canvas.Canvas(buf, pagesize=A4)
+    _pdf_header(p, company, "VAT Return", period)
+    y = 24 * cm
+    p.setFillColor(colors.HexColor("#475569"))
+    p.setFont(_FONT_REGULAR, 11)
+    if company.tax_number:
+        p.drawString(1.5 * cm, y, ar(f"Tax Number: {company.tax_number}"))
+        y -= 0.8 * cm
+
+    for label, amount, color in [
+        ("VAT Collected (from sales)", data["collected"], colors.HexColor("#10B981")),
+        ("VAT Paid (to suppliers)", data["paid"], colors.HexColor("#F59E0B")),
+    ]:
+        p.setFillColor(color)
+        p.rect(1 * cm, y - 1.5 * cm, 19 * cm, 1.2 * cm, fill=1, stroke=0)
+        p.setFillColor(colors.white)
+        p.setFont(_FONT_BOLD, 12)
+        p.drawString(1.5 * cm, y - 0.8 * cm, ar(label))
+        p.setFont(_FONT_BOLD, 16)
+        p.drawRightString(19.5 * cm, y - 0.8 * cm, f"{amount:,.2f} {currency_name_ar(company.base_currency)}")
+        y -= 2 * cm
+
+    p.setFillColor(NAVY)
+    p.rect(1 * cm, y - 1.5 * cm, 19 * cm, 1.4 * cm, fill=1, stroke=0)
+    p.setFillColor(colors.white)
+    p.setFont(_FONT_BOLD, 13)
+    p.drawString(1.5 * cm, y - 0.8 * cm, ar("NET DUE TO GOVERNMENT"))
+    p.setFont(_FONT_BOLD, 18)
+    p.drawRightString(19.5 * cm, y - 0.8 * cm, f"{data['net']:,.2f} {currency_name_ar(company.base_currency)}")
+
+    p.showPage()
+    p.save()
+    buf.seek(0)
+    return buf
 
 
 # ─── Payroll Summary ────────────────────────────────────────────────────
@@ -1852,7 +1931,33 @@ def export_profitability_excel(company, start, end):
 
 
 def export_profitability_pdf(company, start, end):
+    """Product Profitability PDF (MARSOUD-TKT-PDFS-03-EXTRA-REPORTS,
+    2026-08-29). WeasyPrint first (pdfs/profitability.html), matching
+    the invoice design language. Falls back to the legacy ReportLab
+    _simple_pdf_table renderer via _export_profitability_pdf_legacy
+    when WeasyPrint's system libs are missing.
+    """
+    from app.services.currency import currency_name_ar
     rows = _profitability_rows(company.id, start, end)
+    try:
+        return _weasyprint_render(
+            "pdfs/profitability.html",
+            company=company, rows=rows,
+            start_date=start, end_date=end,
+            currency_ar=currency_name_ar(company.base_currency),
+            company_logo_data_uri=_company_logo_data_uri(company),
+        )
+    except Exception as e:  # noqa: BLE001
+        _export_logger.error(
+            "[PDF-FALLBACK] Profitability %s→%s: WeasyPrint failed "
+            "(%s: %s) — rendering the OLD ReportLab layout.",
+            start, end, type(e).__name__, str(e)[:200],
+        )
+        return _export_profitability_pdf_legacy(company, rows, start, end)
+
+
+def _export_profitability_pdf_legacy(company, rows, start, end):
+    """Legacy _simple_pdf_table renderer — kept as the safety net."""
     out = [
         [r["sku"], r["name"], f"{r['qty']:,.2f}",
          f"{r['revenue']:,.2f}", f"{r['cogs']:,.2f}",

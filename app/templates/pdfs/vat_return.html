@@ -1,0 +1,82 @@
+{# MARSOUD-TKT-PDFS-03-EXTRA-REPORTS (2026-08-29) — VAT Return PDF,
+   WeasyPrint. Extends pdfs/_shell.html.
+
+   Was ReportLab (services/export.py:export_vat_report). Original
+   design was three large summary bars (VAT collected, VAT paid,
+   NET DUE). Migrated to the invoice design: green-header items table
+   for the two headline rows + outcome_block for the NET DUE bottom
+   line. Sign of `data.net` flips both the label AND the tone.
+
+   Context expected:
+     - company                    Company object
+     - data                       vat_report() dict — collected, paid, net
+     - start_date, end_date       date objects for the period pill
+     - currency_ar                localised currency label
+     - company_logo_data_uri      base64 URI or None
+     - amiri_font_face            auto-injected
+#}
+{% extends "pdfs/_shell.html" %}
+{% import "pdfs/_report_macros.html" as rpt %}
+
+{% block title %}VAT Return — {{ company.display_name if company else 'Marsoud' }}{% endblock %}
+
+{% block doc_title %}إقرار ضريبة القيمة المضافة{% endblock %}
+
+{% block status_badge %}
+<div class="status-badge-wrap">
+  <span class="status-badge" style="color:#0A2540;background:#F1F5F9">
+    من {{ ar_date(start_date) }} إلى {{ ar_date(end_date) }}
+  </span>
+</div>
+{% endblock %}
+
+{% block footer_year %}{{ end_date.year if end_date else '' }}{% endblock %}
+
+{% block content %}
+{% if company.tax_number or company.commercial_register_no %}
+<table class="kv">
+  {% if company.tax_number %}
+  <tr><td class="k">الرقم الضريبي</td><td class="c">:</td><td class="v mono">{{ company.tax_number }}</td></tr>
+  {% endif %}
+  {% if company.commercial_register_no %}
+  <tr><td class="k">السجل التجاري</td><td class="c">:</td><td class="v mono">{{ company.commercial_register_no }}</td></tr>
+  {% endif %}
+  <tr><td class="k">العملة</td><td class="c">:</td><td class="v">{{ currency_ar or '' }}</td></tr>
+</table>
+{% endif %}
+
+{# ── VAT SUMMARY TABLE (2 headline rows) ────────────────────── #}
+<div class="section-title">ملخص ضريبة القيمة المضافة</div>
+<table class="items">
+  <thead>
+    <tr>
+      <th>البند</th>
+      <th class="num">المبلغ</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>ضريبة محصّلة على المبيعات</td>
+      <td class="num" style="color:#059669">{{ "%.2f"|format(data.collected|float) }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
+    </tr>
+    <tr>
+      <td>ضريبة مدفوعة للموردين</td>
+      <td class="num" style="color:#B45309">{{ "%.2f"|format(data.paid|float) }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
+    </tr>
+  </tbody>
+</table>
+
+{# ── NET OUTCOME (positive = owed to gov, negative = refund) ── #}
+{% set net = data.net|float %}
+{% if net > 0.005 %}
+  {% set label = "صافي المستحق للحكومة" %}
+  {% set is_good = false %}  {# owing money is not "good news" #}
+{% elif net < -0.005 %}
+  {% set label = "صافي المسترد من الحكومة" %}
+  {% set is_good = true %}
+{% else %}
+  {% set label = "متوازن (لا مستحق ولا مسترد)" %}
+  {% set is_good = true %}
+{% endif %}
+{{ rpt.outcome_block(label, net, is_good, currency_ar=currency_ar) }}
+{% endblock %}

@@ -1,0 +1,98 @@
+{# MARSOUD-TKT-PDFS-03-EXTRA-REPORTS (2026-08-29) — Product
+   Profitability PDF, WeasyPrint. Extends pdfs/_shell.html.
+
+   Was ReportLab (services/export.py:export_profitability_pdf). Migrated
+   to a rich 7-column items table + a totals row inside the table +
+   a signature outcome_block for the aggregate gross profit.
+
+   Context expected:
+     - company                    Company object
+     - rows                       list from _profitability_rows() —
+                                  each dict: sku, name, qty, revenue,
+                                  cogs, gross_profit, gross_margin
+     - start_date, end_date       date objects for the period pill
+     - currency_ar                localised currency label
+     - company_logo_data_uri      base64 URI or None
+     - amiri_font_face            auto-injected
+#}
+{% extends "pdfs/_shell.html" %}
+{% import "pdfs/_report_macros.html" as rpt %}
+
+{% block title %}Product Profitability — {{ company.display_name if company else 'Marsoud' }}{% endblock %}
+
+{% block doc_title %}ربحية المنتجات{% endblock %}
+
+{% block status_badge %}
+<div class="status-badge-wrap">
+  <span class="status-badge" style="color:#0A2540;background:#F1F5F9">
+    من {{ ar_date(start_date) }} إلى {{ ar_date(end_date) }}
+  </span>
+</div>
+{% endblock %}
+
+{% block footer_year %}{{ end_date.year if end_date else '' }}{% endblock %}
+
+{% block content %}
+{% set total_rev = rows|sum(attribute='revenue') %}
+{% set total_cogs = rows|sum(attribute='cogs') %}
+{% set total_gp = total_rev - total_cogs %}
+{% set total_gm = (total_gp / total_rev * 100) if total_rev > 0 else 0 %}
+
+{% if company.tax_number %}
+<table class="kv">
+  <tr><td class="k">الرقم الضريبي</td><td class="c">:</td><td class="v mono">{{ company.tax_number }}</td></tr>
+  <tr><td class="k">العملة</td><td class="c">:</td><td class="v">{{ currency_ar or '' }}</td></tr>
+  <tr><td class="k">عدد المنتجات</td><td class="c">:</td><td class="v mono">{{ rows|length }}</td></tr>
+</table>
+{% endif %}
+
+<div class="section-title">ربحية المنتجات (مرتبة حسب مجمل الربح)</div>
+<table class="items">
+  <thead>
+    <tr>
+      <th>SKU</th>
+      <th>المنتج</th>
+      <th class="num">الكمية</th>
+      <th class="num">المبيعات</th>
+      <th class="num">تكلفة البضاعة</th>
+      <th class="num">مجمل الربح</th>
+      <th class="num">الهامش %</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td class="mono">{{ r.sku }}</td>
+      <td>{{ r.name }}</td>
+      <td class="num">{{ "%.2f"|format(r.qty|float) }}</td>
+      <td class="num">{{ "%.2f"|format(r.revenue|float) }}</td>
+      <td class="num" style="color:#B45309">{{ "%.2f"|format(r.cogs|float) }}</td>
+      <td class="num" style="color:{% if r.gross_profit >= 0 %}#059669{% else %}#DC2626{% endif %};font-weight:600">{{ "%.2f"|format(r.gross_profit|float) }}</td>
+      <td class="num" style="color:{% if r.gross_margin >= 0 %}#059669{% else %}#DC2626{% endif %}">{{ "%.1f"|format(r.gross_margin|float) }}%</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" style="text-align:center;color:#94A3B8;padding:24px">لا توجد مبيعات منتجات في الفترة المحددة.</td></tr>
+    {% endfor %}
+    {% if rows %}
+    <tr>
+      <td colspan="2" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">الإجمالي</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(rows|sum(attribute='qty')|float) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(total_rev) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#B45309">{{ "%.2f"|format(total_cogs) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:{% if total_gp >= 0 %}#059669{% else %}#DC2626{% endif %}">{{ "%.2f"|format(total_gp) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:{% if total_gm >= 0 %}#059669{% else %}#DC2626{% endif %}">{{ "%.1f"|format(total_gm) }}%</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+{# Signature block — total gross profit with margin. Green if positive,
+   red if the company sold at a loss aggregate, warning-amber if there
+   were sales but zero total revenue (edge case). #}
+{% set is_positive = total_gp >= 0 %}
+{{ rpt.outcome_block(
+     "مجمل الربح الإجمالي (%.1f%%)"|format(total_gm),
+     total_gp,
+     is_positive,
+     currency_ar=currency_ar) }}
+{% endblock %}
