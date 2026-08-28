@@ -21,25 +21,57 @@
   هذا تذكير ودي بخصوص فاتورتك مع <strong>{{ invoice.company.display_name }}</strong>.
 </p>
 
-<div style="background:linear-gradient(135deg,#0A2540 0%,#1B3A5C 100%);color:#fff;border-radius:14px;padding:20px;margin:0 0 16px;text-align:center">
-  <div style="font-size:11px;color:#94A3B8;letter-spacing:1px">المبلغ المتبقي</div>
-  <div style="font-size:32px;font-weight:bold;font-family:monospace;margin-top:4px">{{ "%.2f"|format(invoice.balance) }} <span style="font-size:16px;color:#94A3B8">{{ invoice.currency|currency_ar }}</span></div>
-</div>
+{# MARSOUD-TKT-P3-EMAILS (2026-08-28) — was a navy gradient hero card
+   (linear-gradient(135deg,#0A2540→#1B3A5C)) with the balance in big
+   mono, followed by a light-grey KV table. Unified with payslip.html
+   + invoice_sent.html: 2px navy rule → green-header KV table →
+   emphasized "المبلغ المتبقي" row. The amber/red severity banner
+   above stays put — that's semantic overdue-ness, not brand. #}
+<div style="height:2px;background:#0A2540;margin-bottom:16px"></div>
 
 {# MARSOUD-OVERDUE-REMINDER — every field the ticket listed:
    customer name (above), invoice #, dates, days late (from
    days_label when overdue), total, paid, remaining, status. #}
-<table style="width:100%;border-collapse:collapse;font-size:13px">
-  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">رقم الفاتورة</td><td style="padding:8px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace;font-weight:bold">{{ invoice.number }}</td></tr>
-  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">تاريخ الإصدار</td><td style="padding:8px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace">{{ invoice.issue_date.isoformat() }}</td></tr>
-  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">تاريخ الاستحقاق</td><td style="padding:8px 12px;text-align:left;font-family:monospace;color:{{ accent_text }};font-weight:bold;border-bottom:1px solid #F1F5F9">{{ invoice.due_date.isoformat() }}</td></tr>
+<table cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:22px">
+  <tr>
+    <th align="right" style="background:#059669;color:#fff;padding:9px 12px;font-weight:600;font-size:11.5px">البند</th>
+    <th align="left" style="background:#059669;color:#fff;padding:9px 12px;font-weight:600;font-size:11.5px">القيمة</th>
+  </tr>
+  <tr>
+    <td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">رقم الفاتورة</td>
+    <td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540;font-weight:bold">{{ invoice.number }}</td>
+  </tr>
+  <tr>
+    <td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">تاريخ الإصدار</td>
+    <td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ invoice.issue_date.isoformat() }}</td>
+  </tr>
+  <tr>
+    <td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">تاريخ الاستحقاق</td>
+    <td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:{{ accent_text }};font-weight:bold">{{ invoice.due_date.isoformat() }}</td>
+  </tr>
   {% if is_overdue and '_' in days_label %}
     {% set _n = days_label.split('_',1)[1] %}
-    <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">أيام التأخير</td><td style="padding:8px 12px;text-align:left;font-family:monospace;color:#B91C1C;font-weight:bold;border-bottom:1px solid #F1F5F9">{{ _n }} يوم</td></tr>
+  <tr>
+    <td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">أيام التأخير</td>
+    <td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#B91C1C;font-weight:bold">{{ _n }} يوم</td>
+  </tr>
   {% endif %}
-  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">إجمالي الفاتورة</td><td style="padding:8px 12px;text-align:left;font-family:monospace;border-bottom:1px solid #F1F5F9">{{ "%.2f"|format(invoice.total|float) }} {{ invoice.currency|currency_ar }}</td></tr>
-  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">المبلغ المدفوع</td><td style="padding:8px 12px;text-align:left;font-family:monospace;border-bottom:1px solid #F1F5F9">{{ "%.2f"|format(invoice.paid_amount|float) }} {{ invoice.currency|currency_ar }}</td></tr>
-  <tr><td style="padding:8px 12px;color:#94A3B8">الحالة</td><td style="padding:8px 12px;text-align:left">{{ invoice.status.value }}</td></tr>
+  <tr>
+    <td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">إجمالي الفاتورة</td>
+    <td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ "%.2f"|format(invoice.total|float) }} {{ invoice.currency|currency_ar }}</td>
+  </tr>
+  <tr>
+    <td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">المبلغ المدفوع</td>
+    <td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ "%.2f"|format(invoice.paid_amount|float) }} {{ invoice.currency|currency_ar }}</td>
+  </tr>
+  <tr>
+    <td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">الحالة</td>
+    <td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">{{ invoice.status.value }}</td>
+  </tr>
+  <tr>
+    <td style="padding:12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13.5px">المبلغ المتبقي</td>
+    <td align="left" style="padding:12px;font-weight:800;border-top:2px solid #0A2540;font-family:monospace;color:#059669;font-size:16px">{{ "%.2f"|format(invoice.balance) }} {{ invoice.currency|currency_ar }}</td>
+  </tr>
 </table>
 
 {# MARSOUD-COMPANY-LEGAL — signature block. Legal + brand + CR when
