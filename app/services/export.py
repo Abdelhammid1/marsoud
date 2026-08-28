@@ -996,7 +996,31 @@ def _export_journals_list_pdf_legacy(company, entries, period_label=""):
 
 
 def export_payroll_run_pdf(run):
-    """Full monthly payroll run PDF — one row per employee."""
+    """Payroll Run PDF — one row per employee (MARSOUD-TKT-PDFS-04-PAYROLL
+    2026-08-29). WeasyPrint first (pdfs/payroll_run.html) matching the
+    invoice design. Falls back to _export_payroll_run_pdf_legacy when
+    WeasyPrint's system libs are missing."""
+    from app.services.currency import currency_name_ar
+    try:
+        return _weasyprint_render(
+            "pdfs/payroll_run.html",
+            run=run,
+            company=run.company,
+            currency_ar=currency_name_ar(run.company.base_currency),
+            company_logo_data_uri=_company_logo_data_uri(run.company),
+        )
+    except Exception as e:  # noqa: BLE001
+        _export_logger.error(
+            "[PDF-FALLBACK] Payroll run %s/%s: WeasyPrint failed "
+            "(%s: %s) — rendering the OLD ReportLab layout.",
+            run.period_month, run.period_year,
+            type(e).__name__, str(e)[:200],
+        )
+        return _export_payroll_run_pdf_legacy(run)
+
+
+def _export_payroll_run_pdf_legacy(run):
+    """Legacy ReportLab payroll-run renderer — kept as the safety net."""
     buf = io.BytesIO()
     p = canvas.Canvas(buf, pagesize=A4)
     _pdf_header(p, run.company, f"Payroll — {run.period_month}/{run.period_year}",
@@ -1504,27 +1528,59 @@ def _export_vat_report_pdf_legacy(company, data, period):
 
 # ─── Payroll Summary ────────────────────────────────────────────────────
 def export_payroll_summary(company, fmt, year=None, month=None):
+    """Payroll Summary — PDF or Excel (MARSOUD-TKT-PDFS-04-PAYROLL
+    2026-08-29 for the PDF branch). Returns (buf, filename, mime).
+
+    PDF branch now WeasyPrint (pdfs/payroll_summary.html) matching the
+    invoice design. Falls back to legacy _list_pdf when WeasyPrint
+    isn't available. Excel branch untouched.
+    """
+    from app.services.currency import currency_name_ar
     data = payroll_summary_report(company.id, year=year, month=month)
     rows_data = [(r["period"], r["run_number"], r["employee"], r["basic"], r["allowances"],
                   r["overtime"], r["bonus"], r["deductions"], r["net"]) for r in data["rows"]]
     t = data["totals"]
     period = f"Year {year or 'all'} · Month {month or 'all'}"
     if fmt == "pdf":
-        headers = [("Period", "left"), ("Run", "left"), ("Employee", "left"),
-                   ("Basic", "right"), ("Allow", "right"), ("OT", "right"),
-                   ("Bonus", "right"), ("Deduct", "right"), ("Net", "right")]
-        rows = [[per, run, emp, f"{b:,.2f}", f"{a:,.2f}", f"{ot:,.2f}", f"{bn:,.2f}", f"{d:,.2f}", f"{n:,.2f}"]
-                for per, run, emp, b, a, ot, bn, d, n in rows_data]
-        totals = ["", "", "TOTAL", f"{t['basic']:,.2f}", f"{t['allowances']:,.2f}",
-                  f"{t['overtime']:,.2f}", f"{t['bonus']:,.2f}", f"{t['deductions']:,.2f}", f"{t['net']:,.2f}"]
-        return _list_pdf(company, "Payroll Summary", period, headers, rows, totals,
-                         col_widths=[1.5, 2, 3.5, 2, 2, 1.5, 1.5, 2, 2]), \
-            f"payroll-summary.pdf", "application/pdf"
+        try:
+            buf = _weasyprint_render(
+                "pdfs/payroll_summary.html",
+                company=company, data=data,
+                year=year, month=month,
+                currency_ar=currency_name_ar(company.base_currency),
+                company_logo_data_uri=_company_logo_data_uri(company),
+            )
+        except Exception as e:  # noqa: BLE001
+            _export_logger.error(
+                "[PDF-FALLBACK] Payroll Summary year=%s month=%s: "
+                "WeasyPrint failed (%s: %s) — rendering the OLD "
+                "ReportLab layout.",
+                year, month, type(e).__name__, str(e)[:200],
+            )
+            buf = _export_payroll_summary_pdf_legacy(company, rows_data, t, period)
+        return buf, f"payroll-summary.pdf", "application/pdf"
     return _list_excel(company, "Payroll Summary", period,
                        ["الفترة", "الكشف", "الموظف", "الأساسي", "البدلات", "أوفرتايم", "بونص", "خصومات", "الصافي"],
                        [list(r) for r in rows_data],
                        ["", "", "الإجمالي", t["basic"], t["allowances"], t["overtime"], t["bonus"], t["deductions"], t["net"]]), \
         f"payroll-summary.xlsx", XLSX_MIME
+
+
+def _export_payroll_summary_pdf_legacy(company, rows_data, totals, period):
+    """Legacy _list_pdf renderer — kept as the safety net for hosts
+    without libpango. Takes pre-computed rows_data + totals so we don't
+    call the report generator twice."""
+    t = totals
+    headers = [("Period", "left"), ("Run", "left"), ("Employee", "left"),
+               ("Basic", "right"), ("Allow", "right"), ("OT", "right"),
+               ("Bonus", "right"), ("Deduct", "right"), ("Net", "right")]
+    rows = [[per, run, emp, f"{b:,.2f}", f"{a:,.2f}", f"{ot:,.2f}", f"{bn:,.2f}", f"{d:,.2f}", f"{n:,.2f}"]
+            for per, run, emp, b, a, ot, bn, d, n in rows_data]
+    totals_row = ["", "", "TOTAL", f"{t['basic']:,.2f}", f"{t['allowances']:,.2f}",
+                  f"{t['overtime']:,.2f}", f"{t['bonus']:,.2f}", f"{t['deductions']:,.2f}", f"{t['net']:,.2f}"]
+    return _list_pdf(company, "Payroll Summary", period, headers,
+                     rows, totals_row,
+                     col_widths=[1.5, 2, 3.5, 2, 2, 1.5, 1.5, 2, 2])
 
 
 # ─── Fixed Assets Report ────────────────────────────────────────────────
