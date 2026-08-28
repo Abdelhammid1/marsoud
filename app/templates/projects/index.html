@@ -1,24 +1,19 @@
 {% extends "base.html" %}
+{% import '_macros.html' as ui %}
 {% block page_title %}المشاريع{% endblock %}
 {% block content %}
-<div class="flex items-center justify-between mb-4">
-  <div>
-    <h2 class="font-bold text-navy-900">المشاريع</h2>
-    <p class="text-xs text-slate-500">من التخطيط حتى الإغلاق — نسبة التقدم تُحسب من المهام تلقائياً.</p>
-  </div>
-  <div class="flex items-center gap-2">
-    {# MARSOUD-PROJECT-ARCHIVE (2026-08-10) — same shape task-index
-       uses to expose the personal archive. Only visible to users
-       who can actually archive/restore. #}
+{# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — page_header with subtitle.
+   MARSOUD-PROJECT-ARCHIVE (2026-08-10) archive-link gate + projects.create
+   gate preserved inside the captured actions block. #}
+{% set _actions %}
     {% if has_permission('projects.archive') %}
-    <a href="{{ url_for('projects.archive_index') }}"
-       class="btn-secondary text-sm">🗂 الأرشيف</a>
+    <a href="{{ url_for('projects.archive_index') }}" class="btn-secondary text-sm">🗂 الأرشيف</a>
     {% endif %}
     {% if has_permission('projects.create') %}
     <a href="{{ url_for('projects.new') }}" class="btn-primary text-sm">+ مشروع جديد</a>
     {% endif %}
-  </div>
-</div>
+{% endset %}
+{{ ui.page_header("المشاريع", subtitle="من التخطيط حتى الإغلاق — نسبة التقدم تُحسب من المهام تلقائياً.", actions=_actions) }}
 
 <form method="GET" class="flex flex-wrap items-end gap-3 mb-4 card p-4">
   <div class="flex-1 min-w-[200px]">
@@ -74,11 +69,26 @@
         <td class="text-xs font-mono whitespace-nowrap">{{ p.start_date.isoformat() }} → {{ p.end_date.isoformat() }}</td>
       </tr>
     {% else %}
-      {# MARSOUD-PERMISSION-BOUNCE — project_manager and team_member reach
-         this page but hold no leads.view, so the CRM suggestion bounced
-         them to the dashboard under a red banner. Offer it only to someone
-         who can follow it; the empty state still reads correctly without. #}
-      <tr><td colspan="7" class="text-center text-slate-400 py-6">لا توجد مشاريع.{% if has_permission('leads.view') %} حوّل عميلاً محتملاً من <a href="{{ url_for('leads.index') }}" class="text-brand-600 hover:underline">الـ CRM</a> أو أنشئ مشروعاً مباشرة.{% else %} أنشئ مشروعاً جديداً للبدء.{% endif %}</td></tr>
+      {# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — migrated to macro with
+         a permission-gated CTA. MARSOUD-PERMISSION-BOUNCE — project_manager
+         and team_member reach this page but hold no leads.view, so the
+         "convert a lead" CTA is only offered to someone who can follow it.
+         Both branches show the create button when the user holds
+         projects.create. #}
+      {% set _sub %}
+        {% if has_permission('leads.view') %}
+        حوّل عميلاً محتملاً من الـ CRM أو أنشئ مشروعاً مباشرة.
+        {% else %}
+        أنشئ مشروعاً جديداً للبدء.
+        {% endif %}
+      {% endset %}
+      <tr><td colspan="7" style="padding:0">
+        {% if has_permission('projects.create') %}
+          {{ ui.empty_state("لا توجد مشاريع", sub=_sub, icon="📂", cta_url=url_for('projects.new'), cta_label="+ مشروع جديد") }}
+        {% else %}
+          {{ ui.empty_state("لا توجد مشاريع", sub=_sub, icon="📂") }}
+        {% endif %}
+      </td></tr>
     {% endfor %}
     </tbody>
   </table>

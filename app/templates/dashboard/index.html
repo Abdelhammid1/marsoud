@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import '_macros.html' as ui %}
 {% block title %}لوحة المعلومات — {{ active_company.name }}{% endblock %}
 {% block page_title %}لوحة المعلومات{% endblock %}
 {% block content %}
@@ -484,7 +485,7 @@
           <a href="{{ url_for('reports.ar_aging') }}" style="color:var(--d-green-deep);font-weight:600;font-size:12.5px;text-decoration:none">عرض الكل →</a>
         </div>
       {% else %}
-        <div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-title">لا توجد فواتير متأخرة حالياً</div></div>
+        {{ ui.empty_state("لا توجد فواتير متأخرة حالياً", icon="✅") }}
       {% endif %}
     </div>
 
@@ -578,7 +579,7 @@
           <a href="{{ url_for('vendor_bills.index') }}" style="color:var(--d-green-deep);font-weight:600;font-size:12.5px;text-decoration:none">فواتير الموردين →</a>
         </div>
       {% else %}
-        <div class="empty-state"><div class="empty-state-icon">✅</div><div class="empty-state-title">لا توجد فواتير موردين متأخرة</div></div>
+        {{ ui.empty_state("لا توجد فواتير موردين متأخرة", icon="✅") }}
       {% endif %}
     </div>
 
@@ -667,7 +668,7 @@
           <a href="{{ url_for('forecast.index') }}" style="color:var(--d-green-deep);font-weight:600;font-size:12.5px;text-decoration:none">الجدول الكامل →</a>
         </div>
       {% else %}
-        <div class="empty-state"><div class="empty-state-icon">📅</div><div class="empty-state-title">لا توجد فواتير قادمة خلال 7 أيام</div></div>
+        {{ ui.empty_state("لا توجد فواتير قادمة خلال 7 أيام", icon="📅") }}
       {% endif %}
     </div>
   </div>

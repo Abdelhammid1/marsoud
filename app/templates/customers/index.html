@@ -1,20 +1,20 @@
 {% extends "base.html" %}
+{% import '_macros.html' as ui %}
 {% block page_title %}العملاء{% endblock %}
 {% block content %}
 <div class="card p-6">
-  <div class="flex items-center justify-between mb-5">
-    <h2 class="font-bold text-navy-900">العملاء</h2>
-    <div class="flex gap-2">
-      <a href="{{ url_for('customers.aging') }}" class="btn-secondary text-sm">تقرير المديونيات</a>
-      {# MARSOUD-PERMISSION-BOUNCE — customers.new needs partners.manage
-         (owner/admin/accountant). ceo, sales_manager, sales_rep and viewer
-         hold customers.view and reached this page legitimately, then got
-         bounced to the dashboard under a red banner on every click. #}
-      {% if has_permission('partners.manage') %}
-      <a href="{{ url_for('customers.new') }}" class="btn-primary">+ عميل جديد</a>
-      {% endif %}
-    </div>
-  </div>
+  {# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — hand-rolled title+actions
+     row collapsed to the shared page_header macro. `{% set _actions %}`
+     captures the button row (with its Jinja permission gate) into a
+     string so it can flow through the macro's HTML-string `actions=`
+     param. MARSOUD-PERMISSION-BOUNCE gate on customers.new preserved. #}
+  {% set _actions %}
+    <a href="{{ url_for('customers.aging') }}" class="btn-secondary text-sm">تقرير المديونيات</a>
+    {% if has_permission('partners.manage') %}
+    <a href="{{ url_for('customers.new') }}" class="btn-primary">+ عميل جديد</a>
+    {% endif %}
+  {% endset %}
+  {{ ui.page_header("العملاء", actions=_actions) }}
   <table class="data-table">
     <thead><tr><th>الاسم</th><th>البريد</th><th>الهاتف</th><th class="text-right">الرصيد</th><th class="text-right">الإجراءات</th></tr></thead>
     <tbody>
@@ -27,7 +27,9 @@
         <td class="text-right"><a href="{{ url_for('customers.view', customer_id=c.id) }}" class="text-brand-600 hover:underline text-sm">عرض</a></td>
       </tr>
       {% else %}
-      <tr><td colspan="5" class="text-center text-slate-400 py-8">لا يوجد عملاء</td></tr>
+      <tr><td colspan="5" style="padding:0">
+        {{ ui.empty_state("لا يوجد عملاء", sub="أضف أول عميل لتبدأ.", icon="👥") }}
+      </td></tr>
       {% endfor %}
     </tbody>
   </table>

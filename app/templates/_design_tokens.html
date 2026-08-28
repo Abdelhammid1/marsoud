@@ -198,6 +198,16 @@
     color: var(--ms-ink-1);
     margin: 0;
   }
+  /* MARSOUD-TKT-P0-05-MACROS (2026-08-28) — companion to the `subtitle`
+     slot added to the page_header macro. Small muted line under the
+     title, matches the pattern list pages (tasks, projects, leads, hr,
+     crm/*) render inline today. */
+  .page-header .page-subtitle {
+    font-size: var(--ms-fs-sm);
+    color: var(--ms-ink-3);
+    margin: 4px 0 0;
+    line-height: 1.5;
+  }
   .page-header .page-actions {
     display: flex;
     gap: var(--ms-gap-2);

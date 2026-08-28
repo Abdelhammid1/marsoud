@@ -1,6 +1,13 @@
 {% extends "base.html" %}
+{% import '_macros.html' as ui %}
 {% block page_title %}الموارد البشرية{% endblock %}
 {% block content %}
+{# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — the 6 top "tiles" below are
+   navigation cards (each carries 1-3 links + optional CTA), not KPI
+   tiles. stat_tile models label+value+hint only, so migrating those
+   tiles would strip the nav links they carry. Left as-is; a follow-up
+   ticket could add a `nav_tile` macro variant for that pattern. Only
+   the employee-table empty_state below joins the ratchet here. #}
 <div class="grid grid-cols-4 gap-4 mb-6">
   <div class="card p-5">
     <div class="text-xs text-slate-500 mb-1">إجمالي الموظفين النشطين</div>
@@ -106,7 +113,9 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="6" class="text-center text-slate-400 py-6">لا يوجد موظفون نشطون</td></tr>
+      <tr><td colspan="6" style="padding:0">
+        {{ ui.empty_state("لا يوجد موظفون نشطون", sub="أضف موظفاً جديداً من زر «+ موظف» أعلاه.", icon="👤") }}
+      </td></tr>
     {% endfor %}
     </tbody>
   </table>

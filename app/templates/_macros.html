@@ -91,9 +91,16 @@
 {%- endmacro %}
 
 
-{% macro page_header(title, actions="") -%}
+{# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — extended with `subtitle=""` so
+   the ~10 list templates that carry a short description under their title
+   (tasks, projects, leads, hr, crm/*) can adopt the macro without losing
+   that text. Additive param: existing two-argument calls keep working. #}
+{% macro page_header(title, subtitle="", actions="") -%}
   <div class="page-header">
-    <h2 class="page-title">{{ title }}</h2>
+    <div>
+      <h2 class="page-title">{{ title }}</h2>
+      {% if subtitle %}<p class="page-subtitle">{{ subtitle }}</p>{% endif %}
+    </div>
     {% if actions %}
       <div class="page-actions">{{ actions|safe }}</div>
     {% endif %}

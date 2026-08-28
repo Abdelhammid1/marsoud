@@ -1,25 +1,17 @@
 {% extends "base.html" %}
+{% import '_macros.html' as ui %}
 {% block page_title %}الفواتير{% endblock %}
 {% block content %}
 
-<!-- Totals strip -->
+{# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — was 4 hand-rolled `.card p-4`
+   tiles duplicating the label/value/tone pattern. Now shared macro:
+   plain tiles for count + invoiced, tone-success for collected (positive
+   received), tone-warning for outstanding (attention needed). #}
 <div class="grid grid-cols-4 gap-3 mb-4">
-  <div class="card p-4">
-    <div class="text-xs text-slate-500 mb-1">عدد الفواتير</div>
-    <div class="text-2xl font-bold text-navy-900">{{ totals.count }}</div>
-  </div>
-  <div class="card p-4">
-    <div class="text-xs text-slate-500 mb-1">إجمالي المفوتر</div>
-    <div class="text-2xl font-bold text-navy-900 font-mono">{{ "%.2f"|format(totals.invoiced) }}</div>
-  </div>
-  <div class="card p-4 bg-emerald-50/50 border-emerald-100">
-    <div class="text-xs text-emerald-700 mb-1">📥 إجمالي المحصل</div>
-    <div class="text-2xl font-bold text-emerald-700 font-mono">{{ "%.2f"|format(totals.collected) }}</div>
-  </div>
-  <div class="card p-4 bg-amber-50/50 border-amber-100">
-    <div class="text-xs text-amber-700 mb-1">⏳ المتبقي</div>
-    <div class="text-2xl font-bold text-amber-700 font-mono">{{ "%.2f"|format(totals.outstanding) }}</div>
-  </div>
+  {{ ui.stat_tile("عدد الفواتير", totals.count, value_class="") }}
+  {{ ui.stat_tile("إجمالي المفوتر", "%.2f"|format(totals.invoiced)) }}
+  {{ ui.stat_tile("📥 إجمالي المحصل", "%.2f"|format(totals.collected), tone="success") }}
+  {{ ui.stat_tile("⏳ المتبقي", "%.2f"|format(totals.outstanding), tone="warning") }}
 </div>
 
 <div class="card p-6">
@@ -66,7 +58,14 @@
     <thead><tr><th>الرقم</th><th>العميل</th><th>الإصدار</th><th>الاستحقاق</th><th class="text-left">الإجمالي</th><th class="text-left">المتبقي</th><th>الحالة</th><th></th></tr></thead>
     <tbody>
       {% for inv in invoices %}
-      {% set status_class = {'DRAFT':'badge-draft','SENT':'badge-sent','PAID':'badge-paid','PARTIALLY_PAID':'badge-partial','OVERDUE':'badge-overdue','CANCELLED':'badge-cancelled','REFUNDED':'badge-refunded','PARTIALLY_REFUNDED':'badge-refunded','VOIDED':'badge-cancelled'} %}
+      {# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — was `{% set status_class
+         = {…} %}` inline dict (9 keys) plus a raw-enum `<span>`. Migrated
+         to the shared status_badge macro which also upgrades the raw enum
+         (`SENT`, `PARTIALLY_PAID`) to proper Arabic labels (`مرسلة`,
+         `مدفوعة جزئياً`) — a user-visible improvement. The voided branch
+         below keeps its own inline <span>: it's visually distinct
+         (strike-through + trash-can) and semantically separate from
+         status.value. #}
       {# MARSOUD-VOIDED-VISIBLE (Batch 9 Ticket 2, 2026-08-01) —
          voided rows stay in the list but are visually muted so
          users can see them without confusing them with active
@@ -82,7 +81,7 @@
           {% if inv.voided_at %}
           <span class="badge badge-cancelled" title="محذوفة — لا تدخل في أي حسابات مالية">🗑️ محذوفة</span>
           {% else %}
-          <span class="badge {{ status_class.get(inv.status.value, 'badge-draft') }}">{{ inv.status.value }}</span>
+          {{ ui.status_badge(inv.status.value, kind='invoice') }}
           {% endif %}
         </td>
         <td>
@@ -101,14 +100,11 @@
         </td>
       </tr>
       {% else %}
-      {# MARSOUD-UI-DESIGN-SYSTEM (2026-08-18) — was a bare
-         `text-slate-400 py-8` cell. #}
+      {# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — hand-rolled empty-state
+         div collapsed to the shared macro. Preserved the outer tr/td so
+         the cell spans all 8 columns; the macro renders inside it. #}
       <tr><td colspan="8" style="padding:0">
-        <div class="empty-state">
-          <div class="empty-state-icon">🧾</div>
-          <div class="empty-state-title">لا توجد فواتير مطابقة</div>
-          <div class="empty-state-sub">جرّب تعديل الفلاتر أو أضف فاتورة جديدة.</div>
-        </div>
+        {{ ui.empty_state("لا توجد فواتير مطابقة", sub="جرّب تعديل الفلاتر أو أضف فاتورة جديدة.", icon="🧾") }}
       </td></tr>
       {% endfor %}
     </tbody>

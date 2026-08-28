@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import '_macros.html' as ui %}
 {% block page_title %}فواتير الموردين والمصروفات{% endblock %}
 {% block content %}
 
@@ -7,24 +8,15 @@
    bills that may be in different currencies, so we show the
    base currency (unchanged behaviour) explicitly instead of an
    ambiguous bare number. Per-bill currency shows on the rows. #}
+{# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — was 4 hand-rolled `.card p-4`
+   tiles; now the shared stat_tile macro. Same tone semantics as
+   invoices/index.html (positive=success, attention=warning). #}
 {% set base_cur = active_company.base_currency %}
 <div class="grid grid-cols-4 gap-3 mb-4">
-  <div class="card p-4">
-    <div class="text-xs text-slate-500 mb-1">عدد الفواتير</div>
-    <div class="text-2xl font-bold text-navy-900">{{ totals.count }}</div>
-  </div>
-  <div class="card p-4">
-    <div class="text-xs text-slate-500 mb-1">إجمالي المشتريات</div>
-    <div class="text-2xl font-bold text-navy-900 font-mono">{{ totals.invoiced|amount_ar(base_cur) }}</div>
-  </div>
-  <div class="card p-4 bg-emerald-50/50 border-emerald-100">
-    <div class="text-xs text-emerald-700 mb-1">إجمالي المدفوع</div>
-    <div class="text-2xl font-bold text-emerald-700 font-mono">{{ totals.paid|amount_ar(base_cur) }}</div>
-  </div>
-  <div class="card p-4 bg-amber-50/50 border-amber-100">
-    <div class="text-xs text-amber-700 mb-1">المستحق للموردين</div>
-    <div class="text-2xl font-bold text-amber-700 font-mono">{{ totals.outstanding|amount_ar(base_cur) }}</div>
-  </div>
+  {{ ui.stat_tile("عدد الفواتير", totals.count, value_class="") }}
+  {{ ui.stat_tile("إجمالي المشتريات", totals.invoiced|amount_ar(base_cur)) }}
+  {{ ui.stat_tile("إجمالي المدفوع", totals.paid|amount_ar(base_cur), tone="success") }}
+  {{ ui.stat_tile("المستحق للموردين", totals.outstanding|amount_ar(base_cur), tone="warning") }}
 </div>
 
 <div class="card p-6">
@@ -127,9 +119,11 @@
     <tbody>
       {% set lt_colors = {'EXPENSE':'bg-red-50 text-red-700','FIXED_ASSET':'bg-blue-50 text-blue-700','INVENTORY':'bg-emerald-50 text-emerald-700'} %}
       {% set lt_labels = {'EXPENSE':'مصروف','FIXED_ASSET':'أصل ثابت','INVENTORY':'مخزون'} %}
-      {% set sl = {'DRAFT':'مسودة','POSTED':'مسجّلة','PARTIALLY_PAID':'مدفوعة جزئياً','PAID':'مدفوعة','OVERDUE':'متأخرة','CANCELLED':'ملغاة','REFUNDED':'مرتجعة','PARTIALLY_REFUNDED':'مرتجعة جزئياً'} %}
+      {# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — retired both `sl`
+         (Arabic labels) and `sc` (badge classes) inline dicts; the
+         shared status_badge macro carries the canonical
+         invoice-vs-bill label mapping in one place now. #}
       {% for b in bills %}
-      {% set sc = {'DRAFT':'badge-draft','POSTED':'badge-sent','PARTIALLY_PAID':'badge-partial','PAID':'badge-paid','OVERDUE':'badge-overdue','CANCELLED':'badge-cancelled','REFUNDED':'badge-refunded','PARTIALLY_REFUNDED':'badge-refunded'} %}
       {# MARSOUD-VBILL-REFUND-STATUS — deleted rows stay in the list but
          are visually muted so they're not confused with live bills.
          Financial totals already exclude them. Keyed on deleted_at
@@ -171,22 +165,16 @@
           {% if b.deleted_at %}
           <span class="badge badge-cancelled" title="محذوفة — لا تدخل في أي حسابات مالية">🗑️ محذوفة</span>
           {% else %}
-          <span class="badge {{ sc.get(b.status.value, 'badge-draft') }}">{{ sl.get(b.status.value, b.status.value) }}</span>
+          {{ ui.status_badge(b.status.value, kind='bill') }}
           {% endif %}
         </td>
         <td><a href="{{ url_for('vendor_bills.view', bill_id=b.id) }}" class="text-brand-600 hover:underline text-sm">عرض</a></td>
       </tr>
       {% else %}
-      {# MARSOUD-UI-DESIGN-SYSTEM (2026-08-18) — was a bare
-         `text-slate-400 py-8` cell. Now uses the canonical
-         `.empty-state` primitive so every empty-state in the
-         app renders identically. #}
+      {# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — hand-rolled empty-state
+         div collapsed to the shared macro. #}
       <tr><td colspan="12" style="padding:0">
-        <div class="empty-state">
-          <div class="empty-state-icon">📥</div>
-          <div class="empty-state-title">لا توجد فواتير موردين</div>
-          <div class="empty-state-sub">أضف أول فاتورة مورد لتبدأ.</div>
-        </div>
+        {{ ui.empty_state("لا توجد فواتير موردين", sub="أضف أول فاتورة مورد لتبدأ.", icon="📥") }}
       </td></tr>
       {% endfor %}
     </tbody>
