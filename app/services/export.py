@@ -179,11 +179,66 @@ def _company_logo_data_uri(company):
         return f"data:{mime};base64,{base64.b64encode(f.read()).decode('ascii')}"
 
 
+# ─── MARSOUD-PDF-P0 (2026-08-28) — Amiri font embedded as data: URIs ──
+# The three PDF templates (pdfs/invoice, pdfs/payslip, party_ledger/print)
+# used to declare `font-family: 'Tajawal', 'Cairo', ...` — but neither TTF
+# is on disk. WeasyPrint (and Chromium, for party_ledger) silently fell back
+# to whatever Arabic font the deploy host had, so identical invoices from
+# two hosts looked visibly different. Only Amiri-Regular.ttf +
+# Amiri-Bold.ttf are actually on disk in app/static/fonts/, so we embed
+# them as data: URIs. Data-URI form works for both engines identically:
+#  - WeasyPrint doesn't need base_url resolution.
+#  - Chromium loading a file:// tempfile from the OS temp dir can't
+#    resolve relative url() → the tempfile isn't next to app/static/,
+#    so a data URI is the only portable option.
+# The helper is cached at module scope — the base64 encode is ~200KB per
+# weight, done once per process. If the TTFs are missing (fresh clone
+# without the fonts) we return an empty <style/> block so the app still
+# boots; the PDF then renders in the OS default, which is what happens
+# today anyway (i.e. this change strictly cannot make things worse).
+_AMIRI_FONT_FACE_CSS_CACHE = None
+
+
+def _amiri_font_face_css():
+    """Return `<style>@font-face …</style>` for Amiri Regular + Bold with the
+    TTFs inlined as data: URIs. Templates include the returned block
+    verbatim (via `{{ amiri_font_face|safe }}`) OUTSIDE their own <style>
+    tag — the browser/WeasyPrint concatenates the two stylesheets normally,
+    and we avoid the invalid "<style> inside <style>" nesting."""
+    global _AMIRI_FONT_FACE_CSS_CACHE
+    if _AMIRI_FONT_FACE_CSS_CACHE is not None:
+        return _AMIRI_FONT_FACE_CSS_CACHE
+    fonts_dir = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "static", "fonts")
+    faces = []
+    for weight, filename in (
+        (400, "Amiri-Regular.ttf"),
+        (700, "Amiri-Bold.ttf"),
+    ):
+        path = os.path.join(fonts_dir, filename)
+        if not os.path.exists(path):
+            continue
+        with open(path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode("ascii")
+        faces.append(
+            "@font-face { font-family: 'Amiri'; "
+            f"src: url(data:font/ttf;base64,{b64}) format('truetype'); "
+            f"font-weight: {weight}; font-style: normal; }}"
+        )
+    _AMIRI_FONT_FACE_CSS_CACHE = "<style>\n" + "\n".join(faces) + "\n</style>"
+    return _AMIRI_FONT_FACE_CSS_CACHE
+
+
 def _weasyprint_render(template_name, **context):
     """Render a Jinja template + run it through WeasyPrint. Returns a BytesIO
     with the PDF. WeasyPrint is imported lazily so the rest of the app keeps
     booting on a host that doesn't have libpango installed."""
     import weasyprint  # lazy — system libs (libpango/cairo) only needed for PDFs
+    # MARSOUD-PDF-P0 — every WeasyPrint template that needs Arabic type
+    # references {{ amiri_font_face|safe }}; inject it here so callers
+    # don't each have to remember. Callers may override by passing their
+    # own `amiri_font_face` in **context.
+    context.setdefault("amiri_font_face", _amiri_font_face_css())
     html = render_template(template_name, **context)
     buf = io.BytesIO()
     weasyprint.HTML(string=html, base_url=os.path.dirname(os.path.dirname(__file__))).write_pdf(buf)

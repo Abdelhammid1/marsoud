@@ -7,11 +7,16 @@
 <head>
 <meta charset="UTF-8">
 <title>Invoice {{ invoice.number }}</title>
+{# MARSOUD-PDF-P0 (2026-08-28) — Amiri font embedded as data: URIs by
+   app/services/export.py:_amiri_font_face_css(). Injected OUTSIDE the
+   template's own <style> tag so the browser/WeasyPrint sees two adjacent
+   stylesheets instead of an invalid <style> nested inside <style>. #}
+{{ amiri_font_face|safe }}
 <style>
 @page { size: A4; margin: 0; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { width: 100%; height: 100%; }
-body { font-family: 'Tajawal', 'Cairo', 'Segoe UI', Tahoma, sans-serif; direction: rtl; background: #fff; color: #0A2540; }
+body { font-family: 'Amiri', 'Segoe UI', Tahoma, sans-serif; direction: rtl; background: #fff; color: #0A2540; }
 .page { width: 100%; height: 297mm; position: relative; overflow: hidden; }
 .pad { position: relative; z-index: 1; padding: 50px 56px; }
 
@@ -48,7 +53,7 @@ body { font-family: 'Tajawal', 'Cairo', 'Segoe UI', Tahoma, sans-serif; directio
 .pay-address .line { font-size: 12px; color: #475569; line-height: 1.85; }
 
 .section-title { font-size: 15px; font-weight: 800; color: #0A2540; margin-bottom: 10px; }
-table.items { width: 100%; border-collapse; font-size: 12px; margin-bottom: 22px; }
+table.items { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 22px; }
 table.items th { background: #059669; color: #fff; padding: 9px 12px; font-weight: 600; font-size: 11.5px; text-align: right; }
 table.items th.num { text-align: left; }
 table.items td { padding: 9px 12px; border-bottom: 1px solid #E2E8F0; vertical-align: top; }
@@ -177,7 +182,7 @@ table.items tr:last-child td { border-bottom: none; }
     {% endif %}
 
     {# ── ITEMS TABLE ────────────────────────────────────────── #}
-    <div class="section-title">تٳفتاصيل الفاتورة</div>
+    <div class="section-title">تفاصيل الفاتورة</div>
     <table class="items">
       <thead>
         <tr>
@@ -231,9 +236,13 @@ table.items tr:last-child td { border-bottom: none; }
     </div>
   </div>
 
+  {# MARSOUD-PDF-P0 (2026-08-28) — was three cells: mojibake in
+     place of a copyright, a duplicate "من مرصود" cell, then the page counter.
+     The mojibake shipped on every invoice PDF since the template was
+     written. Two cells now, pinned to opposite edges by the parent's
+     justify-content: space-between. #}
   <div class="footer">
-    <span>م٦؀ <strong>مرصود</strong></span>
-    <span>من <strong>مرصود</strong></span>
+    <span>© {{ invoice.issue_date.year if invoice.issue_date else '' }} <strong>مرصود</strong></span>
     <span>صفحة 1 من 1</span>
   </div>
 </div>
