@@ -693,8 +693,44 @@ def _export_payslip_pdf_legacy(employee, line, run):
 
 
 def export_journal_entry_pdf(entry):
-    """Single journal entry PDF — Arabic layout (MARSOUD-JOURNAL-
-    EXPORT-AR, Batch 6 Ticket 5, 2026-07-29).
+    """Single journal entry PDF (MARSOUD-TKT-PDFS-01-JOURNAL, 2026-08-29).
+
+    WeasyPrint first, using pdfs/journal_entry.html (extends
+    pdfs/_shell.html). Falls back to the legacy ReportLab path
+    (_export_journal_entry_pdf_legacy) when WeasyPrint's system libs
+    aren't installed on the host — same pattern export_invoice_pdf uses.
+
+    The legacy path already carries today's MARSOUD-TKT-PDF-HEADER-RTL-HOTFIX
+    (right-anchored header), so hosts without libpango still get a
+    reasonable RTL layout, just without the branded design chrome.
+    """
+    try:
+        return _weasyprint_render(
+            "pdfs/journal_entry.html",
+            entry=entry,
+            company_logo_data_uri=_company_logo_data_uri(entry.company),
+        )
+    except Exception as e:  # noqa: BLE001
+        _export_logger.error(
+            "[PDF-FALLBACK] Journal entry %s: WeasyPrint failed "
+            "(%s: %s) — rendering the OLD ReportLab layout instead. "
+            "This means the customer is NOT getting the new branded "
+            "PDF. Cause is almost always missing weasyprint pip "
+            "install OR missing libpango on the host. Run: pip "
+            "install -r requirements.txt + apt install "
+            "libpango-1.0-0 libpangoft2-1.0-0 libcairo2",
+            entry.number or entry.id, type(e).__name__, str(e)[:200],
+        )
+        return _export_journal_entry_pdf_legacy(entry)
+
+
+def _export_journal_entry_pdf_legacy(entry):
+    """Legacy ReportLab renderer — kept as the safety net for hosts
+    without libpango. Was the primary path pre-MARSOUD-TKT-PDFS-01-JOURNAL.
+
+    Original ticket: MARSOUD-JOURNAL-EXPORT-AR (Batch 6 Ticket 5,
+    2026-07-29). Right-anchor hotfix applied by
+    MARSOUD-TKT-PDF-HEADER-RTL-HOTFIX (2026-08-29).
 
     Columns: الحساب | البيان | مدين | دائن. Amounts stay
     LTR-formatted with thousands separator + 2 decimals so
@@ -827,6 +863,27 @@ def export_journal_entry_excel(entry):
 
 
 def export_journals_list_pdf(company, entries, period_label=""):
+    """Filtered list of journals PDF (MARSOUD-TKT-PDFS-01-JOURNAL,
+    2026-08-29). WeasyPrint first (pdfs/journals_list.html), ReportLab
+    fallback. Same rationale as export_journal_entry_pdf above."""
+    try:
+        return _weasyprint_render(
+            "pdfs/journals_list.html",
+            company=company,
+            entries=entries,
+            period_label=period_label,
+            company_logo_data_uri=_company_logo_data_uri(company),
+        )
+    except Exception as e:  # noqa: BLE001
+        _export_logger.error(
+            "[PDF-FALLBACK] Journals list (%d entries): WeasyPrint "
+            "failed (%s: %s) — rendering the OLD ReportLab layout.",
+            len(entries or []), type(e).__name__, str(e)[:200],
+        )
+        return _export_journals_list_pdf_legacy(company, entries, period_label)
+
+
+def _export_journals_list_pdf_legacy(company, entries, period_label=""):
     """Filtered list of journals to PDF — Arabic RTL layout
     (MARSOUD-JOURNAL-EXPORT-AR, Batch 6 Ticket 5, 2026-07-29)."""
     buf = io.BytesIO()
