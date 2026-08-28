@@ -1,0 +1,89 @@
+{# MARSOUD-TKT-PDFS-02-FIN-REPORTS (2026-08-29) — Cash Flow Statement
+   PDF, WeasyPrint. Same shell + macros pattern.
+
+   Was ReportLab via _list_pdf helper (services/export.py:export_cash_flow
+   `fmt == "pdf"` branch).
+
+   The cash_flow() data shape doesn't fit account_group cleanly —
+   each activity is a single scalar (operating, investing, financing),
+   not a list of accounts. Rendered as a single 3-row table + net_change
+   outcome block. Structurally the same VISUAL as balance_sheet.html:
+   section titles + green-header table + navy grand-row border +
+   outcome block.
+
+   Context expected:
+     - company                    Company object
+     - data                       cash_flow() dict — operating,
+                                  investing, financing, net_change
+     - start_date, end_date       date objects for the period pill
+     - currency_ar                localised currency label
+     - company_logo_data_uri      base64 URI or None
+     - amiri_font_face            auto-injected
+#}
+{% extends "pdfs/_shell.html" %}
+{% import "pdfs/_report_macros.html" as rpt %}
+
+{% block title %}Cash Flow Statement — {{ company.display_name if company else 'Marsoud' }}{% endblock %}
+
+{% block doc_title %}قائمة التدفقات النقدية{% endblock %}
+
+{% block status_badge %}
+<div class="status-badge-wrap">
+  <span class="status-badge" style="color:#0A2540;background:#F1F5F9">
+    {% if start_date %}من {{ ar_date(start_date) }} إلى {{ ar_date(end_date) }}
+    {% else %}حتى {{ ar_date(end_date) }}{% endif %}
+  </span>
+</div>
+{% endblock %}
+
+{% block footer_year %}{{ end_date.year if end_date else '' }}{% endblock %}
+
+{% block content %}
+{% if company.tax_number or company.commercial_register_no %}
+<table class="kv">
+  {% if company.tax_number %}
+  <tr><td class="k">الرقم الضريبي</td><td class="c">:</td><td class="v mono">{{ company.tax_number }}</td></tr>
+  {% endif %}
+  {% if company.commercial_register_no %}
+  <tr><td class="k">السجل التجاري</td><td class="c">:</td><td class="v mono">{{ company.commercial_register_no }}</td></tr>
+  {% endif %}
+  <tr><td class="k">العملة</td><td class="c">:</td><td class="v">{{ currency_ar or '' }}</td></tr>
+</table>
+{% endif %}
+
+{# ── ACTIVITIES TABLE (single 3-row table, all activities in one) ─ #}
+<div class="section-title">التدفقات النقدية حسب النشاط</div>
+<table class="items">
+  <thead>
+    <tr>
+      <th>النشاط</th>
+      <th class="num">صافي التدفق</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for label, key in [
+        ("الأنشطة التشغيلية", "operating"),
+        ("الأنشطة الاستثمارية", "investing"),
+        ("الأنشطة التمويلية", "financing"),
+    ] %}
+      {% set val = data[key]|float %}
+      {% set is_inflow = val >= 0 %}
+    <tr>
+      <td>{{ label }}</td>
+      <td class="num" style="color:{% if is_inflow %}#0A2540{% else %}#B45309{% endif %}">
+        {{ "%.2f"|format(val) }}{% if currency_ar %} {{ currency_ar }}{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{# ── NET CHANGE — green if positive, red if net outflow ─────── #}
+{% set net = data.net_change|float %}
+{% set is_positive = net >= 0 %}
+{{ rpt.outcome_block(
+     "صافي التغير في النقد (زيادة)" if is_positive else "صافي التغير في النقد (نقصان)",
+     net,
+     is_positive,
+     currency_ar=currency_ar) }}
+{% endblock %}

@@ -304,6 +304,37 @@ def _pdf_section(p, y, label):
 
 
 def export_balance_sheet_pdf(company, as_of):
+    """Balance Sheet PDF (MARSOUD-TKT-PDFS-02-FIN-REPORTS, 2026-08-29).
+
+    WeasyPrint first (pdfs/balance_sheet.html), extending the shared
+    pdfs/_shell.html chrome so the report matches the invoice design.
+    Falls back to _export_balance_sheet_pdf_legacy when WeasyPrint's
+    system libs (libpango/cairo) aren't installed. Same try/except
+    fallback pattern as export_invoice_pdf + export_journal_entry_pdf.
+    """
+    from app.services.currency import currency_name_ar
+    data = balance_sheet(company.id, as_of=as_of)
+    try:
+        return _weasyprint_render(
+            "pdfs/balance_sheet.html",
+            company=company,
+            data=data,
+            currency_ar=currency_name_ar(company.base_currency),
+            company_logo_data_uri=_company_logo_data_uri(company),
+        )
+    except Exception as e:  # noqa: BLE001
+        _export_logger.error(
+            "[PDF-FALLBACK] Balance Sheet %s: WeasyPrint failed "
+            "(%s: %s) — rendering the OLD ReportLab layout.",
+            as_of, type(e).__name__, str(e)[:200],
+        )
+        return _export_balance_sheet_pdf_legacy(company, as_of)
+
+
+def _export_balance_sheet_pdf_legacy(company, as_of):
+    """Legacy ReportLab renderer — kept as the safety net for hosts
+    without libpango. Was the primary path pre-MARSOUD-TKT-PDFS-02-FIN-REPORTS.
+    """
     data = balance_sheet(company.id, as_of=as_of)
     buf = io.BytesIO()
     p = canvas.Canvas(buf, pagesize=A4)
@@ -340,6 +371,29 @@ def export_balance_sheet_pdf(company, as_of):
 
 
 def export_income_statement_pdf(company, start, end):
+    """Income Statement PDF (MARSOUD-TKT-PDFS-02-FIN-REPORTS, 2026-08-29).
+    WeasyPrint first, ReportLab fallback. Same pattern as balance_sheet."""
+    from app.services.currency import currency_name_ar
+    data = income_statement(company.id, start_date=start, end_date=end)
+    try:
+        return _weasyprint_render(
+            "pdfs/income_statement.html",
+            company=company,
+            data=data,
+            currency_ar=currency_name_ar(company.base_currency),
+            company_logo_data_uri=_company_logo_data_uri(company),
+        )
+    except Exception as e:  # noqa: BLE001
+        _export_logger.error(
+            "[PDF-FALLBACK] Income Statement %s→%s: WeasyPrint failed "
+            "(%s: %s) — rendering the OLD ReportLab layout.",
+            start, end, type(e).__name__, str(e)[:200],
+        )
+        return _export_income_statement_pdf_legacy(company, start, end)
+
+
+def _export_income_statement_pdf_legacy(company, start, end):
+    """Legacy ReportLab renderer — kept as the safety net."""
     data = income_statement(company.id, start_date=start, end_date=end)
     buf = io.BytesIO()
     p = canvas.Canvas(buf, pagesize=A4)
@@ -1174,25 +1228,61 @@ def export_income_summary(company, fmt, start, end):
 
 # ─── Cash Flow ──────────────────────────────────────────────────────────
 def export_cash_flow(company, fmt, start, end):
+    """Cash Flow Statement — PDF or Excel (MARSOUD-TKT-PDFS-02-FIN-REPORTS
+    2026-08-29 for the PDF branch). Returns (buf, filename, mime).
+
+    PDF branch now WeasyPrint using pdfs/cash_flow.html — matches the
+    invoice + balance_sheet + income_statement design. Falls back to
+    the old _list_pdf-based renderer via _export_cash_flow_pdf_legacy
+    when WeasyPrint's system libs are missing on the host.
+
+    Excel branch UNTOUCHED — no design unification concern for Excel.
+    """
+    from app.services.currency import currency_name_ar
     data = cash_flow(company.id, start_date=start, end_date=end)
-    period = f"{start} → {end}" if start else f"→ {end}"
     if fmt == "pdf":
-        headers = [("Activity", "left"), ("Net Cash Flow", "right")]
-        rows = [
-            ["Operating Activities", f"{data['operating']:,.2f}"],
-            ["Investing Activities", f"{data['investing']:,.2f}"],
-            ["Financing Activities", f"{data['financing']:,.2f}"],
-        ]
-        totals = ["Net Change in Cash", f"{data['net_change']:,.2f}"]
-        return _list_pdf(company, "Cash Flow Statement", period, headers, rows, totals,
-                         col_widths=[10, 6]), f"cash-flow-{start}-{end}.pdf", "application/pdf"
-    return _list_excel(company, "Cash Flow Statement", period,
+        try:
+            buf = _weasyprint_render(
+                "pdfs/cash_flow.html",
+                company=company,
+                data=data,
+                start_date=start,
+                end_date=end,
+                currency_ar=currency_name_ar(company.base_currency),
+                company_logo_data_uri=_company_logo_data_uri(company),
+            )
+        except Exception as e:  # noqa: BLE001
+            _export_logger.error(
+                "[PDF-FALLBACK] Cash Flow %s→%s: WeasyPrint failed "
+                "(%s: %s) — rendering the OLD ReportLab layout.",
+                start, end, type(e).__name__, str(e)[:200],
+            )
+            buf = _export_cash_flow_pdf_legacy(company, data, start, end)
+        return buf, f"cash-flow-{start}-{end}.pdf", "application/pdf"
+    return _list_excel(company, "Cash Flow Statement",
+                       f"{start} → {end}" if start else f"→ {end}",
                        ["النشاط", "صافي التدفق النقدي"],
                        [["الأنشطة التشغيلية", data["operating"]],
                         ["الأنشطة الاستثمارية", data["investing"]],
                         ["الأنشطة التمويلية", data["financing"]]],
                        ["صافي التغير في النقد", data["net_change"]]), \
         f"cash-flow-{start}-{end}.xlsx", XLSX_MIME
+
+
+def _export_cash_flow_pdf_legacy(company, data, start, end):
+    """Legacy _list_pdf-based cash-flow PDF — kept as the safety net for
+    hosts without libpango. Takes pre-computed `data` from cash_flow()
+    so we don't call the report generator twice."""
+    period = f"{start} → {end}" if start else f"→ {end}"
+    headers = [("Activity", "left"), ("Net Cash Flow", "right")]
+    rows = [
+        ["Operating Activities", f"{data['operating']:,.2f}"],
+        ["Investing Activities", f"{data['investing']:,.2f}"],
+        ["Financing Activities", f"{data['financing']:,.2f}"],
+    ]
+    totals = ["Net Change in Cash", f"{data['net_change']:,.2f}"]
+    return _list_pdf(company, "Cash Flow Statement", period, headers,
+                     rows, totals, col_widths=[10, 6])
 
 
 # ─── Expenses Summary ───────────────────────────────────────────────────

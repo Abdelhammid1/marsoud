@@ -1,0 +1,62 @@
+{# MARSOUD-TKT-PDFS-02-FIN-REPORTS (2026-08-29) — Income Statement PDF,
+   WeasyPrint. Same shell + macros pattern as balance_sheet.html.
+
+   Was ReportLab (services/export.py:export_income_statement_pdf).
+
+   Context expected:
+     - company                    Company object
+     - data                       income_statement() dict — revenue, expenses,
+                                  total_revenue, total_expense, net_income,
+                                  start_date, end_date
+     - currency_ar                localised currency label
+     - company_logo_data_uri      base64 URI or None
+     - amiri_font_face            auto-injected
+#}
+{% extends "pdfs/_shell.html" %}
+{% import "pdfs/_report_macros.html" as rpt %}
+
+{% block title %}Income Statement — {{ company.display_name if company else 'Marsoud' }}{% endblock %}
+
+{% block doc_title %}قائمة الدخل{% endblock %}
+
+{% block status_badge %}
+<div class="status-badge-wrap">
+  <span class="status-badge" style="color:#0A2540;background:#F1F5F9">
+    من {{ ar_date(data.start_date) }} إلى {{ ar_date(data.end_date) }}
+  </span>
+</div>
+{% endblock %}
+
+{% block footer_year %}{{ data.end_date.year if data.end_date else '' }}{% endblock %}
+
+{% block content %}
+{% if company.tax_number or company.commercial_register_no %}
+<table class="kv">
+  {% if company.tax_number %}
+  <tr><td class="k">الرقم الضريبي</td><td class="c">:</td><td class="v mono">{{ company.tax_number }}</td></tr>
+  {% endif %}
+  {% if company.commercial_register_no %}
+  <tr><td class="k">السجل التجاري</td><td class="c">:</td><td class="v mono">{{ company.commercial_register_no }}</td></tr>
+  {% endif %}
+  <tr><td class="k">العملة</td><td class="c">:</td><td class="v">{{ currency_ar or '' }}</td></tr>
+</table>
+{% endif %}
+
+{# ── SECTIONS (Revenue / Expenses) ────────────────────────────── #}
+{{ rpt.account_group("الإيرادات", data.revenue,
+                     "إجمالي الإيرادات", data.total_revenue,
+                     currency_ar=currency_ar) }}
+
+{{ rpt.account_group("المصروفات", data.expenses,
+                     "إجمالي المصروفات", data.total_expense,
+                     currency_ar=currency_ar) }}
+
+{# ── NET PROFIT / (LOSS) — green if profit, red if loss ──────── #}
+{% set profit = data.net_income|float %}
+{% set is_profit = profit >= 0 %}
+{{ rpt.outcome_block(
+     "صافي الربح" if is_profit else "صافي الخسارة",
+     profit,
+     is_profit,
+     currency_ar=currency_ar) }}
+{% endblock %}
