@@ -159,7 +159,7 @@ tailwind.config = {
            crimson.500 (#047857) = brand.600, crimson.700 (#064E3B) = the
            newly-added brand.800. Byte-identical gradient, no more
            misnamed-alias. #}
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-600 to-brand-800 flex items-center justify-center text-white font-bold">🛡️</div>
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-600 to-brand-800 flex items-center justify-center text-white font-bold" aria-hidden="true">🛡️</div>
         <div>
           <div class="font-bold text-slate-900 text-lg leading-none">لوحة المالك</div>
           <div class="text-[11px] text-ink-200 mt-1">Marsoud Platform Admin</div>
@@ -236,7 +236,8 @@ tailwind.config = {
         {% for endpoint, label, icon in items %}
         <a href="{{ url_for(endpoint) }}"
            class="nav-link flex items-center gap-3 px-5 py-2 text-sm hover:bg-slate-100 transition-colors {% if request.endpoint == endpoint %}active{% endif %}">
-          <span class="text-base">{{ icon }}</span>
+          {# MARSOUD-TKT-P0-11-EMOJI-ARIA (2026-08-29) — see base.html. #}
+          <span class="text-base" aria-hidden="true">{{ icon }}</span>
           <span>{{ label }}</span>
         </a>
         {% endfor %}
