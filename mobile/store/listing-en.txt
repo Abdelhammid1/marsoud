@@ -1,0 +1,49 @@
+# NOT IN USE — the listing's default language is العربية (ar).
+# Kept only in case English is later added as an extra translation;
+# if it is, the interface-is-Arabic line below matters, because an
+# English listing is the fallback for every non-Arabic locale.
+
+TITLE (max 30)
+مرصود – Marsoud
+
+SHORT DESCRIPTION (max 80)
+Employee app for Marsoud: attendance, tasks, leads, meetings and requests.
+
+FULL DESCRIPTION (max 4000)
+Marsoud is a complete business management platform for companies. This app is the employee side of it — everything you need from your working day, on your phone.
+
+Note: the app interface is in Arabic (right-to-left).
+
+⏱ ATTENDANCE
+Clock in and out from your phone with location capture, and review your full monthly record with the hours worked each day.
+
+✅ TASKS
+Every task you own or are part of, grouped by status — new, in progress, review, done, blocked — with its priority and due date.
+
+🎯 LEADS
+Track your leads through every stage: new, contacted, meeting scheduled, negotiation, proposal sent — with contact details and the expected value of each opportunity.
+
+📅 MEETINGS AND SCHEDULE
+Your upcoming meetings and recurring commitments in one place, and you can add a new meeting from the app.
+
+📮 REQUESTS
+Submit leave, advance and permission requests, and follow their status as they are reviewed.
+
+📝 DAILY REPORTS
+Write your daily report and send it to your manager directly from the app.
+
+💵 CUSTODY
+Track the cash and items in your custody, and request new custody.
+
+📁 FILES AND ARCHIVE
+Your documents and attachments, always available.
+
+🔔 INSTANT NOTIFICATIONS
+Get notified the moment a task is assigned to you, a meeting is coming up, or one of your leads is updated.
+
+—
+
+This app requires a Marsoud employee account issued by your company. If you do not have an account, contact the HR department where you work.
+
+Website: https://marsoud.com
+Privacy policy: https://marsoud.com/privacy

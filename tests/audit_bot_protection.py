@@ -56,6 +56,23 @@ def _teardown():
         conn.execute(text(
             "DELETE FROM users WHERE email LIKE 'bp-%@x.test' "
             "OR email LIKE 'bp-%'"))
+        # MARSOUD-REJECTED-SIGNUPS-AUDIT (2026-08-27) — TKT-17
+        # (2026-08-17) made a single honeypot trip block the whole
+        # domain immediately. Check 1 trips the honeypot with
+        # bp-h1@x.test, so from that point on every later check using
+        # @x.test was short-circuited by is_domain_blocked into the
+        # 200 decoy: check 4's rate-limit attempts never reached the
+        # limiter (no 429), and check 6's legitimate signup came back
+        # as "bot-guard misfired". Both were this teardown failing to
+        # clear state that did not exist when it was written, not
+        # product bugs — confirmed by re-running both checks with
+        # these three tables purged.
+        conn.execute(text(
+            "DELETE FROM blocked_domains WHERE domain = 'x.test'"))
+        conn.execute(text(
+            "DELETE FROM blocked_emails WHERE email LIKE 'bp-%@x.test'"))
+        conn.execute(text(
+            "DELETE FROM signup_rejections WHERE email_domain = 'x.test'"))
     from app.services.bot_guard import register_rate_reset
     register_rate_reset()
 
@@ -119,6 +136,12 @@ def _():
 def _():
     from flask import current_app
     from app.services.bot_guard import register_rate_reset
+    # main() only tears down once, before the loop — checks 1 and 6
+    # call it themselves. This one has to as well: check 1's honeypot
+    # trip blocks x.test, and is_domain_blocked runs BEFORE the rate
+    # limiter, so every attempt below would return the decoy and the
+    # limiter would never count them.
+    _teardown()
     register_rate_reset()
     client = current_app.test_client()
     ip_hdr = {"X-Forwarded-For": "10.10.0.99"}
