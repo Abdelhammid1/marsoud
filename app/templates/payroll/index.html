@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import '_macros.html' as ui %}
 {% block page_title %}الرواتب والموظفون{% endblock %}
 {% block content %}
 {# MARSOUD-PERM-FIX-01 — split: employees.view shows the list without numbers;
@@ -7,12 +8,13 @@
 {% set can_manage_employees = has_permission('payroll.employees') %}
 <div class="grid grid-cols-3 gap-4">
   <div class="card p-6 {% if can_view_payroll %}col-span-2{% else %}col-span-3{% endif %}">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="font-bold text-navy-900">الموظفون</h2>
+    {# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — shared page_header. #}
+    {% set _actions %}
       {% if can_manage_employees %}
       <a href="{{ url_for('payroll.new_employee') }}" class="btn-primary text-sm">+ موظف</a>
       {% endif %}
-    </div>
+    {% endset %}
+    {{ ui.page_header("الموظفون", actions=_actions) }}
 
     <form method="GET" class="flex items-end gap-3 mb-4">
       <div class="flex-1">
@@ -53,7 +55,9 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="{% if can_view_payroll %}8{% else %}6{% endif %}" class="text-center text-slate-400 py-8">لا يوجد موظفون مطابقون</td></tr>
+        <tr><td colspan="{% if can_view_payroll %}8{% else %}6{% endif %}" style="padding:0">
+          {{ ui.empty_state("لا يوجد موظفون مطابقون", sub="جرّب تعديل الفلاتر أو أضف موظف جديد.", icon="👥") }}
+        </td></tr>
         {% endfor %}
       </tbody>
     </table>

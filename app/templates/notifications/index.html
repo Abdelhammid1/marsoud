@@ -1,25 +1,27 @@
 {% extends "base.html" %}
+{% import '_macros.html' as ui %}
 {% block page_title %}الإشعارات{% endblock %}
 {% block content %}
-<div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-  <h2 class="font-bold text-navy-900">إشعاراتي</h2>
-  <div class="flex items-center gap-2">
-    {# MARSOUD-NOTIF-FILTER (Abdelhamid image #17) — filter buttons. #}
-    <div class="inline-flex rounded-lg border border-slate-200 overflow-hidden text-sm" role="group">
-      <a href="{{ url_for('notifications.index') }}"
-         class="px-3 py-1 {% if filter_mode == 'all' %}bg-emerald-600 text-white{% else %}bg-white text-slate-700 hover:bg-slate-50{% endif %}">
-        الكل
-      </a>
-      <a href="{{ url_for('notifications.index', filter='unread') }}"
-         class="px-3 py-1 border-r border-slate-200 {% if filter_mode == 'unread' %}bg-emerald-600 text-white{% else %}bg-white text-slate-700 hover:bg-slate-50{% endif %}">
-        غير المقروءة{% if unread_count %} <span class="ms-1 font-mono">({{ unread_count }})</span>{% endif %}
-      </a>
-    </div>
-    <form method="POST" action="{{ url_for('notifications.read_all') }}">
-      <button type="submit" class="btn-secondary text-sm">✓ تأشير الكل كمقروء</button>
-    </form>
+{# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — hand-rolled title+filter+action
+   row collapsed to the shared page_header macro. The filter pill group is
+   captured whole into the actions block. MARSOUD-NOTIF-FILTER filter
+   buttons kept verbatim. #}
+{% set _actions %}
+  <div class="inline-flex rounded-lg border border-slate-200 overflow-hidden text-sm" role="group">
+    <a href="{{ url_for('notifications.index') }}"
+       class="px-3 py-1 {% if filter_mode == 'all' %}bg-emerald-600 text-white{% else %}bg-white text-slate-700 hover:bg-slate-50{% endif %}">
+      الكل
+    </a>
+    <a href="{{ url_for('notifications.index', filter='unread') }}"
+       class="px-3 py-1 border-r border-slate-200 {% if filter_mode == 'unread' %}bg-emerald-600 text-white{% else %}bg-white text-slate-700 hover:bg-slate-50{% endif %}">
+      غير المقروءة{% if unread_count %} <span class="ms-1 font-mono">({{ unread_count }})</span>{% endif %}
+    </a>
   </div>
-</div>
+  <form method="POST" action="{{ url_for('notifications.read_all') }}">
+    <button type="submit" class="btn-secondary text-sm">✓ تأشير الكل كمقروء</button>
+  </form>
+{% endset %}
+{{ ui.page_header("إشعاراتي", actions=_actions) }}
 <div class="card p-4">
   <ul class="divide-y divide-slate-100">
     {% for n in notifications %}
@@ -36,11 +38,13 @@
       {% endif %}
     </li>
     {% else %}
-    <li class="text-center text-slate-400 py-8">
+    {# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — was a text-center li;
+       compute the conditional Arabic title once, pass to the macro. #}
+    <li style="padding:0">
       {% if filter_mode == 'unread' %}
-        كل شيء مقروء 🎉
+        {{ ui.empty_state("كل شيء مقروء 🎉", sub="مافيش إشعارات جديدة تحتاج انتباهك.", icon="✅") }}
       {% else %}
-        لا توجد إشعارات بعد.
+        {{ ui.empty_state("لا توجد إشعارات بعد", sub="هيظهر هنا أي جديد بيخصك.", icon="🔔") }}
       {% endif %}
     </li>
     {% endfor %}

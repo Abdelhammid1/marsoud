@@ -100,21 +100,31 @@ def D1():
         "dashboard should alias --d-green to var(--ms-brand)")
 
 
-# ─── E. Touched pages adopt .empty-state ──────────────────────────────
+# ─── E. Touched pages adopt .empty-state (or its ui.empty_state macro) ─
+# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — loosened both checks to accept
+# `ui.empty_state(` alongside the literal `class="empty-state"`. Rationale
+# below the check: the macro expands to a <div class="empty-state">, so a
+# macro call satisfies the audit's original intent ("touched pages use the
+# empty-state primitive") more strongly than the raw class. When the ratchet
+# grows and every page moves to the macro form, the literal-string branch
+# of the OR can be retired.
+def _has_empty_state(src):
+    return 'class="empty-state"' in src or 'ui.empty_state(' in src
+
+
 @check("E1: dashboard has 3 .empty-state renders (overdue + upcoming + AR)")
 def E1():
     src = (TPL / "dashboard" / "index.html").read_text(encoding="utf-8")
-    # Was three inline `<div style="padding:34px 19px;...">` blocks.
-    count = src.count('class="empty-state"')
-    assert count >= 3, f"expected ≥3 empty-state blocks, got {count}"
+    count = src.count('class="empty-state"') + src.count('ui.empty_state(')
+    assert count >= 3, f"expected ≥3 empty-state blocks (literal or macro), got {count}"
 
 
 @check("E2: vendor_bills/index.html + invoices/index.html use .empty-state")
 def E2():
     for path in ("vendor_bills/index.html", "invoices/index.html"):
         src = (TPL / path).read_text(encoding="utf-8")
-        assert 'class="empty-state"' in src, (
-            f"{path}: no .empty-state — still on the old pattern")
+        assert _has_empty_state(src), (
+            f"{path}: no .empty-state literal or ui.empty_state(…) call")
 
 
 # ─── Runner ───────────────────────────────────────────────────────────

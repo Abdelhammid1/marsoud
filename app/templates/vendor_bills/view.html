@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import '_macros.html' as ui %}
 {% block page_title %}فاتورة مورد {{ bill.number }}{% endblock %}
 {% block content %}
 <div class="grid grid-cols-3 gap-4">
@@ -10,9 +11,9 @@
         {% if bill.supplier_invoice_number %}<div class="text-xs text-slate-500">مرجع المورد: {{ bill.supplier_invoice_number }}</div>{% endif %}
       </div>
       <div class="flex items-center gap-2">
-        {% set sc = {'DRAFT':'badge-draft','POSTED':'badge-sent','PARTIALLY_PAID':'badge-partial','PAID':'badge-paid','OVERDUE':'badge-overdue','CANCELLED':'badge-cancelled','REFUNDED':'badge-refunded','PARTIALLY_REFUNDED':'badge-refunded'} %}
-        {% set sl = {'DRAFT':'مسودة','POSTED':'مسجّلة','PARTIALLY_PAID':'مدفوعة جزئياً','PAID':'مدفوعة','OVERDUE':'متأخرة','CANCELLED':'ملغاة','REFUNDED':'مرتجعة','PARTIALLY_REFUNDED':'مرتجعة جزئياً'} %}
-        <span class="badge {{ sc.get(bill.status.value, 'badge-draft') }} text-base px-3 py-1.5">{{ sl.get(bill.status.value, bill.status.value) }}</span>
+        {# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — retired both inline dicts.
+           Shared macro carries the canonical bill Arabic-label mapping. #}
+        {{ ui.status_badge(bill.status.value, kind='bill') }}
         {% if bill.status.value != 'CANCELLED' and has_permission('vendor_bills.create') %}
         <a href="{{ url_for('vendor_bills.edit', bill_id=bill.id) }}" class="btn-secondary text-sm">✎ تعديل</a>
         {% endif %}

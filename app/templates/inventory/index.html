@@ -1,24 +1,17 @@
 {% extends "base.html" %}
+{% import '_macros.html' as ui %}
 {% block page_title %}المخزون{% endblock %}
 {% block content %}
 
+{# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — 3 hand-rolled `.card p-5`
+   tiles migrated to stat_tile. tone-brand for the positive stock value,
+   default for the count, tone-danger when low-stock is non-zero (macro
+   handles the tone toggle where the inline template used a conditional
+   text-color class). #}
 <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-  <div class="card p-5">
-    <div class="text-xs text-slate-500">إجمالي قيمة المخزون</div>
-    <div class="text-3xl font-bold text-emerald-700 font-mono mt-1">{{ '%.2f'|format(total_value) }}</div>
-    <div class="text-xs text-slate-400 mt-1">جميع المخازن والأصناف</div>
-  </div>
-  <div class="card p-5">
-    <div class="text-xs text-slate-500">عدد الأصناف النشطة</div>
-    <div class="text-3xl font-bold text-navy-900 font-mono mt-1">{{ variants_count }}</div>
-    <div class="text-xs text-slate-400 mt-1">variants فعّالة</div>
-  </div>
-  <div class="card p-5">
-    <div class="text-xs text-slate-500">أصناف تحت حد الطلب</div>
-    <div class="text-3xl font-bold {% if low_stock %}text-rose-600{% else %}text-slate-400{% endif %} font-mono mt-1">{{ low_stock|length }}</div>
-    {% if low_stock %}<div class="text-xs text-rose-500 mt-1">⚠ يحتاج إعادة طلب</div>
-    {% else %}<div class="text-xs text-slate-400 mt-1">المخزون كافٍ</div>{% endif %}
-  </div>
+  {{ ui.stat_tile("إجمالي قيمة المخزون", '%.2f'|format(total_value), hint="جميع المخازن والأصناف", tone="brand") }}
+  {{ ui.stat_tile("عدد الأصناف النشطة", variants_count, hint="variants فعّالة", value_class="") }}
+  {{ ui.stat_tile("أصناف تحت حد الطلب", low_stock|length, hint=("⚠ يحتاج إعادة طلب" if low_stock else "المخزون كافٍ"), tone=("danger" if low_stock else "")) }}
 </div>
 
 <div class="card p-6 mb-4">

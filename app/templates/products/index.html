@@ -1,14 +1,15 @@
 {% extends "base.html" %}
+{% import '_macros.html' as ui %}
 {% block page_title %}المنتجات والخدمات{% endblock %}
 {% block content %}
 <div class="card p-6">
-  <div class="flex items-center justify-between mb-5">
-    <h2 class="font-bold text-navy-900">المنتجات والخدمات المحفوظة</h2>
-    <div class="flex gap-2">
-      <a href="{{ url_for('products.hierarchy') }}" class="btn-secondary text-sm">🧬 تصنيف</a>
-      <a href="{{ url_for('products.new') }}" class="btn-primary">+ منتج/خدمة</a>
-    </div>
-  </div>
+  {# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — hand-rolled title+actions
+     row collapsed to the shared page_header macro. #}
+  {% set _actions %}
+    <a href="{{ url_for('products.hierarchy') }}" class="btn-secondary text-sm">🧬 تصنيف</a>
+    <a href="{{ url_for('products.new') }}" class="btn-primary">+ منتج/خدمة</a>
+  {% endset %}
+  {{ ui.page_header("المنتجات والخدمات المحفوظة", actions=_actions) }}
 
   {# MARSOUD-PRODUCT-HIERARCHY-01 — group + category dependent filter. #}
   <form method="GET" class="flex flex-wrap items-end gap-3 mb-5">
@@ -75,7 +76,12 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="8" class="text-center text-slate-400 py-8">لا توجد منتجات مطابقة. <a href="{{ url_for('products.new') }}" class="text-brand-600 underline">أضف الأول</a></td></tr>
+      {# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — cta_url/cta_label puts
+         the "add first product" link into the styled empty-state button
+         instead of a bare underlined text link. #}
+      <tr><td colspan="8" style="padding:0">
+        {{ ui.empty_state("لا توجد منتجات مطابقة", sub="جرّب تعديل الفلاتر أو أضف أول منتج.", icon="🛍️", cta_url=url_for('products.new'), cta_label="+ منتج/خدمة") }}
+      </td></tr>
     {% endfor %}
     </tbody>
   </table>

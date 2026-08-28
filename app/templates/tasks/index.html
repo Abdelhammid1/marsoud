@@ -1,32 +1,23 @@
 {% extends "base.html" %}
+{% import '_macros.html' as ui %}
 {% block page_title %}المهام (Kanban){% endblock %}
 {% block content %}
-<div class="flex items-center justify-between mb-4">
-  <div>
-    <h2 class="font-bold text-navy-900">لوحة المهام</h2>
-    <p class="text-xs text-slate-500">سحب وإفلات بصري؟ غير مفعّل بعد — استخدم أزرار الحالة على كل مهمة.</p>
-  </div>
-  <div class="flex items-center gap-2">
+{# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — page_header with subtitle.
+   MARSOUD-TASK-ARCHIVE-MINE + MARSOUD-TASK-CONTEXT gates preserved. #}
+{% set _actions %}
     <a href="{{ url_for('tasks.stats') }}" class="btn-secondary text-sm">📊 إحصائيات الفريق</a>
     {% if has_permission('tasks.archive') %}
     <a href="{{ url_for('tasks.archive_list') }}" class="btn-secondary text-sm">🗂 الأرشيف</a>
     {% endif %}
-    {# MARSOUD-TASK-ARCHIVE-MINE (2026-08-08) — personal archive
-       button, visible for anyone with tasks.view. Owners see both
-       (the company-wide one above + the personal one here). #}
     {% if has_permission('tasks.view') %}
     <a href="{{ url_for('tasks.archive_mine') }}" class="btn-secondary text-sm">🗂 أرشيفي</a>
     {% endif %}
     {% if has_permission('tasks.manage') %}
-    {# MARSOUD-TASK-CONTEXT — pass the current URL forward so that
-       after creating the task the user lands back on the same
-       Kanban view (e.g. employee drill-down) instead of the default
-       /tasks/. #}
     <a href="{{ url_for('tasks.new', return_to=request.full_path) }}"
        class="btn-primary text-sm">+ مهمة جديدة</a>
     {% endif %}
-  </div>
-</div>
+{% endset %}
+{{ ui.page_header("لوحة المهام", subtitle="سحب وإفلات بصري؟ غير مفعّل بعد — استخدم أزرار الحالة على كل مهمة.", actions=_actions) }}
 
 {# MARSOUD-TASK-SCOPE-01 — 4 tabs over the Kanban board for owner/manager
    (anyone with tasks.view_all). Regular employees get no tabs and always

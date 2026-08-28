@@ -1,13 +1,12 @@
 {% extends "base.html" %}
+{% import '_macros.html' as ui %}
 {% block page_title %}العملاء المحتملون{% endblock %}
 {% block content %}
-<div class="flex items-center justify-between mb-4">
-  <div>
-    <h2 class="font-bold text-navy-900">العملاء المحتملون (Pipeline)</h2>
-    <p class="text-xs text-slate-500">من أول تواصل حتى تحويلهم لمشروع.</p>
-  </div>
-  <div class="flex items-center gap-2">
-    {# MARSOUD-CRM-EXPANSION §1 — Kanban / list view toggle #}
+{# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — page_header with subtitle.
+   Rich actions: MARSOUD-CRM-EXPANSION §1 view-toggle + two exports +
+   MARSOUD-LEAD-EXPORT-BY-CAMPAIGN campaign export + create gate — all
+   preserved verbatim inside the captured actions block. #}
+{% set _actions %}
     <div class="inline-flex rounded-md border border-slate-200 overflow-hidden text-xs">
       <a href="?{{ request.query_string.decode()|replace('view=list','')|replace('view=board','') }}&view=board"
          class="px-3 py-1.5 {% if view == 'board' %}bg-brand-600 text-white{% else %}bg-white text-slate-600 hover:bg-slate-50{% endif %}">
@@ -22,9 +21,6 @@
        class="btn-secondary text-sm" title="تنزيل قائمة العملاء المحتملين كملف Excel">
       ⬇ تصدير Excel
     </a>
-    {# MARSOUD-LEAD-EXPORT-BY-CAMPAIGN (Abdelhamid 2026-07-15) —
-       second export button: multi-sheet file grouped by campaign
-       with a status-count summary sheet at the front. #}
     <a href="{{ url_for('leads.export_excel', q=q, status=status_filter, rep=rep_filter, campaign=campaign_filter, group_by='campaign', **{'from': date_from, 'to': date_to}) }}"
        class="btn-secondary text-sm" title="تصدير Excel مقسّم حسب الحملة">
       🗂 تصدير حسب الحملة
@@ -32,8 +28,8 @@
     {% if has_permission('leads.manage') %}
     <a href="{{ url_for('leads.new') }}" class="btn-primary text-sm">+ عميل محتمل جديد</a>
     {% endif %}
-  </div>
-</div>
+{% endset %}
+{{ ui.page_header("العملاء المحتملون (Pipeline)", subtitle="من أول تواصل حتى تحويلهم لمشروع.", actions=_actions) }}
 
 {# Stats — on mobile these collapse to a horizontal-scroll pill strip
    (single row) via `.mobile-pill-strip`. Desktop keeps the 7-col grid.
