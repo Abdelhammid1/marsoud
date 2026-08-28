@@ -24,10 +24,20 @@
 #}
 <style>
   :root {
-    /* Brand — one canonical Marsoud green + its ramps */
-    --ms-brand:        #159b54;
-    --ms-brand-dark:   #0f7a41;
-    --ms-brand-tint:   #f1faf4;
+    /* Brand — one canonical Marsoud green + its ramps.
+       MARSOUD-TKT-P1-TOKENS (2026-08-28) — Path A: values moved from
+       the speculative #159b54 ramp to the emerald the app has always
+       actually rendered (base.html .btn-primary is #047857→#059669,
+       mobile theme.dart is emerald600/500 at those same hexes). Zero
+       pixel change; the tokens layer now GOVERNS what the primitives
+       reference, so a future rebrand touches this file only. --brand-tint
+       is now #ECFDF5 to match .nav-link.active's background across
+       both shells. --brand-soft (#e7f6ed) stays — it's used by
+       .ms-callout.tone-brand, not by the shell primitives. */
+    --ms-brand:        #059669;
+    --ms-brand-dark:   #047857;
+    --ms-brand-mid:    #10b981;   /* emerald-500, used by tenant .section-body .nav-link.active border */
+    --ms-brand-tint:   #ECFDF5;
     --ms-brand-soft:   #e7f6ed;
 
     /* Semantic status colors */
@@ -49,7 +59,12 @@
     /* Surface & background */
     --ms-surface:      #ffffff;
     --ms-surface-soft: #f8fafc;
-    --ms-bg:           #f5f7f6;
+    --ms-bg:           #f5f7f6;   /* neutral option for surfaces that want a soft grey ground */
+    /* MARSOUD-TKT-P1-TOKENS (2026-08-28) — the sky-blue gradient every
+       authenticated page currently sits on. Tokenised so a single tokens
+       edit swings the app ground for both shells; use --ms-bg (above)
+       instead if you want the neutral option. */
+    --ms-app-bg:       linear-gradient(180deg, #ffffff 0%, #f0f7ff 100%);
 
     /* Line / borders */
     --ms-line:         #e5e7eb;
