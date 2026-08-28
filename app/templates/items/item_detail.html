@@ -23,7 +23,7 @@
              class="text-brand-600 hover:underline">
             {{ item.fixed_asset.name }} (#{{ item.fixed_asset_id }})
           </a>
-        {% else %}<span class="text-slate-400">لا — عنصر مستقل</span>{% endif %}
+        {% else %}<span class="text-slate-500">لا — عنصر مستقل</span>{% endif %}
       </dd>
     </div>
     {% if not item.fixed_asset %}
@@ -76,7 +76,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="7" class="text-center text-slate-400 py-4">لا يوجد سجل استلام بعد.</td></tr>
+      <tr><td colspan="7" class="text-center text-slate-500 py-4">لا يوجد سجل استلام بعد.</td></tr>
     {% endfor %}
     </tbody>
   </table>

@@ -96,7 +96,7 @@
         </td>
         <td class="text-center font-mono text-xs">
           {{ "{:,.2f}".format(m.latest_value) }}
-          <div class="text-slate-400">{{ m.latest_date.isoformat() }}</div>
+          <div class="text-slate-500">{{ m.latest_date.isoformat() }}</div>
         </td>
         <td class="text-center">
           <button type="button" class="text-xs text-brand-600 hover:underline"
@@ -124,7 +124,7 @@
                 <td class="text-left py-1">
                   {{ e.entered_by.full_name if e.entered_by else '—' }}
                 </td>
-                <td class="text-left text-slate-400 font-mono py-1">
+                <td class="text-left text-slate-500 font-mono py-1">
                   {{ e.created_at.strftime('%Y-%m-%d %H:%M') if e.created_at else '—' }}
                 </td>
               </tr>

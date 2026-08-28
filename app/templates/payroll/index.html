@@ -40,7 +40,7 @@
           <td class="font-mono text-xs text-slate-500"><a href="{{ url_for('payroll.employee_profile', employee_id=e.id) }}" class="text-brand-600 hover:underline">{{ e.employee_number or '—' }}</a></td>
           <td><a href="{{ url_for('payroll.employee_profile', employee_id=e.id) }}" class="font-semibold hover:text-brand-600">{{ e.name }}</a></td>
           <td class="text-sm text-slate-500">{{ e.job_title or '—' }}</td>
-          <td class="text-xs">{% if e.department %}<span class="badge badge-sent">{{ e.department.name }}</span>{% else %}<span class="text-slate-400">—</span>{% endif %}</td>
+          <td class="text-xs">{% if e.department %}<span class="badge badge-sent">{{ e.department.name }}</span>{% else %}<span class="text-slate-500">—</span>{% endif %}</td>
           <td class="text-xs">{{ e.contract_type.label_ar if e.contract_type else '—' }}</td>
           {% if can_view_payroll %}
           <td class="text-left font-mono">{% if last %}{{ "%.2f"|format(last.net) }}{% else %}—{% endif %}</td>
@@ -53,7 +53,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="{% if can_view_payroll %}8{% else %}6{% endif %}" class="text-center text-slate-400 py-8">لا يوجد موظفون مطابقون</td></tr>
+        <tr><td colspan="{% if can_view_payroll %}8{% else %}6{% endif %}" class="text-center text-slate-500 py-8">لا يوجد موظفون مطابقون</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -77,7 +77,7 @@
         <span class="font-mono font-semibold self-center">{{ "%.2f"|format(r.total_net) }}</span>
       </a>
       {% else %}
-      <div class="text-slate-400 text-center py-3">لا توجد كشوفات</div>
+      <div class="text-slate-500 text-center py-3">لا توجد كشوفات</div>
       {% endfor %}
     </div>
   </div>

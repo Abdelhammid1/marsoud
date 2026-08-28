@@ -122,7 +122,7 @@
     {% for m in article.media %}
       <div class="border rounded p-3 mb-2 flex items-start justify-between">
         <div class="flex-1">
-          <div class="text-xs text-slate-400">{{ m.type }}</div>
+          <div class="text-xs text-slate-500">{{ m.type }}</div>
           {% if m.is_image %}
             <img src="{{ url_for('help.media', media_id=m.id) }}"
                   class="mt-2 max-w-xs max-h-40 border rounded">

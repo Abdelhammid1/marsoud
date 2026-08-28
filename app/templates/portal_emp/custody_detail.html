@@ -71,7 +71,7 @@
           {% if l.expense_account %}
             <span class="font-mono text-xs">{{ l.expense_account.code }}</span>
             {{ l.expense_account.name_ar or l.expense_account.name }}
-          {% else %}<span class="text-slate-400">—</span>{% endif %}
+          {% else %}<span class="text-slate-500">—</span>{% endif %}
         </td>
         <td class="text-left font-mono">{{ "%.2f"|format(l.amount) }}</td>
         <td class="text-xs text-slate-600">
@@ -95,7 +95,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="5" class="text-center text-slate-400 py-4">
+      <tr><td colspan="5" class="text-center text-slate-500 py-4">
         لسه المحاسب ما ضافش أي بنود تسوية.
       </td></tr>
     {% endfor %}

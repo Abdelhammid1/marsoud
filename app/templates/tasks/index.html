@@ -163,8 +163,8 @@
       <div><div class="text-lg font-bold text-navy-900">{{ emp.total }}</div><div class="text-[10px] text-slate-500">إجمالي</div></div>
       <div><div class="text-lg font-bold text-emerald-700">{{ emp.done }}</div><div class="text-[10px] text-slate-500">مكتمل</div></div>
       <div><div class="text-lg font-bold text-sky-700">{{ emp.in_progress }}</div><div class="text-[10px] text-slate-500">جارٍ</div></div>
-      <div><div class="text-lg font-bold {% if emp.review %}text-amber-600{% else %}text-slate-400{% endif %}">{{ emp.review or 0 }}</div><div class="text-[10px] text-slate-500">بانتظار المراجعة</div></div>
-      <div><div class="text-lg font-bold {% if emp.overdue %}text-rose-600{% else %}text-slate-400{% endif %}">{{ emp.overdue }}</div><div class="text-[10px] text-slate-500">متأخر</div></div>
+      <div><div class="text-lg font-bold {% if emp.review %}text-amber-600{% else %}text-slate-500{% endif %}">{{ emp.review or 0 }}</div><div class="text-[10px] text-slate-500">بانتظار المراجعة</div></div>
+      <div><div class="text-lg font-bold {% if emp.overdue %}text-rose-600{% else %}text-slate-500{% endif %}">{{ emp.overdue }}</div><div class="text-[10px] text-slate-500">متأخر</div></div>
     </div>
     <div class="text-xs text-slate-500 mb-1 flex justify-between">
       <span>الإنجاز</span><span class="font-mono font-semibold">{{ emp.progress_pct }}%</span>
@@ -175,7 +175,7 @@
   </a>
   {% endif %}
   {% else %}
-  <div class="col-span-full text-sm text-slate-400 text-center py-10 card p-6">لا يوجد موظفون بعد.</div>
+  <div class="col-span-full text-sm text-slate-500 text-center py-10 card p-6">لا يوجد موظفون بعد.</div>
   {% endfor %}
 </div>
 {% else %}
@@ -303,7 +303,7 @@
         {# MARSOUD-TASK-CONTEXT — carry the origin URL through the
            detail page so Edit / Delete land back on the same list. #}
         <a href="{{ url_for('tasks.detail', task_id=t.id, return_to=request.full_path) }}" class="text-sm font-semibold text-navy-900 hover:text-brand-600 block">{{ t.title }}</a>
-        <div class="text-xs text-slate-500 mt-1">{% if t.project %}{{ t.project.name }}{% else %}<em class="text-slate-400">مهمة مستقلة</em>{% endif %}</div>
+        <div class="text-xs text-slate-500 mt-1">{% if t.project %}{{ t.project.name }}{% else %}<em class="text-slate-500">مهمة مستقلة</em>{% endif %}</div>
         <div class="mt-2 flex items-center justify-between text-xs flex-wrap gap-1">
           <span class="badge {{ t.priority.badge_class }} text-[10px]">{{ t.priority.label_ar }}</span>
           {% if t.deadline %}
@@ -316,17 +316,17 @@
             {% endif %}
           {% endif %}
         </div>
-        <div class="mt-1 text-xs text-slate-400">
+        <div class="mt-1 text-xs text-slate-500">
           {% set names = t.all_assignees %}
           {% if names|length > 1 %}{{ names[0].full_name }} +{{ names|length - 1 }}
           {% elif names %}{{ names[0].full_name }}
           {% else %}—{% endif %}
         </div>
         {% if t.created_by %}
-        <div class="mt-0.5 text-[10px] text-slate-400">أنشأها: {{ t.created_by.full_name }}</div>
+        <div class="mt-0.5 text-[10px] text-slate-500">أنشأها: {{ t.created_by.full_name }}</div>
         {% endif %}
         {# MARSOUD-TASK-CREATED-AT — friendly relative-date line. #}
-        <div class="mt-0.5 text-[10px] text-slate-400" title="{{ t.created_at | company_dt('%Y-%m-%d %H:%M') }}">
+        <div class="mt-0.5 text-[10px] text-slate-500" title="{{ t.created_at | company_dt('%Y-%m-%d %H:%M') }}">
           📅 {{ t.created_at | relative_date }}
         </div>
         {% if has_permission('tasks.manage') %}
@@ -346,12 +346,12 @@
         {% if s.name == 'DONE' and has_permission('tasks.archive') %}
         <form method="POST" action="{{ url_for('tasks.archive', task_id=t.id) }}"
               class="mt-1 inline">
-          <button type="submit" class="text-[10px] text-slate-400 hover:text-slate-700 hover:underline" title="أرشفة هذه المهمة">🗂 أرشفة</button>
+          <button type="submit" class="text-[10px] text-slate-500 hover:text-slate-700 hover:underline" title="أرشفة هذه المهمة">🗂 أرشفة</button>
         </form>
         {% endif %}
       </div>
       {% else %}
-      <div class="text-xs text-slate-400 text-center py-4">لا مهام</div>
+      <div class="text-xs text-slate-500 text-center py-4">لا مهام</div>
       {% endfor %}
     </div>
   </div>

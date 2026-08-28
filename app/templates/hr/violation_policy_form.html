@@ -22,7 +22,7 @@
       <option value="DEPARTMENT" {% if sc == 'DEPARTMENT' %}selected{% endif %}>قسم معيّن</option>
       <option value="EMPLOYEE"   {% if sc == 'EMPLOYEE' %}selected{% endif %}>موظف معيّن</option>
     </select>
-    <p class="text-xs text-slate-400 mt-1">الأخص يغلب: الموظف ← القسم ← الشركة.</p>
+    <p class="text-xs text-slate-500 mt-1">الأخص يغلب: الموظف ← القسم ← الشركة.</p>
   </div>
 
   <div id="dept-row" class="hidden">
@@ -59,7 +59,7 @@
                value="{{ '%.2f'|format(policy.absence_unexcused_deduction_days) if policy else '1.00' }}">
       </div>
     </div>
-    <p class="text-xs text-slate-400 mt-1">القيمة الافتراضية 1.00 لكليهما — نفس السلوك الحالي.</p>
+    <p class="text-xs text-slate-500 mt-1">القيمة الافتراضية 1.00 لكليهما — نفس السلوك الحالي.</p>
   </div>
 
   <div class="border-t border-slate-200 pt-4">
@@ -76,7 +76,7 @@
                value="{{ policy.monthly_free_late_minutes if policy else '0' }}">
       </div>
     </div>
-    <p class="text-xs text-slate-400 mt-1">
+    <p class="text-xs text-slate-500 mt-1">
       يُطبَّق السماح اليومي أولًا، ثم يُخصم الباقي من الرصيد الشهري.
     </p>
   </div>
@@ -95,7 +95,7 @@
                value="{{ '%.2f'|format(policy.permission_max_hours) if policy else '0.00' }}">
       </div>
     </div>
-    <p class="text-xs text-slate-400 mt-1">
+    <p class="text-xs text-slate-500 mt-1">
       اترك العدد 0 لتعطيل ميزة الاستئذان.
     </p>
   </div>

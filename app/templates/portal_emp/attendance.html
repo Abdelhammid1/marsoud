@@ -34,7 +34,7 @@
       {% if remaining_pool is none %}—{% else %}{{ remaining_pool }} د{% endif %}
     </div>
     {% if policy and policy.monthly_free_late_minutes %}
-    <div class="text-xs text-slate-400 mt-1">من {{ policy.monthly_free_late_minutes }} د شهريًا</div>
+    <div class="text-xs text-slate-500 mt-1">من {{ policy.monthly_free_late_minutes }} د شهريًا</div>
     {% endif %}
   </div>
   <div class="card p-4">
@@ -43,7 +43,7 @@
       {% if remaining_perms is none %}—{% else %}{{ remaining_perms }}{% endif %}
     </div>
     {% if policy and policy.permission_count_per_month %}
-    <div class="text-xs text-slate-400 mt-1">من {{ policy.permission_count_per_month }} شهريًا</div>
+    <div class="text-xs text-slate-500 mt-1">من {{ policy.permission_count_per_month }} شهريًا</div>
     {% endif %}
   </div>
 </div>
@@ -80,7 +80,7 @@
     </tbody>
   </table>
   {% else %}
-  <p class="text-slate-400 text-sm text-center py-4">لا توجد مرات حضور مسجّلة هذا الشهر.</p>
+  <p class="text-slate-500 text-sm text-center py-4">لا توجد مرات حضور مسجّلة هذا الشهر.</p>
   {% endif %}
 </div>
 
@@ -114,7 +114,7 @@
     </tbody>
   </table>
   {% else %}
-  <p class="text-slate-400 text-sm text-center py-4">لا توجد استثناءات — يوم كامل.</p>
+  <p class="text-slate-500 text-sm text-center py-4">لا توجد استثناءات — يوم كامل.</p>
   {% endif %}
 </div>
 
@@ -147,7 +147,7 @@
     </tbody>
   </table>
   {% else %}
-  <p class="text-slate-400 text-sm text-center py-4">لا توجد طلبات استئذان هذا الشهر.</p>
+  <p class="text-slate-500 text-sm text-center py-4">لا توجد طلبات استئذان هذا الشهر.</p>
   {% endif %}
 </div>
 
@@ -171,7 +171,7 @@
     </tbody>
   </table>
   {% else %}
-  <p class="text-slate-400 text-sm text-center py-4">لا توجد أرصدة إجازات مسجّلة بعد.</p>
+  <p class="text-slate-500 text-sm text-center py-4">لا توجد أرصدة إجازات مسجّلة بعد.</p>
   {% endif %}
 </div>
 

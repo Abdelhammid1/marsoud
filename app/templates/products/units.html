@@ -115,7 +115,7 @@
       <label class="block text-xs font-semibold mb-1">سعر البيع (اختياري)</label>
       <input type="number" name="sale_price" id="add-sale-price" step="0.0001" min="0" placeholder="مثلاً 100" class="input font-mono">
       {# MARSOUD-PACK-PRICING gap 4 — live per-piece hint for the sale price. #}
-      <p class="text-xs text-slate-400 mt-1" id="add-sale-hint">&nbsp;</p>
+      <p class="text-xs text-slate-500 mt-1" id="add-sale-hint">&nbsp;</p>
     </div>
     <div class="flex items-end">
       <button type="submit" class="btn-primary">إضافة</button>
@@ -129,7 +129,7 @@
         class="text-brand-600 hover:underline">صفحة المنتج</a> — سعر شراء العلبة ÷ عدد القطع.
     </div>
   </form>
-  <p class="text-xs text-slate-400 mt-3">
+  <p class="text-xs text-slate-500 mt-3">
     ⚠ ملحوظة: لا يمكن تعديل معامل التحويل لوحدة عليها حركات مخزون سابقة — عشان الفواتير القديمة تفضل صحيحة.
     السعر ممكن يتعدل في أي وقت.
   </p>
@@ -169,7 +169,7 @@
     var saleInput = row.querySelector('input[name="sale_price"]');
     if (!saleInput || !(f > 0)) return;
     var hint = document.createElement('div');
-    hint.className = 'text-xs text-slate-400 mt-1';
+    hint.className = 'text-xs text-slate-500 mt-1';
     hint.style.direction = 'ltr';
     hint.style.textAlign = 'right';
     saleInput.parentNode.appendChild(hint);

@@ -37,7 +37,7 @@
       <option value="">— اختر —</option>
       {% for p in parties %}
       <option value="{{ p.id }}" {% if party_id == p.id %}selected{% endif %}>
-        {{ p.name }} <span class="text-xs text-slate-400">({{ p.account_code }})</span>
+        {{ p.name }} <span class="text-xs text-slate-500">({{ p.account_code }})</span>
       </option>
       {% endfor %}
     </select>
@@ -64,7 +64,7 @@
     <div>
       <div class="text-xs text-slate-500">الطرف</div>
       <div class="font-bold text-navy-900">{{ statement.party.name }}</div>
-      <div class="text-xs text-slate-400 font-mono">{{ statement.party.account_code }}</div>
+      <div class="text-xs text-slate-500 font-mono">{{ statement.party.account_code }}</div>
     </div>
     <div>
       <div class="text-xs text-slate-500">الرصيد الافتتاحي</div>
@@ -133,7 +133,7 @@
           {% elif row.reference %}
             <span class="text-slate-500">{{ row.reference.label }}</span>
           {% else %}
-            <span class="text-slate-400">—</span>
+            <span class="text-slate-500">—</span>
           {% endif %}
         </td>
         <td>{{ row.description }}</td>
@@ -158,7 +158,7 @@
   </table>
   </div>
   {% else %}
-  <div class="text-center text-slate-400 py-8">
+  <div class="text-center text-slate-500 py-8">
     لا توجد حركات في الفترة المحددة.
     {% if statement.opening_balance %}
     <br>الرصيد الافتتاحي: {{ "%.2f"|format(statement.opening_balance) }}
@@ -168,11 +168,11 @@
 </div>
 
 {% elif party_id %}
-<div class="card p-6 text-center text-slate-400">
+<div class="card p-6 text-center text-slate-500">
   جارٍ تحميل الكشف…
 </div>
 {% else %}
-<div class="card p-6 text-center text-slate-400">
+<div class="card p-6 text-center text-slate-500">
   اختر {{ kind_label }} لعرض كشف حسابه.
 </div>
 {% endif %}

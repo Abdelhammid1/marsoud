@@ -46,7 +46,7 @@
         </td>
         <td class="text-xs">
           {% if p.customer %}{{ p.customer.name }}
-          {% else %}<em class="text-slate-400">—</em>{% endif %}
+          {% else %}<em class="text-slate-500">—</em>{% endif %}
         </td>
         <td class="text-xs">
           {{ p.manager.full_name if p.manager else '—' }}
@@ -62,7 +62,7 @@
             {# archived_by relationship not declared on the model — the id is
                enough for the audit trail; keep the row cheap. #}
             <span class="text-slate-500">#{{ p.archived_by_id }}</span>
-          {% else %}<em class="text-slate-400">تلقائي</em>{% endif %}
+          {% else %}<em class="text-slate-500">تلقائي</em>{% endif %}
         </td>
         <td>
           <form method="POST"
@@ -78,7 +78,7 @@
     </tbody>
   </table>
   {% else %}
-  <div class="text-sm text-slate-400 text-center py-12">
+  <div class="text-sm text-slate-500 text-center py-12">
     لا توجد مشاريع مؤرشفة.
     <br>
     <a href="{{ url_for('projects.index') }}"

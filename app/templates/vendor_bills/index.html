@@ -148,13 +148,13 @@
             <span class="badge badge-partial text-[10px]">🏷 {{ it.sub_category.name }}</span>
             {% endif %}
           </div>
-          {% else %}<span class="text-slate-400">—</span>{% endfor %}
+          {% else %}<span class="text-slate-500">—</span>{% endfor %}
         </td>
         <td class="text-xs">
-          {% for it in b.items %}<div class="mb-0.5"><span class="badge {{ lt_colors.get(it.line_type.value, 'bg-slate-100') }}">{{ lt_labels.get(it.line_type.value, it.line_type.value) }}</span></div>{% else %}<span class="text-slate-400">—</span>{% endfor %}
+          {% for it in b.items %}<div class="mb-0.5"><span class="badge {{ lt_colors.get(it.line_type.value, 'bg-slate-100') }}">{{ lt_labels.get(it.line_type.value, it.line_type.value) }}</span></div>{% else %}<span class="text-slate-500">—</span>{% endfor %}
         </td>
         <td class="text-xs">
-          {% for it in b.items %}<div class="truncate max-w-[12rem]" title="{{ it.account.code }} — {{ it.account.name_ar or it.account.name }}"><span class="font-mono text-slate-400">{{ it.account.code }}</span> {{ it.account.name_ar or it.account.name }}</div>{% else %}<span class="text-slate-400">—</span>{% endfor %}
+          {% for it in b.items %}<div class="truncate max-w-[12rem]" title="{{ it.account.code }} — {{ it.account.name_ar or it.account.name }}"><span class="font-mono text-slate-500">{{ it.account.code }}</span> {{ it.account.name_ar or it.account.name }}</div>{% else %}<span class="text-slate-500">—</span>{% endfor %}
         </td>
         {# MARSOUD-VBILL-STATUS-VISIBILITY (2026-08-17) — TKT-D.
            Was `b.status.value == 'OVERDUE'`, which meant a POSTED
@@ -165,8 +165,8 @@
         <td class="text-sm">{{ b.issue_date.isoformat() }}</td>
         <td class="text-sm {% if bkt == 'overdue' and not b.deleted_at %}text-red-600 font-semibold{% elif bkt == 'due_today' and not b.deleted_at %}text-amber-600 font-semibold{% endif %}">{{ b.due_date.isoformat() }}</td>
         <td class="text-xs">{{ b.payment_method.value }}</td>
-        <td class="text-left font-mono font-semibold {% if b.deleted_at %}line-through decoration-rose-400 text-slate-400{% endif %}">{{ b.total|amount_ar(b.currency) }}</td>
-        <td class="text-left font-mono {% if b.deleted_at %}line-through decoration-rose-400 text-slate-400{% elif b.balance > 0 %}text-amber-600{% else %}text-emerald-600{% endif %}">{{ b.balance|amount_ar(b.currency) }}</td>
+        <td class="text-left font-mono font-semibold {% if b.deleted_at %}line-through decoration-rose-400 text-slate-500{% endif %}">{{ b.total|amount_ar(b.currency) }}</td>
+        <td class="text-left font-mono {% if b.deleted_at %}line-through decoration-rose-400 text-slate-500{% elif b.balance > 0 %}text-amber-600{% else %}text-emerald-600{% endif %}">{{ b.balance|amount_ar(b.currency) }}</td>
         <td>
           {% if b.deleted_at %}
           <span class="badge badge-cancelled" title="محذوفة — لا تدخل في أي حسابات مالية">🗑️ محذوفة</span>
@@ -178,7 +178,7 @@
       </tr>
       {% else %}
       {# MARSOUD-UI-DESIGN-SYSTEM (2026-08-18) — was a bare
-         `text-slate-400 py-8` cell. Now uses the canonical
+         `text-slate-500 py-8` cell. Now uses the canonical
          `.empty-state` primitive so every empty-state in the
          app renders identically. #}
       <tr><td colspan="12" style="padding:0">

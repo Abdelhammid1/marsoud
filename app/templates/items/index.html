@@ -60,10 +60,10 @@
                class="text-brand-600 hover:underline">
               أصل #{{ it.fixed_asset_id }}
             </a>
-          {% else %}<span class="text-slate-400">مستقل</span>{% endif %}
+          {% else %}<span class="text-slate-500">مستقل</span>{% endif %}
         </td>
         <td class="text-left font-mono">
-          {% if it.fixed_asset %}<span class="text-slate-400">—</span>
+          {% if it.fixed_asset %}<span class="text-slate-500">—</span>
           {% else %}{{ "%.2f"|format(it.estimated_value or 0) }}{% endif %}
         </td>
         <td class="text-xs">
@@ -71,7 +71,7 @@
             <a href="{{ url_for('item_custody.detail', custody_id=live.id) }}"
                class="text-brand-600 hover:underline font-semibold">{{ live.holder_name }}</a>
             <div class="text-slate-500">منذ {{ live.handed_over_on.isoformat() }}</div>
-          {% else %}<span class="text-slate-400">متاح</span>{% endif %}
+          {% else %}<span class="text-slate-500">متاح</span>{% endif %}
         </td>
         <td>
           {% if not it.is_active %}<span class="badge badge-cancelled">غير نشط</span>
@@ -85,7 +85,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="8" class="text-center text-slate-400 py-6">لا توجد عناصر مسجلة.</td></tr>
+      <tr><td colspan="8" class="text-center text-slate-500 py-6">لا توجد عناصر مسجلة.</td></tr>
     {% endfor %}
     </tbody>
   </table>

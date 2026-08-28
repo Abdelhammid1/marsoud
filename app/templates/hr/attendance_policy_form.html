@@ -23,7 +23,7 @@
       <option value="DEPARTMENT" {% if sc == 'DEPARTMENT' %}selected{% endif %}>قسم معيّن</option>
       <option value="EMPLOYEE"   {% if sc == 'EMPLOYEE' %}selected{% endif %}>موظف معيّن</option>
     </select>
-    <p class="text-xs text-slate-400 mt-1">الأخص يغلب: الموظف ← القسم ← الشركة.</p>
+    <p class="text-xs text-slate-500 mt-1">الأخص يغلب: الموظف ← القسم ← الشركة.</p>
   </div>
 
   <div id="dept-row" class="hidden">
@@ -78,7 +78,7 @@
       <label class="block text-sm font-semibold text-slate-700 mb-1">أقصى حضور</label>
       <input type="time" name="latest_checkin" class="input" dir="ltr"
              value="{{ policy.latest_checkin.strftime('%H:%M') if policy and policy.latest_checkin else '' }}">
-      <p class="text-xs text-slate-400 mt-1">بعده يُحتسب تأخيرًا.</p>
+      <p class="text-xs text-slate-500 mt-1">بعده يُحتسب تأخيرًا.</p>
     </div>
     <div>
       <label class="block text-sm font-semibold text-slate-700 mb-1">ساعات مطلوبة/يوم</label>

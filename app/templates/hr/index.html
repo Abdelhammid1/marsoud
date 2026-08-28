@@ -93,7 +93,7 @@
         </td>
         <td><a href="{{ url_for('payroll.employee_profile', employee_id=e.id) }}" class="font-semibold hover:text-brand-600">{{ e.name }}</a></td>
         <td class="text-sm text-slate-500">{{ e.job_title or '—' }}</td>
-        <td>{% if e.department %}<span class="badge badge-sent">{{ e.department.name }}</span>{% else %}<span class="text-slate-400">—</span>{% endif %}</td>
+        <td>{% if e.department %}<span class="badge badge-sent">{{ e.department.name }}</span>{% else %}<span class="text-slate-500">—</span>{% endif %}</td>
         <td class="text-sm">{{ e.manager.name if e.manager else '—' }}</td>
         <td class="text-sm font-mono">
           {% if e.contract_end_date %}
@@ -102,11 +102,11 @@
             {% elif days_left <= 60 %}<span class="text-amber-600">{{ e.contract_end_date.isoformat() }} ({{ days_left }} يوم)</span>
             {% else %}<span class="text-slate-500">{{ e.contract_end_date.isoformat() }}</span>
             {% endif %}
-          {% else %}<span class="text-slate-400">—</span>{% endif %}
+          {% else %}<span class="text-slate-500">—</span>{% endif %}
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="6" class="text-center text-slate-400 py-6">لا يوجد موظفون نشطون</td></tr>
+      <tr><td colspan="6" class="text-center text-slate-500 py-6">لا يوجد موظفون نشطون</td></tr>
     {% endfor %}
     </tbody>
   </table>

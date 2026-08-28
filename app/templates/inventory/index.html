@@ -6,18 +6,18 @@
   <div class="card p-5">
     <div class="text-xs text-slate-500">إجمالي قيمة المخزون</div>
     <div class="text-3xl font-bold text-emerald-700 font-mono mt-1">{{ '%.2f'|format(total_value) }}</div>
-    <div class="text-xs text-slate-400 mt-1">جميع المخازن والأصناف</div>
+    <div class="text-xs text-slate-500 mt-1">جميع المخازن والأصناف</div>
   </div>
   <div class="card p-5">
     <div class="text-xs text-slate-500">عدد الأصناف النشطة</div>
     <div class="text-3xl font-bold text-navy-900 font-mono mt-1">{{ variants_count }}</div>
-    <div class="text-xs text-slate-400 mt-1">variants فعّالة</div>
+    <div class="text-xs text-slate-500 mt-1">variants فعّالة</div>
   </div>
   <div class="card p-5">
     <div class="text-xs text-slate-500">أصناف تحت حد الطلب</div>
-    <div class="text-3xl font-bold {% if low_stock %}text-rose-600{% else %}text-slate-400{% endif %} font-mono mt-1">{{ low_stock|length }}</div>
+    <div class="text-3xl font-bold {% if low_stock %}text-rose-600{% else %}text-slate-500{% endif %} font-mono mt-1">{{ low_stock|length }}</div>
     {% if low_stock %}<div class="text-xs text-rose-500 mt-1">⚠ يحتاج إعادة طلب</div>
-    {% else %}<div class="text-xs text-slate-400 mt-1">المخزون كافٍ</div>{% endif %}
+    {% else %}<div class="text-xs text-slate-500 mt-1">المخزون كافٍ</div>{% endif %}
   </div>
 </div>
 
@@ -76,7 +76,7 @@
     </tbody>
   </table>
   {% else %}
-  <div class="text-sm text-slate-400 text-center py-4">لا يوجد أي صنف تحت حد الطلب الحالي.</div>
+  <div class="text-sm text-slate-500 text-center py-4">لا يوجد أي صنف تحت حد الطلب الحالي.</div>
   {% endif %}
 </div>
 
@@ -118,7 +118,7 @@
     </tbody>
   </table>
   {% else %}
-  <div class="text-sm text-slate-400 text-center py-4">لا توجد حركات بعد.</div>
+  <div class="text-sm text-slate-500 text-center py-4">لا توجد حركات بعد.</div>
   {% endif %}
 </div>
 

@@ -84,8 +84,8 @@
       <div class="py-2 px-3 bg-slate-50 rounded-lg">
         <div class="flex items-center justify-between gap-2">
           <div class="flex-1 min-w-0">
-            {% if m.is_done %}<span class="text-emerald-600">✓</span>{% else %}<span class="text-slate-400">○</span>{% endif %}
-            <span class="font-semibold {% if m.is_done %}line-through text-slate-400{% endif %}">{{ m.name }}</span>
+            {% if m.is_done %}<span class="text-emerald-600">✓</span>{% else %}<span class="text-slate-500">○</span>{% endif %}
+            <span class="font-semibold {% if m.is_done %}line-through text-slate-500{% endif %}">{{ m.name }}</span>
             {% if m.target_date %}<span class="text-xs text-slate-500 mr-2">— {{ m.target_date.isoformat() }}</span>{% endif %}
           </div>
           {% if can_edit %}
@@ -119,7 +119,7 @@
         {% endif %}
       </div>
     {% else %}
-      <div class="text-sm text-slate-400">لا توجد مراحل بعد.</div>
+      <div class="text-sm text-slate-500">لا توجد مراحل بعد.</div>
     {% endfor %}
     </div>
     <script>
@@ -157,7 +157,7 @@
         {% endif %}
       </div>
     {% else %}
-      <div class="text-sm text-slate-400">لا توجد ملفات بعد.</div>
+      <div class="text-sm text-slate-500">لا توجد ملفات بعد.</div>
     {% endfor %}
     </div>
     {% if can_edit %}
@@ -182,7 +182,7 @@
             {% if fb.approved %}<span class="badge badge-paid text-xs ms-2">معتمد</span>{% endif %}
           </div>
           {% if fb.comment %}<div class="text-xs text-slate-600 mt-1">{{ fb.comment }}</div>{% endif %}
-          <div class="text-xs text-slate-400 font-mono mt-1">{{ fb.submitted_at | company_dt('%Y-%m-%d %H:%M') }}</div>
+          <div class="text-xs text-slate-500 font-mono mt-1">{{ fb.submitted_at | company_dt('%Y-%m-%d %H:%M') }}</div>
         </div>
         {% if can_edit and not fb.approved %}
         <form method="POST" action="{{ url_for('audit_log.feedback_approve', project_id=project.id, fb_id=fb.id) }}">
@@ -206,7 +206,7 @@
           <span class="badge {{ ev.to_status.badge_class }}">{{ ev.to_status.label_ar }}</span>
           {% if ev.note %}<span class="text-xs text-slate-500"> — {{ ev.note }}</span>{% endif %}
         </div>
-        <div class="text-xs text-slate-400 font-mono">{{ ev.created_at | company_dt('%Y-%m-%d %H:%M') }}</div>
+        <div class="text-xs text-slate-500 font-mono">{{ ev.created_at | company_dt('%Y-%m-%d %H:%M') }}</div>
       </div>
     {% endfor %}
     </div>

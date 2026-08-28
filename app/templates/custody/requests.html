@@ -66,7 +66,7 @@
         </td>
         <td class="font-mono text-xs">
           {% if r.needed_by_date %}{{ r.needed_by_date.isoformat() }}
-          {% else %}<span class="text-slate-400">—</span>{% endif %}
+          {% else %}<span class="text-slate-500">—</span>{% endif %}
         </td>
         <td class="text-xs text-slate-500">{{ r.created_at | company_dt('%Y-%m-%d') if r.created_at else '' }}</td>
         <td>
@@ -78,7 +78,7 @@
              per AC #5. #}
           {% set eff = r.effective_status %}
           <span class="badge {{ eff[2] }}">{{ eff[1] }}</span>
-          {% if r.review_note %}<div class="text-xs text-slate-400 mt-1">{{ r.review_note }}</div>{% endif %}
+          {% if r.review_note %}<div class="text-xs text-slate-500 mt-1">{{ r.review_note }}</div>{% endif %}
         </td>
         <td>
           {% if r.status.value == 'PENDING' %}
@@ -107,7 +107,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="7" class="text-center text-slate-400 py-6">لا توجد طلبات.</td></tr>
+      <tr><td colspan="7" class="text-center text-slate-500 py-6">لا توجد طلبات.</td></tr>
     {% endfor %}
     </tbody>
   </table>

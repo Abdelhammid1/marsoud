@@ -148,11 +148,11 @@
           </span>
           {% endif %}
           {% if l.phone %}
-          <a href="tel:{{ l.phone }}" class="text-slate-400 hover:text-emerald-700"
+          <a href="tel:{{ l.phone }}" class="text-slate-500 hover:text-emerald-700"
              dir="ltr" title="اتصال">📞</a>
           {% endif %}
         </div>
-        <div class="mt-1 text-xs text-slate-400">
+        <div class="mt-1 text-xs text-slate-500">
           {{ l.assigned_to.full_name if l.assigned_to else '— بدون مسؤول' }}
         </div>
         {% if l.next_meeting %}
@@ -177,7 +177,7 @@
         {% endif %}
       </div>
       {% else %}
-      <div class="text-xs text-slate-400 text-center py-4">فارغ</div>
+      <div class="text-xs text-slate-500 text-center py-4">فارغ</div>
       {% endfor %}
     </div>
   </div>
@@ -213,7 +213,7 @@
         <td class="text-xs text-slate-500">{{ l.created_at | company_dt('%Y-%m-%d') }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="7" class="text-center text-slate-400 py-6">لا يوجد عملاء محتملون مطابقون.</td></tr>
+      <tr><td colspan="7" class="text-center text-slate-500 py-6">لا يوجد عملاء محتملون مطابقون.</td></tr>
     {% endfor %}
     </tbody>
   </table>

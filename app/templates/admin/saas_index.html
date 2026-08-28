@@ -28,7 +28,7 @@
     <tr>
       <td>
         <div class="font-semibold text-slate-900">{{ c.name }}</div>
-        <div class="text-xs text-slate-400">#{{ c.id }}</div>
+        <div class="text-xs text-slate-500">#{{ c.id }}</div>
       </td>
       <td>{{ plan.name_ar or plan.name if plan else '—' }}</td>
       <td>
@@ -44,7 +44,7 @@
             حتى {{ c.subscription_expires_at | company_dt('%Y-%m-%d') }}
           </span>
         {% else %}
-          <span class="text-slate-400">—</span>
+          <span class="text-slate-500">—</span>
         {% endif %}
       </td>
       <td>
@@ -70,7 +70,7 @@
           {% endfor %}
           </div>
         {% else %}
-          <span class="text-slate-400">لا يوجد</span>
+          <span class="text-slate-500">لا يوجد</span>
         {% endif %}
       </td>
       <td>
@@ -90,7 +90,7 @@
     </tr>
     {% else %}
     <tr>
-      <td colspan="7" class="text-center text-slate-400 py-6">
+      <td colspan="7" class="text-center text-slate-500 py-6">
         لا توجد شركات باشتراكات نشطة بعد.
       </td>
     </tr>

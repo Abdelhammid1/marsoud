@@ -50,7 +50,7 @@
           {% if s == 'PENDING' %}<span class="badge badge-draft">قيد الانتظار</span>
           {% elif s == 'APPROVED' %}<span class="badge badge-paid">معتمدة</span>
           {% else %}<span class="badge badge-cancelled">مرفوضة</span>{% endif %}
-          {% if r.review_note %}<div class="text-xs text-slate-400 mt-1">{{ r.review_note }}</div>{% endif %}
+          {% if r.review_note %}<div class="text-xs text-slate-500 mt-1">{{ r.review_note }}</div>{% endif %}
         </td>
         <td>
           {% if r.status.value == 'PENDING' %}
@@ -69,7 +69,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="6" class="text-center text-slate-400 py-6">لا توجد طلبات.</td></tr>
+      <tr><td colspan="6" class="text-center text-slate-500 py-6">لا توجد طلبات.</td></tr>
     {% endfor %}
     </tbody>
   </table>

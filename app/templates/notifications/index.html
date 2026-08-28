@@ -27,7 +27,7 @@
       <div class="flex-1">
         <div class="text-sm font-semibold text-navy-900">{{ n.title }}{% if not n.is_read %} <span class="text-rose-500 text-xs">●</span>{% endif %}</div>
         {% if n.body %}<div class="text-xs text-slate-500 mt-1">{{ n.body }}</div>{% endif %}
-        <div class="text-xs text-slate-400 font-mono mt-1">{{ n.created_at | company_dt('%Y-%m-%d %H:%M') }}</div>
+        <div class="text-xs text-slate-500 font-mono mt-1">{{ n.created_at | company_dt('%Y-%m-%d %H:%M') }}</div>
       </div>
       {% if n.link_url %}
       <form method="POST" action="{{ url_for('notifications.read', n_id=n.id) }}">
@@ -36,7 +36,7 @@
       {% endif %}
     </li>
     {% else %}
-    <li class="text-center text-slate-400 py-8">
+    <li class="text-center text-slate-500 py-8">
       {% if filter_mode == 'unread' %}
         كل شيء مقروء 🎉
       {% else %}

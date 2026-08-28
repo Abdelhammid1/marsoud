@@ -28,11 +28,11 @@
     <div class="space-y-1.5 text-sm mb-6">
       {% for item in data.revenue %}
       <div class="flex justify-between py-1.5 border-b border-slate-100">
-        <span><span class="text-xs text-slate-400 font-mono">{{ item.code }}</span> {{ item.name }}</span>
+        <span><span class="text-xs text-slate-500 font-mono">{{ item.code }}</span> {{ item.name }}</span>
         <span class="font-mono">{{ "%.2f"|format(item.balance) }}</span>
       </div>
       {% else %}
-      <div class="text-slate-400 text-center py-3">لا توجد إيرادات</div>
+      <div class="text-slate-500 text-center py-3">لا توجد إيرادات</div>
       {% endfor %}
       <div class="flex justify-between font-bold py-2 border-t-2 border-navy-900">
         <span>إجمالي الإيرادات</span>
@@ -44,11 +44,11 @@
     <div class="space-y-1.5 text-sm mb-6">
       {% for item in data.expenses %}
       <div class="flex justify-between py-1.5 border-b border-slate-100">
-        <span><span class="text-xs text-slate-400 font-mono">{{ item.code }}</span> {{ item.name }}</span>
+        <span><span class="text-xs text-slate-500 font-mono">{{ item.code }}</span> {{ item.name }}</span>
         <span class="font-mono">{{ "%.2f"|format(item.balance) }}</span>
       </div>
       {% else %}
-      <div class="text-slate-400 text-center py-3">لا توجد مصروفات</div>
+      <div class="text-slate-500 text-center py-3">لا توجد مصروفات</div>
       {% endfor %}
       <div class="flex justify-between font-bold py-2 border-t-2 border-navy-900">
         <span>إجمالي المصروفات</span>

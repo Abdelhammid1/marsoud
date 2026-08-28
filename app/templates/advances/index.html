@@ -54,7 +54,7 @@
         <td class="text-left font-mono font-bold">{{ "%.2f"|format(a.remaining) }}</td>
         <td class="text-left font-mono text-xs">
           {{ "%.2f"|format(a.monthly_installment) }}
-          <span class="text-slate-400">× {{ a.months }}</span>
+          <span class="text-slate-500">× {{ a.months }}</span>
         </td>
         <td class="text-xs">
           {% if a.source.value == 'REQUEST' %}
@@ -62,7 +62,7 @@
           {% else %}
             <span class="text-slate-600">إضافة مباشرة</span>
           {% endif %}
-          {% if a.approver %}<div class="text-slate-400">{{ a.approver.full_name }}</div>{% endif %}
+          {% if a.approver %}<div class="text-slate-500">{{ a.approver.full_name }}</div>{% endif %}
         </td>
         <td>
           {% set s = a.status.value %}
@@ -70,11 +70,11 @@
           {% elif s == 'SETTLED' %}<span class="badge badge-paid">مسددة</span>
           {% else %}<span class="badge badge-cancelled">ملغاة</span>{% endif %}
           {% if s == 'CANCELLED' and a.cancelled_at %}
-          <div class="text-xs text-slate-400 mt-1">
+          <div class="text-xs text-slate-500 mt-1">
             {{ a.canceller.full_name if a.canceller else '' }}
             {{ a.cancelled_at | company_dt('%Y-%m-%d') }}
           </div>
-          {% if a.cancel_reason %}<div class="text-xs text-slate-400">{{ a.cancel_reason }}</div>{% endif %}
+          {% if a.cancel_reason %}<div class="text-xs text-slate-500">{{ a.cancel_reason }}</div>{% endif %}
           {% endif %}
         </td>
         <td>
@@ -91,7 +91,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="9" class="text-center text-slate-400 py-6">لا توجد سلف.</td></tr>
+      <tr><td colspan="9" class="text-center text-slate-500 py-6">لا توجد سلف.</td></tr>
     {% endfor %}
     </tbody>
   </table>

@@ -49,14 +49,14 @@
             <button type="submit" class="text-xs text-emerald-700 hover:underline">🚀 إرسال</button>
           </form>
           {% else %}
-          <span class="text-xs text-slate-400">
+          <span class="text-xs text-slate-500">
             {{ b.sent_at.strftime('%Y-%m-%d %H:%M') }}
           </span>
           {% endif %}
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="text-center text-slate-400 py-6">لا رسائل بعد.</td></tr>
+      <tr><td colspan="6" class="text-center text-slate-500 py-6">لا رسائل بعد.</td></tr>
       {% endfor %}
     </tbody>
   </table>

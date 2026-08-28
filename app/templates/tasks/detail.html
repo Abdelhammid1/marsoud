@@ -146,7 +146,7 @@
     <div class="bg-slate-50 rounded-lg p-3 mb-3">
       <div class="text-xs text-slate-500 font-semibold mb-1">
         📝 الوصف
-        {% if not is_creator %}<span class="text-slate-400 font-normal">(للقراءة — لا يمكن تعديله إلا من قِبل من أنشأ المهمة)</span>{% endif %}
+        {% if not is_creator %}<span class="text-slate-500 font-normal">(للقراءة — لا يمكن تعديله إلا من قِبل من أنشأ المهمة)</span>{% endif %}
       </div>
       {# MARSOUD-LINKIFY (Abdelhamid 2026-07-16) — URLs pasted into
          the description render as clickable anchors. #}
@@ -173,7 +173,7 @@
       <div class="flex items-center justify-between mb-2">
         <h3 class="font-bold text-navy-900">
           🧩 المهام الفرعية
-          <span class="text-xs text-slate-400 font-normal">({{ subtasks|length }})</span>
+          <span class="text-xs text-slate-500 font-normal">({{ subtasks|length }})</span>
         </h3>
         {% if can_edit %}
         <a href="{{ url_for('tasks.new',
@@ -211,14 +211,14 @@
       </table>
       </div>
       {% else %}
-      <div class="text-xs text-slate-400 py-3">لا توجد مهام فرعية بعد.</div>
+      <div class="text-xs text-slate-500 py-3">لا توجد مهام فرعية بعد.</div>
       {% endif %}
     </div>
 
     <!-- ─── Comments ──────────────────────────────────────────────── -->
     <hr class="my-4">
     <h3 id="comments" class="font-bold text-navy-900 mb-3">💬 التعليقات
-      <span class="text-xs text-slate-400 font-normal">({{ task.comments|length }})</span></h3>
+      <span class="text-xs text-slate-500 font-normal">({{ task.comments|length }})</span></h3>
     <div class="space-y-2 mb-3">
       {% for c in task.comments %}
       <div class="bg-slate-50 rounded-lg p-3">
@@ -243,7 +243,7 @@
         <div class="text-sm whitespace-pre-wrap">{{ c.content | mentions | linkify }}</div>
       </div>
       {% else %}
-      <div class="text-sm text-slate-400">لا توجد تعليقات بعد.</div>
+      <div class="text-sm text-slate-500">لا توجد تعليقات بعد.</div>
       {% endfor %}
     </div>
     {# MARSOUD-FORM-ONCE — data-once + global handler in base.html
@@ -273,7 +273,7 @@
         {% endif %}
       </div>
     {% else %}
-      <div class="text-sm text-slate-400">لا توجد مرفقات بعد.</div>
+      <div class="text-sm text-slate-500">لا توجد مرفقات بعد.</div>
     {% endfor %}
     </div>
     {% if has_permission('tasks.manage') %}
@@ -301,7 +301,7 @@
              class="text-navy-900 hover:text-brand-600 hover:underline"
              title="افتح كل مهام {{ u.full_name|e }}">{{ u.full_name }}</a>
           {% if u.id == task.assigned_to_id %}
-          <span class="text-xs text-slate-400">(الأساسي)</span>
+          <span class="text-xs text-slate-500">(الأساسي)</span>
           {% endif %}
         </div>
         {% endfor %}
@@ -331,10 +331,10 @@
         {% for a in task.activity %}
         <div class="text-xs border-r-2 border-emerald-200 pe-2 pl-2">
           <div class="text-slate-600">{{ activity_description(a) }}</div>
-          <div class="text-slate-400 font-mono">{{ a.created_at | company_dt('%Y-%m-%d %H:%M') }}</div>
+          <div class="text-slate-500 font-mono">{{ a.created_at | company_dt('%Y-%m-%d %H:%M') }}</div>
         </div>
         {% else %}
-        <div class="text-sm text-slate-400">لا يوجد سجل بعد.</div>
+        <div class="text-sm text-slate-500">لا يوجد سجل بعد.</div>
         {% endfor %}
       </div>
     </div>

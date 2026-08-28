@@ -24,10 +24,10 @@
         <input type="checkbox" class="var-cb" value="{{ v.id }}">
         <span class="font-mono w-24 inline-block">{{ v.sku }}</span>
         <span class="flex-1">{{ v.display_name }}</span>
-        <span class="text-xs text-slate-400 font-mono">{{ v.barcode or '— تلقائي —' }}</span>
+        <span class="text-xs text-slate-500 font-mono">{{ v.barcode or '— تلقائي —' }}</span>
       </label>
       {% else %}
-      <div class="text-sm text-slate-400">لا توجد أصناف.</div>
+      <div class="text-sm text-slate-500">لا توجد أصناف.</div>
       {% endfor %}
     </div>
     <div class="flex justify-end">

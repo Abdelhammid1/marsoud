@@ -69,48 +69,48 @@
 
   <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4 text-sm">
     <div>
-      <div class="text-xs text-slate-400">الاسم الكامل</div>
+      <div class="text-xs text-slate-500">الاسم الكامل</div>
       <div class="font-semibold text-navy-900">{{ employee.name }}</div>
     </div>
     <div>
-      <div class="text-xs text-slate-400">رقم الجوال</div>
+      <div class="text-xs text-slate-500">رقم الجوال</div>
       <div class="font-mono">{{ employee.phone or '—' }}</div>
     </div>
     <div>
-      <div class="text-xs text-slate-400">البريد الإلكتروني</div>
+      <div class="text-xs text-slate-500">البريد الإلكتروني</div>
       <div dir="ltr" class="font-mono text-sm break-all">{{ employee.email or '—' }}</div>
     </div>
     <div>
-      <div class="text-xs text-slate-400">القسم</div>
+      <div class="text-xs text-slate-500">القسم</div>
       <div class="font-semibold">{{ employee.department.name if employee.department else '—' }}</div>
     </div>
     <div>
-      <div class="text-xs text-slate-400">المسمى الوظيفي</div>
+      <div class="text-xs text-slate-500">المسمى الوظيفي</div>
       <div class="font-semibold">{{ employee.job_title or '—' }}</div>
     </div>
     <div>
-      <div class="text-xs text-slate-400">نوع العقد</div>
+      <div class="text-xs text-slate-500">نوع العقد</div>
       <div class="font-semibold">{{ employee.contract_type.value if employee.contract_type else '—' }}</div>
     </div>
     <div>
-      <div class="text-xs text-slate-400">تاريخ التعيين</div>
+      <div class="text-xs text-slate-500">تاريخ التعيين</div>
       <div class="font-mono">{{ employee.start_date.isoformat() if employee.start_date else '—' }}</div>
     </div>
     <div>
-      <div class="text-xs text-slate-400">مدة الخدمة</div>
+      <div class="text-xs text-slate-500">مدة الخدمة</div>
       <div class="font-semibold text-emerald-700">{{ tenure_label }}</div>
     </div>
     <div>
-      <div class="text-xs text-slate-400">الراتب الأساسي</div>
+      <div class="text-xs text-slate-500">الراتب الأساسي</div>
       <div class="font-mono font-semibold">{{ "%.2f"|format(employee.basic_salary|float) }} {{ employee.company.base_currency|currency_ar }}</div>
     </div>
     <div>
-      <div class="text-xs text-slate-400">البدلات</div>
+      <div class="text-xs text-slate-500">البدلات</div>
       <div class="font-mono">{{ "%.2f"|format(employee.allowances|float) }} {{ employee.company.base_currency|currency_ar }}</div>
     </div>
     {% if employee.bank_account_last4 %}
     <div>
-      <div class="text-xs text-slate-400">آخر 4 أرقام للحساب البنكي</div>
+      <div class="text-xs text-slate-500">آخر 4 أرقام للحساب البنكي</div>
       <div class="font-mono">**** {{ employee.bank_account_last4 }}</div>
     </div>
     {% endif %}
@@ -165,7 +165,7 @@
     </form>
   </details>
   {% else %}
-  <p class="text-sm text-slate-400">لا توجد أنواع إجازة معرّفة.</p>
+  <p class="text-sm text-slate-500">لا توجد أنواع إجازة معرّفة.</p>
   {% endif %}
 
   {% if requests %}
@@ -245,7 +245,7 @@
       <button class="btn-primary text-sm w-full">
         {{ 'تسجيل انصراف' if has_in else 'تسجيل حضور' }}
       </button>
-      <p class="text-xs text-slate-400 mt-2" id="geo-note">
+      <p class="text-xs text-slate-500 mt-2" id="geo-note">
         سيُطلب إذن الموقع. الرفض لا يمنع التسجيل.
       </p>
     </form>
@@ -360,7 +360,7 @@
         {% for r in advance_repayments %}
         <tr class="border-b border-slate-100">
           <td class="py-1 font-mono">{{ r.period_year }}-{{ "%02d"|format(r.period_month) }}</td>
-          <td class="py-1 font-mono {{ 'text-slate-400' if r.amount|float < 0.005 else 'text-navy-900 font-bold' }}">
+          <td class="py-1 font-mono {{ 'text-slate-500' if r.amount|float < 0.005 else 'text-navy-900 font-bold' }}">
             {{ "%.2f"|format(r.amount) }}
             {% if r.amount|float < 0.005 %}<span class="text-[10px]">(لم يُخصم)</span>{% endif %}
           </td>
@@ -409,7 +409,7 @@
           {% elif r.status == advance_statuses.APPROVED %}<span class="badge badge-paid">معتمدة</span>
           {% elif r.status == advance_statuses.REJECTED %}<span class="badge badge-cancelled">مرفوضة</span>
           {% else %}{{ r.status.value }}{% endif %}
-          {% if r.review_note %}<div class="text-slate-400">{{ r.review_note }}</div>{% endif %}
+          {% if r.review_note %}<div class="text-slate-500">{{ r.review_note }}</div>{% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -455,7 +455,7 @@
     </table>
   </div>
   {% else %}
-  <p class="text-sm text-slate-400">لا توجد قسائم بعد.</p>
+  <p class="text-sm text-slate-500">لا توجد قسائم بعد.</p>
   {% endif %}
 </div>
 

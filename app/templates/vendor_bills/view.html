@@ -100,7 +100,7 @@
             {% if item.sub_category %}
               <span class="badge badge-partial text-[10px]">🏷 {{ item.sub_category.name }}</span>
             {% else %}
-              <span class="text-slate-400">—</span>
+              <span class="text-slate-500">—</span>
             {% endif %}
           </td>
           <td>
@@ -116,7 +116,7 @@
               <span class="text-xs text-slate-500">{{ item.unit.unit_name }}</span>
               {% if not item.unit.is_base and item.base_quantity is not none %}
                 {% set _prod = item.variant.product if item.variant else None %}
-                <div class="text-[10px] text-slate-400">= {{ "%.2f"|format(item.base_quantity|float) }} {{ _prod.base_unit.unit_name if _prod and _prod.base_unit else '' }}</div>
+                <div class="text-[10px] text-slate-500">= {{ "%.2f"|format(item.base_quantity|float) }} {{ _prod.base_unit.unit_name if _prod and _prod.base_unit else '' }}</div>
               {% endif %}
             {% endif %}
           </td>

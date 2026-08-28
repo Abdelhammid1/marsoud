@@ -29,7 +29,7 @@
   </div>
   <div class="card p-4">
     <div class="text-xs text-slate-500">متأخرة</div>
-    <div class="text-xl font-bold {% if data.totals.overdue_count %}text-rose-600{% else %}text-slate-400{% endif %} font-mono">
+    <div class="text-xl font-bold {% if data.totals.overdue_count %}text-rose-600{% else %}text-slate-500{% endif %} font-mono">
       {{ data.totals.overdue_count }}
     </div>
   </div>
@@ -76,7 +76,7 @@
           {% if r.settlement_due_date %}
             {{ r.settlement_due_date }}
             {% if r.is_overdue %}<span class="badge badge-overdue mr-1">متأخر</span>{% endif %}
-          {% else %}<span class="text-slate-400">—</span>{% endif %}
+          {% else %}<span class="text-slate-500">—</span>{% endif %}
         </td>
         <td>
           {% if r.status == 'ISSUED' %}<span class="badge badge-sent">مصروفة</span>
@@ -85,7 +85,7 @@
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="10" class="text-center text-slate-400 py-6">لا توجد عهد مفتوحة.</td></tr>
+      <tr><td colspan="10" class="text-center text-slate-500 py-6">لا توجد عهد مفتوحة.</td></tr>
     {% endfor %}
     </tbody>
     {% if data.rows %}

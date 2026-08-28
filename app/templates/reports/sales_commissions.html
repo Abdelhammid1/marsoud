@@ -82,7 +82,7 @@
               <td class="text-left font-mono font-bold {% if r.amount|float < 0 %}text-rose-700{% else %}text-emerald-700{% endif %}">
                 {{ "%+.2f"|format(r.amount|float) }}
               </td>
-              <td class="text-left font-mono {% if r.remaining|abs > 0.005 %}text-amber-800 font-bold{% else %}text-slate-400{% endif %}">
+              <td class="text-left font-mono {% if r.remaining|abs > 0.005 %}text-amber-800 font-bold{% else %}text-slate-500{% endif %}">
                 {{ "%.2f"|format(r.remaining) }}
               </td>
               <td>
@@ -128,7 +128,7 @@
     {% endfor %}
   </div>
   {% else %}
-  <div class="text-center text-sm text-slate-400 py-8">
+  <div class="text-center text-sm text-slate-500 py-8">
     لا توجد عمولات مسجلة في الفترة المحددة.
   </div>
   {% endif %}

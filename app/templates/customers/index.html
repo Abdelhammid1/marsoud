@@ -27,7 +27,7 @@
         <td class="text-right"><a href="{{ url_for('customers.view', customer_id=c.id) }}" class="text-brand-600 hover:underline text-sm">عرض</a></td>
       </tr>
       {% else %}
-      <tr><td colspan="5" class="text-center text-slate-400 py-8">لا يوجد عملاء</td></tr>
+      <tr><td colspan="5" class="text-center text-slate-500 py-8">لا يوجد عملاء</td></tr>
       {% endfor %}
     </tbody>
   </table>

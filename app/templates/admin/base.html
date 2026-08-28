@@ -94,6 +94,17 @@ tailwind.config = {
   .btn:hover, .btn-primary:hover, .btn-secondary:hover,
   .btn-danger:hover { filter: brightness(1.05); }
 
+  /* MARSOUD-TKT-P2-A11Y (2026-08-28) — visible keyboard focus for
+     admin buttons + nav rows. Matches the tenant rule in base.html.
+     `:focus-visible` (not `:focus`) so only keyboard users see it. */
+  .btn-primary:focus-visible,
+  .btn-secondary:focus-visible,
+  .btn-danger:focus-visible,
+  .nav-link:focus-visible {
+    outline: 3px solid var(--ms-brand);
+    outline-offset: 2px;
+  }
+
   .data-table { width: 100%; border-collapse: collapse; }
   .data-table th { text-align: right; font-weight: 600; font-size: 12px;
                    color: #64748B; padding: 10px 12px; border-bottom: 1px solid #E2E8F0; }
@@ -275,7 +286,7 @@ tailwind.config = {
 <div id="ck-palette" class="fixed inset-x-0 top-24 z-50 hidden px-4">
   <div class="mx-auto card p-0 shadow-2xl overflow-hidden" style="max-width: 640px;">
     <div class="flex items-center gap-2 border-b border-slate-200 px-4">
-      <span class="text-slate-400">🔍</span>
+      <span class="text-slate-500">🔍</span>
       <input id="ck-input" type="text" autocomplete="off"
              placeholder="ابحث عن صفحة أو شركة أو مستخدم…"
              class="flex-1 py-3 bg-transparent outline-none text-sm">

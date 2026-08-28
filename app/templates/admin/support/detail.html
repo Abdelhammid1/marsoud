@@ -96,7 +96,7 @@
             <span class="font-semibold">{{ a.actor.full_name or a.actor.email }}</span>
             → {{ a.action }}
             {% if a.old_value or a.new_value %}: <code>{{ a.old_value or '-' }}</code> → <code>{{ a.new_value or '-' }}</code>{% endif %}
-            <span class="text-slate-400">({{ a.created_at | company_dt('%m-%d %H:%M') }})</span>
+            <span class="text-slate-500">({{ a.created_at | company_dt('%m-%d %H:%M') }})</span>
           </div>
         {% endfor %}
       </div>

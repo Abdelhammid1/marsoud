@@ -115,6 +115,20 @@ tailwind.config = {
     background: #EF4444; color: white; padding: 0.5rem 1rem; border-radius: 10px;
     font-weight: 600; font-size: 0.875rem;
   }
+  /* MARSOUD-TKT-P2-A11Y (2026-08-28) — visible keyboard focus.
+     `.input:focus` had a ring, none of the buttons or nav rows did.
+     `:focus-visible` (not `:focus`) so mouse users don't see a ring on
+     click — only keyboard users get it. Green because it's brand;
+     3px + 2px offset because that's the WCAG 2.4.11 minimum size that
+     still passes when a hover state is also applied. */
+  .btn-primary:focus-visible,
+  .btn-secondary:focus-visible,
+  .btn-accent:focus-visible,
+  .btn-danger:focus-visible,
+  .nav-link:focus-visible {
+    outline: 3px solid var(--ms-brand);
+    outline-offset: 2px;
+  }
   .input, .select, .textarea {
     width: 100%; padding: 0.625rem 0.875rem; border: 1px solid #E2E8F0;
     border-radius: 10px; background: white; transition: all 0.15s;
@@ -490,14 +504,14 @@ tailwind.config = {
         <div>
           <div class="text-slate-800 font-bold text-lg leading-none">مرصود</div>
           <div class="sr-only">Marsoud</div>
-          <div class="text-[10px] text-slate-400 mt-1 whitespace-nowrap">نظام إدارة أعمال متكامل للشركات</div>
+          <div class="text-[10px] text-slate-500 mt-1 whitespace-nowrap">نظام إدارة أعمال متكامل للشركات</div>
         </div>
       </div>
     </div>
 
     {% if active_company %}
     <div class="px-4 py-3 border-b border-slate-200">
-      <div class="text-xs text-slate-400 mb-1">الشركة النشطة</div>
+      <div class="text-xs text-slate-500 mb-1">الشركة النشطة</div>
       <div class="relative">
         <select onchange="if(this.value) window.location.href='/switch-company/'+this.value"
                 class="w-full bg-white text-slate-700 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer">
@@ -810,7 +824,7 @@ tailwind.config = {
               <span class="text-base">{{ section_icon }}</span>
               <span>{{ section_title }}</span>
             </span>
-            <span class="section-chevron text-[10px] text-slate-400 transition-transform duration-200">▼</span>
+            <span class="section-chevron text-[10px] text-slate-500 transition-transform duration-200">▼</span>
           </button>
           <div class="section-body {% if not ns.active %}section-collapsed{% endif %}">
           {% for endpoint, label, icon, kwargs in ns.visible %}
@@ -843,7 +857,7 @@ tailwind.config = {
             <span class="text-base">🛠️</span>
             <span>الإعدادات</span>
           </span>
-          <span class="section-chevron text-[10px] text-slate-400 transition-transform duration-200">▼</span>
+          <span class="section-chevron text-[10px] text-slate-500 transition-transform duration-200">▼</span>
         </button>
         <div class="section-body {% if not settings_active %}section-collapsed{% endif %}">
           {% set is_users_active = request.endpoint and request.endpoint.startswith('users.') %}
@@ -1001,7 +1015,7 @@ tailwind.config = {
                      title="حسابي" aria-haspopup="true">
               <span class="text-base leading-none">👤</span>
               <span class="hidden sm:inline text-sm font-medium text-navy-900 max-w-[10rem] truncate">{{ current_user.full_name }}</span>
-              <svg class="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+              <svg class="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
             </summary>
             <div class="absolute left-0 mt-2 w-60 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-50">
               <div class="px-3 py-2 border-b border-slate-100">

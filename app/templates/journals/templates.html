@@ -24,11 +24,11 @@
         <td class="text-left">
           {% if can_access_endpoint('journals.use_template') %}
           <a href="{{ url_for('journals.use_template', template_id=t.id) }}" class="text-brand-600 hover:underline text-sm">استخدام</a>
-          {% else %}<span class="text-slate-400 text-sm">—</span>{% endif %}
+          {% else %}<span class="text-slate-500 text-sm">—</span>{% endif %}
         </td>
       </tr>
     {% else %}
-      <tr><td colspan="4" class="text-center text-slate-400 py-8">لا توجد قوالب</td></tr>
+      <tr><td colspan="4" class="text-center text-slate-500 py-8">لا توجد قوالب</td></tr>
     {% endfor %}
     </tbody>
   </table>

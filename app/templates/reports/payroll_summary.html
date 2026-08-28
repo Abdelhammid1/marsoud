@@ -32,7 +32,7 @@
       <tr>
         <td class="font-mono text-xs">{{ r.period }}</td>
         <td class="font-mono text-xs text-slate-500">{{ r.run_number }}</td>
-        <td>{{ r.employee }} <span class="text-xs text-slate-400">{{ r.employee_number }}</span></td>
+        <td>{{ r.employee }} <span class="text-xs text-slate-500">{{ r.employee_number }}</span></td>
         <td class="text-left font-mono">{{ "%.2f"|format(r.basic) }}</td>
         <td class="text-left font-mono">{{ "%.2f"|format(r.allowances) }}</td>
         <td class="text-left font-mono text-emerald-600">{{ "%.2f"|format(r.overtime) }}</td>
@@ -41,7 +41,7 @@
         <td class="text-left font-mono font-bold">{{ "%.2f"|format(r.net) }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="9" class="text-center text-slate-400 py-8">لا توجد رواتب في الفترة</td></tr>
+      <tr><td colspan="9" class="text-center text-slate-500 py-8">لا توجد رواتب في الفترة</td></tr>
       {% endfor %}
       <tr class="border-t-2 border-navy-900 font-bold bg-navy-50">
         <td colspan="3" class="py-3">الإجمالي</td>

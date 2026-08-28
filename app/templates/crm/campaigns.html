@@ -40,7 +40,7 @@
         <th class="text-center">LOST</th>
         {# MARSOUD-CRM-NO-RESPONSE — separate column, sits between LOST
            and the value column per the ticket. #}
-        <th class="text-center">No Response<div class="text-[10px] text-slate-400 font-normal">لا يوجد استجابة</div></th>
+        <th class="text-center">No Response<div class="text-[10px] text-slate-500 font-normal">لا يوجد استجابة</div></th>
         <th class="text-left">قيمة متوقعة</th>
         <th class="text-center">الحالة</th>
         <th></th>
@@ -52,7 +52,7 @@
       <tr class="{% if not c.active %}opacity-50{% endif %}">
         <td class="font-semibold">
           {{ c.name }}
-          {% if c.notes %}<div class="text-xs text-slate-400 font-normal">{{ c.notes }}</div>{% endif %}
+          {% if c.notes %}<div class="text-xs text-slate-500 font-normal">{{ c.notes }}</div>{% endif %}
         </td>
         <td class="text-center font-mono">{{ s.get('leads', 0) }}</td>
         <td class="text-center font-mono text-emerald-700">{{ s.get('won', 0) }}</td>
@@ -70,14 +70,14 @@
               {% if c.active %}تعطيل{% else %}تفعيل{% endif %}
             </button>
           </form>
-          {% else %}<span class="text-slate-400 text-xs">—</span>{% endif %}
+          {% else %}<span class="text-slate-500 text-xs">—</span>{% endif %}
         </td>
       </tr>
     {% endfor %}
     </tbody>
   </table>
   {% else %}
-  <div class="text-center text-slate-400 py-8">
+  <div class="text-center text-slate-500 py-8">
     مفيش حملات بعد. أضف أول حملة من الفورم فوق.
   </div>
   {% endif %}

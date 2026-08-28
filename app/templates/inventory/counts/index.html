@@ -43,7 +43,7 @@
           <td><a href="{{ url_for('inventory_counts.detail', count_id=r.id) }}" class="text-brand-600 text-xs hover:underline">فتح</a></td>
         </tr>
       {% else %}
-        <tr><td colspan="9" class="text-center py-8 text-slate-400">لا يوجد جرد بعد.</td></tr>
+        <tr><td colspan="9" class="text-center py-8 text-slate-500">لا يوجد جرد بعد.</td></tr>
       {% endfor %}
       </tbody>
     </table>

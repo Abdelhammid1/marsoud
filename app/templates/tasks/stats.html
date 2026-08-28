@@ -109,11 +109,11 @@
           <td class="text-center ts-num">{{ "%.0f"|format(r.completion_rate) }}%</td>
           <td class="text-center ts-num {% if r.overdue_ratio > 30 %}text-rose-600{% endif %}">{{ "%.0f"|format(r.overdue_ratio) }}%</td>
           <td class="text-center ts-num">
-            {% if r.on_time_rate is none %}<span class="text-slate-400">—</span>
+            {% if r.on_time_rate is none %}<span class="text-slate-500">—</span>
             {% else %}{{ "%.0f"|format(r.on_time_rate) }}%{% endif %}
           </td>
           <td class="text-center ts-num">
-            {% if r.avg_time_to_close is none %}<span class="text-slate-400">—</span>
+            {% if r.avg_time_to_close is none %}<span class="text-slate-500">—</span>
             {% else %}{{ "%.1f"|format(r.avg_time_to_close) }} يوم{% endif %}
           </td>
           <td class="text-center ts-num {% if r.velocity_30d > 0 %}text-emerald-700 font-bold{% endif %}">{{ r.velocity_30d }}</td>

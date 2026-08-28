@@ -40,7 +40,7 @@
         </td>
         <td class="text-xs">
           {% if t.project %}<span class="badge badge-sent">{{ t.project.name }}</span>
-          {% else %}<em class="text-slate-400">مهمة مستقلة</em>{% endif %}
+          {% else %}<em class="text-slate-500">مهمة مستقلة</em>{% endif %}
         </td>
         <td><span class="badge {{ t.status.badge_class }} text-[10px]">{{ t.status.label_ar }}</span></td>
         <td class="text-xs font-mono text-slate-500">
@@ -48,7 +48,7 @@
         </td>
         <td class="text-xs">
           {% if t.archived_by %}{{ t.archived_by.full_name }}
-          {% else %}<em class="text-slate-400">تلقائي</em>{% endif %}
+          {% else %}<em class="text-slate-500">تلقائي</em>{% endif %}
         </td>
         <td>
           <form method="POST"
@@ -64,7 +64,7 @@
     </tbody>
   </table>
   {% else %}
-  <div class="text-sm text-slate-400 text-center py-12">
+  <div class="text-sm text-slate-500 text-center py-12">
     لا توجد مهام مؤرشفة في حسابك.<br>
     المهام المكتملة بيتم أرشفتها تلقائياً بعد 30 يوم من الإتمام.
   </div>

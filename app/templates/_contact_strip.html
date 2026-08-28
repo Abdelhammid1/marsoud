@@ -23,12 +23,12 @@
   <div class="flex items-center gap-2 min-w-[180px]">
     <span class="text-base">📞</span>
     <div>
-      <div class="text-[10px] uppercase text-slate-400 leading-none">الهاتف</div>
+      <div class="text-[10px] uppercase text-slate-500 leading-none">الهاتف</div>
       {% if _phone %}
       <a href="tel:{{ _phone }}" dir="ltr"
          class="font-mono font-semibold text-navy-900 hover:text-emerald-700">{{ _phone }}</a>
       {% else %}
-      <span class="text-slate-400 italic">غير مسجل</span>
+      <span class="text-slate-500 italic">غير مسجل</span>
       {% endif %}
     </div>
   </div>
@@ -37,13 +37,13 @@
   <div class="flex items-center gap-2 min-w-[140px]">
     <span class="text-base">💬</span>
     <div>
-      <div class="text-[10px] uppercase text-slate-400 leading-none">واتساب</div>
+      <div class="text-[10px] uppercase text-slate-500 leading-none">واتساب</div>
       {% if _wa_digits %}
       <a href="https://wa.me/{{ _wa_digits }}" target="_blank" rel="noopener"
          title="فتح محادثة مع {{ name }}"
          class="font-semibold text-emerald-700 hover:underline">فتح محادثة ↗</a>
       {% else %}
-      <span class="text-slate-400 italic">غير مسجل</span>
+      <span class="text-slate-500 italic">غير مسجل</span>
       {% endif %}
     </div>
   </div>
@@ -52,15 +52,15 @@
   <div class="flex items-center gap-2 min-w-[220px] flex-1">
     <span class="text-base">✉️</span>
     <div class="min-w-0">
-      <div class="text-[10px] uppercase text-slate-400 leading-none">البريد الإلكتروني</div>
+      <div class="text-[10px] uppercase text-slate-500 leading-none">البريد الإلكتروني</div>
       {% if _email %}
       <a href="mailto:{{ _email }}" dir="ltr"
          class="text-navy-900 hover:text-emerald-700 break-all">{{ _email }}</a>
       <button type="button"
               onclick="navigator.clipboard.writeText('{{ _email }}'); this.textContent='تم النسخ ✓'; setTimeout(()=>this.textContent='📋 نسخ', 1500);"
-              class="text-[10px] text-slate-400 hover:text-emerald-700 ms-2">📋 نسخ</button>
+              class="text-[10px] text-slate-500 hover:text-emerald-700 ms-2">📋 نسخ</button>
       {% else %}
-      <span class="text-slate-400 italic">غير مسجل</span>
+      <span class="text-slate-500 italic">غير مسجل</span>
       {% endif %}
     </div>
   </div>

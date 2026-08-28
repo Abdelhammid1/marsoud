@@ -53,7 +53,7 @@
             {% if t.last_used_at %}
               {{ t.last_used_at | company_dt('%Y-%m-%d %H:%M') }}
             {% else %}
-              <span class="text-slate-400">لم يُستخدم بعد</span>
+              <span class="text-slate-500">لم يُستخدم بعد</span>
             {% endif %}
           </td>
           <td>
@@ -76,7 +76,7 @@
       </tbody>
     </table>
     {% else %}
-    <div class="text-center text-slate-400 py-8 text-sm">
+    <div class="text-center text-slate-500 py-8 text-sm">
       لا توجد مفاتيح بعد. أنشئ أول مفتاح من اليسار 👈
     </div>
     {% endif %}

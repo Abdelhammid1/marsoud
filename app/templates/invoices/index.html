@@ -76,8 +76,8 @@
         <td class="{% if inv.voided_at %}line-through decoration-rose-400 text-slate-500{% endif %}">{{ inv.customer.name }}</td>
         <td class="text-sm text-slate-500">{{ inv.issue_date.isoformat() }}</td>
         <td class="text-sm {% if inv.status.value == 'OVERDUE' and not inv.voided_at %}text-red-600 font-semibold{% else %}text-slate-500{% endif %}">{{ inv.due_date.isoformat() }}</td>
-        <td class="text-left font-mono font-semibold {% if inv.voided_at %}line-through decoration-rose-400 text-slate-400{% endif %}">{{ "%.2f"|format(inv.total) }}</td>
-        <td class="text-left font-mono {% if inv.voided_at %}line-through decoration-rose-400 text-slate-400{% elif inv.balance > 0 %}text-amber-600{% else %}text-emerald-600{% endif %}">{{ "%.2f"|format(inv.balance) }}</td>
+        <td class="text-left font-mono font-semibold {% if inv.voided_at %}line-through decoration-rose-400 text-slate-500{% endif %}">{{ "%.2f"|format(inv.total) }}</td>
+        <td class="text-left font-mono {% if inv.voided_at %}line-through decoration-rose-400 text-slate-500{% elif inv.balance > 0 %}text-amber-600{% else %}text-emerald-600{% endif %}">{{ "%.2f"|format(inv.balance) }}</td>
         <td>
           {% if inv.voided_at %}
           <span class="badge badge-cancelled" title="محذوفة — لا تدخل في أي حسابات مالية">🗑️ محذوفة</span>
@@ -102,7 +102,7 @@
       </tr>
       {% else %}
       {# MARSOUD-UI-DESIGN-SYSTEM (2026-08-18) — was a bare
-         `text-slate-400 py-8` cell. #}
+         `text-slate-500 py-8` cell. #}
       <tr><td colspan="8" style="padding:0">
         <div class="empty-state">
           <div class="empty-state-icon">🧾</div>

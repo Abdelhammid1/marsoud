@@ -44,7 +44,13 @@
     --ms-ink-1:        #0f172a;  /* strongest — headings, values */
     --ms-ink-2:        #334155;  /* body text */
     --ms-ink-3:        #64748b;  /* meta / muted body */
-    --ms-ink-4:        #94a3b8;  /* placeholders / hints */
+    /* MARSOUD-TKT-P2-A11Y (2026-08-28) — was #94a3b8 which on white
+       computes to 2.85:1 contrast, failing WCAG AA even for large text.
+       Now #64748b (4.68:1, passes AA for small text). The token name
+       still semantically means "hint / placeholder", so a downstream
+       ticket can introduce a decorative-only var (e.g. --ms-ink-5) if
+       an accessibility-irrelevant muted tone is ever actually needed. */
+    --ms-ink-4:        #64748b;  /* placeholders / hints — WCAG AA compliant */
 
     /* Surface & background */
     --ms-surface:      #ffffff;
@@ -822,6 +828,31 @@
     table.data-table[data-stacked] tbody td.text-left,
     table.data-table[data-stacked] tbody td.text-right {
       text-align: start !important;
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     MARSOUD-TKT-P2-A11Y (2026-08-28) — respect the user's OS-level
+     "reduce motion" setting. Global reset: cut every animation and
+     transition to near-zero, disable smooth-scroll. The standard MDN
+     idiom, placed here so both shells (tenant + admin) inherit
+     without either having to edit their own <style> block. Also
+     covers the .ms-spinner, .flash-enter slide-in, sidebar section
+     collapse transitions, .btn-*:hover translate, and every future
+     motion added to either shell.
+
+     `animation-duration: 0.01ms` (not 0) so browsers still fire the
+     animationend event that some JS handlers listen for, but the
+     animation is over faster than the human eye registers.
+     `animation-iteration-count: 1` so infinite animations (spinner)
+     end after one imperceptible tick instead of the CPU spinning
+     forever on an invisible frame. ────────────────────────────── */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
     }
   }
 
