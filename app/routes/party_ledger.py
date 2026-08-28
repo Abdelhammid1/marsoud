@@ -13,6 +13,10 @@ from app.services.party_ledger import (
     list_parties, party_ledger, KIND_LABELS,
 )
 from app.services.permissions import require_permission
+# MARSOUD-PDF-P0 (2026-08-28) — Amiri font embedded via data: URI so the
+# Chromium tempfile render at export_pdf below can carry the intended
+# Arabic type instead of falling back to whichever font the host has.
+from app.services.export import _amiri_font_face_css
 
 
 bp = Blueprint("party_ledger", __name__)
@@ -94,6 +98,7 @@ def export_pdf():
         "party_ledger/print.html",
         statement=statement, company=g.active_company,
         start_date=start, end_date=end,
+        amiri_font_face=_amiri_font_face_css(),
     )
     # Render via headless Chromium → PDF bytes
     with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
