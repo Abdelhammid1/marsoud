@@ -44,14 +44,17 @@
   </div>
 
   <div class="card p-6">
-    <div class="flex items-center justify-between mb-3">
+    {# MARSOUD-TKT-INVOICE-ITEMS-NUMBERED-QUOTE (2026-08-30) — items
+       are now numbered (#) so people can reference "البند رقم 3" in
+       a phone call or a follow-up email. The "+ بند" trigger moved
+       from the top-right to below the last row so the eye ends
+       naturally on the add-more button after filling a row. #}
+    <div class="mb-3">
       <h3 class="font-bold text-navy-900">البنود</h3>
-      <div class="flex gap-2">
-        <button type="button" onclick="addItem()" class="btn-secondary text-sm">+ بند</button>
-      </div>
     </div>
     <table class="data-table" id="items-table">
       <thead><tr>
+        <th style="width:2.5rem">#</th>
         <th style="width:30%">المنتج / الوصف</th>
         <th>الكمية</th>
         <th>السعر</th>
@@ -61,9 +64,12 @@
       </tr></thead>
       <tbody id="items-body"></tbody>
       <tfoot>
-        <tr><td colspan="4" class="text-left font-semibold py-2">إجمالي البنود</td><td class="text-left font-mono" id="items-total">0.00</td><td></td></tr>
+        {# MARSOUD-TKT-INVOICE-ITEMS-NUMBERED-QUOTE — colspans bumped
+           by 1 to account for the new leading # column (thead + row
+           cells both grew from 6 → 7 cells). #}
+        <tr><td colspan="5" class="text-left font-semibold py-2">إجمالي البنود</td><td class="text-left font-mono" id="items-total">0.00</td><td></td></tr>
         <tr>
-          <td colspan="2" class="text-left font-semibold py-2 text-amber-700">خصم على الفاتورة</td>
+          <td colspan="3" class="text-left font-semibold py-2 text-amber-700">خصم على الفاتورة</td>
           <td>
             <select name="invoice_discount_type" class="select text-sm" onchange="calcTotals()">
               <option value="NONE" {% if not invoice or invoice.invoice_discount_type.value == 'NONE' %}selected{% endif %}>—</option>
@@ -75,11 +81,15 @@
           <td class="text-left font-mono text-amber-600" id="invoice-discount-amt">0.00</td>
           <td></td>
         </tr>
-        <tr><td colspan="4" class="text-left py-2">الوعاء الضريبي</td><td class="text-left font-mono" id="taxable-base">0.00</td><td></td></tr>
-        <tr><td colspan="4" class="text-left py-2">الضريبة</td><td class="text-left font-mono" id="tax">0.00</td><td></td></tr>
-        <tr class="border-t-2 border-navy-900"><td colspan="4" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold" id="total">0.00</td><td></td></tr>
+        <tr><td colspan="5" class="text-left py-2">الوعاء الضريبي</td><td class="text-left font-mono" id="taxable-base">0.00</td><td></td></tr>
+        <tr><td colspan="5" class="text-left py-2">الضريبة</td><td class="text-left font-mono" id="tax">0.00</td><td></td></tr>
+        <tr class="border-t-2 border-navy-900"><td colspan="5" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold" id="total">0.00</td><td></td></tr>
       </tfoot>
     </table>
+    {# Add-band button moved out of the header, sits under the last row. #}
+    <div class="mt-3">
+      <button type="button" onclick="addItem()" class="btn-secondary text-sm">+ بند</button>
+    </div>
   </div>
 
   <div class="card p-6">
@@ -105,7 +115,12 @@
     {% if invoice %}
     <button type="submit" name="send" value="0" class="btn-primary">حفظ التعديلات</button>
     {% else %}
-    <button type="submit" name="send" value="0" class="btn-secondary">حفظ كمسودة</button>
+    {# MARSOUD-TKT-INVOICE-ITEMS-NUMBERED-QUOTE (2026-08-30) — label
+       changed from "حفظ كمسودة" to "حفظ كعرض سعر". The stored status
+       is still DRAFT (the enum unchanged); this is a wording change
+       only, matching how tenants describe the pre-send state to
+       their customers. #}
+    <button type="submit" name="send" value="0" class="btn-secondary">حفظ كعرض سعر</button>
     <button type="submit" name="send" value="1" class="btn-primary">إرسال + تسجيل قيد</button>
     {% endif %}
   </div>
@@ -143,6 +158,10 @@ function addItem(prefill) {
     .concat(products.map(p => `<option value="${p.id}" data-price="${p.price}" data-name="${escapeAttr(p.name)}">${escapeHtml(p.name)}</option>`))
     .join('');
   tr.innerHTML = `
+    {# MARSOUD-TKT-INVOICE-ITEMS-NUMBERED-QUOTE — leading # cell,
+       filled by renumberRows() below. Kept in `.row-num` class so a
+       future re-order feature can also target it. #}
+    <td class="row-num text-center font-mono text-slate-500 text-sm"></td>
     <td>
       <select name="item_product_id[]" class="select text-sm mb-1" onchange="onProductPick(this)">
         ${productOptions}
@@ -170,9 +189,10 @@ function addItem(prefill) {
       </div>
     </td>
     <td class="text-left font-mono line-total">0.00</td>
-    <td><button type="button" onclick="this.closest('tr').remove(); calcTotals()" class="text-red-500">×</button></td>
+    <td><button type="button" onclick="this.closest('tr').remove(); renumberRows(); calcTotals()" class="text-red-500">×</button></td>
   `;
   tbody.appendChild(tr);
+  renumberRows();
   if (prefill?.product_id) {
     const sel = tr.querySelector('select[name="item_product_id[]"]');
     sel.value = prefill.product_id;
@@ -248,6 +268,16 @@ function calcTotals() {
   document.getElementById('taxable-base').textContent = taxableBase.toFixed(2);
   document.getElementById('tax').textContent = tax.toFixed(2);
   document.getElementById('total').textContent = (taxableBase + tax).toFixed(2);
+}
+
+/* MARSOUD-TKT-INVOICE-ITEMS-NUMBERED-QUOTE — walks the item rows and
+   stamps 1, 2, 3, ... into each row's `.row-num` cell. Called after
+   every add/delete so the numbers stay stable and contiguous. */
+function renumberRows() {
+  document.querySelectorAll('#items-body tr').forEach((tr, i) => {
+    const cell = tr.querySelector('.row-num');
+    if (cell) cell.textContent = String(i + 1);
+  });
 }
 
 function escapeHtml(s) { return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
