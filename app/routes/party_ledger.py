@@ -16,7 +16,7 @@ from app.services.permissions import require_permission
 # MARSOUD-PDF-P0 (2026-08-28) — Amiri font embedded via data: URI so the
 # Chromium tempfile render at export_pdf below can carry the intended
 # Arabic type instead of falling back to whichever font the host has.
-from app.services.export import _amiri_font_face_css
+from app.services.export import _amiri_font_face_css, _company_logo_data_uri
 
 
 bp = Blueprint("party_ledger", __name__)
@@ -99,6 +99,9 @@ def export_pdf():
         statement=statement, company=g.active_company,
         start_date=start, end_date=end,
         amiri_font_face=_amiri_font_face_css(),
+        # MARSOUD-TKT-PDFS-06-FINAL — brand-row logo, mirroring the
+        # invoice + payslip + report PDFs.
+        company_logo_data_uri=_company_logo_data_uri(g.active_company),
     )
     # Render via headless Chromium → PDF bytes
     with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
