@@ -1,0 +1,80 @@
+{# MARSOUD-TKT-PDFS-05-LISTS (2026-08-29) — AP Aging PDF, WeasyPrint.
+   Mirror of ar_aging.html — "المورد" instead of "العميل", same data
+   shape, same tone rules.
+
+   Context:
+     - company, currency_ar, company_logo_data_uri, amiri_font_face
+     - data: {rows: [{vendor, current, d30, d60, d90, d90plus, total}],
+              totals: {…}}
+     - end_date
+#}
+{% extends "pdfs/_shell.html" %}
+{% import "pdfs/_report_macros.html" as rpt %}
+
+{% block title %}AP Aging — {{ company.display_name if company else 'Marsoud' }}{% endblock %}
+{% block doc_title %}أعمار الذمم الدائنة{% endblock %}
+
+{% block status_badge %}
+<div class="status-badge-wrap">
+  <span class="status-badge" style="color:#0A2540;background:#F1F5F9">
+    كما في {{ ar_date(end_date) }}
+  </span>
+</div>
+{% endblock %}
+
+{% block footer_year %}{{ end_date.year if end_date else '' }}{% endblock %}
+
+{% block content %}
+<table class="kv">
+  <tr><td class="k">عدد الموردين</td><td class="c">:</td>
+      <td class="v mono">{{ data.rows|length }}</td></tr>
+  <tr><td class="k">العملة</td><td class="c">:</td><td class="v">{{ currency_ar or '' }}</td></tr>
+</table>
+
+<div class="section-title">تفصيل أعمار الذمم حسب المورد</div>
+<table class="items">
+  <thead>
+    <tr>
+      <th>المورد</th>
+      <th class="num">جاري</th>
+      <th class="num">1-30 يوم</th>
+      <th class="num">31-60 يوم</th>
+      <th class="num">61-90 يوم</th>
+      <th class="num">+90 يوم</th>
+      <th class="num">الإجمالي</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in data.rows %}
+    <tr>
+      <td>{{ r.vendor }}</td>
+      <td class="num">{{ "%.2f"|format(r.current|float) }}</td>
+      <td class="num">{{ "%.2f"|format(r.d30|float) }}</td>
+      <td class="num" style="color:#B45309">{{ "%.2f"|format(r.d60|float) }}</td>
+      <td class="num" style="color:#DC2626">{{ "%.2f"|format(r.d90|float) }}</td>
+      <td class="num" style="color:#DC2626;font-weight:700">{{ "%.2f"|format(r.d90plus|float) }}</td>
+      <td class="num" style="font-weight:600;color:#0A2540">{{ "%.2f"|format(r.total|float) }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" style="text-align:center;color:#94A3B8;padding:24px">لا توجد ذمم دائنة كما في التاريخ المحدد.</td></tr>
+    {% endfor %}
+    {% if data.rows %}
+    <tr>
+      <td style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">الإجمالي</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(data.totals.current|float) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(data.totals.d30|float) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#B45309">{{ "%.2f"|format(data.totals.d60|float) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#DC2626">{{ "%.2f"|format(data.totals.d90|float) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#DC2626">{{ "%.2f"|format(data.totals.d90plus|float) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(data.totals.total|float) }}</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+{% set overdue = data.totals.d90plus|float %}
+{% set total = data.totals.total|float %}
+{% set is_healthy = total == 0 or (overdue / total) < 0.20 %}
+{{ rpt.outcome_block("إجمالي الذمم الدائنة", data.totals.total|float,
+                     is_healthy, currency_ar=currency_ar) }}
+{% endblock %}

@@ -1,0 +1,90 @@
+{# MARSOUD-TKT-PDFS-01-JOURNAL (2026-08-29) — Journals list PDF,
+   WeasyPrint. Consumes pdfs/_shell.html.
+
+   Was ReportLab (services/export.py:export_journals_list_pdf).
+
+   Context expected:
+     - company                        Company object
+     - entries                        list[JournalEntry]
+     - period_label                   optional string (e.g. "من 2026-08-01 إلى 2026-08-31")
+     - company_logo_data_uri          base64 URI or None
+     - amiri_font_face                auto-injected
+#}
+{% extends "pdfs/_shell.html" %}
+
+{% block title %}Journals List — {{ company.display_name if company else 'Marsoud' }}{% endblock %}
+
+{% block doc_title %}كشف قيود اليومية{% endblock %}
+
+{% block footer_year %}{{ entries[0].date.year if entries and entries[0].date else '' }}{% endblock %}
+
+{% block footer_page %}عدد القيود: {{ entries|length }} · صفحة 1 من 1{% endblock %}
+
+{% block content %}
+{# ── META KV (period + row count) ────────────────────────────── #}
+<table class="kv">
+  {% if period_label %}
+  <tr><td class="k">الفترة</td><td class="c">:</td><td class="v">{{ period_label }}</td></tr>
+  {% endif %}
+  <tr><td class="k">عدد القيود</td><td class="c">:</td><td class="v mono">{{ entries|length }}</td></tr>
+  {% if company.tax_number %}
+  <tr><td class="k">الرقم الضريبي</td><td class="c">:</td><td class="v mono">{{ company.tax_number }}</td></tr>
+  {% endif %}
+</table>
+
+{# ── ENTRIES TABLE (green-header, one row per JE) ─────────────── #}
+<div class="section-title">القيود</div>
+{% set ns = namespace(total_debit=0.0, total_credit=0.0) %}
+<table class="items">
+  <thead>
+    <tr>
+      <th>رقم القيد</th>
+      <th>التاريخ</th>
+      <th>الوصف</th>
+      <th>المرجع</th>
+      <th class="num">إجمالي المدين</th>
+      <th class="num">إجمالي الدائن</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in entries %}
+      {% set ed = (e.total_debit|float) if e.total_debit is not none else 0 %}
+      {% set ec = (e.total_credit|float) if e.total_credit is not none else 0 %}
+      {% set ns.total_debit = ns.total_debit + ed %}
+      {% set ns.total_credit = ns.total_credit + ec %}
+    <tr>
+      <td class="mono">{{ e.number or ('#' ~ e.id) }}</td>
+      <td>{{ ar_date(e.date) }}</td>
+      <td>{{ (e.description or '—')[:60] }}</td>
+      <td class="mono">{{ e.reference or '—' }}</td>
+      <td class="num">{{ "%.2f"|format(ed) }}</td>
+      <td class="num">{{ "%.2f"|format(ec) }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" style="text-align:center;color:#94A3B8;padding:24px">لا توجد قيود في الفترة المحددة.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{# ── GRAND TOTALS ────────────────────────────────────────────── #}
+{% set list_diff = ns.total_debit - ns.total_credit %}
+{% set list_balanced = (-0.005 < list_diff < 0.005) %}
+<table class="totals-kv">
+  <tr>
+    <td class="lbl">إجمالي المدين (كل القيود)</td>
+    <td class="val">{{ "%.2f"|format(ns.total_debit) }}</td>
+  </tr>
+  <tr>
+    <td class="lbl">إجمالي الدائن (كل القيود)</td>
+    <td class="val">{{ "%.2f"|format(ns.total_credit) }}</td>
+  </tr>
+  <tr class="grand">
+    <td style="color:{% if list_balanced %}#059669{% else %}#DC2626{% endif %}">
+      {% if list_balanced %}الفرق (كل القيود متوازنة){% else %}الفرق (اختلال){% endif %}
+    </td>
+    <td class="val" style="color:{% if list_balanced %}#059669{% else %}#DC2626{% endif %}">
+      {{ "%.2f"|format(list_diff) }}
+    </td>
+  </tr>
+</table>
+{% endblock %}

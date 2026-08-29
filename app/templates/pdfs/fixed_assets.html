@@ -1,0 +1,75 @@
+{# MARSOUD-TKT-PDFS-05-LISTS (2026-08-29) — Fixed Assets Register PDF,
+   WeasyPrint. Extends pdfs/_shell.html.
+
+   Context:
+     - company, currency_ar, company_logo_data_uri, amiri_font_face
+     - data: {rows: [{name, vendor, purchase_date, useful_life_years,
+              cost, annual_dep, accumulated_dep, nbv}], totals: {…}}
+#}
+{% extends "pdfs/_shell.html" %}
+{% import "pdfs/_report_macros.html" as rpt %}
+
+{% block title %}Fixed Assets — {{ company.display_name if company else 'Marsoud' }}{% endblock %}
+{% block doc_title %}سجل الأصول الثابتة{% endblock %}
+
+{% block status_badge %}
+<div class="status-badge-wrap">
+  <span class="status-badge" style="color:#0A2540;background:#F1F5F9">
+    كل الأصول النشطة · كما في {{ ar_date(as_of_date) }}
+  </span>
+</div>
+{% endblock %}
+
+{% block footer_year %}{{ as_of_date.year if as_of_date else '' }}{% endblock %}
+
+{% block content %}
+<table class="kv">
+  <tr><td class="k">عدد الأصول</td><td class="c">:</td>
+      <td class="v mono">{{ data.rows|length }}</td></tr>
+  <tr><td class="k">العملة</td><td class="c">:</td><td class="v">{{ currency_ar or '' }}</td></tr>
+</table>
+
+<div class="section-title">تفصيل الأصول</div>
+<table class="items">
+  <thead>
+    <tr>
+      <th>الأصل</th>
+      <th>المورد</th>
+      <th>تاريخ الشراء</th>
+      <th class="num">العمر (سنة)</th>
+      <th class="num">التكلفة</th>
+      <th class="num">إهلاك سنوي</th>
+      <th class="num">مجمع الإهلاك</th>
+      <th class="num">القيمة الدفترية</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in data.rows %}
+    <tr>
+      <td>{{ r.name }}</td>
+      <td>{{ r.vendor or '—' }}</td>
+      <td class="mono">{{ r.purchase_date }}</td>
+      <td class="num">{{ r.useful_life_years }}</td>
+      <td class="num">{{ "%.2f"|format(r.cost|float) }}</td>
+      <td class="num" style="color:#B45309">{{ "%.2f"|format(r.annual_dep|float) }}</td>
+      <td class="num" style="color:#B45309">{{ "%.2f"|format(r.accumulated_dep|float) }}</td>
+      <td class="num" style="font-weight:600;color:#059669">{{ "%.2f"|format(r.nbv|float) }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8" style="text-align:center;color:#94A3B8;padding:24px">لا توجد أصول ثابتة نشطة.</td></tr>
+    {% endfor %}
+    {% if data.rows %}
+    <tr>
+      <td colspan="4" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">الإجمالي</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(data.totals.cost|float) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#B45309">{{ "%.2f"|format(data.totals.annual_dep|float) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#B45309">{{ "%.2f"|format(data.totals.accumulated_dep|float) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#059669">{{ "%.2f"|format(data.totals.nbv|float) }}</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+{{ rpt.outcome_block("إجمالي القيمة الدفترية (NBV)",
+                     data.totals.nbv|float, true, currency_ar=currency_ar) }}
+{% endblock %}

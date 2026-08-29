@@ -1,0 +1,140 @@
+{# MARSOUD-TKT-PDFS-01-JOURNAL (2026-08-29) — shared PDF shell.
+
+   Every WeasyPrint-rendered PDF in Marsoud will extend this shell so the
+   design chrome (corner accents, brand row, doc title, status pill,
+   navy rule, footer) lives in ONE place. Consumers override:
+     - {% block title %}          browser tab / print job title
+     - {% block doc_title %}      big green centered heading (e.g. فاتورة)
+     - {% block status_badge %}   optional status pill inside `.status-badge-wrap`
+     - {% block content %}        the meat: KV tables, items table, totals
+     - {% block footer_year %}    the © year (defaults to `footer_year` var)
+     - {% block footer_page %}    the page counter (defaults to "صفحة 1 من 1")
+
+   Consumers MUST pass in these context variables:
+     - company                    the tenant Company object (for brand row + display_name)
+     - company_logo_data_uri      base64 logo URI (from _company_logo_data_uri()) or None
+     - amiri_font_face            auto-injected by _weasyprint_render(), never pass manually
+
+   The shell auto-provides:
+     - ar_date(d) macro           Arabic-month date formatter ("5 سبتمبر 2026")
+                                  Reused across every PDF instead of being redefined per file.
+
+   Extracted from pdfs/invoice.html (2026-08-28 redesign) so payslip,
+   journal entry, balance sheet, income statement, VAT, and every other
+   future PDF inherit the same look. Ticket 6 will retrofit invoice.html
+   and payslip.html to extend this shell too (currently they duplicate
+   the chrome inline). #}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>{% block title %}Marsoud{% endblock %}</title>
+{# MARSOUD-PDF-P0 (2026-08-28) — Amiri font embedded as data: URIs by
+   app/services/export.py:_amiri_font_face_css(). Auto-injected by
+   _weasyprint_render(). #}
+{{ amiri_font_face|safe }}
+<style>
+{% block style %}
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; }
+body { font-family: 'Amiri', 'Segoe UI', Tahoma, sans-serif; direction: rtl; background: #fff; color: #0A2540; }
+.page { width: 100%; height: 297mm; position: relative; overflow: hidden; }
+.pad { position: relative; z-index: 1; padding: 50px 56px; }
+
+.brand-row { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+.logo-box { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 20px; overflow: hidden; flex-shrink: 0; }
+.logo-box.fallback { background: #0A2540; }
+.logo-box img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.brand-name { font-size: 24px; font-weight: 800; color: #0A2540; }
+.doc-title { font-size: 26px; font-weight: 800; color: #059669; margin-bottom: 10px; text-align: center; }
+.rule { height: 2px; background: #0A2540; margin-bottom: 20px; }
+.status-badge-wrap { text-align: center; margin-bottom: 14px; }
+.status-badge { display: inline-block; padding: 4px 16px; border-radius: 20px; font-size: 11.5px; font-weight: 700; }
+
+.kv { width: 100%; font-size: 12.5px; border-collapse: collapse; margin-bottom: 20px; }
+.kv td { padding: 4px 0; }
+.kv td.k { font-weight: 600; width: 140px; color: #0A2540; }
+.kv td.c { width: 14px; color: #0A2540; }
+.kv td.v { color: #0A2540; }
+.kv td.v.mono { font-family: monospace; }
+
+.parties { display: flex; gap: 48px; margin-bottom: 24px; }
+.party { flex: 1; }
+.party .lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #94A3B8; margin-bottom: 8px; }
+.party .name { font-size: 14px; font-weight: 800; color: #0A2540; margin-bottom: 4px; }
+.party .brand-sub { font-size: 11px; color: #64748B; margin-bottom: 6px; }
+.party .line { font-size: 12px; color: #475569; line-height: 1.85; }
+
+.section-title { font-size: 15px; font-weight: 800; color: #0A2540; margin-bottom: 10px; }
+table.items { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 22px; }
+table.items th { background: #059669; color: #fff; padding: 9px 12px; font-weight: 600; font-size: 11.5px; text-align: right; }
+table.items th.num { text-align: left; }
+table.items td { padding: 9px 12px; border-bottom: 1px solid #E2E8F0; vertical-align: top; }
+table.items td.num { text-align: left; font-family: monospace; }
+table.items td.mono { font-family: monospace; }
+table.items tr:last-child td { border-bottom: none; }
+
+.totals-kv { width: 100%; font-size: 12.5px; border-collapse: collapse; margin-bottom: 8px; }
+.totals-kv td { padding: 5px 0; }
+.totals-kv td.lbl { color: #475569; }
+.totals-kv td.val { text-align: left; font-family: monospace; color: #0A2540; }
+.totals-kv tr.grand td { padding: 10px 0; font-weight: 800; border-top: 2px solid #0A2540; color: #0A2540; font-size: 13.5px; }
+
+.due-block { display: flex; justify-content: space-between; align-items: baseline; padding-right: 16px; border-right: 3px solid #059669; margin: 24px 0 32px; }
+.due-block .lbl { font-size: 13px; color: #64748B; }
+.due-block .val { font-size: 28px; font-weight: 800; color: #059669; font-family: monospace; }
+.due-block .val .cur { font-size: 13px; }
+
+.footer { position: absolute; bottom: 0; right: 0; left: 0; padding: 16px 56px; border-top: 1px solid #E2E8F0; display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; color: #94A3B8; background: #fff; }
+.footer strong { color: #059669; }
+{% endblock style %}
+</style>
+</head>
+<body>
+{# Shared Arabic-month date formatter. Every PDF needed this and every
+   PDF was redefining it inline; extracted here so a downstream template
+   can just call {{ ar_date(some_date) }} without repeating the AR_MONTHS
+   dict. #}
+{% set AR_MONTHS = {
+  1: "يناير", 2: "فبراير", 3: "مارس", 4: "أبريل",
+  5: "مايو", 6: "يونيو", 7: "يوليو", 8: "أغسطس",
+  9: "سبتمبر", 10: "أكتوبر", 11: "نوفمبر", 12: "ديسمبر",
+} %}
+{% macro ar_date(d) -%}
+  {% if d %}{{ d.day }} {{ AR_MONTHS[d.month] }} {{ d.year }}{% else %}—{% endif %}
+{%- endmacro %}
+
+<div class="page">
+  {# Corner accents — the two green triangles that anchor every branded PDF. #}
+  <svg style="position:absolute;top:0;left:0" width="70" height="70" viewBox="0 0 70 70"><polygon points="0,0 70,0 0,70" fill="#059669"/></svg>
+  <svg style="position:absolute;bottom:0;right:0" width="70" height="70" viewBox="0 0 70 70"><polygon points="70,70 0,70 70,0" fill="#059669"/></svg>
+
+  <div class="pad">
+    {# Brand row: logo tile + company display name. Falls back to a
+       navy square with the first letter of the display name if no
+       logo URI was provided. Consumers pass `company` and
+       `company_logo_data_uri` in the render context. #}
+    <div class="brand-row">
+      <div class="logo-box{% if not company_logo_data_uri %} fallback{% endif %}">
+        {% if company_logo_data_uri %}<img src="{{ company_logo_data_uri }}" alt="{{ company.display_name if company else 'Marsoud' }}">{% else %}{{ ((company.display_name if company else 'م') or 'م')[:1] }}{% endif %}
+      </div>
+      <div class="brand-name">{{ company.display_name if company else 'مرصود' }}</div>
+    </div>
+
+    <div class="doc-title">{% block doc_title %}{% endblock %}</div>
+
+    {% block status_badge %}{% endblock %}
+
+    <div class="rule"></div>
+
+    {% block content %}{% endblock %}
+  </div>
+
+  <div class="footer">
+    <span>© {% block footer_year %}{{ footer_year or '' }}{% endblock %} <strong>مرصود</strong></span>
+    <span>{% block footer_page %}صفحة 1 من 1{% endblock %}</span>
+  </div>
+</div>
+</body>
+</html>

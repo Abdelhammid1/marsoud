@@ -1,0 +1,110 @@
+{# MARSOUD-TKT-PDFS-01-JOURNAL (2026-08-29) — Journal Entry PDF,
+   WeasyPrint. Consumes pdfs/_shell.html so it inherits the same design
+   language as pdfs/invoice.html and pdfs/payslip.html: corner accents,
+   right-aligned brand row, green table headers, navy rule, footer.
+
+   Was ReportLab (services/export.py:export_journal_entry_pdf via
+   canvas.Canvas + drawRightString). Migrated to bring journal PDFs
+   into brand parity with invoices — customer bug 2026-08-29 (JE-0158).
+
+   Context expected from services/export.py:_weasyprint_render():
+     - entry                          the JournalEntry object
+     - company_logo_data_uri          base64 URI or None
+     - amiri_font_face                auto-injected
+
+   The shell also expects `company` in context — we alias it below to
+   entry.company via `{% set company = entry.company %}` so a caller
+   who only passes `entry` still renders correctly.
+#}
+{% extends "pdfs/_shell.html" %}
+{% set company = entry.company %}
+
+{% block title %}Journal Entry {{ entry.number or entry.id }}{% endblock %}
+
+{% block doc_title %}قيد يومية{% endblock %}
+
+{% block status_badge %}
+{# Two-state status pill: نشط (green) / موقوف (grey). Colors sourced
+   from the invoice's STATUS_META for visual consistency. #}
+{% if entry.is_active %}
+  {% set status_label = "نشط" %}
+  {% set status_color = "#059669" %}
+  {% set status_bg = "#ECFDF5" %}
+{% else %}
+  {% set status_label = "موقوف" %}
+  {% set status_color = "#64748B" %}
+  {% set status_bg = "#F1F5F9" %}
+{% endif %}
+<div class="status-badge-wrap">
+  <span class="status-badge" style="color:{{ status_color }};background:{{ status_bg }}">{{ status_label }}</span>
+</div>
+{% endblock %}
+
+{% block footer_year %}{{ entry.date.year if entry.date else '' }}{% endblock %}
+
+{% block content %}
+{# ── META KV (mirror of invoice's رقم/تاريخ block) ──────────── #}
+<table class="kv">
+  <tr><td class="k">رقم القيد</td><td class="c">:</td><td class="v mono">{{ entry.number or ('#' ~ entry.id) }}</td></tr>
+  <tr><td class="k">التاريخ</td><td class="c">:</td><td class="v">{{ ar_date(entry.date) }}</td></tr>
+  <tr><td class="k">العملة</td><td class="c">:</td><td class="v">{{ entry.currency|currency_ar }}</td></tr>
+  {% if entry.reference %}
+  <tr><td class="k">المرجع</td><td class="c">:</td><td class="v mono">{{ entry.reference }}</td></tr>
+  {% endif %}
+  {% if entry.description %}
+  <tr><td class="k">الوصف</td><td class="c">:</td><td class="v">{{ entry.description }}</td></tr>
+  {% endif %}
+  {% if entry.company.tax_number %}
+  <tr><td class="k">الرقم الضريبي</td><td class="c">:</td><td class="v mono">{{ entry.company.tax_number }}</td></tr>
+  {% endif %}
+</table>
+
+{# ── ITEMS TABLE (green-header, same shape as invoice items) ─── #}
+<div class="section-title">تفاصيل القيد</div>
+<table class="items">
+  <thead>
+    <tr>
+      <th>الحساب</th>
+      <th>البيان</th>
+      <th class="num">مدين</th>
+      <th class="num">دائن</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for line in entry.lines %}
+    {% set acc_code = line.account.code if line.account else '—' %}
+    {% set acc_name = (line.account.name_ar or line.account.name) if line.account else '—' %}
+    <tr>
+      <td><span class="mono">{{ acc_code }}</span> · {{ acc_name }}</td>
+      <td>{{ line.memo or '—' }}</td>
+      <td class="num">{% if line.debit and (line.debit|float) > 0 %}{{ "%.2f"|format(line.debit|float) }}{% else %}—{% endif %}</td>
+      <td class="num">{% if line.credit and (line.credit|float) > 0 %}{{ "%.2f"|format(line.credit|float) }}{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{# ── TOTALS (right-aligned mono, 2px navy border on grand row) ── #}
+{% set total_debit = entry.total_debit|float if entry.total_debit is not none else 0 %}
+{% set total_credit = entry.total_credit|float if entry.total_credit is not none else 0 %}
+{% set diff = total_debit - total_credit %}
+{% set is_balanced = (-0.005 < diff < 0.005) %}
+<table class="totals-kv">
+  <tr>
+    <td class="lbl">إجمالي المدين</td>
+    <td class="val">{{ "%.2f"|format(total_debit) }} {{ entry.currency|currency_ar }}</td>
+  </tr>
+  <tr>
+    <td class="lbl">إجمالي الدائن</td>
+    <td class="val">{{ "%.2f"|format(total_credit) }} {{ entry.currency|currency_ar }}</td>
+  </tr>
+  <tr class="grand">
+    <td style="color:{% if is_balanced %}#059669{% else %}#DC2626{% endif %}">
+      {% if is_balanced %}الفرق (متوازن){% else %}الفرق (غير متوازن){% endif %}
+    </td>
+    <td class="val" style="color:{% if is_balanced %}#059669{% else %}#DC2626{% endif %}">
+      {{ "%.2f"|format(diff) }} {{ entry.currency|currency_ar }}
+    </td>
+  </tr>
+</table>
+{% endblock %}

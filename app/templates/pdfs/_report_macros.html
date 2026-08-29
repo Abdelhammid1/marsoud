@@ -1,0 +1,85 @@
+{# MARSOUD-TKT-PDFS-02-FIN-REPORTS (2026-08-29) — reusable macros for
+   financial-statement PDF templates.
+
+   Every financial report (balance sheet, income statement, cash flow,
+   VAT, expenses summary, profitability, aging reports…) shares the same
+   shape: a title + a list of account rows + a subtotal. `account_group`
+   captures that pattern so each report template just calls the macro N
+   times per section instead of open-coding a 20-line table per group.
+
+   Kept out of pdfs/_shell.html because the shell is for PAGE chrome
+   (corner accents, brand row, footer). Report-specific primitives
+   belong here so future tickets adding more macros (a `subtotal_row`
+   for indented sub-totals, a `three_column_totals` for tax-report
+   summaries) can grow without bloating the shell.
+
+   Import in a template with:
+     {% import 'pdfs/_report_macros.html' as rpt %}
+#}
+
+{# account_group — renders one financial-statement section as a
+   green-header table with a bolded subtotal row at the bottom.
+
+   Args:
+     title:         the section heading (Arabic string)
+     items:         iterable of dicts each with 'code', 'name', 'balance'
+     total_label:   Arabic label for the subtotal row (e.g. "إجمالي الأصول")
+     total_value:   the subtotal number
+     currency_ar:   currency label to append (optional, defaults to
+                    empty so the caller can drop the currency out entirely)
+
+   Structure matches pdfs/invoice.html's `.items` table + a manual
+   grand-row on top of it (styled the same way `.totals-kv tr.grand`
+   is styled in _shell.html: 2px navy top border + bold + slightly
+   larger font). #}
+{% macro account_group(title, items, total_label, total_value, currency_ar="") -%}
+  <div class="section-title">{{ title }}</div>
+  <table class="items">
+    <thead>
+      <tr>
+        <th>الحساب</th>
+        <th class="num">الرصيد</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td><span class="mono">{{ item.code }}</span> · {{ item.name }}</td>
+        <td class="num">{{ "%.2f"|format(item.balance|float) }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="2" style="text-align:center;color:#94A3B8;padding:16px;font-size:11px">
+          — لا توجد أرصدة في هذا القسم —
+        </td>
+      </tr>
+      {% endfor %}
+      <tr>
+        <td style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">{{ total_label }}</td>
+        <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">{{ "%.2f"|format(total_value|float) }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
+      </tr>
+    </tbody>
+  </table>
+{%- endmacro %}
+
+
+{# outcome_block — renders the big signature block at the bottom of a
+   report (like invoice.html's `.due-block`), carrying the headline
+   result (Net Profit / Balanced check / Net Change). Border color +
+   value color are green for "good outcome", red for "bad outcome".
+
+   Args:
+     label:       the Arabic label (e.g. "صافي الربح")
+     value:       the number
+     is_good:     bool — True → green tone, False → red tone
+     currency_ar: optional currency to append
+#}
+{% macro outcome_block(label, value, is_good, currency_ar="") -%}
+  {% set tone = "#059669" if is_good else "#DC2626" %}
+  <div class="due-block" style="border-right-color:{{ tone }}">
+    <div class="lbl">{{ label }}</div>
+    <div class="val" style="color:{{ tone }}">
+      {{ "%.2f"|format(value|float) }}{% if currency_ar %} <span class="cur">{{ currency_ar }}</span>{% endif %}
+    </div>
+  </div>
+{%- endmacro %}

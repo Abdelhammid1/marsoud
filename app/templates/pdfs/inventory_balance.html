@@ -1,0 +1,72 @@
+{# MARSOUD-TKT-PDFS-05-LISTS (2026-08-29) — Inventory Balance PDF,
+   WeasyPrint. Extends pdfs/_shell.html.
+
+   Was ReportLab via _simple_pdf_table.
+
+   Context:
+     - company, currency_ar, company_logo_data_uri, amiri_font_face
+     - rows: list of {sku, name, warehouse, qty, avg_cost, value}
+     - warehouse_label: optional string ("مخزن: X") for the status pill
+     - as_of_date: date shown in the pill
+#}
+{% extends "pdfs/_shell.html" %}
+{% import "pdfs/_report_macros.html" as rpt %}
+
+{% block title %}Inventory Balance — {{ company.display_name if company else 'Marsoud' }}{% endblock %}
+{% block doc_title %}رصيد المخزون الحالي{% endblock %}
+
+{% block status_badge %}
+<div class="status-badge-wrap">
+  <span class="status-badge" style="color:#0A2540;background:#F1F5F9">
+    {% if warehouse_label %}{{ warehouse_label }} · {% endif %}كما في {{ ar_date(as_of_date) }}
+  </span>
+</div>
+{% endblock %}
+
+{% block footer_year %}{{ as_of_date.year if as_of_date else '' }}{% endblock %}
+
+{% block content %}
+<table class="kv">
+  <tr><td class="k">عدد الأصناف</td><td class="c">:</td>
+      <td class="v mono">{{ rows|length }}</td></tr>
+  <tr><td class="k">العملة</td><td class="c">:</td><td class="v">{{ currency_ar or '' }}</td></tr>
+</table>
+
+<div class="section-title">تفصيل الأصناف</div>
+{% set ns = namespace(total_value=0.0) %}
+<table class="items">
+  <thead>
+    <tr>
+      <th>SKU</th>
+      <th>المنتج</th>
+      <th>المخزن</th>
+      <th class="num">الكمية</th>
+      <th class="num">متوسط التكلفة</th>
+      <th class="num">القيمة</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+      {% set ns.total_value = ns.total_value + (r.value|float) %}
+    <tr>
+      <td class="mono">{{ r.sku }}</td>
+      <td>{{ r.name }}</td>
+      <td class="mono">{{ r.warehouse }}</td>
+      <td class="num">{{ "%.2f"|format(r.qty|float) }}</td>
+      <td class="num" style="color:#64748B">{{ "%.4f"|format(r.avg_cost|float) }}</td>
+      <td class="num" style="font-weight:600;color:#0A2540">{{ "%.2f"|format(r.value|float) }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" style="text-align:center;color:#94A3B8;padding:24px">لا توجد أصناف في المخزن.</td></tr>
+    {% endfor %}
+    {% if rows %}
+    <tr>
+      <td colspan="5" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">إجمالي قيمة المخزون</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#059669">{{ "%.2f"|format(ns.total_value) }}</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+{{ rpt.outcome_block("إجمالي قيمة المخزون", ns.total_value, true, currency_ar=currency_ar) }}
+{% endblock %}

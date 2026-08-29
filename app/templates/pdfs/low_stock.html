@@ -1,0 +1,76 @@
+{# MARSOUD-TKT-PDFS-05-LISTS (2026-08-29) — Low-Stock Alert PDF,
+   WeasyPrint. Extends pdfs/_shell.html.
+
+   Context:
+     - company, currency_ar, company_logo_data_uri, amiri_font_face
+     - rows: list of dicts {sku, name, on_hand, reorder_level,
+              avg_cost, total_value}
+     - as_of_date
+#}
+{% extends "pdfs/_shell.html" %}
+{% import "pdfs/_report_macros.html" as rpt %}
+
+{% block title %}Low Stock — {{ company.display_name if company else 'Marsoud' }}{% endblock %}
+{% block doc_title %}أصناف تحت حد الطلب{% endblock %}
+
+{% block status_badge %}
+{% set has_low = rows|length > 0 %}
+<div class="status-badge-wrap">
+  <span class="status-badge" style="color:{% if has_low %}#DC2626{% else %}#059669{% endif %};background:{% if has_low %}#FEF2F2{% else %}#ECFDF5{% endif %}">
+    {% if has_low %}⚠ {{ rows|length }} صنف تحت حد الطلب — كما في {{ ar_date(as_of_date) }}
+    {% else %}✓ لا توجد أصناف تحت حد الطلب — كما في {{ ar_date(as_of_date) }}{% endif %}
+  </span>
+</div>
+{% endblock %}
+
+{% block footer_year %}{{ as_of_date.year if as_of_date else '' }}{% endblock %}
+
+{% block content %}
+<table class="kv">
+  <tr><td class="k">عدد الأصناف الناقصة</td><td class="c">:</td>
+      <td class="v mono">{{ rows|length }}</td></tr>
+  <tr><td class="k">العملة</td><td class="c">:</td><td class="v">{{ currency_ar or '' }}</td></tr>
+</table>
+
+<div class="section-title">تفاصيل الأصناف الناقصة</div>
+{% set ns = namespace(total_value=0.0) %}
+<table class="items">
+  <thead>
+    <tr>
+      <th>SKU</th>
+      <th>المنتج</th>
+      <th class="num">المتاح</th>
+      <th class="num">حد الطلب</th>
+      <th class="num">متوسط التكلفة</th>
+      <th class="num">القيمة</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in rows %}
+      {% set ns.total_value = ns.total_value + (r.total_value|float) %}
+    <tr>
+      <td class="mono">{{ r.sku }}</td>
+      <td>{{ r.name }}</td>
+      <td class="num" style="color:#DC2626;font-weight:700">{{ "%.2f"|format(r.on_hand|float) }}</td>
+      <td class="num" style="color:#64748B">{{ "%.2f"|format(r.reorder_level|float) }}</td>
+      <td class="num" style="color:#64748B">{{ "%.2f"|format(r.avg_cost|float) }}</td>
+      <td class="num" style="font-weight:600;color:#0A2540">{{ "%.2f"|format(r.total_value|float) }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6" style="text-align:center;color:#059669;padding:24px">✓ كل الأصناف فوق حد إعادة الطلب. المخزون في أمان.</td></tr>
+    {% endfor %}
+    {% if rows %}
+    <tr>
+      <td colspan="5" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">إجمالي قيمة النقص</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#DC2626">{{ "%.2f"|format(ns.total_value) }}</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+{{ rpt.outcome_block(
+     "عدد الأصناف تحت حد الطلب: " ~ rows|length,
+     ns.total_value,
+     rows|length == 0,
+     currency_ar=currency_ar) }}
+{% endblock %}

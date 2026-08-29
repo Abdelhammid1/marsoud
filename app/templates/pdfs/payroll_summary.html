@@ -1,0 +1,95 @@
+{# MARSOUD-TKT-PDFS-04-PAYROLL (2026-08-29) — Payroll Summary PDF,
+   WeasyPrint. Cross-period summary (multiple runs across months).
+   Extends pdfs/_shell.html.
+
+   Was ReportLab via _list_pdf.
+
+   Context expected:
+     - company                    Company object
+     - data                       payroll_summary_report() dict —
+                                  rows[] + totals{}
+     - year, month                filter labels (int or None)
+     - currency_ar                localised currency label
+     - company_logo_data_uri      base64 URI or None
+     - amiri_font_face            auto-injected
+
+   Data shape per row: period, run_number, employee, basic, allowances,
+   overtime, bonus, deductions, net.
+   Totals dict keys: basic, allowances, overtime, bonus, deductions, net.
+#}
+{% extends "pdfs/_shell.html" %}
+{% import "pdfs/_report_macros.html" as rpt %}
+
+{% block title %}Payroll Summary — {{ company.display_name if company else 'Marsoud' }}{% endblock %}
+
+{% block doc_title %}ملخص الرواتب{% endblock %}
+
+{% block status_badge %}
+<div class="status-badge-wrap">
+  <span class="status-badge" style="color:#0A2540;background:#F1F5F9">
+    {% if year and month %}شهر {{ month }}/{{ year }}
+    {% elif year %}سنة {{ year }}
+    {% else %}كل الفترات{% endif %}
+  </span>
+</div>
+{% endblock %}
+
+{% block footer_year %}{{ year or '' }}{% endblock %}
+
+{% block content %}
+<table class="kv">
+  <tr><td class="k">عدد الأسطر</td><td class="c">:</td><td class="v mono">{{ data.rows|length }}</td></tr>
+  <tr><td class="k">العملة</td><td class="c">:</td><td class="v">{{ currency_ar or '' }}</td></tr>
+  {% if company.tax_number %}
+  <tr><td class="k">الرقم الضريبي</td><td class="c">:</td><td class="v mono">{{ company.tax_number }}</td></tr>
+  {% endif %}
+</table>
+
+<div class="section-title">تفصيل الرواتب عبر الفترات</div>
+<table class="items">
+  <thead>
+    <tr>
+      <th>الفترة</th>
+      <th>الكشف</th>
+      <th>الموظف</th>
+      <th class="num">الأساسي</th>
+      <th class="num">البدلات</th>
+      <th class="num">أوفرتايم</th>
+      <th class="num">بونص</th>
+      <th class="num">خصومات</th>
+      <th class="num">الصافي</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in data.rows %}
+    <tr>
+      <td class="mono">{{ r.period }}</td>
+      <td class="mono">{{ r.run_number or '—' }}</td>
+      <td>{{ r.employee }}</td>
+      <td class="num">{{ "%.2f"|format(r.basic|float) }}</td>
+      <td class="num">{{ "%.2f"|format(r.allowances|float) }}</td>
+      <td class="num" style="color:#059669">{{ "%.2f"|format(r.overtime|float) }}</td>
+      <td class="num" style="color:#059669">{{ "%.2f"|format(r.bonus|float) }}</td>
+      <td class="num" style="color:#B45309">{{ "%.2f"|format(r.deductions|float) }}</td>
+      <td class="num" style="font-weight:600;color:#0A2540">{{ "%.2f"|format(r.net|float) }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="9" style="text-align:center;color:#94A3B8;padding:24px">لا توجد رواتب في الفترة المحددة.</td></tr>
+    {% endfor %}
+    {% if data.rows %}
+    <tr>
+      <td colspan="3" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">الإجمالي</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(data.totals.basic|float) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(data.totals.allowances|float) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#059669">{{ "%.2f"|format(data.totals.overtime|float) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#059669">{{ "%.2f"|format(data.totals.bonus|float) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#B45309">{{ "%.2f"|format(data.totals.deductions|float) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(data.totals.net|float) }}</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+{{ rpt.outcome_block("الإجمالي الصافي (كل الأسطر)",
+                     data.totals.net|float, true, currency_ar=currency_ar) }}
+{% endblock %}

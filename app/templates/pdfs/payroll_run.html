@@ -1,0 +1,100 @@
+{# MARSOUD-TKT-PDFS-04-PAYROLL (2026-08-29) — Payroll Run PDF,
+   WeasyPrint. Extends pdfs/_shell.html.
+
+   Was ReportLab (services/export.py:export_payroll_run_pdf). Migrated
+   to brand parity with the invoice + payslip PDFs.
+
+   Context expected:
+     - run                        PayrollRun object with .lines,
+                                  .period_month, .period_year, .number,
+                                  .total_net, .company
+     - company                    alias to run.company (for shell)
+     - currency_ar                localised currency label
+     - company_logo_data_uri      base64 URI or None
+     - amiri_font_face            auto-injected
+#}
+{% extends "pdfs/_shell.html" %}
+{% import "pdfs/_report_macros.html" as rpt %}
+{% set company = run.company %}
+
+{% block title %}Payroll {{ run.period_month }}/{{ run.period_year }} — {{ run.company.display_name if run.company else 'Marsoud' }}{% endblock %}
+
+{% block doc_title %}كشف رواتب الشهر{% endblock %}
+
+{% block status_badge %}
+<div class="status-badge-wrap">
+  <span class="status-badge" style="color:#0A2540;background:#F1F5F9">
+    شهر {{ run.period_month }}/{{ run.period_year }}{% if run.number %} · {{ run.number }}{% endif %}
+  </span>
+</div>
+{% endblock %}
+
+{% block footer_year %}{{ run.period_year or '' }}{% endblock %}
+
+{% block content %}
+{# ── META KV ─────────────────────────────────────────────────── #}
+<table class="kv">
+  {% if run.number %}
+  <tr><td class="k">رقم الكشف</td><td class="c">:</td><td class="v mono">{{ run.number }}</td></tr>
+  {% endif %}
+  <tr><td class="k">الفترة</td><td class="c">:</td><td class="v">{{ run.period_month }}/{{ run.period_year }}</td></tr>
+  <tr><td class="k">عدد الموظفين</td><td class="c">:</td><td class="v mono">{{ run.lines|length }}</td></tr>
+  <tr><td class="k">العملة</td><td class="c">:</td><td class="v">{{ currency_ar or '' }}</td></tr>
+</table>
+
+{# ── PAYROLL TABLE (7 columns) ───────────────────────────────── #}
+<div class="section-title">تفصيل الرواتب</div>
+{% set ns = namespace(basic=0.0, allowances=0.0, bonus_ot=0.0, deductions=0.0, net=0.0) %}
+<table class="items">
+  <thead>
+    <tr>
+      <th>الموظف</th>
+      <th class="num">أيام العمل</th>
+      <th class="num">الأساسي</th>
+      <th class="num">البدلات</th>
+      <th class="num">بونص+أوفرتايم</th>
+      <th class="num">الخصومات</th>
+      <th class="num">الصافي</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for line in run.lines %}
+      {% set basic = line.basic|float if line.basic else 0 %}
+      {% set allowances = line.allowances|float if line.allowances else 0 %}
+      {% set bonus_ot = (line.overtime|float if line.overtime else 0) + (line.bonus|float if line.bonus else 0) %}
+      {% set deductions = (line.deductions|float if line.deductions else 0) + (line.absence_deduction|float if line.absence_deduction else 0) + (line.late_deduction|float if line.late_deduction else 0) + (line.advance_deduction|float if line.advance_deduction else 0) %}
+      {% set net = line.net|float if line.net else 0 %}
+      {% set ns.basic = ns.basic + basic %}
+      {% set ns.allowances = ns.allowances + allowances %}
+      {% set ns.bonus_ot = ns.bonus_ot + bonus_ot %}
+      {% set ns.deductions = ns.deductions + deductions %}
+      {% set ns.net = ns.net + net %}
+    <tr>
+      <td>{{ line.employee.name }}</td>
+      <td class="num">{{ line.working_days }}/30</td>
+      <td class="num">{{ "%.2f"|format(basic) }}</td>
+      <td class="num">{{ "%.2f"|format(allowances) }}</td>
+      <td class="num" style="color:#059669">{{ "%.2f"|format(bonus_ot) }}</td>
+      <td class="num" style="color:#B45309">{{ "%.2f"|format(deductions) }}</td>
+      <td class="num" style="font-weight:600;color:#0A2540">{{ "%.2f"|format(net) }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="7" style="text-align:center;color:#94A3B8;padding:24px">لا يوجد موظفين في هذا الكشف.</td></tr>
+    {% endfor %}
+    {% if run.lines %}
+    <tr>
+      <td colspan="2" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">الإجمالي</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(ns.basic) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(ns.allowances) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#059669">{{ "%.2f"|format(ns.bonus_ot) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#B45309">{{ "%.2f"|format(ns.deductions) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(ns.net) }}</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+{# ── SIGNATURE OUTCOME BLOCK: total net salaries ─────────────── #}
+{{ rpt.outcome_block("الإجمالي الصافي المستحق للموظفين",
+                     run.total_net|float, true, currency_ar=currency_ar) }}
+{% endblock %}

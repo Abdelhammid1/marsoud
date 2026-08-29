@@ -1,52 +1,114 @@
+{# MARSOUD-TKT-PDFS-06-FINAL (2026-08-29) — Party Ledger Print PDF,
+   Chromium-rendered (via Playwright at routes/party_ledger.py:export_pdf).
+
+   Was standalone with its own palette (navy title + navy table headers).
+   Retrofitted to match the invoice design (green title + green table
+   headers + corner accents + brand row + matching palette).
+
+   NOT extending pdfs/_shell.html because that shell's `.page { height:
+   297mm; overflow: hidden }` is single-page. Party ledger data can
+   span multiple pages, paginated via `@page @bottom-center` — a
+   feature Chromium's paged-media honors natively. Multi-page shell
+   support is planned as a separate future ticket.
+
+   MARSOUD-PDF-P0 (2026-08-28) — Amiri font embedded as data: URIs by
+   app/services/export.py:_amiri_font_face_css(), passed in from the
+   party_ledger.export_pdf route.
+   MARSOUD-TKT-PDFS-06-FINAL (2026-08-29) — brand row + corners added;
+   the route also now passes company_logo_data_uri for the logo tile.
+#}
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
 <title>كشف حساب — {{ statement.party.name }}</title>
-{# MARSOUD-PDF-P0 (2026-08-28) — Amiri font embedded as data: URIs by
-   app/services/export.py:_amiri_font_face_css(), passed in from the
-   party_ledger.export_pdf route. Chromium loads this template from a
-   tempfile in the OS temp dir, so relative url(static/fonts/…) can't
-   resolve — the data: URI is the only portable option. #}
 {{ amiri_font_face|safe }}
 <style>
   @page { size: A4; margin: 1.4cm 1cm 1.4cm 1cm; @bottom-center {
     content: "كشف حساب  ·  " counter(page) " من " counter(pages);
-    font-family: 'Amiri', sans-serif; font-size: 9pt; color: #5f7080;
+    font-family: 'Amiri', sans-serif; font-size: 9pt; color: #94A3B8;
   } }
-  body { font-family: 'Amiri', sans-serif; color: #1a2540; font-size: 10pt; }
-  h1 { color: #0a2540; font-size: 18pt; margin: 0; }
-  .subtitle { color: #5f7080; font-size: 9pt; margin-top: 0.2em; }
+  body { font-family: 'Amiri', sans-serif; color: #0A2540; font-size: 10pt;
+         margin: 0; padding: 0; position: relative; }
+
+  /* Corner accents — top-left + bottom-right green triangles.
+     Matches pdfs/_shell.html chrome. Position fixed = show on every page. */
+  .corner-tl, .corner-br {
+    position: fixed; width: 60px; height: 60px; z-index: 0;
+  }
+  .corner-tl { top: 0; left: 0; }
+  .corner-br { bottom: 0; right: 0; }
+
+  /* Brand row: logo tile + company name, right-aligned like the
+     invoice PDF. */
+  .brand-row {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 12px;
+    flex-direction: row-reverse;  /* logo on right, name to its left */
+    justify-content: flex-start;
+  }
+  .logo-box {
+    width: 40px; height: 40px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 800; font-size: 16px;
+    overflow: hidden; flex-shrink: 0;
+  }
+  .logo-box.fallback { background: #0A2540; }
+  .logo-box img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .brand-name { font-size: 18pt; font-weight: 800; color: #0A2540; }
+
+  /* Green doc title matches invoice/report doc-title style. */
+  h1 { color: #059669; font-size: 20pt; margin: 8px 0 4px; text-align: center; }
+  .subtitle { color: #64748B; font-size: 9pt; margin-top: 0.2em; text-align: center; }
+
+  /* 2px navy rule under the title, same as invoice PDFs. */
+  .rule { height: 2px; background: #0A2540; margin: 14px 0 16px; }
+
   .meta-bar { display: flex; gap: 1em; margin-top: 0.8em;
-              padding: 0.6em 0.8em; background: #f1f5f9; border-radius: 4px; }
+              padding: 0.6em 0.8em; background: #F8FAFC;
+              border: 1px solid #E2E8F0; border-radius: 4px; }
   .meta-bar > div { flex: 1; }
-  .meta-bar .lbl { font-size: 8.5pt; color: #5f7080; }
+  .meta-bar .lbl { font-size: 8.5pt; color: #64748B; }
   .meta-bar .val { font-weight: 700; font-family: monospace; direction: ltr;
-                   text-align: right; }
+                   text-align: right; color: #0A2540; }
   table { width: 100%; border-collapse: collapse; margin-top: 1em; }
-  th, td { padding: 0.4em 0.5em; border-bottom: 1px solid #e2e8f0;
+  th, td { padding: 0.4em 0.5em; border-bottom: 1px solid #E2E8F0;
            font-size: 9pt; text-align: right; vertical-align: top; }
-  th { background: #0a2540; color: white; font-weight: 700;
-       text-align: center; }
+  /* Green header row — matches invoice items table. */
+  th { background: #059669; color: white; font-weight: 700;
+       text-align: center; font-size: 8.5pt; }
   td.num { font-family: monospace; direction: ltr; text-align: left; }
-  td.dim { color: #5f7080; font-size: 8.5pt; }
-  tr.opening { background: #fef9c3; font-weight: 700; }
-  tr.closing { background: #f0f9ff; font-weight: 700; border-top: 2px solid #0a2540; }
-  .pos { color: #15803d; }
-  .neg { color: #b91c1c; }
-  .footer-note { margin-top: 2em; font-size: 8pt; color: #5f7080;
-                 text-align: center; border-top: 1px solid #e2e8f0;
+  td.dim { color: #64748B; font-size: 8.5pt; }
+  tr.opening { background: #FEF9C3; font-weight: 700; }
+  tr.closing { background: #ECFDF5; font-weight: 700; border-top: 2px solid #0A2540; }
+  .pos { color: #059669; }
+  .neg { color: #B91C1C; }
+  .footer-note { margin-top: 2em; font-size: 8pt; color: #94A3B8;
+                 text-align: center; border-top: 1px solid #E2E8F0;
                  padding-top: 0.6em; }
 </style>
 </head>
 <body>
 
-<h1>كشف حساب — {{ statement.party.name }}</h1>
-<div class="subtitle">
-  {{ statement.party.kind_label }} ·
-  حساب رقم <span style="font-family:monospace;direction:ltr">{{ statement.party.account_code }}</span>
-  {% if company %} · {{ company.name }}{% endif %}
+{# Corner accents — 60×60 green triangles at page corners #}
+<svg class="corner-tl" viewBox="0 0 70 70"><polygon points="0,0 70,0 0,70" fill="#059669"/></svg>
+<svg class="corner-br" viewBox="0 0 70 70"><polygon points="70,70 0,70 70,0" fill="#059669"/></svg>
+
+{# Brand row + doc title #}
+<div class="brand-row">
+  <div class="logo-box{% if not company_logo_data_uri %} fallback{% endif %}">
+    {% if company_logo_data_uri %}<img src="{{ company_logo_data_uri }}" alt="{{ company.display_name if company else 'Marsoud' }}">{% else %}{{ ((company.display_name if company else 'م') or 'م')[:1] }}{% endif %}
+  </div>
+  <div class="brand-name">{{ company.display_name if company else 'مرصود' }}</div>
 </div>
+
+<h1>كشف حساب</h1>
+<div class="subtitle">
+  {{ statement.party.name }} · {{ statement.party.kind_label }} ·
+  حساب رقم <span style="font-family:monospace;direction:ltr">{{ statement.party.account_code }}</span>
+</div>
+
+<div class="rule"></div>
 
 <div class="meta-bar">
   <div>
@@ -99,7 +161,7 @@
       <td class="num">{{ "%.2f"|format(r.balance) }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:1em">لا توجد حركات في الفترة المحددة.</td></tr>
+    <tr><td colspan="7" style="text-align:center;color:#94A3B8;padding:1em">لا توجد حركات في الفترة المحددة.</td></tr>
     {% endfor %}
     <tr class="closing">
       <td colspan="4">الإجماليات</td>
@@ -111,8 +173,8 @@
 </table>
 
 <div class="footer-note">
-  هذا الكشف تم إنشاؤه آليّاً من نظام Marsoud المحاسبي.
-  جميع المبالغ بالعملة الأساسية للشركة.
+  © {{ end_date.year if end_date else '' }} <strong style="color:#059669">مرصود</strong> ·
+  هذا الكشف تم إنشاؤه آليّاً · جميع المبالغ بالعملة الأساسية للشركة.
 </div>
 
 </body>
