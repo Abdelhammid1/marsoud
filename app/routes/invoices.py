@@ -207,6 +207,11 @@ def new():
     if not g.active_company:
         return redirect(url_for("companies.new"))
     customers = Customer.query.filter_by(company_id=g.active_company.id, is_active=True).order_by(Customer.name).all()
+    # MARSOUD-TKT-INVOICE-INLINE-CUSTOMER — the quick-add modal's
+    # "sales rep" dropdown needs the same list customers/new uses. We
+    # import here to keep the reps-only import off the module top level.
+    from app.routes.customers import _company_reps
+    reps = _company_reps()
     if request.method == "POST":
         try:
             invoice = Invoice(
@@ -256,7 +261,8 @@ def new():
             db.session.rollback()
             flash(f"خطأ: {e}", "error")
 
-    return render_template("invoices/form.html", customers=customers, invoice=None)
+    return render_template("invoices/form.html", customers=customers,
+                             invoice=None, reps=reps)
 
 
 @bp.route("/<int:invoice_id>/edit", methods=["GET", "POST"])
@@ -272,6 +278,9 @@ def edit(invoice_id):
         return redirect(url_for("invoices.view", invoice_id=invoice_id))
 
     customers = Customer.query.filter_by(company_id=g.active_company.id, is_active=True).order_by(Customer.name).all()
+    # MARSOUD-TKT-INVOICE-INLINE-CUSTOMER — same rationale as `new`.
+    from app.routes.customers import _company_reps
+    reps = _company_reps()
     if request.method == "POST":
         try:
             _populate_invoice_from_form(invoice, request.form)
@@ -282,7 +291,8 @@ def edit(invoice_id):
             db.session.rollback()
             flash(f"خطأ: {e}", "error")
 
-    return render_template("invoices/form.html", customers=customers, invoice=invoice)
+    return render_template("invoices/form.html", customers=customers,
+                             invoice=invoice, reps=reps)
 
 
 # ─── MARSOUD-CURRENCY-TAX-DEFAULTS (Batch 8 Ticket 4c, 2026-07-30) ──

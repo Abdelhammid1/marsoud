@@ -1,4 +1,7 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request, g, abort
+from flask import (
+    Blueprint, render_template, redirect, url_for, flash, request, g, abort,
+    jsonify,
+)
 from flask_login import login_required, current_user
 from app import db
 from app.models import Customer, User
@@ -120,6 +123,66 @@ def new():
         flash("تم إضافة العميل", "success")
         return redirect(url_for("customers.index"))
     return render_template("customers/form.html", customer=None, reps=reps)
+
+
+# MARSOUD-TKT-INVOICE-INLINE-CUSTOMER (Abdelhamid 2026-08-29) — JSON
+# counterpart to `new`. Called from a modal on the invoice-new page so
+# a bookkeeper can add a walk-in customer without losing their place
+# in the invoice they're mid-way through drafting. Same permission
+# gate (`partners.manage`), same server-side validation, same
+# `ensure_customer_account` call, same activity log — the only
+# differences from `new` are: (a) returns JSON instead of redirecting,
+# (b) rolls back + returns 400 on validation error instead of
+# re-rendering, (c) skips the opening_balance branch (rarely wanted
+# mid-invoice; the standalone /customers/new page keeps it).
+@bp.route("/quick-create", methods=["POST"])
+@login_required
+def quick_create():
+    # MARSOUD-TKT-INVOICE-INLINE-CUSTOMER — permission check is inline
+    # (not via @require_permission) so a denial returns JSON 403 the
+    # modal can display, not a 302 redirect to /dashboard the JS
+    # client can't follow. Same permission — `partners.manage` — same
+    # gate as customers.new.
+    from app.services.permissions import has_permission
+    if not g.active_company:
+        return jsonify(ok=False, error="لا توجد شركة نشطة"), 400
+    if not has_permission("partners.manage"):
+        return jsonify(ok=False,
+                        error="ليس لديك صلاحية لإضافة عميل"), 403
+
+    name = (request.form.get("name") or "").strip()
+    if not name:
+        return jsonify(ok=False, error="الاسم مطلوب"), 400
+
+    rep_raw = request.form.get("sales_rep_id")
+    c = Customer(
+        company_id=g.active_company.id,
+        name=name,
+        email=(request.form.get("email") or "").strip() or None,
+        phone=(request.form.get("phone") or "").strip() or None,
+        address=(request.form.get("address") or "").strip() or None,
+        tax_number=(request.form.get("tax_number") or "").strip() or None,
+        sales_rep_id=int(rep_raw) if rep_raw and rep_raw.isdigit() else None,
+        commission_rate=_parse_commission_rate(request.form.get("commission_rate")),
+    )
+    db.session.add(c)
+    db.session.flush()
+    try:
+        from app.services.subsidiary import ensure_customer_account
+        ensure_customer_account(c)
+    except Exception as e:  # noqa: BLE001
+        db.session.rollback()
+        return jsonify(ok=False,
+                        error=f"تعذّر إنشاء الحساب الفرعي للعميل: {e}"), 400
+    db.session.commit()
+    try:
+        from app.services.activity import log_action
+        log_action(action_type="CREATE", entity_type="customer",
+                   entity_id=c.id, entity_label=c.name,
+                   company_id=c.company_id)
+    except Exception:
+        pass
+    return jsonify(ok=True, id=c.id, name=c.name)
 
 
 @bp.route("/<int:customer_id>/edit", methods=["GET", "POST"])
