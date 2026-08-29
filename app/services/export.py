@@ -260,38 +260,57 @@ def _company_logo_disk_path(company):
 
 
 def _pdf_header(p, company, title, period):
+    # MARSOUD-TKT-PDF-HEADER-RTL-HOTFIX (2026-08-29) — was left-anchored:
+    # `p.drawString(logo_x, y, ...)` with logo_x = 1.5cm (or 4.7cm when a
+    # logo pushed it right). The body of every ReportLab PDF uses
+    # `drawRightString(19.5cm, y, ...)` — right-anchored. Same PDF had
+    # two layout modes fighting: header on the LEFT, body on the RIGHT.
+    # An Arabic-primary document reads right-to-left, so the LEFT-anchored
+    # header put the company name + title + logo on the wrong side of
+    # the page. Now everything mirrors to the right edge, matching the
+    # body layout. Reported via customer JE-0158 PDF, 2026-08-29.
     p.setFillColor(NAVY)
     p.rect(0, 27.7 * cm, 21 * cm, 2 * cm, fill=1, stroke=0)
 
-    # MARSOUD-23 — draw company logo on the left when present
-    logo_x = 1.5 * cm
+    # MARSOUD-23 + hotfix — company logo now mirrors to the RIGHT edge of
+    # the navy band. Same 3cm × 1.6cm max box; right edge at 19.8cm so
+    # the outer margin (1.2cm from the right paper edge) matches the
+    # previous 1.2cm from the LEFT edge. text_x is the anchor for
+    # right-aligned text: the paper margin when no logo, or one text-
+    # padding step to the LEFT of the logo when it's there.
+    text_x = 19.5 * cm
     logo_disk = _company_logo_disk_path(company)
     if logo_disk:
         try:
             from reportlab.lib.utils import ImageReader
             img = ImageReader(logo_disk)
-            # Logo box: 2cm tall, max 3cm wide, anchored on the navy band
-            p.drawImage(img, 1.2 * cm, 27.9 * cm, width=3 * cm, height=1.6 * cm,
+            logo_width = 3 * cm
+            logo_right = 19.8 * cm
+            logo_left = logo_right - logo_width
+            p.drawImage(img, logo_left, 27.9 * cm,
+                        width=logo_width, height=1.6 * cm,
                         preserveAspectRatio=True, mask="auto")
-            logo_x = 4.7 * cm
+            # Push right-anchored text one text-padding step LEFT of the
+            # logo tile so name + logo don't overlap.
+            text_x = logo_left - 0.3 * cm
         except Exception:
             pass
 
     p.setFillColor(colors.white)
     p.setFont(_FONT_BOLD, 18)
-    p.drawString(logo_x, 28.5 * cm, ar(company.name))
+    p.drawRightString(text_x, 28.5 * cm, ar(company.name))
     p.setFont(_FONT_REGULAR, 10)
     sub = "Marsoud — Financial Report"
     if getattr(company, "tax_number", None):
         sub += f"  ·  VAT # {company.tax_number}"
-    p.drawString(logo_x, 28 * cm, ar(sub))
+    p.drawRightString(text_x, 28 * cm, ar(sub))
 
     p.setFillColor(NAVY)
     p.setFont(_FONT_BOLD, 16)
-    p.drawString(1.5 * cm, 26.5 * cm, ar(title))
+    p.drawRightString(19.5 * cm, 26.5 * cm, ar(title))
     p.setFillColor(GRAY)
     p.setFont(_FONT_REGULAR, 10)
-    p.drawString(1.5 * cm, 26 * cm, ar(period))
+    p.drawRightString(19.5 * cm, 26 * cm, ar(period))
 
 
 def _pdf_section(p, y, label):
