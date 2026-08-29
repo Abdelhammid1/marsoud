@@ -183,9 +183,14 @@ table.items tr:last-child td { border-bottom: none; }
 
     {# ── ITEMS TABLE ────────────────────────────────────────── #}
     <div class="section-title">تفاصيل الفاتورة</div>
+    {# MARSOUD-TKT-INVOICE-ITEMS-NUMBERED-QUOTE (2026-08-30) — leading
+       # column mirrors the web form. The customer sees the same
+       row-number reference on paper that the accountant sees on
+       screen, so "البند رقم 3" resolves to the same line on both. #}
     <table class="items">
       <thead>
         <tr>
+          <th class="num" style="width:2.5rem">#</th>
           <th>الوصف</th>
           <th class="num">الكمية</th>
           <th class="num">سعر الوحدة</th>
@@ -202,6 +207,7 @@ table.items tr:last-child td { border-bottom: none; }
         {% set pre_tax = (item.line_total|float if item.line_total else (qty * price - line_disc)) %}
         {% set line_tax = pre_tax * (invoice.tax_rate|float) / 100 %}
         <tr>
+          <td class="num">{{ loop.index }}</td>
           <td>{{ item.description }}</td>
           <td class="num">{{ "%g"|format(qty) }}</td>
           <td class="num">{{ "%.2f"|format(price) }} {{ invoice.currency|currency_ar }}</td>
