@@ -780,7 +780,10 @@ tailwind.config = {
       {% set is_active = request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
       <a href="{{ url_for(endpoint) }}"
          class="nav-link flex items-center gap-3 px-5 py-2.5 text-sm hover:bg-emerald-50 transition-colors {% if is_active %}active{% endif %}">
-        <span class="text-base">{{ icon }}</span>
+        {# MARSOUD-TKT-P0-11-EMOJI-ARIA (2026-08-29) — aria-hidden so screen
+           readers announce only the Arabic label, not the emoji's foreign-
+           locale name (VoiceOver reads 📊 as "bar chart" before the label). #}
+        <span class="text-base" aria-hidden="true">{{ icon }}</span>
         <span>{{ label }}</span>
       </a>
       {% endif %}
@@ -839,7 +842,9 @@ tailwind.config = {
                   class="section-toggle w-full flex items-center justify-between px-5 py-2.5 text-[13px] font-bold text-navy-900 hover:bg-emerald-50/60 transition-all"
                   onclick="toggleSection(this)">
             <span class="flex items-center gap-2.5">
-              <span class="text-base">{{ section_icon }}</span>
+              {# MARSOUD-TKT-P0-11-EMOJI-ARIA — section-header emoji hidden
+                 from screen readers; the Arabic section title stands alone. #}
+              <span class="text-base" aria-hidden="true">{{ section_icon }}</span>
               <span>{{ section_title }}</span>
             </span>
             <span class="section-chevron text-[10px] text-slate-500 transition-transform duration-200">▼</span>
@@ -849,7 +854,8 @@ tailwind.config = {
           {% set is_active = request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
           <a href="{{ url_for(endpoint, **kwargs) }}"
              class="nav-link flex items-center gap-3 pr-9 pl-5 py-2 text-sm text-slate-600 hover:bg-emerald-50/40 transition-colors {% if is_active %}active{% endif %}">
-            <span class="text-base">{{ icon }}</span>
+            {# MARSOUD-TKT-P0-11-EMOJI-ARIA — sectioned nav row emoji hidden. #}
+            <span class="text-base" aria-hidden="true">{{ icon }}</span>
             <span>{{ label }}</span>
           </a>
           {% endfor %}
@@ -913,7 +919,7 @@ tailwind.config = {
       {% set is_admin_active = request.endpoint and request.endpoint.startswith('superadmin.') %}
       <a href="{{ url_for('superadmin.dashboard') }}"
          class="nav-link flex items-center gap-3 px-5 py-2.5 text-sm hover:bg-white/5 transition-colors {% if is_admin_active %}active{% endif %}">
-        <span class="text-base">🛡️</span>
+        <span class="text-base" aria-hidden="true">🛡️</span>
         <span>لوحة المالك</span>
       </a>
       {% endif %}
@@ -1050,21 +1056,21 @@ tailwind.config = {
                  `employee` role; my_employee_here scopes correctly
                  per active company. #}
               <a href="{{ url_for('portal_emp.account') }}" class="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
-                <span>👤</span><span>حسابي</span>
+                <span aria-hidden="true">👤</span><span>حسابي</span>
               </a>
               <a href="{{ url_for('portal_emp.daily_reports_list') }}" class="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
-                <span>📝</span><span>تقاريري اليومية</span>
+                <span aria-hidden="true">📝</span><span>تقاريري اليومية</span>
               </a>
               <a href="{{ url_for('portal_emp.custody_list') }}" class="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
-                <span>💵</span><span>عهدتي النقدية</span>
+                <span aria-hidden="true">💵</span><span>عهدتي النقدية</span>
               </a>
               <a href="{{ url_for('portal_emp.items_list') }}" class="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800">
-                <span>📦</span><span>عهدي العينية</span>
+                <span aria-hidden="true">📦</span><span>عهدي العينية</span>
               </a>
               {% endif %}
               <form method="POST" action="{{ url_for('auth.logout') }}" class="border-t border-slate-100 mt-1 pt-1">
                 <button type="submit" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-red-50 hover:text-red-700 text-right">
-                  <span>🚪</span><span>تسجيل الخروج</span>
+                  <span aria-hidden="true">🚪</span><span>تسجيل الخروج</span>
                 </button>
               </form>
             </div>
