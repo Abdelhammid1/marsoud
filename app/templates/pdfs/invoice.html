@@ -89,6 +89,9 @@ table.items tr:last-child td { border-bottom: none; }
   {{ "%.2f"|format(v|float) }} {{ invoice.currency|currency_ar }}
 {%- endmacro %}
 {# ── Status → (label, text color, bg color) ──────────────── #}
+{# MARSOUD-TKT-INVOICE-DRAFT-LABEL-QUOTE (2026-08-31) — DRAFT badge
+   reads "عرض سعر" on the PDF to match the "حفظ كعرض سعر" button in
+   the form. Enum unchanged; pure label swap. #}
 {% set STATUS_META = {
   "DRAFT": ("عرض سعر", "#64748B", "#F1F5F9"),
   "SENT": ("مستحقة الدفع", "#0A2540", "#F1F5F9"),
