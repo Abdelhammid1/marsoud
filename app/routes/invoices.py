@@ -391,7 +391,9 @@ def send(invoice_id):
         flash("غير موجود", "error")
         return redirect(url_for("invoices.index"))
     if invoice.status != InvoiceStatus.DRAFT:
-        flash("الفاتورة ليست مسودة", "warning")
+        # MARSOUD-TKT-INVOICE-DRAFT-LABEL-QUOTE — tenant-visible copy
+        # matches the button + badge rename. Enum unchanged.
+        flash("الفاتورة ليست عرض سعر", "warning")
     else:
         try:
             invoice.status = InvoiceStatus.SENT
@@ -413,7 +415,7 @@ def resend(invoice_id):
         flash("غير موجود", "error")
         return redirect(url_for("invoices.index"))
     if invoice.status == InvoiceStatus.DRAFT:
-        flash("لا يمكن إعادة إرسال مسودة — أرسلها أولاً", "warning")
+        flash("لا يمكن إعادة إرسال عرض سعر — أرسله أولاً", "warning")
     else:
         ok = send_invoice_notification(invoice)
         flash("تم إعادة الإرسال" if ok else "تعذّر الإرسال — راجع السجلات", "success" if ok else "error")

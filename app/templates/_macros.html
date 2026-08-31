@@ -53,8 +53,13 @@
   'UPCOMING':           'badge-sent',
 } %}
 
+{# MARSOUD-TKT-INVOICE-DRAFT-LABEL-QUOTE (2026-08-31) — the DRAFT
+   label reads as "عرض سعر" (quote) to match the button rename in
+   MARSOUD-TKT-INVOICE-ITEMS-NUMBERED-QUOTE. The stored enum is still
+   `InvoiceStatus.DRAFT` — pure display change. Bill status labels
+   (below) keep "مسودة" because a bill isn't a quote. #}
 {% set _INVOICE_STATUS_LABELS_AR = {
-  'DRAFT':              'مسودة',
+  'DRAFT':              'عرض سعر',
   'POSTED':             'مسجّلة',
   'SENT':               'مرسلة',
   'PARTIALLY_PAID':     'مدفوعة جزئياً',
