@@ -7,6 +7,12 @@ class Customer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
     name = db.Column(db.String(150), nullable=False)
+    # MARSOUD-TKT-ADMIN-OWNER-COL (2026-08-31) — the contact person
+    # representing this customer (e.g. "Hazem Amr" for the customer
+    # company "Brand Builders"). Nullable so individuals-as-customers
+    # can leave it blank. Shown as a clickable column on
+    # /customers/ that links to the customer view page.
+    contact_person = db.Column(db.String(150), nullable=True)
     email = db.Column(db.String(150))
     phone = db.Column(db.String(50))
     address = db.Column(db.Text)

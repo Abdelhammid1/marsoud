@@ -86,6 +86,12 @@
                onclick="window.__toggleAllBulkChecks(this);">
       </th>
       <th>الشركة</th>
+      {# MARSOUD-TKT-ADMIN-OWNER-COL (2026-08-31) — clickable owner
+         column between company + created-at. Data source: r.owner
+         (a User row) provided by companies_with_stats(). Empty row
+         renders '—' — that only happens for orphan companies with
+         no user_companies row of role=owner (very rare). #}
+      <th>المالك</th>
       <th><a href="{{ url_for('superadmin.companies', q=q, sort='created_asc') }}" class="text-slate-700 hover:underline">تاريخ الإنشاء ↑</a> / <a href="{{ url_for('superadmin.companies', q=q, sort='created_desc') }}" class="text-slate-700 hover:underline">↓</a></th>
       <th>المستخدمون</th>
       <th>القيود</th>
@@ -111,6 +117,21 @@
         <a href="{{ url_for('superadmin.company_detail', company_id=r.company.id) }}"
            class="text-slate-900 font-semibold hover:underline">{{ r.company.name }}</a>
         <div class="text-xs text-ink-200">{{ r.company.base_currency|currency_ar }} · ضريبة {{ r.company.vat_rate }}%</div>
+      </td>
+      {# MARSOUD-TKT-ADMIN-OWNER-COL — owner name linked to
+         /admin/users/<id>. Falls back to em-dash when no owner exists
+         (orphaned company row). Email shown as a small subtitle so
+         two owners with the same name stay distinguishable. #}
+      <td>
+        {% if r.owner %}
+          <a href="{{ url_for('superadmin.user_detail', user_id=r.owner.id) }}"
+             class="text-slate-900 font-semibold hover:underline">{{ r.owner.full_name or r.owner.email }}</a>
+          {% if r.owner.full_name and r.owner.email %}
+            <div class="text-xs text-ink-200 font-mono" dir="ltr">{{ r.owner.email }}</div>
+          {% endif %}
+        {% else %}
+          <span class="text-ink-200">—</span>
+        {% endif %}
       </td>
       <td class="font-mono text-xs">{{ r.company.created_at | company_dt('%Y-%m-%d') if r.company.created_at else '—' }}</td>
       <td>{{ r.users }}</td>
@@ -166,7 +187,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="9" class="text-center text-ink-200 py-6">لا توجد شركات.</td></tr>
+    <tr><td colspan="10" class="text-center text-ink-200 py-6">لا توجد شركات.</td></tr>
     {% endfor %}
   </tbody>
 </table>

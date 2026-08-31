@@ -16,18 +16,31 @@
   {% endset %}
   {{ ui.page_header("العملاء", actions=_actions) }}
   <table class="data-table">
-    <thead><tr><th>الاسم</th><th>البريد</th><th>الهاتف</th><th class="text-right">الرصيد</th><th class="text-right">الإجراءات</th></tr></thead>
+    {# MARSOUD-TKT-ADMIN-OWNER-COL (2026-08-31) — عمود "الشخص المسؤول"
+       بين الاسم والبريد. الاسم نفسه بقى link يودّي على صفحة العميل
+       (بدل ما زر "عرض" كان الطريق الوحيد). الشخص المسؤول لو موجود
+       بيبقى link كمان بيودّي على نفس صفحة العميل. #}
+    <thead><tr><th>الاسم</th><th>الشخص المسؤول</th><th>البريد</th><th>الهاتف</th><th class="text-right">الرصيد</th><th class="text-right">الإجراءات</th></tr></thead>
     <tbody>
       {% for c in customers %}
       <tr>
-        <td class="font-semibold">{{ c.name }}</td>
+        <td class="font-semibold">
+          <a href="{{ url_for('customers.view', customer_id=c.id) }}" class="text-slate-900 hover:text-brand-600 hover:underline">{{ c.name }}</a>
+        </td>
+        <td class="text-sm">
+          {% if c.contact_person %}
+            <a href="{{ url_for('customers.view', customer_id=c.id) }}" class="text-slate-700 hover:text-brand-600 hover:underline">{{ c.contact_person }}</a>
+          {% else %}
+            <span class="text-slate-400">—</span>
+          {% endif %}
+        </td>
         <td class="text-sm text-slate-500">{{ c.email or '—' }}</td>
         <td class="text-sm text-slate-500" dir="ltr">{{ c.phone or '—' }}</td>
         <td class="text-right font-mono {% if c.balance > 0 %}text-amber-600 font-semibold{% endif %}">{{ "%.2f"|format(c.balance) }}</td>
         <td class="text-right"><a href="{{ url_for('customers.view', customer_id=c.id) }}" class="text-brand-600 hover:underline text-sm">عرض</a></td>
       </tr>
       {% else %}
-      <tr><td colspan="5" style="padding:0">
+      <tr><td colspan="6" style="padding:0">
         {{ ui.empty_state("لا يوجد عملاء", sub="أضف أول عميل لتبدأ.", icon="👥") }}
       </td></tr>
       {% endfor %}

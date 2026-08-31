@@ -60,9 +60,11 @@ def new():
     reps = _company_reps()
     if request.method == "POST":
         rep_raw = request.form.get("sales_rep_id")
+        # MARSOUD-TKT-ADMIN-OWNER-COL — persist contact_person (optional).
         c = Customer(
             company_id=g.active_company.id,
             name=request.form.get("name", "").strip(),
+            contact_person=(request.form.get("contact_person") or "").strip() or None,
             email=request.form.get("email", "").strip(),
             phone=request.form.get("phone", "").strip(),
             address=request.form.get("address", "").strip(),
@@ -196,6 +198,8 @@ def edit(customer_id):
     if request.method == "POST":
         rep_raw = request.form.get("sales_rep_id")
         c.name = request.form.get("name", c.name).strip()
+        # MARSOUD-TKT-ADMIN-OWNER-COL — same field on edit.
+        c.contact_person = (request.form.get("contact_person") or "").strip() or None
         c.email = (request.form.get("email") or "").strip() or None
         c.phone = (request.form.get("phone") or "").strip() or None
         c.address = (request.form.get("address") or "").strip() or None

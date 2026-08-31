@@ -160,6 +160,19 @@ def companies_with_stats(include_deleted=False):
             s != UserStatus.PENDING_VERIFICATION.value
             for s in owner_verified
         ) if owner_verified else True
+        # MARSOUD-TKT-ADMIN-OWNER-COL (2026-08-31) — resolve the primary
+        # owner of the tenant company so /admin/companies can render a
+        # clickable "owner" column linking to /admin/users/<id>. If a
+        # company has more than one owner (rare, legacy), pick the
+        # first one deterministically by user id.
+        owner_row = (
+            db.session.query(User)
+            .join(user_companies, user_companies.c.user_id == User.id)
+            .filter(user_companies.c.company_id == c.id)
+            .filter(user_companies.c.role == "owner")
+            .order_by(User.id.asc())
+            .first()
+        )
         rows.append({
             "company": c,
             "users": users,
@@ -167,6 +180,7 @@ def companies_with_stats(include_deleted=False):
             "invoices": invoices,
             "last_activity": last_user_login,
             "owner_verified": is_verified,
+            "owner": owner_row,   # User or None
         })
     return rows
 

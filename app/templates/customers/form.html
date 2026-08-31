@@ -3,9 +3,24 @@
 {% block content %}
 <div class="card p-6 max-w-2xl">
   <form method="POST" class="space-y-4">
-    <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">الاسم</label>
-      <input type="text" name="name" required value="{{ customer.name if customer else '' }}" class="input">
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">
+          الاسم
+          <span class="text-xs text-slate-500 font-normal">(اسم العميل أو الشركة)</span>
+        </label>
+        <input type="text" name="name" required value="{{ customer.name if customer else '' }}" class="input">
+      </div>
+      {# MARSOUD-TKT-ADMIN-OWNER-COL (2026-08-31) — اسم الشخص المسؤول
+         عن الحساب لو العميل شركة. اختياري — يفضل فاضي للعملاء الأفراد.
+         بيظهر في جدول العملاء كـlink لصفحة العميل. #}
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">
+          الشخص المسؤول
+          <span class="text-xs text-slate-500 font-normal">(اختياري)</span>
+        </label>
+        <input type="text" name="contact_person" value="{{ customer.contact_person if customer else '' }}" class="input" placeholder="اسم الشخص لو العميل شركة">
+      </div>
     </div>
     <div class="grid grid-cols-2 gap-4">
       <div>
