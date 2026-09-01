@@ -440,6 +440,42 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
         total_paid_cash += amount_paid
         total_accrued += accrued
 
+    # MARSOUD-TKT-PAYROLL-JE-BALANCE-GUARD (2026-08-31) — catch the
+    # negative-net silent-skip bug at the source. Every line with
+    # net < 0 (or payable < 0 after advance) used to be quietly
+    # dropped from the Cr side while its (negative) net stayed in
+    # total_net, which reduced salary_debit — so Cr > Dr and the
+    # payroll run posted with a broken JE. Now we refuse loudly,
+    # naming every offending employee + the exact numbers, so HR
+    # can fix the input (usually an over-aggressive absence policy)
+    # before retrying. Same failure mode motivated by run 42 for
+    # company 8, ticket dated 2026-08-31.
+    negative_lines = [
+        (emp, line, round(float(line.net or 0)
+                          + advance_applied.get(emp.id, 0.0), 2))
+        for emp, line in lines_created
+        if round(float(line.net or 0)
+                 + advance_applied.get(emp.id, 0.0), 2) < -0.005
+    ]
+    if negative_lines:
+        details = "؛ ".join(
+            f"{emp.name} (صافي {line.net:.2f}، مستحق {payable:.2f})"
+            for emp, line, payable in negative_lines
+        )
+        # Roll back the transaction so the flushed PayrollRun +
+        # PayrollLine + EmployeeAccrual rows don't survive as orphans
+        # in the DB after the caller sees LedgerError. Without this,
+        # SQLite/postgres both keep the rows in the pending transaction
+        # until the caller commits or rolls back, and a caller that
+        # catches LedgerError but doesn't rollback (very common in
+        # audit tests) leaves ghost rows for the next call to trip on.
+        db.session.rollback()
+        raise LedgerError(
+            "لا يمكن ترحيل كشف الرواتب لأن الموظفين التاليين صافيهم "
+            f"سالب (الخصومات تتجاوز إجمالي الأجر): {details}. "
+            "راجع الغياب/الخصومات أو سياسة الغياب قبل إعادة التشغيل."
+        )
+
     # MARSOUD-PAYROLL-LEDGER-03 — every employee's full NET salary now
     # credits his own sub-account (the accrual leg). For employees paid
     # cash, a second "settlement" entry debits the same sub-account and
@@ -602,6 +638,31 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
             "memo": f"مستحق للتأمينات (حصة الشركة) {month}/{year}",
         })
 
+    # MARSOUD-TKT-PAYROLL-JE-BALANCE-GUARD — belt-and-suspenders on
+    # top of the negative-net refusal above. Sum every line's debit +
+    # credit BEFORE post_journal sees it and raise a specific error
+    # if they don't balance. Previously post_journal itself would
+    # raise a generic "not balanced" LedgerError — this loses the
+    # per-line breakdown that makes triage possible. HR should see
+    # WHICH accounts drift, not just "off by X".
+    _sum_debit = round(sum(float(l.get("debit", 0) or 0)
+                             for l in accrual_lines), 2)
+    _sum_credit = round(sum(float(l.get("credit", 0) or 0)
+                              for l in accrual_lines), 2)
+    if abs(_sum_debit - _sum_credit) > 0.01:
+        def _line_row(ln):
+            dr = float(ln.get("debit", 0) or 0)
+            cr = float(ln.get("credit", 0) or 0)
+            label = ln.get("memo") or f"acc#{ln.get('account_id', '?')}"
+            return f"  · Dr {dr:>12.2f} / Cr {cr:>12.2f}  ← {label}"
+        breakdown = "\n".join(_line_row(l) for l in accrual_lines)
+        db.session.rollback()   # protect callers from ghost rows
+        raise LedgerError(
+            f"القيد غير متوازن قبل الترحيل: مدين {_sum_debit:.2f} ≠ "
+            f"دائن {_sum_credit:.2f} (فرق {_sum_debit - _sum_credit:+.2f}). "
+            f"البنود:\n{breakdown}"
+        )
+
     entry = post_journal(
         company_id=company_id,
         description=f"رواتب شهر {month}/{year} — استحقاق",
@@ -685,6 +746,104 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
     except Exception:
         pass
     return run
+
+
+# ─── MARSOUD-TKT-PAYROLL-JE-BALANCE-GUARD (2026-08-31) ────────────
+# Delete a PayrollRun completely — reverse its JE(s) AND remove
+# the PayrollRun row + every PayrollLine + every EmployeeAccrual
+# that hung off it. Before this existed, teams had to reverse the
+# JE manually and then delete rows via SQL, which caused the
+# ambiguity that motivated this ticket (was run 42 really gone?
+# where are its lines? did the reverse settle everything?).
+#
+# Order matters:
+#   1. Reverse the settlement JE (if any) — Dr cash returned +
+#      Cr employee subaccount returned.
+#   2. Reverse the accrual JE — mirror of the original.
+#   3. Delete EmployeeAccrual rows tied to the run.
+#   4. Delete PayrollLine rows tied to the run.
+#   5. Delete the PayrollRun row.
+# All in a single db.session; a rollback undoes everything.
+def delete_payroll_run(run, *, actor_id=None):
+    """Fully undo a PayrollRun — reverse its JE(s) and remove all
+    associated rows. Idempotent: calling twice is safe (second call
+    hits an already-gone row and returns None).
+
+    Returns a summary dict:
+        {"reversed_je_ids": [...], "deleted_line_count": N,
+         "deleted_accrual_count": M}
+    """
+    from app.models import PayrollLine, EmployeeAccrual
+    from app.services.ledger import reverse_journal
+    from app.models.journal import JournalEntry
+
+    if run is None:
+        return None
+
+    summary = {"reversed_je_ids": [], "deleted_line_count": 0,
+               "deleted_accrual_count": 0}
+    company_id = run.company_id
+
+    # Reverse the accrual JE + any settlement JE. source_type
+    # 'payroll' is the accrual, 'payroll_settlement' is the cash
+    # payout. Both point at run.id via source_id.
+    # "Not-yet-reversed" is derived: an entry is reversed when some
+    # OTHER entry has reversal_of == this.id. Filter via NOT EXISTS
+    # so we only reverse the originals still standing.
+    already_reversed_ids = {
+        r[0] for r in db.session.query(JournalEntry.reversal_of)
+        .filter(JournalEntry.company_id == company_id,
+                JournalEntry.reversal_of.isnot(None)).all()
+    }
+    original_jes = [
+        je for je in JournalEntry.query
+        .filter(JournalEntry.company_id == company_id,
+                JournalEntry.source_id == run.id,
+                JournalEntry.source_type.in_(
+                    ["payroll", "payroll_settlement"]),
+                JournalEntry.reversal_of.is_(None))
+        .all()
+        if je.id not in already_reversed_ids
+    ]
+    for je in original_jes:
+        # reverse_journal signature: (entry_id, created_by=None, *,
+        # _domain_bypass=False). Pass entry.id (not the entry) and
+        # bypass domain hooks — this ticket owns the deletion flow
+        # end-to-end and shouldn't retrigger the ledger service's
+        # per-source-type callbacks.
+        rev = reverse_journal(je.id, created_by=actor_id,
+                              _domain_bypass=True)
+        summary["reversed_je_ids"].append(rev.id if rev else None)
+
+    # Delete accruals first (they reference lines)
+    accruals = EmployeeAccrual.query.filter_by(source_run_id=run.id).all()
+    for a in accruals:
+        db.session.delete(a)
+    summary["deleted_accrual_count"] = len(accruals)
+
+    # Delete lines
+    lines = PayrollLine.query.filter_by(run_id=run.id).all()
+    for line in lines:
+        db.session.delete(line)
+    summary["deleted_line_count"] = len(lines)
+
+    # Delete the run itself
+    db.session.delete(run)
+    db.session.commit()
+
+    try:
+        from app.services.activity import log_action
+        log_action(
+            action_type="DELETE", entity_type="payroll_run",
+            entity_id=run.id,
+            entity_label=(f"حذف كشف رواتب #{run.id} + عكس "
+                          f"{len(summary['reversed_je_ids'])} قيد"),
+            company_id=company_id,
+            extra_data=summary,
+        )
+    except Exception:
+        pass
+    return summary
 
 
 def terminate_employee(employee, reason, termination_date=None, notes=None):
