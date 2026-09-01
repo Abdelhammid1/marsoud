@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block page_title %}عمولات {{ rep.full_name or rep.email }}{% endblock %}
+{% block content %}
+{# MARSOUD-COMM-DASHBOARD — rep detail. Full history of a rep's
+   commissions, with actions on each unpaid + link back to the
+   source invoice + the accrual/settle JE. #}
+
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h1 class="text-2xl font-bold text-navy-900">{{ rep.full_name or rep.email }}</h1>
+    <div class="text-xs text-slate-500 font-mono" dir="ltr">{{ rep.email }}</div>
+  </div>
+  <a href="{{ url_for('commissions_admin.index') }}" class="btn-secondary text-sm">← عودة للوحة</a>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+  <div class="card p-4">
+    <div class="text-xs text-slate-500 mb-1">💰 إجمالي مستحق حالياً</div>
+    <div class="text-3xl font-bold text-amber-700 font-mono">{{ "%.2f"|format(total_unpaid) }}</div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500 mb-1">✅ مدفوع من أول يوم</div>
+    <div class="text-3xl font-bold text-emerald-700 font-mono">{{ "%.2f"|format(total_paid) }}</div>
+  </div>
+</div>
+
+<div class="card p-0 overflow-hidden">
+  <table class="data-table">
+    <thead><tr>
+      <th>التاريخ</th>
+      <th>العميل / الفاتورة</th>
+      <th class="text-right">المبلغ</th>
+      <th>الشهر</th>
+      <th>الحالة</th>
+      <th>القيود</th>
+      <th>الإجراءات</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+      {% set is_negative = r.amount and r.amount|float < 0 %}
+      {% set is_voided = r.voided_at is not none %}
+      <tr class="{% if is_negative %}bg-red-50{% elif is_voided %}bg-slate-100 text-slate-400{% endif %}">
+        <td class="font-mono text-xs">{{ r.created_at.strftime('%Y-%m-%d') if r.created_at else '—' }}</td>
+        <td class="text-sm">
+          {{ r.customer.name if r.customer else '—' }}
+          {% if r.invoice %}
+            · <a href="{{ url_for('invoices.view', invoice_id=r.invoice_id) }}" class="text-brand-600 hover:underline">{{ r.invoice.number }}</a>
+          {% endif %}
+        </td>
+        <td class="text-right font-mono {% if is_negative %}text-red-600{% elif not is_voided %}text-navy-900 font-bold{% endif %}">{{ "%.2f"|format(r.amount|float) }}</td>
+        <td class="text-xs">{{ r.period_month }}/{{ r.period_year }}</td>
+        <td>
+          {% if is_voided %}
+            <span class="badge badge-cancelled">ملغاة</span>
+            <div class="text-xs text-slate-400 mt-1">{{ r.void_reason or '' }}</div>
+          {% elif r.status == 'PAID' %}
+            <span class="badge badge-paid">مدفوعة</span>
+          {% else %}
+            <span class="badge badge-draft">مستحقة</span>
+          {% endif %}
+        </td>
+        <td class="text-xs">
+          {% if r.journal_entry_id %}
+            <a href="{{ url_for('journals.view', entry_id=r.journal_entry_id) }}" class="text-brand-600 hover:underline font-mono">استحقاق: JE#{{ r.journal_entry_id }}</a>
+          {% endif %}
+        </td>
+        <td>
+          <div class="flex items-center gap-1 flex-wrap">
+            {% if r.status == 'UNPAID' and not is_voided and has_permission('payroll.accruals') %}
+              <button type="button" class="btn-primary text-xs" onclick="window.__openSettle({{ r.id }}, '{{ rep.full_name|e }}', {{ (r.amount|float) - (r.settled_amount|float) }})">دفع</button>
+              <button type="button" class="btn-secondary text-xs" onclick="window.__openVoid({{ r.id }})">إلغاء</button>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="text-center text-slate-400 py-6">لا توجد عمولات لهذا المندوب.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{# Reuse the same settle + void popups from the dashboard #}
+{% include "commissions_admin/_popups.html" %}
+
+{% endblock %}

@@ -58,6 +58,18 @@ class SalesCommission(db.Model):
                                   db.ForeignKey("journal_entries.id"))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # MARSOUD-COMM-DASHBOARD (2026-08-31) — cancellation trail.
+    # A commission may be voided BEFORE payment (UNPAID → reversal JE +
+    # marked voided). void_reason is mandatory at the service layer so
+    # nobody can wipe an accrual without saying why. Payment side is
+    # untouched: once mark_settled has run (status='PAID'), the row is
+    # frozen — the reversal path is a NEW compensating JE, not an
+    # in-place edit.
+    voided_at = db.Column(db.DateTime, nullable=True)
+    voided_by_id = db.Column(db.Integer, db.ForeignKey("users.id"),
+                              nullable=True)
+    void_reason = db.Column(db.Text, nullable=True)
+
     sales_rep = db.relationship("User", foreign_keys=[sales_rep_id])
     customer = db.relationship("Customer", foreign_keys=[customer_id])
     invoice = db.relationship("Invoice", foreign_keys=[invoice_id])

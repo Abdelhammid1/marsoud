@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% block page_title %}إدارة العمولات{% endblock %}
+{% block content %}
+{# MARSOUD-COMM-DASHBOARD (2026-08-31) — standalone commissions
+   surface, deliberately separate from every payroll screen so an
+   accidental payroll run can never revisit a commission that was
+   already paid out here. #}
+
+{# ── KPI cards ────────────────────────────────────────────────── #}
+<div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+  <div class="card p-4">
+    <div class="text-xs text-slate-500 mb-1">💰 إجمالي مستحق (كل المندوبين)</div>
+    <div class="text-2xl font-bold text-navy-900 font-mono">{{ "%.2f"|format(kpi.unpaid_total) }}</div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500 mb-1">✅ مدفوع هذا الشهر</div>
+    <div class="text-2xl font-bold text-emerald-700 font-mono">{{ "%.2f"|format(kpi.settled_this_month) }}</div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500 mb-1">⏳ عدد العمولات المعلقة</div>
+    <div class="text-2xl font-bold text-amber-600 font-mono">{{ kpi.pending_count }}</div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500 mb-1">🔝 أعلى 3 مستحقات</div>
+    <div class="space-y-1 mt-1">
+      {% for r in kpi.top_owed %}
+      <div class="flex justify-between text-xs">
+        <a href="{{ url_for('commissions_admin.rep_detail', user_id=r.id) }}" class="hover:underline text-brand-600">{{ r.name }}</a>
+        <span class="font-mono">{{ "%.2f"|format(r.amount) }}</span>
+      </div>
+      {% else %}
+      <div class="text-xs text-slate-400">—</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{# ── Tabs ─────────────────────────────────────────────────────── #}
+<div class="flex border-b border-slate-200 mb-4">
+  {% set _tabs = [('unpaid', 'المستحقة'), ('paid', 'المسددة'), ('all', 'الكل'), ('by_rep', 'حسب المندوب'), ('voided', 'سجل الإلغاءات')] %}
+  {% for key, label in _tabs %}
+    <a href="{{ url_for('commissions_admin.index', tab=key) }}"
+       class="px-4 py-2 text-sm border-b-2 -mb-px
+              {% if tab == key %}border-brand-600 text-brand-600 font-bold{% else %}border-transparent text-slate-600 hover:text-brand-600{% endif %}">
+      {{ label }}
+    </a>
+  {% endfor %}
+</div>
+
+{# ── Filters (hidden on by_rep + voided tabs — they have their own shape) ── #}
+{% if tab in ('unpaid', 'paid', 'all') %}
+<form method="GET" class="card p-3 mb-4 flex flex-wrap items-end gap-2">
+  <input type="hidden" name="tab" value="{{ tab }}">
+  <div>
+    <label class="block text-xs text-slate-500 mb-1">المندوب</label>
+    <select name="rep_id" class="select text-sm">
+      <option value="">— الكل —</option>
+      {% for r in reps %}
+      <option value="{{ r.id }}" {% if filters.rep_id == r.id %}selected{% endif %}>{{ r.full_name or r.email }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs text-slate-500 mb-1">الشهر</label>
+    <input type="number" min="1" max="12" name="month" value="{{ filters.month or '' }}" class="input text-sm" style="width:80px">
+  </div>
+  <div>
+    <label class="block text-xs text-slate-500 mb-1">السنة</label>
+    <input type="number" min="2020" max="2099" name="year" value="{{ filters.year or '' }}" class="input text-sm" style="width:100px">
+  </div>
+  <div>
+    <label class="block text-xs text-slate-500 mb-1">من تاريخ</label>
+    <input type="date" name="start_date" value="{{ filters.start_date }}" class="input text-sm">
+  </div>
+  <div>
+    <label class="block text-xs text-slate-500 mb-1">إلى تاريخ</label>
+    <input type="date" name="end_date" value="{{ filters.end_date }}" class="input text-sm">
+  </div>
+  <button type="submit" class="btn-primary text-sm">تصفية</button>
+  {% if filters.rep_id or filters.month or filters.year or filters.start_date or filters.end_date %}
+  <a href="{{ url_for('commissions_admin.index', tab=tab) }}" class="btn-secondary text-sm">إلغاء</a>
+  {% endif %}
+</form>
+{% endif %}
+
+{# ── Content per tab ────────────────────────────────────────── #}
+{% if tab == 'by_rep' %}
+<div class="card p-0 overflow-hidden">
+  <table class="data-table">
+    <thead><tr>
+      <th>المندوب</th><th>البريد</th>
+      <th class="text-right">مستحق</th>
+      <th class="text-right">مدفوع (كل الوقت)</th>
+      <th>آخر دفع</th>
+      <th>الإجراءات</th>
+    </tr></thead>
+    <tbody>
+    {% for r in by_rep %}
+      <tr>
+        <td class="font-semibold">
+          <a href="{{ url_for('commissions_admin.rep_detail', user_id=r.id) }}" class="text-brand-600 hover:underline">{{ r.name }}</a>
+        </td>
+        <td class="text-xs text-slate-500" dir="ltr">{{ r.email }}</td>
+        <td class="text-right font-mono {% if r.unpaid > 0 %}text-amber-700 font-bold{% endif %}">{{ "%.2f"|format(r.unpaid) }}</td>
+        <td class="text-right font-mono text-emerald-700">{{ "%.2f"|format(r.paid) }}</td>
+        <td class="font-mono text-xs">{{ r.last_settle.strftime('%Y-%m-%d') if r.last_settle else '—' }}</td>
+        <td><a href="{{ url_for('commissions_admin.rep_detail', user_id=r.id) }}" class="text-brand-600 hover:underline text-xs">فتح</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="6" class="text-center text-slate-400 py-6">لا يوجد مندوبين بعمولات.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% else %}
+{# List tabs — unpaid / paid / all / voided — all share the same table shape #}
+{% set is_unpaid_tab = (tab == 'unpaid') %}
+{% set can_bulk = is_unpaid_tab and has_permission('payroll.accruals') %}
+
+{% if can_bulk %}
+<form method="POST" action="{{ url_for('commissions_admin.bulk_settle') }}" id="bulk-form" onsubmit="return confirm('سداد المحدد؟');">
+{% endif %}
+
+<div class="card p-0 overflow-hidden">
+  <table class="data-table">
+    <thead><tr>
+      {% if can_bulk %}<th><input type="checkbox" onchange="document.querySelectorAll('.bulk-check').forEach(c=>c.checked=this.checked)"></th>{% endif %}
+      <th>المندوب</th>
+      <th>العميل / الفاتورة</th>
+      <th class="text-right">المبلغ</th>
+      <th class="text-right">%</th>
+      <th>الشهر</th>
+      <th>الحالة</th>
+      <th>قيد الاستحقاق</th>
+      <th>الإجراءات</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+      {% set is_negative = r.amount and r.amount|float < 0 %}
+      {% set is_voided = r.voided_at is not none %}
+      <tr class="{% if is_negative %}bg-red-50{% elif is_voided %}bg-slate-100 text-slate-400{% endif %}">
+        {% if can_bulk %}<td><input type="checkbox" class="bulk-check" name="commission_ids" value="{{ r.id }}" form="bulk-form"></td>{% endif %}
+        <td class="font-semibold">
+          <a href="{{ url_for('commissions_admin.rep_detail', user_id=r.sales_rep_id) }}" class="text-brand-600 hover:underline">
+            {{ r.sales_rep.full_name if r.sales_rep else '—' }}
+          </a>
+        </td>
+        <td class="text-sm">
+          {{ r.customer.name if r.customer else '—' }}
+          {% if r.invoice %}
+            · <a href="{{ url_for('invoices.view', invoice_id=r.invoice_id) }}" class="text-brand-600 hover:underline">{{ r.invoice.number }}</a>
+          {% endif %}
+        </td>
+        <td class="text-right font-mono {% if is_negative %}text-red-600{% elif not is_voided %}text-navy-900 font-bold{% endif %}">{{ "%.2f"|format(r.amount|float) }}</td>
+        <td class="text-right font-mono text-xs text-slate-500">{{ "%.2f"|format(r.commission_rate|float) }}%</td>
+        <td class="text-xs">{{ r.period_month }}/{{ r.period_year }}</td>
+        <td>
+          {% if is_voided %}
+            <span class="badge badge-cancelled">ملغاة</span>
+          {% elif r.status == 'PAID' %}
+            <span class="badge badge-paid">مدفوعة</span>
+          {% else %}
+            <span class="badge badge-draft">مستحقة</span>
+          {% endif %}
+        </td>
+        <td class="text-xs">
+          {% if r.journal_entry_id %}
+            <a href="{{ url_for('journals.view', entry_id=r.journal_entry_id) }}" class="text-brand-600 hover:underline font-mono">JE#{{ r.journal_entry_id }}</a>
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          <div class="flex items-center gap-1 flex-wrap">
+            {% if r.status == 'UNPAID' and not is_voided and has_permission('payroll.accruals') %}
+              <button type="button" class="btn-primary text-xs" onclick="window.__openSettle({{ r.id }}, '{{ r.sales_rep.full_name|e if r.sales_rep else '' }}', {{ (r.amount|float) - (r.settled_amount|float) }})">دفع</button>
+              <button type="button" class="btn-secondary text-xs" onclick="window.__openVoid({{ r.id }})">إلغاء</button>
+            {% endif %}
+            {% if is_voided %}
+              <span class="text-xs text-slate-500" title="{{ r.void_reason }}">✕ {{ r.voided_at.strftime('%Y-%m-%d') }}</span>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="{% if can_bulk %}9{% else %}8{% endif %}" class="text-center text-slate-400 py-6">لا توجد عمولات في هذا التبويب.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if can_bulk and rows %}
+<div class="flex items-center gap-3 mt-3 p-3 bg-slate-50 rounded">
+  <label class="text-sm">حساب الدفع:
+    <select name="payment_account_code" class="select text-sm" form="bulk-form">
+      <option value="1110">النقدية (1110)</option>
+      {% for pm in payment_methods %}
+      <option value="{{ pm.account.code if pm.account else '1110' }}">{{ pm.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button type="submit" class="btn-primary text-sm" form="bulk-form">💰 سداد المحدد</button>
+</div>
+{% endif %}
+
+{% if can_bulk %}</form>{% endif %}
+{% endif %}
+
+{# ── Shared settle + void popups ─────────────────────────────── #}
+{% include "commissions_admin/_popups.html" %}
+
+{% endblock %}

@@ -406,6 +406,82 @@ def settle_commission_manual(commission, *, amount=None,
     return commission, entry
 
 
+# ─── MARSOUD-COMM-DASHBOARD (2026-08-31) ──────────────────────────
+# Void an UNPAID commission — the "منع تسجيل غلط" path for the
+# standalone commissions dashboard. The row itself is preserved as
+# audit trail (per the ticket's "reversal not delete" instruction);
+# what changes is:
+#   * The original accrual JE (Dr 5280 / Cr 2150) is reversed by a
+#     new compensating JE (Dr 2150 / Cr 5280) — mirrors _post_clawback
+#     but tagged source_type='commission_void' + carries the reason.
+#   * status flips to 'VOIDED' (added to the enum-of-strings model
+#     without a migration — the column is just String, not Enum).
+#   * voided_at / voided_by_id / void_reason land on the row so
+#     the list view can show "Cancelled by <name> on <date>: <reason>"
+#     at a glance.
+#
+# Refuses when:
+#   * The commission has any settled_amount (partial payment landed);
+#     a rev of that would need to also refund cash, which is a
+#     different action.
+#   * The commission is already voided (idempotent, but noisy).
+#
+# The dashboard's "reason" input is required. If it's blank the
+# service raises — the route surfaces the message.
+def void_commission(commission, *, reason, actor_id=None):
+    """Void an UNPAID commission (creates reversal JE + stamps
+    voided_at/voided_by_id/void_reason). Returns (commission, reversal_je)."""
+    from datetime import datetime
+    if not reason or not str(reason).strip():
+        raise LedgerError("سبب الإلغاء مطلوب")
+    reason = str(reason).strip()
+
+    if commission.voided_at is not None:
+        raise LedgerError("هذه العمولة ملغاة بالفعل")
+    if float(commission.settled_amount or 0) > 0.005:
+        raise LedgerError(
+            "لا يمكن إلغاء عمولة تم دفع جزء منها — راجع سجل السداد أولاً")
+
+    company_id = commission.company_id
+    exp_acct = get_account_by_code(company_id, "5280")
+    liab_acct = get_account_by_code(company_id, "2150")
+    if not exp_acct or not liab_acct:
+        raise LedgerError(
+            "حسابات العمولات (5280 / 2150) غير موجودة — "
+            "لا يمكن إلغاء العمولة بدونها")
+
+    amount = round(float(commission.amount or 0), 2)
+    rep_name = (commission.sales_rep.full_name
+                if commission.sales_rep else "مندوب")
+    inv_no = (commission.invoice.number
+              if commission.invoice else f"#{commission.invoice_id}")
+
+    reversal = post_journal(
+        company_id=company_id,
+        description=(f"إلغاء عمولة مبيعات — {rep_name} "
+                     f"— فاتورة {inv_no} — السبب: {reason[:80]}"),
+        lines=[
+            {"account_id": liab_acct.id, "debit": amount, "credit": 0,
+             "memo": f"إلغاء عمولة — {rep_name}"},
+            {"account_id": exp_acct.id, "debit": 0, "credit": amount,
+             "memo": f"إلغاء استحقاق العمولة — {rep_name}"},
+        ],
+        reference=f"COMM-VOID-{commission.id}",
+        created_by=actor_id,
+        source_type="commission_void",
+        source_id=commission.id,
+    )
+
+    commission.voided_at = datetime.utcnow()
+    commission.voided_by_id = actor_id
+    commission.void_reason = reason
+    # `status` stays 'UNPAID' — a voided row is not paid; the sum-of-
+    # unpaid-owed queries filter voided_at IS NULL when they mean
+    # "still owed to the rep".
+    db.session.commit()
+    return commission, reversal
+
+
 def open_commissions_for_employee(employee, company_id, *,
                                    period_year, period_month):
     """MARSOUD-COMM-SETTLE (2026-08-25) — the rep's still-open commission

@@ -1,0 +1,91 @@
+{# MARSOUD-COMM-DASHBOARD — shared settle + void popups.
+   Rendered inline on both dashboard.html and rep_detail.html so
+   the same JS entry points work on both pages. #}
+
+<div id="settle-modal" class="fixed inset-0 bg-slate-900/60 z-50 hidden items-center justify-center p-4" role="dialog" aria-modal="true">
+  <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+    <form method="POST" id="settle-form" action="">
+      <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-slate-900">💰 سداد عمولة <span id="settle-rep-name" class="text-brand-600"></span></h3>
+        <button type="button" class="text-slate-400 text-2xl" onclick="window.__closeSettle()">×</button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">المبلغ (المتبقي بشكل افتراضي)</label>
+          <input type="number" step="0.01" name="amount" id="settle-amount" class="input" placeholder="اتركه فارغاً لسداد المتبقي بالكامل">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">حساب الدفع</label>
+          <select name="payment_account_code" class="select">
+            <option value="1110">النقدية (1110)</option>
+            {% for pm in payment_methods %}
+            <option value="{{ pm.account.code if pm.account else '1110' }}">{{ pm.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="p-5 border-t border-slate-200 flex justify-end gap-2">
+        <button type="button" class="btn-secondary" onclick="window.__closeSettle()">إلغاء</button>
+        <button type="submit" class="btn-primary">تأكيد السداد</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="void-modal" class="fixed inset-0 bg-slate-900/60 z-50 hidden items-center justify-center p-4" role="dialog" aria-modal="true">
+  <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+    <form method="POST" id="void-form" action="">
+      <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+        <h3 class="text-lg font-bold text-slate-900">✕ إلغاء عمولة</h3>
+        <button type="button" class="text-slate-400 text-2xl" onclick="window.__closeVoid()">×</button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div class="bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-900">
+          ⚠ الإلغاء بيعمل قيد عكس (Dr 2150 / Cr 5280) ويحفظ العمولة في سجل الإلغاءات.
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">سبب الإلغاء <span class="text-red-600">*</span></label>
+          <textarea name="reason" required rows="3" class="input"></textarea>
+        </div>
+      </div>
+      <div class="p-5 border-t border-slate-200 flex justify-end gap-2">
+        <button type="button" class="btn-secondary" onclick="window.__closeVoid()">إلغاء</button>
+        <button type="submit" class="btn-danger">تأكيد الإلغاء</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function(){
+  const sm = document.getElementById('settle-modal');
+  const sf = document.getElementById('settle-form');
+  const sName = document.getElementById('settle-rep-name');
+  const sAmt = document.getElementById('settle-amount');
+  window.__openSettle = function(id, rep, remaining) {
+    sf.action = "/commissions/" + id + "/settle";
+    sName.textContent = rep || '';
+    sAmt.placeholder = "المتبقي: " + (remaining || 0).toFixed(2);
+    sAmt.value = "";
+    sm.classList.remove('hidden'); sm.classList.add('flex');
+  };
+  window.__closeSettle = function() { sm.classList.add('hidden'); sm.classList.remove('flex'); };
+  sm.addEventListener('click', e => { if (e.target === sm) window.__closeSettle(); });
+
+  const vm = document.getElementById('void-modal');
+  const vf = document.getElementById('void-form');
+  window.__openVoid = function(id) {
+    vf.action = "/commissions/" + id + "/void";
+    vf.querySelector('textarea').value = "";
+    vm.classList.remove('hidden'); vm.classList.add('flex');
+  };
+  window.__closeVoid = function() { vm.classList.add('hidden'); vm.classList.remove('flex'); };
+  vm.addEventListener('click', e => { if (e.target === vm) window.__closeVoid(); });
+
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (!sm.classList.contains('hidden')) window.__closeSettle();
+    if (!vm.classList.contains('hidden')) window.__closeVoid();
+  });
+})();
+</script>
