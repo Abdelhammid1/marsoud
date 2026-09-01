@@ -415,7 +415,24 @@ def _():
     # Form action pattern
     assert "/admin/saas/invoices/" in src, \
         "form action must build /admin/saas/invoices/<id>/void URL"
-    return "button + modal + JS all wired"
+    # 2026-08-31 regression: the earlier onclick + |tojson pattern
+    # broke because Jinja's autoescape treats |tojson output as
+    # Markup (safe), so |e was a no-op and the literal `"` in
+    # `"SAAS-001"` closed the HTML attribute early — the click looked
+    # wired but the modal never opened. Fix: data-* attributes get
+    # proper autoescape from Jinja + a JS delegated click listener.
+    assert 'data-void-invoice-id=' in src, \
+        "trigger button must expose the invoice id via a data-* " \
+        "attribute (see JS delegated listener). onclick+tojson had " \
+        "a known escape bug — do NOT re-introduce it."
+    assert 'data-void-invoice-number=' in src, \
+        "trigger button must expose the invoice number via data-*"
+    assert 'js-void-invoice' in src, \
+        "trigger button needs the .js-void-invoice class so the " \
+        "delegated listener picks it up"
+    assert "closest('.js-void-invoice')" in src, \
+        "JS listener must delegate off the .js-void-invoice class"
+    return "button + modal + delegated data-attr wiring all present"
 
 
 def main():

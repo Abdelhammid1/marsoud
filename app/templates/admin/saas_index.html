@@ -88,8 +88,18 @@
             {# MARSOUD-TKT-ADMIN-VOID-SAAS-INVOICE (2026-08-31) — the
                "delete/cancel" shortcut. Opens the popup below and
                submits with a mandatory reason. #}
-            <button type="button" class="btn btn-secondary text-xs"
-                    onclick="window.__openVoidPopup({{ inv.id }}, {{ inv.number|tojson }})">
+            {# MARSOUD-TKT-ADMIN-VOID-SAAS-INVOICE — data-* attributes
+               with a JS delegated listener (bottom of file). Earlier
+               attempt used inline `onclick="window.__openVoidPopup(id,
+               {{ inv.number|tojson|e }})"` — but Jinja's `|e` filter
+               is a no-op on the Markup value that `|tojson` returns,
+               so the literal `"` in `"SAAS-001"` closed the HTML
+               attribute early and the click looked wired but did
+               nothing. Data attributes get proper autoescape from
+               Jinja, so this is the safe pattern. #}
+            <button type="button" class="btn btn-secondary text-xs js-void-invoice"
+                    data-void-invoice-id="{{ inv.id }}"
+                    data-void-invoice-number="{{ inv.number }}">
               🗑 حذف/إلغاء
             </button>
           </div>
@@ -166,6 +176,17 @@
     modal.classList.add('flex');
     setTimeout(() => reason.focus(), 30);
   };
+  // Delegated click handler for every .js-void-invoice trigger.
+  // Data attributes (data-void-invoice-id + data-void-invoice-number)
+  // dodge the HTML-attribute-escape footgun that inline onclick with
+  // `|tojson` hits — see the Jinja comment above the trigger button.
+  document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.js-void-invoice');
+    if (!btn) return;
+    const id = parseInt(btn.dataset.voidInvoiceId, 10);
+    const number = btn.dataset.voidInvoiceNumber || '';
+    if (id) window.__openVoidPopup(id, number);
+  });
   window.__closeVoidPopup = function() {
     modal.classList.add('hidden');
     modal.classList.remove('flex');
