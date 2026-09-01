@@ -3,12 +3,27 @@
 {% block content %}
 
 <div class="card p-4 mb-4 flex items-end gap-3 flex-wrap">
-  <form method="GET" class="flex items-end gap-3 flex-grow">
-    <div class="flex-grow">
-      <label class="block text-xs text-ink-200 mb-1">بحث (بريد / اسم)</label>
-      <input type="text" name="q" value="{{ q }}" class="input" placeholder="اكتب البريد أو الاسم...">
+  {# MARSOUD-TKT-USERS-SEARCH-DATE-PHONE (2026-08-31) — the search now
+     covers name / email / phone / company name. Plus an optional
+     date-range on User.created_at (same shape as tenant Ticket 4). #}
+  <form method="GET" class="flex items-end gap-3 flex-grow flex-wrap">
+    <div class="flex-grow min-w-[220px]">
+      <label class="block text-xs text-ink-200 mb-1">بحث (اسم / شركة / رقم جوال / بريد)</label>
+      <input type="text" name="q" value="{{ q }}" class="input"
+             placeholder="اكتب اسم / شركة / رقم / بريد...">
+    </div>
+    <div>
+      <label class="block text-xs text-ink-200 mb-1">من تاريخ</label>
+      <input type="date" name="start_date" value="{{ start_date or '' }}" class="input" style="width:150px">
+    </div>
+    <div>
+      <label class="block text-xs text-ink-200 mb-1">إلى تاريخ</label>
+      <input type="date" name="end_date" value="{{ end_date or '' }}" class="input" style="width:150px">
     </div>
     <button type="submit" class="btn btn-primary">بحث</button>
+    {% if q or start_date or end_date %}
+    <a href="{{ url_for('superadmin.users') }}" class="btn btn-secondary">إلغاء</a>
+    {% endif %}
   </form>
   {# MARSOUD-RESTRICTED-SUPERADMIN-CREATE-UI (2026-08-13) —
      button visible only to the PRIMARY superadmin. A
@@ -32,6 +47,10 @@
     <tr>
       <th>الاسم</th>
       <th>البريد</th>
+      {# MARSOUD-TKT-USERS-SEARCH-DATE-PHONE — mobile number surfaced
+         at the row level so a support agent can identify the user
+         without opening the profile. #}
+      <th>رقم الجوال</th>
       <th style="white-space:nowrap"><a href="{{ url_for('superadmin.users', q=q, sort='created_asc') }}" class="text-white hover:underline">تاريخ الإنشاء</a> <a href="{{ url_for('superadmin.users', q=q, sort='created_asc') }}" class="text-white hover:underline">↑</a><a href="{{ url_for('superadmin.users', q=q, sort='created_desc') }}" class="text-white hover:underline">↓</a></th>
       <th>الشركات</th>
       <th><a href="{{ url_for('superadmin.users', q=q, sort='login') }}" class="text-white hover:underline">آخر دخول ↓</a></th>
@@ -55,6 +74,7 @@
               %}<span class="badge badge-amber mr-1">مقيَّد</span>{% endif %}
       </td>
       <td class="text-ink-200">{{ u.email }}</td>
+      <td class="font-mono text-xs" dir="ltr">{{ u.phone or '—' }}</td>
       <td class="font-mono text-xs">{{ u.created_at | company_dt('%Y-%m-%d') if u.created_at else '—' }}</td>
       <td>
         {% for c in u.companies %}<span class="badge badge-neutral">{{ c.name }}</span> {% endfor %}
@@ -85,7 +105,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="6" class="text-center text-ink-200 py-6">لا يوجد مستخدمون.</td></tr>
+    <tr><td colspan="7" class="text-center text-ink-200 py-6">لا يوجد مستخدمون.</td></tr>
     {% endfor %}
   </tbody>
 </table>

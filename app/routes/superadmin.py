@@ -371,14 +371,47 @@ def companies_bulk_hard_delete():
 @login_required
 @superadmin_required
 def users():
+    """MARSOUD-TKT-USERS-SEARCH-DATE-PHONE (2026-08-31) — the search box
+    now matches user name, email, PHONE, and their linked COMPANY names
+    (was name + email only). Also accepts optional start_date/end_date
+    range on User.created_at, same shape as the tenant /customers/
+    filter (Ticket 4). Invalid dates fall back to no-filter — a nav
+    parameter must never 500 the page."""
     q = (request.args.get("q") or "").strip().lower()
     rows = users_with_companies()
     if q:
-        rows = [u for u in rows
-                if q in (u.email or "").lower() or q in (u.full_name or "").lower()]
+        def _matches(u):
+            hay = [(u.email or ""), (u.full_name or ""), (u.phone or "")]
+            # Also match on any linked company's name
+            hay.extend(c.name or "" for c in (u.companies or []))
+            return any(q in field.lower() for field in hay if field)
+        rows = [u for u in rows if _matches(u)]
+
+    # Date-range filter on User.created_at — same "silently ignore
+    # garbage" contract as the tenant /customers/ filter
+    from datetime import datetime as _dt
+    start_raw = (request.args.get("start_date") or "").strip()
+    end_raw = (request.args.get("end_date") or "").strip()
+
+    def _parse(s):
+        if not s:
+            return None
+        try:
+            return _dt.strptime(s, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+
+    start_date = _parse(start_raw)
+    end_date = _parse(end_raw)
+    if start_date:
+        start_dt = _dt.combine(start_date, _dt.min.time())
+        rows = [u for u in rows if u.created_at and u.created_at >= start_dt]
+    if end_date:
+        end_dt = _dt.combine(end_date, _dt.max.time())
+        rows = [u for u in rows if u.created_at and u.created_at <= end_dt]
+
     sort = (request.args.get("sort") or "").strip()
-    from datetime import datetime
-    _min = datetime.min
+    _min = _dt.min
     rows = list(rows)
     if sort == "login":
         rows.sort(key=lambda u: u.last_login_at or _min, reverse=True)
@@ -386,7 +419,11 @@ def users():
         rows.sort(key=lambda u: u.created_at or _min)
     elif sort == "created_desc":
         rows.sort(key=lambda u: u.created_at or _min, reverse=True)
-    return render_template("admin/users.html", rows=rows, q=q, sort=sort)
+    return render_template(
+        "admin/users.html",
+        rows=rows, q=q, sort=sort,
+        start_date=start_raw, end_date=end_raw,
+    )
 
 
 # ── MARSOUD-RESTRICTED-SUPERADMIN-CREATE-UI (2026-08-13) ── #
