@@ -176,8 +176,12 @@ def _():
         _read("app/templates/customers/index.html"))
     assert "<th>الشخص المسؤول</th>" in src, \
         "customers/index.html missing the 'الشخص المسؤول' header"
-    assert "c.contact_person" in src, \
-        "contact_person value must be rendered per row"
+    # Rendering flows through Customer.resolved_contact_person now
+    # (fallback ladder: manual → portal → saas owner). The unpack
+    # is `_cp_name, _cp_source` — both must be referenced.
+    assert "resolved_contact_person" in src, \
+        "template must call Customer.resolved_contact_person for the " \
+        "fallback ladder to run"
     # Name should now be a link
     m = re.search(
         r'font-semibold[^>]*>\s*<a href="{{ url_for\(\'customers\.view\'',
@@ -208,9 +212,246 @@ def _():
                 f"owner should be a User; got {type(r['owner']).__name__}"
             assert r["owner"].id == uid, \
                 f"owner.id should be {uid}; got {r['owner'].id}"
+            # 2026-08-31 addition — owner_role should be 'owner' for
+            # the primary case (not a fallback)
+            assert r.get("owner_role") == "owner", \
+                f"owner_role should be 'owner'; got {r.get('owner_role')}"
             return "owner user resolved correctly"
         finally:
             _teardown_fixture("OCOL_S1")
+
+
+@check("5b. fallback ladder: no owner → picks admin, no admin → picks any user")
+def _():
+    """The scoping decision was 'if no owner, use first admin; then
+    any user'. Two sub-cases exercised here — an admin-only company
+    and a member-only company — so the ladder is proven to walk
+    correctly instead of just skipping to None."""
+    from datetime import datetime
+    from sqlalchemy import text, inspect
+    from app import create_app, db
+    from app.services.superadmin import companies_with_stats
+    from app.models import User, Company, Plan
+    from app.models.user import user_companies
+
+    app = create_app()
+    with app.app_context():
+        # ---- cleanup ----------------------------------------------
+        insp = inspect(db.engine)
+        cids = [r[0] for r in db.session.execute(text(
+            "SELECT id FROM companies WHERE name LIKE '__OCOL_FB__%'"))]
+        for cid in cids:
+            for t in reversed(db.metadata.sorted_tables):
+                cols = {c["name"] for c in insp.get_columns(t.name)}
+                if "company_id" in cols:
+                    db.session.execute(text(
+                        f"DELETE FROM {t.name} WHERE company_id = :c"), {"c": cid})
+            db.session.execute(text(
+                "DELETE FROM user_companies WHERE company_id = :c"), {"c": cid})
+            db.session.execute(text(
+                "DELETE FROM companies WHERE id = :c"), {"c": cid})
+        db.session.execute(text(
+            "DELETE FROM users WHERE email LIKE '%__ocol_fb__%'"))
+        db.session.commit()
+
+        plan = Plan.query.filter_by(code="__OCOL_FB__").first()
+        if not plan:
+            plan = Plan(code="__OCOL_FB__", name="FB", name_ar="FB",
+                        allowed_subitems=None)
+            plan.set_modules(["accounting"])
+            db.session.add(plan); db.session.flush()
+
+        # Company A: only admin (no owner)
+        cA = Company(name="__OCOL_FB__A", base_currency="EGP",
+                     subdomain="ocolfba", plan_id=plan.id,
+                     subscription_started_at=datetime.utcnow(),
+                     subscription_expires_at=datetime(2999, 1, 1))
+        db.session.add(cA); db.session.commit()
+        uA = User(email="admin__ocol_fb__@x.io", full_name="Admin A",
+                  is_active=True, email_verified_at=datetime.utcnow())
+        uA.set_password("pw12345678")
+        db.session.add(uA); db.session.commit()
+        db.session.execute(user_companies.insert().values(
+            user_id=uA.id, company_id=cA.id, role="admin"))
+        db.session.commit()
+
+        # Company B: only viewer (no owner + no admin)
+        cB = Company(name="__OCOL_FB__B", base_currency="EGP",
+                     subdomain="ocolfbb", plan_id=plan.id,
+                     subscription_started_at=datetime.utcnow(),
+                     subscription_expires_at=datetime(2999, 1, 1))
+        db.session.add(cB); db.session.commit()
+        uB = User(email="viewer__ocol_fb__@x.io", full_name="Viewer B",
+                  is_active=True, email_verified_at=datetime.utcnow())
+        uB.set_password("pw12345678")
+        db.session.add(uB); db.session.commit()
+        db.session.execute(user_companies.insert().values(
+            user_id=uB.id, company_id=cB.id, role="viewer"))
+        db.session.commit()
+
+        try:
+            rows = companies_with_stats()
+            byid = {r["company"].id: r for r in rows}
+
+            rA = byid.get(cA.id)
+            assert rA, "company A not in rows"
+            assert rA["owner"] and rA["owner"].id == uA.id, \
+                "admin should fall through as owner for company A"
+            assert rA["owner_role"] == "admin", \
+                f"owner_role must be 'admin' when falling back; got {rA['owner_role']}"
+
+            rB = byid.get(cB.id)
+            assert rB, "company B not in rows"
+            assert rB["owner"] and rB["owner"].id == uB.id, \
+                "any user should fall through as owner for company B"
+            assert rB["owner_role"] == "member", \
+                f"owner_role must be 'member' when falling through to any user; got {rB['owner_role']}"
+
+            return "fallback ladder walks owner → admin → any user"
+        finally:
+            db.session.execute(text(
+                "DELETE FROM user_companies WHERE company_id IN (:a, :b)"),
+                {"a": cA.id, "b": cB.id})
+            db.session.execute(text(
+                "DELETE FROM companies WHERE id IN (:a, :b)"),
+                {"a": cA.id, "b": cB.id})
+            db.session.execute(text(
+                "DELETE FROM users WHERE email LIKE '%__ocol_fb__%'"))
+            db.session.commit()
+
+
+@check("5c. tenant fallback ladder: manual → portal user → saas owner → None")
+def _():
+    """Customer.resolved_contact_person walks the fallback so the
+    /customers/ list has meaningful data without manual entry when
+    a portal user or a SaaS-linked tenant owner exists."""
+    from datetime import datetime
+    from sqlalchemy import text
+    from app import create_app, db
+    from app.models import Customer, User, Company, Plan
+    from app.models.user import user_companies
+    from app.services.seed_coa import seed_default_coa
+    from app.services.subsidiary import ensure_customer_account
+
+    app = create_app()
+    with app.app_context():
+        # Fresh company + plan
+        db.session.execute(text(
+            "DELETE FROM users WHERE email LIKE '%__ocol_res__%'"))
+        db.session.execute(text(
+            "DELETE FROM companies WHERE name LIKE '__OCOL_RES__%'"))
+        db.session.commit()
+        plan = Plan.query.filter_by(code="__OCOL_RES__").first()
+        if not plan:
+            plan = Plan(code="__OCOL_RES__", name="R", name_ar="R",
+                        allowed_subitems=None)
+            plan.set_modules(["accounting"])
+            db.session.add(plan); db.session.flush()
+
+        host = Company(name="__OCOL_RES__host", base_currency="EGP",
+                       subdomain="ocolreshost", plan_id=plan.id,
+                       subscription_started_at=datetime.utcnow(),
+                       subscription_expires_at=datetime(2999, 1, 1))
+        db.session.add(host); db.session.commit()
+        seed_default_coa(host.id); db.session.commit()
+
+        try:
+            # Case A — manual contact_person (wins over all fallbacks)
+            cA = Customer(company_id=host.id, name="A manual",
+                          contact_person="MANUAL WINS")
+            db.session.add(cA); db.session.flush()
+            ensure_customer_account(cA)
+            # even add a portal user to prove manual wins
+            uA = User(email="portal.a__ocol_res__@x.io",
+                      full_name="Portal A", is_active=True,
+                      email_verified_at=datetime.utcnow(),
+                      linked_customer_id=cA.id)
+            uA.set_password("pw12345678")
+            db.session.add(uA)
+
+            # Case B — no manual, has a portal user (falls back to it)
+            cB = Customer(company_id=host.id, name="B portal only",
+                          contact_person=None)
+            db.session.add(cB); db.session.flush()
+            ensure_customer_account(cB)
+            uB = User(email="portal.b__ocol_res__@x.io",
+                      full_name="Portal B Owner", is_active=True,
+                      email_verified_at=datetime.utcnow(),
+                      linked_customer_id=cB.id)
+            uB.set_password("pw12345678")
+            db.session.add(uB)
+
+            # Case C — no manual + no portal + IS the saas_customer_id
+            # of a Marsoud tenant → returns that tenant's owner
+            cC = Customer(company_id=host.id, name="C saas linked",
+                          contact_person=None)
+            db.session.add(cC); db.session.flush()
+            ensure_customer_account(cC)
+            saas_tenant = Company(name="__OCOL_RES__tenant",
+                                  base_currency="EGP",
+                                  subdomain="ocolrestenant",
+                                  plan_id=plan.id,
+                                  saas_customer_id=cC.id,
+                                  subscription_started_at=datetime.utcnow(),
+                                  subscription_expires_at=datetime(2999, 1, 1))
+            db.session.add(saas_tenant); db.session.commit()
+            tenant_owner = User(email="tenant.owner__ocol_res__@x.io",
+                                full_name="Tenant Owner C",
+                                is_active=True,
+                                email_verified_at=datetime.utcnow())
+            tenant_owner.set_password("pw12345678")
+            db.session.add(tenant_owner); db.session.commit()
+            db.session.execute(user_companies.insert().values(
+                user_id=tenant_owner.id, company_id=saas_tenant.id,
+                role="owner"))
+
+            # Case D — nothing (blank)
+            cD = Customer(company_id=host.id, name="D orphan",
+                          contact_person=None)
+            db.session.add(cD); db.session.flush()
+            ensure_customer_account(cD)
+            db.session.commit()
+
+            nameA, srcA = cA.resolved_contact_person
+            assert (nameA, srcA) == ("MANUAL WINS", "manual"), \
+                f"manual should win; got ({nameA!r}, {srcA!r})"
+
+            nameB, srcB = cB.resolved_contact_person
+            assert (nameB, srcB) == ("Portal B Owner", "portal"), \
+                f"portal user should be picked; got ({nameB!r}, {srcB!r})"
+
+            nameC, srcC = cC.resolved_contact_person
+            assert (nameC, srcC) == ("Tenant Owner C", "saas_owner"), \
+                f"saas-linked tenant owner should be picked; got ({nameC!r}, {srcC!r})"
+
+            nameD, srcD = cD.resolved_contact_person
+            assert (nameD, srcD) == (None, None), \
+                f"orphan should return None; got ({nameD!r}, {srcD!r})"
+
+            return "all 4 fallback cases resolve as expected"
+        finally:
+            # Full cleanup via the sorted-tables loop — seed_default_coa
+            # creates payment_methods and other rows that a hand-rolled
+            # cleanup would miss and later fixture inserts would trip on.
+            from sqlalchemy import inspect as _insp
+            insp2 = _insp(db.engine)
+            cids = [r[0] for r in db.session.execute(text(
+                "SELECT id FROM companies WHERE name LIKE '__OCOL_RES__%'"))]
+            for _cid in cids:
+                for t in reversed(db.metadata.sorted_tables):
+                    cols = {col["name"] for col in insp2.get_columns(t.name)}
+                    if "company_id" in cols:
+                        db.session.execute(text(
+                            f"DELETE FROM {t.name} WHERE company_id = :c"),
+                            {"c": _cid})
+                db.session.execute(text(
+                    "DELETE FROM user_companies WHERE company_id = :c"),
+                    {"c": _cid})
+                db.session.execute(text(
+                    "DELETE FROM companies WHERE id = :c"), {"c": _cid})
+            db.session.execute(text(
+                "DELETE FROM users WHERE email LIKE '%__ocol_res__%'"))
+            db.session.commit()
 
 
 @check("6. POST /customers/new persists contact_person")

@@ -165,14 +165,32 @@ def companies_with_stats(include_deleted=False):
         # clickable "owner" column linking to /admin/users/<id>. If a
         # company has more than one owner (rare, legacy), pick the
         # first one deterministically by user id.
-        owner_row = (
-            db.session.query(User)
-            .join(user_companies, user_companies.c.user_id == User.id)
-            .filter(user_companies.c.company_id == c.id)
-            .filter(user_companies.c.role == "owner")
-            .order_by(User.id.asc())
-            .first()
-        )
+        #
+        # 2026-08-31 (later same day): fallback ladder so companies
+        # without an explicit `owner` still show a human. Order:
+        #   1. role='owner'   (primary — original behavior)
+        #   2. role='admin'   (next-best contact)
+        #   3. ANY user       (last resort — better than a bare '—')
+        # The row also carries `owner_role` so the template can render
+        # a small badge on fallback rows (e.g. "admin (fallback)")
+        # to make it obvious the shown user isn't the real owner.
+        def _pick_owner(role=None):
+            q = (db.session.query(User)
+                 .join(user_companies, user_companies.c.user_id == User.id)
+                 .filter(user_companies.c.company_id == c.id))
+            if role is not None:
+                q = q.filter(user_companies.c.role == role)
+            return q.order_by(User.id.asc()).first()
+
+        owner_row = _pick_owner("owner")
+        owner_role = "owner" if owner_row else None
+        if owner_row is None:
+            owner_row = _pick_owner("admin")
+            owner_role = "admin" if owner_row else None
+        if owner_row is None:
+            owner_row = _pick_owner(None)   # any role
+            owner_role = "member" if owner_row else None
+
         rows.append({
             "company": c,
             "users": users,
@@ -181,6 +199,7 @@ def companies_with_stats(include_deleted=False):
             "last_activity": last_user_login,
             "owner_verified": is_verified,
             "owner": owner_row,   # User or None
+            "owner_role": owner_role,  # "owner" | "admin" | "member" | None
         })
     return rows
 

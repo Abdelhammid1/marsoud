@@ -119,13 +119,19 @@
         <div class="text-xs text-ink-200">{{ r.company.base_currency|currency_ar }} · ضريبة {{ r.company.vat_rate }}%</div>
       </td>
       {# MARSOUD-TKT-ADMIN-OWNER-COL — owner name linked to
-         /admin/users/<id>. Falls back to em-dash when no owner exists
-         (orphaned company row). Email shown as a small subtitle so
-         two owners with the same name stay distinguishable. #}
+         /admin/users/<id>. Fallback ladder: owner → admin → any user.
+         `owner_role` badge shows on fallback rows so it's obvious
+         which are the real owners vs. auto-picked contacts. Only
+         truly orphan companies (zero users) show a bare em-dash. #}
       <td>
         {% if r.owner %}
           <a href="{{ url_for('superadmin.user_detail', user_id=r.owner.id) }}"
              class="text-slate-900 font-semibold hover:underline">{{ r.owner.full_name or r.owner.email }}</a>
+          {% if r.owner_role == 'admin' %}
+            <span class="badge badge-neutral text-xs mr-1" title="لا يوجد مالك — تم اختيار أول admin">أدمن (بديل)</span>
+          {% elif r.owner_role == 'member' %}
+            <span class="badge badge-neutral text-xs mr-1" title="لا يوجد مالك أو admin — تم اختيار أول عضو">عضو (بديل)</span>
+          {% endif %}
           {% if r.owner.full_name and r.owner.email %}
             <div class="text-xs text-ink-200 font-mono" dir="ltr">{{ r.owner.email }}</div>
           {% endif %}

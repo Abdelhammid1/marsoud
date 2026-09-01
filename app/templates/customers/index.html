@@ -23,13 +23,23 @@
     <thead><tr><th>الاسم</th><th>الشخص المسؤول</th><th>البريد</th><th>الهاتف</th><th class="text-right">الرصيد</th><th class="text-right">الإجراءات</th></tr></thead>
     <tbody>
       {% for c in customers %}
+      {# MARSOUD-TKT-ADMIN-OWNER-COL — resolved_contact_person returns
+         (name, source) with the fallback ladder: manual → portal user
+         → SaaS-linked tenant owner → None. Source badge below labels
+         auto-derived rows so it's obvious which are the manual ones. #}
+      {% set _cp_name, _cp_source = c.resolved_contact_person %}
       <tr>
         <td class="font-semibold">
           <a href="{{ url_for('customers.view', customer_id=c.id) }}" class="text-slate-900 hover:text-brand-600 hover:underline">{{ c.name }}</a>
         </td>
         <td class="text-sm">
-          {% if c.contact_person %}
-            <a href="{{ url_for('customers.view', customer_id=c.id) }}" class="text-slate-700 hover:text-brand-600 hover:underline">{{ c.contact_person }}</a>
+          {% if _cp_name %}
+            <a href="{{ url_for('customers.view', customer_id=c.id) }}" class="text-slate-700 hover:text-brand-600 hover:underline">{{ _cp_name }}</a>
+            {% if _cp_source == 'portal' %}
+              <span class="text-xs text-slate-400 mr-1" title="مشتق من مستخدم البورتال المرتبط">(بورتال)</span>
+            {% elif _cp_source == 'saas_owner' %}
+              <span class="text-xs text-slate-400 mr-1" title="مشتق من مالك التنانت المرتبط">(مالك)</span>
+            {% endif %}
           {% else %}
             <span class="text-slate-400">—</span>
           {% endif %}

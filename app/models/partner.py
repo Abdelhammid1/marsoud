@@ -49,6 +49,51 @@ class Customer(db.Model):
         return sum(inv.balance for inv in self.invoices
                     if inv.status.value not in ("CANCELLED", "REFUNDED"))
 
+    # MARSOUD-TKT-ADMIN-OWNER-COL — resolved contact person for the
+    # /customers/ list, with fallback ladder so the column doesn't
+    # look empty across the board on day 1. Order:
+    #   1. Manual `contact_person` (owner input always wins)
+    #   2. First active portal user linked to this customer via
+    #      User.linked_customer_id — a real person representing the
+    #      customer (they have a portal login)
+    #   3. If this Customer is the saas_customer_id of a Marsoud
+    #      tenant Company (e.g. Manasety views their /customers/
+    #      and sees a paying tenant), that tenant's owner
+    #   4. None (template renders '—')
+    #
+    # Returns (name, source) so the template can badge the origin
+    # ('portal (بديل)' / 'مالك التنانت (بديل)') and stay honest
+    # about what's manual vs. auto-derived.
+    @property
+    def resolved_contact_person(self):
+        # 1. Manual override
+        if self.contact_person:
+            return (self.contact_person, "manual")
+        # 2. Portal user linked to this customer
+        from app.models import User
+        pu = (User.query
+              .filter_by(linked_customer_id=self.id, is_active=True)
+              .order_by(User.id.asc()).first())
+        if pu:
+            return (pu.full_name or pu.email, "portal")
+        # 3. Marsoud tenant whose saas_customer_id points here → owner
+        from app.models import Company
+        from app.models.user import user_companies
+        from app import db as _db
+        tenant = Company.query.filter_by(saas_customer_id=self.id).first()
+        if tenant:
+            def _pick(role=None):
+                q = (_db.session.query(User)
+                     .join(user_companies, user_companies.c.user_id == User.id)
+                     .filter(user_companies.c.company_id == tenant.id))
+                if role is not None:
+                    q = q.filter(user_companies.c.role == role)
+                return q.order_by(User.id.asc()).first()
+            u = _pick("owner") or _pick("admin") or _pick(None)
+            if u:
+                return (u.full_name or u.email, "saas_owner")
+        return (None, None)
+
 
 class Vendor(db.Model):
     __tablename__ = "vendors"
