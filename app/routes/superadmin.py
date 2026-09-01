@@ -2430,6 +2430,62 @@ def saas_mark_paid(invoice_id):
     return redirect(url_for("superadmin.saas_index"))
 
 
+# ─── MARSOUD-TKT-ADMIN-VOID-SAAS-INVOICE (2026-08-31) ─────────────
+# Shortcut so Abdelhamid can void a SaaS invoice straight from
+# /admin/saas without switching-into company 8 (Manasety) and
+# opening its invoice list. Same behaviour as the tenant-side
+# invoices.delete route — they both call
+# services.invoicing.void_invoice so the audit trail + refund
+# journals are identical either way.
+#
+# Reason is REQUIRED here (blank submission returns to the list
+# with a validation flash) — the tenant-side route defaults to
+# "حذف الفاتورة" when empty, which is fine there because the
+# user is standing inside the tenant company; for the admin
+# shortcut, a real reason is important since the target company
+# owner never had the chance to ask for it.
+@bp.route("/saas/invoices/<int:invoice_id>/void", methods=["POST"])
+@login_required
+@superadmin_required
+def saas_void_invoice(invoice_id):
+    from app.models import Invoice
+    from app.services.invoicing import void_invoice
+    from app.services.ledger import LedgerError
+
+    inv = db.session.get(Invoice, invoice_id) or _404()
+    reason = (request.form.get("reason") or "").strip()
+    if not reason:
+        flash("سبب الحذف مطلوب — اكتبه في popup قبل التأكيد",
+              "error")
+        return redirect(url_for("superadmin.saas_index"))
+
+    invoice_number = inv.number
+    invoice_company_id = inv.company_id
+    try:
+        outcome = void_invoice(inv, reason, current_user.id)
+    except RuntimeError as e:
+        flash(str(e), "warning")
+        return redirect(url_for("superadmin.saas_index"))
+    except (LedgerError, KeyError) as e:
+        flash(f"فشل حذف الفاتورة: {e}", "error")
+        return redirect(url_for("superadmin.saas_index"))
+
+    log_platform_action(
+        "saas.invoice_voided",
+        target_company_id=invoice_company_id,
+        actor_id=current_user.id,
+        details=(f"invoice #{invoice_number} voided from admin — "
+                  f"reason: {reason[:80]}"),
+    )
+    if outcome == "deleted":
+        flash(f"تم حذف الفاتورة {invoice_number}", "success")
+    else:
+        flash(
+            f"تم إلغاء الفاتورة {invoice_number} — تظهر في المرتجعات بنفس السبب",
+            "success")
+    return redirect(url_for("superadmin.saas_index"))
+
+
 @bp.route("/saas/companies/<int:company_id>/price-lock",
           methods=["POST"])
 @login_required

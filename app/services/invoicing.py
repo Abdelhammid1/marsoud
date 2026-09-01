@@ -583,6 +583,57 @@ def issue_refund(invoice, refund_type, amount=None, reason=None, created_by=None
     return refund
 
 
+# ─── MARSOUD-TKT-ADMIN-VOID-SAAS-INVOICE (2026-08-31) ─────────────
+# Shared void-invoice service. The tenant-side route
+# (`invoices.delete`) and the super-admin shortcut on the SaaS
+# subscriptions page both call this so behavior stays byte-identical.
+# Before this existed the delete logic lived inline in
+# routes/invoices.py:delete — extracted here so the ticket "run the
+# same function from the admin page (not a new function)" is
+# literally true, not just morally.
+def void_invoice(invoice, reason, actor_id):
+    """Void an invoice — the "delete" semantic used everywhere.
+
+    * DRAFT (never posted a journal): hard-delete the row (items
+      cascade via cascade='all, delete-orphan' on Invoice.items).
+    * Anything else: issue a FULL refund (reverses AR/VAT/revenue/
+      cash, restocks inventory, claws back commission), then stamp
+      status=VOIDED + voided_at + voided_by_id + void_reason so the
+      list surfaces it as "deleted" instead of "refunded" — the
+      user's intent was delete, not customer-requested refund.
+
+    Idempotent-ish: raises RuntimeError if the invoice is already
+    VOIDED or REFUNDED so the caller can flash a friendly message
+    without double-reversing the journal.
+
+    Returns "deleted" (hard) or "voided" (soft) — callers can adjust
+    the success flash based on the result.
+    """
+    from datetime import datetime as _dt
+
+    if invoice.status in (InvoiceStatus.REFUNDED, InvoiceStatus.VOIDED):
+        raise RuntimeError("الفاتورة معكوسة/ملغاة بالفعل")
+
+    reason = (reason or "").strip() or "حذف الفاتورة"
+
+    if invoice.status == InvoiceStatus.DRAFT:
+        db.session.delete(invoice)
+        db.session.commit()
+        return "deleted"
+
+    # Posted invoice — reverse via FULL refund, then relabel VOIDED.
+    issue_refund(
+        invoice, RefundType.FULL, reason=reason,
+        created_by=actor_id, notify=False,
+    )
+    invoice.status = InvoiceStatus.VOIDED
+    invoice.voided_at = _dt.utcnow()
+    invoice.voided_by_id = actor_id
+    invoice.void_reason = reason
+    db.session.commit()
+    return "voided"
+
+
 def update_overdue_statuses(company_id):
     """Mark invoices as overdue if past due_date and unpaid."""
     today = date.today()

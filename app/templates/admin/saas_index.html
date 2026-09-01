@@ -76,14 +76,23 @@
       <td>
         {% if outstanding %}
           {% for inv in outstanding %}
-          <form method="POST"
-                action="{{ url_for('superadmin.saas_mark_paid', invoice_id=inv.id) }}"
-                onsubmit="return confirm('تأكيد استلام الدفعة للفاتورة {{ inv.number }}؟');"
-                class="inline">
-            <button type="submit" class="btn btn-primary text-xs">
-              💰 تم الدفع ({{ inv.number }})
+          <div class="flex flex-wrap gap-1 mb-1">
+            <form method="POST"
+                  action="{{ url_for('superadmin.saas_mark_paid', invoice_id=inv.id) }}"
+                  onsubmit="return confirm('تأكيد استلام الدفعة للفاتورة {{ inv.number }}؟');"
+                  class="inline">
+              <button type="submit" class="btn btn-primary text-xs">
+                💰 تم الدفع ({{ inv.number }})
+              </button>
+            </form>
+            {# MARSOUD-TKT-ADMIN-VOID-SAAS-INVOICE (2026-08-31) — the
+               "delete/cancel" shortcut. Opens the popup below and
+               submits with a mandatory reason. #}
+            <button type="button" class="btn btn-secondary text-xs"
+                    onclick="window.__openVoidPopup({{ inv.id }}, {{ inv.number|tojson }})">
+              🗑 حذف/إلغاء
             </button>
-          </form>
+          </div>
           {% endfor %}
         {% endif %}
       </td>
@@ -98,4 +107,73 @@
   </tbody>
 </table>
 </div>
+
+{# ── MARSOUD-TKT-ADMIN-VOID-SAAS-INVOICE — reason popup ─────────
+   ONE popup rendered once at the page level (not per-row) — cheaper
+   DOM + only one active at a time by design. The Save-Paid flow
+   keeps its native confirm() dialog because paid doesn't need a
+   free-text reason. This modal collects the mandatory reason and
+   forwards it to /admin/saas/invoices/<id>/void. #}
+<div id="void-invoice-modal"
+     class="fixed inset-0 bg-slate-900/60 z-50 hidden items-center justify-center p-4"
+     role="dialog" aria-modal="true" aria-labelledby="void-modal-title">
+  <div class="bg-white rounded-lg shadow-xl w-full max-w-md">
+    <form method="POST" id="void-invoice-form" action="">
+      <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+        <h3 id="void-modal-title" class="text-lg font-bold text-slate-900">
+          🗑 حذف/إلغاء فاتورة <span id="void-modal-inv-number" class="font-mono text-brand-600"></span>
+        </h3>
+        <button type="button" class="text-slate-400 hover:text-slate-600 text-2xl leading-none"
+                aria-label="إغلاق"
+                onclick="window.__closeVoidPopup()">×</button>
+      </div>
+      <div class="p-5 space-y-4">
+        <div class="bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-900">
+          ⚠ الفاتورة هتتعلّم <b>محذوفة</b> + هتظهر تلقائيًا في قسم
+          <b>المرتجعات</b> بنفس السبب المكتوب. القيود المرتبطة بيها هتتعكس.
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">
+            سبب الحذف <span class="text-red-600">*</span>
+          </label>
+          <textarea name="reason" id="void-reason" rows="3" required
+                    placeholder="مثال: العميل قرر إنه مش هيكمل الاشتراك"
+                    class="input"></textarea>
+          <p class="text-xs text-slate-500 mt-1">
+            السبب ده هيظهر لك في قسم المرتجعات + سجل التدقيق.
+          </p>
+        </div>
+      </div>
+      <div class="p-5 border-t border-slate-200 flex justify-end gap-2">
+        <button type="button" class="btn btn-secondary" onclick="window.__closeVoidPopup()">إلغاء</button>
+        <button type="submit" class="btn btn-danger">تأكيد الحذف</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function(){
+  const modal = document.getElementById('void-invoice-modal');
+  const form = document.getElementById('void-invoice-form');
+  const label = document.getElementById('void-modal-inv-number');
+  const reason = document.getElementById('void-reason');
+  window.__openVoidPopup = function(invId, invNumber) {
+    form.action = "/admin/saas/invoices/" + invId + "/void";
+    label.textContent = invNumber;
+    reason.value = "";
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    setTimeout(() => reason.focus(), 30);
+  };
+  window.__closeVoidPopup = function() {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  };
+  modal.addEventListener('click', e => { if (e.target === modal) window.__closeVoidPopup(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) window.__closeVoidPopup();
+  });
+})();
+</script>
 {% endblock %}
