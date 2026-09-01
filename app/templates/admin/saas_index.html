@@ -8,6 +8,22 @@
   </p>
 </div>
 
+{# MARSOUD-TKT-SAAS-INDEX-COMPANY-FILTER — active-filter banner. Shown
+   only when the page was opened from a specific company's detail
+   view. Clicking "عرض كل الشركات" clears the filter (returns to
+   /admin/saas without the query param). #}
+{% if filter_company %}
+<div class="card p-3 mb-4 flex items-center justify-between bg-sky-50 border-sky-200">
+  <div class="text-sm text-sky-900">
+    🔍 <span>عرض فواتير <strong>{{ filter_company.name }}</strong> فقط</span>
+  </div>
+  <a href="{{ url_for('superadmin.saas_index') }}"
+     class="btn btn-secondary text-xs">
+    عرض كل الشركات
+  </a>
+</div>
+{% endif %}
+
 <div class="card p-0 overflow-hidden">
 <table class="data-table">
   <thead>

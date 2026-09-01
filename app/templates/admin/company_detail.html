@@ -157,7 +157,10 @@
       <div class="font-mono">
         {% if subscription.outstanding_saas_count > 0 %}
           <span class="text-rose-600 font-bold">{{ subscription.outstanding_saas_count }}</span>
-          <a href="{{ url_for('superadmin.saas_index') }}"
+          {# MARSOUD-TKT-SAAS-INDEX-COMPANY-FILTER — pass the current
+             company id so the list narrows to THIS tenant's open
+             invoices instead of dumping every tenant. #}
+          <a href="{{ url_for('superadmin.saas_index', company_id=company.id) }}"
              class="text-xs text-emerald-700 hover:underline mr-2">
             راجع →
           </a>

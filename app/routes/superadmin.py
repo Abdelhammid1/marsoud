@@ -2384,9 +2384,27 @@ def _split_lines(raw):
 def saas_index():
     """Cross-tenant SaaS billing dashboard. Shows each company's
     current plan, frequency, subscription state, latest outstanding
-    invoice, and a mark-paid button."""
+    invoice, and a mark-paid button.
+
+    MARSOUD-TKT-SAAS-INDEX-COMPANY-FILTER (2026-08-31) — supports an
+    optional ?company_id=<id> query param. When set, the list narrows
+    to that single tenant (used from /admin/companies/<id> "فواتير
+    SaaS مفتوحة → راجع" so clicking the link on Company A no longer
+    dumps every tenant's outstanding invoices on the reader).
+    """
     from app.models import Company, Plan, Invoice, InvoiceStatus
     from app.services import saas_billing as _sb
+
+    filter_company_id = request.args.get("company_id", type=int)
+    filter_company = None
+    if filter_company_id:
+        filter_company = db.session.get(Company, filter_company_id)
+        # Silently ignore an invalid id — treat as "no filter" rather
+        # than 404, since this is a nav parameter, not a resource.
+        if not filter_company or filter_company.deleted_at is not None:
+            filter_company = None
+            filter_company_id = None
+
     outstanding = _sb.outstanding_saas_invoices()
     # Map outstanding invoices → tenant company (via saas_customer_id).
     inv_by_tenant = {}
@@ -2395,18 +2413,23 @@ def saas_index():
             saas_customer_id=inv.customer_id).first()
         if t:
             inv_by_tenant.setdefault(t.id, []).append(inv)
-    # Show every non-deleted company with an intended_plan_id.
-    companies = (Company.query
-                   .filter(Company.deleted_at.is_(None),
-                             Company.intended_plan_id.isnot(None))
-                   .order_by(Company.name)
-                   .all())
+
+    # Show every non-deleted company with an intended_plan_id — or
+    # just the one company when the filter is active.
+    q = (Company.query
+         .filter(Company.deleted_at.is_(None),
+                 Company.intended_plan_id.isnot(None)))
+    if filter_company_id:
+        q = q.filter(Company.id == filter_company_id)
+    companies = q.order_by(Company.name).all()
+
     plans_lookup = {p.id: p for p in Plan.query.all()}
     return render_template(
         "admin/saas_index.html",
         companies=companies,
         plans_lookup=plans_lookup,
         outstanding_by_tenant=inv_by_tenant,
+        filter_company=filter_company,
     )
 
 
