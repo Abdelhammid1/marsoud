@@ -582,6 +582,109 @@ def submit_leave_request(*, company_id, employee_id, leave_type_id,
     return req
 
 
+# MARSOUD-TKT-LEAVE-APPROVE-CANCELLED-EXC (2026-08-31) — the leave-
+# approve path used to raw-INSERT one AttendanceException per day,
+# which would trip UNIQUE(employee_id, date) if a CANCELLED row
+# occupied the same day (that constraint counts cancelled rows too —
+# see the "KNOWN GAP" comment on the AttendanceException model).
+# Result: 500 Internal Server Error, leave stayed PENDING.
+#
+# The upsert helper below fixes that: when the day already has a
+# cancelled row, it reactivates that row as the new leave exception
+# (repurposing type + note + leave_request_id + created_by). The
+# original cancel audit (cancelled_by / cancelled_at / cancel_reason)
+# is deliberately KEPT on the row so the trail of "this used to be
+# cancelled ABSENT" survives the conversion. The reactivation event
+# itself lands in the activity log so nothing is silently rewritten.
+def _upsert_leave_exception_for_day(*, company_id, employee_id, date_,
+                                     type_, note, leave_request_id,
+                                     created_by):
+    """Insert a new AttendanceException — or reactivate a cancelled
+    one already occupying this (employee_id, date). Raises LeaveError
+    when an ACTIVE exception blocks the day (real conflict — matches
+    the pre-fix behavior message).
+
+    Returns "created" | "reactivated" | "skipped_already_active"
+    (last one only when the caller's day equals an existing active
+    row NOT associated with this request — kept for the tolerant
+    approve-path skip so an accidental double-approve isn't
+    catastrophic)."""
+    existing = (db.session.query(AttendanceException)
+                .filter_by(employee_id=employee_id, date=date_)
+                .first())
+
+    if existing is None:
+        db.session.add(AttendanceException(
+            company_id=company_id, employee_id=employee_id,
+            date=date_, type=type_, note=note,
+            leave_request_id=leave_request_id,
+            created_by=created_by,
+        ))
+        return "created"
+
+    if not existing.is_cancelled:
+        # If the same leave request already owns this row (idempotent
+        # re-approve or a retry after a partial failure), do NOT
+        # refuse — treat as already-approved for that day.
+        if (existing.leave_request_id
+                and existing.leave_request_id == leave_request_id):
+            return "skipped_already_active"
+        raise LeaveError(
+            "يوجد استثناء مسجل بالفعل لهذا الموظف في نفس اليوم")
+
+    # Cancelled row occupies the day — reactivate it as the new
+    # leave. Preserve cancel audit (who cancelled, when, why); this
+    # is intentional — the ticket requires the audit trail survive.
+    old_type_value = getattr(existing.type, "value", str(existing.type))
+    old_note = existing.note
+    old_leave_request_id = existing.leave_request_id
+    existing.type = type_
+    existing.note = note
+    existing.leave_request_id = leave_request_id
+    existing.created_by = created_by     # the reviewer who reactivated
+    existing.duration_hours = None       # leave rows never have hours
+    existing.is_cancelled = False
+    # Deliberately NOT clearing cancelled_by / cancelled_at /
+    # cancel_reason — those describe the pre-reactivation state and
+    # form the historical audit trail per the ticket's DoD.
+
+    try:
+        from app.services.activity import log_action
+        new_type_value = getattr(type_, "value", str(type_))
+        log_action(
+            action_type="UPDATE",
+            entity_type="attendance_exception",
+            entity_id=existing.id,
+            entity_label=(f"إعادة تنشيط استثناء {date_} من "
+                          f"{old_type_value} ملغى إلى {new_type_value}"),
+            company_id=company_id,
+            extra_data={
+                "old": {
+                    "type": old_type_value,
+                    "note": old_note,
+                    "leave_request_id": old_leave_request_id,
+                    "is_cancelled": True,
+                },
+                "new": {
+                    "type": new_type_value,
+                    "note": note,
+                    "leave_request_id": leave_request_id,
+                    "is_cancelled": False,
+                },
+                "preserved_cancel_audit": {
+                    "cancelled_by": existing.cancelled_by,
+                    "cancelled_at": (existing.cancelled_at.isoformat()
+                                      if existing.cancelled_at else None),
+                    "cancel_reason": existing.cancel_reason,
+                },
+            },
+        )
+    except Exception:
+        # Never let activity-log failure block the approval flow.
+        pass
+    return "reactivated"
+
+
 def approve_leave_request(req, *, reviewer_id, review_note=None):
     """Approve a PENDING request: deduct used_days, create AttendanceExceptions
     for every day in the range, link them back to the request."""
@@ -606,9 +709,10 @@ def approve_leave_request(req, *, reviewer_id, review_note=None):
             raise LeaveError("الرصيد غير كافٍ — قد يكون استُهلك بعد تقديم الطلب")
         bal.used_days = Decimal(str(round(new_used, 2)))
 
-    # Create one AttendanceException per working day in the inclusive range.
-    # Rest days (per company config — default Fri/Sat) are skipped — they don't
-    # consume balance and don't count toward absence in payroll.
+    # Create/reactivate one AttendanceException per working day in the
+    # inclusive range. Rest days (per company config — default Fri/Sat)
+    # are skipped — they don't consume balance and don't count toward
+    # absence in payroll.
     ex_type = (AttendanceExceptionType.APPROVED_LEAVE
                if lt.is_paid else AttendanceExceptionType.UNPAID_LEAVE)
     rest = _company_rest_weekdays(req.company)
@@ -618,21 +722,15 @@ def approve_leave_request(req, *, reviewer_id, review_note=None):
         if _is_rest_day(d, rest_weekdays=rest):
             d += timedelta(days=1)
             continue
-        # Be tolerant: if for any reason an exception already exists on this
-        # day, skip it (we'd already refused the request earlier — this is
-        # defensive only).
-        exists = active_exceptions().filter_by(
-            employee_id=req.employee_id, date=d,
-        ).first()
-        if not exists:
-            db.session.add(AttendanceException(
-                company_id=req.company_id,
-                employee_id=req.employee_id,
-                date=d, type=ex_type,
-                note=(req.reason or "")[:140] or None,
-                leave_request_id=req.id,
-                created_by=reviewer_id,
-            ))
+        outcome = _upsert_leave_exception_for_day(
+            company_id=req.company_id,
+            employee_id=req.employee_id,
+            date_=d, type_=ex_type,
+            note=(req.reason or "")[:140] or None,
+            leave_request_id=req.id,
+            created_by=reviewer_id,
+        )
+        if outcome in ("created", "reactivated"):
             created += 1
         d += timedelta(days=1)
 
