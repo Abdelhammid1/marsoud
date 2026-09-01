@@ -395,7 +395,14 @@
       <tbody>
       {% for user, role in company_users %}
         <tr>
-          <td>{{ user.full_name }}</td>
+          {# MARSOUD-TKT-ADMIN-DIRECT-USER-LINK (2026-08-31) — name is
+             a link to /admin/users/<id> so support jumps straight to
+             the user profile without the pre-fix multi-page path
+             (companies → this page → nothing → back → users → find). #}
+          <td>
+            <a href="{{ url_for('superadmin.user_detail', user_id=user.id) }}"
+               class="font-semibold text-brand-600 hover:underline">{{ user.full_name }}</a>
+          </td>
           <td class="text-ink-200">{{ user.email }}</td>
           <td><span class="badge badge-neutral">{{ role or '—' }}</span></td>
           <td>

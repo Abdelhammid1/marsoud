@@ -43,7 +43,12 @@
       <tbody>
       {% for u in last_logins %}
         <tr>
-          <td>{{ u.full_name }}</td>
+          {# MARSOUD-TKT-ADMIN-DIRECT-USER-LINK — jump straight to
+             /admin/users/<id> from the recent-logins row. #}
+          <td>
+            <a href="{{ url_for('superadmin.user_detail', user_id=u.id) }}"
+               class="font-semibold text-brand-600 hover:underline">{{ u.full_name }}</a>
+          </td>
           <td class="text-ink-200">{{ u.email }}</td>
           <td class="font-mono text-xs">{{ u.last_login_at | company_dt('%Y-%m-%d %H:%M') if u.last_login_at else '—' }}</td>
         </tr>

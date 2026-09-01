@@ -206,7 +206,7 @@ def create_first_invoice(company):
 
     plan_label = plan.name_ar or plan.name
     freq_label = FREQ_LABELS_AR.get(freq, freq)
-    line_desc = f"اشتراك منصتي — باقة {plan_label} ({freq_label})"
+    line_desc = f"اشتراك مرصود — باقة {plan_label} ({freq_label})"
 
     invoice = Invoice(
         company_id=mid,
@@ -410,7 +410,7 @@ def _create_next_cycle_invoice(tenant, admin_user_id=None):
     db.session.add(InvoiceItem(
         invoice_id=next_inv.id,
         company_id=mid,
-        description=f"اشتراك منصتي — باقة {plan_label} ({freq_label})",
+        description=f"اشتراك مرصود — باقة {plan_label} ({freq_label})",
         quantity=1,
         unit_price=price,
     ))

@@ -95,6 +95,58 @@ class Customer(db.Model):
         return (None, None)
 
 
+# ── MARSOUD-TKT-CUSTOMER-COMMENTS-NOTES (2026-08-31) ──────────────
+# Two internal-only surfaces on the tenant customer detail page.
+# `CustomerComment` is thread-style discussion between team members
+# (mirrors TaskComment's shape). `CustomerNote` is a plain log — one
+# free-text entry with timestamp + author, no threading. Neither is
+# ever surfaced on the customer portal.
+class CustomerComment(db.Model):
+    __tablename__ = "customer_comments"
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(
+        db.Integer,
+        db.ForeignKey("customers.id", ondelete="CASCADE"),
+        nullable=False, index=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"),
+                           nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"),
+                        nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow,
+                           nullable=False)
+
+    customer = db.relationship(
+        "Customer", foreign_keys=[customer_id],
+        backref=db.backref("comments",
+                           order_by="CustomerComment.created_at.asc()",
+                           cascade="all, delete-orphan"))
+    user = db.relationship("User", foreign_keys=[user_id])
+
+
+class CustomerNote(db.Model):
+    __tablename__ = "customer_notes"
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(
+        db.Integer,
+        db.ForeignKey("customers.id", ondelete="CASCADE"),
+        nullable=False, index=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"),
+                           nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"),
+                        nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow,
+                           nullable=False)
+
+    customer = db.relationship(
+        "Customer", foreign_keys=[customer_id],
+        backref=db.backref("notes",
+                           order_by="CustomerNote.created_at.desc()",
+                           cascade="all, delete-orphan"))
+    user = db.relationship("User", foreign_keys=[user_id])
+
+
 class Vendor(db.Model):
     __tablename__ = "vendors"
     id = db.Column(db.Integer, primary_key=True)

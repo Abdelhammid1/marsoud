@@ -18,7 +18,10 @@
       <div class="card p-4 {% if c.is_internal %}bg-amber-50 border-r-4 border-amber-400{% endif %}">
         <div class="flex justify-between text-xs text-slate-500 mb-1">
           <span class="font-semibold">
-            {{ c.user.full_name or c.user.email }}
+            {# MARSOUD-TKT-ADMIN-DIRECT-USER-LINK — support-comment
+               author name jumps to /admin/users/<id>. #}
+            <a href="{{ url_for('superadmin.user_detail', user_id=c.user.id) }}"
+               class="text-brand-600 hover:underline">{{ c.user.full_name or c.user.email }}</a>
             {% if c.is_internal %}<span class="text-amber-700">(ملاحظة داخلية — غير ظاهرة للعميل)</span>{% endif %}
           </span>
           <span>{{ c.created_at | company_dt('%Y-%m-%d %H:%M') }}</span>

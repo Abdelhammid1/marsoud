@@ -79,7 +79,7 @@ from app.models.journal_extras import (
 from app.models.product import Product, ProductGroup, ProductCategory, ProductUnit
 from app.models.payment_method import PaymentMethod
 from app.models.invoice import Invoice, InvoiceItem, InvoiceStatus, Payment, DiscountType, InvoiceReminderSent
-from app.models.partner import Customer, Vendor
+from app.models.partner import Customer, Vendor, CustomerComment, CustomerNote
 from app.models.asset import FixedAsset, DepreciationEntry, DisposalReason
 from app.models.vendor_bill import (
     VendorBill, VendorBillItem, VendorBillPayment,
@@ -246,7 +246,7 @@ __all__ = [
     "Account", "AccountType", "NormalSide",
     "JournalEntry", "JournalLine",
     "Invoice", "InvoiceItem", "InvoiceStatus", "Payment", "InvoiceReminderSent",
-    "Customer", "Vendor",
+    "Customer", "Vendor", "CustomerComment", "CustomerNote",
     "FixedAsset", "DisposalReason",
     "Employee", "PayrollRun", "PayrollLine", "EmployeeAccrual", "Gender",
     "EmployeeHistory", "EmployeeChangeType",

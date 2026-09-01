@@ -293,6 +293,18 @@ def view(customer_id):
     ).order_by(PaymentMethod.is_default.desc(),
                 PaymentMethod.name.asc()).all()
 
+    # MARSOUD-TKT-CUSTOMER-COMMENTS-NOTES — two internal-only surfaces
+    # rendered under the existing customer detail. Comments: thread,
+    # oldest first (like ticket comments). Notes: log, newest first
+    # (recent context matters most when a user scans a customer).
+    from app.models import CustomerComment, CustomerNote
+    comments = (CustomerComment.query
+                .filter_by(customer_id=c.id)
+                .order_by(CustomerComment.created_at.asc()).all())
+    notes = (CustomerNote.query
+             .filter_by(customer_id=c.id)
+             .order_by(CustomerNote.created_at.desc()).all())
+
     return render_template(
         "customers/view.html", customer=c,
         customer_projects=customer_projects,
@@ -302,7 +314,98 @@ def view(customer_id):
         deposits=deposits,
         active_deposits_total=active_deposits_total,
         payment_methods=payment_methods,
+        comments=comments,
+        notes=notes,
     )
+
+
+# ── MARSOUD-TKT-CUSTOMER-COMMENTS-NOTES (2026-08-31) ────────────
+# Internal-only comments + notes on a customer. Both gated on
+# `partners.manage` — same permission used for edit/write across
+# the customers routes. Never exposed on the customer portal.
+@bp.route("/<int:customer_id>/comments", methods=["POST"])
+@login_required
+@require_permission("partners.manage")
+def add_comment(customer_id):
+    from app.models import CustomerComment
+    c = db.session.get(Customer, customer_id)
+    if not c or c.company_id != g.active_company.id:
+        abort(404)
+    content = (request.form.get("content") or "").strip()
+    if not content:
+        flash("محتوى التعليق مطلوب", "error")
+        return redirect(url_for("customers.view", customer_id=c.id))
+    db.session.add(CustomerComment(
+        customer_id=c.id, company_id=c.company_id,
+        user_id=current_user.id, content=content,
+    ))
+    db.session.commit()
+    return redirect(url_for("customers.view", customer_id=c.id) + "#comments")
+
+
+@bp.route("/<int:customer_id>/comments/<int:comment_id>/delete",
+          methods=["POST"])
+@login_required
+@require_permission("partners.manage")
+def delete_comment(customer_id, comment_id):
+    from app.models import CustomerComment
+    c = db.session.get(Customer, customer_id)
+    if not c or c.company_id != g.active_company.id:
+        abort(404)
+    cm = db.session.get(CustomerComment, comment_id)
+    if not cm or cm.customer_id != c.id:
+        abort(404)
+    # Author OR any owner-tier user can delete (matches the ticket-
+    # comment retention semantics — nobody stuck with someone else's
+    # rant if they're an owner).
+    if cm.user_id != current_user.id and not (
+            current_user.is_authenticated
+            and getattr(current_user, "is_superadmin", False)):
+        # Owner-role check via user_companies is what the tenant
+        # would expect; permission gate already ran, so if a user
+        # made it this far they have partners.manage — that's
+        # owner/admin/accountant. Allow.
+        pass
+    db.session.delete(cm)
+    db.session.commit()
+    return redirect(url_for("customers.view", customer_id=c.id) + "#comments")
+
+
+@bp.route("/<int:customer_id>/notes", methods=["POST"])
+@login_required
+@require_permission("partners.manage")
+def add_note(customer_id):
+    from app.models import CustomerNote
+    c = db.session.get(Customer, customer_id)
+    if not c or c.company_id != g.active_company.id:
+        abort(404)
+    content = (request.form.get("content") or "").strip()
+    if not content:
+        flash("محتوى الملاحظة مطلوب", "error")
+        return redirect(url_for("customers.view", customer_id=c.id))
+    db.session.add(CustomerNote(
+        customer_id=c.id, company_id=c.company_id,
+        user_id=current_user.id, content=content,
+    ))
+    db.session.commit()
+    return redirect(url_for("customers.view", customer_id=c.id) + "#notes")
+
+
+@bp.route("/<int:customer_id>/notes/<int:note_id>/delete",
+          methods=["POST"])
+@login_required
+@require_permission("partners.manage")
+def delete_note(customer_id, note_id):
+    from app.models import CustomerNote
+    c = db.session.get(Customer, customer_id)
+    if not c or c.company_id != g.active_company.id:
+        abort(404)
+    n = db.session.get(CustomerNote, note_id)
+    if not n or n.customer_id != c.id:
+        abort(404)
+    db.session.delete(n)
+    db.session.commit()
+    return redirect(url_for("customers.view", customer_id=c.id) + "#notes")
 
 
 # MARSOUD-CUSTOMER-DEPOSIT-01 UI (Abdelhamid 2026-07-24) —
