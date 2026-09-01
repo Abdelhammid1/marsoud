@@ -49,8 +49,43 @@ def _parse_commission_rate(raw):
 def index():
     if not g.active_company:
         return redirect(url_for("companies.new"))
-    customers = Customer.query.filter_by(company_id=g.active_company.id).order_by(Customer.name).all()
-    return render_template("customers/index.html", customers=customers)
+
+    # MARSOUD-TKT-CUSTOMERS-SORT-DATE-FILTER (2026-08-31) — default
+    # sort is newest first (was alphabetical by name). Optional
+    # date-range filter on `created_at` — invalid input silently
+    # ignored so a typo can't 500 the page.
+    from datetime import datetime as _dt
+    start_raw = (request.args.get("start_date") or "").strip()
+    end_raw = (request.args.get("end_date") or "").strip()
+
+    def _parse(s):
+        if not s:
+            return None
+        try:
+            return _dt.strptime(s, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+
+    start_date = _parse(start_raw)
+    end_date = _parse(end_raw)
+
+    q = Customer.query.filter_by(company_id=g.active_company.id)
+    if start_date:
+        q = q.filter(Customer.created_at >= _dt.combine(
+            start_date, _dt.min.time()))
+    if end_date:
+        # end-inclusive: include the whole day, not just its midnight
+        q = q.filter(Customer.created_at <= _dt.combine(
+            end_date, _dt.max.time()))
+
+    customers = q.order_by(Customer.created_at.desc(),
+                             Customer.id.desc()).all()
+    return render_template(
+        "customers/index.html",
+        customers=customers,
+        start_date=start_raw,
+        end_date=end_raw,
+    )
 
 
 @bp.route("/new", methods=["GET", "POST"])
