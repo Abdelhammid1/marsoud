@@ -138,6 +138,7 @@ PERMISSION_CATALOG = {
     # _IMPLIES) so existing roles keep working untouched; these entries
     # exist so an owner can RESTRICT one wizard on its own.
     "ops.transfer":         ("المالية والمحاسبة", "العمليات المحاسبية: تحويل بين الحسابات المالية", "add"),
+    "treasury.operate":     ("المالية والمحاسبة", "الخزينة: تنفيذ عمليات قبض / دفع / تحويل", "run"),
     "ops.accruals":         ("المالية والمحاسبة", "العمليات المحاسبية: إثبات الالتزامات المستحقة", "add"),
     "ops.settle":           ("المالية والمحاسبة", "العمليات المحاسبية: سداد الالتزامات المستحقة", "edit"),
     "ops.adjustments":      ("المالية والمحاسبة", "العمليات المحاسبية: تسوية أرصدة الحسابات (خطير)", "edit"),

@@ -36,4 +36,16 @@ def index():
     except Exception:
         current_app.logger.exception("tasks_archived_mine metric failed")
         metrics.setdefault("ops", {})["tasks_archived_mine"] = 0
+    # MARSOUD-TKT-TREASURY-HUB-01 — dashboard tile shows combined
+    # cash + bank balance. Wrapped so a treasury-side error doesn't
+    # kill the whole dashboard render.
+    try:
+        from app.services.treasury import kpi as treasury_kpi
+        stats = treasury_kpi(g.active_company.id)
+        metrics.setdefault("ops", {})["treasury_combined"] = stats["combined"]
+        metrics.setdefault("ops", {})["treasury_account_count"] = stats["account_count"]
+    except Exception:
+        current_app.logger.exception("treasury metric failed")
+        metrics.setdefault("ops", {})["treasury_combined"] = 0.0
+        metrics.setdefault("ops", {})["treasury_account_count"] = 0
     return render_template("dashboard/index.html", metrics=metrics)

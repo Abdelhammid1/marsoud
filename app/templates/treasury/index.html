@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block page_title %}الخزينة{% endblock %}
+{% block content %}
+{# MARSOUD-TKT-TREASURY-HUB-01 (2026-09-02) — شاشة موحدة للخزينة:
+   كل الحسابات النقدية والبنكية بأرصدتها الحية + 4 عمليات من مكان
+   واحد. كل الإجراءات بترجع لخدمات الفواتير / فواتير الموردين /
+   accounting_ops الموجودة أصلاً — مفيش قيد مكرر أو منطق موازي. #}
+
+{# ── KPI ──────────────────────────────────────────────────────── #}
+<div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+  <div class="card p-4">
+    <div class="text-xs text-slate-500 mb-1">💰 إجمالي النقدية</div>
+    <div class="text-2xl font-bold text-navy-900 font-mono">{{ "%.2f"|format(stats.total_cash) }}</div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500 mb-1">🏦 إجمالي البنوك</div>
+    <div class="text-2xl font-bold text-navy-900 font-mono">{{ "%.2f"|format(stats.total_bank) }}</div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500 mb-1">💵 المجموع الكلي</div>
+    <div class="text-2xl font-bold text-brand-600 font-mono">{{ "%.2f"|format(stats.combined) }}</div>
+  </div>
+  <div class="card p-4">
+    <div class="text-xs text-slate-500 mb-1">📊 عدد الحسابات</div>
+    <div class="text-2xl font-bold text-navy-900 font-mono">{{ stats.account_count }}</div>
+  </div>
+</div>
+
+{# ── CTAs ─────────────────────────────────────────────────────── #}
+{% if can_operate %}
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+  <button type="button" onclick="window.__openTreasury('receive')"
+          class="card p-6 hover:shadow-soft hover:-translate-y-0.5 transition-all border-2 border-transparent hover:border-emerald-500 text-center">
+    <div class="text-4xl mb-2">📥</div>
+    <div class="font-bold text-emerald-700">قبض</div>
+    <div class="text-xs text-slate-500 mt-1">استلام فلوس</div>
+  </button>
+  <button type="button" onclick="window.__openTreasury('pay')"
+          class="card p-6 hover:shadow-soft hover:-translate-y-0.5 transition-all border-2 border-transparent hover:border-red-500 text-center">
+    <div class="text-4xl mb-2">📤</div>
+    <div class="font-bold text-red-700">دفع</div>
+    <div class="text-xs text-slate-500 mt-1">صرف فلوس</div>
+  </button>
+  <button type="button" onclick="window.__openTreasury('transfer')"
+          class="card p-6 hover:shadow-soft hover:-translate-y-0.5 transition-all border-2 border-transparent hover:border-brand-500 text-center">
+    <div class="text-4xl mb-2">🔄</div>
+    <div class="font-bold text-brand-700">تحويل</div>
+    <div class="text-xs text-slate-500 mt-1">بين خزينة وخزينة</div>
+  </button>
+  <button type="button" disabled
+          class="card p-6 opacity-60 cursor-not-allowed text-center"
+          title="قريباً — سيصل مع تذكرة الشيكات (المرحلة الثانية)">
+    <div class="text-4xl mb-2">📝</div>
+    <div class="font-bold text-slate-500">شيكات</div>
+    <div class="text-xs text-slate-400 mt-1">قريباً — Phase 2</div>
+  </button>
+</div>
+{% endif %}
+
+{# ── Accounts + live balances ─────────────────────────────────── #}
+{% for label, rows in groups %}
+<div class="mb-4">
+  <h2 class="font-bold text-navy-900 mb-2">{{ label }}</h2>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    {% for r in rows %}
+      {% set is_neg = r.balance < 0 %}
+      <div class="card p-4 border-r-4 {% if is_neg %}border-red-500{% else %}border-brand-500{% endif %}">
+        <div class="text-xs text-slate-500 font-mono">{{ r.account.code }}</div>
+        <div class="font-semibold text-sm text-navy-900 mb-1">{{ r.account.name_ar or r.account.name }}</div>
+        <div class="text-xl font-mono font-bold {% if is_neg %}text-red-600{% else %}text-navy-900{% endif %}">
+          {{ "%.2f"|format(r.balance) }}
+        </div>
+      </div>
+    {% else %}
+      <div class="text-sm text-slate-400 col-span-3">— لا توجد حسابات {{ label }} —</div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="card p-6 text-center text-slate-500">
+  لا توجد حسابات نقدية أو بنكية بعد — راجع
+  <a href="{{ url_for('accounts.index') }}" class="text-brand-600 hover:underline">دليل الحسابات</a>.
+</div>
+{% endfor %}
+
+{% if can_operate %}
+  {% include "treasury/_modals.html" %}
+{% endif %}
+
+{% endblock %}

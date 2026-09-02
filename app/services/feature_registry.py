@@ -109,11 +109,11 @@ _MODULES: tuple = (
            sidebar_section="accounting", sort_order=10,
            blueprint_prefixes=("journals", "accounts", "accounting_ops",
                                 "assets", "payment_methods", "partners",
-                                "party_ledger"),
+                                "party_ledger", "treasury"),
            permission_prefixes=("journals.", "accounts.",
                                 "accounting_ops.", "payment_methods.",
                                 "partners.", "assets.",
-                                "party_ledger.", "ops.")),
+                                "party_ledger.", "ops.", "treasury.")),
     Module("sales", "المبيعات", "Sales",
            "الفواتير والمنتجات والعملاء والفواتير المتكررة",
            CATEGORY_SALES, "💵",
@@ -249,6 +249,12 @@ _FEATURES: tuple = (
     Feature("accounting_ops_index", "accounting", "العمليات المحاسبية",
              endpoints=("accounting_ops.index",),
              permissions=("journals.create",), icon="🧮"),
+    # MARSOUD-TKT-TREASURY-HUB-01 — الخزينة الموحّدة (قبض / دفع /
+    # تحويل من شاشة واحدة). Toggleable per plan via the accounting
+    # module bundling.
+    Feature("treasury_index", "accounting", "الخزينة",
+             endpoints=("treasury.index",),
+             permissions=("treasury.operate",), icon="🏦"),
     Feature("assets_index", "accounting", "الأصول الثابتة",
              endpoints=("assets.index",),
              permissions=("assets.manage",), icon="🏗️"),

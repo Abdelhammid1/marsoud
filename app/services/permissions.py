@@ -61,6 +61,10 @@ P = {
     # revoking the ledger.
     "ops.transfer":         {"owner", "admin", "accountant"},
     "ops.accruals":         {"owner", "admin", "accountant"},
+    # MARSOUD-TKT-TREASURY-HUB-01 — الخزينة operate (قبض / دفع /
+    # تحويل من شاشة موحدة). Same defaults as ops.transfer since it
+    # exposes the same underlying operations from a friendlier UI.
+    "treasury.operate":     {"owner", "admin", "accountant"},
     "ops.settle":           {"owner", "admin", "accountant"},
     # MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08, Phase 4) — the
     # most dangerous wizard: general account adjustment that lets
@@ -378,6 +382,9 @@ _IMPLIES = {
     "ops.transfer":        "journals.create",
     "ops.accruals":        "journals.create",
     "ops.settle":          "journals.create",
+    # Any role that already had transfer permission gets treasury
+    # automatically — no re-tick needed after this ticket's rollout.
+    "treasury.operate":    "ops.transfer",
     "api_tokens.manage":   "users.manage",
     "activity_log.view":   "users.manage",
     "backup.download":     "users.manage",
