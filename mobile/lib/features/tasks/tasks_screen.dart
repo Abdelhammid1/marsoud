@@ -73,7 +73,15 @@ class TasksScreen extends ConsumerWidget {
                   ),
                 )
               else
-                for (final bucket in _order)
+                // MARSOUD-MOBILE-SHIP-READY-01 (L2) — render known
+                // buckets first, then any unknown status the backend
+                // ships (e.g. CANCELLED). Was: only the known list.
+                // A backend-added status silently disappeared from
+                // the list.
+                for (final bucket in [
+                  ..._order,
+                  ...buckets.keys.where((k) => !_order.contains(k)),
+                ])
                   if ((buckets[bucket] ?? const []).isNotEmpty) ...[
                     Padding(
                       padding: const EdgeInsets.only(

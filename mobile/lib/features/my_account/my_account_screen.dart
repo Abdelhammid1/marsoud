@@ -822,9 +822,13 @@ class _AdvancesBody extends StatelessWidget {
               children: [
                 Text('💡', style: TextStyle(fontSize: 18)),
                 SizedBox(width: 10),
+                // MARSOUD-MOBILE-SHIP-READY-01 (M2) — was
+                // "قريباً" but /requests already has a live
+                // advance-request form. Point users there so the
+                // two screens agree.
                 Expanded(
                   child: Text(
-                    'لا توجد سلفة نشطة. تقديم طلب سلفة متاح قريباً من التطبيق.',
+                    'لا توجد سلفة نشطة. يمكنك تقديم طلب سلفة من شاشة "الطلبات" في القائمة.',
                     style: TextStyle(
                       color: BrandColors.amber700,
                       fontSize: 12,

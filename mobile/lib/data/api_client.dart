@@ -50,14 +50,14 @@ class ApiClient {
       readCompanyId: _readCompanyId,
     ));
     if (kDebugMode) {
-      _dio.interceptors.add(LogInterceptor(
-        request: false,
-        requestHeader: false,
-        requestBody: true,
-        responseHeader: false,
-        responseBody: false,
-        error: true,
-      ));
+      // MARSOUD-MOBILE-SHIP-READY-01 (audit finding H8) — was
+      // `requestBody: true` unconditionally, which dumped the
+      // plaintext password to stdout on every /auth/login call.
+      // Any dev running `flutter run` (or screen-sharing a debug
+      // session) saw their password in the terminal. Custom
+      // interceptor now redacts `password` / `token` / any
+      // Authorization header before logging.
+      _dio.interceptors.add(_RedactingLogInterceptor());
     }
   }
 
@@ -142,6 +142,51 @@ class ApiClient {
     }
   }
 }
+
+/// MARSOUD-MOBILE-SHIP-READY-01 (audit finding H8) — replaces Dio's
+/// stock LogInterceptor. Redacts `password`, `token`, and any
+/// `Authorization` header before printing so a screen-shared debug
+/// session never leaks creds.
+class _RedactingLogInterceptor extends Interceptor {
+  static const _secretKeys = {
+    'password', 'new_password', 'old_password', 'current_password',
+    'token', 'access_token', 'refresh_token', 'api_key', 'secret',
+    'authorization',
+  };
+
+  Object? _redact(Object? body) {
+    if (body is Map) {
+      return body.map((k, v) {
+        final key = k.toString();
+        if (_secretKeys.contains(key.toLowerCase())) {
+          return MapEntry(key, '***');
+        }
+        return MapEntry(key, _redact(v));
+      });
+    }
+    if (body is List) return body.map(_redact).toList();
+    return body;
+  }
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (kDebugMode) {
+      final redacted = _redact(options.data);
+      debugPrint('[api] ${options.method} ${options.uri} body=$redacted');
+    }
+    super.onRequest(options, handler);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    if (kDebugMode) {
+      debugPrint('[api] ✗ ${err.requestOptions.method} '
+          '${err.requestOptions.uri} → ${err.response?.statusCode} ${err.message}');
+    }
+    super.onError(err, handler);
+  }
+}
+
 
 class _AuthInterceptor extends Interceptor {
   final TokenReader readToken;

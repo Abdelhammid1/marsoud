@@ -37,15 +37,14 @@ dependencies:
   # GPS for attendance
   geolocator: ^13.0.2
 
-  # File pickers (receipts, lead uploads)
-  image_picker: ^1.1.2
-  file_picker: ^8.1.4
-
-  # OS permissions
-  permission_handler: ^11.3.1
-
-  # PDF preview (payslip)
-  syncfusion_flutter_pdfviewer: ^28.2.7
+  # MARSOUD-MOBILE-SHIP-READY-01 (M1) — the following four
+  # dependencies were declared but never imported. Removed until
+  # the screens that need them ship (file uploads, PDF payslip
+  # preview). Re-add per-feature when actually wired.
+  #   image_picker: ^1.1.2
+  #   file_picker: ^8.1.4
+  #   permission_handler: ^11.3.1
+  #   syncfusion_flutter_pdfviewer: ^28.2.7   (large, licensed)
 
   # MARSOUD-MOBILE-TKT-05 (2026-08-18) — Firebase Cloud Messaging
   # for push notifications. `firebase_core` is a hard prereq for

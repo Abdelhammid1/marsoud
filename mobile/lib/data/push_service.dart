@@ -32,6 +32,50 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'api_client.dart';
 import 'auth_state.dart';
 
+/// MARSOUD-MOBILE-SHIP-READY-01 (audit finding C2) — top-level
+/// background handler. Fires when the app is killed / backgrounded
+/// AND the incoming message is data-only (or Android delivered via
+/// a data path). Must be a top-level function (not a closure) and
+/// annotated `@pragma('vm:entry-point')` so tree-shaking + AOT
+/// don't strip it. Without this registered, data-only pushes
+/// arriving in the background never surface in the tray.
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {}
+  if (kDebugMode) {
+    debugPrint('[fcm-bg] ${message.messageId} data=${message.data}');
+  }
+  // Best-effort: pop a local notification for data-only messages.
+  // FCM's own `notification` payload is auto-displayed by the OS
+  // when the app is backgrounded, so we only synthesize one when
+  // there isn't a notification block.
+  if (message.notification == null && message.data.isNotEmpty) {
+    try {
+      final plugin = FlutterLocalNotificationsPlugin();
+      const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const initSettings = InitializationSettings(android: androidInit);
+      await plugin.initialize(initSettings);
+      final title = (message.data['title'] as String?) ?? 'مرصود';
+      final body = (message.data['body'] as String?) ?? '';
+      await plugin.show(
+        message.messageId.hashCode,
+        title, body,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            _androidChannel.id, _androidChannel.name,
+            channelDescription: _androidChannel.description,
+            importance: Importance.high, priority: Priority.high,
+          ),
+        ),
+        payload: (message.data['link_url'] as String?) ?? '',
+      );
+    } catch (_) {}
+  }
+}
+
+
 /// Called ONCE from `main()` before `runApp()`. Silently no-ops
 /// on any failure so the app still starts on a device where
 /// Firebase isn't configured yet (dev build, missing
@@ -41,6 +85,13 @@ Future<void> initializeFirebase() async {
     if (Firebase.apps.isEmpty) {
       await Firebase.initializeApp();
     }
+    // MARSOUD-MOBILE-SHIP-READY-01 (C2) — register the top-level
+    // background handler AFTER Firebase.initializeApp completes.
+    // Wrapped so a Firebase misconfig doesn't stop the app.
+    try {
+      FirebaseMessaging.onBackgroundMessage(
+          _firebaseMessagingBackgroundHandler);
+    } catch (_) {}
   } catch (e) {
     if (kDebugMode) {
       debugPrint('[fcm] initializeApp failed: $e');
@@ -203,8 +254,13 @@ class PushService {
   Future<void> _onMessage(RemoteMessage msg) async {
     final n = msg.notification;
     if (n == null) return;
+    // MARSOUD-MOBILE-SHIP-READY-01 (L11) — was
+    // `DateTime.now().millisecondsSinceEpoch.remainder(100000)`,
+    // which collides every ~100s and lets a later push silently
+    // replace an earlier one in the tray. Use the FCM messageId
+    // hash (stable per-message) so each push occupies its own slot.
     await _local.show(
-      DateTime.now().millisecondsSinceEpoch.remainder(100000),
+      (msg.messageId ?? msg.hashCode.toString()).hashCode,
       n.title ?? 'مرصود',
       n.body ?? '',
       NotificationDetails(
@@ -244,8 +300,17 @@ class PushService {
     } else if (linkUrl.startsWith('/notifications')) {
       mobilePath = '/notifications';
     } else {
-      // Fallback — always safe to open the notifications inbox.
+      // MARSOUD-MOBILE-SHIP-READY-01 (H4) — unknown link targets
+      // (e.g. /vendor-bills/12 which the mobile app doesn't render
+      // yet) used to silently redirect to /notifications, leaving
+      // the user thinking the notification "did nothing". Fallback
+      // still lands on the inbox — but stamp a flag so the shell
+      // can show a "opened on desktop" hint at the top of the
+      // inbox once we wire it. For now, keep the inbox landing.
       mobilePath = '/notifications';
+      if (kDebugMode) {
+        debugPrint('[fcm] unrouted deep link: $linkUrl');
+      }
     }
     // Router isn't easy to reach here without a BuildContext.
     // Store the path so the shell can consume it. Riverpod

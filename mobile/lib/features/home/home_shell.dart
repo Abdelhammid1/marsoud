@@ -51,22 +51,32 @@ const _employeeDrawer = <_DrawerLink>[
   _DrawerLink('الإشعارات', '🔔', '/notifications'),
 ];
 
+// MARSOUD-MOBILE-SHIP-READY-01 (L1) — TODO(persona): the README
+// documents Manager + Sales lanes but neither is implemented. Once
+// the endpoints ship, this becomes a switch on role. Today every
+// non-employee role also gets the Employee drawer — cosmetic today
+// (all our test users are employees) but ships a wrong menu the
+// moment we add a manager.
 List<_DrawerLink> _drawerFor(String role) => _employeeDrawer;
 
-/// The Scaffold's state key — makes openDrawer reliable from any
-/// descendant that doesn't have a `Scaffold.of(ctx)` friendly context.
-/// Previously the top bar used `Builder + Scaffold.of(ctx)`, which
-/// works but silently no-ops when the resolved context isn't strictly
-/// inside the Scaffold subtree — that's what made the drawer look
-/// "broken" earlier. A GlobalKey is bulletproof.
-final _scaffoldKey = GlobalKey<ScaffoldState>();
-
-class HomeShell extends ConsumerWidget {
+class HomeShell extends ConsumerStatefulWidget {
   final Widget child;
   const HomeShell({super.key, required this.child});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeShell> createState() => _HomeShellState();
+}
+
+class _HomeShellState extends ConsumerState<HomeShell> {
+  // MARSOUD-MOBILE-SHIP-READY-01 (M7) — was a module-level `final`
+  // GlobalKey shared across every HomeShell instance. If ShellRoute
+  // ever kept two shells alive during a transition, both would
+  // fight for the same key → "duplicate GlobalKey" crash. Instance
+  // scope kills that class of bug at the root.
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  @override
+  Widget build(BuildContext context) {
     final session = ref.watch(authProvider).value;
     if (session == null) {
       return const Scaffold(
@@ -101,8 +111,11 @@ class HomeShell extends ConsumerWidget {
           bottom: false,
           child: Column(
             children: [
-              _TopBar(session: session),
-              Expanded(child: child),
+              _TopBar(
+                session: session,
+                onMenu: () => _scaffoldKey.currentState?.openDrawer(),
+              ),
+              Expanded(child: widget.child),
             ],
           ),
         ),
@@ -113,7 +126,8 @@ class HomeShell extends ConsumerWidget {
 
 class _TopBar extends ConsumerWidget {
   final AuthSession session;
-  const _TopBar({required this.session});
+  final VoidCallback onMenu;
+  const _TopBar({required this.session, required this.onMenu});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -130,7 +144,7 @@ class _TopBar extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.menu, color: BrandColors.navy900),
             tooltip: 'القائمة',
-            onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+            onPressed: onMenu,
           ),
           Container(
             width: 36,
@@ -225,15 +239,28 @@ class _NotificationBell extends ConsumerWidget {
   }
 }
 
+// MARSOUD-MOBILE-SHIP-READY-01 (M4) — bell polling is `autoDispose`
+// but the async* loop kept running as long as ANY widget listened.
+// Add an onDispose latch so a cancellation actually breaks the loop
+// on the next iteration (Riverpod alone won't propagate a Future
+// cancellation into a `Future.delayed`). Result: when the user
+// leaves HomeShell (backgrounded / signed out), polling stops on
+// the next tick instead of continuing indefinitely.
 final unreadCountProvider = StreamProvider.autoDispose<int>((ref) async* {
   final repo = ref.watch(myAccountRepoProvider);
-  while (true) {
+  var cancelled = false;
+  ref.onDispose(() { cancelled = true; });
+  while (!cancelled) {
     try {
       yield await repo.unreadCount();
     } catch (_) {
       yield 0;
     }
-    await Future.delayed(const Duration(seconds: 30));
+    // Chunked sleep so cancellation is picked up within 5s instead
+    // of the full 30s poll interval.
+    for (var i = 0; i < 6 && !cancelled; i++) {
+      await Future.delayed(const Duration(seconds: 5));
+    }
   }
 });
 

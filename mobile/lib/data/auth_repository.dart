@@ -44,15 +44,13 @@ class AuthRepository {
     }
   }
 
-  Future<void> changePassword({
-    required String oldPassword,
-    required String newPassword,
-  }) async {
-    await _api.post('/api/v1/auth/change-password', body: {
-      'old': oldPassword,
-      'new': newPassword,
-    });
-  }
+  // MARSOUD-MOBILE-SHIP-READY-01 (M3) — the old `changePassword`
+  // method here posted to /api/v1/auth/change-password and had
+  // zero call sites; the actual change-password flow lives in
+  // MyAccountRepository.changePassword (posts to /api/v1/my/
+  // account/password). Kept the method deleted to force any new
+  // caller to go through the my_account flow, which already has
+  // the UI + validation.
 }
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {

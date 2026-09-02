@@ -45,6 +45,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _submit() async {
     if (_submitting) return;
+    // MARSOUD-MOBILE-SHIP-READY-01 (M8) — trivial client-side
+    // validation so we don't pay a network round-trip for an empty
+    // form (also gives bad-actor rate-limit surface for /login POSTs
+    // less air to breathe).
+    final email = _emailCtrl.text.trim();
+    final pw = _passCtrl.text;
+    if (email.isEmpty || pw.isEmpty) {
+      setState(() => _error = 'أدخل البريد وكلمة السر.');
+      return;
+    }
+    if (!email.contains('@') || !email.contains('.')) {
+      setState(() => _error = 'صيغة البريد الإلكتروني غير صحيحة.');
+      return;
+    }
     setState(() {
       _submitting = true;
       _error = null;
@@ -66,7 +80,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } on ApiException catch (e) {
       setState(() => _error = _humanize(e));
     } catch (e) {
-      setState(() => _error = 'حدث خطأ غير متوقع: $e');
+      // MARSOUD-MOBILE-SHIP-READY-01 (H7) — used to show raw `$e`
+      // which may include a stack-tracey / mixed-language string
+      // (SocketException, TimeoutException, TypeError on bad JSON).
+      // Keep a short, user-facing sentence; the details go to debug.
+      if (kDebugMode) debugPrint('[login] $e');
+      setState(() => _error = 'تعذّر الاتصال — تأكد من الإنترنت وحاول مرة أخرى.');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -105,15 +124,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _openForgotPasswordSheet() async {
-    // MARSOUD-MOBILE-FORGOT-PW-01 — surface the web forgot-password
-    // URL so the user has a real path to reset. No url_launcher dep
-    // added mid-session; we show the URL + a "copy" hint. A follow-up
-    // ticket can add either url_launcher or a first-class in-app
-    // reset flow once the /api/v1 endpoint exists.
-    final url = Env.apiBaseUrl.isEmpty
+    // MARSOUD-MOBILE-FORGOT-PW-01 + SHIP-READY-01 (H9) — surface the
+    // WEB host (Env.webBaseUrl), NOT the API host. In split-domain
+    // prod (api.marsoud.com vs app.marsoud.com), the reset page
+    // lives on the web host — pasting an API-host URL into a browser
+    // 404s. `webBaseUrl` falls back to `apiBaseUrl` when unset, so
+    // dev + single-host prod still work.
+    final base = Env.webBaseUrl;
+    final url = base.isEmpty
         ? '/forgot-password'
-        : '${Env.apiBaseUrl.replaceAll(RegExp(r"/+\$"), "")}'
-          '/forgot-password';
+        : '${base.replaceAll(RegExp(r"/+\$"), "")}/forgot-password';
     if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,

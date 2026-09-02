@@ -49,6 +49,15 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- MARSOUD-MOBILE-SHIP-READY-01 (C4) — required so iOS renders
+	     the runtime permission prompt. Without them, Geolocator's
+	     first call hard-crashes on iOS with an unhelpful "usage
+	     description missing" abort. Both are shown to the user
+	     verbatim on the OS prompt. -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>يستخدم تطبيق مرصود موقعك لتسجيل حضورك وانصرافك من موقع الشركة.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>يستخدم تطبيق مرصود موقعك لتسجيل حضورك وانصرافك من موقع الشركة.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

@@ -37,13 +37,32 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
           perm == LocationPermission.deniedForever) {
         return (lat: null, lng: null);
       }
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 8),
-        ),
-      );
-      return (lat: pos.latitude, lng: pos.longitude);
+      // MARSOUD-MOBILE-SHIP-READY-01 (H5) — try high accuracy first
+      // (best fix, ideal outdoors) and fall back to medium+longer
+      // timeout for indoor/weak-signal cases. A single 8s
+      // high-accuracy try returned null inside buildings, showing
+      // users "GPS مطلوب" while sitting at their desk. Total worst-
+      // case wait is now ~13s but the success rate on a bad-GPS
+      // office is dramatically better.
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            timeLimit: Duration(seconds: 8),
+          ),
+        );
+        return (lat: pos.latitude, lng: pos.longitude);
+      } catch (_) {
+        // Retry with lower accuracy target — often succeeds when
+        // high-accuracy has drifted out due to weak sky visibility.
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.medium,
+            timeLimit: Duration(seconds: 5),
+          ),
+        );
+        return (lat: pos.latitude, lng: pos.longitude);
+      }
     } catch (_) {
       return (lat: null, lng: null);
     }
@@ -91,6 +110,15 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
       ref.invalidate(_attendanceProvider);
     } on ApiException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e) {
+      // MARSOUD-MOBILE-SHIP-READY-01 (M9) — used to only catch
+      // ApiException. A TimeoutException or a TypeError from bad
+      // JSON crashed the widget's Future. Show a friendly Arabic
+      // fallback instead.
+      if (kDebugMode) debugPrint('[attendance] $e');
+      messenger.showSnackBar(const SnackBar(
+        content: Text('تعذّر تسجيل العملية — حاول مرة أخرى.'),
+      ));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

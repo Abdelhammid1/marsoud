@@ -78,7 +78,10 @@ lanes are follow-up tickets that add their tabs to `home_shell.dart`.
 - Employee — daily reports, custody, my archive: **backend ready, screens TBD**
 - Manager — leave/permission/advance approvals: **backend TBD, screens TBD**
 - CRM (sales) — leads, activities, contacts: **backend TBD, screens TBD**
-- Push notifications — **deferred** (polling only for MVP)
+- Push notifications — **shipped** (FCM foreground + background,
+  Android 13+ POST_NOTIFICATIONS wired, iOS pending Firebase project
+  onboarding). Unread bell in the top bar polls `/api/v1/my/
+  notifications/unread-count` every 30s as a backup.
 
 ## Verify
 
