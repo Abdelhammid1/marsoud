@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block page_title %}قرارات الموظفين{% endblock %}
+{% block content %}
+{# MARSOUD-TKT-HR-DECISIONS-01 — index / سجل القرارات. #}
+
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-2xl font-bold text-navy-900">📄 قرارات الموظفين</h1>
+  {% if has_permission('payroll.employees') or has_permission('payroll.accruals') %}
+  <div class="flex gap-2">
+    {% if has_permission('payroll.employees') %}
+      <a href="{{ url_for('hr_decisions.new', kind='PROMOTION') }}" class="btn-secondary text-sm">➕ قرار إداري</a>
+    {% endif %}
+    {% if has_permission('payroll.accruals') %}
+      <a href="{{ url_for('hr_decisions.new', kind='BONUS') }}" class="btn-secondary text-sm">💰 قرار مالي</a>
+    {% endif %}
+    {% if has_permission('payroll.employees') %}
+      <a href="{{ url_for('hr_decisions.new', kind='TERMINATION') }}" class="btn-secondary text-sm">✕ إنهاء خدمة</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<form method="GET" class="card p-3 mb-4 flex flex-wrap items-end gap-2">
+  <div>
+    <label class="block text-xs text-slate-500 mb-1">الحالة</label>
+    <select name="status" class="select text-sm">
+      <option value="">— الكل —</option>
+      {% for s in statuses %}
+        <option value="{{ s.value }}" {% if filters.status == s.value %}selected{% endif %}>
+          {% if s.value == 'DRAFT' %}مسودة
+          {% elif s.value == 'EXECUTED' %}منفّذ
+          {% elif s.value == 'PENDING_PAYROLL' %}معلّق للراتب القادم
+          {% elif s.value == 'CANCELLED' %}ملغى
+          {% endif %}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs text-slate-500 mb-1">النوع</label>
+    <select name="kind" class="select text-sm">
+      <option value="">— الكل —</option>
+      {% for k in kinds %}
+      <option value="{{ k.value }}" {% if filters.kind == k.value %}selected{% endif %}>
+        {% if k.value == 'APPOINTMENT' %}تعيين
+        {% elif k.value == 'PROMOTION' %}ترقية
+        {% elif k.value == 'TRANSFER' %}نقل
+        {% elif k.value == 'WARNING' %}إنذار
+        {% elif k.value == 'PENALTY' %}جزاء مالي
+        {% elif k.value == 'BONUS' %}مكافأة
+        {% elif k.value == 'TERMINATION' %}إنهاء خدمة
+        {% endif %}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs text-slate-500 mb-1">الموظف</label>
+    <select name="employee_id" class="select text-sm">
+      <option value="">— الكل —</option>
+      {% for e in employees %}
+      <option value="{{ e.id }}" {% if filters.employee_id == e.id %}selected{% endif %}>{{ e.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn-primary text-sm">تصفية</button>
+  {% if filters.status or filters.kind or filters.employee_id %}
+    <a href="{{ url_for('hr_decisions.index') }}" class="btn-secondary text-sm">مسح</a>
+  {% endif %}
+</form>
+
+<div class="card p-0 overflow-hidden">
+  <table class="data-table">
+    <thead><tr>
+      <th>التاريخ</th>
+      <th>الموظف</th>
+      <th>النوع</th>
+      <th>العنوان</th>
+      <th class="text-right">المبلغ</th>
+      <th>الحالة</th>
+      <th>قيد</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr class="{% if r.status == 'CANCELLED' %}bg-slate-100 text-slate-400{% endif %}">
+        <td class="font-mono text-xs">{{ r.effective_date.isoformat() }}</td>
+        <td>{{ r.employee.name if r.employee else '—' }}</td>
+        <td>
+          <span class="badge {% if r.category == 'FINANCIAL' %}badge-paid{% elif r.category == 'TERMINATION' %}badge-cancelled{% else %}badge-draft{% endif %}">
+            {{ r.kind_ar }}
+          </span>
+        </td>
+        <td>
+          <a href="{{ url_for('hr_decisions.detail', dec_id=r.id) }}" class="text-brand-600 hover:underline">{{ r.title }}</a>
+        </td>
+        <td class="text-right font-mono">
+          {% if r.amount %}{{ "%.2f"|format(r.amount|float) }}{% else %}—{% endif %}
+        </td>
+        <td>
+          <span class="badge {% if r.status == 'EXECUTED' %}badge-paid{% elif r.status == 'CANCELLED' %}badge-cancelled{% else %}badge-draft{% endif %}">
+            {{ r.status_ar }}
+          </span>
+        </td>
+        <td class="text-xs">
+          {% if r.journal_entry_id %}
+            <a href="{{ url_for('journals.view', entry_id=r.journal_entry_id) }}" class="text-brand-600 hover:underline font-mono">JE#{{ r.journal_entry_id }}</a>
+          {% else %}—{% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="text-center text-slate-400 py-6">لا توجد قرارات.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

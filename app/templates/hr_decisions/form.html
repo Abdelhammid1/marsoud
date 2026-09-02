@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block page_title %}قرار جديد{% endblock %}
+{% block content %}
+{# MARSOUD-TKT-HR-DECISIONS-01 — new-decision form. Kind is fixed by
+   the query param; fields change according to category (ADMIN /
+   FINANCIAL / TERMINATION). #}
+
+{% set kind_labels = {
+  'APPOINTMENT': 'تعيين', 'PROMOTION': 'ترقية',
+  'TRANSFER': 'نقل قسم', 'WARNING': 'إنذار كتابي',
+  'PENALTY': 'جزاء مالي', 'BONUS': 'مكافأة',
+  'TERMINATION': 'إنهاء خدمة'
+} %}
+
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-2xl font-bold text-navy-900">قرار: {{ kind_labels.get(kind, kind) }}</h1>
+  <a href="{{ url_for('hr_decisions.index') }}" class="btn-secondary text-sm">← عودة</a>
+</div>
+
+<form method="POST" action="{{ url_for('hr_decisions.create') }}" class="card p-6 space-y-4">
+  <input type="hidden" name="kind" value="{{ kind }}">
+
+  <div>
+    <label class="block text-sm font-semibold text-slate-700 mb-1">الموظف <span class="text-red-600">*</span></label>
+    <select name="employee_id" class="select" required>
+      <option value="">— اختر الموظف —</option>
+      {% for e in employees %}
+      <option value="{{ e.id }}" {% if selected_employee_id == e.id %}selected{% endif %}>{{ e.name }} {% if e.job_title %}— {{ e.job_title }}{% endif %}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="grid grid-cols-2 gap-4">
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">تاريخ التنفيذ <span class="text-red-600">*</span></label>
+      <input type="date" name="effective_date" class="input" required>
+      {% if kind == 'TERMINATION' %}
+      <div class="text-xs text-slate-500 mt-1">هذا التاريخ هو اليوم الأخير للعمل — راتب هذا الشهر بيتحسب بالتناسب لغاية اليوم ده.</div>
+      {% endif %}
+    </div>
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">مرجع المستند (اختياري)</label>
+      <input type="text" name="reference" class="input" placeholder="مثلاً: قرار رقم 42/2026">
+    </div>
+  </div>
+
+  <div>
+    <label class="block text-sm font-semibold text-slate-700 mb-1">عنوان القرار <span class="text-red-600">*</span></label>
+    <input type="text" name="title" class="input" required
+           placeholder="{% if kind == 'PROMOTION' %}ترقية إلى محاسب أول{% elif kind == 'PENALTY' %}تأخير متكرر{% elif kind == 'BONUS' %}مكافأة إنجاز مشروع{% elif kind == 'TRANSFER' %}نقل إلى قسم المبيعات{% elif kind == 'WARNING' %}إنذار كتابي{% elif kind == 'APPOINTMENT' %}تعيين رسمي{% elif kind == 'TERMINATION' %}إنهاء خدمة{% endif %}">
+  </div>
+
+  <div>
+    <label class="block text-sm font-semibold text-slate-700 mb-1">
+      {% if kind in ('PENALTY', 'WARNING', 'TERMINATION') %}السبب <span class="text-red-600">*</span>
+      {% else %}ملاحظات{% endif %}
+    </label>
+    <textarea name="body" rows="3" class="input"
+              {% if kind in ('PENALTY', 'WARNING', 'TERMINATION') %}required{% endif %}
+              placeholder="اكتب السبب أو التفاصيل"></textarea>
+  </div>
+
+  {# ─── FINANCIAL-only ─────────────────────────────────────── #}
+  {% if category == 'FINANCIAL' %}
+  <div class="border border-amber-200 bg-amber-50 rounded p-4 space-y-4">
+    <div class="text-sm font-bold text-amber-800">تفاصيل مالية</div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">المبلغ <span class="text-red-600">*</span></label>
+        <input type="number" step="0.01" min="0.01" name="amount" class="input" required>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">توقيت التنفيذ <span class="text-red-600">*</span></label>
+        <select name="timing" id="fin-timing" class="select" required>
+          <option value="IMMEDIATE">الآن (يولّد قيد فوري)</option>
+          <option value="NEXT_PAYROLL">في الراتب القادم (يخصم / يضاف مع الراتب)</option>
+        </select>
+      </div>
+    </div>
+    <div id="fin-payment-row">
+      <label class="block text-sm font-semibold text-slate-700 mb-1">الخزينة / البنك (للتنفيذ الفوري) <span class="text-red-600">*</span></label>
+      <select name="payment_account_id" class="select">
+        <option value="">— اختر الحساب —</option>
+        {% for label, accs in payment_groups %}
+          <optgroup label="{{ label }}">
+            {% for a in accs %}
+            <option value="{{ a.id }}">{{ a.code }} — {{ a.name_ar or a.name }}</option>
+            {% endfor %}
+          </optgroup>
+        {% endfor %}
+      </select>
+      <div class="text-xs text-slate-500 mt-1">
+        {% if kind == 'BONUS' %}الحساب اللي هيتخصم منه المكافأة (Dr 5220 / Cr هذا الحساب).
+        {% else %}الحساب اللي هيستلم قيمة الجزاء (Dr هذا الحساب / Cr 4500 إيرادات أخرى).
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <script>
+    (function(){
+      const t = document.getElementById('fin-timing');
+      const row = document.getElementById('fin-payment-row');
+      const toggle = () => { row.style.display = (t.value === 'IMMEDIATE') ? '' : 'none'; };
+      t.addEventListener('change', toggle);
+      toggle();
+    })();
+  </script>
+  {% endif %}
+
+  <div class="flex justify-end gap-2 pt-2 border-t border-slate-200">
+    <a href="{{ url_for('hr_decisions.index') }}" class="btn-secondary">إلغاء</a>
+    <button type="submit" class="btn-primary">حفظ القرار (كمسودة)</button>
+  </div>
+  <div class="text-xs text-slate-500">
+    القرار يتحفظ كمسودة أولاً — التنفيذ الفعلي بيتم من صفحة تفاصيل القرار.
+  </div>
+</form>
+{% endblock %}

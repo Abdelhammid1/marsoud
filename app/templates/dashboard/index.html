@@ -292,6 +292,16 @@
       </div>
     </a>
     {% endif %}
+    {% if has_permission('payroll.view') %}
+    <a class="op" href="{{ url_for('hr_decisions.index') }}" title="قرارات الموظفين">
+      <div class="op-ico i-blue">📄</div>
+      <div>
+        <div class="op-val">{{ metrics.ops.hr_decisions_pending or 0 }}</div>
+        <div class="op-label">قرار موظفين معلّق</div>
+        <div class="op-extra tag-amber">في انتظار التنفيذ</div>
+      </div>
+    </a>
+    {% endif %}
     {% if has_permission('tasks.view') %}
     <a class="op" href="{{ url_for('tasks.index') }}" title="المهام">
       <div class="op-ico i-violet">📋</div>

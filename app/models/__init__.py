@@ -91,6 +91,10 @@ from app.models.payroll import (
     ContractType, EmployeeStatus, TerminationReason, Gender,
     EmployeeHistory, EmployeeChangeType,
 )
+from app.models.hr_decision import (
+    HrDecision, HrDecisionKind, HrDecisionStatus, HrDecisionTiming,
+    kind_category as hr_decision_category,
+)
 from app.models.open_item import (
     OpenItem, OpenItemSettlement, OpenItemStatus, SETTLEABLE_STATUSES,
 )

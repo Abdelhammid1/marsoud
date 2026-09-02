@@ -48,4 +48,17 @@ def index():
         current_app.logger.exception("treasury metric failed")
         metrics.setdefault("ops", {})["treasury_combined"] = 0.0
         metrics.setdefault("ops", {})["treasury_account_count"] = 0
+    # MARSOUD-TKT-HR-DECISIONS-01 — dashboard tile for pending HR
+    # decisions. Same wrap-in-try guard.
+    try:
+        from app.models import HrDecision
+        pending = (HrDecision.query
+                    .filter_by(company_id=g.active_company.id)
+                    .filter(HrDecision.status.in_(
+                        ["DRAFT", "PENDING_PAYROLL"]))
+                    .count())
+        metrics.setdefault("ops", {})["hr_decisions_pending"] = pending
+    except Exception:
+        current_app.logger.exception("hr_decisions metric failed")
+        metrics.setdefault("ops", {})["hr_decisions_pending"] = 0
     return render_template("dashboard/index.html", metrics=metrics)

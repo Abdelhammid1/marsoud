@@ -173,7 +173,8 @@ _MODULES: tuple = (
            "الموظفين والرواتب والحضور والسلف",
            CATEGORY_HR, "👤",
            sidebar_section="hr", sort_order=80,
-           blueprint_prefixes=("hr", "payroll", "hr_ss", "advances"),
+           blueprint_prefixes=("hr", "payroll", "hr_ss", "advances",
+                                "hr_decisions"),
            permission_prefixes=("hr.", "payroll.", "advances.",
                                 "employees.")),
     Module("employee_reports", "تقارير الموظفين اليومية", "Employee Reports",
@@ -370,6 +371,11 @@ _FEATURES: tuple = (
     Feature("hr_departments", "hr", "الأقسام",
              endpoints=("hr.departments",),
              permissions=("hr.manage",), icon="🏢"),
+    # MARSOUD-TKT-HR-DECISIONS-01 — قرارات الموظفين. Toggleable per
+    # plan via the hr module bundling; owner ticks/unticks per role.
+    Feature("hr_decisions_index", "hr", "قرارات الموظفين",
+             endpoints=("hr_decisions.index",),
+             permissions=("payroll.view",), icon="📄"),
     Feature("hr_attendance", "hr", "الحضور والإجازات",
              endpoints=("hr.attendance", "hr.attendance_policies"),
              permissions=("hr.manage",), icon="📅"),

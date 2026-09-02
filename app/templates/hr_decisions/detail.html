@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block page_title %}قرار #{{ dec.id }}{% endblock %}
+{% block content %}
+{# MARSOUD-TKT-HR-DECISIONS-01 — single-decision detail + actions. #}
+
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h1 class="text-2xl font-bold text-navy-900">قرار: {{ dec.kind_ar }} — {{ dec.title }}</h1>
+    <div class="text-sm text-slate-500 mt-1">
+      الموظف: <strong>{{ dec.employee.name if dec.employee else '—' }}</strong>
+      · تاريخ: {{ dec.effective_date.isoformat() }}
+      · الحالة:
+      <span class="badge {% if dec.status == 'EXECUTED' %}badge-paid{% elif dec.status == 'CANCELLED' %}badge-cancelled{% else %}badge-draft{% endif %}">{{ dec.status_ar }}</span>
+    </div>
+  </div>
+  <a href="{{ url_for('hr_decisions.index') }}" class="btn-secondary text-sm">← عودة</a>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <div class="md:col-span-2 card p-5 space-y-3">
+    <div>
+      <div class="text-xs text-slate-500 mb-1">النوع</div>
+      <div class="font-semibold">{{ dec.kind_ar }} — <span class="text-xs text-slate-400 font-mono">{{ dec.category }}</span></div>
+    </div>
+    {% if dec.body %}
+    <div>
+      <div class="text-xs text-slate-500 mb-1">السبب / التفاصيل</div>
+      <div class="whitespace-pre-line text-sm">{{ dec.body }}</div>
+    </div>
+    {% endif %}
+    {% if dec.reference %}
+    <div>
+      <div class="text-xs text-slate-500 mb-1">مرجع المستند</div>
+      <div class="font-mono text-sm">{{ dec.reference }}</div>
+    </div>
+    {% endif %}
+    {% if dec.amount %}
+    <div>
+      <div class="text-xs text-slate-500 mb-1">المبلغ</div>
+      <div class="text-xl font-mono font-bold text-navy-900">{{ "%.2f"|format(dec.amount|float) }}</div>
+      <div class="text-xs text-slate-500 mt-1">التوقيت:
+        {% if dec.timing == 'IMMEDIATE' %}الآن (فوري){% else %}في الراتب القادم{% endif %}
+      </div>
+    </div>
+    {% endif %}
+    {% if dec.journal_entry_id %}
+    <div>
+      <div class="text-xs text-slate-500 mb-1">القيد المرتبط</div>
+      <a href="{{ url_for('journals.view', entry_id=dec.journal_entry_id) }}" class="text-brand-600 hover:underline font-mono">JE#{{ dec.journal_entry_id }}</a>
+    </div>
+    {% endif %}
+    {% if dec.cancel_reason %}
+    <div class="bg-red-50 border border-red-200 rounded p-3">
+      <div class="text-xs text-red-700 mb-1 font-bold">سبب الإلغاء</div>
+      <div class="text-sm text-red-900">{{ dec.cancel_reason }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ─── Actions column ────────────────────────────────────── #}
+  <div class="card p-5 space-y-3">
+    <div class="text-sm font-bold text-navy-900 mb-2">الإجراءات</div>
+
+    {% if dec.status == 'DRAFT' %}
+      <form method="POST" action="{{ url_for('hr_decisions.execute', dec_id=dec.id) }}"
+            onsubmit="return confirm('تأكيد تنفيذ القرار؟');">
+        <button type="submit" class="btn-primary w-full">✓ تنفيذ القرار</button>
+      </form>
+      <button type="button" class="btn-secondary w-full" onclick="document.getElementById('cancel-form').classList.toggle('hidden')">
+        ✕ إلغاء القرار
+      </button>
+      <form id="cancel-form" method="POST" action="{{ url_for('hr_decisions.cancel', dec_id=dec.id) }}" class="hidden space-y-2">
+        <label class="block text-xs text-slate-500">سبب الإلغاء <span class="text-red-600">*</span></label>
+        <textarea name="reason" rows="2" class="input text-sm" required></textarea>
+        <button type="submit" class="btn-primary bg-red-600 hover:bg-red-700 w-full text-sm">تأكيد الإلغاء</button>
+      </form>
+    {% elif dec.status == 'PENDING_PAYROLL' %}
+      <div class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
+        القرار معلّق — سيدخل في الراتب القادم بعد ترحيله (تكامل الراتب في المرحلة الثانية).
+      </div>
+      <button type="button" class="btn-secondary w-full" onclick="document.getElementById('cancel-form').classList.toggle('hidden')">
+        ✕ إلغاء القرار
+      </button>
+      <form id="cancel-form" method="POST" action="{{ url_for('hr_decisions.cancel', dec_id=dec.id) }}" class="hidden space-y-2">
+        <label class="block text-xs text-slate-500">سبب الإلغاء <span class="text-red-600">*</span></label>
+        <textarea name="reason" rows="2" class="input text-sm" required></textarea>
+        <button type="submit" class="btn-primary bg-red-600 hover:bg-red-700 w-full text-sm">تأكيد الإلغاء</button>
+      </form>
+    {% elif dec.status == 'EXECUTED' %}
+      <div class="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded p-2">
+        القرار مُنفَّذ — لا يمكن تعديله أو إلغاؤه. أي تصحيح يحتاج قرار عكسي جديد.
+      </div>
+    {% elif dec.status == 'CANCELLED' %}
+      <div class="text-xs text-slate-600 bg-slate-100 rounded p-2">
+        القرار ملغى.
+      </div>
+    {% endif %}
+
+    <div class="pt-3 border-t border-slate-200 space-y-1 text-xs text-slate-500">
+      <div>أنشأه: <strong>{{ dec.created_by or '—' }}</strong> · {{ dec.created_at.strftime('%Y-%m-%d %H:%M') if dec.created_at else '—' }}</div>
+      {% if dec.executed_at %}
+      <div>نُفَّذ: <strong>{{ dec.executed_by or '—' }}</strong> · {{ dec.executed_at.strftime('%Y-%m-%d %H:%M') }}</div>
+      {% endif %}
+      {% if dec.cancelled_at %}
+      <div>أُلغي: <strong>{{ dec.cancelled_by or '—' }}</strong> · {{ dec.cancelled_at.strftime('%Y-%m-%d %H:%M') }}</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
