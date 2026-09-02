@@ -1,7 +1,7 @@
 name: marsoud
 description: "Marsoud — mobile app for employees, HR, and sales."
 publish_to: 'none'
-version: 1.0.1+2
+version: 1.0.2+3
 
 environment:
   sdk: ^3.5.0
@@ -63,3 +63,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # MARSOUD-MOBILE-BRAND-LOGO-01 (2026-09-03) — copied from
+  # app/static/img/logo.png so the sidebar + login screen render
+  # the real Marsoud mark instead of the emerald "م" placeholder.
+  assets:
+    - assets/images/logo.png

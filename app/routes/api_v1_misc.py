@@ -41,13 +41,19 @@ def _err(msg, status=400):
 def _file_brief(f):
     if not f:
         return None
+    # MARSOUD-MOBILE-FILES-FIX-01 (2026-09-03) — the previous code
+    # read `.is_preview_inline` + `.size_human` which don't exist on
+    # UserFile. Every /misc/files call 500'd; mobile showed
+    # "internal error". Real property names are `.is_previewable` +
+    # `.size_display` (see app/models/user_file.py). The response
+    # keys stay the mobile-friendly names the client already reads.
     return {
         "id": f.id,
         "filename": f.filename,
         "mimetype": f.mimetype,
         "size_bytes": f.size_bytes,
-        "is_preview_inline": f.is_preview_inline,
-        "size_human": f.size_human,
+        "is_preview_inline": f.is_previewable,
+        "size_human": f.size_display,
         "created_at": S.iso(f.created_at),
     }
 

@@ -372,9 +372,10 @@ class _LogoRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        // Logo puck — the web uses a PNG asset; we render a mint circle
-        // with an emerald initial as a placeholder so the app has an
-        // identity mark without shipping the .png through Flutter yet.
+        // MARSOUD-MOBILE-BRAND-LOGO-01 (2026-09-03) — real logo
+        // asset (copied from app/static/img/logo.png). The old
+        // emerald "م" puck stays as an errorBuilder fallback so a
+        // missing/corrupt asset still ships an identifiable mark.
         Container(
           width: 56,
           height: 56,
@@ -384,12 +385,21 @@ class _LogoRow extends StatelessWidget {
             border: Border.all(color: BrandColors.emerald100, width: 1.5),
           ),
           alignment: Alignment.center,
-          child: const Text(
-            'م',
-            style: TextStyle(
-              color: BrandColors.emerald700,
-              fontSize: 28,
-              fontWeight: FontWeight.w800,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.asset(
+              'assets/images/logo.png',
+              width: 44,
+              height: 44,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Text(
+                'م',
+                style: TextStyle(
+                  color: BrandColors.emerald700,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
           ),
         ),

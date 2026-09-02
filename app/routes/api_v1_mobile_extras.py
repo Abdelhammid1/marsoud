@@ -513,14 +513,18 @@ def schedules_list():
             )
         ).all()
     }
+    # MARSOUD-MOBILE-SCHEDULES-FIX-01 (2026-09-03) — was
+    # `TaskSchedule.id.in_(my_ids) if my_ids else False` inside
+    # db.or_(). The literal Python `False` isn't a valid SQL
+    # expression on SQLAlchemy 2.x → the whole query 500'd, mobile
+    # showed "internal error" on /جدولي. Now build the OR clauses
+    # list conditionally so we only pass real SQL predicates.
+    or_clauses = [TaskSchedule.assigned_to_id == current_user.id]
+    if my_ids:
+        or_clauses.append(TaskSchedule.id.in_(my_ids))
     q = TaskSchedule.query.filter(
         TaskSchedule.company_id == g.active_company.id,
-    ).filter(
-        db.or_(
-            TaskSchedule.assigned_to_id == current_user.id,
-            TaskSchedule.id.in_(my_ids) if my_ids else False,
-        )
-    )
+    ).filter(db.or_(*or_clauses))
     rows = q.order_by(TaskSchedule.start_date.desc()).limit(200).all()
     return jsonify({
         "count": len(rows),

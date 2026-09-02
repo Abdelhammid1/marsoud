@@ -2,6 +2,7 @@
 // unread ones have a bold title + emerald dot.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../app/theme.dart';
 import '../../data/my_account_repository.dart';
@@ -44,11 +45,39 @@ class NotificationsScreen extends ConsumerWidget {
             itemBuilder: (context, i) => _NotificationTile(
               n: items[i],
               onTap: () async {
+                // MARSOUD-MOBILE-NOTIF-TAP-01 (2026-09-03) — used to
+                // only mark-as-read. Now also navigates to the
+                // notification's `link_url` when the mobile app
+                // knows how to render that surface. The same
+                // whitelist as push deep-links.
                 if (items[i]['is_read'] != true) {
-                  await ref
-                      .read(myAccountRepoProvider)
-                      .markRead(items[i]['id'] as int);
+                  try {
+                    await ref
+                        .read(myAccountRepoProvider)
+                        .markRead(items[i]['id'] as int);
+                  } catch (_) {}
                   ref.invalidate(_notificationsProvider);
+                }
+                final linkUrl = items[i]['link_url']?.toString() ?? '';
+                if (linkUrl.isEmpty) return;
+                String? target;
+                if (linkUrl.startsWith('/tasks/') ||
+                    linkUrl.startsWith('/projects/') ||
+                    linkUrl.startsWith('/leads/') ||
+                    linkUrl.startsWith('/daily-reports/')) {
+                  target = linkUrl;
+                }
+                if (target != null && context.mounted) {
+                  context.push(target);
+                } else if (context.mounted) {
+                  // Rendered on desktop only — tell the user so
+                  // they don't think the tap is broken.
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'هذا الإشعار يفتح على نسخة الويب فقط حاليًا.'),
+                    ),
+                  );
                 }
               },
             ),

@@ -158,6 +158,8 @@ class _TopBar extends ConsumerWidget {
               tooltip: 'القائمة',
               onPressed: onMenu,
             ),
+          // MARSOUD-MOBILE-BRAND-LOGO-01 (2026-09-03) — real logo,
+          // falls back to the "م" mark if the asset ever fails.
           Container(
             width: 36,
             height: 36,
@@ -167,12 +169,21 @@ class _TopBar extends ConsumerWidget {
               border: Border.all(color: BrandColors.emerald100),
             ),
             alignment: Alignment.center,
-            child: const Text(
-              'م',
-              style: TextStyle(
-                color: BrandColors.emerald700,
-                fontWeight: FontWeight.w800,
-                fontSize: 17,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(7),
+              child: Image.asset(
+                'assets/images/logo.png',
+                width: 28,
+                height: 28,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Text(
+                  'م',
+                  style: TextStyle(
+                    color: BrandColors.emerald700,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 17,
+                  ),
+                ),
               ),
             ),
           ),
@@ -258,6 +269,80 @@ class _NotificationBell extends ConsumerWidget {
 // cancellation into a `Future.delayed`). Result: when the user
 // leaves HomeShell (backgrounded / signed out), polling stops on
 // the next tick instead of continuing indefinitely.
+// MARSOUD-MOBILE-COMPANY-SWITCHER-01 (2026-09-03) — bottom sheet
+// listing every company on the session; tap → switchCompany +
+// close the drawer + navigate to /home so the user lands somewhere
+// safe after the tenant flips.
+Future<void> _pickCompany(
+    BuildContext context, WidgetRef ref, AuthSession session) async {
+  await showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (ctx) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 12, 20, 4),
+              child: Row(
+                children: [
+                  Icon(Icons.business, color: BrandColors.navy900),
+                  SizedBox(width: 10),
+                  Text('اختر الشركة',
+                      style: TextStyle(
+                        color: BrandColors.navy900,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      )),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            for (final c in session.companies)
+              ListTile(
+                leading: Icon(
+                  c.id == session.activeCompanyId
+                      ? Icons.check_circle
+                      : Icons.circle_outlined,
+                  color: c.id == session.activeCompanyId
+                      ? BrandColors.emerald600
+                      : BrandColors.slate400,
+                ),
+                title: Text(c.name,
+                    style: const TextStyle(
+                      color: BrandColors.navy900,
+                      fontWeight: FontWeight.w700,
+                    )),
+                subtitle: Text(c.role,
+                    style: const TextStyle(
+                      color: BrandColors.slate500, fontSize: 11,
+                    )),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  if (c.id == session.activeCompanyId) return;
+                  await ref.read(authProvider.notifier)
+                      .switchCompany(c.id);
+                  // Close the parent drawer + reset to home so any
+                  // company-scoped list refetches cleanly.
+                  if (context.mounted) {
+                    Navigator.of(context).maybePop();
+                    context.go('/home');
+                  }
+                },
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+
 final unreadCountProvider = StreamProvider.autoDispose<int>((ref) async* {
   final repo = ref.watch(myAccountRepoProvider);
   var cancelled = false;
@@ -316,12 +401,21 @@ class _SideDrawer extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         alignment: Alignment.center,
-                        child: const Text(
-                          'م',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 22,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.asset(
+                            'assets/images/logo.png',
+                            width: 34,
+                            height: 34,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => const Text(
+                              'م',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 22,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -347,13 +441,49 @@ class _SideDrawer extends ConsumerWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    session.activeCompany?.name ?? '',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.75),
-                      fontSize: 11,
-                    ),
-                  ),
+                  // MARSOUD-MOBILE-COMPANY-SWITCHER-01 (2026-09-03)
+                  // — was a static Text. If the user is on more
+                  // than one company, tap opens a picker sheet.
+                  // Single-company users see the plain label they
+                  // saw before, so no regression.
+                  Builder(builder: (ctx) {
+                    final label = session.activeCompany?.name ?? '';
+                    if (session.companies.length <= 1) {
+                      return Text(label,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.75),
+                            fontSize: 11,
+                          ));
+                    }
+                    return InkWell(
+                      onTap: () => _pickCompany(ctx, ref, session),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                label,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.85),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(Icons.swap_horiz,
+                                size: 14,
+                                color: Colors.white.withValues(alpha: 0.85)),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
                 ],
               ),
             ),
