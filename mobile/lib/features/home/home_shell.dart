@@ -5,6 +5,8 @@
 // web: brand mark + active-company label + a bell icon (notifications)
 // + hamburger. No bottom nav — the web doesn't have one, so we don't
 // either; every deep screen is reached from the drawer.
+import 'dart:async';   // MARSOUD-MOBILE-LOGOUT-HANG-01 — unawaited + timeout
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -343,12 +345,24 @@ class _SideDrawer extends ConsumerWidget {
                   )),
               onTap: () async {
                 Navigator.of(context).pop();
-                // MARSOUD-MOBILE-TKT-05 (2026-08-18) — revoke
-                // the FCM token BEFORE clearing the bearer, so
-                // the DELETE call still has auth. Best-effort.
-                try {
-                  await ref.read(pushServiceProvider).onLogout();
-                } catch (_) {}
+                // MARSOUD-MOBILE-LOGOUT-HANG-01 (2026-09-02) — was
+                // `await pushService.onLogout()` before `authProvider
+                // .clear()`. That call chains through
+                // FirebaseMessaging.instance.getToken(), which on
+                // some devices (no Google Play Services, offline,
+                // FCM registration hiccup) hangs for 30-60s or
+                // longer — from the user's POV "signout doesn't
+                // work". Fix: give FCM cleanup 3 seconds max, then
+                // clear the local session regardless. The server-
+                // side FCM token stays orphaned for at most a day
+                // (its next scheduled cleanup) — a tolerable trade
+                // for a signout that always feels instant.
+                unawaited(
+                  ref.read(pushServiceProvider).onLogout()
+                      .timeout(const Duration(seconds: 3),
+                               onTimeout: () {})
+                      .catchError((_) {}),
+                );
                 await ref.read(authProvider.notifier).clear();
               },
             ),

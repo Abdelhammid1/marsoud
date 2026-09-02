@@ -13,6 +13,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../app/env.dart';
 import '../../app/theme.dart';
 import '../../data/api_client.dart';
 import '../../data/auth_repository.dart';
@@ -101,6 +102,93 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       default:
         return e.message;
     }
+  }
+
+  Future<void> _openForgotPasswordSheet() async {
+    // MARSOUD-MOBILE-FORGOT-PW-01 — surface the web forgot-password
+    // URL so the user has a real path to reset. No url_launcher dep
+    // added mid-session; we show the URL + a "copy" hint. A follow-up
+    // ticket can add either url_launcher or a first-class in-app
+    // reset flow once the /api/v1 endpoint exists.
+    final url = Env.apiBaseUrl.isEmpty
+        ? '/forgot-password'
+        : '${Env.apiBaseUrl.replaceAll(RegExp(r"/+\$"), "")}'
+          '/forgot-password';
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 20, right: 20, top: 20,
+          bottom: 20 + MediaQuery.of(ctx).viewInsets.bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'استعادة كلمة السر',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: BrandColors.navy900,
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'استعادة كلمة السر متاحة حالياً من متصفح الويب فقط. '
+              'افتح الرابط التالي من المتصفح، أدخل بريدك، وستصلك '
+              'رسالة بتفعيل كلمة سر جديدة:',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: BrandColors.slate500,
+                fontSize: 13,
+                height: 1.7,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: BrandColors.slate100,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: SelectableText(
+                url,
+                textDirection: TextDirection.ltr,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: BrandColors.navy900,
+                  fontFamily: 'monospace',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'يمكنك الضغط طويلاً على الرابط لنسخه.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: BrandColors.slate400,
+                fontSize: 11,
+              ),
+            ),
+            const SizedBox(height: 16),
+            GradientButton.navy(
+              label: 'تم',
+              onPressed: () => Navigator.of(ctx).pop(),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   String _deviceLabel() {
@@ -216,7 +304,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           Align(
                             alignment: Alignment.center,
                             child: TextButton(
-                              onPressed: () {},
+                              // MARSOUD-MOBILE-FORGOT-PW-01 (2026-09-02)
+                              // — used to be `onPressed: () {}` (a
+                              // dead no-op). Until the JSON /api/v1/
+                              // auth/forgot-password endpoint ships,
+                              // point users at the web flow which is
+                              // already live at /forgot-password —
+                              // same shape as the guidance we already
+                              // give for email_verification_required.
+                              onPressed: _openForgotPasswordSheet,
                               style: TextButton.styleFrom(
                                 foregroundColor: BrandColors.slate500,
                               ),
