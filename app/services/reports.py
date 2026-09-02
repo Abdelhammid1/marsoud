@@ -79,6 +79,72 @@ def _net_income(company_id, start_date=None, end_date=None):
     return revenue - expense
 
 
+def trial_balance_report(company_id, *, start_date=None, end_date=None):
+    """Trial Balance (ميزان مراجعة) — every account, its total debit /
+    total credit / signed balance for the period.
+
+    Contract per MARSOUD-TKT-TRIAL-BALANCE:
+      * Same paused-journal filter as every other report (`JournalEntry.is_active`).
+      * Default `end_date` = today. `start_date=None` means "from the
+        beginning of time" (AC #1: no filter → whole company history).
+      * Rows are hidden when the account has NO movement in the range
+        AND no children (AC #5), so a fresh COA doesn't render a wall
+        of zeros. Parents with children stay visible for hierarchy
+        legibility (AC #6).
+      * `totals.debit` and `totals.credit` MUST be equal for a healthy
+        ledger; `totals.balanced` surfaces the invariant so the template
+        can shout when it's broken instead of silently showing two
+        different numbers (AC #4).
+
+    Returned shape:
+        {"rows": [{code, name, type, debit, credit, balance,
+                   natural_side}...],
+         "totals": {"debit": Σ, "credit": Σ, "balanced": bool,
+                    "diff": Σd − Σc},
+         "start_date": date|None, "end_date": date}
+    """
+    end_date = end_date or date.today()
+    accounts = (Account.query
+                .filter_by(company_id=company_id, is_active=True)
+                .order_by(Account.code).all())
+
+    rows = []
+    total_debit = 0.0
+    total_credit = 0.0
+    for acc in accounts:
+        debit, credit = _account_balance(
+            acc.id, start_date=start_date, end_date=end_date)
+        has_movement = abs(debit) >= 0.01 or abs(credit) >= 0.01
+        if not has_movement and not acc.children:
+            continue
+        balance = _signed_balance(acc, debit, credit)
+        rows.append({
+            "code": acc.code,
+            "name": acc.name_ar or acc.name,
+            "type": acc.type.value if hasattr(acc.type, "value") else str(acc.type),
+            "natural_side": acc.normal_side.value
+            if hasattr(acc.normal_side, "value") else str(acc.normal_side),
+            "debit": debit,
+            "credit": credit,
+            "balance": balance,
+        })
+        total_debit += debit
+        total_credit += credit
+
+    diff = round(total_debit - total_credit, 2)
+    return {
+        "rows": rows,
+        "totals": {
+            "debit": round(total_debit, 2),
+            "credit": round(total_credit, 2),
+            "balanced": abs(diff) < 0.01,
+            "diff": diff,
+        },
+        "start_date": start_date,
+        "end_date": end_date,
+    }
+
+
 def income_statement(company_id, start_date=None, end_date=None):
     end_date = end_date or date.today()
     accounts = Account.query.filter_by(company_id=company_id, is_active=True).all()

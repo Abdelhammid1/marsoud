@@ -26,6 +26,7 @@ from app.services.reports import (
     income_summary, expenses_summary, income_statement_compared,
     aging_report, ap_aging_report, vat_report,
     payroll_summary_report, fixed_assets_report,
+    trial_balance_report,
 )
 
 NAVY = colors.HexColor("#0A2540")
@@ -385,6 +386,138 @@ def _export_balance_sheet_pdf_legacy(company, as_of):
 
     p.showPage()
     p.save()
+    buf.seek(0)
+    return buf
+
+
+# ─── MARSOUD-TKT-TRIAL-BALANCE (2026-09-02) — Trial Balance exports ──
+def export_trial_balance_pdf(company, start, end):
+    """Trial Balance PDF. WeasyPrint first, ReportLab fallback — same
+    pattern as balance_sheet + income_statement. `start` may be None
+    (from-beginning); `end` must be a date."""
+    from app.services.currency import currency_name_ar
+    data = trial_balance_report(company.id, start_date=start, end_date=end)
+    try:
+        return _weasyprint_render(
+            "pdfs/trial_balance.html",
+            company=company,
+            data=data,
+            currency_ar=currency_name_ar(company.base_currency),
+            company_logo_data_uri=_company_logo_data_uri(company),
+        )
+    except Exception as e:  # noqa: BLE001
+        _export_logger.error(
+            "[PDF-FALLBACK] Trial Balance %s→%s: WeasyPrint failed "
+            "(%s: %s) — rendering the ReportLab layout.",
+            start, end, type(e).__name__, str(e)[:200],
+        )
+        return _export_trial_balance_pdf_legacy(company, start, end)
+
+
+def _export_trial_balance_pdf_legacy(company, start, end):
+    """ReportLab fallback for the Trial Balance PDF — kept for hosts
+    without libpango. Four-column layout: code+name / debit / credit /
+    balance, with a bold totals row at the bottom that colours red when
+    Σd ≠ Σc so imbalance is never silent."""
+    data = trial_balance_report(company.id, start_date=start, end_date=end)
+    period = (f"{start} → {end}" if start else f"As of {end}")
+    buf = io.BytesIO()
+    p = canvas.Canvas(buf, pagesize=A4)
+    _pdf_header(p, company, "Trial Balance", period)
+
+    y = 24.5 * cm
+    # Column-header strip
+    p.setFillColor(NAVY)
+    p.rect(1 * cm, y - 0.4 * cm, 19 * cm, 0.7 * cm, fill=1, stroke=0)
+    p.setFillColor(colors.white)
+    p.setFont(_FONT_BOLD, 10)
+    p.drawString(1.3 * cm, y - 0.2 * cm, ar("الحساب"))
+    p.drawRightString(13.5 * cm, y - 0.2 * cm, ar("مدين"))
+    p.drawRightString(16.5 * cm, y - 0.2 * cm, ar("دائن"))
+    p.drawRightString(19.5 * cm, y - 0.2 * cm, ar("الرصيد"))
+    y -= 1 * cm
+
+    p.setFillColor(colors.black)
+    p.setFont(_FONT_REGULAR, 9)
+    if not data["rows"]:
+        p.drawString(1.5 * cm, y, ar("— لا توجد بيانات في هذه الفترة —"))
+        y -= 0.6 * cm
+    for r in data["rows"]:
+        if y < 3 * cm:
+            p.showPage()
+            _pdf_header(p, company, "Trial Balance (cont.)", period)
+            y = 24.5 * cm
+        p.drawString(1.5 * cm, y, ar(f"{r['code']}  {r['name']}"))
+        p.drawRightString(13.5 * cm, y, f"{r['debit']:,.2f}" if r['debit'] else "—")
+        p.drawRightString(16.5 * cm, y, f"{r['credit']:,.2f}" if r['credit'] else "—")
+        p.drawRightString(19.5 * cm, y, f"{r['balance']:,.2f}")
+        y -= 0.5 * cm
+
+    # Totals row — bold, red when Σd ≠ Σc.
+    y -= 0.3 * cm
+    tone = colors.HexColor("#059669") if data["totals"]["balanced"] else colors.HexColor("#DC2626")
+    p.setFont(_FONT_BOLD, 10)
+    p.setFillColor(tone)
+    p.drawString(1.5 * cm, y, ar("الإجمالي"))
+    p.drawRightString(13.5 * cm, y, f"{data['totals']['debit']:,.2f}")
+    p.drawRightString(16.5 * cm, y, f"{data['totals']['credit']:,.2f}")
+    label = "متوازن ✓" if data["totals"]["balanced"] else f"فرق {data['totals']['diff']:,.2f}"
+    p.drawRightString(19.5 * cm, y, ar(label))
+    p.setFillColor(colors.black)
+
+    p.showPage()
+    p.save()
+    buf.seek(0)
+    return buf
+
+
+def export_trial_balance_excel(company, start, end):
+    """Trial Balance Excel — Code / Name / Debit / Credit / Balance +
+    totals row. Same colour palette as every other export."""
+    data = trial_balance_report(company.id, start_date=start, end_date=end)
+    period = (f"من {start} إلى {end}" if start else f"حتى {end}")
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Trial Balance"
+    _excel_styled_header(ws, "Trial Balance — ميزان المراجعة",
+                          company.name, period)
+    # Extra columns
+    for col, width in (("A", 30), ("B", 40), ("C", 16), ("D", 16), ("E", 16)):
+        ws.column_dimensions[col].width = width
+
+    # Header row
+    hdr_row = 5
+    headers = ["كود الحساب", "اسم الحساب", "مدين", "دائن", "الرصيد"]
+    for col_idx, txt in enumerate(headers, start=1):
+        c = ws.cell(row=hdr_row, column=col_idx, value=txt)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="0A2540")
+
+    row = hdr_row + 1
+    for r in data["rows"]:
+        ws.cell(row=row, column=1, value=r["code"])
+        ws.cell(row=row, column=2, value=r["name"])
+        ws.cell(row=row, column=3, value=r["debit"] or None).number_format = "#,##0.00"
+        ws.cell(row=row, column=4, value=r["credit"] or None).number_format = "#,##0.00"
+        ws.cell(row=row, column=5, value=r["balance"]).number_format = "#,##0.00"
+        row += 1
+
+    # Totals row — bold; colours red if imbalance
+    tone = "059669" if data["totals"]["balanced"] else "DC2626"
+    tot = ws.cell(row=row, column=1, value="الإجمالي")
+    tot.font = Font(bold=True, color="FFFFFF")
+    tot.fill = PatternFill("solid", fgColor=tone)
+    ws.cell(row=row, column=2, value=(
+        "متوازن ✓" if data["totals"]["balanced"]
+        else f"غير متوازن — فرق {data['totals']['diff']:,.2f}"
+    )).font = Font(bold=True, color=tone)
+    c3 = ws.cell(row=row, column=3, value=data["totals"]["debit"])
+    c3.font = Font(bold=True); c3.number_format = "#,##0.00"
+    c4 = ws.cell(row=row, column=4, value=data["totals"]["credit"])
+    c4.font = Font(bold=True); c4.number_format = "#,##0.00"
+
+    buf = io.BytesIO()
+    wb.save(buf)
     buf.seek(0)
     return buf
 
@@ -1706,6 +1839,14 @@ def export_report(company, report_type, fmt, start, end, **kwargs):
         if fmt == "pdf":
             return export_balance_sheet_pdf(company, end), f"balance-sheet-{end}.pdf", "application/pdf"
         return export_balance_sheet_excel(company, end), f"balance-sheet-{end}.xlsx", XLSX_MIME
+    if report_type == "trial-balance":
+        # AC #9 — same date args as the on-screen filter; start is
+        # optional (None → from-beginning), end always present.
+        if fmt == "pdf":
+            return (export_trial_balance_pdf(company, start, end),
+                    f"trial-balance-{end}.pdf", "application/pdf")
+        return (export_trial_balance_excel(company, start, end),
+                f"trial-balance-{end}.xlsx", XLSX_MIME)
     if report_type == "income-statement":
         if fmt == "pdf":
             return export_income_statement_pdf(company, start, end), f"income-statement-{start}-{end}.pdf", "application/pdf"

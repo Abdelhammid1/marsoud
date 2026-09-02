@@ -10,6 +10,7 @@
     ('balance', 'الميزانية العمومية', 'Balance Sheet', 'Assets = Liabilities + Equity', '⚖️'),
     ('income', 'قائمة الدخل', 'Income Statement', 'Revenue − Expenses', '📈'),
     ('cashflow', 'التدفقات النقدية', 'Cash Flow Statement', 'Operating + Investing + Financing', '💵'),
+    ('trial_balance', 'ميزان المراجعة', 'Trial Balance', 'Σ Debits = Σ Credits', '⚖️'),
   ] %}
   {% for endpoint, title_ar, title_en, formula, icon in core %}
   <a href="{{ url_for('reports.' + endpoint) }}" class="card p-6 hover:shadow-soft hover:-translate-y-0.5 transition-all border-2 border-transparent hover:border-brand-500">

@@ -1,0 +1,60 @@
+{# MARSOUD-TKT-TRIAL-BALANCE (2026-09-02) — ميزان المراجعة PDF via WeasyPrint.
+   Extends pdfs/_shell.html (Ticket 1's shared brand chrome) so the
+   report matches every other financial-statement PDF.
+
+   Context injected by services/export.py:_weasyprint_render():
+     - company                    the Company object (for shell brand row)
+     - data                       trial_balance_report() dict — rows, totals, start_date, end_date
+     - currency_ar                localised currency label (e.g. "جنيه مصري")
+     - company_logo_data_uri      base64 URI or None
+     - amiri_font_face            auto-injected by _weasyprint_render
+#}
+{% extends "pdfs/_shell.html" %}
+{% import "pdfs/_report_macros.html" as rpt %}
+
+{% block title %}Trial Balance — {{ company.display_name if company else 'Marsoud' }}{% endblock %}
+
+{% block doc_title %}ميزان المراجعة{% endblock %}
+
+{% block status_badge %}
+<div class="status-badge-wrap">
+  <span class="status-badge" style="color:#0A2540;background:#F1F5F9">
+    {% if data.start_date %}
+      من {{ ar_date(data.start_date) }} إلى {{ ar_date(data.end_date) }}
+    {% else %}
+      حتى {{ ar_date(data.end_date) }}
+    {% endif %}
+  </span>
+</div>
+{% endblock %}
+
+{% block footer_year %}{{ data.end_date.year if data.end_date else '' }}{% endblock %}
+
+{% block content %}
+{% if company.tax_number or company.commercial_register_no %}
+<table class="kv">
+  {% if company.tax_number %}
+  <tr><td class="k">الرقم الضريبي</td><td class="c">:</td><td class="v mono">{{ company.tax_number }}</td></tr>
+  {% endif %}
+  {% if company.commercial_register_no %}
+  <tr><td class="k">السجل التجاري</td><td class="c">:</td><td class="v mono">{{ company.commercial_register_no }}</td></tr>
+  {% endif %}
+  <tr><td class="k">العملة</td><td class="c">:</td><td class="v">{{ currency_ar or '' }}</td></tr>
+</table>
+{% endif %}
+
+{# AC #4 — imbalance banner FIRST, so it can't be missed. #}
+{% if not data.totals.balanced %}
+<div style="margin:0 0 12px;padding:10px 12px;border:1px solid #FCA5A5;background:#FEF2F2;color:#991B1B;font-weight:700;border-radius:6px;font-size:12px">
+  ⚠ تنبيه: مجموع المدين لا يساوي مجموع الدائن (فرق {{ "%.2f"|format(data.totals.diff|float) }}).
+</div>
+{% endif %}
+
+{{ rpt.trial_balance_table(data.rows, data.totals, currency_ar=currency_ar) }}
+
+{{ rpt.outcome_block(
+     "الميزان متوازن" if data.totals.balanced else "الميزان غير متوازن (فرق)",
+     data.totals.debit if data.totals.balanced else data.totals.diff,
+     data.totals.balanced,
+     currency_ar=currency_ar) }}
+{% endblock %}

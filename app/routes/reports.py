@@ -8,7 +8,7 @@ from app.services.reports import (
     income_summary, expenses_summary, income_statement_compared,
     aging_report, ap_aging_report, vat_report,
     payroll_summary_report, fixed_assets_report,
-    open_custody_report,
+    open_custody_report, trial_balance_report,
 )
 from app.services.permissions import require_permission
 
@@ -50,6 +50,27 @@ def income():
     end = _parse_date(request.args.get("end_date"), today)
     data = income_statement(g.active_company.id, start_date=start, end_date=end)
     return render_template("reports/income_statement.html", data=data, start=start, end=end)
+
+
+@bp.route("/trial-balance")
+@login_required
+@require_permission("reports.view")
+def trial_balance():
+    """MARSOUD-TKT-TRIAL-BALANCE (2026-09-02) — ميزان المراجعة.
+
+    Snapshot report: every account, its total debit + total credit +
+    signed balance for the chosen period. Defaults to "from beginning
+    of company to today" per AC #1 (no filter → whole history)."""
+    if not g.active_company:
+        return redirect(url_for("companies.new"))
+    today = date.today()
+    start = _parse_date(request.args.get("start_date"), None)
+    end = _parse_date(request.args.get("end_date"), today)
+    data = trial_balance_report(
+        g.active_company.id, start_date=start, end_date=end)
+    return render_template(
+        "reports/trial_balance.html",
+        data=data, start=start, end=end)
 
 
 @bp.route("/cash-flow")
@@ -334,7 +355,11 @@ def export(report_type, fmt):
 
     from app.services.export import export_report
     today = date.today()
-    start = _parse_date(request.args.get("start_date"), today.replace(day=1))
+    # MARSOUD-TKT-TRIAL-BALANCE — trial-balance's default is "from
+    # beginning of time" (None), not today.replace(day=1). Every other
+    # report keeps the month-to-date default.
+    default_start = None if report_type == "trial-balance" else today.replace(day=1)
+    start = _parse_date(request.args.get("start_date"), default_start)
     end = _parse_date(request.args.get("end_date"), today)
     kwargs = {}
     if report_type == "payroll-summary":

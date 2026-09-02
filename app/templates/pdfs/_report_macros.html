@@ -63,6 +63,55 @@
 {%- endmacro %}
 
 
+{# trial_balance_table — three-money-column layout for ميزان المراجعة.
+   MARSOUD-TKT-TRIAL-BALANCE (2026-09-02). Unlike account_group (two
+   columns: name + balance), the trial balance needs Debit + Credit +
+   Balance side-by-side so the invariant Σd = Σc is visible on the
+   page. Bold totals row at the bottom.
+
+   Args:
+     rows:         iterable of dicts each with code, name, debit, credit, balance
+     totals:       {"debit", "credit", "balanced", "diff"}
+     currency_ar:  optional currency label
+#}
+{% macro trial_balance_table(rows, totals, currency_ar="") -%}
+  <table class="items">
+    <thead>
+      <tr>
+        <th>الحساب</th>
+        <th class="num">مدين</th>
+        <th class="num">دائن</th>
+        <th class="num">الرصيد</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td><span class="mono">{{ r.code }}</span> · {{ r.name }}</td>
+        <td class="num">{% if r.debit %}{{ "%.2f"|format(r.debit|float) }}{% else %}—{% endif %}</td>
+        <td class="num">{% if r.credit %}{{ "%.2f"|format(r.credit|float) }}{% else %}—{% endif %}</td>
+        <td class="num">{{ "%.2f"|format(r.balance|float) }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="4" style="text-align:center;color:#94A3B8;padding:16px;font-size:11px">
+          — لا توجد حركات في هذه الفترة —
+        </td>
+      </tr>
+      {% endfor %}
+      <tr>
+        <td style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">الإجمالي</td>
+        <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">{{ "%.2f"|format(totals.debit|float) }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
+        <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">{{ "%.2f"|format(totals.credit|float) }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
+        <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:{% if totals.balanced %}#059669{% else %}#DC2626{% endif %};font-size:13px">
+          {% if totals.balanced %}✓ متوازن{% else %}✕ فرق {{ "%.2f"|format(totals.diff|float) }}{% endif %}
+        </td>
+      </tr>
+    </tbody>
+  </table>
+{%- endmacro %}
+
+
 {# outcome_block — renders the big signature block at the bottom of a
    report (like invoice.html's `.due-block`), carrying the headline
    result (Net Profit / Balanced check / Net Change). Border color +
