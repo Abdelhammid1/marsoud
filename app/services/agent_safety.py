@@ -64,15 +64,55 @@ def daily_write_cap():
 
 
 # ─── Proposal lifecycle ─────────────────────────────────────────────────
+def _canonical_args(args):
+    """MARSOUD-AGENT-CONFIRM-LOOP-01 — build the comparison key used
+    for dedup. Strips `_confirmed_proposal_id` (an internal marker,
+    not part of the user's intent) and sorts keys so `{"a":1,"b":2}`
+    matches `{"b":2,"a":1}`."""
+    cleaned = {k: v for k, v in (args or {}).items()
+               if k != "_confirmed_proposal_id"}
+    return json.dumps(cleaned, ensure_ascii=False, default=str,
+                       sort_keys=True)
+
+
 def create_proposal(*, tool_name, args, company_id, user_id,
                     summary_ar=None, amount_readable=None):
-    """Persist a PENDING proposal. Returns the tool-result dict the
-    agent turn appends to its trace."""
+    """Persist a PENDING proposal (or reuse a matching one).
+
+    MARSOUD-AGENT-CONFIRM-LOOP-01 (2026-09-02) — dedup guard. The LLM
+    has no memory of pending proposals: when the user types "نفذ" or
+    the conversation restarts, the model re-calls the write tool,
+    which used to create a fresh proposal row every time (visible as
+    a "loop" of confirmation cards). We now look for a PENDING
+    proposal with the same (company, user, tool, canonical args)
+    within the last 24h and return IT instead — so the user's second
+    "confirm" click on any duplicate card lands on the ORIGINAL
+    pending row and executes ONE journal entry, not multiple.
+    """
     from app.models import AgentProposal, PROPOSAL_PENDING
+    canonical = _canonical_args(args)
+    cutoff = datetime.utcnow() - timedelta(hours=24)
+    existing = (AgentProposal.query
+                 .filter_by(company_id=company_id, user_id=user_id,
+                             tool_name=tool_name,
+                             status=PROPOSAL_PENDING)
+                 .filter(AgentProposal.created_at >= cutoff)
+                 .filter(AgentProposal.input_json == canonical)
+                 .order_by(AgentProposal.created_at.desc())
+                 .first())
+    if existing is not None:
+        return {
+            "requires_confirmation": True,
+            "proposal_id": existing.id,
+            "tool": tool_name,
+            "summary_ar": existing.summary_ar,
+            "amount_readable": existing.amount_readable,
+        }
+
     p = AgentProposal(
         company_id=company_id, user_id=user_id,
         tool_name=tool_name,
-        input_json=json.dumps(args, ensure_ascii=False, default=str),
+        input_json=canonical,
         summary_ar=summary_ar or "",
         amount_readable=amount_readable or "",
         status=PROPOSAL_PENDING,

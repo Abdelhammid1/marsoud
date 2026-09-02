@@ -388,37 +388,77 @@ function buildProposalCard(r) {
       </div>
     </div>
   `;
-  const card = wrap.querySelector('[data-proposal-id]');
-  const pid = card.dataset.proposalId;
-  const status = card.querySelector('.js-status');
+  // MARSOUD-AGENT-CONFIRM-LOOP-01 — event listeners live on the
+  // parent #chat-messages (see installProposalDelegation below), NOT
+  // on each card. Rationale: any subsequent `box.innerHTML += …`
+  // (a new agent reply, another tool chip) serialises + re-parses
+  // the whole box, which wipes per-element listeners. Delegation
+  // survives reparsing because the parent's own outerHTML isn't
+  // touched.
+  return wrap;
+}
 
-  card.querySelector('.js-confirm').addEventListener('click', async () => {
-    disableCard(card);
-    status.textContent = 'جاري التنفيذ…';
-    try {
-      const res = await fetch(`/agent/proposal/${pid}/execute`, {method: 'POST'});
-      const data = await res.json();
-      if (data.ok) {
-        status.textContent = 'تم التنفيذ ✓';
-        status.className = 'js-status text-xs text-emerald-700 self-center font-semibold';
-      } else {
-        status.textContent = data.error || 'تعذّر التنفيذ';
-        status.className = 'js-status text-xs text-rose-600 self-center';
+// MARSOUD-AGENT-CONFIRM-LOOP-01 — single delegated handler for every
+// proposal card ever appended to #chat-messages. Attached once on
+// DOMContentLoaded; robust to reparsing.
+function installProposalDelegation() {
+  const box = document.getElementById('chat-messages');
+  if (!box || box.dataset.proposalDelegated === '1') return;
+  box.dataset.proposalDelegated = '1';
+
+  box.addEventListener('click', async (event) => {
+    const btn = event.target.closest('.js-confirm, .js-cancel');
+    if (!btn) return;
+    const card = btn.closest('[data-proposal-id]');
+    if (!card) return;
+    const pid = card.dataset.proposalId;
+    const status = card.querySelector('.js-status');
+    const isConfirm = btn.classList.contains('js-confirm');
+    if (card.dataset.acted === '1') return;   // dedupe double-click
+    card.dataset.acted = '1';
+
+    if (isConfirm) {
+      disableCard(card);
+      if (status) status.textContent = 'جاري التنفيذ…';
+      try {
+        const res = await fetch(`/agent/proposal/${pid}/execute`, {method: 'POST'});
+        const data = await res.json();
+        if (data && data.ok) {
+          if (status) {
+            status.textContent = 'تم التنفيذ ✓';
+            status.className = 'js-status text-xs text-emerald-700 self-center font-semibold';
+          }
+        } else {
+          if (status) {
+            status.textContent = (data && data.error) || 'تعذّر التنفيذ';
+            status.className = 'js-status text-xs text-rose-600 self-center';
+          }
+          enableCancelOnly(card);
+          card.dataset.acted = '';   // allow retry on transient error
+        }
+      } catch (err) {
+        if (status) {
+          status.textContent = 'خطأ في الاتصال';
+          status.className = 'js-status text-xs text-rose-600 self-center';
+        }
         enableCancelOnly(card);
+        card.dataset.acted = '';
       }
-    } catch (err) {
-      status.textContent = 'خطأ في الاتصال';
-      status.className = 'js-status text-xs text-rose-600 self-center';
-      enableCancelOnly(card);
+    } else {
+      disableCard(card);
+      if (status) {
+        status.textContent = 'تم الإلغاء';
+        status.className = 'js-status text-xs text-slate-500 self-center';
+      }
+      try { await fetch(`/agent/proposal/${pid}/cancel`, {method: 'POST'}); } catch {}
     }
   });
-  card.querySelector('.js-cancel').addEventListener('click', async () => {
-    disableCard(card);
-    status.textContent = 'تم الإلغاء';
-    status.className = 'js-status text-xs text-slate-500 self-center';
-    try { await fetch(`/agent/proposal/${pid}/cancel`, {method: 'POST'}); } catch {}
-  });
-  return wrap;
+}
+
+if (document.readyState !== 'loading') {
+  installProposalDelegation();
+} else {
+  document.addEventListener('DOMContentLoaded', installProposalDelegation);
 }
 function disableCard(card) {
   card.querySelectorAll('button').forEach(b => b.disabled = true);
@@ -437,7 +477,7 @@ async function sendMessage(e) {
   if (!text) return;
   const box = document.getElementById('chat-messages');
   if (box.querySelector('.text-center')) box.innerHTML = '';
-  box.innerHTML += `<div class="flex justify-end"><div class="bg-navy-900 text-white rounded-2xl rounded-tl-sm px-4 py-2 max-w-[80%] text-sm">${escapeHtml(text)}</div></div>`;
+  box.insertAdjacentHTML('beforeend', `<div class="flex justify-end"><div class="bg-navy-900 text-white rounded-2xl rounded-tl-sm px-4 py-2 max-w-[80%] text-sm">${escapeHtml(text)}</div></div>`);
   input.value = '';
   // MARSOUD-AGENT-UX-06 (2026-08-06) — better in-progress
   // indicator. Real per-tool live labels ("بيقرأ شجرة الحسابات…")
@@ -475,7 +515,7 @@ async function sendMessage(e) {
       // For English SDK / network errors, translateErrorAr maps
       // the common shapes into a sentence the user can act on.
       const friendly = translateErrorAr(data.error);
-      box.innerHTML += `<div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-lg px-3 py-2 text-sm my-1">⚠️ ${escapeHtml(friendly)}</div>`;
+      box.insertAdjacentHTML('beforeend', `<div class="bg-rose-50 border border-rose-200 text-rose-800 rounded-lg px-3 py-2 text-sm my-1">⚠️ ${escapeHtml(friendly)}</div>`);
     } else {
       // The server always echoes conversation_id on success — keep
       // the client's active id in sync (the first turn of a fresh
@@ -484,7 +524,7 @@ async function sendMessage(e) {
         document.getElementById('conversations-list')
                 .dataset.activeId = data.conversation_id;
       }
-      box.innerHTML += `<div class="flex justify-start"><div class="bg-white border border-slate-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">${renderMarkdownTables(data.reply)}</div></div>`;
+      box.insertAdjacentHTML('beforeend', `<div class="flex justify-start"><div class="bg-white border border-slate-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">${renderMarkdownTables(data.reply)}</div></div>`);
       if (data.tools && data.tools.length) {
         // MARSOUD-AGENT-SAFETY-03 (2026-08-06) — proposal cards for
         // write-tools waiting on user confirm.
@@ -504,14 +544,14 @@ async function sendMessage(e) {
             box.appendChild(buildReportCard(t, r));
           } else {
             const label = TOOL_LABEL_AR[t.tool] || t.tool;
-            box.innerHTML += `<div class="text-xs text-slate-500 px-2">🔧 ${escapeHtml(label)}</div>`;
+            box.insertAdjacentHTML('beforeend', `<div class="text-xs text-slate-500 px-2">🔧 ${escapeHtml(label)}</div>`);
           }
         });
       }
     }
   } catch (err) {
     loading.remove();
-    box.innerHTML += `<div class="text-xs text-red-600 px-2">خطأ في الاتصال</div>`;
+    box.insertAdjacentHTML('beforeend', `<div class="text-xs text-red-600 px-2">خطأ في الاتصال</div>`);
   }
   document.getElementById('send-btn').disabled = false;
   box.scrollTop = box.scrollHeight;
@@ -552,9 +592,9 @@ async function loadConversation(cid) {
   }
   data.messages.forEach(m => {
     if (m.role === 'user') {
-      box.innerHTML += `<div class="flex justify-end"><div class="bg-navy-900 text-white rounded-2xl rounded-tl-sm px-4 py-2 max-w-[80%] text-sm">${escapeHtml(m.content)}</div></div>`;
+      box.insertAdjacentHTML('beforeend', `<div class="flex justify-end"><div class="bg-navy-900 text-white rounded-2xl rounded-tl-sm px-4 py-2 max-w-[80%] text-sm">${escapeHtml(m.content)}</div></div>`);
     } else {
-      box.innerHTML += `<div class="flex justify-start"><div class="bg-white border border-slate-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">${renderMarkdownTables(m.content)}</div></div>`;
+      box.insertAdjacentHTML('beforeend', `<div class="flex justify-start"><div class="bg-white border border-slate-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">${renderMarkdownTables(m.content)}</div></div>`);
     }
   });
   document.getElementById('conversations-list').dataset.activeId = cid;
