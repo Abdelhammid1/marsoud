@@ -198,7 +198,7 @@ class _MiniTaskRow extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
-        onTap: () => context.go('/tasks/${t['id']}'),
+        onTap: () => context.push('/tasks/${t['id']}'),
         child: Container(
           margin: const EdgeInsets.only(bottom: 6),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

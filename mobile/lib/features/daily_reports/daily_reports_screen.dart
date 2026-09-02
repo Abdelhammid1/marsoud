@@ -49,7 +49,7 @@ class DailyReportsScreen extends ConsumerWidget {
                         children: [
                           for (final r in reports)
                             InkWell(
-                              onTap: () => context.go(
+                              onTap: () => context.push(
                                   '/daily-reports/${r['id']}'),
                               borderRadius: BorderRadius.circular(12),
                               child: _ReportRow(r: r),

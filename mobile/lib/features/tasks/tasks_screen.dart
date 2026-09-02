@@ -193,7 +193,9 @@ class _TaskRow extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => context.go('/tasks/${t['id']}'),
+        // MARSOUD-MOBILE-SHIP-READY-01 (H2) — push so back returns
+        // to Tasks, not /home.
+        onTap: () => context.push('/tasks/${t['id']}'),
         child: Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.all(12),

@@ -125,7 +125,7 @@ class _LeadCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: InkWell(
-        onTap: () => context.go('/leads/$id'),
+        onTap: () => context.push('/leads/$id'),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(14),

@@ -141,11 +141,23 @@ class _TopBar extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.menu, color: BrandColors.navy900),
-            tooltip: 'القائمة',
-            onPressed: onMenu,
-          ),
+          // MARSOUD-MOBILE-SHIP-READY-01 (H1) — was menu-only. On
+          // detail screens (context.canPop) show a back arrow so
+          // iOS users have a visible affordance to return. Menu
+          // stays as fallback for the root shell tabs.
+          if (Navigator.of(context).canPop())
+            IconButton(
+              icon: const Icon(Icons.arrow_forward,
+                  color: BrandColors.navy900),
+              tooltip: 'رجوع',
+              onPressed: () => Navigator.of(context).maybePop(),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.menu, color: BrandColors.navy900),
+              tooltip: 'القائمة',
+              onPressed: onMenu,
+            ),
           Container(
             width: 36,
             height: 36,

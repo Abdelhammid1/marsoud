@@ -77,7 +77,7 @@ class _ProjectRow extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () => context.go('/projects/${p['id']}'),
+        onTap: () => context.push('/projects/${p['id']}'),
         child: Container(
           margin: const EdgeInsets.only(bottom: 10),
           padding: const EdgeInsets.all(14),
