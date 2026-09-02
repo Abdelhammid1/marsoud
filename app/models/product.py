@@ -140,6 +140,12 @@ class Product(db.Model):
     # ProductUnit.sale_price, which is what POS already reads.
     pack_pieces = db.Column(db.Integer, default=1)
     pack_purchase_price = db.Column(db.Numeric(15, 4))
+    # MARSOUD-PRODUCT-BUNDLES-01 — bundle flag. When True this Product
+    # is a bundle: it has NO independent stock (is_tracked stays False)
+    # and its BundleComponent rows enumerate the real variants that
+    # will be deducted at POS sale time. Every non-bundle product has
+    # this as False; column default keeps every legacy row unchanged.
+    is_bundle = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     company = db.relationship("Company", backref=db.backref("products", lazy="dynamic"))

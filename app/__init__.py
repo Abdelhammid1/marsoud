@@ -1022,6 +1022,18 @@ def create_app(config_class=Config):
         except Exception:
             return {"is_support_agent": False}
 
+    # MARSOUD-PRODUCT-BUNDLES-01 — expose the bundle grouping helper so
+    # POS receipt + invoice PDF templates can collapse component rows
+    # under one bundle header.
+    @app.context_processor
+    def inject_bundle_grouper():
+        try:
+            from app.services.bundles import group_items_for_display
+            return {"group_items_for_display": group_items_for_display}
+        except Exception:
+            return {"group_items_for_display": (
+                lambda items: (list(items), []))}
+
     # MARSOUD-HELP-CENTER-01 — surface the module_key for the header
     # "?" icon. Cheap DB lookup guarded by a simple exists check;
     # per-request, so a newly-published article shows up immediately.

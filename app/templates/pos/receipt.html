@@ -60,12 +60,30 @@
       <tr><th>الصنف</th><th class="right">الكمية</th><th class="right">السعر</th><th class="right">الإجمالي</th></tr>
     </thead>
     <tbody>
-      {% for it in invoice.items %}
+      {# MARSOUD-PRODUCT-BUNDLES-01 — collapse bundle components under
+         one header line so the customer sees "طقم إفطار — 45.00" not
+         3 separate raw lines. Standalone (non-bundle) items keep their
+         current shape. #}
+      {% set _grouped = group_items_for_display(invoice.items) %}
+      {% set standalone = _grouped[0] %}{% set bundles = _grouped[1] %}
+      {% for it in standalone %}
       <tr>
         <td>{{ it.description }}</td>
         <td class="right mono">{{ '%.0f'|format(it.quantity) }}</td>
         <td class="right mono">{{ '%.2f'|format(it.unit_price) }}</td>
         <td class="right mono">{{ '%.2f'|format(it.line_total) }}</td>
+      </tr>
+      {% endfor %}
+      {% for bg in bundles %}
+      <tr>
+        <td><strong>🎁 {{ bg.bundle_product_name }}</strong>
+          <div style="font-size:10px;color:#666">شامل:
+            {% for c in bg.components %}{{ c.description }}{% if not loop.last %} · {% endif %}{% endfor %}
+          </div>
+        </td>
+        <td class="right mono">{{ '%.0f'|format(bg.qty or 1) }}</td>
+        <td class="right mono">—</td>
+        <td class="right mono">{{ '%.2f'|format(bg.total) }}</td>
       </tr>
       {% endfor %}
     </tbody>

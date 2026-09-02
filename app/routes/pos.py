@@ -235,6 +235,21 @@ def lookup():
         v = None
     if not v:
         return jsonify({"error": f"الباركود/SKU '{q}' غير معروف"}), 404
+    # MARSOUD-PRODUCT-BUNDLES-01 — pre-flight bundle availability. If
+    # this variant belongs to a bundle product, check component stock
+    # for a qty of 1 and surface the result so the cart can warn the
+    # cashier BEFORE they scan through to payment.
+    is_bundle = bool(getattr(v.product, "is_bundle", False))
+    bundle_ok = True
+    bundle_msg = None
+    if is_bundle:
+        from app.services.inventory import default_warehouse
+        from app.services.bundles import check_bundle_availability
+        wh = default_warehouse(g.active_company.id)
+        if wh:
+            bundle_ok, bundle_msg = check_bundle_availability(
+                v.product, 1, wh)
+
     return jsonify({
         "variant_id": v.id,
         "sku": v.sku,
@@ -250,6 +265,10 @@ def lookup():
         # flag so the cart can show a piece-count input.
         "tracks_piece_count": bool(
             getattr(v.product, "tracks_piece_count", False)),
+        # MARSOUD-PRODUCT-BUNDLES-01 — bundle metadata for the cart UI.
+        "is_bundle": is_bundle,
+        "bundle_ok": bundle_ok,
+        "bundle_msg": bundle_msg,
     })
 
 

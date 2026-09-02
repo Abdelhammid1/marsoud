@@ -122,6 +122,20 @@ def create_pos_order(
     if not default_wh:
         raise POSError("لا يوجد مخزن افتراضي")
 
+    # MARSOUD-PRODUCT-BUNDLES-01 — inflate any bundle line to per-
+    # component lines BEFORE any inventory / JE work. Nothing below
+    # this call is aware bundles exist — every line is a real
+    # per-variant sale from here on. Non-bundle lines pass through
+    # unchanged. Any component with insufficient stock raises here
+    # (belt-and-suspenders on top of the /lookup pre-flight).
+    try:
+        from app.services.bundles import (
+            expand_bundle_items, BundleError,
+        )
+        items = expand_bundle_items(company_id, items, default_wh)
+    except BundleError as _be:
+        raise POSError(str(_be)) from _be
+
     for line in items:
         variant_id = int(line["variant_id"])
         qty = float(line["qty"])
@@ -175,6 +189,9 @@ def create_pos_order(
             discount_value=float(line.get("discount_value") or 0),
             unit_id=unit_id,
             sold_pieces=sold_pieces,
+            # MARSOUD-PRODUCT-BUNDLES-01 — visual grouping only.
+            bundle_ref=line.get("bundle_ref"),
+            bundle_product_id=line.get("bundle_product_id"),
         )
         db.session.add(item)
     db.session.flush()

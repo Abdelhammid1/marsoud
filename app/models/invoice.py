@@ -211,6 +211,16 @@ class InvoiceItem(db.Model):
         db.Integer, db.ForeignKey("cost_centers.id"),
         nullable=True, index=True)
 
+    # MARSOUD-PRODUCT-BUNDLES-01 — visual-grouping markers. Every
+    # component expanded from the same bundle sale carries the same
+    # bundle_ref (a short UUID hex) so receipt + invoice PDF can
+    # group them under a single "bundle name × qty — total" line
+    # without persisting a wrapper row that would break Invoice.recalc
+    # or post_invoice_to_ledger. NULL for every non-bundle line.
+    bundle_ref = db.Column(db.String(20), nullable=True, index=True)
+    bundle_product_id = db.Column(
+        db.Integer, db.ForeignKey("products.id"), nullable=True)
+
     # MARSOUD-DUAL-UOM-WEIGHT-01 pt 2 (Abdelhamid 2026-07-25) — for
     # products with tracks_piece_count=True (gold, silver, meat…),
     # this records how many DISCRETE pieces the customer took. The
@@ -220,7 +230,12 @@ class InvoiceItem(db.Model):
     # every other product (backward-compatible default).
     sold_pieces = db.Column(db.Numeric(15, 2), nullable=True)
 
-    product = db.relationship("Product")
+    # MARSOUD-PRODUCT-BUNDLES-01 — two FKs to `products.id` now exist
+    # (product_id + bundle_product_id). Explicit foreign_keys keeps
+    # the existing `.product` accessor pointing at the actual product.
+    product = db.relationship("Product", foreign_keys=[product_id])
+    bundle_product = db.relationship(
+        "Product", foreign_keys=[bundle_product_id])
     variant = db.relationship("ProductVariant", foreign_keys=[variant_id])
     warehouse = db.relationship("Warehouse", foreign_keys=[warehouse_id])
     unit = db.relationship("ProductUnit", foreign_keys=[unit_id])

@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from app import db
 from app.models import (
     Product, ProductVariant, Warehouse, StockMovement, StockBalance,
-    ProductGroup, ProductCategory,
+    ProductGroup, ProductCategory, BundleComponent,
 )
 from app.services.inventory import record_opening_balance, default_warehouse
 from app.services.permissions import require_permission
@@ -114,7 +114,13 @@ def new():
     if request.method == "POST":
         try:
             ptype = (request.form.get("product_type") or "goods").strip()
-            is_tracked = (ptype == "goods")
+            # MARSOUD-PRODUCT-BUNDLES-01 — a bundle behaves like a
+            # service in the ledger (no independent stock), but the
+            # POS form still needs a scanable ProductVariant. Force
+            # is_tracked=False for bundles; components carry the
+            # actual inventory.
+            is_bundle = (ptype == "bundle")
+            is_tracked = (ptype == "goods") and not is_bundle
 
             name = request.form.get("name", "").strip()
             if not name:
@@ -145,6 +151,7 @@ def new():
                 default_tax_rate=float(request.form.get("default_tax_rate") or 0) or None,
                 sku=(request.form.get("sku") or "").strip() or None,
                 is_tracked=is_tracked,
+                is_bundle=is_bundle,
                 category_id=category_id,
                 # MARSOUD-DUAL-UOM-WEIGHT-01 UI — opt-in flag; only
                 # meaningful for goods, harmless on services.
@@ -242,6 +249,63 @@ def new():
                         actor_id=current_user.id, created_by=current_user.id,
                         reason="رصيد افتتاحي من شاشة إضافة المنتج",
                     )
+            elif is_bundle:
+                # MARSOUD-PRODUCT-BUNDLES-01 — bundle: no independent
+                # stock, but a synthetic ProductVariant is still needed
+                # so POS barcode/SKU lookup finds this row through the
+                # existing find_variant_by_barcode helper.
+                sku = p.sku or _generate_variant_sku(cid, p.id)
+                if ProductVariant.query.filter_by(
+                    company_id=cid, sku=sku,
+                ).first() is not None:
+                    sku = _generate_variant_sku(cid, p.id)
+                p.sku = sku
+                barcode = (request.form.get("barcode") or "").strip() or None
+                if barcode and ProductVariant.query.filter_by(
+                    company_id=cid, barcode=barcode,
+                ).first() is not None:
+                    raise ValueError(
+                        f"الباركود '{barcode}' موجود بالفعل لمنتج آخر")
+                v = ProductVariant(
+                    company_id=cid, product_id=p.id, sku=sku,
+                    barcode=barcode, name="",
+                )
+                db.session.add(v); db.session.flush()
+                # Bundle price lives on Product.default_price via the
+                # shared pricing block (pack_sale = bundle price;
+                # pieces=1 by design, no pack UI shown for bundles).
+                apply_pack_pricing(
+                    p, None, pieces=1, pack_purchase=0,
+                    pack_sale=pack_sale, pack_name=pack_unit_name,
+                    is_goods=False,
+                )
+                # Persist components. `validate_bundle_components`
+                # refuses empty lists, bundle-in-bundle, and services.
+                comp_ids = request.form.getlist("component_variant_id[]")
+                comp_qtys = request.form.getlist("component_qty[]")
+                components = []
+                for i, cvid in enumerate(comp_ids):
+                    if not (cvid or "").strip():
+                        continue
+                    q = comp_qtys[i] if i < len(comp_qtys) else 0
+                    components.append({
+                        "variant_id": int(cvid),
+                        "qty_per_bundle": float(q or 0),
+                    })
+                from app.services.bundles import (
+                    validate_bundle_components, BundleError,
+                )
+                try:
+                    validate_bundle_components(p, components)
+                except BundleError as _be:
+                    raise ValueError(str(_be)) from _be
+                for c in components:
+                    db.session.add(BundleComponent(
+                        company_id=cid,
+                        bundle_product_id=p.id,
+                        component_variant_id=c["variant_id"],
+                        qty_per_bundle=c["qty_per_bundle"],
+                    ))
             else:
                 # A service has no variant and no units, but it still
                 # needs its selling price — same single code path.
@@ -281,9 +345,21 @@ def new():
     categories = ProductCategory.query.filter_by(
         company_id=cid, is_active=True,
     ).order_by(ProductCategory.name).all()
+    # MARSOUD-PRODUCT-BUNDLES-01 — only "real goods" variants can be
+    # bundle components. Filter out services and other bundles.
+    bundle_variants = (
+        db.session.query(ProductVariant)
+        .join(Product, ProductVariant.product_id == Product.id)
+        .filter(ProductVariant.company_id == cid,
+                ProductVariant.is_active.is_(True),
+                Product.is_tracked.is_(True),
+                Product.is_bundle.is_(False),
+                Product.is_active.is_(True))
+        .order_by(Product.name).all())
     return render_template(
         "products/form.html",
         warehouses=warehouses, groups=groups, categories=categories,
+        bundle_variants=bundle_variants,
     )
 
 
