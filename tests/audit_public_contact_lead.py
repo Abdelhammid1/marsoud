@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """MARSOUD-PUBLIC-CONTACT-FORM-01 (Abdelhamid 2026-07-24).
+MARSOUD-CONTACT-LEAD-01 (Abdelhamid 2026-09-03) — added checks
+11-14 for the structured-fields + source whitelist + 2-min
+idempotency behaviour.
 
 Checks:
   1. Fail-closed: no CONTACT_FORM_TOKEN configured → 500 refuse.
   2. Empty token in header → 401.
   3. Wrong token → 401.
   4. Correct token + valid payload → 201 + Lead row in Manasty CRM
-     with source="نموذج التواصل - الموقع".
+     with source="نموذج التواصل - الموقع" (default "website" source).
   5. Missing name → 400.
   6. Missing service → 400.
   7. Missing email AND phone → 400.
@@ -14,6 +17,13 @@ Checks:
      with a placeholder phone.
   9. Invalid email format → 400.
   10. >5 requests / minute from the same IP → 429 on the 6th.
+  11. New-shape payload (company_name/service_type/package/
+      description/source=landing_form) → 201, structured fields
+      land on the correct Lead columns.
+  12. source=contact_page → Arabic "صفحة التواصل" label.
+  13. Bad source ("xss") → 400.
+  14. Idempotency: same (phone, description) within 2 min →
+      200 with dedup:true, no second row.
 """
 import os
 import sys
@@ -259,22 +269,148 @@ def _():
     from app.routes import public as _pub
     _pub._contact_ip_history.clear()
     client = current_app.test_client()
-    payload = {"name": "cl-RL", "phone": "01000000099",
-                "service": "rate"}
     hdr = {"X-Contact-Form-Token": TOKEN,
            "X-Forwarded-For": "10.99.0.1"}
-    # 5 requests succeed within the window.
+    # 5 requests succeed within the window. MARSOUD-CONTACT-LEAD-01:
+    # each request needs a distinct (phone, description) or the
+    # dedup layer collapses requests 2-5 into 200 dedup hits — the
+    # rate-limit test would then never actually stress the limiter.
     for i in range(5):
+        payload = {
+            "name": f"cl-RL-{i}",
+            "phone": f"010000001{i:02d}",
+            "service_type": "rate-check",
+            "description": f"rate-limit probe #{i}",
+            "source": "website",
+        }
         r = client.post("/api/v1/public/contact-lead",
                          json=payload, headers=hdr)
         assert r.status_code == 201, \
-            f"request #{i+1} failed: {r.status_code}"
-    # 6th should be 429.
-    r = client.post("/api/v1/public/contact-lead",
-                     json=payload, headers=hdr)
+            f"request #{i+1} failed: {r.status_code} " \
+            f"{r.get_data(as_text=True)}"
+    # 6th should be 429 regardless of payload.
+    r = client.post("/api/v1/public/contact-lead", json={
+        "name": "cl-RL-6", "phone": "01000000199",
+        "service_type": "rate", "source": "website",
+    }, headers=hdr)
     assert r.status_code == 429, \
         f"expected 429, got {r.status_code}"
     return "5 succeed, 6th → 429"
+
+
+@check("11. New-shape payload (source=landing_form) → 201 with "
+        "structured fields on Lead columns")
+def _():
+    from flask import current_app
+    from app.models import Lead
+    from app.routes import public as _pub
+    _pub._contact_ip_history.clear()
+    client = current_app.test_client()
+    r = client.post("/api/v1/public/contact-lead", json={
+        "name": "cl-Structured",
+        "phone": "01000000200",
+        "company_name": "شركة اختبار الشلبي",
+        "service_type": "تطبيق جوال",
+        "package": "Growth",
+        "description": "أحتاج تطبيق للتوصيل داخل الرياض",
+        "source": "landing_form",
+    }, headers={"X-Contact-Form-Token": TOKEN})
+    assert r.status_code == 201, \
+        f"got {r.status_code}: {r.get_data(as_text=True)}"
+    lead = Lead.query.filter_by(client_name="cl-Structured").first()
+    assert lead, "Lead not created"
+    assert lead.service_needed == "تطبيق جوال"
+    assert lead.request_description == "أحتاج تطبيق للتوصيل داخل الرياض"
+    assert lead.source == "نموذج الصفحة الرئيسية", \
+        f"wrong source: {lead.source!r}"
+    # notes carries the two extras.
+    assert "شركة اختبار الشلبي" in (lead.notes or ""), \
+        f"company missing from notes: {lead.notes!r}"
+    assert "Growth" in (lead.notes or ""), \
+        f"package missing from notes: {lead.notes!r}"
+    return f"Lead #{lead.id} carries all structured fields"
+
+
+@check("12. source=contact_page → صفحة التواصل label")
+def _():
+    from flask import current_app
+    from app.models import Lead
+    from app.routes import public as _pub
+    _pub._contact_ip_history.clear()
+    client = current_app.test_client()
+    r = client.post("/api/v1/public/contact-lead", json={
+        "name": "cl-CtPage",
+        "phone": "01000000201",
+        "service_type": "استشارة",
+        "description": "from contact page",
+        "source": "contact_page",
+    }, headers={"X-Contact-Form-Token": TOKEN})
+    assert r.status_code == 201, f"got {r.status_code}"
+    lead = Lead.query.filter_by(client_name="cl-CtPage").first()
+    assert lead and lead.source == "صفحة التواصل", \
+        f"wrong source: {lead.source!r}"
+    return "contact_page → صفحة التواصل"
+
+
+@check("13. Bad source value → 400 (whitelist rejects arbitrary "
+        "strings)")
+def _():
+    from flask import current_app
+    from app.routes import public as _pub
+    _pub._contact_ip_history.clear()
+    client = current_app.test_client()
+    r = client.post("/api/v1/public/contact-lead", json={
+        "name": "cl-BadSrc", "phone": "01000000202",
+        "service_type": "y", "source": "xss_injection_attempt",
+    }, headers={"X-Contact-Form-Token": TOKEN})
+    assert r.status_code == 400, \
+        f"expected 400, got {r.status_code}: {r.get_data(as_text=True)}"
+    return "unknown source → 400"
+
+
+@check("14. Idempotency: same (phone, description) within 2 min → "
+        "dedup, no second row")
+def _():
+    from flask import current_app
+    from app.models import Lead
+    from app.routes import public as _pub
+    _pub._contact_ip_history.clear()
+    client = current_app.test_client()
+    payload = {
+        "name": "cl-Dupe",
+        "phone": "01000000203",
+        "service_type": "استشارة",
+        "description": "double-click submit",
+        "source": "landing_form",
+    }
+    hdr = {"X-Contact-Form-Token": TOKEN}
+    # First submit: 201 + new row.
+    r1 = client.post("/api/v1/public/contact-lead",
+                      json=payload, headers=hdr)
+    assert r1.status_code == 201, \
+        f"first: got {r1.status_code}: {r1.get_data(as_text=True)}"
+    lead_id_1 = r1.get_json()["lead_id"]
+    # Immediate resubmit with identical payload: 200 + dedup:true +
+    # same lead_id, and NO extra Lead row.
+    r2 = client.post("/api/v1/public/contact-lead",
+                      json=payload, headers=hdr)
+    assert r2.status_code == 200, \
+        f"dupe: expected 200, got {r2.status_code}"
+    body2 = r2.get_json()
+    assert body2.get("dedup") is True, f"missing dedup flag: {body2}"
+    assert body2.get("lead_id") == lead_id_1, \
+        f"dedup returned different lead_id: {body2}"
+    # Confirm exactly one row for this phone.
+    n = Lead.query.filter_by(phone="01000000203").count()
+    assert n == 1, f"expected 1 row after dedup, got {n}"
+    # Same phone but DIFFERENT description → NOT a dupe.
+    r3 = client.post("/api/v1/public/contact-lead", json={
+        **payload, "description": "a genuine second enquiry"},
+        headers=hdr)
+    assert r3.status_code == 201, \
+        f"second-genuine: expected 201, got {r3.status_code}"
+    assert r3.get_json()["lead_id"] != lead_id_1
+    return f"lead #{lead_id_1} deduped once, distinct description accepted"
 
 
 def _final_teardown():
