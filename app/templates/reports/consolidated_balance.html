@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block page_title %}الميزانية العمومية المجمّعة{% endblock %}
+{% block content %}
+<div class="card p-6 mb-4">
+  <form method="GET" class="flex items-end gap-3">
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">كما في</label>
+      <input type="date" name="as_of" value="{{ as_of.isoformat() }}" class="input">
+    </div>
+    <button type="submit" class="btn-primary">عرض</button>
+  </form>
+</div>
+
+<div class="card p-8">
+  <div class="text-center mb-6">
+    <h2 class="text-2xl font-bold text-navy-900">{{ active_company.name }}</h2>
+    <div class="text-sm text-slate-500">الميزانية العمومية — شامل جميع الفروع ({{ data.per_branch|length }} شركة)</div>
+    <div class="text-xs text-slate-400 font-mono">كما في {{ as_of.isoformat() }}</div>
+  </div>
+
+  <div class="grid grid-cols-2 gap-8">
+    <div>
+      <h3 class="bg-navy-900 text-white font-bold py-2 px-4 rounded-lg mb-3">الأصول</h3>
+      <div class="space-y-1.5 text-sm">
+        {% for item in data.assets %}
+        <div class="flex justify-between py-1.5 border-b border-slate-100">
+          <span><span class="text-xs text-slate-500 font-mono">{{ item.code }}</span> {{ item.name }}</span>
+          <span class="font-mono">{{ "%.2f"|format(item.balance) }}</span>
+        </div>
+        {% endfor %}
+        <div class="flex justify-between font-bold py-2 border-t-2 border-navy-900 text-brand-600">
+          <span>إجمالي الأصول</span>
+          <span class="font-mono">{{ "%.2f"|format(data.totals.assets) }}</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <h3 class="bg-navy-900 text-white font-bold py-2 px-4 rounded-lg mb-3">الالتزامات وحقوق الملكية</h3>
+      <div class="text-xs text-slate-500 mb-2 font-semibold">الالتزامات</div>
+      <div class="space-y-1.5 text-sm mb-4">
+        {% for item in data.liabilities %}
+        <div class="flex justify-between py-1.5 border-b border-slate-100">
+          <span><span class="text-xs text-slate-500 font-mono">{{ item.code }}</span> {{ item.name }}</span>
+          <span class="font-mono">{{ "%.2f"|format(item.balance) }}</span>
+        </div>
+        {% endfor %}
+        <div class="flex justify-between font-semibold py-1.5"><span>إجمالي الالتزامات</span><span class="font-mono">{{ "%.2f"|format(data.totals.liabilities) }}</span></div>
+      </div>
+      <div class="text-xs text-slate-500 mb-2 font-semibold">حقوق الملكية</div>
+      <div class="space-y-1.5 text-sm">
+        {% for item in data.equity %}
+        <div class="flex justify-between py-1.5 border-b border-slate-100">
+          <span><span class="text-xs text-slate-500 font-mono">{{ item.code }}</span> {{ item.name }}</span>
+          <span class="font-mono">{{ "%.2f"|format(item.balance) }}</span>
+        </div>
+        {% endfor %}
+        <div class="flex justify-between font-semibold py-1.5"><span>إجمالي حقوق الملكية</span><span class="font-mono">{{ "%.2f"|format(data.totals.equity) }}</span></div>
+        <div class="flex justify-between font-bold py-2 border-t-2 border-navy-900 text-brand-600">
+          <span>إجمالي الالتزامات + حقوق الملكية</span>
+          <span class="font-mono">{{ "%.2f"|format(data.total_liab_equity) }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-6 text-center text-sm font-semibold {% if data.balanced %}text-emerald-600{% else %}text-red-600{% endif %}">
+    {% if data.balanced %}✓ الميزانية المجمّعة متوازنة{% else %}⚠ الميزانية المجمّعة غير متوازنة (فرق: {{ "%.2f"|format(data.totals.assets - data.total_liab_equity) }}){% endif %}
+  </div>
+</div>
+
+{# ─── Per-branch breakdown ─────────────────────────────────── #}
+<div class="mt-6">
+  <h3 class="font-bold text-navy-900 mb-3">📊 تفصيل كل فرع</h3>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+    {% for cid, branch in data.per_branch.items() %}
+    <div class="card p-4">
+      <div class="font-semibold text-navy-900 mb-2">🏢 {{ branch.name }}</div>
+      <div class="grid grid-cols-3 gap-2 text-sm">
+        <div>
+          <div class="text-xs text-slate-500">أصول</div>
+          <div class="font-mono">{{ "%.2f"|format(branch.data.totals.assets) }}</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500">التزامات</div>
+          <div class="font-mono">{{ "%.2f"|format(branch.data.totals.liabilities) }}</div>
+        </div>
+        <div>
+          <div class="text-xs text-slate-500">حقوق</div>
+          <div class="font-mono">{{ "%.2f"|format(branch.data.totals.equity) }}</div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

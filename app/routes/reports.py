@@ -9,6 +9,7 @@ from app.services.reports import (
     aging_report, ap_aging_report, vat_report,
     payroll_summary_report, fixed_assets_report,
     open_custody_report, trial_balance_report,
+    consolidated_income_statement, consolidated_balance_sheet,
 )
 from app.services.permissions import require_permission
 
@@ -140,6 +141,55 @@ def cost_centers_report():
         rows=rows_out, totals=totals,
         start_date=start, end_date=end,
     )
+
+
+@bp.route("/consolidated/income-statement")
+@login_required
+def consolidated_income():
+    """MARSOUD-COMPANY-BRANCHES-01 — group income statement.
+
+    Only meaningful for a company that has direct branches. Redirects
+    with a flash for a leaf company so an owner doesn't hit an empty
+    consolidated view."""
+    if not g.active_company:
+        return redirect(url_for("companies.new"))
+    from app.models import Company
+    has_branches = (Company.query
+                    .filter_by(parent_id=g.active_company.id)
+                    .first() is not None)
+    if not has_branches:
+        flash("هذه الشركة ليس لها فروع مرتبطة", "warning")
+        return redirect(url_for("reports.index"))
+    today = date.today()
+    start = _parse_date(request.args.get("start_date"),
+                         today.replace(day=1))
+    end = _parse_date(request.args.get("end_date"), today)
+    data = consolidated_income_statement(
+        g.active_company.id, start_date=start, end_date=end)
+    return render_template(
+        "reports/consolidated_income.html",
+        data=data, start=start, end=end)
+
+
+@bp.route("/consolidated/balance-sheet")
+@login_required
+def consolidated_balance():
+    """MARSOUD-COMPANY-BRANCHES-01 — group balance sheet."""
+    if not g.active_company:
+        return redirect(url_for("companies.new"))
+    from app.models import Company
+    has_branches = (Company.query
+                    .filter_by(parent_id=g.active_company.id)
+                    .first() is not None)
+    if not has_branches:
+        flash("هذه الشركة ليس لها فروع مرتبطة", "warning")
+        return redirect(url_for("reports.index"))
+    as_of = _parse_date(request.args.get("as_of"), date.today())
+    data = consolidated_balance_sheet(
+        g.active_company.id, as_of=as_of)
+    return render_template(
+        "reports/consolidated_balance.html",
+        data=data, as_of=as_of)
 
 
 @bp.route("/trial-balance")

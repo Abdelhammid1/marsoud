@@ -1022,6 +1022,25 @@ def create_app(config_class=Config):
         except Exception:
             return {"is_support_agent": False}
 
+    # MARSOUD-COMPANY-BRANCHES-01 — expose a "does the active company
+    # have branches?" flag so the reports index (and any other
+    # template that needs it) can gate its consolidated-report tiles
+    # in a one-liner.
+    @app.context_processor
+    def inject_active_company_branches_flag():
+        try:
+            from flask import g
+            from app.models import Company
+            active = getattr(g, "active_company", None)
+            if not active:
+                return {"active_company_has_branches": False}
+            has = (Company.query
+                    .filter_by(parent_id=active.id)
+                    .first() is not None)
+            return {"active_company_has_branches": has}
+        except Exception:
+            return {"active_company_has_branches": False}
+
     # MARSOUD-PRODUCT-BUNDLES-01 — expose the bundle grouping helper so
     # POS receipt + invoice PDF templates can collapse component rows
     # under one bundle header.

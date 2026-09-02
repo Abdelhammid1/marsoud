@@ -2,10 +2,15 @@
 {% block page_title %}{% if company %}تعديل الشركة{% else %}شركة جديدة{% endif %}{% endblock %}
 {% block content %}
 {% if company %}
-<div class="max-w-2xl mb-4">
+<div class="max-w-2xl mb-4 flex gap-2">
   <a href="{{ url_for('companies.index', sort='activity') }}"
      class="inline-flex items-center gap-2 btn-secondary text-sm">
     🏢 شركاتي
+  </a>
+  {# MARSOUD-COMPANY-BRANCHES-01 — quick jump to the branches page. #}
+  <a href="{{ url_for('companies.branches', company_id=company.id) }}"
+     class="inline-flex items-center gap-2 btn-secondary text-sm">
+    🏬 الفروع
   </a>
 </div>
 {% endif %}

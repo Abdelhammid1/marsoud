@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block page_title %}فروع الشركة{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-2xl font-bold text-navy-900">🏢 الفروع — {{ company.name }}</h1>
+  <a href="{{ url_for('companies.edit', company_id=company.id) }}" class="btn-secondary text-sm">← إعدادات الشركة</a>
+</div>
+
+{% if parent %}
+  {# BRANCH MODE — this company is a leaf. #}
+  <div class="card p-6 mb-4">
+    <div class="text-sm text-slate-500 mb-2">هذه الشركة فرع تابع لـ</div>
+    <div class="text-xl font-bold text-navy-900 mb-4">{{ parent.name }}</div>
+    <form method="POST" onsubmit="return confirm('فك ربط هذا الفرع من الشركة الأم؟ (البيانات التاريخية للفرع لن تتأثر)');">
+      <input type="hidden" name="action" value="unlink">
+      <button type="submit" class="btn-secondary text-sm">✕ فك الربط</button>
+    </form>
+    <p class="text-xs text-slate-500 mt-3">
+      فك الربط بيوقف ظهور الفرع في التقارير المجمّعة للشركة الأم — أي بيانات محاسبية أو مخزنية للفرع نفسه بتفضل زي ما هي.
+    </p>
+  </div>
+{% else %}
+  {# PARENT MODE — either has branches or can add some. #}
+
+  {% if sub_branches %}
+  <div class="card p-6 mb-4">
+    <h2 class="font-bold text-navy-900 mb-3">📋 الفروع المرتبطة ({{ sub_branches|length }})</h2>
+    <table class="data-table">
+      <thead><tr><th>الاسم</th><th>الرقم الضريبي</th><th>الحالة</th></tr></thead>
+      <tbody>
+        {% for b in sub_branches %}
+        <tr>
+          <td class="font-semibold">{{ b.name }}</td>
+          <td class="font-mono text-xs">{{ b.tax_number or '—' }}</td>
+          <td>
+            {% if b.status == 'ACTIVE' %}
+              <span class="badge badge-paid">نشط</span>
+            {% else %}
+              <span class="badge badge-cancelled">{{ b.status }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="mt-3 text-xs text-slate-500">
+      💡 يمكن للمالك فتح تقرير مجمّع (قائمة دخل / ميزانية) من صفحة التقارير المالية.
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card p-6">
+    <h2 class="font-bold text-navy-900 mb-3">➕ ربط فرع جديد</h2>
+    {% if eligible %}
+    <form method="POST" class="flex items-end gap-2">
+      <input type="hidden" name="action" value="link">
+      <div class="flex-1">
+        <label class="block text-xs text-slate-500 mb-1">الشركة المُراد ربطها كفرع</label>
+        <select name="branch_company_id" class="select" required>
+          <option value="">— اختر شركة —</option>
+          {% for c in eligible %}
+          <option value="{{ c.id }}">{{ c.name }}{% if c.tax_number %} ({{ c.tax_number }}){% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn-primary">ربط كفرع</button>
+    </form>
+    <div class="text-xs text-slate-500 mt-3">
+      الشركات المتاحة للربط: شركات تملكها + ليست هي نفسها فرعًا لشركة أخرى + ليست شركة أم لفروع.
+      كل فرع تشغيلي لازم يبقى tenant منفصل بالكامل (مخزون + مستخدمين + قيود مستقلة).
+    </div>
+    {% else %}
+    <p class="text-sm text-slate-500">
+      لا توجد شركات مؤهلة للربط كفرع.
+      <a href="{{ url_for('companies.new') }}" class="text-brand-600 hover:underline">إنشاء شركة جديدة</a>
+      وربطها هنا كفرع.
+    </p>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

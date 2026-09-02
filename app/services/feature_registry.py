@@ -268,6 +268,14 @@ _FEATURES: tuple = (
     Feature("loyalty_settings", "settings", "برنامج الولاء",
              endpoints=("companies.edit",),
              permissions=("loyalty.manage",), icon="⭐"),
+    # MARSOUD-COMPANY-BRANCHES-01 — consolidated group reports. Only
+    # visible on the reports index when the current company actually
+    # has branches under it (gated by active_company_has_branches
+    # context flag).
+    Feature("consolidated_reports", "reports", "التقارير المجمّعة",
+             endpoints=("reports.consolidated_income",
+                         "reports.consolidated_balance"),
+             permissions=("reports.view",), icon="🏢"),
     Feature("assets_index", "accounting", "الأصول الثابتة",
              endpoints=("assets.index",),
              permissions=("assets.manage",), icon="🏗️"),

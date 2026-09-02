@@ -12,6 +12,14 @@
     ('cashflow', 'التدفقات النقدية', 'Cash Flow Statement', 'Operating + Investing + Financing', '💵'),
     ('trial_balance', 'ميزان المراجعة', 'Trial Balance', 'Σ Debits = Σ Credits', '⚖️'),
   ] %}
+  {# MARSOUD-COMPANY-BRANCHES-01 — consolidated tiles only when the
+     current company actually has branches under it. #}
+  {% if active_company_has_branches %}
+    {% set core = core + [
+      ('consolidated_income', 'قائمة الدخل المجمّعة', 'Consolidated P&L', 'مجموع كل الفروع في تقرير واحد', '🏢'),
+      ('consolidated_balance', 'الميزانية المجمّعة', 'Consolidated Balance Sheet', 'أصول/خصوم/حقوق مجمّعة عبر الفروع', '🏛️'),
+    ] %}
+  {% endif %}
   {% for endpoint, title_ar, title_en, formula, icon in core %}
   <a href="{{ url_for('reports.' + endpoint) }}" class="card p-6 hover:shadow-soft hover:-translate-y-0.5 transition-all border-2 border-transparent hover:border-brand-500">
     <div class="text-4xl mb-3">{{ icon }}</div>

@@ -279,6 +279,109 @@ def edit(company_id):
     return render_template("companies/form.html", company=company)
 
 
+# ─── MARSOUD-COMPANY-BRANCHES-01 (2026-09-02) — link a company as
+# a branch of another same-owner company, list current branches,
+# or unlink. Reuses Company.parent_id + count_branches +
+# QUOTA_BRANCHES that already exist in the DB.
+@bp.route("/<int:company_id>/branches", methods=["GET", "POST"])
+@login_required
+@require_permission("company.edit")
+def branches(company_id):
+    company = db.session.get(Company, company_id)
+    if not company or company not in current_user.companies:
+        flash("الشركة غير موجودة", "error")
+        return redirect(url_for("companies.index"))
+
+    # BRANCH MODE — this company already has a parent. Show it +
+    # allow the owner to unlink it. Historical data stays intact.
+    if company.parent_id:
+        parent = db.session.get(Company, company.parent_id)
+        if request.method == "POST" \
+                and request.form.get("action") == "unlink":
+            company.parent_id = None
+            db.session.commit()
+            flash("تم فك ربط الفرع", "success")
+            return redirect(url_for("companies.branches",
+                                     company_id=company.id))
+        return render_template("companies/branches.html",
+                                company=company, parent=parent,
+                                sub_branches=None, eligible=[])
+
+    # PARENT MODE — either linking a new branch or viewing existing.
+    sub_branches = (Company.query
+                     .filter_by(parent_id=company.id)
+                     .order_by(Company.name).all())
+    if request.method == "POST" \
+            and request.form.get("action") == "link":
+        branch_id = request.form.get("branch_company_id", type=int)
+        branch = db.session.get(Company, branch_id) if branch_id else None
+
+        # Cross-tenant guard — ticket §9. Without this, knowing an
+        # id lets a user pull another owner's data into their
+        # consolidated report.
+        if not branch or branch not in current_user.companies:
+            flash("الشركة المختارة غير صالحة", "error")
+            return redirect(url_for("companies.branches",
+                                     company_id=company.id))
+        if branch.id == company.id:
+            flash("لا يمكن ربط الشركة بنفسها", "error")
+            return redirect(url_for("companies.branches",
+                                     company_id=company.id))
+        # Hierarchy guard — refuse a company that's already linked
+        # elsewhere (multi-level chains disallowed in v1, ticket §4).
+        if branch.parent_id is not None:
+            flash(f"'{branch.name}' مرتبطة بالفعل كفرع لشركة أخرى",
+                  "error")
+            return redirect(url_for("companies.branches",
+                                     company_id=company.id))
+        # Also refuse a company that already has children of its own
+        # — otherwise the resulting shape is multi-level.
+        if Company.query.filter_by(parent_id=branch.id).first():
+            flash(
+                f"'{branch.name}' هي نفسها شركة أم لفروع — "
+                "لا يمكن ربطها كفرع لشركة أخرى",
+                "error")
+            return redirect(url_for("companies.branches",
+                                     company_id=company.id))
+
+        # Plan quota — ticket §9. QUOTA_BRANCHES is already
+        # enforced in check_quota; QuotaBlockedError bubbles as a
+        # flash message.
+        try:
+            from app.services.quotas import (
+                check_quota, QuotaBlockedError,
+            )
+            from app.models import QUOTA_BRANCHES
+            check_quota(company, QUOTA_BRANCHES, incoming=1)
+        except QuotaBlockedError as e:
+            flash(str(e), "error")
+            return redirect(url_for("companies.branches",
+                                     company_id=company.id))
+
+        branch.parent_id = company.id
+        db.session.commit()
+        flash(f"تم إضافة '{branch.name}' كفرع", "success")
+        return redirect(url_for("companies.branches",
+                                 company_id=company.id))
+
+    # GET — build the eligible-branch dropdown: owned by the user,
+    # not self, not already a branch, not itself a parent.
+    child_parent_ids = {c.parent_id for c in sub_branches}
+    eligible = []
+    for c in current_user.companies:
+        if c.id == company.id:
+            continue
+        if c.parent_id is not None:
+            continue
+        if Company.query.filter_by(parent_id=c.id).first():
+            continue
+        eligible.append(c)
+    return render_template(
+        "companies/branches.html",
+        company=company, parent=None,
+        sub_branches=sub_branches, eligible=eligible)
+
+
 # ─── MARSOUD-J: owner soft-deletes their own company ────────────────────
 @bp.route("/<int:company_id>/soft-delete", methods=["POST"])
 @login_required

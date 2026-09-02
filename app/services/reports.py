@@ -79,6 +79,108 @@ def _net_income(company_id, start_date=None, end_date=None):
     return revenue - expense
 
 
+# ─── MARSOUD-COMPANY-BRANCHES-01 (2026-09-02) — consolidated reports ─
+def _branch_ids(parent_company_id):
+    """Return `[parent, *children]` — a flat list of company ids
+    that belong to the same "group" for consolidation. The parent
+    always appears first so a report title can reference it."""
+    from app.models import Company
+    kids = (Company.query
+             .filter_by(parent_id=parent_company_id)
+             .order_by(Company.name).all())
+    return [parent_company_id] + [c.id for c in kids]
+
+
+def consolidated_income_statement(parent_company_id, *,
+                                    start_date=None, end_date=None):
+    """Run `income_statement()` for the parent + every direct branch,
+    then merge on Account.code. Rows returned by income_statement()
+    already carry `{code, name, balance}` (services/reports.py:98),
+    so the merge is a straight dict-by-code sum.
+
+    Ticket §3 known limit: if a branch customised its chart-of-accounts
+    beyond the seed defaults, the mismatched codes surface as their
+    own rows rather than folding into peers — deliberate, not a bug.
+    """
+    from app.models import Company
+    ids = _branch_ids(parent_company_id)
+    per_branch = {}
+    merged_revenue = {}
+    merged_expenses = {}
+    for cid in ids:
+        co = db.session.get(Company, cid)
+        data = income_statement(cid, start_date=start_date,
+                                 end_date=end_date)
+        per_branch[cid] = {"name": co.name if co else f"#{cid}",
+                           "data": data}
+        for item in data.get("revenue") or []:
+            row = merged_revenue.setdefault(
+                item["code"], {"code": item["code"],
+                                "name": item["name"],
+                                "balance": 0.0})
+            row["balance"] += float(item.get("balance") or 0)
+        for item in data.get("expenses") or []:
+            row = merged_expenses.setdefault(
+                item["code"], {"code": item["code"],
+                                "name": item["name"],
+                                "balance": 0.0})
+            row["balance"] += float(item.get("balance") or 0)
+    revenue = sorted(merged_revenue.values(), key=lambda r: r["code"])
+    expenses = sorted(merged_expenses.values(), key=lambda r: r["code"])
+    total_revenue = sum(r["balance"] for r in revenue)
+    total_expense = sum(r["balance"] for r in expenses)
+    return {
+        "revenue": revenue,
+        "expenses": expenses,
+        "total_revenue": round(total_revenue, 2),
+        "total_expense": round(total_expense, 2),
+        "net_income": round(total_revenue - total_expense, 2),
+        "per_branch": per_branch,
+        "start_date": start_date, "end_date": end_date,
+    }
+
+
+def consolidated_balance_sheet(parent_company_id, *, as_of=None):
+    """Same shape as `consolidated_income_statement`, for the balance
+    sheet. Merges assets / liabilities / equity dicts by Account.code."""
+    from app.models import Company
+    ids = _branch_ids(parent_company_id)
+    per_branch = {}
+    merged = {"assets": {}, "liabilities": {}, "equity": {}}
+    for cid in ids:
+        co = db.session.get(Company, cid)
+        data = balance_sheet(cid, as_of=as_of)
+        per_branch[cid] = {"name": co.name if co else f"#{cid}",
+                           "data": data}
+        for section in ("assets", "liabilities", "equity"):
+            for item in data.get(section) or []:
+                row = merged[section].setdefault(
+                    item["code"], {"code": item["code"],
+                                    "name": item["name"],
+                                    "balance": 0.0})
+                row["balance"] += float(item.get("balance") or 0)
+    assets = sorted(merged["assets"].values(), key=lambda r: r["code"])
+    liabilities = sorted(merged["liabilities"].values(),
+                          key=lambda r: r["code"])
+    equity = sorted(merged["equity"].values(), key=lambda r: r["code"])
+    totals = {
+        "assets": round(sum(r["balance"] for r in assets), 2),
+        "liabilities": round(sum(r["balance"] for r in liabilities), 2),
+        "equity": round(sum(r["balance"] for r in equity), 2),
+    }
+    total_liab_equity = round(totals["liabilities"] + totals["equity"], 2)
+    return {
+        "assets": assets,
+        "liabilities": liabilities,
+        "equity": equity,
+        "totals": totals,
+        "total_liab_equity": total_liab_equity,
+        "balanced": abs(totals["assets"] - total_liab_equity) < 0.01,
+        "per_branch": per_branch,
+        "as_of": as_of,
+    }
+
+
 def trial_balance_report(company_id, *, start_date=None, end_date=None):
     """Trial Balance (ميزان مراجعة) — every account, its total debit /
     total credit / signed balance for the period.
