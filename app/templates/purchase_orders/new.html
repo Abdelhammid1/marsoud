@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block page_title %}طلب شراء جديد{% endblock %}
+{% block content %}
+{# MARSOUD-PURCHASE-ORDERS-01 — new PO form. #}
+
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-2xl font-bold text-navy-900">🛒 طلب شراء جديد</h1>
+  <a href="{{ url_for('purchase_orders.index') }}" class="btn-secondary text-sm">← عودة</a>
+</div>
+
+<form method="POST" action="{{ url_for('purchase_orders.create') }}" class="space-y-4">
+  <div class="card p-5">
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">المورد <span class="text-red-600">*</span></label>
+        <select name="vendor_id" class="select" required>
+          <option value="">— اختر المورد —</option>
+          {% for v in vendors %}
+          <option value="{{ v.id }}">{{ v.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">تاريخ الطلب</label>
+        <input type="date" name="issue_date" class="input">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">تاريخ الاستلام المتوقع</label>
+        <input type="date" name="expected_date" class="input">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1">نسبة الضريبة %</label>
+        <input type="number" step="0.01" min="0" name="tax_rate" class="input" value="0">
+      </div>
+    </div>
+    <div class="mt-4">
+      <label class="block text-sm font-semibold text-slate-700 mb-1">ملاحظات</label>
+      <textarea name="notes" rows="2" class="input"></textarea>
+    </div>
+  </div>
+
+  <div class="card p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-bold text-navy-900">البنود</h3>
+      <button type="button" class="btn-secondary text-sm" onclick="addRow()">➕ إضافة بند</button>
+    </div>
+    <table class="data-table" id="items-table">
+      <thead>
+        <tr>
+          <th>الوصف</th>
+          <th class="text-right" style="width:120px">الكمية</th>
+          <th class="text-right" style="width:130px">سعر الوحدة</th>
+          <th style="width:30px"></th>
+        </tr>
+      </thead>
+      <tbody id="items-body">
+        <tr>
+          <td><input type="text" name="description[]" class="input" required></td>
+          <td><input type="number" step="0.001" min="0" name="quantity[]" class="input text-right" required></td>
+          <td><input type="number" step="0.0001" min="0" name="unit_price[]" class="input text-right"></td>
+          <td><button type="button" class="text-red-600" onclick="this.closest('tr').remove()">✕</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="flex justify-end gap-2">
+    <a href="{{ url_for('purchase_orders.index') }}" class="btn-secondary">إلغاء</a>
+    <button type="submit" class="btn-primary">حفظ طلب الشراء</button>
+  </div>
+</form>
+
+<script>
+function addRow(){
+  const tbody = document.getElementById('items-body');
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><input type="text" name="description[]" class="input" required></td>
+    <td><input type="number" step="0.001" min="0" name="quantity[]" class="input text-right" required></td>
+    <td><input type="number" step="0.0001" min="0" name="unit_price[]" class="input text-right"></td>
+    <td><button type="button" class="text-red-600" onclick="this.closest('tr').remove()">✕</button></td>`;
+  tbody.appendChild(tr);
+}
+</script>
+{% endblock %}

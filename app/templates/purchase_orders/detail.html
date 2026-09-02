@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block page_title %}أمر شراء {{ po.number }}{% endblock %}
+{% block content %}
+{# MARSOUD-PURCHASE-ORDERS-01 — PO detail + actions. Action strip
+   flips per status; every mutating button POSTs to the service. #}
+
+{% set st = po.status.value %}
+
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h1 class="text-2xl font-bold text-navy-900">🛒 {{ po.number }}</h1>
+    <div class="text-sm text-slate-500 mt-1">
+      المورد: <strong>{{ po.vendor.name if po.vendor else '—' }}</strong>
+      · التاريخ: {{ po.issue_date.isoformat() }}
+      {% if po.expected_date %}· الاستلام المتوقع: {{ po.expected_date.isoformat() }}{% endif %}
+      · <span class="badge
+          {% if st in ('RECEIVED', 'CLOSED') %}badge-paid
+          {% elif st in ('REJECTED', 'CANCELLED') %}badge-cancelled
+          {% else %}badge-draft{% endif %}">{{ po.status_ar }}</span>
+    </div>
+  </div>
+  <a href="{{ url_for('purchase_orders.index') }}" class="btn-secondary text-sm">← عودة</a>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+  <div class="md:col-span-2 card p-5">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>الوصف</th>
+          <th class="text-right">مطلوب</th>
+          <th class="text-right">مُستلَم</th>
+          <th class="text-right">مُفوتَر</th>
+          <th class="text-right">سعر الوحدة</th>
+          <th class="text-right">الإجمالي</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in po.items %}
+        <tr>
+          <td>{{ it.description }}</td>
+          <td class="text-right font-mono">{{ "%.2f"|format(it.quantity|float) }}</td>
+          <td class="text-right font-mono {% if it.qty_received < it.quantity %}text-amber-600{% else %}text-emerald-700{% endif %}">{{ "%.2f"|format(it.qty_received|float) }}</td>
+          <td class="text-right font-mono">{{ "%.2f"|format(it.qty_invoiced|float) }}</td>
+          <td class="text-right font-mono text-xs text-slate-500">{{ "%.4f"|format(it.unit_price|float) }}</td>
+          <td class="text-right font-mono">{{ "%.2f"|format(it.line_total|float) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="font-bold" style="border-top:2px solid #0A2540">
+          <td colspan="5" class="text-left">الإجمالي</td>
+          <td class="text-right font-mono text-navy-900">{{ "%.2f"|format(po.total|float) }}</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    {% if po.notes %}
+    <div class="mt-4 border-t border-slate-200 pt-3">
+      <div class="text-xs text-slate-500 mb-1">ملاحظات</div>
+      <div class="text-sm whitespace-pre-line">{{ po.notes }}</div>
+    </div>
+    {% endif %}
+
+    {% if po.receipts.count() > 0 %}
+    <div class="mt-4 border-t border-slate-200 pt-3">
+      <div class="text-sm font-bold mb-2">📋 سجل إذون الاستلام</div>
+      <ul class="text-xs space-y-1">
+        {% for grn in po.receipts %}
+        <li>
+          <span class="font-mono">{{ grn.number }}</span>
+          · {{ grn.received_date.isoformat() }}
+          · بواسطة {{ grn.received_by.full_name if grn.received_by else '—' }}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ─── Actions column ────────────────────────────────────── #}
+  <div class="card p-5 space-y-3">
+    <div class="text-sm font-bold text-navy-900 mb-2">الإجراءات</div>
+
+    {% if st == 'REQUESTED' %}
+      {% if has_permission('purchase_orders.approve') %}
+        <form method="POST" action="{{ url_for('purchase_orders.approve', po_id=po.id) }}"
+              onsubmit="return confirm('اعتماد أمر الشراء؟');">
+          <button type="submit" class="btn-primary w-full">✓ اعتماد</button>
+        </form>
+        <button type="button" class="btn-secondary w-full" onclick="document.getElementById('reject-form').classList.toggle('hidden')">✕ رفض</button>
+        <form id="reject-form" method="POST" action="{{ url_for('purchase_orders.reject', po_id=po.id) }}" class="hidden space-y-2">
+          <textarea name="reason" required rows="2" class="input text-sm" placeholder="سبب الرفض"></textarea>
+          <button type="submit" class="btn-primary bg-red-600 hover:bg-red-700 w-full text-sm">تأكيد الرفض</button>
+        </form>
+      {% endif %}
+      {% if has_permission('purchase_orders.request') %}
+        <form method="POST" action="{{ url_for('purchase_orders.delete', po_id=po.id) }}"
+              onsubmit="return confirm('حذف طلب الشراء؟');">
+          <button type="submit" class="btn-secondary w-full text-sm">🗑 حذف</button>
+        </form>
+      {% endif %}
+
+    {% elif st in ('APPROVED', 'PARTIALLY_RECEIVED') %}
+      {% if has_permission('purchase_orders.receive') %}
+        <a href="{{ url_for('purchase_orders.receive', po_id=po.id) }}" class="btn-primary w-full block text-center">📥 تسجيل استلام</a>
+      {% endif %}
+      {% if can_bill %}
+        <a href="{{ url_for('vendor_bills.new', from_po=po.id) }}" class="btn-primary w-full block text-center bg-emerald-600 hover:bg-emerald-700">📥 تحويل لفاتورة مورد</a>
+      {% endif %}
+      {% if st == 'APPROVED' and po.receipts.count() == 0 and has_permission('purchase_orders.cancel') %}
+        <button type="button" class="btn-secondary w-full" onclick="document.getElementById('cancel-form').classList.toggle('hidden')">✕ إلغاء</button>
+        <form id="cancel-form" method="POST" action="{{ url_for('purchase_orders.cancel', po_id=po.id) }}" class="hidden space-y-2">
+          <textarea name="reason" required rows="2" class="input text-sm" placeholder="سبب الإلغاء"></textarea>
+          <button type="submit" class="btn-primary bg-red-600 hover:bg-red-700 w-full text-sm">تأكيد الإلغاء</button>
+        </form>
+      {% endif %}
+
+    {% elif st == 'RECEIVED' %}
+      {% if can_bill %}
+        <a href="{{ url_for('vendor_bills.new', from_po=po.id) }}" class="btn-primary w-full block text-center bg-emerald-600 hover:bg-emerald-700">📥 تحويل لفاتورة مورد</a>
+      {% else %}
+        <div class="text-xs text-slate-500">مفيش بنود متبقية للفوترة.</div>
+      {% endif %}
+
+    {% elif st == 'CLOSED' %}
+      <div class="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded p-2">
+        أمر الشراء مغلق — كل الكميات المُستلَمة تم تفويترها.
+      </div>
+
+    {% elif st == 'REJECTED' %}
+      <div class="text-xs text-slate-600 bg-slate-100 rounded p-2">
+        مرفوض{% if po.rejected_reason %}: {{ po.rejected_reason }}{% endif %}
+      </div>
+
+    {% elif st == 'CANCELLED' %}
+      <div class="text-xs text-slate-600 bg-slate-100 rounded p-2">
+        ملغى{% if po.cancelled_reason %}: {{ po.cancelled_reason }}{% endif %}
+      </div>
+    {% endif %}
+
+    <div class="pt-3 border-t border-slate-200 space-y-1 text-xs text-slate-500">
+      <div>أنشأه: <strong>{{ po.requested_by.full_name if po.requested_by else '—' }}</strong> · {{ po.created_at.strftime('%Y-%m-%d %H:%M') if po.created_at else '—' }}</div>
+      {% if po.approved_at %}
+      <div>اعتمده: <strong>{{ po.approved_by.full_name if po.approved_by else '—' }}</strong> · {{ po.approved_at.strftime('%Y-%m-%d %H:%M') }}</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -302,6 +302,16 @@
       </div>
     </a>
     {% endif %}
+    {% if has_permission('purchase_orders.view') %}
+    <a class="op" href="{{ url_for('purchase_orders.pending_report') }}" title="أوامر الشراء المعلّقة">
+      <div class="op-ico i-teal">🛒</div>
+      <div>
+        <div class="op-val">{{ metrics.ops.purchase_orders_pending or 0 }}</div>
+        <div class="op-label">أمر شراء معلّق</div>
+        <div class="op-extra tag-amber">طلب / مُعتمَد / جزئي</div>
+      </div>
+    </a>
+    {% endif %}
     {% if has_permission('tasks.view') %}
     <a class="op" href="{{ url_for('tasks.index') }}" title="المهام">
       <div class="op-ico i-violet">📋</div>

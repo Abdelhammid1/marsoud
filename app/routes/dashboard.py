@@ -61,4 +61,20 @@ def index():
     except Exception:
         current_app.logger.exception("hr_decisions metric failed")
         metrics.setdefault("ops", {})["hr_decisions_pending"] = 0
+    # MARSOUD-PURCHASE-ORDERS-01 — pending PO count (REQUESTED +
+    # APPROVED + PARTIALLY_RECEIVED). Same wrap.
+    try:
+        from app.models import PurchaseOrder, PurchaseOrderStatus
+        po_pending = (PurchaseOrder.query
+                       .filter_by(company_id=g.active_company.id)
+                       .filter(PurchaseOrder.deleted_at.is_(None))
+                       .filter(PurchaseOrder.status.in_((
+                           PurchaseOrderStatus.REQUESTED,
+                           PurchaseOrderStatus.APPROVED,
+                           PurchaseOrderStatus.PARTIALLY_RECEIVED)))
+                       .count())
+        metrics.setdefault("ops", {})["purchase_orders_pending"] = po_pending
+    except Exception:
+        current_app.logger.exception("purchase_orders metric failed")
+        metrics.setdefault("ops", {})["purchase_orders_pending"] = 0
     return render_template("dashboard/index.html", metrics=metrics)

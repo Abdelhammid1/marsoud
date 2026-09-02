@@ -127,9 +127,9 @@ _MODULES: tuple = (
            CATEGORY_SALES, "📥",
            sidebar_section="purchases", sort_order=30,
            blueprint_prefixes=("vendor_bills", "recurring_bills",
-                                "forecast", "vendors"),
+                                "forecast", "vendors", "purchase_orders"),
            permission_prefixes=("vendor_bills.", "recurring_bills.",
-                                "forecast.")),
+                                "forecast.", "purchase_orders.")),
     Module("inventory", "المخزون", "Inventory",
            "المخزون والمخازن والحركات والتحويلات والجرد",
            CATEGORY_OPS, "📦",
@@ -298,6 +298,11 @@ _FEATURES: tuple = (
     Feature("vendor_bills_index", "purchases", "فواتير الموردين",
              endpoints=("vendor_bills.index",),
              permissions=("vendor_bills.view",), icon="📥"),
+    # MARSOUD-PURCHASE-ORDERS-01 — أوامر الشراء + إذن الاستلام. Under
+    # the purchases module so super-admin plan-bundling picks it up.
+    Feature("purchase_orders_index", "purchases", "أوامر الشراء",
+             endpoints=("purchase_orders.index",),
+             permissions=("purchase_orders.view",), icon="🛒"),
     Feature("recurring_bills_index", "purchases", "الفواتير المتكررة",
              endpoints=("recurring_bills.index",),
              permissions=("vendor_bills.create",), icon="🔁"),

@@ -647,6 +647,53 @@ def _prefill_from_recurring(recurring_id):
     }
 
 
+def _prefill_from_purchase_order(po_id):
+    """MARSOUD-PURCHASE-ORDERS-01 §9 — clone of _prefill_from_recurring
+    for `?from_po=<id>`. Returns None when the id is missing, unknown,
+    or points to another company / a PO not in a receivable state.
+
+    Quantities on each row are the REMAINING-TO-INVOICE amount, not
+    the original ordered qty. This means splitting one PO across two
+    bills works naturally: bill #1 fires with `qty_remaining_to_invoice`
+    at bill-#1-time; bill #2 fires with the leftover.
+    """
+    if not po_id:
+        return None
+    from app.models import PurchaseOrder, PurchaseOrderStatus
+    po = db.session.get(PurchaseOrder, po_id)
+    if not po or po.company_id != g.active_company.id:
+        return None
+    if po.status not in (PurchaseOrderStatus.RECEIVED,
+                          PurchaseOrderStatus.PARTIALLY_RECEIVED):
+        return None
+    remaining_items = [it for it in po.items
+                        if it.qty_remaining_to_invoice > 0]
+    if not remaining_items:
+        return None
+    return {
+        "purchase_order_id": po.id,
+        "purchase_order_number": po.number,
+        "vendor_id": po.vendor_id,
+        "payment_method": "CREDIT",
+        "tax_rate": float(po.tax_rate or 0),
+        "notes": po.notes or "",
+        "items": [
+            {
+                "description": it.description or "",
+                "line_type": (it.line_type.value
+                               if it.line_type else "INVENTORY"),
+                "account_id": None,
+                "quantity": it.qty_remaining_to_invoice,
+                "unit_price": float(it.unit_price or 0),
+                "unit_id": it.unit_id,
+                "variant_id": it.variant_id,
+                "warehouse_id": it.warehouse_id,
+            }
+            for it in remaining_items
+        ],
+    }
+
+
 @bp.route("/<int:bill_id>")
 @login_required
 @require_permission("vendor_bills.view")

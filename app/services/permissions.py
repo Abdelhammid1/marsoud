@@ -65,6 +65,21 @@ P = {
     # تحويل من شاشة موحدة). Same defaults as ops.transfer since it
     # exposes the same underlying operations from a friendlier UI.
     "treasury.operate":     {"owner", "admin", "accountant"},
+    # MARSOUD-PURCHASE-ORDERS-01 — six-permission surface for the PO
+    # → approval → GRN → convert-to-bill flow. `request` is broad on
+    # purpose (any employee can flag "I need to buy X"); every
+    # ledger-touching step narrows to the same trio that owns
+    # vendor_bills. `view` is broad — reporting.
+    "purchase_orders.request": {"owner", "admin", "accountant",
+                                 "project_manager", "sales_manager",
+                                 "team_member"},
+    "purchase_orders.approve": {"owner", "admin", "accountant"},
+    "purchase_orders.receive": {"owner", "admin", "accountant"},
+    "purchase_orders.convert_to_bill": {"owner", "admin", "accountant"},
+    "purchase_orders.cancel":  {"owner", "admin", "accountant"},
+    "purchase_orders.view":    {"owner", "admin", "accountant", "ceo",
+                                 "viewer", "project_manager",
+                                 "sales_manager", "team_member"},
     "ops.settle":           {"owner", "admin", "accountant"},
     # MARSOUD-OPS-HUB-EXPANSION-01 (2026-08-08, Phase 4) — the
     # most dangerous wizard: general account adjustment that lets

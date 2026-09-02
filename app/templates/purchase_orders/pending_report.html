@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block page_title %}أوامر شراء معلّقة{% endblock %}
+{% block content %}
+{# MARSOUD-PURCHASE-ORDERS-01 §14 AC #8 — أوامر شراء معلّقة report. #}
+
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-2xl font-bold text-navy-900">📋 أوامر الشراء المعلّقة</h1>
+  <a href="{{ url_for('purchase_orders.index') }}" class="btn-secondary text-sm">← السجل</a>
+</div>
+
+<form method="GET" class="card p-3 mb-4 flex items-end gap-2">
+  <div>
+    <label class="block text-xs text-slate-500 mb-1">المورد</label>
+    <select name="vendor_id" class="select text-sm">
+      <option value="">— الكل —</option>
+      {% for v in vendors %}
+      <option value="{{ v.id }}" {% if selected_vendor == v.id %}selected{% endif %}>{{ v.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn-primary text-sm">تصفية</button>
+</form>
+
+<div class="card p-0 overflow-hidden">
+  <table class="data-table">
+    <thead><tr>
+      <th>الرقم</th>
+      <th>التاريخ</th>
+      <th>المورد</th>
+      <th class="text-right">الإجمالي</th>
+      <th>الحالة</th>
+      <th>متبقي للاستلام</th>
+      <th>متبقي للفوترة</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+      {% set to_recv = r.items|sum(attribute='quantity')|float - r.items|sum(attribute='qty_received')|float %}
+      {% set to_inv  = r.items|sum(attribute='qty_received')|float - r.items|sum(attribute='qty_invoiced')|float %}
+      <tr>
+        <td class="font-mono text-xs">
+          <a href="{{ url_for('purchase_orders.detail', po_id=r.id) }}" class="text-brand-600 hover:underline">{{ r.number }}</a>
+        </td>
+        <td class="font-mono text-xs">{{ r.issue_date.isoformat() }}</td>
+        <td>{{ r.vendor.name if r.vendor else '—' }}</td>
+        <td class="text-right font-mono">{{ "%.2f"|format(r.total|float) }}</td>
+        <td><span class="badge badge-draft">{{ r.status_ar }}</span></td>
+        <td class="text-right font-mono {% if to_recv > 0 %}text-amber-700{% endif %}">{{ "%.2f"|format(to_recv) }}</td>
+        <td class="text-right font-mono {% if to_inv > 0 %}text-emerald-700{% endif %}">{{ "%.2f"|format(to_inv) }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="text-center text-slate-400 py-6">لا توجد أوامر شراء معلّقة.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

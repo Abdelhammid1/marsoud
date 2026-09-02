@@ -139,6 +139,13 @@ PERMISSION_CATALOG = {
     # exist so an owner can RESTRICT one wizard on its own.
     "ops.transfer":         ("المالية والمحاسبة", "العمليات المحاسبية: تحويل بين الحسابات المالية", "add"),
     "treasury.operate":     ("المالية والمحاسبة", "الخزينة: تنفيذ عمليات قبض / دفع / تحويل", "run"),
+    # MARSOUD-PURCHASE-ORDERS-01 — six-permission split for the PO/GRN flow.
+    "purchase_orders.view":            ("المشتريات", "أوامر الشراء: عرض", "view"),
+    "purchase_orders.request":         ("المشتريات", "أوامر الشراء: طلب شراء", "add"),
+    "purchase_orders.approve":         ("المشتريات", "أوامر الشراء: اعتماد / رفض", "edit"),
+    "purchase_orders.receive":         ("المشتريات", "أوامر الشراء: إذن استلام (GRN)", "add"),
+    "purchase_orders.convert_to_bill": ("المشتريات", "أوامر الشراء: تحويل لفاتورة مورد", "run"),
+    "purchase_orders.cancel":          ("المشتريات", "أوامر الشراء: إلغاء بعد الاعتماد", "edit"),
     "ops.accruals":         ("المالية والمحاسبة", "العمليات المحاسبية: إثبات الالتزامات المستحقة", "add"),
     "ops.settle":           ("المالية والمحاسبة", "العمليات المحاسبية: سداد الالتزامات المستحقة", "edit"),
     "ops.adjustments":      ("المالية والمحاسبة", "العمليات المحاسبية: تسوية أرصدة الحسابات (خطير)", "edit"),

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block page_title %}أوامر الشراء{% endblock %}
+{% block content %}
+{# MARSOUD-PURCHASE-ORDERS-01 — سجل / index لأوامر الشراء. #}
+
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-2xl font-bold text-navy-900">🛒 أوامر الشراء</h1>
+  <div class="flex gap-2">
+    <a href="{{ url_for('purchase_orders.pending_report') }}" class="btn-secondary text-sm">📋 المعلّقة</a>
+    {% if has_permission('purchase_orders.request') %}
+    <a href="{{ url_for('purchase_orders.new') }}" class="btn-primary text-sm">➕ طلب شراء جديد</a>
+    {% endif %}
+  </div>
+</div>
+
+<form method="GET" class="card p-3 mb-4 flex flex-wrap items-end gap-2">
+  <div>
+    <label class="block text-xs text-slate-500 mb-1">الحالة</label>
+    <select name="status" class="select text-sm">
+      <option value="">— الكل —</option>
+      <option value="pending" {% if filters.status == 'pending' %}selected{% endif %}>المعلّقة (طلب + مُعتمَد + مُستلَم جزئيًا)</option>
+      {% for s in statuses %}
+        <option value="{{ s.value }}" {% if filters.status == s.value %}selected{% endif %}>
+          {% if s.value == 'REQUESTED' %}طلب
+          {% elif s.value == 'APPROVED' %}مُعتمَد
+          {% elif s.value == 'PARTIALLY_RECEIVED' %}مُستلَم جزئيًا
+          {% elif s.value == 'RECEIVED' %}مُستلَم بالكامل
+          {% elif s.value == 'CLOSED' %}مغلق
+          {% elif s.value == 'REJECTED' %}مرفوض
+          {% elif s.value == 'CANCELLED' %}ملغى{% endif %}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="block text-xs text-slate-500 mb-1">المورد</label>
+    <select name="vendor_id" class="select text-sm">
+      <option value="">— الكل —</option>
+      {% for v in vendors %}
+      <option value="{{ v.id }}" {% if filters.vendor_id == v.id %}selected{% endif %}>{{ v.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button type="submit" class="btn-primary text-sm">تصفية</button>
+  {% if filters.status or filters.vendor_id %}
+    <a href="{{ url_for('purchase_orders.index') }}" class="btn-secondary text-sm">مسح</a>
+  {% endif %}
+</form>
+
+<div class="card p-0 overflow-hidden">
+  <table class="data-table">
+    <thead><tr>
+      <th>الرقم</th>
+      <th>التاريخ</th>
+      <th>المورد</th>
+      <th class="text-right">الإجمالي</th>
+      <th>الحالة</th>
+      <th>المُستلَم/المطلوب</th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+      {% set total_qty = r.items|sum(attribute='quantity')|float %}
+      {% set recv_qty  = r.items|sum(attribute='qty_received')|float %}
+      <tr>
+        <td class="font-mono text-xs">
+          <a href="{{ url_for('purchase_orders.detail', po_id=r.id) }}" class="text-brand-600 hover:underline">{{ r.number }}</a>
+        </td>
+        <td class="font-mono text-xs">{{ r.issue_date.isoformat() }}</td>
+        <td>{{ r.vendor.name if r.vendor else '—' }}</td>
+        <td class="text-right font-mono">{{ "%.2f"|format(r.total|float) }}</td>
+        <td>
+          <span class="badge
+            {% if r.status.value == 'RECEIVED' or r.status.value == 'CLOSED' %}badge-paid
+            {% elif r.status.value in ('REJECTED', 'CANCELLED') %}badge-cancelled
+            {% else %}badge-draft{% endif %}">{{ r.status_ar }}</span>
+        </td>
+        <td class="text-xs font-mono">{{ "%.2f"|format(recv_qty) }} / {{ "%.2f"|format(total_qty) }}</td>
+        <td class="text-xs">
+          <a href="{{ url_for('purchase_orders.detail', po_id=r.id) }}" class="text-brand-600 hover:underline">فتح</a>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="text-center text-slate-400 py-6">لا توجد أوامر شراء.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

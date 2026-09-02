@@ -51,6 +51,10 @@ DOC_PREFIXES = {
     # today (routes address rows by id); reserving the prefix keeps
     # next_number(cid, "ITEM_CUSTODY") ready.
     "ITEM_CUSTODY": "IC",
+    # MARSOUD-PURCHASE-ORDERS-01 (2026-09-02) — new upstream stages
+    # before a vendor bill exists. Gap-free numbering per company.
+    "PURCHASE_ORDER": "PO",
+    "GOODS_RECEIPT": "GRN",
 }
 
 

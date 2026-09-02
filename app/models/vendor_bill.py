@@ -80,12 +80,24 @@ class VendorBill(db.Model):
                              nullable=True)
     postponed_at = db.Column(db.DateTime, nullable=True)
 
+    # MARSOUD-PURCHASE-ORDERS-01 — optional back-link to the PO that
+    # spawned this bill. NULL for hand-entered bills. Populated by
+    # `?from_po=<id>` prefill flow, and used by the `_apply_bill_to_po`
+    # hook in `services/vendor_bills.py:post_vendor_bill` to bump
+    # qty_invoiced + refuse over-invoicing.
+    purchase_order_id = db.Column(
+        db.Integer, db.ForeignKey("purchase_orders.id"),
+        nullable=True, index=True)
+
     company = db.relationship("Company", backref=db.backref("vendor_bills", lazy="dynamic"))
     vendor = db.relationship("Vendor", backref=db.backref("bills", lazy="dynamic"))
     items = db.relationship("VendorBillItem", backref="bill", cascade="all, delete-orphan")
     payments = db.relationship("VendorBillPayment", backref="bill", cascade="all, delete-orphan")
     deleted_by = db.relationship("User", foreign_keys=[deleted_by_id])
     postponer = db.relationship("User", foreign_keys=[postponed_by])
+    # MARSOUD-PURCHASE-ORDERS-01 — reverse side of the FK above.
+    purchase_order = db.relationship(
+        "PurchaseOrder", foreign_keys=[purchase_order_id])
     recurring_bill = db.relationship(
         "RecurringBill", foreign_keys=[recurring_bill_id])
 

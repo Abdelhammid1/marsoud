@@ -286,6 +286,14 @@ def post_vendor_bill(bill, created_by=None):
     else:
         bill.status = VendorBillStatus.POSTED
 
+    # MARSOUD-PURCHASE-ORDERS-01 — if this bill came from a PO,
+    # bump qty_invoiced on the matching items and close the PO if
+    # fully invoiced. Raises LedgerError on over-invoice so the
+    # whole transaction rolls back — no half-posted bill left behind.
+    if getattr(bill, "purchase_order_id", None):
+        from app.services.purchase_orders import _apply_bill_to_po
+        _apply_bill_to_po(bill)
+
     db.session.commit()
     try:
         from app.services.superadmin import log_platform_action

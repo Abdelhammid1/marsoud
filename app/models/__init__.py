@@ -95,6 +95,14 @@ from app.models.hr_decision import (
     HrDecision, HrDecisionKind, HrDecisionStatus, HrDecisionTiming,
     kind_category as hr_decision_category,
 )
+# MARSOUD-PURCHASE-ORDERS-01 — must import AFTER vendor_bill (uses
+# BillLineType) and product/warehouse (FK targets).
+from app.models.purchase_order import (
+    PurchaseOrder, PurchaseOrderItem, PurchaseOrderStatus,
+)
+from app.models.goods_receipt import (
+    GoodsReceiptNote, GoodsReceiptItem,
+)
 from app.models.open_item import (
     OpenItem, OpenItemSettlement, OpenItemStatus, SETTLEABLE_STATUSES,
 )
