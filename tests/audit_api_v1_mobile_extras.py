@@ -270,6 +270,72 @@ def L4():
     assert after == before + 1, (before, after)
 
 
+@check("L6: POST /leads (as sales_manager) → 201 + Lead + creation "
+        "LeadStatusEvent + primary Contact")
+def L6():
+    from app.models import Lead, LeadStatus, LeadStatusEvent
+    from app.models.crm_expansion import LeadContact
+    before = Lead.query.filter_by(company_id=_STATE["co"].id).count()
+    r = _api("POST", "/api/v1/my/leads",
+              token=_STATE["mgr_token"],
+              body={
+                  "client_name": "Client From Mobile",
+                  "phone": "01099887766",
+                  "service_needed": "consulting",
+                  "notes": "walked in via referral",
+                  "request_description": "wants a quote for X",
+              })
+    assert r.status_code == 201, (r.status_code, r.data[:200])
+    body = json.loads(r.data)
+    assert body["ok"] is True
+    lid = body["lead"]["id"]
+    l = db.session.get(Lead, lid)
+    assert l.client_name == "Client From Mobile"
+    assert l.status == LeadStatus.NEW_LEAD
+    assert l.number and l.number.startswith("L-"), \
+        f"missing per-company number: {l.number!r}"
+    # Assignee defaults to caller.
+    assert l.assigned_to_id == _STATE["mgr"].id, \
+        f"expected default assignee=mgr, got {l.assigned_to_id}"
+    assert l.created_by_id == _STATE["mgr"].id
+    # Creation LeadStatusEvent emitted.
+    ev = LeadStatusEvent.query.filter_by(
+        lead_id=lid, from_status=None).first()
+    assert ev is not None, "creation event missing"
+    assert ev.to_status == LeadStatus.NEW_LEAD
+    # Primary contact auto-created.
+    c = LeadContact.query.filter_by(
+        lead_id=lid, is_primary=True).first()
+    assert c is not None, "primary contact not auto-created"
+    after = Lead.query.filter_by(company_id=_STATE["co"].id).count()
+    assert after == before + 1
+    _STATE["created_lead_id"] = lid
+
+
+@check("L7: POST /leads missing required fields → 400")
+def L7():
+    r = _api("POST", "/api/v1/my/leads",
+              token=_STATE["mgr_token"],
+              body={"client_name": "no phone"})
+    assert r.status_code == 400, (r.status_code, r.data[:200])
+    body = json.loads(r.data)
+    assert "required" in body, body
+
+
+@check("L8: POST /leads with explicit assignee outside the company "
+        "→ 400")
+def L8():
+    r = _api("POST", "/api/v1/my/leads",
+              token=_STATE["mgr_token"],
+              body={
+                  "client_name": "outsider assignee",
+                  "phone": "010",
+                  "service_needed": "y",
+                  "assigned_to_id": 999999,
+              })
+    assert r.status_code == 400, (r.status_code, r.data[:200])
+
+
 @check("L5: POST /leads/<id>/activities inserts a LeadActivity")
 def L5():
     from app.models.crm_expansion import LeadActivity

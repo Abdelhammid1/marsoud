@@ -1,6 +1,9 @@
 // MARSOUD-MOBILE-TKT-01 (2026-08-18) — عملائي المحتملين. Reads
 // /api/v1/my/leads. Shows a filter chip row (stages from
 // /api/v1/my/leads/stages) + a card per lead. Tap → detail.
+// MARSOUD-MOBILE-LEAD-CREATE-01 (2026-09-03) — floating "+" now
+// opens an in-page bottom sheet to add a new prospect straight
+// from the phone (hits POST /api/v1/my/leads, same web pipeline).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -34,49 +37,243 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
   Widget build(BuildContext context) {
     final leadsAsync = ref.watch(_leadsProvider(_status));
     final stagesAsync = ref.watch(_stagesProvider);
-    return leadsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(e is ApiException ? e.message : e.toString()),
+    return Stack(
+      children: [
+        leadsAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(e is ApiException ? e.message : e.toString()),
+            ),
+          ),
+          data: (data) {
+            final leads = (data['leads'] as List?)
+                    ?.cast<Map<String, dynamic>>() ??
+                const [];
+            return RefreshIndicator(
+              color: BrandColors.emerald600,
+              onRefresh: () async =>
+                  ref.invalidate(_leadsProvider(_status)),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+                children: [
+                  // Filter chips
+                  stagesAsync.maybeWhen(
+                    data: (stages) => _StageChips(
+                      stages: stages,
+                      selected: _status,
+                      onChanged: (s) => setState(() => _status = s),
+                    ),
+                    orElse: () => const SizedBox.shrink(),
+                  ),
+                  const SizedBox(height: 8),
+                  if (leads.isEmpty)
+                    SectionCard(
+                      child: const EmptyState(
+                        icon: Icons.person_search,
+                        message: 'ما فيش عملاء محتملين حالياً.',
+                      ),
+                    )
+                  else
+                    for (final l in leads)
+                      _LeadCard(lead: l),
+                ],
+              ),
+            );
+          },
+        ),
+        // MARSOUD-MOBILE-LEAD-CREATE-01 — anchored bottom-left in RTL
+        // (LTR-adjusted by Directionality). Positioned instead of a
+        // Scaffold.floatingActionButton because LeadsScreen is
+        // embedded inside HomeShell's own Scaffold body.
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: FloatingActionButton.extended(
+            heroTag: 'leads_add_fab',
+            backgroundColor: BrandColors.emerald600,
+            foregroundColor: Colors.white,
+            icon: const Icon(Icons.person_add_alt_1),
+            label: const Text('عميل جديد',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+            onPressed: () => _openCreateSheet(context),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openCreateSheet(BuildContext context) async {
+    final created = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+        ),
+        child: const _AddLeadSheet(),
+      ),
+    );
+    if (created == true && mounted) {
+      ref.invalidate(_leadsProvider(_status));
+    }
+  }
+}
+
+class _AddLeadSheet extends ConsumerStatefulWidget {
+  const _AddLeadSheet();
+  @override
+  ConsumerState<_AddLeadSheet> createState() => _AddLeadSheetState();
+}
+
+class _AddLeadSheetState extends ConsumerState<_AddLeadSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _clientNameCtl = TextEditingController();
+  final _phoneCtl = TextEditingController();
+  final _serviceCtl = TextEditingController();
+  final _notesCtl = TextEditingController();
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _clientNameCtl.dispose();
+    _phoneCtl.dispose();
+    _serviceCtl.dispose();
+    _notesCtl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+    try {
+      await ref.read(mobileExtrasRepoProvider).createLead(
+            clientName: _clientNameCtl.text.trim(),
+            phone: _phoneCtl.text.trim(),
+            serviceNeeded: _serviceCtl.text.trim(),
+            notes: _notesCtl.text.trim(),
+          );
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('تم إضافة العميل المحتمل'),
+          backgroundColor: BrandColors.emerald600,
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      final msg = e.status == 403
+          ? 'ما عندكش صلاحية إضافة عميل محتمل — كلّم مدير المبيعات.'
+          : e.message;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg),
+            backgroundColor: Colors.red.shade600),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('حدث خطأ: $e'),
+            backgroundColor: Colors.red.shade600),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('إضافة عميل محتمل جديد',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: BrandColors.navy900)),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _clientNameCtl,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'اسم العميل *',
+                prefixIcon: Icon(Icons.person_outline),
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'حقل مطلوب' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _phoneCtl,
+              keyboardType: TextInputType.phone,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'رقم الجوال *',
+                prefixIcon: Icon(Icons.phone_outlined),
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'حقل مطلوب' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _serviceCtl,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'الخدمة المطلوبة *',
+                prefixIcon: Icon(Icons.work_outline),
+                border: OutlineInputBorder(),
+              ),
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'حقل مطلوب' : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _notesCtl,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'ملاحظات (اختياري)',
+                alignLabelWithHint: true,
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 48,
+              child: FilledButton.icon(
+                onPressed: _saving ? null : _submit,
+                style: FilledButton.styleFrom(
+                  backgroundColor: BrandColors.emerald600,
+                ),
+                icon: _saving
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.check),
+                label: Text(
+                  _saving ? 'جاري الحفظ…' : 'حفظ العميل',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
-      data: (data) {
-        final leads = (data['leads'] as List?)
-                ?.cast<Map<String, dynamic>>() ??
-            const [];
-        return RefreshIndicator(
-          color: BrandColors.emerald600,
-          onRefresh: () async =>
-              ref.invalidate(_leadsProvider(_status)),
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 32),
-            children: [
-              // Filter chips
-              stagesAsync.maybeWhen(
-                data: (stages) => _StageChips(
-                  stages: stages,
-                  selected: _status,
-                  onChanged: (s) => setState(() => _status = s),
-                ),
-                orElse: () => const SizedBox.shrink(),
-              ),
-              const SizedBox(height: 8),
-              if (leads.isEmpty)
-                SectionCard(
-                  child: const EmptyState(
-                    icon: Icons.person_search,
-                    message: 'ما فيش عملاء محتملين حالياً.',
-                  ),
-                )
-              else
-                for (final l in leads)
-                  _LeadCard(lead: l),
-            ],
-          ),
-        );
-      },
     );
   }
 }

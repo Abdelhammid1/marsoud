@@ -38,6 +38,41 @@ class MobileExtrasRepository {
         if (lostReason != null) 'lost_reason': lostReason,
       })) as Map<String, dynamic>;
 
+  // MARSOUD-MOBILE-LEAD-CREATE-01 (2026-09-03) — sales reps can
+  // add a new prospect straight from the phone. Server maps this
+  // to the same web-side "leads.new" pipeline (per-company
+  // number, creation LeadStatusEvent, auto primary Contact) so
+  // the lead is indistinguishable from one added on desktop.
+  Future<Map<String, dynamic>> createLead({
+    required String clientName,
+    required String phone,
+    required String serviceNeeded,
+    String? email,
+    String? notes,
+    String? requestDescription,
+    String? salesActionRequired,
+    int? assignedToId,
+    double? expectedValue,
+    String? leadType,
+    String? source,
+  }) async =>
+      (await _api.post('/api/v1/my/leads', body: {
+        'client_name': clientName,
+        'phone': phone,
+        'service_needed': serviceNeeded,
+        if (email != null && email.isNotEmpty) 'email': email,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+        if (requestDescription != null && requestDescription.isNotEmpty)
+          'request_description': requestDescription,
+        if (salesActionRequired != null && salesActionRequired.isNotEmpty)
+          'sales_action_required': salesActionRequired,
+        if (assignedToId != null) 'assigned_to_id': assignedToId,
+        if (expectedValue != null) 'expected_value': expectedValue,
+        if (leadType != null && leadType.isNotEmpty)
+          'lead_type': leadType,
+        if (source != null && source.isNotEmpty) 'source': source,
+      })) as Map<String, dynamic>;
+
   Future<Map<String, dynamic>> addLeadActivity(int leadId, {
     required String type,
     String? subject,

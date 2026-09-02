@@ -157,6 +157,159 @@ def leads_stages():
     })
 
 
+@leads_bp.route("", methods=["POST"])
+def lead_create():
+    """MARSOUD-MOBILE-LEAD-CREATE-01 (2026-09-03) — create a new
+    Lead from the mobile app. Mirrors the web-side `leads.new`
+    handler in `app/routes/leads.py` so a lead added from the
+    phone is indistinguishable from one added on the desktop:
+    same required fields, same per-company display number
+    (L-####), same auto-created primary Contact, same NEW_LEAD
+    LeadStatusEvent so the pipeline history is complete.
+
+    Contract:
+      · Required: client_name, phone, service_needed
+      · Optional: assigned_to_id (default = current_user),
+        lead_type, source, notes, request_description,
+        sales_action_required, expected_value, next_meeting,
+        campaign_id
+      · Returns: 201 {ok, lead: _lead_brief(...)}
+                 400 missing required / invalid enum / bad assignee
+                 403 caller lacks leads.manage
+    """
+    from app.services.permissions import has_permission
+    from app.services.crm import ensure_primary_contact
+    from app.services.numbering import next_number
+    if not has_permission("leads.manage"):
+        return _err("forbidden", 403)
+
+    body = _body()
+    client_name = (body.get("client_name") or "").strip()
+    phone = (body.get("phone") or "").strip()
+    service_needed = (body.get("service_needed") or "").strip()
+    if not client_name or not phone or not service_needed:
+        return _err(
+            "الاسم والهاتف والخدمة حقول مطلوبة", 400,
+            {"required": ["client_name", "phone", "service_needed"]})
+
+    email = (body.get("email") or "").strip().lower() or None
+    notes = (body.get("notes") or "").strip() or None
+    request_description = (
+        body.get("request_description") or "").strip() or None
+    sales_action_required = (
+        body.get("sales_action_required") or "").strip() or None
+
+    # assigned_to_id: caller (default) or an explicit teammate id
+    # that actually belongs to the active company.
+    assigned_raw = body.get("assigned_to_id")
+    if assigned_raw in (None, "", 0):
+        assigned_id = current_user.id
+    else:
+        try:
+            assigned_id = int(assigned_raw)
+        except (TypeError, ValueError):
+            return _err("invalid_assignee", 400)
+        # Confirm the target user is in the active company. Reuse
+        # the company_users list rather than importing web helpers.
+        from app.models.user import user_companies
+        ok = db.session.query(user_companies).filter(
+            user_companies.c.user_id == assigned_id,
+            user_companies.c.company_id == g.active_company.id,
+        ).first()
+        if not ok:
+            return _err(
+                "المسؤول يجب أن يكون من فريق هذه الشركة", 400)
+
+    # Optional enums — validate against the enum members if provided.
+    from app.models import LeadType, LeadSource
+    def _enum_or_none(raw, enum):
+        if not raw:
+            return None
+        s = str(raw).strip().upper()
+        if not s:
+            return None
+        if s not in {m.name for m in enum}:
+            return "__BAD__"
+        return s
+    lead_type = _enum_or_none(body.get("lead_type"), LeadType)
+    if lead_type == "__BAD__":
+        return _err("invalid_lead_type", 400,
+                    {"allowed": [m.value for m in LeadType]})
+    source = _enum_or_none(body.get("source"), LeadSource)
+    if source == "__BAD__":
+        return _err("invalid_source", 400,
+                    {"allowed": [m.value for m in LeadSource]})
+
+    # Optional expected_value (numeric).
+    expected_value = None
+    raw_ev = body.get("expected_value")
+    if raw_ev not in (None, "", 0):
+        try:
+            expected_value = float(raw_ev)
+            if expected_value < 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            return _err("invalid_expected_value", 400)
+
+    # Optional campaign_id.
+    campaign_id = None
+    raw_cid = body.get("campaign_id")
+    if raw_cid not in (None, "", 0):
+        try:
+            campaign_id = int(raw_cid)
+        except (TypeError, ValueError):
+            return _err("invalid_campaign_id", 400)
+
+    next_meeting = _parse_dt(body.get("next_meeting"))
+
+    lead = Lead(
+        company_id=g.active_company.id,
+        number=next_number(g.active_company.id, "LEAD"),
+        client_name=client_name[:150],
+        phone=phone[:30],
+        email=email[:200] if email else None,
+        service_needed=service_needed[:200],
+        lead_type=lead_type,
+        source=source,
+        assigned_to_id=assigned_id,
+        created_by_id=current_user.id,
+        next_meeting=next_meeting,
+        notes=notes,
+        request_description=request_description,
+        sales_action_required=sales_action_required,
+        expected_value=expected_value,
+        campaign_id=campaign_id,
+        status=LeadStatus.NEW_LEAD,
+    )
+    db.session.add(lead); db.session.flush()
+
+    # Creation event — matches the web `new` handler so the pipeline
+    # history shows the same "إنشاء العميل المحتمل" entry regardless
+    # of channel.
+    db.session.add(LeadStatusEvent(
+        lead_id=lead.id, from_status=None,
+        to_status=LeadStatus.NEW_LEAD,
+        changed_by_id=current_user.id,
+        note="إنشاء العميل المحتمل",
+    ))
+
+    # Auto primary contact (idempotent helper — safe to call).
+    try:
+        ensure_primary_contact(lead)
+    except Exception:
+        # Never block lead creation on contact-cloning; contact
+        # backfill can catch it later.
+        from flask import current_app
+        current_app.logger.exception(
+            "ensure_primary_contact failed for lead=%s", lead.id)
+
+    db.session.commit()
+    return jsonify({
+        "ok": True,
+        "lead": _lead_brief(lead),
+    }), 201
+
+
 @leads_bp.route("", methods=["GET"])
 def leads_list():
     """List leads visible to me. Scope:
