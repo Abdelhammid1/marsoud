@@ -278,7 +278,7 @@
     </div>
     {% if has_permission('tasks.manage') %}
     <form method="POST" action="{{ url_for('documents.upload', source_type='TASK', source_id=task.id) }}" enctype="multipart/form-data" class="flex flex-wrap items-end gap-2">
-      <input type="file" name="file" required accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.doc,.docx,.xls,.xlsx,.zip" class="text-sm">
+      <input type="file" name="file" required accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.zip,.md,.txt,.csv,.json" class="text-sm">
       <button type="submit" class="btn-secondary text-sm">+ رفع</button>
     </form>
     {% endif %}

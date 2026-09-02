@@ -223,8 +223,13 @@ def init_audit_listeners(app=None):
 # ─── Documents ──────────────────────────────────────────────────────────
 # MARSOUD — supported attachment extensions. Includes iPhone-default
 # HEIC/HEIF and modern image formats.
+# MARSOUD-TASK-MD-ATTACH-01 (2026-09-02) — added `md` + text cousins
+# (txt/csv/json) after the user asked to attach markdown ticket
+# specs to tasks. All four are plain-text formats with no exec
+# surface, so widening the whitelist here is safe.
 ALLOWED_EXTS = {"pdf", "png", "jpg", "jpeg", "gif", "webp", "heic", "heif",
-                "doc", "docx", "xls", "xlsx", "zip"}
+                "doc", "docx", "xls", "xlsx", "zip",
+                "md", "txt", "csv", "json"}
 MAX_BYTES = 50 * 1024 * 1024   # 50 MB per spec NFR-11
 
 
@@ -255,7 +260,8 @@ def save_document(*, company_id, source_type, source_id, file_storage,
     if ext not in ALLOWED_EXTS:
         raise DocumentError(
             "صيغة غير مدعومة. المسموح: "
-            "PDF / صور (PNG, JPG, GIF, WEBP, HEIC) / Word / Excel / ZIP"
+            "PDF / صور (PNG, JPG, GIF, WEBP, HEIC) / Word / Excel / ZIP / "
+            "نصوص (Markdown, TXT, CSV, JSON)"
         )
     safe_filename = secure_filename(original_filename)
     # secure_filename may strip everything when the name was all-Arabic
