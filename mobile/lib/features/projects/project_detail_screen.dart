@@ -30,9 +30,16 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> {
 
   Future<List<Map<String, dynamic>>> _load() async {
     final repo = ref.read(myAccountRepoProvider);
-    final detail = await repo.projectDetail(widget.projectId);
-    final tasks = await repo.projectTasks(widget.projectId);
-    return [detail, tasks];
+    // MARSOUD-MOBILE-SHIP-READY-01 (M9) — was two sequential awaits
+    // (~2× latency). The two endpoints are independent — fetch in
+    // parallel. Failing one still fails the whole detail card
+    // (matches previous behaviour); a per-section error boundary
+    // would need a wider refactor.
+    final results = await Future.wait([
+      repo.projectDetail(widget.projectId),
+      repo.projectTasks(widget.projectId),
+    ]);
+    return results;
   }
 
   @override

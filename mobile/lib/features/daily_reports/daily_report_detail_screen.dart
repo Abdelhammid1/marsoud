@@ -134,10 +134,20 @@ class _DailyReportDetailScreenState
         final isDraft = statusVal == 'DRAFT';
         final body = (r['body'] ?? '').toString();
         final notes = (r['employee_notes'] ?? '').toString();
-        if (!_notesLoaded) {
-          _notesCtrl.text = notes;
-          _notesLoaded = true;
-        }
+        // MARSOUD-MOBILE-SHIP-READY-01 (M6) — was mutating
+        // `_notesLoaded` + `_notesCtrl.text` inside build(). Any
+        // subsequent Riverpod invalidate would refetch fresh
+        // notes but the controller would never update. Defer to a
+        // post-frame callback + only set the controller when its
+        // current text differs from the server's — safe to run on
+        // every rebuild without fighting the user's edits.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (_notesCtrl.text != notes && !_notesLoaded) {
+            _notesCtrl.text = notes;
+            _notesLoaded = true;
+          }
+        });
         final date =
             (r['report_date'] as String?)?.substring(0, 10) ?? '—';
         return ListView(

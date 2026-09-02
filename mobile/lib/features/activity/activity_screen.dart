@@ -148,13 +148,20 @@ class _ActionRow extends StatelessWidget {
   }
 
   static String _iconFor(String action) {
-    if (action.contains('CREATE')) return '➕';
-    if (action.contains('UPDATE') || action.contains('EDIT')) return '✎';
-    if (action.contains('DELETE')) return '🗑';
-    if (action.contains('LOGIN')) return '🔑';
-    if (action.contains('LOGOUT')) return '👋';
-    if (action.contains('APPROVE')) return '✅';
-    if (action.contains('REJECT')) return '✖';
+    // MARSOUD-MOBILE-SHIP-READY-01 (L9) — was contains()-based; a
+    // compound action like "CREATE_DELETE" matched multiple
+    // branches in the order they were written. Anchor on the exact
+    // action string or a stable prefix so future backend labels
+    // don't collide silently.
+    final a = action.toUpperCase();
+    if (a == 'CREATE' || a.startsWith('CREATE_')) return '➕';
+    if (a == 'UPDATE' || a.startsWith('UPDATE_')
+        || a == 'EDIT' || a.startsWith('EDIT_')) return '✎';
+    if (a == 'DELETE' || a.startsWith('DELETE_')) return '🗑';
+    if (a == 'LOGIN' || a.startsWith('LOGIN_')) return '🔑';
+    if (a == 'LOGOUT' || a.startsWith('LOGOUT_')) return '👋';
+    if (a == 'APPROVE' || a.startsWith('APPROVE_')) return '✅';
+    if (a == 'REJECT' || a.startsWith('REJECT_')) return '✖';
     return '•';
   }
 
