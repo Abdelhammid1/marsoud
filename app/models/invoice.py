@@ -87,6 +87,14 @@ class Invoice(db.Model):
     voided_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     void_reason = db.Column(db.Text)
 
+    # MARSOUD-LOYALTY-POINTS-01 — cache for display + the anchor
+    # `reverse_points_for_invoice` reads on void. `loyalty_points_awarded_at`
+    # doubles as the idempotency guard for `award_points_for_invoice`
+    # so re-calling it on the same invoice is a no-op.
+    loyalty_points_earned = db.Column(db.Integer, default=0, nullable=False)
+    loyalty_points_redeemed = db.Column(db.Integer, default=0, nullable=False)
+    loyalty_points_awarded_at = db.Column(db.DateTime, nullable=True)
+
     # MARSOUD-51 — optional PDF fields
     po_reference = db.Column(db.String(100))
     sales_rep_id = db.Column(db.Integer, db.ForeignKey("users.id"))

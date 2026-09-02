@@ -28,6 +28,12 @@ class Customer(db.Model):
     # (Accounts Receivable). Created at customer-create time; invoicing
     # posts AR debits here instead of the parent header.
     account_id = db.Column(db.Integer, db.ForeignKey("accounts.id"), nullable=True)
+    # MARSOUD-LOYALTY-POINTS-01 — cached balance. The ledger of truth
+    # is LoyaltyPointTransaction (every row carries balance_after) —
+    # this column just avoids a SUM() on every customer view. Same
+    # discipline as StockBalance.qty vs StockMovement.
+    loyalty_points_balance = db.Column(
+        db.Integer, default=0, nullable=False)
 
     # foreign_keys pinned to company_id because Company also has
     # saas_customer_id → customers.id (MARSOUD-SAAS-BILLING-01),

@@ -66,6 +66,19 @@ class Company(db.Model):
     cost_method = db.Column(db.String(10), default="AVERAGE", nullable=False)
     shift_required_for_pos = db.Column(db.Boolean, default=False, nullable=False)
     barcode_format = db.Column(db.String(20), default="CODE128", nullable=False)
+    # MARSOUD-LOYALTY-POINTS-01 — per-tenant loyalty program. Disabled
+    # by default so every existing company is untouched until the
+    # owner turns it on from the settings page. Every hook in
+    # record_payment + void_pos_order returns fast when disabled.
+    loyalty_enabled = db.Column(db.Boolean, default=False, nullable=False)
+    # How many currency units earn one point (e.g. 10 → every 10 EGP
+    # in taxable_base earns 1 point).
+    loyalty_earn_rate = db.Column(
+        db.Numeric(10, 2), default=10, nullable=False)
+    # Cash value of one point at redemption (e.g. 0.10 → each point
+    # is worth 10 piasters as a discount).
+    loyalty_redemption_value = db.Column(
+        db.Numeric(10, 4), default=0.10, nullable=False)
     # MARSOUD-51 — bank info for the invoice PDF
     bank_name = db.Column(db.String(150))
     bank_account_holder = db.Column(db.String(150))

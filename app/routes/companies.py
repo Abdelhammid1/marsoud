@@ -222,6 +222,24 @@ def edit(company_id):
         if cm in ("AVERAGE", "FIFO"):
             company.cost_method = cm
 
+        # MARSOUD-LOYALTY-POINTS-01 — per-tenant loyalty settings.
+        # Rates are only clamped, not rejected — an owner who wants a
+        # very stingy or very generous program can pick anything > 0.
+        company.loyalty_enabled = (
+            request.form.get("loyalty_enabled") == "on")
+        try:
+            er = float(request.form.get("loyalty_earn_rate") or 0)
+            if er > 0:
+                company.loyalty_earn_rate = er
+        except (TypeError, ValueError):
+            pass
+        try:
+            rv = float(request.form.get("loyalty_redemption_value") or 0)
+            if rv > 0:
+                company.loyalty_redemption_value = rv
+        except (TypeError, ValueError):
+            pass
+
         # Weekend config — checkbox group from the form
         if request.form.get("weekend_config_present") == "1":
             picked = request.form.getlist("weekend_day")

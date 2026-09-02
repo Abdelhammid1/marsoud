@@ -213,6 +213,38 @@
         </p>
       </div>
     </div>
+
+    {# MARSOUD-LOYALTY-POINTS-01 — loyalty settings card. #}
+    <div class="border border-slate-200 rounded-lg p-4">
+      <h3 class="font-bold text-navy-900 mb-3">⭐ برنامج نقاط الولاء</h3>
+      <label class="flex items-center gap-2 mb-3">
+        <input type="checkbox" name="loyalty_enabled"
+               {% if company.loyalty_enabled %}checked{% endif %}>
+        <span class="text-sm">تفعيل نقاط الولاء لعملاء المتجر</span>
+      </label>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">معدل الكسب</label>
+          <input type="number" step="0.01" min="0.01"
+                 name="loyalty_earn_rate"
+                 value="{{ company.loyalty_earn_rate or 10 }}"
+                 class="input text-sm font-mono">
+          <p class="text-xs text-slate-500 mt-1">كل X من العملة = نقطة واحدة. مثال: 10 يعني كل 10 جنيه = نقطة.</p>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">قيمة النقطة عند الصرف</label>
+          <input type="number" step="0.001" min="0.001"
+                 name="loyalty_redemption_value"
+                 value="{{ company.loyalty_redemption_value or 0.10 }}"
+                 class="input text-sm font-mono">
+          <p class="text-xs text-slate-500 mt-1">قيمة النقطة الواحدة بالعملة كخصم. مثال: 0.10 يعني النقطة = 10 قروش.</p>
+        </div>
+      </div>
+      <p class="text-xs text-slate-500 mt-2">
+        الكسب بيحصل تلقائيًا لحظة اكتمال دفع الفاتورة (على أساس السعر بعد الخصم قبل الضريبة).
+        الصرف بيتم من شاشة الكاشير كخصم على فاتورة جديدة.
+      </p>
+    </div>
     {% endif %}
 
     <div class="flex justify-end gap-2 pt-2">

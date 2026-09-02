@@ -71,6 +71,14 @@ P = {
     # broad enough for accountants + reporting roles.
     "cost_centers.manage":  {"owner", "admin"},
     "cost_centers.view":    {"owner", "admin", "accountant", "ceo", "viewer"},
+    # MARSOUD-LOYALTY-POINTS-01 — points program.
+    #   manage → owner + admin: settings + manual balance adjust.
+    #   redeem → same roles that can hit the POS register (owner /
+    #   admin / accountant / cashier). Explicit set instead of just
+    #   piggy-backing pos.use so an owner can grant redemption to
+    #   ONE cashier and withhold it from another.
+    "loyalty.manage":       {"owner", "admin"},
+    "loyalty.redeem":       {"owner", "admin", "accountant", "cashier"},
     # MARSOUD-PURCHASE-ORDERS-01 — six-permission surface for the PO
     # → approval → GRN → convert-to-bill flow. `request` is broad on
     # purpose (any employee can flag "I need to buy X"); every

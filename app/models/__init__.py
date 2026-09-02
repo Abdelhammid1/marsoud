@@ -105,6 +105,7 @@ from app.models.goods_receipt import (
 )
 from app.models.cost_center import CostCenter
 from app.models.product_bundle import BundleComponent
+from app.models.loyalty import LoyaltyPointTransaction, LoyaltyReason
 from app.models.open_item import (
     OpenItem, OpenItemSettlement, OpenItemStatus, SETTLEABLE_STATUSES,
 )

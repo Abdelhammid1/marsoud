@@ -142,6 +142,9 @@ PERMISSION_CATALOG = {
     # MARSOUD-COST-CENTERS-01
     "cost_centers.manage":  ("المالية والمحاسبة", "مراكز التكلفة: إدارة كاملة", "edit"),
     "cost_centers.view":    ("المالية والمحاسبة", "مراكز التكلفة: عرض", "view"),
+    # MARSOUD-LOYALTY-POINTS-01
+    "loyalty.manage":       ("المالية والمحاسبة", "نقاط الولاء: إدارة الإعدادات والتعديل اليدوي", "edit"),
+    "loyalty.redeem":       ("المالية والمحاسبة", "نقاط الولاء: صرف نقاط على فاتورة", "add"),
     # MARSOUD-PURCHASE-ORDERS-01 — six-permission split for the PO/GRN flow.
     "purchase_orders.view":            ("المشتريات", "أوامر الشراء: عرض", "view"),
     "purchase_orders.request":         ("المشتريات", "أوامر الشراء: طلب شراء", "add"),

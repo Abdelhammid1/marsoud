@@ -262,6 +262,12 @@ _FEATURES: tuple = (
     Feature("cost_centers_index", "accounting", "مراكز التكلفة",
              endpoints=("cost_centers.index",),
              permissions=("cost_centers.view",), icon="🎯"),
+    # MARSOUD-LOYALTY-POINTS-01 — settings live on the company edit
+    # page. Feature entry exists so super-admin plan-bundling can
+    # toggle the whole loyalty program per plan.
+    Feature("loyalty_settings", "settings", "برنامج الولاء",
+             endpoints=("companies.edit",),
+             permissions=("loyalty.manage",), icon="⭐"),
     Feature("assets_index", "accounting", "الأصول الثابتة",
              endpoints=("assets.index",),
              permissions=("assets.manage",), icon="🏗️"),

@@ -328,5 +328,17 @@ def void_pos_order(invoice, *, reason, actor_id):
     invoice.voided_by_id = actor_id
     invoice.void_reason = reason.strip()
     invoice.paid_amount = 0
+    # MARSOUD-LOYALTY-POINTS-01 — return any redeemed points to the
+    # customer and claw back any earned points. Wrapped so a loyalty
+    # hiccup can never block the void itself (§11 edge case).
+    if invoice.customer_id:
+        try:
+            from app.services.loyalty import reverse_points_for_invoice
+            reverse_points_for_invoice(invoice, actor_id=actor_id)
+        except Exception:
+            import logging
+            logging.getLogger("ledgeros.pos").exception(
+                "loyalty reversal failed for voided invoice %s",
+                invoice.number)
     db.session.commit()
     return invoice

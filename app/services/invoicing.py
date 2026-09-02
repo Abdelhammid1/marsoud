@@ -255,6 +255,18 @@ def record_payment(invoice, amount, payment_date=None, method=None, payment_meth
     is_full = invoice.paid_amount >= float(invoice.total) - 0.01
     if is_full:
         invoice.status = InvoiceStatus.PAID
+        # MARSOUD-LOYALTY-POINTS-01 — award loyalty points on the
+        # first full-paid transition. Idempotent (guarded by
+        # invoice.loyalty_points_awarded_at). Wrapped so any loyalty
+        # bug never blocks a real payment.
+        try:
+            from app.services.loyalty import award_points_for_invoice
+            award_points_for_invoice(invoice, actor_id=created_by)
+        except Exception:
+            import logging
+            logging.getLogger("ledgeros.invoicing").exception(
+                "loyalty award failed for invoice %s",
+                invoice.number)
     else:
         invoice.status = InvoiceStatus.PARTIALLY_PAID
 
