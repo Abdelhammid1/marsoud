@@ -2,6 +2,7 @@
 //
 // Two colored gradient CTAs on top (green in / amber out) that match the
 // web's `.btn-primary` gradient feel, plus a monthly summary card.
+import 'package:flutter/foundation.dart';   // kDebugMode + debugPrint
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
