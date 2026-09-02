@@ -54,18 +54,18 @@
     </div>
     <table class="data-table" id="lines-table">
       <thead>
-        <tr><th>الحساب</th><th>المذكرة</th><th class="text-left">مدين</th><th class="text-left">دائن</th><th></th></tr>
+        <tr><th>الحساب</th><th>المذكرة</th><th>مركز تكلفة</th><th class="text-left">مدين</th><th class="text-left">دائن</th><th></th></tr>
       </thead>
       <tbody id="lines-body"></tbody>
       <tfoot>
         <tr class="font-bold border-t-2 border-navy-900">
-          <td colspan="2" class="text-left py-3">الإجمالي</td>
+          <td colspan="3" class="text-left py-3">الإجمالي</td>
           <td class="text-left font-mono" id="total-debit">0.00</td>
           <td class="text-left font-mono" id="total-credit">0.00</td>
           <td></td>
         </tr>
         <tr id="balance-row" class="hidden">
-          <td colspan="5" class="text-center py-2 text-red-600 text-sm font-medium" id="balance-msg"></td>
+          <td colspan="6" class="text-center py-2 text-red-600 text-sm font-medium" id="balance-msg"></td>
         </tr>
       </tfoot>
     </table>
@@ -79,6 +79,7 @@
 
 <script>
 const accountsData = [{% for a in accounts %}{id:{{a.id}},code:"{{a.code}}",name:"{{(a.name_ar or a.name)|e}}"}{% if not loop.last %},{% endif %}{% endfor %}];
+const costCentersData = [{% for cc in cost_centers or [] %}{id:{{cc.id}},code:"{{cc.code}}",name:"{{(cc.name_ar or cc.name)|e}}"}{% if not loop.last %},{% endif %}{% endfor %}];
 const prefillLines = [{% if prefill_template %}{% for l in prefill_template.lines %}{account_id:{{l.account_id}},debit:{{l.debit or 0}},credit:{{l.credit or 0}},memo:"{{(l.memo or '')|e}}"}{% if not loop.last %},{% endif %}{% endfor %}{% endif %}];
 let lineIdx = 0;
 function addLine(prefill) {
@@ -94,6 +95,10 @@ function addLine(prefill) {
       ${accountsData.map(a => `<option value="${a.id}" ${a.id == aid ? 'selected' : ''}>${a.code} — ${a.name}</option>`).join('')}
     </select></td>
     <td><input type="text" name="memo[]" class="input text-sm" value="${memo}"></td>
+    <td><select name="cost_center_id[]" class="select text-sm">
+      <option value="">— بدون —</option>
+      ${costCentersData.map(cc => `<option value="${cc.id}">${cc.code} — ${cc.name}</option>`).join('')}
+    </select></td>
     <td><input type="number" name="debit[]" step="0.01" min="0" value="${debit}" class="input text-sm font-mono text-left" oninput="updateTotals()"></td>
     <td><input type="number" name="credit[]" step="0.01" min="0" value="${credit}" class="input text-sm font-mono text-left" oninput="updateTotals()"></td>
     <td><button type="button" onclick="this.closest('tr').remove(); updateTotals();" class="text-red-500 text-sm">×</button></td>

@@ -103,6 +103,7 @@ from app.models.purchase_order import (
 from app.models.goods_receipt import (
     GoodsReceiptNote, GoodsReceiptItem,
 )
+from app.models.cost_center import CostCenter
 from app.models.open_item import (
     OpenItem, OpenItemSettlement, OpenItemStatus, SETTLEABLE_STATUSES,
 )

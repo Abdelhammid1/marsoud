@@ -31,6 +31,7 @@
     ('income_summary_view', 'ملخص الإيرادات', 'Income Summary', 'تفصيل كل حساب إيراد منفصل', '📊'),
     ('expenses_summary_view', 'ملخص المصروفات', 'Expenses Summary', 'تفصيل + drill-down على القيود', '🔍'),
     ('pl_compared', 'الأرباح والخسائر (مقارن)', 'P&L vs Prior Year', 'مقارنة مع نفس الفترة من السنة السابقة', '📉'),
+    ('cost_centers_report', 'أرباح/خسائر مراكز التكلفة', 'P&L by Cost Center', 'تجميع الحركة حسب مركز التكلفة + جزء غير مُصنّف', '🎯'),
   ] %}
   {% for endpoint, title_ar, title_en, desc, icon in detailed %}
   <a href="{{ url_for('reports.' + endpoint) }}" class="card p-6 hover:shadow-soft hover:-translate-y-0.5 transition-all border-2 border-transparent hover:border-brand-500">

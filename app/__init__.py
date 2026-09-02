@@ -137,6 +137,7 @@ def create_app(config_class=Config):
     from app.routes.treasury import bp as treasury_bp
     from app.routes.hr_decisions import bp as hr_decisions_bp
     from app.routes.purchase_orders import bp as purchase_orders_bp
+    from app.routes.cost_centers import bp as cost_centers_bp
     from app.routes.settings_usage import bp as settings_usage_bp
     from app.routes.party_ledger import bp as party_ledger_bp
     from app.routes.crm import bp as crm_bp
@@ -223,6 +224,8 @@ def create_app(config_class=Config):
     app.register_blueprint(hr_decisions_bp, url_prefix="/hr/decisions")
     app.register_blueprint(purchase_orders_bp,
                             url_prefix="/purchase-orders")
+    app.register_blueprint(cost_centers_bp,
+                            url_prefix="/cost-centers")
     app.register_blueprint(settings_usage_bp, url_prefix="/settings/usage")
     app.register_blueprint(party_ledger_bp, url_prefix="/reports/party-ledger")
     app.register_blueprint(crm_bp, url_prefix="/crm")

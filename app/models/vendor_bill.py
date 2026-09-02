@@ -142,6 +142,11 @@ class VendorBillItem(db.Model):
     # MARSOUD-UNIT-CONVERSION-01 — see InvoiceItem.unit_id note.
     unit_id = db.Column(db.Integer, db.ForeignKey("product_units.id"))
     base_quantity = db.Column(db.Numeric(15, 4))
+    # MARSOUD-COST-CENTERS-01 — carried through to the item-derived
+    # JournalLine by post_vendor_bill. VAT + AP legs stay unclassified.
+    cost_center_id = db.Column(
+        db.Integer, db.ForeignKey("cost_centers.id"),
+        nullable=True, index=True)
 
     # MARSOUD-VENDOR-SUBCAT (Abdelhamid 2026-07-14) — per-vendor
     # sub-category. Nullable so legacy bill lines keep working; also

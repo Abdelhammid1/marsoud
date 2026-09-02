@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block page_title %}{% if cc %}تعديل مركز تكلفة{% else %}مركز تكلفة جديد{% endif %}{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-2xl font-bold text-navy-900">
+    🎯 {% if cc %}تعديل: {{ cc.code }}{% else %}مركز تكلفة جديد{% endif %}
+  </h1>
+  <a href="{{ url_for('cost_centers.index') }}" class="btn-secondary text-sm">← عودة</a>
+</div>
+
+<form method="POST" action="{% if cc %}{{ url_for('cost_centers.update', cc_id=cc.id) }}{% else %}{{ url_for('cost_centers.create') }}{% endif %}" class="card p-6 space-y-4">
+  <div class="grid grid-cols-2 gap-4">
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">الكود <span class="text-red-600">*</span></label>
+      <input type="text" name="code" class="input" required maxlength="20"
+             value="{{ cc.code if cc else '' }}"
+             placeholder="مثلاً: MKT-01">
+    </div>
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">الاسم <span class="text-red-600">*</span></label>
+      <input type="text" name="name" class="input" required maxlength="120"
+             value="{{ cc.name if cc else '' }}"
+             placeholder="Marketing">
+    </div>
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">الاسم بالعربي</label>
+      <input type="text" name="name_ar" class="input" maxlength="120"
+             value="{{ cc.name_ar if cc else '' }}"
+             placeholder="التسويق">
+    </div>
+    <div>
+      <label class="block text-sm font-semibold text-slate-700 mb-1">قسم مرتبط (اختياري)</label>
+      <select name="linked_department_id" class="select">
+        <option value="">— لا يوجد —</option>
+        {% for d in departments %}
+        <option value="{{ d.id }}" {% if cc and cc.linked_department_id == d.id %}selected{% endif %}>{{ d.name }}</option>
+        {% endfor %}
+      </select>
+      <div class="text-xs text-slate-500 mt-1">الربط لتسهيل الاختيار فقط — مفيش أي منطق مالي مبني عليه.</div>
+    </div>
+  </div>
+  <div>
+    <label class="block text-sm font-semibold text-slate-700 mb-1">الوصف</label>
+    <textarea name="description" rows="2" class="input">{{ cc.description if cc else '' }}</textarea>
+  </div>
+  <div class="flex justify-end gap-2 pt-2 border-t border-slate-200">
+    <a href="{{ url_for('cost_centers.index') }}" class="btn-secondary">إلغاء</a>
+    <button type="submit" class="btn-primary">{% if cc %}تحديث{% else %}حفظ{% endif %}</button>
+  </div>
+</form>
+{% endblock %}

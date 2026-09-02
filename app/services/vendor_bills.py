@@ -148,6 +148,10 @@ def post_vendor_bill(bill, created_by=None):
             "debit": float(item.line_total),
             "credit": 0,
             "memo": f"{item.line_type.value}: {item.description}",
+            # MARSOUD-COST-CENTERS-01 — thread the per-item classifier
+            # through to the JournalLine. VAT + AP legs below stay
+            # unclassified — they're aggregate, not per-item.
+            "cost_center_id": getattr(item, "cost_center_id", None),
         })
 
     # MARSOUD-COA-REBUILD — input VAT (purchases) now posts to 1280

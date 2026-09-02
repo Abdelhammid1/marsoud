@@ -213,6 +213,8 @@ def new():
         debits = request.form.getlist("debit[]")
         credits = request.form.getlist("credit[]")
         memos = request.form.getlist("memo[]")
+        # MARSOUD-COST-CENTERS-01 — optional per-line classifier.
+        cost_center_ids = request.form.getlist("cost_center_id[]")
 
         lines = []
         for i, aid in enumerate(account_ids):
@@ -222,9 +224,11 @@ def new():
             c = float(credits[i] or 0)
             if d == 0 and c == 0:
                 continue
+            cc_raw = cost_center_ids[i] if i < len(cost_center_ids) else ""
             lines.append({
                 "account_id": int(aid), "debit": d, "credit": c,
                 "memo": memos[i] if i < len(memos) else None,
+                "cost_center_id": int(cc_raw) if cc_raw else None,
             })
 
         cashflow_category = request.form.get("cashflow_category") or None
@@ -247,7 +251,15 @@ def new():
         except LedgerError as e:
             flash(str(e), "error")
 
-    return render_template("journals/form.html", accounts=accounts, templates=templates)
+    from app.models import CostCenter
+    cost_centers = (CostCenter.query
+                     .filter_by(company_id=g.active_company.id,
+                                 is_active=True)
+                     .filter(CostCenter.deleted_at.is_(None))
+                     .order_by(CostCenter.code).all())
+    return render_template("journals/form.html",
+                            accounts=accounts, templates=templates,
+                            cost_centers=cost_centers)
 
 
 @bp.route("/<int:entry_id>")

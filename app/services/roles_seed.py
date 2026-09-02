@@ -139,6 +139,9 @@ PERMISSION_CATALOG = {
     # exist so an owner can RESTRICT one wizard on its own.
     "ops.transfer":         ("المالية والمحاسبة", "العمليات المحاسبية: تحويل بين الحسابات المالية", "add"),
     "treasury.operate":     ("المالية والمحاسبة", "الخزينة: تنفيذ عمليات قبض / دفع / تحويل", "run"),
+    # MARSOUD-COST-CENTERS-01
+    "cost_centers.manage":  ("المالية والمحاسبة", "مراكز التكلفة: إدارة كاملة", "edit"),
+    "cost_centers.view":    ("المالية والمحاسبة", "مراكز التكلفة: عرض", "view"),
     # MARSOUD-PURCHASE-ORDERS-01 — six-permission split for the PO/GRN flow.
     "purchase_orders.view":            ("المشتريات", "أوامر الشراء: عرض", "view"),
     "purchase_orders.request":         ("المشتريات", "أوامر الشراء: طلب شراء", "add"),

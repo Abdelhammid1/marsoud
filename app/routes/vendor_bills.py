@@ -641,6 +641,10 @@ def _prefill_from_recurring(recurring_id):
                 "unit_id": it.unit_id,
                 "variant_id": it.variant_id,
                 "warehouse_id": it.warehouse_id,
+                # MARSOUD-COST-CENTERS-01 — inherit into every
+                # materialised bill so recurring expenses stay
+                # tagged for the CC report.
+                "cost_center_id": getattr(it, "cost_center_id", None),
             }
             for it in src.items
         ],

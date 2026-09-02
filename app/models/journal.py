@@ -59,5 +59,13 @@ class JournalLine(db.Model):
     debit_base = db.Column(db.Numeric(15, 4), default=0)
     credit_base = db.Column(db.Numeric(15, 4), default=0)
     memo = db.Column(db.Text)
+    # MARSOUD-COST-CENTERS-01 — optional per-line classifier. NULL
+    # keeps every legacy JE valid; every existing caller of
+    # post_journal() still works verbatim.
+    cost_center_id = db.Column(
+        db.Integer, db.ForeignKey("cost_centers.id"),
+        nullable=True, index=True)
 
     account = db.relationship("Account", backref=db.backref("lines", lazy="dynamic"))
+    cost_center = db.relationship(
+        "CostCenter", foreign_keys=[cost_center_id])

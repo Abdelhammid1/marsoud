@@ -65,6 +65,12 @@ P = {
     # تحويل من شاشة موحدة). Same defaults as ops.transfer since it
     # exposes the same underlying operations from a friendlier UI.
     "treasury.operate":     {"owner", "admin", "accountant"},
+    # MARSOUD-COST-CENTERS-01 — dimension classifier for JE lines.
+    # `manage` mirrors accounts.manage — it's structural, affects
+    # every report, and belongs with the owner / admin. `view` is
+    # broad enough for accountants + reporting roles.
+    "cost_centers.manage":  {"owner", "admin"},
+    "cost_centers.view":    {"owner", "admin", "accountant", "ceo", "viewer"},
     # MARSOUD-PURCHASE-ORDERS-01 — six-permission surface for the PO
     # → approval → GRN → convert-to-bill flow. `request` is broad on
     # purpose (any employee can flag "I need to buy X"); every

@@ -1,7 +1,7 @@
 """Double-entry posting service. Every accounting event flows through here."""
 from datetime import date, datetime
 from app import db
-from app.models import JournalEntry, JournalLine, Account
+from app.models import JournalEntry, JournalLine, Account, CostCenter
 from app.services.numbering import next_number
 
 
@@ -85,6 +85,16 @@ def post_journal(
         credit = float(line.get("credit") or 0)
         if debit > 0 and credit > 0:
             raise LedgerError("لا يمكن أن يكون السطر مدين ودائن في نفس الوقت")
+        # MARSOUD-COST-CENTERS-01 — optional classifier. Cross-tenant
+        # ids are refused here, same discipline as the account guard
+        # above. NULL means "unclassified" (every legacy row).
+        cc_id = line.get("cost_center_id") or None
+        if cc_id:
+            cc = db.session.get(CostCenter, int(cc_id))
+            if not cc or cc.company_id != company_id:
+                raise LedgerError(
+                    "مركز التكلفة غير موجود أو لا ينتمي للشركة")
+            cc_id = cc.id
         jl = JournalLine(
             entry_id=entry.id,
             account_id=acc.id,
@@ -93,6 +103,7 @@ def post_journal(
             debit_base=debit * float(exchange_rate),
             credit_base=credit * float(exchange_rate),
             memo=line.get("memo"),
+            cost_center_id=cc_id,
         )
         db.session.add(jl)
 
@@ -175,6 +186,10 @@ def reverse_journal(entry_id, created_by=None, *,
             "debit": float(l.credit),
             "credit": float(l.debit),
             "memo": l.memo,
+            # MARSOUD-COST-CENTERS-01 — inherit the classifier so the
+            # cost-center report doesn't count the original but ignore
+            # its reversal (ticket §12 edge case).
+            "cost_center_id": l.cost_center_id,
         }
         for l in original.lines
     ]
@@ -203,6 +218,7 @@ def reverse_journal(entry_id, created_by=None, *,
             debit_base=line["debit"] * float(original.exchange_rate),
             credit_base=line["credit"] * float(original.exchange_rate),
             memo=line["memo"],
+            cost_center_id=line.get("cost_center_id"),
         )
         db.session.add(jl)
 

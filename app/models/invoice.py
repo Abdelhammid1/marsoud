@@ -203,6 +203,14 @@ class InvoiceItem(db.Model):
     unit_id = db.Column(db.Integer, db.ForeignKey("product_units.id"))
     base_quantity = db.Column(db.Numeric(15, 4))
 
+    # MARSOUD-COST-CENTERS-01 — dimension stored on the item so a
+    # future refactor of `post_invoice_to_ledger` (which today emits
+    # ONE aggregate revenue credit) can split per cost center. Not
+    # threaded into the current JE this ticket.
+    cost_center_id = db.Column(
+        db.Integer, db.ForeignKey("cost_centers.id"),
+        nullable=True, index=True)
+
     # MARSOUD-DUAL-UOM-WEIGHT-01 pt 2 (Abdelhamid 2026-07-25) — for
     # products with tracks_piece_count=True (gold, silver, meat…),
     # this records how many DISCRETE pieces the customer took. The

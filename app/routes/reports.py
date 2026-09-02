@@ -52,6 +52,96 @@ def income():
     return render_template("reports/income_statement.html", data=data, start=start, end=end)
 
 
+@bp.route("/cost-centers")
+@login_required
+def cost_centers_report():
+    """MARSOUD-COST-CENTERS-01 — الأرباح والخسائر حسب مركز التكلفة.
+
+    Groups movement by CostCenter across the period. Surfaces an
+    "غير مُصنّف" figure so operators know what fraction of the ledger
+    is still untagged.
+    """
+    from app.services.permissions import has_permission
+    if not has_permission("cost_centers.view"):
+        return redirect(url_for("reports.index"))
+    if not g.active_company:
+        return redirect(url_for("companies.new"))
+    from app.models import (
+        JournalLine, JournalEntry, Account, AccountType, CostCenter,
+    )
+    today = date.today()
+    start = _parse_date(request.args.get("start_date"),
+                         today.replace(day=1))
+    end = _parse_date(request.args.get("end_date"), today)
+    cid = g.active_company.id
+
+    # Rows that ARE tagged with a cost center.
+    tagged = (
+        db.session.query(JournalLine, Account, CostCenter)
+        .join(JournalEntry, JournalLine.entry_id == JournalEntry.id)
+        .join(Account, JournalLine.account_id == Account.id)
+        .join(CostCenter, JournalLine.cost_center_id == CostCenter.id)
+        .filter(JournalEntry.company_id == cid,
+                JournalEntry.date >= start,
+                JournalEntry.date <= end,
+                JournalEntry.is_active.is_(True))
+        .all()
+    )
+    agg = {}
+    classified_expense = 0.0
+    for line, acc, cc in tagged:
+        row = agg.setdefault(cc.id, {
+            "code": cc.code,
+            "name": cc.name_ar or cc.name,
+            "expense": 0.0, "revenue": 0.0,
+        })
+        if acc.type == AccountType.EXPENSE:
+            v = float(line.debit or 0) - float(line.credit or 0)
+            row["expense"] += v
+            classified_expense += v
+        elif acc.type == AccountType.REVENUE:
+            row["revenue"] += (float(line.credit or 0)
+                                - float(line.debit or 0))
+    rows_out = []
+    for r in agg.values():
+        r["net"] = r["revenue"] - r["expense"]
+        rows_out.append(r)
+    rows_out.sort(key=lambda r: -r["expense"])
+
+    # Company-wide total expense in the same period — for the
+    # "غير مُصنّف" gap banner.
+    from sqlalchemy import func
+    total_expense_row = (
+        db.session.query(
+            func.coalesce(
+                func.sum(JournalLine.debit) - func.sum(JournalLine.credit),
+                0))
+        .join(JournalEntry, JournalLine.entry_id == JournalEntry.id)
+        .join(Account, JournalLine.account_id == Account.id)
+        .filter(JournalEntry.company_id == cid,
+                JournalEntry.date >= start,
+                JournalEntry.date <= end,
+                JournalEntry.is_active.is_(True),
+                Account.type == AccountType.EXPENSE)
+        .scalar()
+    )
+    total_expense = float(total_expense_row or 0)
+    unclassified = round(total_expense - classified_expense, 2)
+
+    totals = {
+        "expense": round(sum(r["expense"] for r in rows_out), 2),
+        "revenue": round(sum(r["revenue"] for r in rows_out), 2),
+        "net": round(sum(r["net"] for r in rows_out), 2),
+        "total_company_expense": round(total_expense, 2),
+        "unclassified": unclassified,
+    }
+    return render_template(
+        "reports/cost_centers.html",
+        rows=rows_out, totals=totals,
+        start_date=start, end_date=end,
+    )
+
+
 @bp.route("/trial-balance")
 @login_required
 @require_permission("reports.view")
