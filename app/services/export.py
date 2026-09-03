@@ -898,6 +898,117 @@ def _export_payslip_pdf_legacy(employee, line, run):
     return buf
 
 
+# ─── MARSOUD-TKT-HR-DECISIONS-03-PRINTABLE-FORM ────────────────────
+# Official signed-document PDF for an HR decision (promotion, warning,
+# penalty, bonus, termination, etc.). Clones export_payslip_pdf's
+# WeasyPrint-first + ReportLab legacy pattern verbatim so a host
+# without libpango still hands the manager a printable document.
+_HR_KIND_LABEL_AR = {
+    "APPOINTMENT": "قرار تعيين",
+    "PROMOTION":   "قرار ترقية",
+    "TRANSFER":    "قرار نقل",
+    "WARNING":     "إنذار كتابي",
+    "PENALTY":     "قرار جزاء مالي",
+    "BONUS":       "قرار مكافأة مالية",
+    "TERMINATION": "قرار إنهاء خدمة",
+}
+
+
+def export_hr_decision_pdf(decision):
+    """Return a BytesIO carrying the official PDF for one HR decision.
+    Mirrors export_payslip_pdf exactly — WeasyPrint primary, ReportLab
+    fallback on any exception. HrDecision has no .company relationship
+    of its own, so we resolve the company through
+    decision.employee.company (Employee.company already exists).
+    """
+    from datetime import datetime as _dt
+    employee = decision.employee
+    company = employee.company
+    try:
+        return _weasyprint_render(
+            "pdfs/hr_decision.html",
+            decision=decision, employee=employee, company=company,
+            company_logo_data_uri=_company_logo_data_uri(company),
+            kind_label=_HR_KIND_LABEL_AR.get(
+                decision.kind, "قرار إداري"),
+            is_financial=decision.kind in ("BONUS", "PENALTY"),
+            is_draft=(decision.status == "DRAFT"),
+            printed_at=_dt.utcnow(),
+        )
+    except Exception as e:
+        _export_logger.warning(
+            "[PDF-FALLBACK] HR decision #%s for %s: WeasyPrint "
+            "failed (%s: %s) — rendering the ReportLab layout "
+            "instead.", decision.id, employee.name,
+            type(e).__name__, str(e)[:200],
+        )
+        return _export_hr_decision_pdf_legacy(decision)
+
+
+def _export_hr_decision_pdf_legacy(decision):
+    """ReportLab fallback for hosts without libpango. Bare-bones —
+    same brand header as the legacy payslip so the two documents
+    look like siblings even in fallback mode. Never called directly;
+    invoked ONLY when the WeasyPrint path in export_hr_decision_pdf
+    raises."""
+    employee = decision.employee
+    company = employee.company
+    buf = io.BytesIO()
+    p = canvas.Canvas(buf, pagesize=A4)
+    _pdf_header(
+        p, company,
+        f"HR Decision — {decision.kind} #{decision.id}",
+        f"Employee: {employee.name}",
+    )
+    y = 24.5 * cm
+    p.setFillColor(colors.HexColor("#0A2540"))
+    p.setFont(_FONT_BOLD, 13)
+    p.drawRightString(
+        20 * cm, y,
+        ar(_HR_KIND_LABEL_AR.get(decision.kind, "قرار إداري")))
+    y -= 1.2 * cm
+    if decision.status == "DRAFT":
+        p.setFont(_FONT_BOLD, 10)
+        p.setFillColor(colors.HexColor("#B45309"))
+        p.drawRightString(20 * cm, y,
+            ar("مسودة — لم يُعتمد بعد"))
+        p.setFillColor(colors.HexColor("#0A2540"))
+        y -= 0.8 * cm
+    rows = [
+        ("اسم الموظف", employee.name),
+        ("تاريخ السريان",
+         decision.effective_date.isoformat()
+         if decision.effective_date else "—"),
+        ("الحالة", decision.status_ar),
+        ("العنوان", decision.title or "—"),
+        ("السبب / النص", (decision.body or "—")[:400]),
+    ]
+    if decision.kind in ("BONUS", "PENALTY") and decision.amount:
+        rows.append((
+            "المبلغ",
+            f"{float(decision.amount):.2f} "
+            f"{company.base_currency or ''}",
+        ))
+    for k, v in rows:
+        p.setFont(_FONT_BOLD, 10)
+        p.drawRightString(19 * cm, y, ar(k) + ":")
+        p.setFont(_FONT_REGULAR, 10)
+        p.drawRightString(15 * cm, y, ar(str(v)))
+        y -= 0.7 * cm
+    # Signature lines at the bottom.
+    y = 4 * cm
+    p.setFont(_FONT_REGULAR, 9)
+    p.setFillColor(colors.HexColor("#94A3B8"))
+    p.line(11 * cm, y, 19 * cm, y)
+    p.drawRightString(19 * cm, y - 0.4 * cm,
+                       ar("توقيع المسؤول"))
+    p.line(2 * cm, y, 10 * cm, y)
+    p.drawRightString(10 * cm, y - 0.4 * cm,
+                       ar("توقيع الموظف (استلام نسخة)"))
+    p.showPage(); p.save(); buf.seek(0)
+    return buf
+
+
 def export_journal_entry_pdf(entry):
     """Single journal entry PDF (MARSOUD-TKT-PDFS-01-JOURNAL, 2026-08-29).
 

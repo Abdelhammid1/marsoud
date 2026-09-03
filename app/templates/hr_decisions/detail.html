@@ -13,7 +13,17 @@
       <span class="badge {% if dec.status == 'EXECUTED' %}badge-paid{% elif dec.status == 'CANCELLED' %}badge-cancelled{% else %}badge-draft{% endif %}">{{ dec.status_ar }}</span>
     </div>
   </div>
-  <a href="{{ url_for('hr_decisions.index') }}" class="btn-secondary text-sm">← عودة</a>
+  {# MARSOUD-TKT-HR-DECISIONS-03-PRINTABLE-FORM — the official PDF
+     button is visible on ALL statuses (DRAFT / PENDING_PAYROLL /
+     EXECUTED / CANCELLED). The PDF itself renders a "مسودة" banner
+     for DRAFT so nobody signs an un-approved decision. #}
+  <div class="flex gap-2">
+    <a href="{{ url_for('hr_decisions.pdf', dec_id=dec.id) }}"
+       target="_blank" class="btn-secondary text-sm">
+      🖨 طباعة / تصدير PDF
+    </a>
+    <a href="{{ url_for('hr_decisions.index') }}" class="btn-secondary text-sm">← عودة</a>
+  </div>
 </div>
 
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">

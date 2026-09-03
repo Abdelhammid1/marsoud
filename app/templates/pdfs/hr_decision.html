@@ -1,0 +1,170 @@
+{# MARSOUD-TKT-HR-DECISIONS-03-PRINTABLE-FORM — official HR decision
+   document. Clone of pdfs/payslip.html's standalone shape (NOT the
+   _shell.html inheritance path) so the two documents feel like they
+   belong to the same shop.
+
+   Context vars (all supplied by services/export.py::
+   export_hr_decision_pdf):
+     decision  — the HrDecision row
+     employee  — decision.employee (relationship)
+     company   — employee.company (HrDecision has no direct one)
+     company_logo_data_uri — inline data: URI or None
+     kind_label — Arabic title ("قرار جزاء مالي" etc.)
+     is_financial — bool, BONUS / PENALTY branch
+     is_draft     — bool, watermark banner branch
+     printed_at   — datetime.utcnow() at render time
+     amiri_font_face — injected by _weasyprint_render
+#}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>HR Decision {{ decision.id }} — {{ employee.name }}</title>
+{{ amiri_font_face|safe }}
+<style>
+@page { size: A4; margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; }
+body { font-family: 'Amiri', 'Segoe UI', Tahoma, sans-serif; direction: rtl; background: #fff; color: #0A2540; }
+.page { width: 100%; height: 297mm; position: relative; overflow: hidden; }
+.pad { position: relative; z-index: 1; padding: 50px 56px; }
+
+.brand-row { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+.logo-box { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 20px; overflow: hidden; flex-shrink: 0; }
+.logo-box.fallback { background: #0A2540; }
+.logo-box img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.brand-name { font-size: 24px; font-weight: 800; color: #0A2540; }
+.doc-title { font-size: 26px; font-weight: 800; color: #059669; margin-bottom: 6px; text-align: center; }
+.doc-sub { font-size: 12px; color: #64748B; margin-bottom: 24px; text-align: center; }
+.rule { height: 2px; background: #0A2540; margin-bottom: 20px; }
+
+/* MARSOUD-TKT-HR-DECISIONS-03 §7.1 — draft watermark banner. Amber
+   so nobody signs a decision that hasn't cleared execution. */
+.draft-banner { background: #FEF3C7; border: 1px solid #F59E0B; color: #92400E; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; text-align: center; margin-bottom: 18px; }
+
+.kv { width: 100%; font-size: 12.5px; border-collapse: collapse; margin-bottom: 20px; }
+.kv td { padding: 4px 0; }
+.kv td.k { font-weight: 600; width: 130px; }
+.kv td.c { width: 14px; }
+.kv td.v.mono { font-family: monospace; }
+
+.section-title { font-size: 15px; font-weight: 800; color: #0A2540; margin-bottom: 10px; }
+.body-block { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px 16px; font-size: 12.5px; color: #0F172A; margin-bottom: 22px; white-space: pre-wrap; line-height: 1.7; min-height: 60px; }
+
+.financial-box { background: #ECFDF5; border: 1px solid #10B981; border-radius: 8px; padding: 12px 14px; margin-bottom: 22px; }
+.financial-box .amt { font-size: 18px; font-weight: 800; color: #059669; font-family: monospace; margin-bottom: 4px; }
+.financial-box .meta { font-size: 11.5px; color: #065F46; }
+
+.signatures { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 48px; }
+.sig { text-align: center; width: 45%; }
+.sig .lbl { font-size: 11px; color: #64748B; margin-bottom: 30px; }
+.sig-line { border-top: 1px solid #94A3B8; padding-top: 6px; font-size: 10.5px; color: #94A3B8; }
+.sig-date { font-size: 10.5px; color: #94A3B8; margin-top: 4px; }
+
+.printed-at { position: absolute; bottom: 14px; left: 56px; right: 56px; font-size: 10px; color: #94A3B8; text-align: center; }
+</style>
+</head>
+<body>
+<div class="page">
+  <svg style="position:absolute;top:0;left:0" width="70" height="70" viewBox="0 0 70 70"><polygon points="0,0 70,0 0,70" fill="#059669"/></svg>
+  <svg style="position:absolute;bottom:0;right:0" width="70" height="70" viewBox="0 0 70 70"><polygon points="70,70 0,70 70,0" fill="#059669"/></svg>
+  <div class="pad">
+
+    {# ─── BRAND / TITLE ────────────────────────────────────── #}
+    <div class="brand-row">
+      <div class="logo-box{% if not company_logo_data_uri %} fallback{% endif %}">{% if company_logo_data_uri %}<img src="{{ company_logo_data_uri }}">{% else %}{{ company.name[:1] }}{% endif %}</div>
+      <div class="brand-name">{{ company.name }}</div>
+    </div>
+    <div class="doc-title">{{ kind_label }}</div>
+    <div class="doc-sub">
+      رقم: {{ decision.reference or ('#' ~ decision.id) }}
+      · تاريخ الإصدار: {{ decision.created_at.date().isoformat() if decision.created_at else '—' }}
+    </div>
+    <div class="rule"></div>
+
+    {# ─── DRAFT WATERMARK ─────────────────────────────────── #}
+    {% if is_draft %}
+    <div class="draft-banner">
+      ⚠️ مسودة — لم يُعتمد بعد. لا يجوز التوقيع على هذا القرار قبل التنفيذ الرسمي.
+    </div>
+    {% endif %}
+
+    {# ─── EMPLOYEE ─────────────────────────────────────────── #}
+    <div class="section-title">بيانات الموظف</div>
+    <table class="kv">
+      <tr><td class="k">الاسم</td><td class="c">:</td><td class="v">{{ employee.name }}</td></tr>
+      <tr><td class="k">الرقم الوظيفي</td><td class="c">:</td><td class="v mono">{{ employee.employee_number or '—' }}</td></tr>
+      <tr><td class="k">القسم</td><td class="c">:</td><td class="v">{{ employee.department.name if employee.department else '—' }}</td></tr>
+      <tr><td class="k">الوظيفة</td><td class="c">:</td><td class="v">{{ employee.job_title or '—' }}</td></tr>
+    </table>
+
+    {# ─── DECISION ─────────────────────────────────────────── #}
+    <div class="section-title">تفاصيل القرار</div>
+    <table class="kv">
+      <tr><td class="k">نوع القرار</td><td class="c">:</td><td class="v">{{ kind_label }}</td></tr>
+      <tr><td class="k">العنوان</td><td class="c">:</td><td class="v">{{ decision.title or '—' }}</td></tr>
+      <tr><td class="k">تاريخ السريان</td><td class="c">:</td><td class="v mono">{{ decision.effective_date.isoformat() if decision.effective_date else '—' }}</td></tr>
+      <tr><td class="k">الحالة</td><td class="c">:</td><td class="v">{{ decision.status_ar }}</td></tr>
+      {% if decision.reference %}
+      <tr><td class="k">المرجع</td><td class="c">:</td><td class="v">{{ decision.reference }}</td></tr>
+      {% endif %}
+    </table>
+
+    <div class="section-title">السبب / نص القرار</div>
+    <div class="body-block">{{ decision.body or '—' }}</div>
+
+    {# ─── FINANCIAL ADDENDUM ──────────────────────────────── #}
+    {% if is_financial and decision.amount %}
+    <div class="financial-box">
+      <div class="amt">
+        {{ "%.2f"|format(decision.amount|float) }}
+        {{ company.base_currency|currency_ar if company.base_currency else '' }}
+      </div>
+      <div class="meta">
+        التوقيت:
+        {% if decision.timing == 'NEXT_PAYROLL' %}الراتب القادم
+        {% else %}فوري{% endif %}
+        {# MARSOUD-TKT-HR-DECISIONS-03 §7.2 — no fake JE # for a
+           decision that hasn't produced one yet. #}
+        {% if decision.journal_entry_id %}
+          · رقم القيد: #{{ decision.journal_entry_id }}
+        {% elif decision.payroll_run_id %}
+          {# CC02 back-link — the decision was folded into a
+             run whose number we render if available. #}
+          · مطوي في كشف الراتب
+          {% if decision.payroll_run and decision.payroll_run.number %}
+            رقم {{ decision.payroll_run.number }}
+          {% else %}
+            رقم #{{ decision.payroll_run_id }}
+          {% endif %}
+        {% elif decision.status == 'PENDING_PAYROLL' %}
+          · سيُطوى في كشف الراتب القادم
+        {% elif decision.status == 'DRAFT' %}
+          · لم يُنفَّذ بعد
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# ─── SIGNATURES ───────────────────────────────────────── #}
+    <div class="signatures">
+      <div class="sig">
+        <div class="lbl">توقيع المسؤول</div>
+        <div class="sig-line">التوقيع</div>
+        <div class="sig-date">التاريخ: __ / __ / ______</div>
+      </div>
+      <div class="sig">
+        <div class="lbl">توقيع الموظف (استلام نسخة)</div>
+        <div class="sig-line">التوقيع</div>
+        <div class="sig-date">التاريخ: __ / __ / ______</div>
+      </div>
+    </div>
+
+    <div class="printed-at">
+      تاريخ الطباعة: {{ printed_at.isoformat(sep=' ', timespec='minutes') }} UTC
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

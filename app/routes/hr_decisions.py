@@ -148,6 +148,29 @@ def detail(dec_id):
     return render_template("hr_decisions/detail.html", dec=dec)
 
 
+# ─── MARSOUD-TKT-HR-DECISIONS-03-PRINTABLE-FORM ────────────────────
+# Official PDF document a manager can hand the employee to sign.
+# Same permission gate as detail() — if you can see the row you can
+# print it, matching how invoice PDFs behave elsewhere. Reuses
+# _load_decision_or_404 for the tenancy guard so cross-tenant ids
+# 404 exactly the same way the detail view does.
+@bp.route("/<int:dec_id>/pdf")
+@login_required
+@require_permission("payroll.view")
+def pdf(dec_id):
+    dec = _load_decision_or_404(dec_id)
+    from app.services.export import export_hr_decision_pdf
+    from flask import send_file
+    buf = export_hr_decision_pdf(dec)
+    return send_file(
+        buf, mimetype="application/pdf", as_attachment=False,
+        # ASCII-only filename — Content-Disposition mangles non-ASCII
+        # in some browsers. The document TITLE inside the PDF carries
+        # the employee name in Arabic, so nothing is lost.
+        download_name=f"hr-decision-{dec.id}.pdf",
+    )
+
+
 # ─── Execute ────────────────────────────────────────────────────
 @bp.route("/<int:dec_id>/execute", methods=["POST"])
 @login_required
