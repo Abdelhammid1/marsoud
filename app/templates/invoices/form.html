@@ -91,6 +91,12 @@
         <th>السعر</th>
         <th>الخصم</th>
         <th class="text-left">الصافي</th>
+        {# MARSOUD-COST-CENTERS-03-REVENUE-SPLIT — CC per item so
+           post_invoice_to_ledger can split the revenue credit per
+           bucket. Placed AFTER "الصافي" so all colspans grow by a
+           single trailing empty <td> instead of re-indexing every
+           footer row. #}
+        <th>مركز التكلفة</th>
         <th></th>
       </tr></thead>
       <tbody id="items-body"></tbody>
@@ -98,7 +104,11 @@
         {# MARSOUD-TKT-INVOICE-ITEMS-NUMBERED-QUOTE — colspans bumped
            by 1 to account for the new leading # column (thead + row
            cells both grew from 6 → 7 cells). #}
-        <tr><td colspan="5" class="text-left font-semibold py-2">إجمالي البنود</td><td class="text-left font-mono" id="items-total">0.00</td><td></td></tr>
+        {# MARSOUD-COST-CENTERS-03-REVENUE-SPLIT — table now has 8
+           columns (added "مركز التكلفة" between "الصافي" and the
+           trailing action column). Every footer row grows by one
+           trailing empty <td> to keep the total column aligned. #}
+        <tr><td colspan="5" class="text-left font-semibold py-2">إجمالي البنود</td><td class="text-left font-mono" id="items-total">0.00</td><td></td><td></td></tr>
         <tr>
           <td colspan="3" class="text-left font-semibold py-2 text-amber-700">خصم على الفاتورة</td>
           <td>
@@ -111,10 +121,11 @@
           <td><input type="number" name="invoice_discount_value" step="0.01" value="{{ invoice.invoice_discount_value if invoice else 0 }}" class="input text-sm font-mono" oninput="calcTotals()"></td>
           <td class="text-left font-mono text-amber-600" id="invoice-discount-amt">0.00</td>
           <td></td>
+          <td></td>
         </tr>
-        <tr><td colspan="5" class="text-left py-2">الوعاء الضريبي</td><td class="text-left font-mono" id="taxable-base">0.00</td><td></td></tr>
-        <tr><td colspan="5" class="text-left py-2">الضريبة</td><td class="text-left font-mono" id="tax">0.00</td><td></td></tr>
-        <tr class="border-t-2 border-navy-900"><td colspan="5" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold" id="total">0.00</td><td></td></tr>
+        <tr><td colspan="5" class="text-left py-2">الوعاء الضريبي</td><td class="text-left font-mono" id="taxable-base">0.00</td><td></td><td></td></tr>
+        <tr><td colspan="5" class="text-left py-2">الضريبة</td><td class="text-left font-mono" id="tax">0.00</td><td></td><td></td></tr>
+        <tr class="border-t-2 border-navy-900"><td colspan="5" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold" id="total">0.00</td><td></td><td></td></tr>
       </tfoot>
     </table>
     {# Add-band button moved out of the header, sits under the last row. #}
@@ -218,6 +229,16 @@
 
 <script>
 let products = [];
+// MARSOUD-COST-CENTERS-03-REVENUE-SPLIT — same shape as
+// journals/form.html:82 + vendor_bills/new_typed.html. Empty array
+// means the tenant has no active CCs, so every row will just show
+// "— بدون —".
+const costCentersData = [
+  {% for cc in cost_centers or [] %}
+    {id:{{cc.id}},code:"{{cc.code|e}}",name:"{{(cc.name_ar or cc.name)|e}}"}
+    {%- if not loop.last %},{% endif %}
+  {% endfor %}
+];
 const existingItems = [
   {% if invoice %}
     {% for i in invoice.items %}
@@ -229,6 +250,9 @@ const existingItems = [
       unit_id: {{ i.unit_id or 'null' }},
       discount_type: "{{ i.discount_type.value if i.discount_type else 'NONE' }}",
       discount_value: {{ i.discount_value | float }},
+      // MARSOUD-COST-CENTERS-03-REVENUE-SPLIT — preserve the item's
+      // CC across DRAFT edits so a saved bucket doesn't reset.
+      cost_center_id: {{ i.cost_center_id or 'null' }},
     }{% if not loop.last %},{% endif %}
     {% endfor %}
   {% endif %}
@@ -279,6 +303,18 @@ function addItem(prefill) {
       </div>
     </td>
     <td class="text-left font-mono line-total">0.00</td>
+    {# MARSOUD-COST-CENTERS-03-REVENUE-SPLIT — one dropdown per item.
+       "— بدون —" default lands in the unclassified bucket; a picked
+       CC sends this line's share of the split revenue credit into
+       that bucket when the invoice posts. #}
+    <td>
+      <select name="item_cost_center_id[]" class="select text-sm" style="min-width:11rem">
+        <option value="">— بدون —</option>
+        ${costCentersData.map(cc =>
+          `<option value="${cc.id}"${prefill?.cost_center_id == cc.id ? ' selected' : ''}>${cc.code} — ${escapeHtml(cc.name)}</option>`
+        ).join('')}
+      </select>
+    </td>
     <td><button type="button" onclick="this.closest('tr').remove(); renumberRows(); calcTotals()" class="text-red-500">×</button></td>
   `;
   tbody.appendChild(tr);
@@ -380,6 +416,10 @@ function escapeAttr(s) { return escapeHtml(s); }
       description: i.description, quantity: i.quantity, unit_price: i.unit_price,
       product_id: i.product_id, discount_type: (i.discount_type && i.discount_type.value) || 'NONE',
       discount_value: i.discount_value,
+      // MARSOUD-COST-CENTERS-03-REVENUE-SPLIT — carry the saved
+      // CC through so a DRAFT edit doesn't reset every row to
+      // "— بدون —".
+      cost_center_id: i.cost_center_id,
     }));
   } else {
     addItem();

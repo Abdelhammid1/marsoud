@@ -2,7 +2,10 @@ from datetime import datetime, date, timedelta
 from flask import Blueprint, render_template, redirect, url_for, flash, request, g, send_file
 from flask_login import login_required, current_user
 from app import db
-from app.models import Invoice, InvoiceItem, InvoiceStatus, Customer, Payment, Product, PaymentMethod, DiscountType
+from app.models import (
+    Invoice, InvoiceItem, InvoiceStatus, Customer, Payment, Product,
+    PaymentMethod, DiscountType, CostCenter,
+)
 from app.models.refund import RefundType
 from app.services.invoicing import (
     post_invoice_to_ledger, record_payment, issue_refund,
@@ -17,6 +20,35 @@ bp = Blueprint("invoices", __name__)
 
 def _next_number(company_id):
     return next_number(company_id, "INVOICE")
+
+
+# MARSOUD-COST-CENTERS-03-REVENUE-SPLIT (2026-09-03) — same helpers
+# shipped by MARSOUD-COST-CENTERS-02 on the vendor-bills side. Kept
+# module-local per the codebase's per-file style so the two write
+# paths never lock-step across releases.
+def _company_cost_centers(company_id):
+    return (CostCenter.query
+            .filter_by(company_id=company_id, is_active=True)
+            .filter(CostCenter.deleted_at.is_(None))
+            .order_by(CostCenter.code).all())
+
+
+def _pick_cc_at(lst, i, valid_cc_ids):
+    """Coerce the i-th form entry to a validated CC id: int only when
+    the id is a known active CC in this company, otherwise None.
+    Blank / stray / cross-tenant ids collapse to None so a fat-finger
+    never blocks the save. Belt: post_journal at ledger.py:91-97 is
+    the second line of defence."""
+    if i >= len(lst):
+        return None
+    raw = (lst[i] or "").strip()
+    if not raw:
+        return None
+    try:
+        cid = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return cid if cid in valid_cc_ids else None
 
 
 def _safe_float(raw, default=0):
@@ -166,6 +198,11 @@ def _populate_invoice_from_form(invoice, form):
     disc_values = form.getlist("item_discount_value[]")
     # MARSOUD-UNIT-CONVERSION-01 — unit picker on each row.
     unit_ids = form.getlist("item_unit_id[]")
+    # MARSOUD-COST-CENTERS-03-REVENUE-SPLIT — optional CC per item.
+    # Whitelist built once so a wide invoice = one query, not N.
+    cost_center_ids = form.getlist("item_cost_center_id[]")
+    _valid_cc_ids = {cc.id for cc
+                     in _company_cost_centers(invoice.company_id)}
 
     for i, desc in enumerate(descriptions):
         if not (desc or "").strip():
@@ -193,6 +230,12 @@ def _populate_invoice_from_form(invoice, form):
             discount_value=_safe_float(
                 disc_values[i] if i < len(disc_values) else None, 0),
             unit_id=uid,
+            # MARSOUD-COST-CENTERS-03-REVENUE-SPLIT — optional CC
+            # per line. NULL keeps the item in the "unclassified"
+            # bucket; a valid id sends the split of the revenue
+            # credit into that bucket when the invoice posts.
+            cost_center_id=_pick_cc_at(cost_center_ids, i,
+                                        _valid_cc_ids),
         )
         db.session.add(item)
     db.session.flush()
@@ -262,7 +305,10 @@ def new():
             flash(f"خطأ: {e}", "error")
 
     return render_template("invoices/form.html", customers=customers,
-                             invoice=None, reps=reps)
+                             invoice=None, reps=reps,
+                             # MARSOUD-COST-CENTERS-03-REVENUE-SPLIT
+                             cost_centers=_company_cost_centers(
+                                 g.active_company.id))
 
 
 @bp.route("/<int:invoice_id>/edit", methods=["GET", "POST"])
@@ -292,7 +338,10 @@ def edit(invoice_id):
             flash(f"خطأ: {e}", "error")
 
     return render_template("invoices/form.html", customers=customers,
-                             invoice=invoice, reps=reps)
+                             invoice=invoice, reps=reps,
+                             # MARSOUD-COST-CENTERS-03-REVENUE-SPLIT
+                             cost_centers=_company_cost_centers(
+                                 g.active_company.id))
 
 
 # ─── MARSOUD-CURRENCY-TAX-DEFAULTS (Batch 8 Ticket 4c, 2026-07-30) ──

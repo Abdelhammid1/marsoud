@@ -16,8 +16,69 @@ def send_invoice_notification(invoice):
         return False
 
 
+def _revenue_lines_by_cost_center(invoice, revenue_account_id):
+    """MARSOUD-COST-CENTERS-03-REVENUE-SPLIT (2026-09-03) — split the
+    single aggregate revenue credit into one line per distinct
+    InvoiceItem.cost_center_id bucket. Weight by item.line_total
+    (post-line-discount, pre-invoice-discount — matches subtotal
+    exactly). The last bucket in insertion order absorbs the rounding
+    residue so Σ bucket_credits == float(taxable_base) TO THE CENT,
+    matching what post_journal expects for AR = Σ Revenue + VAT.
+
+    Zero-behaviour-change guarantee: when every item.cost_center_id
+    is None (every historic invoice + every POS invoice today), the
+    grouping collapses to one bucket → one credit line, byte-
+    identical to the pre-ticket shape.
+
+    Two revenue lines with the same (account, cost_center_id) are
+    never emitted — items sharing a CC accumulate into one bucket by
+    the dict.
+    """
+    revenue_credit = float(invoice.taxable_base
+                            if invoice.taxable_base
+                            else invoice.subtotal)
+    # cost_center_id (int or None) -> Σ line_total. Iteration order
+    # is invoice.items order, i.e. deterministic.
+    groups = {}
+    for item in invoice.items:
+        key = item.cost_center_id
+        groups[key] = groups.get(key, 0.0) + float(item.line_total or 0)
+    if not groups:
+        # Defensive — invoice.recalc runs first so items_total > 0
+        # normally, but a caller could hand us an empty invoice.
+        return [{
+            "account_id": revenue_account_id, "debit": 0,
+            "credit": revenue_credit,
+            "memo": "إيراد (صافي بعد الخصم)",
+            "cost_center_id": None,
+        }]
+    items_total = sum(groups.values()) or 1.0
+    lines = []
+    running = 0.0
+    keys = list(groups.keys())
+    for i, cc_id in enumerate(keys):
+        if i < len(keys) - 1:
+            val = round(revenue_credit * groups[cc_id]
+                        / items_total, 2)
+            running += val
+        else:
+            # Last bucket carries the rounding residue so the
+            # invariant Σ credits == taxable_base holds exactly.
+            val = round(revenue_credit - running, 2)
+        lines.append({
+            "account_id": revenue_account_id, "debit": 0,
+            "credit": val,
+            "memo": "إيراد (صافي بعد الخصم)",
+            "cost_center_id": cc_id,
+        })
+    return lines
+
+
 def post_invoice_to_ledger(invoice, created_by=None):
-    """Dr Accounts Receivable / Cr Revenue + Cr VAT Payable."""
+    """Dr Accounts Receivable / Cr Revenue (split per cost center)
+    + Cr VAT Payable. See _revenue_lines_by_cost_center for the
+    split logic; VAT + AR stay aggregate.
+    """
     # MARSOUD-COA-REBUILD — AR debit lands on the customer's own
     # sub-account (auto-created the first time we need it) rather than
     # the parent header. Without this we'd trip post_journal's
@@ -29,13 +90,15 @@ def post_invoice_to_ledger(invoice, created_by=None):
     if not ar or not revenue:
         raise LedgerError("شجرة الحسابات الافتراضية ناقصة (1130 / 4100)")
 
-    # Revenue is credited at the taxable_base (subtotal AFTER invoice-level discount).
-    # This keeps the journal balanced: Dr AR (total) = Cr Revenue (net) + Cr VAT (tax).
-    revenue_credit = float(invoice.taxable_base if invoice.taxable_base else invoice.subtotal)
+    # MARSOUD-COST-CENTERS-03-REVENUE-SPLIT — the AR debit stays
+    # aggregate; revenue splits per CC bucket via the helper.
     lines = [
-        {"account_id": ar.id, "debit": float(invoice.total), "credit": 0, "memo": f"فاتورة {invoice.number}"},
-        {"account_id": revenue.id, "debit": 0, "credit": revenue_credit, "memo": "إيراد (صافي بعد الخصم)"},
+        {"account_id": ar.id, "debit": float(invoice.total),
+         "credit": 0, "memo": f"فاتورة {invoice.number}"},
     ]
+    lines.extend(
+        _revenue_lines_by_cost_center(invoice, revenue.id))
+
     if float(invoice.tax_amount or 0) > 0.001 and vat_payable:
         lines.append({
             "account_id": vat_payable.id,
