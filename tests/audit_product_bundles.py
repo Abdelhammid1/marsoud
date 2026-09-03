@@ -410,6 +410,69 @@ def _():
             pass
 
 
+@check("8. POS index() surfaces bundles despite is_tracked=False "
+        "(MARSOUD-PRODUCT-BUNDLES-02-POS-VISIBILITY)")
+def _():
+    """Regression for the POS visibility gap: bundles have
+    is_tracked=False by design, and the pre-fix `filter_by(is_tracked
+    =True)` in app/routes/pos.py:index() hid them completely from
+    the cashier's product grid — cashiers could only reach them by
+    typing a SKU. This check drives index() with a bundle in the
+    fixture and asserts it appears in the rendered products list."""
+    from app import create_app, db
+    from app.models import User
+    from flask_login import login_user
+    app = create_app()
+    with app.app_context():
+        email, cid, oid = _boot("PB8")
+        try:
+            # One tracked normal product + one bundle → both should
+            # show. Bundle has is_tracked=False by construction.
+            _make_product_with_variant(
+                cid, name="منتج عادي", price=10)
+            bundle_p, bundle_v = _make_product_with_variant(
+                cid, name="باقة سلطة", price=30, is_bundle=True)
+            db.session.commit()
+            assert bundle_p.is_tracked is False, (
+                "test bundle must be untracked to exercise the bug")
+            # Log in the owner via test-client session — index() is
+            # gated by @login_required + @require_permission("pos.use").
+            client = app.test_client()
+            with client.session_transaction() as sess:
+                sess["_user_id"] = str(oid)
+                sess["_fresh"] = True
+                sess["active_company_id"] = cid
+            r = client.get("/pos/")
+            # Either 200 (rendered) or a shift-open redirect (302 to
+            # /pos/shifts/open). We just need the query itself to
+            # include the bundle — so if it 302'd because of the
+            # shift gate, disable the shift requirement and retry.
+            if r.status_code == 302:
+                # Force-disable the shift gate for this tenant. The
+                # gate reads Company.pos_requires_shift; setting it
+                # False sidesteps the redirect entirely.
+                from app.models import Company
+                co = db.session.get(Company, cid)
+                if hasattr(co, "pos_requires_shift"):
+                    co.pos_requires_shift = False
+                    db.session.commit()
+                r = client.get("/pos/")
+            assert r.status_code == 200, (
+                f"POS index failed: {r.status_code} "
+                f"{r.get_data(as_text=True)[:200]}")
+            html = r.get_data(as_text=True)
+            # products_by_cat|tojson unicode-escapes Arabic so match
+            # on the ASCII SKU (unique per product) instead.
+            bundle_sku = f"SKU-{bundle_p.id}"
+            assert bundle_sku in html, (
+                f"bundle SKU {bundle_sku!r} missing from rendered "
+                "POS product grid — the is_tracked=True filter is "
+                "still shadowing bundles")
+            return f"bundle SKU {bundle_sku} rendered in POS grid"
+        finally:
+            pass
+
+
 def main():
     passed = failed = 0
     for label, fn in CHECKS:

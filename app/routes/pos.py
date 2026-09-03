@@ -62,10 +62,21 @@ def index():
     # Pre-compute per-category product cards so the picker renders
     # without additional queries. Only tracked products with an active
     # default variant show up (services can't be scanned).
+    # MARSOUD-PRODUCT-BUNDLES-02-POS-VISIBILITY (Abdelhamid 2026-09-03)
+    # — bundles carry is_tracked=False by design (no independent stock;
+    # their BundleComponent rows enumerate the real variants deducted
+    # at sale time). The pre-ticket filter said `is_tracked=True` only,
+    # so every bundle silently vanished from the register grid even
+    # though scanning one by SKU worked fine (barcode path skips this
+    # filter). Adding is_bundle=True as an alternative brings them
+    # back without letting untracked, non-bundle products (services,
+    # etc.) leak in.
+    from sqlalchemy import or_
     products_by_cat = {}
     tracked_q = Product.query.filter_by(
-        company_id=cid, is_active=True, is_tracked=True,
-    )
+        company_id=cid, is_active=True,
+    ).filter(or_(Product.is_tracked.is_(True),
+                  Product.is_bundle.is_(True)))
     _vis = product_visible_clause(cid, "pos")
     if _vis is not None:
         tracked_q = tracked_q.filter(_vis)
