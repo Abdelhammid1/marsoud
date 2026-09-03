@@ -4,8 +4,10 @@
 {% set is_inventory = kind == 'INVENTORY' %}
 {% set kind_label = 'مصروف' if is_expense else ('أصل ثابت' if is_asset else 'مخزون') %}
 {% set kind_icon = '🧾' if is_expense else ('🏗' if is_asset else '📦') %}
-{# Inventory has no account column, so its footer spans one cell less. #}
-{% set foot_colspan = 3 if is_inventory else 4 %}
+{# Inventory has no account column, so its footer spans one cell less.
+   MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE — expense/asset rows also
+   carry a cost-center dropdown, so their colspan gains one more. #}
+{% set foot_colspan = 3 if is_inventory else 5 %}
 {% block page_title %}فاتورة {{ kind_label }} جديدة{% endblock %}
 {% block content %}
 
@@ -106,6 +108,11 @@
       <thead><tr>
         <th style="width:{{ '40%' if is_inventory else '30%' }}">{{ 'الصنف والتفاصيل' if is_inventory else 'الوصف' }}</th>
         {% if not is_inventory %}<th>الحساب</th>{% endif %}
+        {# MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE — CC classifier
+           only shown when the line hits an expense/asset account
+           (inventory lines capitalise into stock, not into any
+           expense bucket the CC report reads from). #}
+        {% if not is_inventory %}<th>مركز التكلفة</th>{% endif %}
         <th>الكمية</th>
         <th>السعر</th>
         <th class="text-left">الإجمالي</th>
@@ -129,6 +136,16 @@
 
 <script>
 const LINE_TYPE = "{{ kind }}";
+// MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE — same shape journals/form.html
+// uses at line ~82. Seed once at render, template-string it into each new
+// row. Empty array means no active CCs configured → the dropdown will
+// show only the "— بدون —" option.
+const costCentersData = [
+  {% for cc in cost_centers or [] %}
+    {id:{{cc.id}},code:"{{cc.code|e}}",name:"{{(cc.name_ar or cc.name)|e}}"}
+    {%- if not loop.last %},{% endif %}
+  {% endfor %}
+];
 {% if not is_inventory %}
 let _accounts = null;
 async function loadAccounts() {
@@ -325,6 +342,14 @@ function addItem() {
     </td>
 {% if not is_inventory %}
     <td><select name="item_account_id[]" required class="select text-sm" style="min-width:14rem"><option value="">— اختر —</option></select></td>
+    {# MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE — one dropdown per
+       item, seeded from costCentersData. "— بدون —" is the default;
+       picking a CC classifies the expense-side JournalLine into that
+       bucket when the bill posts. #}
+    <td><select name="item_cost_center_id[]" class="select text-sm" style="min-width:11rem">
+      <option value="">— بدون —</option>
+      ${costCentersData.map(cc => `<option value="${cc.id}">${cc.code} — ${escapeHtml(cc.name)}</option>`).join('')}
+    </select></td>
 {% endif %}
     <td>
       <div class="flex gap-1 items-center">
@@ -450,6 +475,14 @@ async function applyRecurringPrefill() {
     await refreshAccountDropdown(tr);
     if (it.account_id) {
       tr.querySelector('select[name="item_account_id[]"]').value = String(it.account_id);
+    }
+    // MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE — the recurring source
+    // already carries cost_center_id (see _prefill_from_recurring at
+    // vendor_bills.py:647). Preselect it so a recurring monthly rent
+    // keeps its "Marketing" classification without user re-clicking.
+    if (it.cost_center_id) {
+      const ccSel = tr.querySelector('select[name="item_cost_center_id[]"]');
+      if (ccSel) ccSel.value = String(it.cost_center_id);
     }
 {% else %}
     await fillInventoryPickers(tr);

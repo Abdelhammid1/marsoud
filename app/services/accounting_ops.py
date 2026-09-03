@@ -56,6 +56,12 @@ FIELD_KINDS = frozenset({
     # direction_dr_cr    → 2-option select (مدين/دائن) — general adjustment
     # any_account        → picker over EVERY postable account in the tree
     "loan_kind", "direction_variance", "direction_dr_cr", "any_account",
+    # MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE (2026-09-03) — optional
+    # classifier for quick-op expense lines. Same source as
+    # journals/form.html; feeds the CC report the moment the wizard
+    # posts. Only wired into ops that touch an expense_account so
+    # inventory / financing / party ops stay unchanged.
+    "cost_center",
 })
 
 # Which chart-of-accounts root each account kind draws from.
@@ -395,6 +401,9 @@ SELECT_KINDS = frozenset({
     # kind that renders as a grouped <select>. loan_kind / direction_*
     # are fixed-choice enums, any_account walks the whole tree.
     "loan_kind", "direction_variance", "direction_dr_cr", "any_account",
+    # MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE (2026-09-03) — renders
+    # via run.html's generic select branch, no template change needed.
+    "cost_center",
 })
 
 # Shown in place of an empty picker, so "no options" reads as a setup
@@ -413,6 +422,11 @@ EMPTY_PICKER_MESSAGES = {
     "direction_variance": "لا يمكن اختيار جهة الفرق.",
     "direction_dr_cr": "لا يمكن اختيار جهة التسوية.",
     "any_account": "لا توجد حسابات قابلة للترحيل في شجرة الحسابات.",
+    # MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE — the setup path is
+    # /reports/cost-centers → "+ مركز جديد" so the empty message points
+    # the user there rather than to an abstract "settings".
+    "cost_center":
+        "لا توجد مراكز تكلفة نشطة — راجع الإعدادات > مراكز التكلفة.",
 }
 
 
@@ -482,6 +496,18 @@ def field_choices(op, company_id):
                 (group_labels.get(h, h), accounts)
                 for h, accounts in sorted(groups_map.items())
             ])
+        elif f.kind == "cost_center":
+            # MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE — same filter set
+            # as journals.new() at app/routes/journals.py:254-259.
+            from app.models import CostCenter
+            ccs = (CostCenter.query
+                   .filter_by(company_id=company_id, is_active=True)
+                   .filter(CostCenter.deleted_at.is_(None))
+                   .order_by(CostCenter.code).all())
+            out[f.name] = [("مراكز التكلفة", [
+                (cc.id, f"{cc.code} — {cc.name_ar or cc.name}")
+                for cc in ccs
+            ])] if ccs else []
     return out
 
 
@@ -869,9 +895,13 @@ def _build_provision_eosb(company_id, data, actor_id=None):
     desc = f"تكوين مخصص مكافأة نهاية الخدمة — {label}"
     if note:
         desc += f" ({note})"
+    # MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE — same rule as
+    # _build_accrue_expense: CC on the expense debit only.
+    cc_id = data.get("cost_center_id") or None
     return desc, [
         {"account_id": expense.id, "debit": amount, "credit": 0,
-         "memo": note or "مخصص مكافأة نهاية الخدمة"},
+         "memo": note or "مخصص مكافأة نهاية الخدمة",
+         "cost_center_id": cc_id},
         {"account_id": provision.id, "debit": 0, "credit": amount,
          "memo": "مخصص EOSB"},
     ]
@@ -1224,9 +1254,14 @@ def _build_accrue_expense(company_id, data, actor_id=None):
     def _link(entry):
         item.journal_entry_id = entry.id
 
+    # MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE — optional classifier on
+    # the expense debit only (the payable credit is a control account,
+    # not sales-facing). post_journal validates company ownership at
+    # ledger.py:91-97; blank falls to None (unclassified).
+    cc_id = data.get("cost_center_id") or None
     return Built(desc, [
         {"account_id": expense.id, "debit": amount, "credit": 0,
-         "memo": note or label},
+         "memo": note or label, "cost_center_id": cc_id},
         {"account_id": payable.id, "debit": 0, "credit": amount,
          "memo": "مصروف مستحق"},
     ], source_id=item.id, after_post=_link)
@@ -1375,6 +1410,10 @@ OPERATIONS = [
             Field("expense_account_id", "حساب المصروف", "expense_account",
                   required=True,
                   help_text="نوع المصروف الذي تم استهلاكه"),
+            # MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE — optional CC.
+            Field("cost_center_id", "مركز التكلفة (اختياري)",
+                  "cost_center", required=False,
+                  help_text="لتصنيف المصروف في تقرير مراكز التكلفة."),
             Field("due_date", "تاريخ السداد المتوقع (اختياري)", "date"),
             Field("notes", "ملاحظات (اختياري)", "textarea"),
         ],
@@ -1560,6 +1599,10 @@ OPERATIONS = [
             Field("expense_account_id", "حساب المصروف", "expense_account",
                   required=True,
                   help_text="عادةً حساب رواتب أو حساب مخصصات موظفين"),
+            # MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE — optional CC.
+            Field("cost_center_id", "مركز التكلفة (اختياري)",
+                  "cost_center", required=False,
+                  help_text="لتصنيف المخصص في تقرير مراكز التكلفة."),
             Field("notes", "ملاحظات (اختياري)", "textarea"),
         ],
         build=_build_provision_eosb,

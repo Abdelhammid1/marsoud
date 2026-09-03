@@ -6,6 +6,7 @@ from app.models import (
     VendorBill, VendorBillItem, VendorBillStatus, VendorBillPaymentMethod,
     BillLineType, Vendor, Account, PaymentMethod,
     Product, ProductVariant, Warehouse,
+    CostCenter,
 )
 from app.services.vendor_bills import (
     post_vendor_bill, record_bill_payment, update_overdue_vendor_bills,
@@ -21,6 +22,37 @@ bp = Blueprint("vendor_bills", __name__)
 
 def _next_bill_number(company_id):
     return next_number(company_id, "VENDOR_BILL")
+
+
+# MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE (Abdelhamid 2026-09-03) —
+# reused by both new_typed + edit renders AND by the item-save loop.
+# Source of truth is journals.new() at app/routes/journals.py:254-259;
+# copied here so vendor-bill forms use the exact same filter set.
+def _company_cost_centers(company_id):
+    return (CostCenter.query
+            .filter_by(company_id=company_id, is_active=True)
+            .filter(CostCenter.deleted_at.is_(None))
+            .order_by(CostCenter.code).all())
+
+
+def _pick_cc_at(lst, i, valid_cc_ids):
+    """Coerce the i-th entry of a form list into a validated CC id.
+    Returns int (only when the id is a known active CC in this
+    company) or None. Blank / stray / cross-tenant ids collapse to
+    None so a mis-clicked dropdown never blocks the save. Cross-
+    tenant ids are still caught later by post_journal at
+    ledger.py:91-97 when the bill posts — this early screen just
+    avoids stamping a foreign id onto the row in the first place."""
+    if i >= len(lst):
+        return None
+    raw = (lst[i] or "").strip()
+    if not raw:
+        return None
+    try:
+        cid = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return cid if cid in valid_cc_ids else None
 
 
 def _safe_float(raw, default=0):
@@ -416,6 +448,13 @@ def _populate_from_form(bill, form):
     # working; validated against the current bill's vendor_id below
     # so a cross-vendor id can't slip in via a hand-crafted POST.
     sub_cat_ids = form.getlist("item_sub_category_id[]")
+    # MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE (2026-09-03) —
+    # optional per-item cost-center id. Whitelist is built once
+    # so N items = one query, not N. Blank / cross-tenant ids
+    # collapse to None via _pick_cc_at (see helper).
+    cost_center_ids = form.getlist("item_cost_center_id[]")
+    _valid_cc_ids = {cc.id for cc
+                     in _company_cost_centers(bill.company_id)}
 
     for i, desc in enumerate(descriptions):
         if not (desc or "").strip():
@@ -478,6 +517,12 @@ def _populate_from_form(bill, form):
             unit_price=_safe_float(prices[i] if i < len(prices) else None, 0),
             unit_id=uid,
             sub_category_id=sc_id,
+            # MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE — optional
+            # per-line classifier. NULL keeps the row "غير مصنّف"
+            # in the CC report; a valid id sends the debit-side of
+            # the ledger entry into that bucket when the bill posts.
+            cost_center_id=_pick_cc_at(cost_center_ids, i,
+                                        _valid_cc_ids),
         )
         if lt == BillLineType.FIXED_ASSET:
             item.useful_life_years = int(lives[i] or 0) if i < len(lives) and lives[i] else None
@@ -605,6 +650,9 @@ def new_typed(kind):
     return render_template(
         "vendor_bills/new_typed.html", bill=None, vendors=vendors,
         prefill=prefill, kind=line_type.value, kind_slug=kind,
+        # MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE — feeds the
+        # per-item CC dropdown built in the form's JS addItem().
+        cost_centers=_company_cost_centers(g.active_company.id),
     )
 
 
@@ -833,6 +881,16 @@ def edit(bill_id):
                 # so a hand-crafted POST can't attach a foreign
                 # vendor's taxonomy value.
                 from app.models import VendorSubCategory
+                # MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE — the
+                # posted-bill CC picker is safe to expose here too:
+                # writing to VendorBillItem.cost_center_id does not
+                # re-touch the ledger, and the CC classification is
+                # a reporting attribute (JournalLine.cost_center_id
+                # already recorded at post time). This lets sales
+                # correct a mis-classified expense without voiding
+                # + re-issuing the bill.
+                _valid_cc_ids = {cc.id for cc in
+                                  _company_cost_centers(bill.company_id)}
                 for item in bill.items:
                     new_desc = request.form.get(f"item_desc_{item.id}")
                     if new_desc is not None:
@@ -849,6 +907,19 @@ def edit(bill_id):
                                 company_id=bill.company_id,
                             ).first()
                             item.sub_category_id = row.id if row else None
+                    new_cc = request.form.get(
+                        f"item_costctr_{item.id}")
+                    if new_cc is not None:
+                        raw = new_cc.strip()
+                        if not raw:
+                            item.cost_center_id = None
+                        else:
+                            try:
+                                cid = int(raw)
+                            except (TypeError, ValueError):
+                                cid = None
+                            item.cost_center_id = (
+                                cid if cid in _valid_cc_ids else None)
                 db.session.commit()
             # MARSOUD-VBILL-CURRENCY-INLINE-EDIT (2026-08-18) —
             # audit trail for the currency swap. Best-effort so a
@@ -885,6 +956,10 @@ def edit(bill_id):
         "vendor_bills/edit.html",
         bill=bill, vendors=vendors, full_edit=full_edit,
         currency_choices=currency_choices(),
+        # MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE — CC dropdown
+        # per item (full_edit branch) + cosmetic per-id picker
+        # (posted-bill branch).
+        cost_centers=_company_cost_centers(g.active_company.id),
     )
 
 

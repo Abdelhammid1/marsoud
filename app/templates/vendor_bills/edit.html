@@ -103,6 +103,13 @@
             <th>الوصف</th>
             <th>النوع</th>
             <th>الحساب</th>
+            {# MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE — CC editor is
+               live in BOTH branches: DRAFT stores via
+               item_cost_center_id[]; posted-bill cosmetic edit stores
+               via item_costctr_<id>. Neither re-touches the ledger —
+               post_journal already recorded the classification at
+               post time; this is a reporting-attribute update only. #}
+            <th>مركز التكلفة</th>
             <th>الكمية</th>
             <th>السعر</th>
             <th class="text-left">الإجمالي</th>
@@ -128,6 +135,19 @@
               <span class="font-mono text-xs text-slate-500">{{ item.account.code }}</span> · {{ item.account.name_ar or item.account.name }}
               {% if full_edit %}<input type="hidden" name="item_account_id[]" value="{{ item.account_id }}">{% endif %}
             </td>
+            <td>
+              {# MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE #}
+              {% set _cc_name = full_edit and 'item_cost_center_id[]' or ('item_costctr_' ~ item.id) %}
+              <select name="{{ _cc_name }}" class="select text-sm" style="min-width:11rem">
+                <option value="">— بدون —</option>
+                {% for cc in cost_centers or [] %}
+                <option value="{{ cc.id }}"
+                  {% if cc.id == item.cost_center_id %}selected{% endif %}>
+                  {{ cc.code }} — {{ cc.name_ar or cc.name }}
+                </option>
+                {% endfor %}
+              </select>
+            </td>
             <td class="font-mono">
               {% if full_edit %}
               <input type="number" name="item_quantity[]" step="0.001" value="{{ item.quantity }}" class="input text-sm font-mono">
@@ -145,9 +165,12 @@
             <td class="text-left font-mono">{{ "%.2f"|format(item.line_total) }}</td>
           </tr>
         {% endfor %}
-          <tr><td colspan="5" class="text-left font-semibold py-2">المجموع قبل الضريبة</td><td class="text-left font-mono">{{ "%.2f"|format(bill.subtotal) }}</td></tr>
-          <tr><td colspan="5" class="text-left py-2">الضريبة</td><td class="text-left font-mono">{{ "%.2f"|format(bill.tax_amount) }}</td></tr>
-          <tr class="border-t-2 border-navy-900"><td colspan="5" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold text-lg">{{ "%.2f"|format(bill.total) }} {{ bill.currency|currency_ar }}</td></tr>
+          {# MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE — one extra column
+             now sits between "الحساب" and "الكمية", so every footer row
+             spans one more cell to keep the total column aligned. #}
+          <tr><td colspan="6" class="text-left font-semibold py-2">المجموع قبل الضريبة</td><td class="text-left font-mono">{{ "%.2f"|format(bill.subtotal) }}</td></tr>
+          <tr><td colspan="6" class="text-left py-2">الضريبة</td><td class="text-left font-mono">{{ "%.2f"|format(bill.tax_amount) }}</td></tr>
+          <tr class="border-t-2 border-navy-900"><td colspan="6" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold text-lg">{{ "%.2f"|format(bill.total) }} {{ bill.currency|currency_ar }}</td></tr>
         </tbody>
       </table>
     </div>
