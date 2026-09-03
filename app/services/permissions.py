@@ -143,6 +143,11 @@ P = {
     # Sales/PM/finance roles have no business in HR performance reviews.
     "evaluations.manage":   {"owner", "admin", "hr_manager"},
 
+    # MARSOUD-HR-EMPLOYEE-DOCS-01 (2026-09-03) — per-tenant paper
+    # tracking. HR own the catalogue AND the per-employee submissions.
+    "employee_documents.manage": {"owner", "admin", "hr_manager"},
+    "document_types.manage":     {"owner", "admin", "hr_manager"},
+
     # ─── CRM (Leads) ───────────────────────────────────────────────────
     "leads.view":      {"owner", "admin", "ceo", "sales_manager", "sales_rep"},
     # MARSOUD-PERM-FIX-01 — view ALL company leads (not just assigned-to-me).

@@ -63,6 +63,11 @@ PERMISSION_CATALOG = {
     # and posts a journal, so it sits with the financial permissions
     # (same role list as payroll.accruals), not with hr.manage.
     "advances.manage":      ("الموارد البشرية", "السلف: اعتماد + إضافة مباشرة + إلغاء", "edit"),
+    # MARSOUD-HR-EMPLOYEE-DOCS-01 (2026-09-03).
+    "employee_documents.manage": ("الموارد البشرية",
+                                   "مستندات الموظفين: رفع/عرض/حذف", "edit"),
+    "document_types.manage":     ("الموارد البشرية",
+                                   "أنواع المستندات المطلوبة: إدارة", "edit"),
     # MARSOUD-CASH-CUSTODY-01 (2026-08-07) — cash custody: separate
     # from advances (advances deducted from salary; custody closed
     # by receipts + rest returned).

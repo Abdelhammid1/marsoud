@@ -95,6 +95,12 @@ from app.models.hr_decision import (
     HrDecision, HrDecisionKind, HrDecisionStatus, HrDecisionTiming,
     kind_category as hr_decision_category,
 )
+# MARSOUD-HR-EMPLOYEE-DOCS-01 — per-tenant required-document
+# catalogue + per-employee submission tracking. Loaded AFTER
+# payroll (uses Employee FK).
+from app.models.employee_documents import (
+    RequiredDocumentType, EmployeeDocument, EmployeeDocumentStatus,
+)
 # MARSOUD-PURCHASE-ORDERS-01 — must import AFTER vendor_bill (uses
 # BillLineType) and product/warehouse (FK targets).
 from app.models.purchase_order import (

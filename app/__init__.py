@@ -136,6 +136,7 @@ def create_app(config_class=Config):
     from app.routes.commissions_admin import bp as commissions_admin_bp
     from app.routes.treasury import bp as treasury_bp
     from app.routes.hr_decisions import bp as hr_decisions_bp
+    from app.routes.employee_documents import bp as employee_documents_bp
     from app.routes.purchase_orders import bp as purchase_orders_bp
     from app.routes.cost_centers import bp as cost_centers_bp
     from app.routes.settings_usage import bp as settings_usage_bp
@@ -222,6 +223,9 @@ def create_app(config_class=Config):
                             url_prefix="/commissions")
     app.register_blueprint(treasury_bp, url_prefix="/treasury")
     app.register_blueprint(hr_decisions_bp, url_prefix="/hr/decisions")
+    # MARSOUD-HR-EMPLOYEE-DOCS-01 — per-tenant paper trail.
+    app.register_blueprint(employee_documents_bp,
+                            url_prefix="/hr/documents")
     app.register_blueprint(purchase_orders_bp,
                             url_prefix="/purchase-orders")
     app.register_blueprint(cost_centers_bp,

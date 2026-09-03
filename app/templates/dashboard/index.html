@@ -302,6 +302,19 @@
       </div>
     </a>
     {% endif %}
+    {# MARSOUD-HR-EMPLOYEE-DOCS-01 — HR "الأوراق الناقصة" tile. Same
+       gate as the report route (manage OR employees.view). #}
+    {% if has_permission('employee_documents.manage') or has_permission('employees.view') %}
+    <a class="op" href="{{ url_for('employee_documents.missing_report') }}"
+       title="موظفين عندهم أوراق ناقصة">
+      <div class="op-ico i-amber">📎</div>
+      <div>
+        <div class="op-val">{{ metrics.ops.employees_missing_docs or 0 }}</div>
+        <div class="op-label">موظف بأوراق ناقصة</div>
+        <div class="op-extra tag-amber">راجع تقرير المستندات</div>
+      </div>
+    </a>
+    {% endif %}
     {% if has_permission('purchase_orders.view') %}
     <a class="op" href="{{ url_for('purchase_orders.pending_report') }}" title="أوامر الشراء المعلّقة">
       <div class="op-ico i-teal">🛒</div>

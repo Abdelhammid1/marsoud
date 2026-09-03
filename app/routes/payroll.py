@@ -220,6 +220,24 @@ def employee_profile(employee_id):
     advance_history = EmployeeAdvance.query.filter_by(
         employee_id=emp.id,
     ).order_by(EmployeeAdvance.disbursed_on.desc()).limit(20).all()
+    # MARSOUD-HR-EMPLOYEE-DOCS-01 — surface the per-employee paper
+    # trail alongside the payroll / advances history. Only the ACTIVE
+    # types are offered for new submissions; a deactivated type keeps
+    # any historical records visible but drops out of the "add row"
+    # list. Wrapped so a fresh tenant with no docs module loaded (or
+    # a rollback state) still renders the profile.
+    required_types = []
+    documents_by_type = {}
+    try:
+        from app.models import RequiredDocumentType
+        from app.services.employee_documents import documents_for_employee
+        required_types = (RequiredDocumentType.query
+                          .filter_by(company_id=g.active_company.id,
+                                      is_active=True)
+                          .order_by(RequiredDocumentType.name_ar).all())
+        documents_by_type = documents_for_employee(emp)
+    except Exception:
+        pass
     return render_template(
         "payroll/employee_profile.html",
         employee=emp, payslips=payslips,
@@ -231,6 +249,9 @@ def employee_profile(employee_id):
         # remaining balance, for the same reason as the employee's page.
         advance_repayments=repayments_for(_active.id) if _active else [],
         advance_history=advance_history,
+        # MARSOUD-HR-EMPLOYEE-DOCS-01.
+        required_types=required_types,
+        documents_by_type=documents_by_type,
     )
 
 

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block page_title %}الأوراق الناقصة{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h2 class="font-bold text-navy-900 text-lg">⚠️ تقرير الأوراق الناقصة</h2>
+    <p class="text-xs text-slate-500 mt-1">
+      لكل موظف نشط، الأوراق المطلوبة اللي لسه ما اتقدّمتش أو انتهت صلاحيتها.
+      الموظفين المفصولين مايظهروش هنا.
+    </p>
+  </div>
+  {# Only surface the catalogue link to roles that can actually
+     open it. accountant / viewer can view the report but not edit
+     the types list. #}
+  {% if has_permission('document_types.manage') %}
+  <a href="{{ url_for('employee_documents.types_index') }}" class="btn-secondary text-sm">
+    📑 إدارة الأنواع
+  </a>
+  {% endif %}
+</div>
+
+{% if total_types == 0 %}
+<div class="card p-6 text-center">
+  <div class="text-4xl mb-2">📑</div>
+  <div class="font-bold text-navy-900 mb-1">مفيش أنواع مستندات مضافة بعد</div>
+  <p class="text-sm text-slate-500 mb-3">
+    عرّف الأوراق اللي شركتك بتطلبها من الموظفين، وبعد كده هنبيّن لك مين ناقصه أي واحدة.
+  </p>
+  {% if has_permission('document_types.manage') %}
+  <a href="{{ url_for('employee_documents.types_index') }}" class="btn-primary text-sm">
+    ➕ ابدأ بإضافة نوع مستند
+  </a>
+  {% else %}
+  <p class="text-xs text-slate-400 mt-2">تواصل مع مدير الحساب لتفعيل الميزة.</p>
+  {% endif %}
+</div>
+{% elif not report %}
+<div class="card p-6 text-center border-2 border-emerald-200 bg-emerald-50">
+  <div class="text-4xl mb-2">✅</div>
+  <div class="font-bold text-emerald-900 text-lg mb-1">كل الأوراق مكتملة</div>
+  <p class="text-sm text-emerald-700">
+    كل موظف نشط عنده كل الأوراق الإلزامية سارية الصلاحية.
+  </p>
+</div>
+{% else %}
+<div class="mb-3 text-sm text-slate-600">
+  <span class="font-bold text-red-700">{{ report|length }}</span> موظف عنده ورقة ناقصة على الأقل،
+  من إجمالي <span class="font-mono">{{ total_types }}</span> نوع مستند إلزامي.
+</div>
+
+<div class="space-y-3">
+  {% for row in report %}
+  <div class="card p-4 border border-red-100">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <a href="{{ url_for('payroll.employee_profile', employee_id=row.employee.id) }}"
+           class="font-bold text-navy-900 hover:text-brand-600">
+          {{ row.employee.name }}
+        </a>
+        <span class="text-xs text-slate-500 mr-2">
+          {% if row.employee.employee_number %}· الرقم: {{ row.employee.employee_number }}{% endif %}
+          {% if row.employee.job_title %}· {{ row.employee.job_title }}{% endif %}
+        </span>
+      </div>
+      <span class="badge bg-red-50 text-red-700 border border-red-200">
+        {{ row.missing|length }} ناقص
+      </span>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      {% for dt, reason in row.missing %}
+      <span class="badge bg-amber-50 text-amber-800 border border-amber-200 text-xs">
+        {% if reason == 'منتهية الصلاحية' %}⚠️{% else %}❌{% endif %}
+        {{ dt.name_ar }}
+        <span class="text-xs opacity-75">— {{ reason }}</span>
+      </span>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}

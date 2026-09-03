@@ -104,6 +104,123 @@
       </tbody>
     </table>
     {% endif %}
+
+    {# ─── MARSOUD-HR-EMPLOYEE-DOCS-01 — per-employee papers ────── #}
+    {% if required_types is defined and has_permission('employees.view') %}
+    <hr class="my-5 border-slate-100">
+    <h3 class="font-bold text-navy-900 mb-3">📎 المستندات</h3>
+    {% if not required_types %}
+    <div class="text-sm text-slate-500 bg-slate-50 rounded p-3">
+      مفيش أنواع مستندات مضافة بعد.
+      {% if has_permission('document_types.manage') %}
+      <a href="{{ url_for('employee_documents.types_index') }}"
+         class="text-brand-600 hover:underline">أضف من هنا</a>
+      {% endif %}
+    </div>
+    {% else %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>المستند</th>
+          <th class="text-center">الحالة</th>
+          <th class="text-center">تاريخ التقديم</th>
+          <th class="text-center">تنتهي في</th>
+          <th class="text-center">ملف</th>
+          {% if has_permission('employee_documents.manage') %}<th></th>{% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for dt in required_types %}
+        {% set doc = documents_by_type.get(dt.id) %}
+        {% set today_iso = current_time.strftime('%Y-%m-%d') if current_time is defined else '' %}
+        {% set is_expired = doc and doc.expiry_date and dt.has_expiry and doc.expiry_date.isoformat() < today_iso %}
+        <tr>
+          <td class="font-semibold">
+            {{ dt.name_ar }}
+            {% if not dt.is_mandatory %}<span class="text-xs text-slate-400">(اختياري)</span>{% endif %}
+          </td>
+          <td class="text-center">
+            {% if not doc or doc.status.value == 'MISSING' %}
+              <span class="badge bg-red-50 text-red-700 border border-red-200">❌ ناقصة</span>
+            {% elif is_expired %}
+              <span class="badge bg-amber-50 text-amber-800 border border-amber-200">⚠️ منتهية</span>
+            {% else %}
+              <span class="badge bg-emerald-50 text-emerald-700 border border-emerald-200">✅ مقدّمة</span>
+            {% endif %}
+          </td>
+          <td class="text-center text-sm font-mono text-slate-600">
+            {% if doc and doc.submitted_date %}{{ doc.submitted_date.isoformat() }}{% else %}—{% endif %}
+          </td>
+          <td class="text-center text-sm font-mono text-slate-600">
+            {% if doc and doc.expiry_date %}{{ doc.expiry_date.isoformat() }}{% else %}—{% endif %}
+          </td>
+          <td class="text-center">
+            {% if doc and doc.file_storage_key %}
+              <a href="{{ url_for('employee_documents.file', employee_id=employee.id, doc_id=doc.id) }}"
+                 target="_blank" class="text-brand-600 hover:underline text-xs">📄 عرض</a>
+            {% else %}
+              <span class="text-slate-400 text-xs">—</span>
+            {% endif %}
+          </td>
+          {% if has_permission('employee_documents.manage') %}
+          <td>
+            <button type="button" class="text-brand-600 hover:underline text-xs"
+                    onclick="document.getElementById('doc-form-{{ dt.id }}').classList.toggle('hidden')">
+              {% if doc %}تحديث{% else %}تسجيل{% endif %}
+            </button>
+          </td>
+          {% endif %}
+        </tr>
+        {% if has_permission('employee_documents.manage') %}
+        <tr id="doc-form-{{ dt.id }}" class="hidden bg-slate-50/60">
+          <td colspan="6" class="py-3 px-3">
+            <form method="POST"
+                  action="{{ url_for('employee_documents.submit', employee_id=employee.id, type_id=dt.id) }}"
+                  enctype="multipart/form-data"
+                  class="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">تاريخ التقديم</label>
+                <input type="date" name="submitted_date"
+                       value="{{ doc.submitted_date.isoformat() if doc and doc.submitted_date else '' }}"
+                       class="input text-sm">
+              </div>
+              {% if dt.has_expiry %}
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">
+                  تاريخ انتهاء
+                  {% if dt.default_validity_months %}
+                    <span class="text-slate-400">(يُحسب تلقائيًا {{ dt.default_validity_months }} شهر)</span>
+                  {% endif %}
+                </label>
+                <input type="date" name="expiry_date"
+                       value="{{ doc.expiry_date.isoformat() if doc and doc.expiry_date else '' }}"
+                       class="input text-sm">
+              </div>
+              {% endif %}
+              <div>
+                <label class="block text-xs text-slate-500 mb-1">ملف (اختياري)</label>
+                <input type="file" name="file"
+                       accept=".pdf,.png,.jpg,.jpeg,.webp,.heic"
+                       class="input text-xs">
+              </div>
+              <div class="{% if dt.has_expiry %}md:col-span-1{% else %}md:col-span-2{% endif %}">
+                <label class="block text-xs text-slate-500 mb-1">ملاحظات</label>
+                <input type="text" name="notes"
+                       value="{{ doc.notes or '' if doc else '' }}"
+                       class="input text-sm">
+              </div>
+              <div>
+                <button type="submit" class="btn-primary w-full text-sm">💾 حفظ</button>
+              </div>
+            </form>
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    {% endif %}
   </div>
 
   {% if can_view_payroll or can_manage_employees %}

@@ -401,6 +401,23 @@ _FEATURES: tuple = (
     Feature("hr_decisions_index", "hr", "قرارات الموظفين",
              endpoints=("hr_decisions.index",),
              permissions=("payroll.view",), icon="📄"),
+    # MARSOUD-HR-EMPLOYEE-DOCS-01 (2026-09-03) — per-tenant paper
+    # trail. The types-catalogue is owner/admin/hr_manager only
+    # (creates the shape of the checklist); the missing-report
+    # is broader (any role that can view employee data can also
+    # see which employees are missing which paper).
+    Feature("employee_document_types_index", "hr",
+             "أنواع المستندات المطلوبة",
+             endpoints=("employee_documents.types_index",
+                        "employee_documents.types_create",
+                        "employee_documents.types_toggle"),
+             permissions=("document_types.manage",), icon="📑"),
+    Feature("employee_missing_documents", "hr",
+             "الأوراق الناقصة",
+             endpoints=("employee_documents.missing_report",
+                        "employee_documents.submit",
+                        "employee_documents.file"),
+             permissions=("employees.view",), icon="⚠️"),
     Feature("hr_attendance", "hr", "الحضور والإجازات",
              endpoints=("hr.attendance", "hr.attendance_policies"),
              permissions=("hr.manage",), icon="📅"),

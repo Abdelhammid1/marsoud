@@ -61,6 +61,19 @@ def index():
     except Exception:
         current_app.logger.exception("hr_decisions metric failed")
         metrics.setdefault("ops", {})["hr_decisions_pending"] = 0
+    # MARSOUD-HR-EMPLOYEE-DOCS-01 — dashboard tile for employees with
+    # any missing / expired mandatory paper. Same wrap; 0 for a tenant
+    # that hasn't defined any required document types yet.
+    try:
+        from app.services.employee_documents import (
+            count_employees_with_missing_docs,
+        )
+        metrics.setdefault("ops", {})["employees_missing_docs"] = (
+            count_employees_with_missing_docs(g.active_company.id))
+    except Exception:
+        current_app.logger.exception(
+            "employees_missing_docs metric failed")
+        metrics.setdefault("ops", {})["employees_missing_docs"] = 0
     # MARSOUD-PURCHASE-ORDERS-01 — pending PO count (REQUESTED +
     # APPROVED + PARTIALLY_RECEIVED). Same wrap.
     try:
