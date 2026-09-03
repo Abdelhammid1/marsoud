@@ -54,6 +54,32 @@
       </tr>
       <tr class="bg-slate-50/60">
         <td colspan="10" class="py-2 px-4 text-left">
+          {# MARSOUD-TKT-HR-DECISIONS-02-PAYROLL-CONSUME — source
+             trail for any HR decision folded into this line.
+             Renders above the PDF link so the owner sees WHY a
+             number moved before jumping to the receipt. #}
+          {% set _decs = decisions_by_employee.get(l.employee_id, []) if decisions_by_employee else [] %}
+          {% if _decs %}
+          <div class="mb-1 text-xs">
+            {% for d in _decs %}
+              {% if d.kind == 'PENALTY' %}
+              <div class="text-red-700">
+                🔻 من ضمنها {{ "%.2f"|format(d.amount|float) }} —
+                <a href="{{ url_for('hr_decisions.detail', dec_id=d.id) }}"
+                   class="underline hover:text-red-900">جزاء «{{ d.title }}»</a>
+                بتاريخ {{ d.effective_date.isoformat() }}
+              </div>
+              {% elif d.kind == 'BONUS' %}
+              <div class="text-emerald-700">
+                🎁 من ضمنها {{ "%.2f"|format(d.amount|float) }} —
+                <a href="{{ url_for('hr_decisions.detail', dec_id=d.id) }}"
+                   class="underline hover:text-emerald-900">مكافأة «{{ d.title }}»</a>
+                بتاريخ {{ d.effective_date.isoformat() }}
+              </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+          {% endif %}
           <a href="{{ url_for('payroll.payslip_pdf', run_id=run.id, line_id=l.id) }}" target="_blank" class="text-brand-600 hover:underline text-xs">
             📄 تحميل كشف الراتب (PDF) — {{ l.employee.name }}
           </a>

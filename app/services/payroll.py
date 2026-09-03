@@ -16,6 +16,7 @@ from datetime import date, datetime
 from app import db
 from app.models import (
     Employee, EmployeeStatus, PayrollRun, PayrollLine, EmployeeAccrual,
+    HrDecision, HrDecisionKind, HrDecisionStatus,
 )
 from app.services.ledger import post_journal, get_account_by_code, LedgerError
 from app.services.numbering import next_number
@@ -243,7 +244,50 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
     db.session.add(run)
     db.session.flush()
 
-    line_inputs = line_inputs or {}
+    # MARSOUD-TKT-HR-DECISIONS-02-PAYROLL-CONSUME (2026-09-03) —
+    # pull every PENDING_PAYROLL decision for an employee ACTUALLY
+    # in this run and fold its amount into line_inputs. Multiple
+    # decisions for the same employee accumulate (two penalties add
+    # together, not overwrite). Restricted to employees in
+    # `employees` so a decision left dangling on a departed staff
+    # member doesn't get flipped to EXECUTED for a run that never
+    # touched them.
+    #
+    # Rollback safety: the status flip lives in Block B (below,
+    # before db.session.commit). If the run rolls back for any
+    # reason (negative-net guard, unbalanced JE), the decisions
+    # revert to PENDING_PAYROLL along with the PayrollRun row.
+    line_inputs = dict(line_inputs or {})   # defensive copy
+    _employee_ids = {e.id for e in employees}
+    _pending_decisions = (
+        HrDecision.query
+        .filter(HrDecision.company_id == company_id,
+                 HrDecision.status
+                     == HrDecisionStatus.PENDING_PAYROLL.value,
+                 HrDecision.employee_id.in_(_employee_ids))
+        .all()
+    )
+    _decisions_by_employee = {}
+    for _dec in _pending_decisions:
+        _decisions_by_employee.setdefault(
+            _dec.employee_id, []).append(_dec)
+        _amt = float(_dec.amount or 0)
+        if _amt <= 0:
+            continue
+        _overrides = line_inputs.setdefault(_dec.employee_id, {})
+        if _dec.kind == HrDecisionKind.BONUS.value:
+            _overrides["bonus"] = (
+                float(_overrides.get("bonus", 0) or 0) + _amt)
+        elif _dec.kind == HrDecisionKind.PENALTY.value:
+            # Penalties land in the fixed "deductions" bucket —
+            # the same column HR uses for any manual sanction
+            # (payroll.py:379 persists deductions=fixed_deductions).
+            _overrides["deductions"] = (
+                float(_overrides.get("deductions", 0) or 0) + _amt)
+        # WARNING / TERMINATION / etc. carry no money — the row is
+        # still tracked in _decisions_by_employee for the source-trail
+        # link, but nothing is added to the payroll line.
+
     total_gross = 0.0
     total_net = 0.0
     total_paid_cash = 0.0
@@ -312,6 +356,13 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
         prorated_basic = (basic_full / 30.0) * max(0, working_days)
         allowances = float(emp.allowances or 0)
         fixed_deductions = float(emp.deductions or 0)
+        # MARSOUD-TKT-HR-DECISIONS-02-PAYROLL-CONSUME — additional
+        # deductions injected by Block A (per-line PENALTY totals for
+        # PENDING_PAYROLL HR decisions) sit under the same
+        # `deductions` key. This LINE is the only reader of that key
+        # in run_payroll, so the injection stays invisible to every
+        # other subsystem while still landing on PayrollLine.deductions.
+        fixed_deductions += float(inputs.get("deductions", 0) or 0)
 
         # MARSOUD-COMM-01 Phase C — sum + settle the rep's outstanding
         # commission rows (positive earnings + negative carry-forwards)
@@ -715,6 +766,22 @@ def run_payroll(company_id, year, month, line_inputs=None, created_by=None, send
             source_line_id=line.id,
             amount=amount,
         ))
+
+    # MARSOUD-TKT-HR-DECISIONS-02-PAYROLL-CONSUME — Block B: mark the
+    # decisions we folded above as EXECUTED and back-link them to
+    # this run. In the SAME session as everything else so any
+    # rollback upstream (negative-net at payroll.py:472, unbalanced
+    # JE at :659) reverts these flips along with the PayrollRun row
+    # itself. Belt-and-suspenders: we only touch decisions we
+    # actually captured in Block A, so a race where a new
+    # PENDING_PAYROLL landed AFTER Block A leaves that row for the
+    # NEXT run to consume.
+    _now = datetime.utcnow()
+    for _dec_list in _decisions_by_employee.values():
+        for _dec in _dec_list:
+            _dec.status = HrDecisionStatus.EXECUTED.value
+            _dec.payroll_run_id = run.id
+            _dec.executed_at = _now
 
     db.session.commit()
 

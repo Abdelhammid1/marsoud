@@ -447,7 +447,22 @@ def view_run(run_id):
     pr = db.session.get(PayrollRun, run_id)
     if not pr or pr.company_id != g.active_company.id:
         return redirect(url_for("payroll.index"))
-    return render_template("payroll/run.html", run=pr)
+    # MARSOUD-TKT-HR-DECISIONS-02-PAYROLL-CONSUME — pull every HR
+    # decision that this specific run consumed so the template can
+    # render the source-trail hint under each affected employee.
+    # No new column on PayrollLine: the link is entirely driven by
+    # HrDecision.payroll_run_id (already in the schema).
+    from app.models import HrDecision
+    decisions_by_employee = {}
+    for d in (HrDecision.query
+              .filter_by(company_id=g.active_company.id,
+                          payroll_run_id=pr.id)
+              .order_by(HrDecision.created_at).all()):
+        decisions_by_employee.setdefault(d.employee_id, []).append(d)
+    return render_template(
+        "payroll/run.html", run=pr,
+        decisions_by_employee=decisions_by_employee,
+    )
 
 
 @bp.route("/run/<int:run_id>/export/<fmt>")
