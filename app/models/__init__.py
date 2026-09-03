@@ -101,6 +101,12 @@ from app.models.hr_decision import (
 from app.models.employee_documents import (
     RequiredDocumentType, EmployeeDocument, EmployeeDocumentStatus,
 )
+# MARSOUD-AI-ACTION-FRAMEWORK-01 — public HTTP propose/confirm
+# pipeline. Distinct from AgentProposal (the in-process LLM-tool
+# confirm layer, agent_proposal.py); the two coexist by design.
+from app.models.ai_action_intent import (
+    AiActionIntent, AiActionIntentStatus, DEFAULT_EXPIRY_MINUTES,
+)
 # MARSOUD-PURCHASE-ORDERS-01 — must import AFTER vendor_bill (uses
 # BillLineType) and product/warehouse (FK targets).
 from app.models.purchase_order import (
