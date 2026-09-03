@@ -236,6 +236,28 @@
     </div>
     {% endif %}
 
+    {# MARSOUD-LOYALTY-POINTS-02-DISPLAY — surface the point balance
+       the parent ticket was already computing but never showing. Only
+       rendered when the tenant has loyalty turned on so a merchant
+       who doesn't use the program sees zero UI clutter. Same tile
+       shape as the debt block below, distinct colour so it doesn't
+       compete for the "amount owed" attention slot. #}
+    {% if g.active_company and g.active_company.loyalty_enabled %}
+    <hr class="my-4 border-slate-100">
+    <div class="bg-fuchsia-50 border border-fuchsia-200 rounded-xl p-4">
+      <div class="text-xs text-fuchsia-700 font-semibold mb-1">🎁 نقاط الولاء</div>
+      <div class="text-2xl font-bold text-fuchsia-900 font-mono">
+        {{ customer.loyalty_points_balance or 0 }}
+      </div>
+      {% set _lv = (customer.loyalty_points_balance or 0)
+                   * (g.active_company.loyalty_redemption_value or 0) %}
+      <div class="text-xs text-fuchsia-700 mt-1">
+        تعادل ≈ <span class="font-mono">{{ "%.2f"|format(_lv|float) }}</span>
+        {{ customer.company.base_currency if customer.company else '' }}
+      </div>
+    </div>
+    {% endif %}
+
     <hr class="my-4 border-slate-100">
     <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
       <div class="text-xs text-amber-700 font-semibold mb-1">إجمالي المديونية</div>

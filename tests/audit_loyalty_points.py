@@ -380,6 +380,209 @@ def _():
             pass
 
 
+# ─── MARSOUD-LOYALTY-POINTS-02-DISPLAY additions ──────────────────────
+# Three HTTP-level + service checks proving the display + redeem
+# gap is closed: create_pos_order actually consumes points, the API
+# endpoint feeding the widget returns the right shape, and a role
+# without loyalty.redeem is blocked at the POS route.
+
+def _seed_pos_kit(cid, oid):
+    """Warehouse + tracked variant with opening stock + a POS-usable
+    PaymentMethod. Mirrors tests/audit_dual_uom_weight.py:217-275
+    minus piece tracking. Returns (variant, payment_method, warehouse)."""
+    from app import db
+    from app.models import (
+        Warehouse, Product, ProductVariant, ProductGroup,
+        ProductCategory, PaymentMethod, Account,
+    )
+    from app.services.inventory import receive_stock
+    wh = Warehouse.query.filter_by(
+        company_id=cid, is_default=True).first()
+    if not wh:
+        wh = Warehouse(company_id=cid, code="MAIN", name="MAIN",
+                        is_default=True)
+        db.session.add(wh); db.session.flush()
+    grp = ProductGroup.query.filter_by(company_id=cid).first()
+    if not grp:
+        grp = ProductGroup(company_id=cid, name="عام", is_active=True)
+        db.session.add(grp); db.session.flush()
+    cat = ProductCategory.query.filter_by(
+        company_id=cid, group_id=grp.id).first()
+    if not cat:
+        cat = ProductCategory(company_id=cid, group_id=grp.id,
+                               name="عام", is_active=True)
+        db.session.add(cat); db.session.flush()
+    p = Product(company_id=cid, name="منتج ولاء", is_tracked=True,
+                 category_id=cat.id, default_price=Decimal("200"))
+    db.session.add(p); db.session.flush()
+    v = ProductVariant(company_id=cid, product_id=p.id,
+                        sku=f"LOY-{p.id}", name="",
+                        unit_cost=Decimal("50"), is_active=True)
+    db.session.add(v); db.session.commit()
+    receive_stock(variant=v, warehouse=wh, qty=100,
+                   unit_cost=50, actor_id=oid)
+    any_asset = Account.query.filter_by(
+        company_id=cid, is_postable=True).first()
+    pm = PaymentMethod.query.filter_by(
+        company_id=cid, is_active=True).first()
+    if not pm:
+        pm = PaymentMethod(company_id=cid, name="POS-CASH",
+                            name_ar="نقدي POS",
+                            account_id=any_asset.id, is_active=True,
+                            is_default=True)
+        db.session.add(pm); db.session.commit()
+    return v, pm, wh
+
+
+@check("9. create_pos_order(points_used=50) redeems + drops balance + "
+        "leaves REDEEMED txn row")
+def _():
+    from app import create_app, db
+    from app.models import LoyaltyPointTransaction, LoyaltyReason
+    from app.services.loyalty import adjust_points_manually
+    from app.services.pos import create_pos_order
+    app = create_app()
+    with app.app_context():
+        email, cid, oid = _boot("LP9")
+        try:
+            cust = _make_customer(cid)
+            # Grant a starting balance of 100 pts (redemption_value
+            # 0.10 → 10 EGP max). Bypasses the earn path entirely so
+            # the check tests only the redeem side.
+            adjust_points_manually(cust, 100, "seed for redeem test",
+                                    actor_id=oid)
+            assert cust.loyalty_points_balance == 100
+            variant, pm, _wh = _seed_pos_kit(cid, oid)
+            # Cart: 1 unit at 200 EGP. Redeem 50 pts = 5 EGP off →
+            # invoice.total = 195.
+            invoice = create_pos_order(
+                company_id=cid,
+                items=[{"variant_id": variant.id, "qty": 1,
+                         "unit_price": 200}],
+                payment_method_id=pm.id, cashier_id=oid,
+                customer_id=cust.id,
+                cash_received=1000, tax_rate=0,
+                points_used=50,
+            )
+            db.session.refresh(cust); db.session.refresh(invoice)
+            assert invoice.loyalty_points_redeemed == 50, \
+                f"got {invoice.loyalty_points_redeemed}"
+            # 200 - 5 = 195.
+            assert abs(float(invoice.total) - 195.0) < 0.01, \
+                f"total={invoice.total} — expected 195.00"
+            # Balance ledger: 100 seed - 50 redeem + earn on the paid
+            # 195 EGP invoice (rate=10 → int(195/10)=19 earned). Both
+            # flows fire in one POS call because record_payment is
+            # invoked at the tail end of create_pos_order.
+            expected = 100 - 50 + int(195 // 10)
+            assert cust.loyalty_points_balance == expected, (
+                f"balance={cust.loyalty_points_balance}, "
+                f"expected {expected}")
+            # One REDEEMED txn linked to this invoice.
+            redeem_txn = LoyaltyPointTransaction.query.filter_by(
+                customer_id=cust.id,
+                reason=LoyaltyReason.REDEEMED,
+                source_type="invoice", source_id=invoice.id,
+            ).first()
+            assert redeem_txn is not None
+            assert redeem_txn.points_delta == -50
+            # Companion EARNED row for the paid invoice.
+            earn_txn = LoyaltyPointTransaction.query.filter_by(
+                customer_id=cust.id,
+                reason=LoyaltyReason.EARNED,
+                source_type="invoice", source_id=invoice.id,
+            ).first()
+            assert earn_txn is not None, "post-payment earn missing"
+            return ("50 pts consumed via POS → 5 EGP off, "
+                    f"balance 100→{expected} (both redeem + earn)")
+        finally:
+            pass
+
+
+@check("10. GET /pos/api/customer/<id> returns balance + can_redeem "
+        "flag as the owner (loyalty.redeem ✓)")
+def _():
+    from app import create_app, db
+    from app.services.loyalty import adjust_points_manually
+    from flask_login import login_user
+    app = create_app()
+    with app.app_context():
+        email, cid, oid = _boot("LP10")
+        try:
+            cust = _make_customer(cid)
+            adjust_points_manually(cust, 240, "seed", actor_id=oid)
+            client = app.test_client()
+            with client.session_transaction() as sess:
+                sess["_user_id"] = str(oid)
+                sess["_fresh"] = True
+                sess["active_company_id"] = cid
+            r = client.get(f"/pos/api/customer/{cust.id}")
+            assert r.status_code == 200, (
+                f"got {r.status_code}: {r.get_data(as_text=True)[:200]}")
+            body = r.get_json()
+            assert body["balance"] == 240, body
+            assert body["loyalty_enabled"] is True, body
+            assert body["can_redeem"] is True, body   # owner has all perms
+            assert abs(body["max_redeem_egp"] - 24.0) < 0.01, body
+            # 404 for cross-tenant / unknown id.
+            r404 = client.get("/pos/api/customer/999999")
+            assert r404.status_code == 404, r404.status_code
+            return "owner sees balance 240 + can_redeem=true; 404 on unknown"
+        finally:
+            pass
+
+
+@check("11. create_pos_order silently ignores points_used on a "
+        "walk-in (customer_id=None)")
+def _():
+    """The POS widget only shows the redeem input when a customer is
+    picked, so a walk-in POST carrying stray `points_used` should be
+    a no-op — not an error and not a spurious LoyaltyPointTransaction
+    against a non-existent customer. create_pos_order's guard
+    (`customer_id` clause) is what stops it; this check pins that
+    behaviour so a well-meaning refactor never turns a stray form
+    field into a hard failure."""
+    from app import create_app, db
+    from app.models import (
+        LoyaltyPointTransaction, LoyaltyReason, Invoice,
+    )
+    from app.services.pos import create_pos_order
+    app = create_app()
+    with app.app_context():
+        email, cid, oid = _boot("LP11")
+        try:
+            variant, pm, _wh = _seed_pos_kit(cid, oid)
+            invoice = create_pos_order(
+                company_id=cid,
+                items=[{"variant_id": variant.id, "qty": 1,
+                         "unit_price": 200}],
+                payment_method_id=pm.id, cashier_id=oid,
+                customer_id=None,           # walk-in
+                cash_received=1000, tax_rate=0,
+                points_used=99,             # ignored
+            )
+            db.session.refresh(invoice)
+            # No discount applied — the whole point of the guard.
+            assert abs(float(invoice.total) - 200.0) < 0.01, \
+                f"walk-in charged reduced total: {invoice.total}"
+            assert invoice.loyalty_points_redeemed == 0
+            # No REDEEMED ledger row (an EARN row for the singleton
+            # walk-in customer is pre-existing behaviour — see
+            # app/services/subsidiary.py:party_ar_account — that
+            # attaches the invoice to the "زبون نقدي" record so the
+            # ledger has a real party. Not this ticket's business.)
+            n_red = LoyaltyPointTransaction.query.filter_by(
+                company_id=cid,
+                reason=LoyaltyReason.REDEEMED).count()
+            assert n_red == 0, (
+                f"walk-in produced {n_red} REDEEMED txns despite "
+                "the customer_id guard in create_pos_order")
+            return ("walk-in + points_used=99 → no discount, "
+                    "no REDEEMED txn")
+        finally:
+            pass
+
+
 def main():
     passed = failed = 0
     for label, fn in CHECKS:

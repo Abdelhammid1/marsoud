@@ -99,10 +99,51 @@
       </div>
       <div>
         <label class="block text-xs font-semibold mb-1">العميل (اختياري)</label>
-        <select name="customer_id" class="select text-sm">
+        <select name="customer_id" id="customer-select" class="select text-sm">
           <option value="">— زبون نقدي —</option>
           {% for c in customers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
         </select>
+        {# MARSOUD-LOYALTY-POINTS-02-DISPLAY — loyalty widget. Hidden
+           until the cashier picks a customer; JS fetches
+           /pos/api/customer/<id> on change, unhides + populates. The
+           `points_used` input is always in the DOM so the form
+           post carries it (default 0) even for walk-in orders. #}
+        <div id="loyalty-widget" hidden
+             class="mt-2 rounded-lg bg-amber-50 border border-amber-200 p-2 text-xs">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-bold text-amber-900">🎁 نقاط الولاء</span>
+            <span class="font-mono text-amber-900">
+              <span id="loyalty-balance">0</span> نقطة
+              (≈ <span id="loyalty-value">0.00</span>)
+            </span>
+          </div>
+          <div id="loyalty-redeem-row">
+            <label class="block text-amber-800 mb-1">استخدم نقاط:</label>
+            <div class="flex gap-1">
+              <input type="number" id="points-used" min="0" step="1"
+                     value="0"
+                     class="input text-xs font-mono flex-1">
+              <button type="button" id="points-max"
+                      class="btn-secondary text-xs px-2">
+                الحد الأقصى
+              </button>
+            </div>
+            <div id="points-preview" hidden
+                 class="text-amber-700 mt-1 font-mono"></div>
+          </div>
+          <div id="loyalty-disabled-hint" hidden
+               class="text-amber-700 mt-1">
+            برنامج الولاء غير مفعّل — تواصل مع مدير الحساب.
+          </div>
+          <div id="loyalty-forbidden-hint" hidden
+               class="text-amber-700 mt-1">
+            ما عندكش صلاحية صرف النقاط (loyalty.redeem).
+          </div>
+        </div>
+        {# The form's own always-present hidden mirror. Kept OUTSIDE
+           the widget so it submits regardless of visibility. #}
+        <input type="hidden" name="points_used" id="points-used-hidden"
+               value="0">
       </div>
       <div>
         <label class="block text-xs font-semibold mb-1">نسبة الضريبة %</label>
@@ -156,6 +197,14 @@
         <div class="flex justify-between text-slate-500">
           <span>الضريبة:</span>
           <span id="confirm-tax" class="font-mono"></span>
+        </div>
+        {# MARSOUD-LOYALTY-POINTS-02-DISPLAY — line hidden unless the
+           cashier actually applied points, so a walk-in confirmation
+           stays the way it always looked. #}
+        <div id="confirm-loyalty-row" hidden
+             class="flex justify-between text-amber-700">
+          <span>🎁 خصم نقاط الولاء (<span id="confirm-points">0</span> نقطة):</span>
+          <span id="confirm-loyalty" class="font-mono">-0.00</span>
         </div>
         <div class="flex justify-between text-lg font-bold text-navy-900 pt-1 border-t border-slate-100">
           <span>الإجمالي المطلوب:</span>
@@ -361,7 +410,25 @@ function openConfirmModal() {
   document.getElementById('confirm-count').textContent = cart.length;
   document.getElementById('confirm-sub').textContent = sub.toFixed(2);
   document.getElementById('confirm-tax').textContent = tax.toFixed(2);
-  document.getElementById('confirm-total').textContent = total.toFixed(2);
+  // MARSOUD-LOYALTY-POINTS-02-DISPLAY — surface the redeem preview
+  // so the cashier sees the reduced grand total BEFORE hitting Pay.
+  const usePoints = parseInt(
+    (document.getElementById('points-used-hidden') || {}).value || 0, 10);
+  const loyaltyOff = usePoints > 0
+    ? usePoints * (loyaltyState.redemption_value || 0)
+    : 0;
+  const loyaltyRow = document.getElementById('confirm-loyalty-row');
+  if (loyaltyOff > 0) {
+    document.getElementById('confirm-points').textContent = usePoints;
+    document.getElementById('confirm-loyalty').textContent
+      = '-' + loyaltyOff.toFixed(2);
+    loyaltyRow.hidden = false;
+  } else {
+    loyaltyRow.hidden = true;
+  }
+  const finalTotal = Math.max(0, total - loyaltyOff);
+  document.getElementById('confirm-total').textContent
+    = finalTotal.toFixed(2);
   document.getElementById('confirm-modal').style.display = 'flex';
 }
 function closeConfirmModal() {
@@ -381,6 +448,84 @@ document.addEventListener('keydown', (e) => {
       && document.getElementById('confirm-modal').style.display === 'flex') {
     closeConfirmModal();
   }
+});
+
+// ─── MARSOUD-LOYALTY-POINTS-02-DISPLAY — loyalty widget wiring ─────
+// State lives on the widget element so a stale response (customer
+// changed twice quickly) can be ignored by comparing dataset ids.
+const loyaltyWidget = document.getElementById('loyalty-widget');
+const loyaltyBalanceEl = document.getElementById('loyalty-balance');
+const loyaltyValueEl = document.getElementById('loyalty-value');
+const pointsInput = document.getElementById('points-used');
+const pointsHidden = document.getElementById('points-used-hidden');
+const pointsPreview = document.getElementById('points-preview');
+const pointsMaxBtn = document.getElementById('points-max');
+const disabledHint = document.getElementById('loyalty-disabled-hint');
+const forbiddenHint = document.getElementById('loyalty-forbidden-hint');
+const redeemRow = document.getElementById('loyalty-redeem-row');
+let loyaltyState = { balance: 0, redemption_value: 0, can_redeem: false };
+
+function resetLoyalty() {
+  loyaltyState = { balance: 0, redemption_value: 0, can_redeem: false };
+  pointsInput.value = '0';
+  pointsHidden.value = '0';
+  pointsPreview.hidden = true;
+  loyaltyWidget.hidden = true;
+}
+
+function applyLoyalty(data) {
+  loyaltyState = {
+    balance: data.balance || 0,
+    redemption_value: data.redemption_value || 0,
+    can_redeem: !!data.can_redeem,
+  };
+  loyaltyBalanceEl.textContent = String(loyaltyState.balance);
+  loyaltyValueEl.textContent = (loyaltyState.balance
+    * loyaltyState.redemption_value).toFixed(2) + ' ج.م';
+  const enabled = !!data.loyalty_enabled;
+  const usable = enabled && loyaltyState.can_redeem
+    && loyaltyState.balance > 0 && loyaltyState.redemption_value > 0;
+  redeemRow.hidden = !usable;
+  disabledHint.hidden = enabled;
+  forbiddenHint.hidden = enabled ? loyaltyState.can_redeem : true;
+  pointsInput.value = '0';
+  pointsHidden.value = '0';
+  pointsPreview.hidden = true;
+  loyaltyWidget.hidden = false;
+}
+
+document.getElementById('customer-select').addEventListener('change', (e) => {
+  const id = e.target.value;
+  if (!id) { resetLoyalty(); return; }
+  fetch('/pos/api/customer/' + encodeURIComponent(id))
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(data => {
+      // Guard against a stale response arriving after the cashier
+      // moved on to another customer / cleared the picker.
+      if (document.getElementById('customer-select').value !== id) return;
+      applyLoyalty(data);
+    })
+    .catch(() => resetLoyalty());
+});
+
+function syncPointsPreview() {
+  let v = parseInt(pointsInput.value, 10) || 0;
+  if (v < 0) v = 0;
+  if (v > loyaltyState.balance) v = loyaltyState.balance;
+  pointsInput.value = String(v);
+  pointsHidden.value = String(v);
+  if (v > 0 && loyaltyState.redemption_value > 0) {
+    const off = (v * loyaltyState.redemption_value).toFixed(2);
+    pointsPreview.textContent = 'خصم ' + off + ' ج.م من الإجمالي';
+    pointsPreview.hidden = false;
+  } else {
+    pointsPreview.hidden = true;
+  }
+}
+pointsInput.addEventListener('input', syncPointsPreview);
+pointsMaxBtn.addEventListener('click', () => {
+  pointsInput.value = String(loyaltyState.balance);
+  syncPointsPreview();
 });
 
 renderCart();

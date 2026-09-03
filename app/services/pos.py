@@ -52,6 +52,7 @@ def create_pos_order(
     customer_id=None, cash_received=None,
     invoice_discount_type=DiscountType.NONE, invoice_discount_value=0,
     tax_rate=None, notes=None,
+    points_used=0,
 ):
     """Ring up a sale.
 
@@ -200,7 +201,23 @@ def create_pos_order(
     invoice.recalc()
     db.session.flush()
 
-    # Validate cash receipt now (before posting).
+    # MARSOUD-LOYALTY-POINTS-02-DISPLAY — redeem BEFORE ledger post
+    # so the FIXED discount folds into the JE + receipt naturally.
+    # Ordering is documented in redeem_points()'s docstring at
+    # app/services/loyalty.py:110-114. The service refuses walk-in
+    # + zero + insufficient balance itself; we only guard the
+    # obvious no-op here to skip an extra query.
+    if points_used and points_used > 0 and customer_id:
+        from app.services.loyalty import redeem_points, LoyaltyError
+        try:
+            redeem_points(invoice, points_used, actor_id=cashier_id)
+        except LoyaltyError as e:
+            db.session.rollback()
+            raise POSError(str(e)) from e
+
+    # Validate cash receipt now (before posting) — invoice.total has
+    # already absorbed any loyalty discount above, so the cashier's
+    # cash-received check is against the reduced grand total.
     if cash_received is not None and float(cash_received) < float(invoice.total) - 0.001:
         raise POSError(
             f"المبلغ المستلم {float(cash_received):.2f} أقل من الإجمالي {float(invoice.total):.2f}"

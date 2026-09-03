@@ -283,6 +283,37 @@ def lookup():
     })
 
 
+# ─── Customer loyalty JSON — MARSOUD-LOYALTY-POINTS-02-DISPLAY ─────────
+# Feeds the "🎁 نقاط الولاء" widget that appears under the customer
+# dropdown on /pos/ once the cashier picks a customer. Same tenancy
+# scope + permission gate as /pos/ itself (any cashier can READ any
+# customer's balance; actual redemption is gated separately at
+# order_new by loyalty.redeem).
+@bp.route("/api/customer/<int:customer_id>")
+@login_required
+@require_permission("pos.use")
+def api_customer_loyalty(customer_id):
+    from app.services.permissions import has_permission
+    cid = g.active_company.id
+    c = db.session.get(Customer, customer_id)
+    if (not c or c.company_id != cid or not c.is_active
+            or getattr(c, "deleted_at", None) is not None):
+        return jsonify({"error": "customer_not_found"}), 404
+    co = g.active_company
+    enabled = bool(getattr(co, "loyalty_enabled", False))
+    unit = float(getattr(co, "loyalty_redemption_value", 0) or 0)
+    balance = int(getattr(c, "loyalty_points_balance", 0) or 0)
+    return jsonify({
+        "id": c.id,
+        "name": c.name,
+        "loyalty_enabled": enabled,
+        "balance": balance,
+        "redemption_value": unit,
+        "max_redeem_egp": round(balance * unit, 2) if unit else 0.0,
+        "can_redeem": bool(has_permission("loyalty.redeem")),
+    })
+
+
 # ─── Submit order ────────────────────────────────────────────────────────
 @bp.route("/orders/new", methods=["POST"])
 @login_required
@@ -306,11 +337,32 @@ def order_new():
         tax_rate_raw = (request.form.get("tax_rate") or "").strip()
         tax_rate = float(tax_rate_raw) if tax_rate_raw else None
 
+        # MARSOUD-LOYALTY-POINTS-02-DISPLAY — optional redeem count
+        # from the on-page widget. Fat-fingered garbage → 0 rather
+        # than an aborted checkout; server-side redeem_points() has
+        # the final say and clamps to items_total anyway.
+        points_raw = (request.form.get("points_used") or "").strip()
+        try:
+            points_used = int(points_raw) if points_raw else 0
+        except (TypeError, ValueError):
+            points_used = 0
+        if points_used < 0:
+            points_used = 0
+        if points_used > 0:
+            from app.services.permissions import has_permission
+            if not has_permission("loyalty.redeem"):
+                # Explicit block — surface the reason so the cashier
+                # calls their manager rather than silently paying the
+                # full amount and wondering why nothing was deducted.
+                raise POSError(
+                    "ما عندكش صلاحية استخدام نقاط الولاء — كلّم مدير المبيعات")
+
         invoice = create_pos_order(
             company_id=cid, items=cart, payment_method_id=pm_id,
             cashier_id=current_user.id,
             customer_id=customer_id, cash_received=cash_received,
             tax_rate=tax_rate,
+            points_used=points_used,
         )
         flash(f"تم تسجيل الأوردر {invoice.number}", "success")
         return redirect(url_for("pos.receipt", number=invoice.number))
