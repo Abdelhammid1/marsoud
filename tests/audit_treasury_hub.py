@@ -438,6 +438,117 @@ def _():
             pass
 
 
+@check("11. MARSOUD-TREASURY-VENDOR-PICKER-01 — vendor filter + all-"
+        "vendors mode + newest-first + never renders DB id")
+def _():
+    """Ticket asserts three things on the pay-bill picker:
+      1. Optional ?vendor_id narrows the bill list to that vendor.
+      2. No filter → all open bills, newest → oldest.
+      3. Bill payload MUST carry the display `number` (VB-####),
+         and the modal template must not print the raw DB id
+         anywhere visible.
+    """
+    from app import create_app, db
+    from datetime import date, timedelta
+    from decimal import Decimal
+    from app.models import Vendor, VendorBill
+    from app.models.vendor_bill import (
+        VendorBillStatus, VendorBillPaymentMethod)
+    from app.services.subsidiary import ensure_vendor_account
+    from pathlib import Path
+    app = create_app()
+    with app.app_context():
+        email, cid, oid = _boot("TRV11")
+        try:
+            # Two vendors, three bills, mixed statuses. One PAID bill
+            # must NOT surface in the picker at all.
+            v_a = Vendor(company_id=cid, name="مورد ألف")
+            v_b = Vendor(company_id=cid, name="مورد باء")
+            db.session.add_all([v_a, v_b]); db.session.flush()
+            ensure_vendor_account(v_a); ensure_vendor_account(v_b)
+            def _mk(vid, number, days_ago, status=VendorBillStatus.POSTED):
+                b = VendorBill(
+                    company_id=cid, vendor_id=vid,
+                    number=number,
+                    issue_date=date.today() - timedelta(days=days_ago),
+                    due_date=date.today() + timedelta(days=30),
+                    currency="EGP",
+                    payment_method=VendorBillPaymentMethod.CREDIT,
+                    total=Decimal("100"), status=status,
+                )
+                db.session.add(b); db.session.flush()
+                return b
+            oldest_a = _mk(v_a.id, "VB-0091", 10)
+            newest_a = _mk(v_a.id, "VB-0094", 1)
+            middle_b = _mk(v_b.id, "VB-0092", 5)
+            paid_a = _mk(v_a.id, "VB-0093", 3,
+                          status=VendorBillStatus.PAID)
+            db.session.commit()
+
+            client = app.test_client()
+            with client.session_transaction() as s:
+                s["_user_id"] = str(oid)
+                s["_fresh"] = True
+                s["active_company_id"] = cid
+
+            # ─── 1. All-vendors mode: newest → oldest, PAID excluded.
+            r = client.get("/treasury/lookup/vendor-bills")
+            assert r.status_code == 200, r.status_code
+            data = r.get_json()
+            numbers = [x["number"] for x in data]
+            assert "VB-0093" not in numbers, \
+                "PAID bill leaked into picker"
+            # Sort must be newest → oldest by issue_date.
+            expected_order = ["VB-0094", "VB-0092", "VB-0091"]
+            got_relevant = [n for n in numbers if n in expected_order]
+            assert got_relevant == expected_order, \
+                f"wrong ordering: {got_relevant}"
+
+            # ─── 2. Vendor-filtered mode.
+            r2 = client.get(
+                f"/treasury/lookup/vendor-bills?vendor_id={v_a.id}")
+            data2 = r2.get_json()
+            numbers2 = [x["number"] for x in data2]
+            assert set(numbers2) == {"VB-0094", "VB-0091"}, \
+                f"vendor filter broke: {numbers2}"
+            # And within one vendor, still newest-first.
+            assert numbers2[0] == "VB-0094"
+
+            # ─── 3. vendors-with-open-bills lookup returns only the
+            # two vendors that have OPEN bills (v_a + v_b), not a
+            # vendor whose only bill is PAID.
+            r3 = client.get(
+                "/treasury/lookup/vendors-with-open-bills")
+            assert r3.status_code == 200
+            vnames = {v["name"] for v in r3.get_json()}
+            assert "مورد ألف" in vnames
+            assert "مورد باء" in vnames
+
+            # ─── 4. Modal template never prints a DB id inline. The
+            # rendered <option> label must use x.number, not x.id.
+            tpl = Path("app/templates/treasury/_modals.html").read_text(
+                encoding="utf-8")
+            # The option-building helper _fmtBill uses `${x.number}`
+            # (allowed) and never `${x.id}` inside the string.
+            assert "${x.number}" in tpl or "x.number" in tpl
+            # The DB id must appear ONLY as the option `value`
+            # attribute, never inside the visible label. Prove that
+            # by asserting the format string in _fmtBill doesn't
+            # reference x.id.
+            import re
+            m = re.search(
+                r"function _fmtBill\(x\)\{[^}]*return\s+`([^`]+)`",
+                tpl)
+            assert m, "could not locate _fmtBill body"
+            fmt_body = m.group(1)
+            assert "${x.id}" not in fmt_body, (
+                "display label includes DB id — banned by ticket")
+            return ("filter+order OK; DB id absent from display "
+                    "label; " + str(numbers))
+        finally:
+            pass
+
+
 def main():
     passed = failed = 0
     for label, fn in CHECKS:

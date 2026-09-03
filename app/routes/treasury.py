@@ -156,8 +156,18 @@ def lookup_invoices():
 @login_required
 @require_permission("reports.view")
 def lookup_vendor_bills():
+    """MARSOUD-TREASURY-VENDOR-PICKER-01 (2026-09-03) — feeds the pay
+    modal's bill picker. Accepts:
+      · ?q=…            free-text on the display number (existing).
+      · ?vendor_id=…    NEW — narrows to one vendor's open bills.
+
+    Ordering is always issue_date DESC, id DESC — newest first, per
+    ticket AC. Row cap is 20 when browsing all vendors (unchanged),
+    200 when a specific vendor is picked (a specific vendor's whole
+    open ledger should fit)."""
     cid = g.active_company.id
     q = (request.args.get("q") or "").strip()
+    vendor_id = _int_or_none(request.args.get("vendor_id"))
     query = VendorBill.query.filter_by(company_id=cid).filter(
         VendorBill.status.in_([
             VendorBillStatus.POSTED,
@@ -165,9 +175,15 @@ def lookup_vendor_bills():
             VendorBillStatus.OVERDUE,
         ])
     )
+    if vendor_id:
+        query = query.filter(VendorBill.vendor_id == vendor_id)
     if q:
         query = query.filter(VendorBill.number.ilike(f"%{q}%"))
-    rows = query.order_by(VendorBill.issue_date.desc()).limit(20).all()
+    limit = 200 if vendor_id else 20
+    rows = (query
+            .order_by(VendorBill.issue_date.desc(),
+                       VendorBill.id.desc())
+            .limit(limit).all())
     return jsonify([
         {
             "id": b.id, "number": b.number,
@@ -175,4 +191,32 @@ def lookup_vendor_bills():
             "balance": float(b.balance or 0),
             "total": float(b.total or 0),
         } for b in rows
+    ])
+
+
+# MARSOUD-TREASURY-VENDOR-PICKER-01 — vendors that currently have at
+# least one open (unpaid/partially/overdue) bill. The pay modal's
+# vendor <select> is populated from this so a cashier doesn't scroll
+# through a 500-vendor list looking for a specific one who hasn't
+# billed us anything.
+@bp.route("/lookup/vendors-with-open-bills")
+@login_required
+@require_permission("reports.view")
+def lookup_vendors_with_open_bills():
+    from app.models import Vendor
+    cid = g.active_company.id
+    # DISTINCT vendor_id from open bills, joined onto Vendor for the
+    # display name. One query, small result set.
+    rows = (db.session.query(Vendor.id, Vendor.name)
+            .join(VendorBill, VendorBill.vendor_id == Vendor.id)
+            .filter(VendorBill.company_id == cid,
+                     VendorBill.status.in_([
+                         VendorBillStatus.POSTED,
+                         VendorBillStatus.PARTIALLY_PAID,
+                         VendorBillStatus.OVERDUE,
+                     ]))
+            .group_by(Vendor.id, Vendor.name)
+            .order_by(Vendor.name).all())
+    return jsonify([
+        {"id": vid, "name": name} for vid, name in rows
     ])

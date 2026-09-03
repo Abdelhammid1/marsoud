@@ -77,10 +77,29 @@
             <option value="misc">دفع عام (بدون فاتورة)</option>
           </select>
         </div>
-        <div id="tr-pay-bill-row">
-          <label class="block text-sm font-semibold text-slate-700 mb-1">رقم فاتورة المورد</label>
-          <input type="text" name="vendor_bill_id" list="tr-bill-datalist" class="input" placeholder="ابحث برقم الفاتورة">
-          <datalist id="tr-bill-datalist"></datalist>
+        {# MARSOUD-TREASURY-VENDOR-PICKER-01 (2026-09-03) — two
+           dependent <select>s instead of a text+datalist. The
+           vendor picker narrows the bill list to that vendor's
+           open bills only; leaving vendor empty shows every open
+           bill across the tenant, newest first. The bill option's
+           TEXT is the display number (e.g. VB-0094) — the DB id is
+           only inside the option's `value` (never rendered). #}
+        <div id="tr-pay-bill-row" class="space-y-3">
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1">المورد (اختياري)</label>
+            <select id="tr-pay-vendor" class="select">
+              <option value="">— كل الموردين —</option>
+            </select>
+            <p class="text-xs text-slate-500 mt-1">
+              اختيار المورد بيقلّص قايمة الفواتير للمعلّق منها فقط.
+            </p>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1">الفاتورة</label>
+            <select name="vendor_bill_id" id="tr-pay-bill" class="select">
+              <option value="">— اختر فاتورة —</option>
+            </select>
+          </div>
         </div>
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-1">من الحساب</label>
@@ -180,7 +199,62 @@
   // Prime once at page load.
   primeDatalist('{{ url_for("treasury.lookup_invoices") }}',      'tr-invoice-datalist',
                 x => `${x.number} — ${x.customer} — رصيد ${x.balance.toFixed(2)}`);
-  primeDatalist('{{ url_for("treasury.lookup_vendor_bills") }}',  'tr-bill-datalist',
-                x => `${x.number} — ${x.vendor} — رصيد ${x.balance.toFixed(2)}`);
+
+  // ─── MARSOUD-TREASURY-VENDOR-PICKER-01 — vendor+bills wiring ────
+  // Bill option TEXT is the display number (e.g. "VB-0094 — شركة ABC
+  // — رصيد 1500.00"). The DB id sits in the option's `value`
+  // attribute so it POSTs to the server, but is never rendered
+  // visibly — the ticket explicitly bans showing the URL/DB id.
+  const vendorSel = document.getElementById('tr-pay-vendor');
+  const billSel = document.getElementById('tr-pay-bill');
+
+  function _fmtBill(x){
+    // x.number is the human-facing "VB-0094" from the DB, NOT the
+    // primary-key id. Balance/vendor tail helps the cashier avoid
+    // paying the wrong slip when a vendor has several open bills.
+    return `${x.number} — ${x.vendor} — رصيد ${x.balance.toFixed(2)}`;
+  }
+  function _repaintBills(rows){
+    if (!billSel) return;
+    const opts = ['<option value="">— اختر فاتورة —</option>'];
+    for (const x of rows) {
+      opts.push(`<option value="${x.id}">${_fmtBill(x)}</option>`);
+    }
+    billSel.innerHTML = opts.join('');
+  }
+  async function _fetchBills(vendorId){
+    const base = '{{ url_for("treasury.lookup_vendor_bills") }}';
+    const url = vendorId
+      ? `${base}?vendor_id=${encodeURIComponent(vendorId)}`
+      : base;
+    try {
+      const r = await fetch(url);
+      const rows = await r.json();
+      _repaintBills(rows);
+    } catch (_e) { _repaintBills([]); }
+  }
+  async function _fetchVendors(){
+    if (!vendorSel) return;
+    try {
+      const r = await fetch(
+        '{{ url_for("treasury.lookup_vendors_with_open_bills") }}');
+      const rows = await r.json();
+      const opts = ['<option value="">— كل الموردين —</option>'];
+      for (const v of rows) {
+        opts.push(`<option value="${v.id}">${v.name}</option>`);
+      }
+      vendorSel.innerHTML = opts.join('');
+    } catch (_e) { /* keep the default option */ }
+  }
+  if (vendorSel && billSel) {
+    // Initial fill: every open bill across every vendor (newest
+    // first — server enforces the ordering).
+    _fetchVendors();
+    _fetchBills(null);
+    // Vendor change → refetch bills scoped to that vendor.
+    vendorSel.addEventListener('change', () => {
+      _fetchBills(vendorSel.value || null);
+    });
+  }
 })();
 </script>
