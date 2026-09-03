@@ -30,6 +30,29 @@ from markupsafe import Markup
 bp = Blueprint("public", __name__)
 
 
+# ─── MARSOUD-CONTACT-LEAD-01 CORS (Abdelhamid 2026-09-03) ────────
+# Browser calls to /api/v1/public/contact-lead come from manasety.ai
+# (different origin than marsoud.com). Without explicit CORS the
+# browser silently blocks the response and the JS fetch's .catch()
+# swallows it — leads never arrive even though curl/server-to-server
+# calls work fine. Scoped to this one endpoint only.
+_CONTACT_LEAD_ALLOWED_ORIGINS = {
+    "https://manasety.ai",
+    "https://www.manasety.ai",
+}
+
+
+@bp.after_request
+def _contact_lead_cors(response):
+    if request.path == "/api/v1/public/contact-lead":
+        origin = request.headers.get("Origin", "")
+        if origin in _CONTACT_LEAD_ALLOWED_ORIGINS:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Contact-Form-Token"
+            response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    return response
+
+
 # ─── MARSOUD-PUBLIC-CONTACT-FORM-01 rate limiter ─────────────────
 # Per-IP sliding window: max 5 requests per 60 s. In-memory only —
 # a real Redis limiter would sit in front in prod, but the ticket
@@ -86,7 +109,7 @@ def _build_notes(company_name, package, description):
     return "\n".join(parts)
 
 
-@bp.route("/api/v1/public/contact-lead", methods=["POST"])
+@bp.route("/api/v1/public/contact-lead", methods=["POST", "OPTIONS"])
 def contact_lead():
     """MARSOUD-PUBLIC-CONTACT-FORM-01 + MARSOUD-CONTACT-LEAD-01 —
     Manasty landing forms → CRM Lead.
@@ -108,6 +131,11 @@ def contact_lead():
                  429 rate-limited
                  500 endpoint disabled (no token configured)
     """
+    # 0. CORS preflight — no token needed, browser sends this before
+    # the actual POST because of the custom header + JSON body.
+    if request.method == "OPTIONS":
+        return "", 204
+
     # 1. Fail-closed gate — no CONTACT_FORM_TOKEN configured ⇒ refuse.
     configured = current_app.config.get("CONTACT_FORM_TOKEN") or ""
     if not configured:
