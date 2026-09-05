@@ -1,1234 +1,803 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-<meta charset="UTF-8">
-<!-- MARSOUD-META-DOMAIN-VERIFY-01 (Abdelhamid 2026-08-07) — Business
-     Manager domain verification for marsoud.com. Covers all tenant
-     subdomains automatically once verified (eTLD+1 scope). -->
-<meta name="facebook-domain-verification" content="r4eftn3bqd0zop433kon3somucf2ss" />
-  <link rel="icon" type="image/png" href="/static/img/logo.png">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>مرصود نظام إدارة الأعمال الذكي</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --slate-50:#f8fafc; --slate-100:#f1f5f9; --slate-200:#e2e8f0;
-    --slate-400:#94a3b8; --slate-500:#64748b; --slate-600:#475569;
-    --slate-700:#334155; --slate-800:#1e293b; --slate-900:#0f172a;
-    --emerald:#059669; --emerald-600:#047857; --emerald-light:#d1fae5;
-    --emerald-50:#ecfdf5;
-    --navy:#0c2461; --amber:#f59e0b;
-    --debit:#0ea5e9;  /* مدين */
-    --credit:#059669; /* دائن */
-    --radius:18px; --maxw:1180px;
-    --shadow-sm:0 1px 3px rgba(15,23,42,.06),0 1px 2px rgba(15,23,42,.04);
-    --shadow-md:0 12px 32px -8px rgba(15,23,42,.12),0 4px 12px -4px rgba(15,23,42,.06);
-    --shadow-lg:0 28px 60px -16px rgba(15,23,42,.18);
-  }
-  *{margin:0;padding:0;box-sizing:border-box}
-  html{scroll-behavior:smooth}
-  body{
-    font-family:'Tajawal',system-ui,sans-serif;
-    background:var(--slate-50); color:var(--slate-800);
-    line-height:1.7; -webkit-font-smoothing:antialiased;
-    overflow-x:hidden;
-  }
-  h1,h2,h3{font-family:'Cairo',sans-serif;line-height:1.25;letter-spacing:-.01em}
-  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
-  a{text-decoration:none;color:inherit}
 
-  /* ===== buttons ===== */
-  .btn{
-    display:inline-flex;align-items:center;gap:9px;
-    font-family:'Tajawal';font-weight:700;font-size:1.02rem;
-    padding:14px 28px;border-radius:12px;border:none;cursor:pointer;
-    transition:transform .18s ease, box-shadow .18s ease, background .18s ease;
-  }
-  .btn-primary{background:var(--emerald);color:#fff;box-shadow:0 8px 20px -6px rgba(5,150,105,.5)}
-  .btn-primary:hover{background:var(--emerald-600);transform:translateY(-2px);box-shadow:0 14px 28px -8px rgba(5,150,105,.55)}
-  .btn-ghost{background:#fff;color:var(--slate-700);border:1.5px solid var(--slate-200);box-shadow:var(--shadow-sm)}
-  .btn-ghost:hover{border-color:var(--slate-400);transform:translateY(-2px)}
-
-  /* ===== nav ===== */
-  nav{
-    position:sticky;top:0;z-index:50;
-    background:rgba(248,250,252,.82);backdrop-filter:blur(14px);
-    border-bottom:1px solid var(--slate-200);
-  }
-  .nav-in{display:flex;align-items:center;justify-content:space-between;height:70px}
-  .logo{display:flex;align-items:center;gap:10px;font-family:'Cairo';font-weight:900;font-size:1.4rem;color:var(--slate-900)}
-  .logo .mark{
-    width:38px;height:38px;border-radius:10px;
-    background:linear-gradient(135deg,var(--emerald),var(--navy));
-    display:grid;place-items:center;color:#fff;font-size:1.2rem;
-    box-shadow:0 6px 16px -4px rgba(5,150,105,.5);
-  }
-  .nav-links{display:flex;gap:30px;align-items:center;font-weight:500;color:var(--slate-600)}
-  .nav-links a:hover{color:var(--emerald)}
-  .nav-cta{display:flex;gap:12px;align-items:center}
-  .menu-btn{display:none;background:none;border:none;font-size:1.6rem;cursor:pointer;color:var(--slate-700)}
-
-  /* ===== hero ===== */
-  .hero{position:relative;padding:78px 0 90px;overflow:hidden}
-  .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
-  .eyebrow{
-    display:inline-flex;align-items:center;gap:8px;
-    background:var(--emerald-50);color:var(--emerald-600);
-    font-weight:700;font-size:.86rem;padding:7px 15px;border-radius:99px;
-    border:1px solid var(--emerald-light);margin-bottom:22px;
-  }
-  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--emerald);box-shadow:0 0 0 3px rgba(5,150,105,.18)}
-  .hero h1{font-size:clamp(2.3rem,4.6vw,3.5rem);font-weight:900;color:var(--slate-900)}
-  .hero h1 .hl{color:var(--emerald);position:relative}
-  .hero h1 .hl::after{content:"";position:absolute;right:0;bottom:4px;width:100%;height:11px;background:var(--emerald-light);z-index:-1;border-radius:4px}
-  .hero p.lead{font-size:1.18rem;color:var(--slate-600);margin:22px 0 32px;max-width:540px}
-  .hero-cta{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
-  .micro{margin-top:18px;font-size:.9rem;color:var(--slate-500);display:flex;align-items:center;gap:7px}
-  .micro svg{width:17px;height:17px;color:var(--emerald)}
-
-  /* ===== signature: balanced journal entry ===== */
-  .ledger-card{
-    background:#fff;border-radius:var(--radius);box-shadow:var(--shadow-lg);
-    border:1px solid var(--slate-200);overflow:hidden;
-  }
-  .ledger-head{
-    background:var(--slate-900);color:#fff;padding:16px 22px;
-    display:flex;align-items:center;justify-content:space-between;
-  }
-  .ledger-head .t{font-family:'Cairo';font-weight:700;font-size:1.02rem}
-  .ledger-head .tag{font-size:.78rem;background:rgba(255,255,255,.12);padding:4px 11px;border-radius:7px;color:#cbd5e1}
-  .ledger-body{padding:8px 0}
-  .ledger-trigger{
-    padding:14px 22px;display:flex;align-items:center;gap:11px;
-    border-bottom:1px dashed var(--slate-200);
-  }
-  .ledger-trigger .ic{width:34px;height:34px;border-radius:9px;background:var(--emerald-50);display:grid;place-items:center;font-size:1.05rem}
-  .ledger-trigger .txt{font-size:.95rem;color:var(--slate-600)}
-  .ledger-trigger .txt b{color:var(--slate-900);font-weight:700}
-  table.je{width:100%;border-collapse:collapse;font-size:.92rem}
-  table.je th{
-    text-align:right;padding:11px 22px;color:var(--slate-400);
-    font-weight:700;font-size:.78rem;background:var(--slate-50);
-    border-bottom:1px solid var(--slate-200);
-  }
-  table.je th.num,table.je td.num{text-align:left;font-variant-numeric:tabular-nums;font-family:'Cairo'}
-  table.je td{padding:13px 22px;border-bottom:1px solid var(--slate-100);color:var(--slate-700)}
-  .acct{display:flex;align-items:center;gap:9px}
-  .acct .code{font-family:'Cairo';font-size:.72rem;font-weight:700;color:#fff;padding:2px 7px;border-radius:5px}
-  .acct.debit .code{background:var(--debit)}
-  .acct.credit .code{background:var(--credit)}
-  .je-foot{
-    display:flex;justify-content:space-between;align-items:center;
-    padding:14px 22px;background:var(--emerald-50);
-  }
-  .je-foot .bal{display:flex;align-items:center;gap:9px;font-family:'Cairo';font-weight:700;color:var(--emerald-600);font-size:.95rem}
-  .je-foot .bal svg{width:19px;height:19px}
-  .je-foot .sums{display:flex;gap:26px;font-family:'Cairo';font-weight:700;font-size:.92rem}
-  .je-foot .sums .s-d{color:var(--debit)} .je-foot .sums .s-c{color:var(--credit)}
-  @keyframes rowIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:translateX(0)}}
-  .je tbody tr{animation:rowIn .5s ease both}
-  .je tbody tr:nth-child(1){animation-delay:.15s}
-  .je tbody tr:nth-child(2){animation-delay:.35s}
-  @keyframes pulseGlow{0%,100%{box-shadow:0 0 0 0 rgba(5,150,105,0)}50%{box-shadow:0 0 0 6px rgba(5,150,105,.12)}}
-  .je-foot .bal svg{animation:pulseGlow 2.4s ease infinite;border-radius:50%}
-
-  /* ===== trust bar ===== */
-  .trust{border-top:1px solid var(--slate-200);border-bottom:1px solid var(--slate-200);background:#fff}
-  .trust-in{display:flex;flex-wrap:wrap;justify-content:space-around;gap:18px;padding:30px 0}
-  .stat{text-align:center;min-width:140px}
-  .stat .n{font-family:'Cairo';font-weight:900;font-size:1.9rem;color:var(--slate-900)}
-  .stat .n .u{color:var(--emerald)}
-  .stat .n.accent{color:var(--emerald)}
-  .stat .l{font-size:.9rem;color:var(--slate-500);margin-top:2px}
-
-  /* ===== section base ===== */
-  section.blk{padding:88px 0}
-  .sec-head{text-align:center;max-width:640px;margin:0 auto 54px}
-  .sec-head .kick{color:var(--emerald-600);font-weight:700;font-size:.9rem;letter-spacing:.04em;margin-bottom:10px}
-  .sec-head h2{font-size:clamp(1.7rem,3.2vw,2.4rem);font-weight:900;color:var(--slate-900)}
-  .sec-head p{color:var(--slate-600);margin-top:14px;font-size:1.08rem}
-
-  /* ===== modules grid ===== */
-  .mods{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
-  .mod{
-    background:#fff;border:1px solid var(--slate-200);border-radius:var(--radius);
-    padding:28px;box-shadow:var(--shadow-sm);transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease;
-    position:relative;overflow:hidden;
-  }
-  .mod::before{content:"";position:absolute;top:0;right:0;width:100%;height:3px;background:var(--accent,var(--emerald));transform:scaleX(0);transform-origin:right;transition:transform .3s ease}
-  .mod:hover{transform:translateY(-5px);box-shadow:var(--shadow-md);border-color:transparent}
-  .mod:hover::before{transform:scaleX(1)}
-  .mod .ic{
-    width:52px;height:52px;border-radius:13px;display:grid;place-items:center;
-    font-size:1.5rem;margin-bottom:18px;background:var(--accent-bg,var(--emerald-50));
-  }
-  .mod h3{font-size:1.22rem;font-weight:700;color:var(--slate-900);margin-bottom:9px}
-  .mod p{color:var(--slate-600);font-size:.97rem}
-  .mod ul{list-style:none;margin-top:14px;display:flex;flex-wrap:wrap;gap:7px}
-  .mod ul li{font-size:.8rem;background:var(--slate-100);color:var(--slate-600);padding:4px 10px;border-radius:7px;font-weight:500}
-
-  /* ===== differentiator (GL real) ===== */
-  .diff{
-    background:linear-gradient(160deg,#f4fbf8 0%,#ecfdf5 55%,#e8f3fb 100%);
-    color:var(--slate-800);border-radius:26px;overflow:hidden;position:relative;
-    border:1px solid var(--emerald-light);
-    box-shadow:0 24px 60px -28px rgba(5,150,105,.28);
-  }
-  .diff-bg{position:absolute;inset:0;opacity:.85;background:
-    radial-gradient(620px 320px at 88% -5%,rgba(5,150,105,.13),transparent),
-    radial-gradient(520px 320px at 6% 105%,rgba(24,73,169,.10),transparent)}
-  .diff-in{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:50px;align-items:center;padding:60px}
-  .diff h2{font-size:clamp(1.7rem,3vw,2.3rem);font-weight:900;color:var(--slate-900);margin-bottom:18px}
-  .diff h2 .g{color:var(--emerald-600)}
-  .diff p{color:var(--slate-600);font-size:1.08rem;margin-bottom:26px}
-  .diff-list{display:flex;flex-direction:column;gap:16px}
-  .diff-list .it{display:flex;gap:13px;align-items:flex-start}
-  .diff-list .it .chk{
-    width:26px;height:26px;flex-shrink:0;border-radius:8px;
-    background:var(--emerald);display:grid;place-items:center;color:#fff;font-weight:900;
-    box-shadow:0 4px 10px -3px rgba(5,150,105,.5);
-  }
-  .diff-list .it b{color:var(--slate-900);font-weight:700}
-  .diff-list .it span{color:var(--slate-600);font-size:.95rem;display:block}
-  .flow{
-    background:#fff;border:1px solid var(--slate-200);border-radius:18px;padding:26px;
-    box-shadow:0 14px 36px -16px rgba(15,23,42,.14);
-  }
-  .flow .step{display:flex;align-items:center;gap:14px;padding:13px 0}
-  .flow .step:not(:last-child){border-bottom:1px solid var(--slate-100)}
-  .flow .step .n{
-    width:30px;height:30px;border-radius:9px;background:var(--emerald-50);
-    color:var(--emerald-600);display:grid;place-items:center;
-    font-family:'Cairo';font-weight:700;font-size:.85rem;flex-shrink:0;
-    border:1px solid var(--emerald-light);
-  }
-  .flow .step .lbl{color:var(--slate-700);font-weight:500;font-size:.98rem}
-  .flow .arrow{text-align:center;color:var(--emerald);opacity:.45;font-size:1.1rem;padding:2px 0}
-
-  /* ===== AI agent ===== */
-  .ai-grid{display:grid;grid-template-columns:.9fr 1.1fr;gap:50px;align-items:center}
-  .ai-txt .kick{color:var(--emerald-600);font-weight:700;font-size:.9rem;margin-bottom:10px}
-  .ai-txt h2{font-size:clamp(1.6rem,3vw,2.3rem);font-weight:900;color:var(--slate-900);margin-bottom:16px}
-  .ai-txt p{color:var(--slate-600);font-size:1.08rem;margin-bottom:14px}
-  .chat{background:#fff;border:1px solid var(--slate-200);border-radius:var(--radius);box-shadow:var(--shadow-md);overflow:hidden}
-  .chat-head{padding:15px 20px;border-bottom:1px solid var(--slate-200);display:flex;align-items:center;gap:11px}
-  .chat-head .av{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--emerald),var(--navy));display:grid;place-items:center;color:#fff}
-  .chat-head .nm{font-family:'Cairo';font-weight:700;color:var(--slate-900);font-size:.98rem}
-  .chat-head .st{font-size:.78rem;color:var(--emerald);display:flex;align-items:center;gap:5px}
-  .chat-head .st::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--emerald)}
-  .chat-body{padding:20px;display:flex;flex-direction:column;gap:14px;background:var(--slate-50)}
-  .bubble{max-width:82%;padding:12px 16px;border-radius:14px;font-size:.95rem;line-height:1.6}
-  .bubble.user{align-self:flex-start;background:#fff;border:1px solid var(--slate-200);color:var(--slate-700);border-bottom-right-radius:4px}
-  .bubble.bot{align-self:flex-end;background:var(--emerald);color:#fff;border-bottom-left-radius:4px}
-  .bubble.bot .mini-je{margin-top:9px;background:rgba(255,255,255,.13);border-radius:9px;padding:9px 12px;font-size:.83rem;font-family:'Cairo'}
-  .bubble.bot .mini-je div{display:flex;justify-content:space-between;padding:2px 0}
-
-  /* ===== AI analyst ===== */
-  .analyst-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:50px;align-items:center}
-  .analyst-card{background:#fff;border:1px solid var(--slate-200);border-radius:var(--radius);box-shadow:var(--shadow-md);overflow:hidden}
-  .analyst-head{
-    padding:15px 20px;border-bottom:1px solid var(--slate-200);
-    display:flex;align-items:center;gap:11px;
-  }
-  .analyst-head .av{
-    width:36px;height:36px;border-radius:10px;
-    background:linear-gradient(135deg,var(--navy),#1849a9);
-    display:grid;place-items:center;color:#fff;
-  }
-  .analyst-head .nm{font-family:'Cairo';font-weight:700;color:var(--slate-900);font-size:.98rem}
-  .analyst-head .st{font-size:.78rem;color:#1849a9;display:flex;align-items:center;gap:5px}
-  .analyst-head .st::before{content:"";width:7px;height:7px;border-radius:50%;background:#1849a9}
-  .analyst-body{padding:20px;background:var(--slate-50);display:flex;flex-direction:column;gap:14px}
-  .analyst-q{
-    align-self:flex-start;max-width:88%;background:#fff;border:1px solid var(--slate-200);
-    color:var(--slate-700);padding:12px 16px;border-radius:14px;border-bottom-right-radius:4px;font-size:.95rem;
-  }
-  .insight{
-    background:#fff;border:1px solid var(--slate-200);border-radius:14px;padding:16px 18px;
-    box-shadow:var(--shadow-sm);
-  }
-  .insight .ttl{
-    font-family:'Cairo';font-weight:700;color:var(--slate-900);font-size:.95rem;
-    display:flex;align-items:center;gap:8px;margin-bottom:14px;
-  }
-  .bars{display:flex;flex-direction:column;gap:11px}
-  .bar-row{display:grid;grid-template-columns:78px 1fr 62px;align-items:center;gap:10px;font-size:.85rem}
-  .bar-row .bl{color:var(--slate-600)}
-  .bar-row .track{height:9px;background:var(--slate-100);border-radius:99px;overflow:hidden}
-  .bar-row .fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--emerald),#34d399)}
-  .bar-row .fill.alt{background:linear-gradient(90deg,#1849a9,#078fd2)}
-  .bar-row .bv{font-family:'Cairo';font-weight:700;color:var(--slate-900);text-align:left;font-variant-numeric:tabular-nums}
-  .insight-note{
-    margin-top:14px;padding-top:13px;border-top:1px dashed var(--slate-200);
-    font-size:.88rem;color:var(--slate-600);line-height:1.65;
-  }
-  .insight-note b{color:var(--emerald-600)}
-  .analyst-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
-  .analyst-tags span{
-    font-size:.83rem;background:var(--emerald-50);color:var(--emerald-600);
-    border:1px solid var(--emerald-light);padding:6px 13px;border-radius:99px;font-weight:600;
-  }
-
-  /* ===== final CTA ===== */
-  .cta-band{padding:90px 0}
-  .cta-box{
-    background:linear-gradient(135deg,var(--emerald),var(--emerald-600));
-    border-radius:28px;padding:62px 40px;text-align:center;position:relative;overflow:hidden;
-    box-shadow:0 30px 70px -20px rgba(5,150,105,.55);
-  }
-  .cta-box::before{content:"";position:absolute;inset:0;opacity:.4;background:
-    radial-gradient(400px 200px at 80% 10%,rgba(255,255,255,.3),transparent),
-    radial-gradient(400px 240px at 15% 110%,rgba(12,36,97,.4),transparent)}
-  .cta-box h2{position:relative;font-size:clamp(1.8rem,3.4vw,2.6rem);font-weight:900;color:#fff;margin-bottom:14px}
-  .cta-box p{position:relative;color:rgba(255,255,255,.92);font-size:1.12rem;margin-bottom:30px;max-width:520px;margin-inline:auto}
-  .cta-box .btns{position:relative;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
-  .cta-box .btn-white{background:#fff;color:var(--emerald-600)}
-  .cta-box .btn-white:hover{transform:translateY(-2px);box-shadow:0 14px 30px -8px rgba(0,0,0,.25)}
-  .cta-box .btn-outline{background:rgba(255,255,255,.12);color:#fff;border:1.5px solid rgba(255,255,255,.4)}
-  .cta-box .btn-outline:hover{background:rgba(255,255,255,.2)}
-
-  /* ===== footer ===== */
-  footer{background:#fff;border-top:1px solid var(--slate-200);padding:48px 0 30px}
-  .foot-grid{display:flex;justify-content:space-between;flex-wrap:wrap;gap:30px;margin-bottom:34px}
-  .foot-brand{max-width:300px}
-  .foot-brand .logo{margin-bottom:14px}
-  .foot-brand p{color:var(--slate-500);font-size:.95rem}
-  .foot-col h4{font-family:'Cairo';font-size:.95rem;color:var(--slate-900);margin-bottom:14px}
-  .foot-col a{display:block;color:var(--slate-500);font-size:.92rem;padding:5px 0}
-  .foot-col a:hover{color:var(--emerald)}
-  .foot-bottom{border-top:1px solid var(--slate-100);padding-top:22px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;color:var(--slate-400);font-size:.88rem}
-
-  /* ===== reveal ===== */
-  .reveal{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease}
-  .reveal.in{opacity:1;transform:none}
-
-  /* ===== responsive ===== */
-  /* ===== pricing ===== */
-  .price-toggle{
-    display:inline-flex;background:#fff;border:1px solid var(--slate-200);
-    border-radius:99px;padding:5px;margin:0 auto 40px;box-shadow:var(--shadow-sm);
-    position:relative;
-  }
-  .price-toggle button{
-    background:none;border:none;cursor:pointer;font-family:'Tajawal';
-    font-weight:700;font-size:.95rem;color:var(--slate-500);
-    padding:10px 22px;border-radius:99px;transition:color .18s ease;
-    position:relative;z-index:2;
-  }
-  .price-toggle button.on{color:#fff}
-  .price-toggle .slide{
-    position:absolute;top:5px;bottom:5px;
-    background:linear-gradient(135deg,var(--emerald),var(--navy));
-    border-radius:99px;transition:left .28s cubic-bezier(.4,0,.2,1),width .28s cubic-bezier(.4,0,.2,1);
-    z-index:1;
-  }
-  .price-toggle .save{
-    display:inline-block;background:var(--amber);color:#fff;
-    font-size:.68rem;padding:2px 7px;border-radius:99px;margin-right:6px;
-    font-weight:800;letter-spacing:.02em;
-  }
-  .plans{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;align-items:stretch}
-  .plan{
-    background:#fff;border-radius:var(--radius);padding:32px 26px;
-    border:1.5px solid var(--slate-200);box-shadow:var(--shadow-sm);
-    display:flex;flex-direction:column;position:relative;
-    transition:transform .22s ease, box-shadow .22s ease, border-color .22s ease;
-  }
-  .plan:hover{transform:translateY(-4px);box-shadow:var(--shadow-md);border-color:var(--slate-400)}
-  .plan.featured{
-    border:2px solid var(--emerald);
-    box-shadow:0 20px 44px -12px rgba(5,150,105,.28);
-    transform:translateY(-6px);
-  }
-  .plan.featured:hover{transform:translateY(-10px)}
-  .plan-badge{
-    position:absolute;top:-13px;left:50%;transform:translateX(-50%);
-    background:linear-gradient(135deg,var(--emerald),var(--navy));color:#fff;
-    font-size:.75rem;font-weight:800;padding:6px 16px;border-radius:99px;
-    box-shadow:0 6px 14px -4px rgba(5,150,105,.5);letter-spacing:.02em;
-  }
-  .plan-name{font-family:'Cairo';font-weight:800;font-size:1.4rem;color:var(--slate-900);margin-bottom:4px;text-align:center}
-  .plan-tag{font-size:.86rem;color:var(--slate-500);margin-bottom:22px;min-height:1.4em;text-align:center}
-  .plan-price{display:flex;align-items:baseline;justify-content:center;gap:6px;margin-bottom:2px}
-  .plan-price .amt{font-family:'Cairo';font-weight:900;font-size:2.6rem;color:var(--slate-900);line-height:1}
-  .plan-price .cur{font-size:.95rem;font-weight:600;color:var(--slate-500)}
-  .plan-per{font-size:.88rem;color:var(--slate-500);margin-bottom:4px;text-align:center}
-  .plan-yearly-note{font-size:.78rem;color:var(--emerald-600);font-weight:600;min-height:1.2em;margin-bottom:22px;text-align:center}
-  .plan-cta{
-    display:block;text-align:center;padding:12px;border-radius:12px;
-    font-family:'Tajawal';font-weight:700;font-size:.98rem;margin-bottom:22px;
-    transition:background .18s ease, transform .18s ease;
-  }
-  .plan-cta.primary{background:var(--emerald);color:#fff}
-  .plan-cta.primary:hover{background:var(--emerald-600);transform:translateY(-1px)}
-  .plan-cta.ghost{background:var(--slate-100);color:var(--slate-700);border:1px solid var(--slate-200)}
-  .plan-cta.ghost:hover{background:var(--slate-200)}
-  .plan-limits{
-    display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;
-    background:linear-gradient(180deg,var(--slate-50),#fff);
-    border:1px solid var(--slate-200);border-radius:12px;
-    padding:14px 8px;margin-bottom:22px;
-  }
-  .plan-limits .li{text-align:center}
-  .plan-limits .li .n{font-family:'Cairo';font-weight:800;font-size:1.05rem;color:var(--slate-900);display:block;line-height:1.1}
-  .plan-limits .li .l{font-size:.7rem;color:var(--slate-500);display:block;margin-top:2px}
-  .plan-limits .li + .li{border-right:1px solid var(--slate-200);padding-right:6px}
-  .plan-features{list-style:none;padding:0;margin:0 auto;flex:1;width:fit-content;display:flex;flex-direction:column;justify-content:center}
-  .plan-features li{
-    display:flex;align-items:flex-start;gap:9px;
-    font-size:.93rem;color:var(--slate-700);padding:7px 0;
-  }
-  .plan-features li::before{
-    content:"✓";flex-shrink:0;width:20px;height:20px;
-    background:var(--emerald-light);color:var(--emerald-600);
-    border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:.78rem;
-  }
-  .plan-features li.muted{color:var(--slate-400)}
-  .plan-features li.muted::before{content:"·";background:var(--slate-100);color:var(--slate-400)}
-  .price-foot{text-align:center;color:var(--slate-500);font-size:.92rem;margin-top:36px}
-  .price-foot a{color:var(--emerald);font-weight:700}
-
-  @media(max-width:900px){
-    .hero-grid,.diff-in,.ai-grid,.analyst-grid{grid-template-columns:1fr;gap:40px}
-    .analyst-grid .analyst-card{order:2}
-    .analyst-grid .ai-txt{order:1}
-    .mods{grid-template-columns:repeat(2,1fr)}
-    .diff-in{padding:40px 28px}
-    .nav-links{display:none}
-    .plans{grid-template-columns:1fr;gap:28px;max-width:420px;margin:0 auto}
-    .plan.featured{transform:none}
-    .plan.featured:hover{transform:translateY(-4px)}
-  }
-  @media(max-width:600px){
-    .mods{grid-template-columns:1fr}
-    .menu-btn{display:block}
-    .hero{padding:50px 0 60px}
-    section.blk{padding:60px 0}
-    .je-foot .sums{gap:14px;font-size:.82rem}
-    .cta-box{padding:46px 24px}
-    .plan-price .amt{font-size:2.2rem}
-    .plan-limits{grid-template-columns:1fr;padding:12px}
-    .plan-limits .li + .li{border-right:none;border-top:1px solid var(--slate-200);padding-right:0;padding-top:8px;margin-top:8px}
-    .bar-row{grid-template-columns:62px 1fr 58px;gap:8px;font-size:.8rem}
-  }
-  @media(prefers-reduced-motion:reduce){
-    *{animation:none!important;transition:none!important}
-    .reveal{opacity:1;transform:none}
-  }
-  .logo-img{
-  width:38px;height:38px;border-radius:10px;
-  object-fit:contain;
-}
-  .whatsapp-country-float {
-  position: fixed;
-  right: 24px;
-  bottom: 80px;
-  z-index: 9999;
-  direction: rtl;
-}
-
-@media (max-width: 768px) {
-  .whatsapp-country-float {
-    bottom: 100px;
-  }
-}
-  .whatsapp-main-btn{
-  display:flex;align-items:center;gap:10px;
-  background:#25D366;color:#fff;border:none;
-  border-radius:50px;padding:14px 20px;
-  font-family:'Tajawal';font-weight:700;font-size:.95rem;
-  cursor:pointer;box-shadow:0 8px 20px -4px rgba(37,211,102,.5);
-  transition:transform .2s ease;
-}
-.whatsapp-main-btn:hover{transform:scale(1.05)}
-.whatsapp-main-btn svg{width:22px;height:22px;flex-shrink:0}
-.whatsapp-float-menu.open{display:block}
-.whatsapp-float-menu{
-  display:none;position:absolute;bottom:60px;right:0;
-  background:#fff;border-radius:12px;box-shadow:var(--shadow-md);
-  overflow:hidden;min-width:160px;border:1px solid var(--slate-200);
-}
-.whatsapp-float-menu a{
-  display:block;padding:12px 18px;color:var(--slate-700);
-  font-weight:500;font-size:.92rem;
-}
-.whatsapp-float-menu a:hover{background:var(--slate-50);color:var(--emerald)}
-.whatsapp-country-float:hover .whatsapp-float-menu{display:block}
-
-  /* ═══════ LANDING-REFRESH (2026-08-11) ═══════ */
-
-  /* Persona-based CTA chips under the hero button */
-  .personas{
-    margin-top:22px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;
-  }
-  .personas .lbl{font-size:.85rem;color:var(--slate-500);margin-inline-end:4px}
-  .persona-chip{
-    display:inline-flex;align-items:center;gap:6px;
-    font-family:'Tajawal';font-weight:600;font-size:.86rem;
-    background:#fff;color:var(--slate-700);
-    border:1.5px solid var(--slate-200);border-radius:99px;
-    padding:7px 14px;transition:all .18s ease;cursor:pointer;
-  }
-  .persona-chip:hover{
-    border-color:var(--emerald);color:var(--emerald-600);
-    transform:translateY(-1px);box-shadow:0 4px 12px -4px rgba(5,150,105,.25);
-  }
-  .persona-chip .ic{font-size:.98rem}
-
-  /* NEW / AI pills for module cards */
-  .mod-pill{
-    position:absolute;top:16px;left:16px;
-    font-family:'Cairo';font-weight:800;font-size:.66rem;letter-spacing:.05em;
-    padding:3px 9px;border-radius:99px;text-transform:uppercase;
-    box-shadow:0 3px 8px -2px rgba(5,150,105,.35);
-  }
-  .mod-pill.new{background:var(--amber);color:#fff}
-  .mod-pill.ai{
-    background:linear-gradient(135deg,var(--navy),#1849a9);color:#fff;
-    box-shadow:0 3px 8px -2px rgba(12,36,97,.4);
-  }
-
-  /* NEW inline pill inside a bullet list */
-  .li-new{
-    display:inline-block;
-    background:var(--amber);color:#fff;
-    font-size:.62rem;font-weight:800;letter-spacing:.05em;
-    padding:1px 6px;border-radius:99px;margin-inline-start:5px;
-    vertical-align:middle;text-transform:uppercase;
-  }
-
-  /* "What's new" highlights strip between trust bar and modules */
-  .highlights{
-    background:linear-gradient(180deg,#fff,var(--slate-50));
-    border-bottom:1px solid var(--slate-200);padding:56px 0 68px;
-  }
-  .highlights-head{text-align:center;margin-bottom:36px}
-  .highlights-head .kick{
-    display:inline-flex;align-items:center;gap:8px;
-    background:var(--amber);color:#fff;
-    font-family:'Cairo';font-weight:800;font-size:.72rem;letter-spacing:.06em;
-    padding:5px 13px;border-radius:99px;margin-bottom:12px;
-  }
-  .highlights-head .kick::before{content:"✦";font-size:.8rem}
-  .highlights-head h2{
-    font-size:clamp(1.5rem,2.6vw,2rem);font-weight:900;
-    color:var(--slate-900);margin-bottom:6px;
-  }
-  .highlights-head p{color:var(--slate-500);font-size:.98rem;max-width:520px;margin:0 auto}
-  .hl-grid{
-    display:grid;grid-template-columns:repeat(3,1fr);gap:18px;
-  }
-  .hl-item{
-    background:#fff;border:1px solid var(--slate-200);border-radius:14px;
-    padding:22px 20px;position:relative;overflow:hidden;
-    box-shadow:var(--shadow-sm);transition:transform .22s ease,box-shadow .22s ease;
-  }
-  .hl-item:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
-  .hl-item::before{
-    content:"";position:absolute;top:0;right:0;width:4px;height:100%;
-    background:linear-gradient(180deg,var(--emerald),var(--navy));
-  }
-  .hl-item .hl-ic{
-    width:42px;height:42px;border-radius:11px;
-    background:var(--emerald-50);color:var(--emerald-600);
-    display:grid;place-items:center;font-size:1.3rem;margin-bottom:13px;
-  }
-  .hl-item h4{
-    font-family:'Cairo';font-weight:700;font-size:1.05rem;
-    color:var(--slate-900);margin-bottom:6px;
-  }
-  .hl-item p{color:var(--slate-600);font-size:.9rem;line-height:1.6}
-
-  /* SVG section divider — sits between color-transitioning bands */
-  .divider-wave{display:block;width:100%;height:44px;line-height:0}
-  .divider-wave svg{display:block;width:100%;height:100%}
-
-  /* Sticky mobile CTA bar */
-  .mobile-cta-bar{display:none}
-  @media(max-width:768px){
-    .mobile-cta-bar{
-      display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;
-      background:#fff;border-top:1px solid var(--slate-200);
-      padding:10px 14px;gap:10px;align-items:center;
-      box-shadow:0 -6px 20px -8px rgba(15,23,42,.12);
-    }
-    .mobile-cta-bar .mcta-txt{
-      flex:1;font-size:.82rem;color:var(--slate-600);line-height:1.4;
-    }
-    .mobile-cta-bar .mcta-txt b{color:var(--slate-900);font-weight:800}
-    .mobile-cta-bar .mcta-btn{
-      background:var(--emerald);color:#fff;font-family:'Tajawal';font-weight:700;
-      padding:11px 18px;border-radius:10px;font-size:.9rem;flex-shrink:0;
-      box-shadow:0 6px 14px -4px rgba(5,150,105,.5);
-    }
-    /* Nudge whatsapp float up so it doesn't overlap */
-    .whatsapp-country-float{bottom:88px !important}
-    /* Body needs padding so the bar doesn't cover the footer */
-    body{padding-bottom:72px}
-  }
-</style>
-<!-- MARSOUD-META-PIXEL-01 (Abdelhamid 2026-08-07) -->
-<script>
-!function(f,b,e,v,n,t,s)
-{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-n.queue=[];t=b.createElement(e);t.async=!0;
-t.src=v;s=b.getElementsByTagName(e)[0];
-s.parentNode.insertBefore(t,s)}(window, document,'script',
-'https://connect.facebook.net/en_US/fbevents.js');
-fbq('init', '1356436859976572');
-fbq('track', 'PageView');
-</script>
-<noscript><img height="1" width="1" style="display:none"
-src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
-/></noscript>
-</head>
-<body>
-
-<!-- NAV -->
-<nav>
-  <div class="wrap nav-in">
-        <a href="/" class="logo"><img src="/static/img/logo.png" alt="مرصود" class="logo-img"> مرصود</a>
-    <div class="nav-links">
-      <a href="#modules">المميزات</a>
-      <!-- <a href="#ai">المحاسب الذكي</a> -->
-      <!-- <a href="#why">ليه مرصود</a> -->
-      <a href="#pricing">الأسعار</a>
-      <a href="https://manasety.ai/contact-page.html">تواصل معنا</a>
-    </div>
-    <div class="nav-cta">
-      <a href="/login" class="btn btn-ghost" style="padding:10px 18px">دخول</a>
-      <a href="/register" class="btn btn-primary" style="padding:10px 20px">ابدأ مجانًا</a>
-    </div>
-    <button class="menu-btn" aria-label="القائمة">☰</button>
-  </div>
-</nav>
-
-<!-- HERO -->
-<header class="hero">
-  <div class="wrap hero-grid">
-    <div>
-      <span class="eyebrow"><span class="dot"></span> نظام إدارة أعمال متكامل للشركات</span>
-      <h1>كل عملية في شركتك <span class="hl">تتحوّل لقيد محاسبي</span> متوازن تلقائيًا</h1>
-      <p class="lead">مرصود يجمع المحاسبة، المخزون والـ POS، الفواتير والموردين، الرواتب والموارد البشرية، إدارة المشاريع والمهام، والـ CRM — في نظام واحد مبني على دفتر أستاذ عام حقيقي.</p>
-      <div class="hero-cta">
-        <a href="/register" class="btn btn-primary">ابدأ مجانًا 14 يوم
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
-        </a>
-        <a href="#ai" class="btn btn-ghost">شوف المحاسب الذكي</a>
-      </div>
-      <div class="micro">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>
-        <b style="color:var(--slate-700);font-weight:700">14 يوم مجانًا</b> · بدون بطاقة · جاهز بالعربي · تعدد شركات وعملات
-      </div>
-      <!-- Persona chips — jump the reader to the section that fits them -->
-      <div class="personas">
-        <span class="lbl">إنت:</span>
-        <a href="#modules" class="persona-chip"><span class="ic">🏢</span> صاحب شركة</a>
-        <a href="#why" class="persona-chip"><span class="ic">🧮</span> محاسب</a>
-        <a href="#modules" class="persona-chip"><span class="ic">📋</span> مدير مشاريع</a>
-      </div>
-    </div>
-
-    <!-- SIGNATURE: balanced journal entry -->
-    <div class="ledger-card" aria-label="مثال على قيد محاسبي متوازن">
-      <div class="ledger-head">
-        <span class="t">قيد يومية #1042</span>
-        <span class="tag">تلقائي · من فاتورة مبيعات</span>
-      </div>
-      <div class="ledger-body">
-        <div class="ledger-trigger">
-          <span class="ic">🧾</span>
-          <span class="txt">سجّلت فاتورة بيع بقيمة <b>5,000 </b> + ضريبة 14% — مرصود ولّد القيد فورًا</span>
-        </div>
-        <table class="je">
-          <thead>
-            <tr><th>الحساب</th><th class="num">مدين</th><th class="num">دائن</th></tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><span class="acct debit"><span class="code">1110</span> النقدية / العملاء</span></td>
-              <td class="num">5,700</td><td class="num">—</td>
-            </tr>
-            <tr>
-              <td><span class="acct credit"><span class="code">4100</span> إيرادات المبيعات</span></td>
-              <td class="num">—</td><td class="num">5,000</td>
-            </tr>
-            <tr>
-              <td><span class="acct credit"><span class="code">2310</span> ضريبة القيمة المضافة</span></td>
-              <td class="num">—</td><td class="num">700</td>
-            </tr>
-          </tbody>
-        </table>
-        <div class="je-foot">
-          <span class="bal">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5"/></svg>
-            القيد متوازن
-          </span>
-          <span class="sums">
-            <span class="s-d">مدين 5,700</span>
-            <span class="s-c">دائن 5,700</span>
-          </span>
-        </div>
-      </div>
-    </div>
-  </div>
-</header>
-
-<!-- TRUST BAR -->
-<div class="trust">
-  <div class="wrap trust-in">
-    <div class="stat"><div class="n accent">8<span class="u"> موديولات</span></div><div class="l">في نظام واحد متكامل</div></div>
-    <div class="stat"><div class="n"><span class="u">%100</span></div><div class="l">قيد مزدوج حقيقي</div></div>
-    <div class="stat"><div class="n"><span class="u">%14</span></div><div class="l">ضريبة القيمة المضافة جاهزة</div></div>
-    <div class="stat"><div class="n">🤖</div><div class="l">مدعوم بالذكاء الاصطناعي</div></div>
-  </div>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;font-family:'IBM Plex Sans Arabic',sans-serif;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"surface-variant":"#d3e4fe","surface-container-low":"#eff4ff","tertiary":"#825100","primary-container":"#008378","tertiary-fixed-dim":"#ffb95f","on-tertiary-fixed":"#2a1700","slate-100":"#F1F5F9","mint-surface":"#ECFDF5","on-primary":"#ffffff","outline":"#6d7a77","on-background":"#0b1c30","inverse-primary":"#6bd8cb","on-primary-fixed":"#00201d","secondary-fixed-dim":"#bec6e0","outline-variant":"#bcc9c6","error":"#ba1a1a","on-surface-variant":"#3d4947","danger-surface":"#FEF2F2","surface-container-high":"#dce9ff","on-error-container":"#93000a","surface-bright":"#f8f9ff","inverse-surface":"#213145","slate-900":"#0F172A","amber-surface":"#FFFBEB","surface-dim":"#cbdbf5","secondary-fixed":"#dae2fd","danger-red":"#EF4444","tertiary-container":"#a36700","on-tertiary-container":"#fffbff","primary-fixed":"#89f5e7","on-tertiary-fixed-variant":"#653e00","surface-container-highest":"#d3e4fe","primary":"#00685f","surface-tint":"#006a61","slate-200":"#E2E8F0","slate-50":"#F8FAFC","on-secondary-fixed-variant":"#3f465c","on-tertiary":"#ffffff","on-error":"#ffffff","secondary":"#565e74","on-secondary-fixed":"#131b2e","error-container":"#ffdad6","background":"#f8f9ff","on-secondary":"#ffffff","surface-container":"#e5eeff","surface-container-lowest":"#ffffff","tertiary-fixed":"#ffddb8","on-primary-container":"#f4fffc","primary-fixed-dim":"#6bd8cb","on-surface":"#0b1c30","whatsapp-green":"#25D366","emerald-core":"#059669","on-secondary-container":"#5c647a","amber-ai":"#F59E0B","inverse-on-surface":"#eaf1ff","mint-accent":"#10B981","surface":"#f8f9ff","corporate-teal-deep":"#0F3D39","on-primary-fixed-variant":"#005049","secondary-container":"#dae2fd"},"borderRadius":{"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},"spacing":{"space-lg":"1.5rem","space-xl":"2rem","space-2xl":"3rem","gutter-tablet":"1rem","space-3xl":"4rem","space-xs":"0.5rem","gutter-desktop":"1.5rem","space-2xs":"0.25rem","sidebar-width":"280px","gutter-mobile":"0.75rem","space-md":"1rem","space-sm":"0.75rem","sidebar-collapsed":"72px"},"fontFamily":{"headline-md":["IBM Plex Sans"],"label-md":["IBM Plex Sans"],"currency-num":["IBM Plex Sans"],"body-md":["IBM Plex Sans"],"label-lg":["IBM Plex Sans"],"label-sm":["IBM Plex Sans"],"body-sm":["IBM Plex Sans"],"display-lg-mobile":["IBM Plex Sans"],"body-lg":["IBM Plex Sans"],"headline-sm":["IBM Plex Sans"],"headline-lg":["IBM Plex Sans"],"display-lg":["IBM Plex Sans"],"title-md":["IBM Plex Sans"],"title-lg":["IBM Plex Sans"]},"fontSize":{"headline-md":["20px",{"lineHeight":"30px","fontWeight":"600"}],"label-md":["12px",{"lineHeight":"16px","fontWeight":"500"}],"currency-num":["20px",{"lineHeight":"26px","letterSpacing":"0.01em","fontWeight":"700"}],"body-md":["14px",{"lineHeight":"22px","fontWeight":"400"}],"label-lg":["13px",{"lineHeight":"18px","fontWeight":"500"}],"label-sm":["11px",{"lineHeight":"14px","fontWeight":"600"}],"body-sm":["12px",{"lineHeight":"18px","fontWeight":"400"}],"display-lg-mobile":["28px",{"lineHeight":"38px","fontWeight":"700"}],"body-lg":["16px",{"lineHeight":"26px","fontWeight":"400"}],"headline-sm":["18px",{"lineHeight":"28px","fontWeight":"600"}],"headline-lg":["24px",{"lineHeight":"34px","letterSpacing":"-0.01em","fontWeight":"600"}],"display-lg":["36px",{"lineHeight":"48px","letterSpacing":"-0.02em","fontWeight":"700"}],"title-md":["14px",{"lineHeight":"22px","fontWeight":"600"}],"title-lg":["16px",{"lineHeight":"24px","fontWeight":"600"}]}}}};</script></head><body class="bg-background font-body-md text-body-md text-on-surface antialiased selection:bg-primary selection:text-on-primary"><header class="fixed top-0 w-full z-50 bg-surface/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-20 w-full max-w-7xl mx-auto px-gutter-desktop flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-xl"><a class="flex items-center gap-space-xs" data-path="landing-page" href="#"><div class="w-10 h-10 rounded-xl bg-corporate-teal-deep flex items-center justify-center text-primary-fixed"><span class="material-symbols-outlined text-[24px]">account_balance</span></div><div class="flex flex-col"><span class="font-headline-lg text-headline-lg font-bold text-corporate-teal-deep leading-none">مرصود</span><span class="font-label-sm text-label-sm text-on-surface-variant font-medium">نظام ERP ذكي</span></div></a><nav class="hidden xl:flex items-center gap-space-lg" data-active-classes="text-primary font-title-md"><a class="font-title-md text-title-md text-on-surface-variant hover:text-on-surface transition-colors" data-path="features" href="#">المميزات الأساسية</a><a class="font-title-md text-title-md text-on-surface-variant hover:text-on-surface transition-colors flex items-center gap-space-2xs" data-path="whats-new" href="#">الجديد في مرصود<span class="bg-mint-accent text-on-primary font-label-sm text-label-sm px-space-xs py-0.5 rounded-full">جديد</span></a><a class="font-title-md text-title-md text-on-surface-variant hover:text-on-surface transition-colors" data-path="ai-accountant" href="#">المحاسب والمحلل الذكي</a><a class="font-title-md text-title-md text-on-surface-variant hover:text-on-surface transition-colors" data-path="apps-and-mobile" href="#">التطبيقات والموبايل</a><a class="font-title-md text-title-md text-on-surface-variant hover:text-on-surface transition-colors" data-path="pricing-trial" href="#">الأسعار والتجربة</a></nav></div><div class="flex items-center gap-space-sm"><a class="hidden sm:flex items-center gap-space-2xs px-space-sm py-space-xs rounded-xl bg-mint-surface text-emerald-core hover:bg-mint-accent hover:text-on-primary transition-all" href="https://wa.me/201044203322" rel="noopener" target="_blank"><span class="material-symbols-outlined text-[20px]">chat</span><span class="font-label-lg text-label-lg font-semibold">استشارة واتساب</span></a><a class="hidden md:inline-flex items-center px-space-md py-space-xs font-title-md text-title-md text-on-surface-variant hover:text-on-surface transition-colors" data-path="login" href="#">تسجيل دخول</a><a class="inline-flex items-center justify-center px-space-lg py-space-xs rounded-xl bg-primary text-on-primary font-title-md text-title-md hover:bg-corporate-teal-deep transition-all shadow-[0_2px_8px_rgba(0,104,95,0.25)]" data-path="signup-trial" href="#">ابدأ تجربتك المجانية</a><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="w-full pt-20 bg-background"><div class="flex flex-col w-full font-body-md text-on-surface antialiased selection:bg-primary selection:text-on-primary">
+<!-- ======================================================== -->
+<!-- 1. HERO SECTION                                         -->
+<!-- ======================================================== -->
+<section class="relative w-full overflow-hidden bg-gradient-to-b from-surface-container-low/60 via-background to-background pb-space-3xl pt-space-xl">
+<div class="max-w-7xl mx-auto px-gutter-desktop">
+<!-- Top Tagline & Value Banner -->
+<div class="flex flex-col items-center text-center max-w-4xl mx-auto mb-space-2xl">
+<div class="inline-flex items-center gap-space-2xs px-space-md py-1.5 rounded-full bg-mint-surface text-emerald-core mb-space-md shadow-sm">
+<span class="material-symbols-outlined text-[18px]">verified</span>
+<span class="font-label-lg text-label-lg font-bold">نظام ERP متكامل للشركات في مصر والوطن العربي</span>
 </div>
-
-<!-- WHAT'S NEW — LANDING-REFRESH (2026-08-11) — features that
-     shipped in the last cycles and deserve a spot on the landing:
-     custody with attachments, task hierarchy, project archive,
-     employee self-service portal, AI insights analyst, kill-switch. -->
-<section class="highlights" id="highlights">
-  <div class="wrap">
-    <div class="highlights-head reveal">
-      <div class="kick">جديد في مرصود</div>
-      <h2>آخر ما نزل — بيحل مشاكل واقعية</h2>
-      <p>مش بس تحديثات شكلية — كل ميزة اتصممت لسيناريو محدد قالك عليه المحاسب أو صاحب الشركة.</p>
-    </div>
-    <div class="hl-grid">
-      <div class="hl-item reveal">
-        <div class="hl-ic">🤖</div>
-        <h4>المحلل الذكي بيجاوبك في ثانية</h4>
-        <p>بدل ما تدوّر في التقارير، اسأل مرصود بالعربي "الأرباح كام الشهر ده؟" ويجاوبك فورًا من غير ما تفتح تقرير واحد.</p>
-      </div>
-      <div class="hl-item reveal">
-        <div class="hl-ic">🕵️</div>
-        <h4>سجل تدقيق يعرفك كل حاجة</h4>
-        <p>كل عملية على مرصود بتتسجل باسم صاحبها وتوقيتها. اتحذف قيد؟ اتغيرت فاتورة؟ تعرف مين عمل إيه وإمتى من غير ما تدوّر.</p>
-      </div>
-      <div class="hl-item reveal">
-        <div class="hl-ic">📉</div>
-        <h4>إهلاك الأصول من غير ما تفتكر</h4>
-        <p>مفيش قيود يدوية ولا نسيان شهر — مرصود بيحسب إهلاك كل أصل لوحده وبيقيّده تلقائي.</p>
-      </div>
-      <div class="hl-item reveal">
-        <div class="hl-ic">💵</div>
-        <h4>رواتب باستحقاقات، مش تقريب</h4>
-        <p>مصروف الموظف بيتقيد في شهره الصح مش لما يتصرف بس — ميزانيتك تبقى مطابقة للواقع.</p>
-      </div>
-      <div class="hl-item reveal">
-        <div class="hl-ic">🧾</div>
-        <h4>فواتير الموردين مش هتنسى تدفعها</h4>
-        <p>حدد الفاتورة المتكررة مرة واحدة، ومرصود يفكرك ويجهزلك القيد قبل الاستحقاق.</p>
-      </div>
-      <div class="hl-item reveal">
-        <div class="hl-ic">📊</div>
-        <h4>تقييم أداء شركتك أوتوماتيك</h4>
-        <p>مش أرقام مجردة — نقاط ومؤشرات صحة حقيقية بتتفاعل مع نشاط شركتك الفعلي أول بأول.</p>
-      </div>
-    </div>
-  </div>
-</section>
-<!-- MODULES -->
-<section class="blk" id="modules">
-  <div class="wrap">
-    <div class="sec-head reveal">
-      <div class="kick">نظام واحد · كل العمليات</div>
-      <h2>ثماني موديولات مترابطة</h2>
-      <p>مش أنظمة منفصلة بتجمّعها بنفسك، كل موديول مربوط بالدفتر المحاسبي.</p>
-    </div>
-    <div class="mods">
-      <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
-        <span class="mod-pill ai">AI</span>
-        <div class="ic">📊</div>
-        <h3>المحاسبة والقيود</h3>
-        <p>دفتر أستاذ عام، دليل حسابات، قيود يومية، قيود دورية وقوالب، وتقارير مالية كاملة.</p>
-        <ul><li>الميزانية</li><li>قائمة الدخل</li><li>التدفق النقدي</li><li>الضريبة</li><li>أعمار الديون</li><li>المحلل الذكي <span class="li-new">جديد</span> </li><li>العهد النقدية </li></ul>
-      </div>
-      <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
-        <div class="ic">📦</div>
-        <h3>المخزون و POS</h3>
-        <p>أصناف وباركود، حركات مخزون بتكلفة متوسط مرجّح، نقاط بيع، وتقارير ربحية.</p>
-        <ul><li>SKU / باركود</li><li>مستودعات</li><li>تحويلات</li><li>الورديات</li><li>تقييم FIFO</li></ul>
-      </div>
-      <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
-        <div class="ic">🧾</div>
-        <h3>الفواتير والموردين</h3>
-        <p>فواتير عملاء بخصومات وضريبة، فواتير موردين بأسطر مختلطة، ودفعات وذمم.</p>
-        <ul><li>خصم بعد الضريبة</li><li>ذمم مدينة/دائنة</li><li>استرجاعات</li><li>إشعارات دائنة</li></ul>
-      </div>
-      <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
-        <div class="ic">👥</div>
-        <h3>الرواتب والموارد البشرية</h3>
-        <p>رواتب باستحقاقات، حضور بالاستثناءات، إجازات، وبوابة موظف ذاتية بعهد وسلف.</p>
-        <ul><li>مسيّر رواتب</li><li>الاستحقاقات</li><li>الحضور والإجازات</li><li>بوابة الموظف </li><li>العهد العينية </li></ul>
-      </div>
-      <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
-        <div class="ic">✅</div>
-        <h3>المشاريع والمهام</h3>
-        <p>Kanban بمهام متعددة المسؤولين، مهام فرعية بلا حدود، أرشفة المشاريع الخالصة، وتقويم موحّد.</p>
-        <ul><li>Kanban</li><li>تقويم</li><li>مهام فرعية </li><li>أرشفة المشاريع </li></ul>
-      </div>
-      <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
-        <div class="ic">🎯</div>
-        <h3>CRM وإدارة العملاء</h3>
-        <p>إدارة العملاء المحتملين (Leads)، تحويلهم لعملاء، ومتابعة المبيعات.</p>
-        <ul><li>Leads</li><li>تحويل</li><li>متابعة</li><li>حملات تسويقية</li></ul>
-      </div>
-      <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
-        <span class="mod-pill new">جديد</span>
-        <div class="ic">🏭</div>
-        <h3>التصنيع</h3>
-        <p>قوائم مواد (BOM)، أوامر إنتاج، واحتساب تكلفة صناعية دقيقة تتربط بالمخزون تلقائيًا.</p>
-        <ul><li>BOM</li><li>أوامر إنتاج</li><li>تكلفة صناعية</li></ul>
-      </div>
-      <div class="mod reveal" style="--accent:#059669;--accent-bg:#ecfdf5">
-        <span class="mod-pill new">جديد</span>
-        <div class="ic">📈</div>
-        <h3>تقييم الأداء</h3>
-        <p>دورات تقييم دورية للموظفين، مؤشرات أداء مرتبطة بالنشاط الفعلي على النظام، وأهداف قابلة للتتبع.</p>
-        <ul><li>دورات تقييم</li><li>مؤشرات أداء</li><li>أهداف</li></ul>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- DIFFERENTIATOR -->
-<section class="blk" id="why">
-  <div class="wrap">
-    <div class="diff reveal">
-      <div class="diff-bg"></div>
-      <div class="diff-in">
-        <div>
-          <h2>الفرق إنه <span class="g">دفتر أستاذ حقيقي</span> ، مش نظام فواتير</h2>
-          <p>أغلب الأنظمة بتسجّل العمليات في جداول منفصلة وتطلّع تقارير تقريبية. مرصود يبني كل تقرير من القيود نفسها، فالأرقام دايمًا مضبوطة ومتطابقة.</p>
-          <div class="diff-list">
-            <div class="it"><span class="chk">✓</span><div><b>كل عملية = قيد متوازن</b><span>فاتورة، دفعة، راتب، إهلاك، استرجاع — كلها تولّد قيد تلقائي.</span></div></div>
-            <div class="it"><span class="chk">✓</span><div><b>مسار تدقيق كامل</b><span>سجل لكل تعديل بالمستخدم والوقت والسبب.</span></div></div>
-            <div class="it"><span class="chk">✓</span><div><b>منع الازدواجية</b><span>قيود فريدة تمنع تكرار إهلاك أو راتب لنفس الفترة.</span></div></div>
-          </div>
-        </div>
-        <div class="flow">
-          <div class="step"><span class="n">١</span><span class="lbl">تسجّل فاتورة بيع</span></div>
-          <div class="step"><span class="n">٢</span><span class="lbl">مرصود يولّد القيد المزدوج فورًا</span></div>
-          <div class="step"><span class="n">٣</span><span class="lbl">المخزون والتكلفة يتحدّثوا تلقائيًا</span></div>
-          <div class="step"><span class="n">٤</span><span class="lbl">التقارير المالية تتحدّث لحظيًا</span></div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- AI AGENT -->
-<section class="blk" id="ai">
-  <div class="wrap ai-grid">
-    <div class="ai-txt reveal">
-      <div class="kick">ميزة تفرّد مرصود</div>
-      <h2>محاسب ذكي يفهم العربي وينفّذ فعليًا</h2>
-      <p>كلّم مرصود بالعربي زي ما تكلّم محاسبك. اطلب قيد، اسأل عن صافي الربح، أو راجع رصيد عميل — والوكيل ينفّذ عبر نفس المحرك المحاسبي.</p>
-      <p style="color:var(--slate-500);font-size:.97rem">مدعوم بنماذج ذكاء اصطناعي مع tool-calling حقيقي — محاسب ذكي للتنفيذ، ومحلل ذكي لقراءة أرقامك وتحليلها.</p>
-    </div>
-    <div class="chat reveal">
-      <div class="chat-head">
-        <div class="av">م</div>
-        <div>
-          <div class="nm">المحاسب الذكي</div>
-          <div class="st">متصل</div>
-        </div>
-      </div>
-      <div class="chat-body">
-        <div class="bubble user">اعملي قيد صرف إيجار المكتب 8,000  نقدًا</div>
-        <div class="bubble bot">
-          تمام، سجّلت القيد ✅
-          <div class="mini-je">
-            <div><span>مصروف إيجار (5200)</span><span>مدين 8,000</span></div>
-            <div><span>النقدية (1110)</span><span>دائن 8,000</span></div>
-          </div>
-        </div>
-        <div class="bubble user">إيه صافي الربح الشهر ده؟</div>
-        <div class="bubble bot">صافي ربح شهر يونيو = <b>42,300 </b> 📈 بزيادة 12% عن الشهر اللي فات.</div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- AI ANALYST -->
-<section class="blk" id="analyst" style="padding-top:0">
-  <div class="wrap analyst-grid">
-    <div class="analyst-card reveal">
-      <div class="analyst-head">
-        <div class="av">📊</div>
-        <div>
-          <div class="nm">المحلل الذكي</div>
-          <div class="st">جاهز للتحليل</div>
-        </div>
-      </div>
-      <div class="analyst-body">
-        <div class="analyst-q">حلّلي أداء المبيعات وقارن بالربع اللي فات</div>
-        <div class="insight">
-          <div class="ttl">📈 تحليل إيرادات الربع الحالي</div>
-          <div class="bars">
-            <div class="bar-row">
-              <span class="bl">أبريل</span>
-              <span class="track"><span class="fill" style="width:62%"></span></span>
-              <span class="bv">128,400</span>
-            </div>
-            <div class="bar-row">
-              <span class="bl">مايو</span>
-              <span class="track"><span class="fill" style="width:78%"></span></span>
-              <span class="bv">161,750</span>
-            </div>
-            <div class="bar-row">
-              <span class="bl">يونيو</span>
-              <span class="track"><span class="fill alt" style="width:96%"></span></span>
-              <span class="bv">198,900</span>
-            </div>
-          </div>
-          <div class="insight-note">
-            الإيرادات بتنمو بمعدل <b>+24% شهريًا</b>. أعلى مساهمة من قطاع التجزئة (41%).
-            تنبيه: هامش الربح نزل 3 نقاط بسبب ارتفاع تكلفة المشتريات — راجع أسعار الموردين.
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="ai-txt reveal">
-      <div class="kick">الطبقة التانية من الذكاء</div>
-      <h2>محلل ذكي يقرأ أرقامك ويقولك معناها</h2>
-      <p>المحاسب الذكي بينفّذ، والمحلل الذكي بيفهم. يقرأ بياناتك الفعلية من الدفاتر، يكشف الاتجاهات والانحرافات، ويطلعلك خلاصة تنفع تاخد عليها قرار — من غير ما تفتح تقرير واحد بنفسك.</p>
-      <div class="analyst-tags">
-        <span>تحليل الاتجاهات</span>
-        <span>مقارنة الفترات</span>
-        <span>كشف الانحرافات</span>
-        <span>تحليل الربحية</span>
-        <span>توصيات عملية</span>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- PRICING -->
-<section class="blk" id="pricing">
-  <div class="wrap">
-    <div class="sec-head reveal">
-      <div class="kick">اختر باقتك</div>
-      <h2>أسعار واضحة، بدون مفاجآت</h2>
-      <p>3 باقات مصمّمة لتنمو مع شركتك. كل الباقات تشمل تحديثات مجانية ودعم فني.</p>
-    </div>
-
-    <div style="text-align:center">
-      <div class="price-toggle reveal" id="price-toggle" role="tablist">
-        <div class="slide"></div>
-        <button type="button" class="on" data-cycle="monthly" role="tab" aria-selected="true">شهري</button>
-        <button type="button" data-cycle="yearly" role="tab" aria-selected="false">
-          سنوي <span class="save">وفّر شهرين</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="plans">
-
-      <!-- STARTER -->
-      <div class="plan reveal">
-        <div class="plan-name">Starter</div>
-        <div class="plan-tag">للفرق الصغيرة والبداية</div>
-        <div class="plan-price">
-          <span class="amt" data-monthly="799" data-yearly="7,990">799</span>
-          <span class="cur">جنيه</span>
-        </div>
-        <div class="plan-per" data-monthly-label="/شهر" data-yearly-label="/سنة">/شهر</div>
-        <div class="plan-yearly-note" data-yearly-note="وفّر 1,598 جنيه سنوياً">أو 7,990 جنيه سنوياً</div>
-
-        <a href="/register?plan=starter" class="plan-cta ghost">ابدأ مجانًا</a>
-
-        <div class="plan-limits">
-          <div class="li"><span class="n">3</span><span class="l">مستخدم</span></div>
-          <div class="li"><span class="n">2 GB</span><span class="l">تخزين</span></div>
-          <div class="li"><span class="n">300K</span><span class="l">توكنز AI</span></div>
-        </div>
-
-        <ul class="plan-features">
-          <li>المحاسبة والقيود والتقارير المالية</li>
-          <li>المبيعات والفواتير والمرتجعات</li>
-          <li>المخزون والمخازن ونقطة البيع (POS)</li>
-          <li>المشتريات</li>
-          <li>المحاسب الذكي (AI)</li>
-          <li>المحلل الذكي (AI)</li>
-          <li>الأدوار والصلاحيات وسجل التدقيق</li>
-        </ul>
-      </div>
-
-      <!-- GROWTH — FEATURED -->
-      <div class="plan featured reveal">
-        <span class="plan-badge">⭐ الأكثر شيوعاً</span>
-        <div class="plan-name">Growth</div>
-        <div class="plan-tag">للشركات المتوسطة النامية</div>
-        <div class="plan-price">
-          <span class="amt" data-monthly="1,499" data-yearly="14,990">1,499</span>
-          <span class="cur">جنيه</span>
-        </div>
-        <div class="plan-per" data-monthly-label="/شهر" data-yearly-label="/سنة">/شهر</div>
-        <div class="plan-yearly-note" data-yearly-note="وفّر 2,998 جنيه سنوياً">أو 14,990 جنيه سنوياً</div>
-
-        <a href="/register?plan=growth" class="plan-cta primary">ابدأ مجانًا</a>
-
-        <div class="plan-limits">
-          <div class="li"><span class="n">7</span><span class="l">مستخدم</span></div>
-          <div class="li"><span class="n">10 GB</span><span class="l">تخزين</span></div>
-          <div class="li"><span class="n">600K</span><span class="l">توكنز AI</span></div>
-        </div>
-
-        <ul class="plan-features">
-          <li>كل مميزات Starter</li>
-          <li>العملاء المحتملين وإدارة الحملات (CRM)</li>
-          <li>إدارة المهام والمشاريع والتقويم</li>
-          <li>الموظفين والرواتب</li>
-          <li>الحضور والإجازات</li>
-          <li>بوابة الموظف الذاتية</li>
-        </ul>
-      </div>
-
-      <!-- PRO -->
-      <div class="plan reveal">
-        <div class="plan-name">Pro</div>
-        <div class="plan-tag">للشركات الكبيرة والمصانع</div>
-        <div class="plan-price">
-          <span class="amt" data-monthly="2,799" data-yearly="27,990">2,799</span>
-          <span class="cur">جنيه</span>
-        </div>
-        <div class="plan-per" data-monthly-label="/شهر" data-yearly-label="/سنة">/شهر</div>
-        <div class="plan-yearly-note" data-yearly-note="وفّر 5,598 جنيه سنوياً">أو 27,990 جنيه سنوياً</div>
-
-        <a href="/register?plan=pro" class="plan-cta ghost">ابدأ مجانًا</a>
-
-        <div class="plan-limits">
-          <div class="li"><span class="n">15</span><span class="l">مستخدم</span></div>
-          <div class="li"><span class="n">50 GB</span><span class="l">تخزين</span></div>
-          <div class="li"><span class="n">1M</span><span class="l">توكنز AI</span></div>
-        </div>
-
-        <ul class="plan-features">
-          <li>كل مميزات Growth</li>
-          <li>تقييم الأداء الدوري للموظفين</li>
-          <li>تقارير الموظفين اليومية</li>
-          <li>التصنيع (BOM + أوامر إنتاج)</li>
-          <li>تقارير التكلفة الصناعية</li>
-        </ul>
-      </div>
-    </div>
-
-    <p class="price-foot">
-      جميع الباقات تشمل 14 يوم تجربة مجانية بكامل المميزات، بدون بيانات بطاقة.
-      <br>
-      محتاج باقة مخصصة؟ <a href="https://manasety.ai/contact-page.html">تواصل معنا</a>.
-    </p>
-  </div>
-</section>
-
-<script>
-(function(){
-  var toggle = document.getElementById('price-toggle');
-  if (!toggle) return;
-  var buttons = toggle.querySelectorAll('button[data-cycle]');
-  var amounts = document.querySelectorAll('.plan-price .amt');
-  var pers = document.querySelectorAll('.plan-per');
-  var notes = document.querySelectorAll('.plan-yearly-note');
-  var slideEl = toggle.querySelector('.slide');
-  function positionSlide(){
-    var activeBtn = toggle.querySelector('button.on');
-    if (!activeBtn || !slideEl) return;
-    slideEl.style.left = activeBtn.offsetLeft + 'px';
-    slideEl.style.width = activeBtn.offsetWidth + 'px';
-  }
-  function set(cycle){
-    toggle.classList.toggle('yearly', cycle === 'yearly');
-    buttons.forEach(function(b){
-      var on = b.getAttribute('data-cycle') === cycle;
-      b.classList.toggle('on', on);
-      b.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
-    positionSlide();
-    amounts.forEach(function(el){
-      el.textContent = el.getAttribute(cycle === 'yearly' ? 'data-yearly' : 'data-monthly');
-    });
-    pers.forEach(function(el){
-      el.textContent = el.getAttribute(cycle === 'yearly' ? 'data-yearly-label' : 'data-monthly-label');
-    });
-    notes.forEach(function(el){
-      // Swap between the "yearly total" hint (monthly view) and the "you save" line (yearly view).
-      var msg = cycle === 'yearly' ? el.getAttribute('data-yearly-note') : el.textContent;
-      if (cycle === 'yearly') { el.textContent = el.getAttribute('data-yearly-note'); }
-      else {
-        // Restore the "or X yearly" hint deterministically from data-yearly on the amt sibling.
-        var card = el.closest('.plan');
-        var amt = card && card.querySelector('.plan-price .amt');
-        var yearly = amt && amt.getAttribute('data-yearly');
-        el.textContent = yearly ? ('أو ' + yearly + ' جنيه سنوياً') : el.textContent;
-      }
-    });
-  }
-  buttons.forEach(function(b){
-    b.addEventListener('click', function(){ set(b.getAttribute('data-cycle')); });
-  });
-  positionSlide();
-  window.addEventListener('resize', positionSlide);
-  if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(positionSlide);
-  }
-})();
-</script>
-
-<!-- FINAL CTA -->
-<section class="cta-band" id="start">
-  <div class="wrap">
-    <div class="cta-box reveal">
-      <h2>ابدأ بإدارة شركتك بنظام واحد ذكي</h2>
-      <p>جرّب مرصود، جاهز بالعربي</p>
-      <div class="btns">
-        <a href="/register" class="btn btn-white">ابدأ مجانًا الآن
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
-        </a>
-        <a href="https://manasety.ai/contact-page.html" class="btn btn-outline">احجز عرض توضيحي</a>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- FOOTER 
-<footer>
-  <div class="wrap">
-    <div class="foot-grid">
-      <div class="foot-brand">
-        <a href="/" class="logo"><img src="/static/img/logo.png" alt="مرصود" class="logo-img"> مرصود</a>
-        <p>نظام إدارة أعمال ذكي، من القيد للتقرير. منتج من منصتي للبرمجيات وحلول الذكاء الاصطناعي.</p>
-      </div>
-      <div class="foot-col">
-        <h4>المنتج</h4>
-        <a href="#modules">المميزات</a>
-        <!-- <a href="#ai">المحاسب الذكي</a> 
-        <a href="manasety.ai/contact-page.html">الأسعار</a>
-        <!-- <a href="#">التحديثات</a> 
-      </div>
-      <div class="foot-col">
-        <h4>الشركة</h4>
-        <a href="manasety.ai">من نحن</a>
-        <!-- <a href="#">المدوّنة</a> 
-        <a href="manasety.ai/contact-page.html">تواصل معنا</a>
-      </div>
- <div class="foot-col">
-        <h4>قانوني</h4>
-        <a href="#">الخصوصية</a>
-        <a href="#">الشروط</a>
-        <a href="#">الدعم</a>
-      </div>
-    </div> 
-    <div class="foot-bottom" --
-      <span>© 2026 مرصود — منصتي للبرمجيات وحلول الذكاء الاصطناعي</span>
-      <!-- <span>صُنع بعناية في السعودية 🇸🇦</span> 
-    </div>
-  </div>
-</footer>>
-    -->
-<!-- FOOTER -->
-  <!-- LANDING-REFRESH (2026-08-11) — sticky mobile-only CTA bar.
-       CSS hides it > 768px; JS toggles based on hero scroll position. -->
-  <div class="mobile-cta-bar" role="complementary" aria-label="ابدأ مجانًا">
-    <div class="mcta-txt"><b>14 يوم مجانًا</b> — بدون بطاقة</div>
-    <a href="/register" class="mcta-btn">ابدأ الآن</a>
-  </div>
-
-  <!-- ═══════ FLOATING WHATSAPP COUNTRY SWITCHER ═══════ -->
-<div class="whatsapp-country-float">
-  <button class="whatsapp-main-btn" type="button" aria-label="WhatsApp">
-<span>اسأل عن مرصود</span>
-    <svg viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-  </button>
-<div class="whatsapp-float-menu">
-     <a href="https://wa.me/201044203322?text=%D8%A7%D9%87%D9%84%D8%A7%D8%8C%20%D8%A3%D9%86%D8%A7%20%D8%AF%D8%AE%D9%84%D8%AA%20%D9%85%D9%86%20%D8%B5%D9%81%D8%AD%D8%A9%20%D9%85%D8%B1%D8%B5%D9%88%D8%AF%20%D9%88%D8%AD%D8%A7%D8%A8%20%D8%A3%D8%B3%D8%AA%D9%81%D8%B3%D8%B1%20%D8%B9%D9%86%20%D8%A7%D9%84%D9%81%D8%AA%D8%B1%D8%A9%20%D8%A7%D9%84%D9%85%D8%AC%D8%A7%D9%86%D9%8A%D8%A9%20%D8%A7%D9%84%D8%AA%D8%AC%D8%B1%D9%8A%D8%A8%D9%8A%D8%A9%D8%8C%20%D9%85%D9%85%D9%83%D9%86%20%D8%AA%D9%81%D9%8A%D8%AF%D9%88%D9%86%D9%8A%D8%9F" target="_blank">🇪🇬 مصر</a>
-    <a href="https://wa.me/966561197859?text=%D8%A7%D9%84%D8%B3%D9%84%D8%A7%D9%85%20%D8%B9%D9%84%D9%8A%D9%83%D9%85%D8%8C%20%D8%A3%D9%86%D8%A7%20%D8%B2%D8%B1%D8%AA%20%D8%B5%D9%81%D8%AD%D8%A9%20%D9%85%D8%B1%D8%B5%D9%88%D8%AF%20%D9%88%D8%AD%D8%A7%D8%A8%20%D8%A3%D8%B3%D8%AA%D9%81%D8%B3%D8%B1%20%D8%B9%D9%86%20%D8%A7%D9%84%D9%81%D8%AA%D8%B1%D8%A9%20%D8%A7%D9%84%D9%85%D8%AC%D8%A7%D9%86%D9%8A%D8%A9%20%D8%A7%D9%84%D8%AA%D8%AC%D8%B1%D9%8A%D8%A8%D9%8A%D8%A9%D8%8C%20%D9%85%D9%85%D9%83%D9%86%20%D8%AA%D9%81%D9%8A%D8%AF%D9%88%D9%86%D9%8A%D8%9F" target="_blank">🇸🇦 السعودية</a>
-  </div>
+<h1 class="font-display-lg text-display-lg font-bold text-corporate-teal-deep tracking-tight mb-space-md leading-tight">
+          نظام محاسبي حقيقي بقيد مزدوج... <br class="hidden sm:inline"/>
+<span class="text-primary bg-clip-text">ومحاسب ذكي بيكلمك ويفهمك بالعربي</span>
+</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl leading-relaxed mb-space-xl">
+          دير كل فروعك، مخازنك، موظفيك، وفواتيرك من شاشة واحدة بكل ثقة وبدون تعقيد الحسابات التقليدية. أرقام مظبوطة بالملّي وامتثال كامل للفاتورة الإلكترونية.
+        </p>
+<!-- CTA Action Buttons -->
+<div class="flex flex-wrap items-center justify-center gap-space-md w-full sm:w-auto mb-space-xl">
+<a class="w-full sm:w-auto inline-flex items-center justify-center gap-space-2xs px-space-xl py-space-sm rounded-xl bg-primary text-on-primary font-title-lg text-title-lg hover:bg-corporate-teal-deep transition-all shadow-[0_4px_14px_rgba(0,104,95,0.3)]" href="#">
+<span>ابدأ تجربتك المجانية 14 يوم</span>
+<span class="material-symbols-outlined text-[20px]">arrow_back</span>
+</a>
+<a class="w-full sm:w-auto inline-flex items-center justify-center gap-space-2xs px-space-xl py-space-sm rounded-xl bg-surface-container-lowest text-corporate-teal-deep font-title-lg text-title-lg hover:bg-surface-container-high transition-all shadow-sm" href="https://wa.me/201044203322" rel="noopener" target="_blank">
+<span class="material-symbols-outlined text-[20px] text-emerald-core">play_circle</span>
+<span>احجز عرض توضيحي مباشر (Demo)</span>
+</a>
 </div>
-<footer>
-  <div class="wrap">
-    <div class="foot-grid">
-      <div class="foot-brand">
-        <a href="/" class="logo"><img src="/static/img/logo.png" alt="مرصود" class="logo-img"> مرصود</a>
-        <p>نظام إدارة أعمال ذكي، من القيد للتقرير. منتج من منصتي للبرمجيات وحلول الذكاء الاصطناعي.</p>
-      </div>
-      <div class="foot-col">
-        <h4>المنتج</h4>
-        <a href="#modules">المميزات</a>
-        <a href="https://manasety.ai/contact-page.html">الأسعار</a>
-      </div>
-      <div class="foot-col">
-        <h4>الشركة المطوّرة</h4>
-        <a href="https://manasety.ai">منصتي (Manasety)</a>
-        <a href="https://manasety.ai/contact-page.html">تواصل معنا</a>
-      </div>
-    </div>
-    <div class="foot-bottom">
-      <span>© 2026 مرصود — منتج من منصتي للبرمجيات وحلول الذكاء الاصطناعي</span>
-    </div>
-  </div>
-</footer>
-<script>
-  // scroll reveal
-  const io = new IntersectionObserver((entries)=>{
-    entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
-  },{threshold:.14});
-  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
-   // WhatsApp
-  document.querySelectorAll('a[href*="wa.me"], a[href*="whatsapp"]').forEach(function(el) {
-    el.addEventListener('click', function() {
-      // Google Analytics (fires only if GA is loaded)
-      if (typeof gtag === 'function') {
-        gtag('event', 'click_whatsapp', { event_category: 'Contact' });
-      }
-      // Meta Pixel — standard Contact event
-      if (typeof fbq === 'function') {
-        fbq('track', 'Contact', {
-          content_category: 'whatsapp',
-          content_name: (el.textContent || '').trim()
-        });
-      }
-    });
-  });
-  // LANDING-REFRESH (2026-08-11) — sticky mobile CTA bar shows
-  // after the user scrolls past the hero. Hides on the final CTA
-  // section so it doesn't stack over the big button.
-  const mcta = document.querySelector('.mobile-cta-bar');
-  const heroEnd = document.querySelector('.trust');
-  const finalCta = document.querySelector('.cta-band');
-  if (mcta && heroEnd) {
-    const io2 = new IntersectionObserver((entries)=>{
-      entries.forEach(e=>{
-        if (e.target === heroEnd) {
-          mcta.style.display = e.isIntersecting || e.boundingClientRect.top > 0 ? 'none' : 'flex';
-        }
-        if (e.target === finalCta && e.isIntersecting) {
-          mcta.style.display = 'none';
-        }
-      });
-    }, {threshold:0});
-    io2.observe(heroEnd);
-    if (finalCta) io2.observe(finalCta);
-  }
-
-  // WhatsApp float toggle
-  const waBtn = document.querySelector('.whatsapp-main-btn');
-  const waMenu = document.querySelector('.whatsapp-float-menu');
-  waBtn.addEventListener('click', function(e){
-    e.stopPropagation();
-    waMenu.classList.toggle('open');
-  });
-  document.addEventListener('click', function(e){
-    if(!e.target.closest('.whatsapp-country-float')){
-      waMenu.classList.remove('open');
-    }
-  });
-</script>
-</body>
-</html>
+<!-- Trust Badges & Metrics Bar -->
+<div class="w-full grid grid-cols-2 md:grid-cols-4 gap-space-sm py-space-md px-space-lg rounded-2xl bg-surface-container-lowest shadow-sm">
+<div class="flex items-center gap-space-xs justify-center text-right">
+<div class="w-9 h-9 rounded-xl bg-mint-surface text-emerald-core flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">domain</span>
+</div>
+<div>
+<p class="font-title-md text-title-md font-bold text-on-surface">+500 شركة</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">في مصر والخليج</p>
+</div>
+</div>
+<div class="flex items-center gap-space-xs justify-center text-right">
+<div class="w-9 h-9 rounded-xl bg-surface-variant text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">receipt_long</span>
+</div>
+<div>
+<p class="font-title-md text-title-md font-bold text-on-surface">100% متوافق</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">مع الفاتورة الإلكترونية</p>
+</div>
+</div>
+<div class="flex items-center gap-space-xs justify-center text-right">
+<div class="w-9 h-9 rounded-xl bg-mint-surface text-emerald-core flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">bolt</span>
+</div>
+<div>
+<p class="font-title-md text-title-md font-bold text-on-surface">99.9% جاهزية</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">سيرفرات سحابية آمنة</p>
+</div>
+</div>
+<div class="flex items-center gap-space-xs justify-center text-right">
+<div class="w-9 h-9 rounded-xl bg-amber-surface text-amber-ai flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">support_agent</span>
+</div>
+<div>
+<p class="font-title-md text-title-md font-bold text-on-surface">دعم فني لحظي</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">فريق محاسبي مصري متخصص</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Financial Visual Interface Mockup -->
+<div class="relative w-full max-w-5xl mx-auto rounded-2xl bg-surface-container-lowest p-space-md md:p-space-lg shadow-xl overflow-hidden">
+<!-- Window Chrome Topbar -->
+<div class="flex items-center justify-between pb-space-sm mb-space-md bg-surface-container-low/40 px-space-md py-space-xs rounded-xl">
+<div class="flex items-center gap-space-xs">
+<div class="flex items-center gap-1.5">
+<span class="w-3 h-3 rounded-full bg-danger-red inline-block"></span>
+<span class="w-3 h-3 rounded-full bg-amber-ai inline-block"></span>
+<span class="w-3 h-3 rounded-full bg-mint-accent inline-block"></span>
+</div>
+<span class="font-label-md text-label-md text-on-surface-variant mr-space-xs font-semibold">مرصود المحاسبي — دفتر اليومية وقوائم الدخل الحية</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<span class="px-space-xs py-0.5 rounded bg-mint-surface text-emerald-core font-label-sm text-label-sm font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">lock</span> متصل مشفر SSL
+            </span>
+</div>
+</div>
+<!-- Metric KPI Cards Row -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-space-md mb-space-lg">
+<div class="p-space-md rounded-xl bg-surface-container-low flex flex-col gap-1">
+<span class="font-label-md text-label-md text-on-surface-variant">صافي الأرباح التشغيلية (هذا الشهر)</span>
+<div class="flex items-baseline justify-between">
+<span class="font-currency-num text-currency-num text-corporate-teal-deep font-bold">342,850 ج.م</span>
+<span class="font-label-sm text-label-sm text-emerald-core flex items-center">
+<span class="material-symbols-outlined text-[14px]">trending_up</span> +18.4%
+              </span>
+</div>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-low flex flex-col gap-1">
+<span class="font-label-md text-label-md text-on-surface-variant">رصيد الخزائن والبنوك المتاح</span>
+<div class="flex items-baseline justify-between">
+<span class="font-currency-num text-currency-num text-primary font-bold">1,215,400 ج.م</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">5 حسابات نشطة</span>
+</div>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-low flex flex-col gap-1">
+<span class="font-label-md text-label-md text-on-surface-variant">مستحقات عملاء قيد التحصيل</span>
+<div class="flex items-baseline justify-between">
+<span class="font-currency-num text-currency-num text-tertiary font-bold">186,200 ج.م</span>
+<span class="font-label-sm text-label-sm text-emerald-core font-semibold">92% في موعدها</span>
+</div>
+</div>
+</div>
+<!-- Double-Entry Live Journal Snippet Table -->
+<div class="overflow-x-auto rounded-xl bg-surface mb-space-md">
+<table class="w-full text-right">
+<thead class="bg-surface-container-low text-on-surface-variant font-label-md text-label-md">
+<tr>
+<th class="p-space-xs font-semibold">رقم القيد</th>
+<th class="p-space-xs font-semibold">البيان والعملية</th>
+<th class="p-space-xs font-semibold">الحساب المدين</th>
+<th class="p-space-xs font-semibold">الحساب الدائن</th>
+<th class="p-space-xs font-semibold">المبلغ (ج.م)</th>
+<th class="p-space-xs font-semibold">الحالة</th>
+</tr>
+</thead>
+<tbody class="font-body-sm text-body-sm divide-y divide-surface-container-low">
+<tr class="hover:bg-surface-container-lowest transition-colors">
+<td class="p-space-xs font-bold text-primary">#JV-8942</td>
+<td class="p-space-xs font-medium text-on-surface">إثبات مبيعات نقطة بيع — فرع المعادي</td>
+<td class="p-space-xs text-on-surface-variant">خزينة فرع المعادي (10101)</td>
+<td class="p-space-xs text-on-surface-variant">إيراد مبيعات تجزئة (40101)</td>
+<td class="p-space-xs font-bold text-on-surface">24,500.00</td>
+<td class="p-space-xs"><span class="px-2 py-0.5 rounded-full bg-mint-surface text-emerald-core font-label-sm text-label-sm">مرحل ومطابق</span></td>
+</tr>
+<tr class="hover:bg-surface-container-lowest transition-colors">
+<td class="p-space-xs font-bold text-primary">#JV-8943</td>
+<td class="p-space-xs font-medium text-on-surface">استلام بضاعة مخزن وتوريد خامات</td>
+<td class="p-space-xs text-on-surface-variant">مخزون خامات رئيسي (10301)</td>
+<td class="p-space-xs text-on-surface-variant">حساب المورد / الأهرام للتوزيع (20102)</td>
+<td class="p-space-xs font-bold text-on-surface">68,000.00</td>
+<td class="p-space-xs"><span class="px-2 py-0.5 rounded-full bg-mint-surface text-emerald-core font-label-sm text-label-sm">مرحل ومطابق</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Floating AI Smart Prompt Simulator -->
+<div class="relative p-space-md rounded-xl bg-gradient-to-r from-amber-surface via-surface-container-lowest to-mint-surface shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-sm">
+<div class="w-10 h-10 rounded-xl bg-amber-ai text-on-primary flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[22px]">smart_toy</span>
+</div>
+<div>
+<span class="font-label-sm text-label-sm text-tertiary uppercase tracking-wider font-bold">أمر مباشر للمحاسب الذكي</span>
+<p class="font-title-md text-title-md font-bold text-on-surface">"مرصود، طلعلي أرباح فرع المعادي الشهر ده واعمل تسوية للمورد"</p>
+</div>
+</div>
+<div class="flex items-center gap-space-xs self-end md:self-center">
+<span class="px-space-sm py-1 rounded-lg bg-emerald-core text-on-primary font-label-md text-label-md font-semibold flex items-center gap-1 shadow-sm">
+<span class="material-symbols-outlined text-[16px]">check_circle</span> تم استخراج الأرباح (+42,000 ج) ومسودة تسوية جاهزة للاعتماد
+            </span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ======================================================== -->
+<!-- 2. CORE FEATURES SECTION (المميزات الأساسية الحالية)     -->
+<!-- ======================================================== -->
+<section class="w-full py-space-3xl bg-background">
+<div class="max-w-7xl mx-auto px-gutter-desktop">
+<div class="text-center max-w-3xl mx-auto mb-space-2xl">
+<span class="font-label-lg text-label-lg font-bold text-primary uppercase tracking-wider">الأساس المتين لشركتك</span>
+<h2 class="font-headline-lg text-headline-lg font-bold text-corporate-teal-deep mt-space-2xs mb-space-xs">
+          المميزات الأساسية — كل أساسيات البيزنس في مكان واحد
+        </h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant leading-relaxed">
+          الأدوات اللي بتبني عليها شغلك اليومي من غير ما تحتاج برامج منفصلة أو تشتت فريقك بين ملفات إكسيل ضايعة.
+        </p>
+</div>
+<!-- Grid of 7 core modules -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-space-lg">
+<!-- Module 1: Accounting -->
+<div class="p-space-lg rounded-2xl bg-surface-container-lowest shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+<div>
+<div class="w-12 h-12 rounded-xl bg-surface-variant text-primary flex items-center justify-center mb-space-md">
+<span class="material-symbols-outlined text-[26px]">account_balance_wallet</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm font-bold text-on-surface mb-space-xs">المحاسبة والقيود المزدوجة</h3>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed mb-space-md">
+              شجرة حسابات مرنة وقابلة للتخصيص، قيود يومية تلقائية بقيد مزدوج دقيق يضمن سلامة أرقامك وقوائمك المالية بدون أخطاء بشرية.
+            </p>
+</div>
+<div class="pt-space-xs text-primary font-label-lg text-label-lg font-bold flex items-center gap-1">
+<span>ميزان مراجعة وأرباح وخسائر لحظية</span>
+<span class="material-symbols-outlined text-[16px]">arrow_back</span>
+</div>
+</div>
+<!-- Module 2: Inventory & POS -->
+<div class="p-space-lg rounded-2xl bg-surface-container-lowest shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+<div>
+<div class="w-12 h-12 rounded-xl bg-mint-surface text-emerald-core flex items-center justify-center mb-space-md">
+<span class="material-symbols-outlined text-[26px]">point_of_sale</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm font-bold text-on-surface mb-space-xs">المخزون ونقطة البيع (POS)</h3>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed mb-space-md">
+              بيع سريع وشامل الباركود، مع متابعة فورية لحركة الأصناف والكميات وتكلفة المخزون في اللحظة نفسها بدون تأخير.
+            </p>
+</div>
+<div class="pt-space-xs text-emerald-core font-label-lg text-label-lg font-bold flex items-center gap-1">
+<span>تنبيه بنواقص المخزن والحد الأدنى للطلب</span>
+<span class="material-symbols-outlined text-[16px]">arrow_back</span>
+</div>
+</div>
+<!-- Module 3: Purchases & Suppliers -->
+<div class="p-space-lg rounded-2xl bg-surface-container-lowest shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+<div>
+<div class="w-12 h-12 rounded-xl bg-surface-container-high text-corporate-teal-deep flex items-center justify-center mb-space-md">
+<span class="material-symbols-outlined text-[26px]">shopping_cart_checkout</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm font-bold text-on-surface mb-space-xs">مشتريات وفواتير موردين</h3>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed mb-space-md">
+              سجل فواتير المشتريات، تابع مدفوعاتك ومستحقات الموردين ومواعيد سداد الشيكات واعرف عليك كام بدقة في أي وقت.
+            </p>
+</div>
+<div class="pt-space-xs text-corporate-teal-deep font-label-lg text-label-lg font-bold flex items-center gap-1">
+<span>مطابقة فواتير الشراء مع أذون الاستلام</span>
+<span class="material-symbols-outlined text-[16px]">arrow_back</span>
+</div>
+</div>
+<!-- Module 4: CRM -->
+<div class="p-space-lg rounded-2xl bg-surface-container-lowest shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+<div>
+<div class="w-12 h-12 rounded-xl bg-amber-surface text-tertiary flex items-center justify-center mb-space-md">
+<span class="material-symbols-outlined text-[26px]">groups</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm font-bold text-on-surface mb-space-xs">إدارة علاقات العملاء (CRM)</h3>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed mb-space-md">
+              سجل بيانات عملائك وتاريخ تعاملاتهم، تواصل معهم، وتابع مراحل الصفقات والفرص البيعية خطوة بخطوة حتى الإغلاق.
+            </p>
+</div>
+<div class="pt-space-xs text-tertiary font-label-lg text-label-lg font-bold flex items-center gap-1">
+<span>سجل اتصالات ومتابعة عروض الأسعار</span>
+<span class="material-symbols-outlined text-[16px]">arrow_back</span>
+</div>
+</div>
+<!-- Module 5: Tasks & Calendar -->
+<div class="p-space-lg rounded-2xl bg-surface-container-lowest shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+<div>
+<div class="w-12 h-12 rounded-xl bg-surface-variant text-secondary flex items-center justify-center mb-space-md">
+<span class="material-symbols-outlined text-[26px]">calendar_month</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm font-bold text-on-surface mb-space-xs">مهام ومشاريع وتقويم</h3>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed mb-space-md">
+              وزع الشغل على فريقك، حدد مواعيد التسليم، وتابع تنفيذ المهام اليومية في تقويم واضح يمنع النسيان والتأخير.
+            </p>
+</div>
+<div class="pt-space-xs text-secondary font-label-lg text-label-lg font-bold flex items-center gap-1">
+<span>لوحات كانبان ومتابعة نسب الإنجاز</span>
+<span class="material-symbols-outlined text-[16px]">arrow_back</span>
+</div>
+</div>
+<!-- Module 6: HR & Daily Performance -->
+<div class="p-space-lg rounded-2xl bg-surface-container-lowest shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+<div>
+<div class="w-12 h-12 rounded-xl bg-mint-surface text-emerald-core flex items-center justify-center mb-space-md">
+<span class="material-symbols-outlined text-[26px]">badge</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm font-bold text-on-surface mb-space-xs">رواتب وموارد بشرية أساسية</h3>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed mb-space-md">
+              احسب المرتبات والخصومات والمكافآت تلقائياً وتابع إنتاجية وأداء الموظفين اليومي في تقارير منظمة بدون إهدار وقت.
+            </p>
+</div>
+<div class="pt-space-xs text-emerald-core font-label-lg text-label-lg font-bold flex items-center gap-1">
+<span>مسيرات رواتب وكشوف مرتبات تفصيلية</span>
+<span class="material-symbols-outlined text-[16px]">arrow_back</span>
+</div>
+</div>
+<!-- Module 7: Manufacturing & BOM (Spans full on tablets or balanced) -->
+<div class="p-space-lg rounded-2xl bg-surface-container-lowest shadow-sm hover:shadow-md transition-all flex flex-col justify-between md:col-span-2 lg:col-span-3">
+<div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-md">
+<div class="w-12 h-12 rounded-xl bg-surface-container-high text-corporate-teal-deep flex items-center justify-center">
+<span class="material-symbols-outlined text-[26px]">precision_manufacturing</span>
+</div>
+<div>
+<h3 class="font-headline-sm text-headline-sm font-bold text-on-surface">التصنيع وقوائم المكونات (BOM)</h3>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed max-w-3xl">
+                  حدد تكلفة المواد الخام ومكونات كل منتج تام الصنع، وتابع أوامر التشغيل وتكاليف الهالك والعمالة خطوة بخطوة لتسعير منتجاتك بأعلى ربحية.
+                </p>
+</div>
+</div>
+<div class="px-space-md py-space-xs rounded-xl bg-surface-container-low text-corporate-teal-deep font-title-md text-title-md font-bold whitespace-nowrap">
+              مناسب للورش والمصانع وخطوط التجميع
+            </div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ======================================================== -->
+<!-- 3. TRANSITIONAL UPDATE BANNER: إيه الجديد في مرصود؟      -->
+<!-- ======================================================== -->
+<section class="w-full py-space-2xl bg-corporate-teal-deep text-on-primary">
+<div class="max-w-7xl mx-auto px-gutter-desktop">
+<div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-space-xl">
+<div class="max-w-2xl">
+<div class="inline-flex items-center gap-space-2xs px-space-sm py-1 rounded-full bg-mint-accent text-on-primary mb-space-sm font-label-md text-label-md font-bold">
+<span class="material-symbols-outlined text-[16px]">rocket_launch</span>
+<span>تحديثات النظام الحية لشهر 2025</span>
+</div>
+<h2 class="font-headline-lg text-headline-lg font-bold text-on-primary mb-space-xs">
+            مرصود بقى نظام تاني — ده اللي اتضاف حديثاً
+          </h2>
+<p class="font-body-lg text-body-lg text-surface-container leading-relaxed">
+            تطويرات ضخمة وشغالة فعلياً في النظام دلوقتي مش مجرد وعود أو خطط مستقبلية، عشان تكبر بيزنسك بأمان، سرعة، وتحكم كامل.
+          </p>
+</div>
+<!-- Quick Tags Pills -->
+<div class="flex flex-wrap gap-space-xs max-w-lg">
+<span class="px-space-md py-space-xs rounded-xl bg-surface-container-low/10 text-primary-fixed font-title-md text-title-md font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">store</span> فروع متعددة ومراكز تكلفة
+          </span>
+<span class="px-space-md py-space-xs rounded-xl bg-surface-container-low/10 text-primary-fixed font-title-md text-title-md font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">loyalty</span> نقاط ولاء وتقسيط تلقائي
+          </span>
+<span class="px-space-md py-space-xs rounded-xl bg-surface-container-low/10 text-primary-fixed font-title-md text-title-md font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">warehouse</span> أذون استلام وجرد دوري
+          </span>
+<span class="px-space-md py-space-xs rounded-xl bg-surface-container-low/10 text-primary-fixed font-title-md text-title-md font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">account_balance</span> خزينة وبنوك متطورة
+          </span>
+<span class="px-space-md py-space-xs rounded-xl bg-surface-container-low/10 text-primary-fixed font-title-md text-title-md font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">folder_shared</span> ملف موظف شامل ومستندات
+          </span>
+<span class="px-space-md py-space-xs rounded-xl bg-surface-container-low/10 text-primary-fixed font-title-md text-title-md font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px]">smartphone</span> تطبيق موبايل متكامل iOS وAndroid
+          </span>
+</div>
+</div>
+</div>
+</section>
+<!-- ======================================================== -->
+<!-- 4. DETAILED NEW FEATURES SECTION (منظمة حسب المجموعات)  -->
+<!-- ======================================================== -->
+<section class="w-full py-space-3xl bg-surface-container-low/40">
+<div class="max-w-7xl mx-auto px-gutter-desktop">
+<div class="text-center max-w-3xl mx-auto mb-space-2xl">
+<span class="font-label-lg text-label-lg font-bold text-emerald-core uppercase tracking-wider">قفزة تشغيلية حقيقية</span>
+<h2 class="font-headline-lg text-headline-lg font-bold text-corporate-teal-deep mt-space-2xs mb-space-xs">
+          تحديثات ومميزات جديدة ترفع كفاءة عملياتك
+        </h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant leading-relaxed">
+          استكشف المجموعات الجديدة المصممة خصيصاً للشركات التي تتوسع في فروعها ومبيعاتها وحجم فريقها.
+        </p>
+</div>
+<!-- Feature Group Cards Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-space-xl">
+<!-- Group A: فروع وشركات متعددة -->
+<div class="p-space-xl rounded-2xl bg-surface-container-lowest shadow-sm flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-space-sm mb-space-md">
+<div class="w-10 h-10 rounded-xl bg-surface-variant text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">apartment</span>
+</div>
+<div>
+<span class="px-2 py-0.5 rounded-full bg-mint-accent text-on-primary font-label-sm text-label-sm font-bold">جديد ومفعل</span>
+<h3 class="font-headline-md text-headline-md font-bold text-corporate-teal-deep">فروع وشركات متعددة</h3>
+</div>
+</div>
+<div class="space-y-space-md">
+<div class="p-space-md rounded-xl bg-surface-container-low flex items-start gap-space-sm">
+<span class="material-symbols-outlined text-primary text-[20px] mt-0.5">add_business</span>
+<div>
+<h4 class="font-title-md text-title-md font-bold text-on-surface">افتح فرع أو شركة تانية من نفس الحساب</h4>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">
+                    تحكم في أكتر من نشاط تجاري أو فرع من لوحة تحكم واحدة، بصلاحيات محددة لكل مدير فرع وتقارير مجمعة للمالك.
+                  </p>
+</div>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-low flex items-start gap-space-sm">
+<span class="material-symbols-outlined text-primary text-[20px] mt-0.5">pie_chart</span>
+<div>
+<h4 class="font-title-md text-title-md font-bold text-on-surface">مراكز التكلفة والمشروعات</h4>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">
+                    اعرف كل فرع أو قسم رابح كام وصارف كام بدقة، مش بس الإجمالي العام، عشان توقف الهدر وتدعم الفرع الناجح.
+                  </p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Group B: ولاء العملاء والمبيعات المتقدمة -->
+<div class="p-space-xl rounded-2xl bg-surface-container-lowest shadow-sm flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-space-sm mb-space-md">
+<div class="w-10 h-10 rounded-xl bg-amber-surface text-amber-ai flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">card_giftcard</span>
+</div>
+<div>
+<span class="px-2 py-0.5 rounded-full bg-mint-accent text-on-primary font-label-sm text-label-sm font-bold">جديد ومفعل</span>
+<h3 class="font-headline-md text-headline-md font-bold text-corporate-teal-deep">ولاء العملاء والمبيعات المتقدمة</h3>
+</div>
+</div>
+<div class="space-y-space-md">
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-space-sm">
+<div class="p-space-sm rounded-xl bg-surface-container-low">
+<h4 class="font-title-md text-title-md font-bold text-on-surface flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px] text-amber-ai">stars</span> نقط ولاء للعملاء
+                  </h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">
+                    شجع عملائك يرجعوا يشتروا بنظام مكافآت ونقاط تتخصم تلقائياً عند الدفع.
+                  </p>
+</div>
+<div class="p-space-sm rounded-xl bg-surface-container-low">
+<h4 class="font-title-md text-title-md font-bold text-on-surface flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px] text-amber-ai">sell</span> كوبونات وخصومات
+                  </h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">
+                    أطلق عروض ترويجية بأكواد مخصصة بنسبة أو مبلغ ثابت لفترات محددة.
+                  </p>
+</div>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-low flex items-start gap-space-sm">
+<span class="material-symbols-outlined text-amber-ai text-[20px] mt-0.5">price_check</span>
+<div>
+<h4 class="font-title-md text-title-md font-bold text-on-surface">عربون وإيداع + بيع بالتقسيط مع متابعة الأقساط</h4>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">
+                    استلم دفعات مقدمة وجدول الأقساط بمواعيد استحقاق واضحة وتنبيهات تلقائية للتحصيل.
+                  </p>
+</div>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-low flex items-start gap-space-sm">
+<span class="material-symbols-outlined text-amber-ai text-[20px] mt-0.5">payments</span>
+<div>
+<h4 class="font-title-md text-title-md font-bold text-on-surface">عمولات مبيعات (Commissions) للموظفين</h4>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">
+                    احسب نسبة كل بياع تلقائياً بناءً على فواتيره المحصلة بدون شيتات حسابية متعبة.
+                  </p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Group C: المخزون والمشتريات -->
+<div class="p-space-xl rounded-2xl bg-surface-container-lowest shadow-sm flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-space-sm mb-space-md">
+<div class="w-10 h-10 rounded-xl bg-mint-surface text-emerald-core flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">inventory_2</span>
+</div>
+<div>
+<span class="px-2 py-0.5 rounded-full bg-mint-accent text-on-primary font-label-sm text-label-sm font-bold">جديد ومفعل</span>
+<h3 class="font-headline-md text-headline-md font-bold text-corporate-teal-deep">المخزون وسلسلة التوريد</h3>
+</div>
+</div>
+<div class="space-y-space-md">
+<div class="p-space-md rounded-xl bg-surface-container-low flex items-start gap-space-sm">
+<span class="material-symbols-outlined text-emerald-core text-[20px] mt-0.5">inventory</span>
+<div>
+<h4 class="font-title-md text-title-md font-bold text-on-surface">أوامر شراء واستلام بضاعة كخطوة منفصلة</h4>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">
+                    افصل دورة الشراء الرقابية: اطلب البضاعة بأمر شراء، استلمها في المخزن بإذن فحص، ثم سجل فاتورة المورد بعدها.
+                  </p>
+</div>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-low flex items-start gap-space-sm">
+<span class="material-symbols-outlined text-emerald-core text-[20px] mt-0.5">swap_horiz</span>
+<div>
+<h4 class="font-title-md text-title-md font-bold text-on-surface">تحويل مخزون بين الفروع + جرد دوري بالباركود</h4>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">
+                    انقل البضاعة بين فروعك بأذون تسليم واستلام موثقة، ونفذ جرد دوري يظهر لك العجز أو الزيادة في لحظتها.
+                  </p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Group D: الموارد البشرية المتطورة (HR Pro) -->
+<div class="p-space-xl rounded-2xl bg-surface-container-lowest shadow-sm flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-space-sm mb-space-md">
+<div class="w-10 h-10 rounded-xl bg-surface-variant text-corporate-teal-deep flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">manage_accounts</span>
+</div>
+<div>
+<span class="px-2 py-0.5 rounded-full bg-mint-accent text-on-primary font-label-sm text-label-sm font-bold">جديد ومفعل</span>
+<h3 class="font-headline-md text-headline-md font-bold text-corporate-teal-deep">الموارد البشرية المتطورة</h3>
+</div>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-space-sm">
+<div class="p-space-md rounded-xl bg-surface-container-low">
+<h4 class="font-title-md text-title-md font-bold text-on-surface flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px] text-primary">folder_open</span> ملف موظف كامل
+                </h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">
+                  أرشفة بطاقات الرقم القومي، العقود، والشهادات والمستندات في مكان رقمي سحابي آمن.
+                </p>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-low">
+<h4 class="font-title-md text-title-md font-bold text-on-surface flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px] text-primary">gavel</span> قرارات إدارية موثقة
+                </h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">
+                  وثق الترقيات، الجزاءات، والإنذارات بلائحة واضحة وتأثير مالي تلقائي على الراتب.
+                </p>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-low">
+<h4 class="font-title-md text-title-md font-bold text-on-surface flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px] text-primary">alarm_on</span> حضور وإجازات
+                </h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">
+                  متابعة أوقات العمل وأرصدة الإجازات السنوية والمرضية بموافقات مباشرة من المديرين.
+                </p>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-low">
+<h4 class="font-title-md text-title-md font-bold text-on-surface flex items-center gap-1">
+<span class="material-symbols-outlined text-[18px] text-primary">query_stats</span> تقييم أداء شهري
+                </h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1">
+                  تقارير تقييم فعلية مبنية على مؤشرات قياس أداء (KPIs) موضوعية وبالأرقام.
+                </p>
+</div>
+</div>
+</div>
+</div>
+<!-- Group E: العمليات المالية والربط المحاسبي المتطور -->
+<div class="p-space-xl rounded-2xl bg-surface-container-lowest shadow-sm flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-space-sm mb-space-md">
+<div class="w-10 h-10 rounded-xl bg-mint-surface text-emerald-core flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">account_balance</span>
+</div>
+<div>
+<span class="px-2 py-0.5 rounded-full bg-mint-accent text-on-primary font-label-sm text-label-sm font-bold">جديد ومفعل</span>
+<h3 class="font-headline-md text-headline-md font-bold text-corporate-teal-deep">العمليات المالية والربط الدقيق</h3>
+</div>
+</div>
+<div class="space-y-space-md">
+<div class="p-space-md rounded-xl bg-surface-container-low flex items-start gap-space-sm">
+<span class="material-symbols-outlined text-emerald-core text-[20px] mt-0.5">savings</span>
+<div>
+<h4 class="font-title-md text-title-md font-bold text-on-surface">خزينة (Treasury) لإدارة النقدية والبنوك</h4>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">
+                    راقب السيولة المتوفرة في كل درج كاشير، خزنة رئيسية، وحساب بنكي في وقتها الفعلي لمنع التلاعب.
+                  </p>
+</div>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-low flex items-start gap-space-sm">
+<span class="material-symbols-outlined text-emerald-core text-[20px] mt-0.5">fact_check</span>
+<div>
+<h4 class="font-title-md text-title-md font-bold text-on-surface">دفتر أستاذ الأطراف ومطابقة المفتوح (Party Ledger)</h4>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">
+                    كشف حساب مفصل لكل عميل أو مورد يربط الفواتير بدفعاتها المحددة بدقة ويقفل الحسابات المفتوحة.
+                  </p>
+</div>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-low flex items-start gap-space-sm">
+<span class="material-symbols-outlined text-emerald-core text-[20px] mt-0.5">autorenew</span>
+<div>
+<h4 class="font-title-md text-title-md font-bold text-on-surface">فواتير ومصاريف ومهام متكررة تلقائياً</h4>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">
+                    جدول إيجارات مقراتك، اشتراكاتك، وفواتير عملائك الدورية وسيب مرصود يسجلها أوتوماتيكياً كل أول شهر.
+                  </p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Groups F & G: الدعم الفني + تطبيقات الموبايل -->
+<div class="flex flex-col gap-space-lg">
+<!-- Group F: تذاكر الدعم -->
+<div class="p-space-lg rounded-2xl bg-surface-container-lowest shadow-sm flex items-start gap-space-md">
+<div class="w-12 h-12 rounded-xl bg-surface-variant text-primary flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[26px]">confirmation_number</span>
+</div>
+<div>
+<div class="flex items-center gap-space-xs mb-1">
+<span class="px-2 py-0.5 rounded-full bg-mint-accent text-on-primary font-label-sm text-label-sm font-bold">جديد</span>
+<h3 class="font-headline-sm text-headline-sm font-bold text-corporate-teal-deep">نظام تذاكر دعم فني لعملائك</h3>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed">
+                استقبل طلبات وشكاوى عملائك بنظام تذاكر منظم ومرقم، عشان مفيش شكوى تقع أو تتأخر ويضمن رضا عملائك التام.
+              </p>
+</div>
+</div>
+<!-- Group G: تطبيق الموبايل -->
+<div class="p-space-lg rounded-2xl bg-gradient-to-br from-corporate-teal-deep to-primary text-on-primary shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-space-md">
+<div class="flex items-start gap-space-md">
+<div class="w-12 h-12 rounded-xl bg-surface-container-lowest/15 text-primary-fixed flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[28px]">phone_iphone</span>
+</div>
+<div>
+<span class="px-2 py-0.5 rounded-full bg-mint-accent text-on-primary font-label-sm text-label-sm font-bold">متاح الآن</span>
+<h3 class="font-headline-sm text-headline-sm font-bold text-on-primary mt-1">تطبيق موبايل كامل (iOS وAndroid)</h3>
+<p class="font-body-md text-body-md text-surface-container mt-1">
+                  تابع مبيعاتك، مخزنك، إشعارات القيود، وأرباحك من جيبك في أي وقت ومن أي مكان في العالم.
+                </p>
+</div>
+</div>
+<div class="flex items-center gap-space-xs shrink-0 self-end sm:self-center">
+<span class="px-space-sm py-1.5 rounded-lg bg-surface-container-lowest/20 text-on-primary font-label-md text-label-md font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">file_download</span> iOS
+              </span>
+<span class="px-space-sm py-1.5 rounded-lg bg-surface-container-lowest/20 text-on-primary font-label-md text-label-md font-semibold flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">android</span> Android
+              </span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ======================================================== -->
+<!-- 5. AI ACCOUNTANT & ANALYST DEDICATED SECTION             -->
+<!-- ======================================================== -->
+<section class="w-full py-space-3xl bg-background overflow-hidden relative">
+<div class="max-w-7xl mx-auto px-gutter-desktop">
+<div class="text-center max-w-3xl mx-auto mb-space-2xl">
+<div class="inline-flex items-center gap-space-2xs px-space-md py-1 rounded-full bg-amber-surface text-tertiary mb-space-xs">
+<span class="material-symbols-outlined text-[18px]">smart_toy</span>
+<span class="font-label-lg text-label-lg font-bold">الذكاء الاصطناعي العملي في مرصود</span>
+</div>
+<h2 class="font-headline-lg text-headline-lg font-bold text-corporate-teal-deep mt-space-2xs mb-space-xs">
+          الذكاء الاصطناعي مش كلام نظري.. ده محاسب ومحلل شغالين معاك لحظة بلحظة
+        </h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant leading-relaxed">
+          طبقتين من الذكاء الاصطناعي مدمجين في قلب النظام المحاسبي: واحدة بتنفذ طلباتك اليومية، والتانية بتقرأ أرقامك وتديك قرارات.
+        </p>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-space-xl items-stretch">
+<!-- CARD 1: المحاسب الذكي (الوكيل المنفذ) -->
+<div class="p-space-xl rounded-2xl bg-surface-container-lowest shadow-md flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between mb-space-md">
+<div class="flex items-center gap-space-xs">
+<div class="w-10 h-10 rounded-xl bg-mint-surface text-emerald-core flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">terminal</span>
+</div>
+<div>
+<h3 class="font-headline-sm text-headline-sm font-bold text-corporate-teal-deep">المحاسب الذكي — ترقية حقيقية</h3>
+<span class="font-label-md text-label-md text-emerald-core font-semibold">ينفّذ عمليات وقيود بدقة 100%</span>
+</div>
+</div>
+<span class="px-space-xs py-1 rounded-full bg-mint-surface text-emerald-core font-label-sm text-label-sm font-bold">
+                Tool-Calling مفعل
+              </span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed mb-space-md">
+              كلّم مرصود بالعربي زي ما تكلّم محاسبك. اطلب قيد، اسأل عن صافي الربح، أو راجع رصيد عميل — والوكيل ينفّذ عبر نفس المحرك المحاسبي مباشرة بدون أي تحريف.
+            </p>
+<div class="p-space-sm rounded-xl bg-mint-surface/50 text-emerald-core font-body-sm text-body-sm font-semibold mb-space-lg flex items-start gap-space-2xs">
+<span class="material-symbols-outlined text-[18px] shrink-0 mt-0.5">verified_user</span>
+<span>ميزة حصرية: مدعوم بنماذج ذكاء اصطناعي مع tool-calling حقيقي — بقى بينفذ عمليات فعلية (فاتورة، دفعة، تسوية) بعد موافقتك، مش مجرد يعمل قيود بس!</span>
+</div>
+<!-- Chat Simulation Mockup -->
+<div class="p-space-md rounded-xl bg-surface-container-low flex flex-col gap-space-sm">
+<div class="flex items-start gap-space-xs self-start max-w-[85%]">
+<div class="w-7 h-7 rounded-full bg-corporate-teal-deep text-on-primary flex items-center justify-center shrink-0 text-[12px] font-bold">
+                  أنت
+                </div>
+<div class="p-space-sm rounded-2xl rounded-tr-none bg-surface-container-lowest text-on-surface shadow-sm font-body-sm text-body-sm">
+                  سجل فاتورة بيع لشركة النور بـ 15,000 ج شاملة الضريبة واخصم عربون 5,000 ج
+                </div>
+</div>
+<div class="flex items-start gap-space-xs self-end max-w-[90%] flex-row-reverse">
+<div class="w-7 h-7 rounded-full bg-emerald-core text-on-primary flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[14px]">smart_toy</span>
+</div>
+<div class="p-space-sm rounded-2xl rounded-tl-none bg-primary text-on-primary shadow-sm font-body-sm text-body-sm">
+<p class="font-bold mb-1">تم إعداد المسودة بنجاح عبر النظام المحاسبي:</p>
+<ul class="text-[12px] opacity-90 space-y-0.5 mb-2 list-disc list-inside">
+<li>فاتورة مبيعات: 15,000 ج.م (شامل 14% ض.ق.م)</li>
+<li>تسوية عربون العميل: 5,000 ج.م مقيدة من حساب الدفعات المقدمة</li>
+<li>الرصيد المتبقي المستحق: 10,000 ج.م</li>
+</ul>
+<div class="flex items-center gap-space-xs mt-2">
+<button class="px-space-sm py-1 rounded bg-surface-container-lowest text-corporate-teal-deep font-label-sm text-label-sm font-bold">موافق، اعتمد وسجل بالدفاتر</button>
+<button class="px-space-sm py-1 rounded bg-on-primary/10 text-on-primary font-label-sm text-label-sm">تعديل المسودة</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-space-md pt-space-xs flex items-center justify-between text-on-surface-variant font-label-md text-label-md">
+<span>يدعم اللهجة المصرية والفصحى</span>
+<span class="font-bold text-emerald-core">معدل دقة القيود 100%</span>
+</div>
+</div>
+<!-- CARD 2: المحلل الذكي (صانع القرار) -->
+<div class="p-space-xl rounded-2xl bg-surface-container-lowest shadow-md flex flex-col justify-between">
+<div>
+<div class="flex items-center justify-between mb-space-md">
+<div class="flex items-center gap-space-xs">
+<div class="w-10 h-10 rounded-xl bg-amber-surface text-amber-ai flex items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">analytics</span>
+</div>
+<div>
+<h3 class="font-headline-sm text-headline-sm font-bold text-corporate-teal-deep">المحلل الذكي — عقل إدارتك المالية</h3>
+<span class="font-label-md text-label-md text-amber-ai font-semibold">يقرأ الأرقام ويفسر معناها للبيزنس</span>
+</div>
+</div>
+<span class="px-space-xs py-1 rounded-full bg-amber-surface text-tertiary font-label-sm text-label-sm font-bold">
+                رؤى مالية فورية
+              </span>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant leading-relaxed mb-space-md">
+              المحاسب الذكي بينفّذ، والمحلل الذكي بيفهم. يقرأ بياناتك الفعلية من الدفاتر، يكشف الاتجاهات والانحرافات، ويطلعلك خلاصة تنفع تاخد عليها قرار تجاري سريع — من غير ما تفتح أو تحلل تقرير واحد بنفسك.
+            </p>
+<!-- 5 Badges of Intelligence -->
+<div class="grid grid-cols-2 sm:grid-cols-3 gap-space-xs mb-space-lg">
+<div class="p-space-xs rounded-xl bg-surface-container-low text-center">
+<span class="font-label-md text-label-md font-bold text-on-surface block">1. تحليل الاتجاهات</span>
+<span class="text-[11px] text-on-surface-variant">نمو المبيعات والمصروفات</span>
+</div>
+<div class="p-space-xs rounded-xl bg-surface-container-low text-center">
+<span class="font-label-md text-label-md font-bold text-on-surface block">2. مقارنة الفترات</span>
+<span class="text-[11px] text-on-surface-variant">شهرياً وربع سنوي</span>
+</div>
+<div class="p-space-xs rounded-xl bg-surface-container-low text-center">
+<span class="font-label-md text-label-md font-bold text-on-surface block">3. كشف الانحرافات</span>
+<span class="text-[11px] text-on-surface-variant">مصاريف غير معتادة</span>
+</div>
+<div class="p-space-xs rounded-xl bg-surface-container-low text-center">
+<span class="font-label-md text-label-md font-bold text-on-surface block">4. تحليل الربحية</span>
+<span class="text-[11px] text-on-surface-variant">حسب الصنف والفرع</span>
+</div>
+<div class="p-space-xs rounded-xl bg-surface-container-low text-center col-span-2 sm:col-span-2">
+<span class="font-label-md text-label-md font-bold text-emerald-core block">5. توصيات عملية قابلة للتنفيذ</span>
+<span class="text-[11px] text-on-surface-variant">قرارات تسعير وتوفير فورية</span>
+</div>
+</div>
+<!-- Insight Capsule Sample -->
+<div class="p-space-md rounded-xl bg-amber-surface text-tertiary flex items-start gap-space-sm">
+<span class="material-symbols-outlined text-[24px] text-amber-ai shrink-0">lightbulb</span>
+<div>
+<span class="font-label-sm text-label-sm font-bold uppercase tracking-wider text-tertiary block mb-1">تنبيه تحليلي عملي من مرصود:</span>
+<p class="font-body-sm text-body-sm text-on-surface leading-relaxed">
+                  "مبيعات فرع التجمع ارتفعت بنسبة <strong>22%</strong> بينما تكلفة المشتريات لنفس البضاعة زادت <strong>14%</strong> نتيجة ارتفاع أسعار المورد، نوصي بإعادة تسعير الصنف X للحفاظ على هامش الربح المستهدف (35%)."
+                </p>
+</div>
+</div>
+</div>
+<div class="mt-space-md pt-space-xs flex items-center justify-between text-on-surface-variant font-label-md text-label-md">
+<span>تنبيهات استباقية بالواتساب والإيميل</span>
+<span class="font-bold text-tertiary">بدون معادلات إكسيل معقدة</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- ======================================================== -->
+<!-- 6. FINAL CTA, TRIAL & PRICING SECTION                    -->
+<!-- ======================================================== -->
+<section class="w-full py-space-3xl bg-surface-container-low/60">
+<div class="max-w-7xl mx-auto px-gutter-desktop">
+<div class="rounded-3xl bg-corporate-teal-deep p-space-xl md:p-space-3xl text-on-primary text-center relative overflow-hidden shadow-xl">
+<!-- Marsoud Brand Logo Centered -->
+<div class="flex justify-center mb-space-lg">
+<div class="p-space-xs rounded-xl bg-surface-container-lowest shadow-md inline-flex items-center">
+<img alt="Marsoud Logo" class="h-10 w-auto object-contain" src="/static/img/logo.png"/>
+</div>
+</div>
+<h2 class="font-display-lg text-display-lg font-bold text-on-primary max-w-3xl mx-auto mb-space-md leading-tight">
+          جاهز تنقل إدارة شركتك لمستوى تاني مع مرصود؟
+        </h2>
+<p class="font-body-lg text-body-lg text-surface-container max-w-2xl mx-auto mb-space-xl leading-relaxed">
+          ابدأ تجربتك المجانية فوراً بدون الحاجة لبطاقة ائتمان، أو تواصل مع فريق مستشارينا لمساعدتك في تهيئة النظام بالكامل حسب طبيعة نشاطك التجاري أو الصناعي.
+        </p>
+<!-- CTA Buttons -->
+<div class="flex flex-wrap items-center justify-center gap-space-md mb-space-2xl">
+<a class="w-full sm:w-auto inline-flex items-center justify-center gap-space-2xs px-space-2xl py-space-sm rounded-xl bg-primary text-on-primary font-title-lg text-title-lg hover:bg-surface-tint transition-all shadow-lg font-bold" href="#">
+<span>جرب مرصود مجاناً الآن (14 يوم)</span>
+<span class="material-symbols-outlined text-[20px]">arrow_back</span>
+</a>
+<a class="w-full sm:w-auto inline-flex items-center justify-center gap-space-2xs px-space-2xl py-space-sm rounded-xl bg-mint-accent text-on-primary font-title-lg text-title-lg hover:bg-emerald-core transition-all shadow-lg font-bold" href="https://wa.me/201044203322" rel="noopener" target="_blank">
+<span class="material-symbols-outlined text-[20px]">chat</span>
+<span>تحدث مع خبير مالي عبر واتساب</span>
+</a>
+</div>
+<!-- Reassurance Guarantees -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-space-md pt-space-lg max-w-3xl mx-auto text-right">
+<div class="flex items-center gap-space-xs justify-center sm:justify-start">
+<span class="material-symbols-outlined text-mint-accent text-[22px]">check_circle</span>
+<span class="font-title-md text-title-md text-surface-container font-medium">دعم فني مصري مباشر وسريع</span>
+</div>
+<div class="flex items-center gap-space-xs justify-center sm:justify-start">
+<span class="material-symbols-outlined text-mint-accent text-[22px]">check_circle</span>
+<span class="font-title-md text-title-md text-surface-container font-medium">تدريب كامل ومجاني لفريقك</span>
+</div>
+<div class="flex items-center gap-space-xs justify-center sm:justify-start">
+<span class="material-symbols-outlined text-mint-accent text-[22px]">check_circle</span>
+<span class="font-title-md text-title-md text-surface-container font-medium">نقل بياناتك السابقة بكل سهولة</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div></main><footer class="w-full bg-surface-container-low pt-space-3xl pb-space-2xl mt-space-3xl"><div class="max-w-7xl mx-auto px-gutter-desktop"><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-space-2xl pb-space-2xl"><div class="lg:col-span-2 flex flex-col gap-space-md"><div class="flex items-center gap-space-xs"><div class="w-9 h-9 rounded-xl bg-corporate-teal-deep flex items-center justify-center text-primary-fixed"><span class="material-symbols-outlined text-[20px]">account_balance</span></div><span class="font-headline-md text-headline-md font-bold text-corporate-teal-deep">مرصود</span></div><p class="font-body-md text-body-md text-on-surface-variant max-w-md leading-relaxed">مرصود - نظام ERP ومحاسبة سحابي ذكي للشركات والمصانع في مصر والعالم العربي. امتثال ضريبي كامل مع منظومة الفاتورة والإيصال الإلكتروني.</p><div class="flex items-center gap-space-sm pt-space-xs"><a class="inline-flex items-center gap-space-2xs font-body-sm text-body-sm text-primary hover:text-corporate-teal-deep" href="https://marsoud.com"><span class="material-symbols-outlined text-[16px]">language</span><span>marsoud.com</span></a><span class="text-on-surface-variant">•</span><a class="inline-flex items-center gap-space-2xs font-body-sm text-body-sm text-emerald-core hover:text-corporate-teal-deep" href="https://wa.me/201044203322"><span class="material-symbols-outlined text-[16px]">support_agent</span><span>دعم فني واستشارات واتساب</span></a></div></div><div class="flex flex-col gap-space-sm"><span class="font-title-md text-title-md font-bold text-on-surface">روابط سريعة</span><ul class="flex flex-col gap-space-xs"><li class="list-none"><a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface transition-colors" data-path="features" href="#">المميزات الرئيسية</a></li><li class="list-none"><a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface transition-colors" data-path="whats-new" href="#">تحديثات النظام</a></li><li class="list-none"><a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface transition-colors" data-path="ai-accountant" href="#">المحاسب الذكي AI</a></li><li class="list-none"><a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface transition-colors" data-path="pricing-trial" href="#">باقات الاشتراك</a></li></ul></div><div class="flex flex-col gap-space-sm"><span class="font-title-md text-title-md font-bold text-on-surface">الثقة والأمان</span><ul class="flex flex-col gap-space-xs"><li class="list-none"><a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface transition-colors" data-path="security-compliance" href="#">الأمان والامتثال الضريبي</a></li><li class="list-none"><a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface transition-colors" data-path="faq" href="#">الأسئلة الشائعة</a></li><li class="list-none"><a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface transition-colors" data-path="privacy-policy" href="#">سياسة الخصوصية</a></li><li class="list-none"><a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface transition-colors" data-path="terms-of-service" href="#">الشروط والأحكام</a></li></ul></div><div class="flex flex-col gap-space-sm"><span class="font-title-md text-title-md font-bold text-on-surface">تواصل معنا</span><ul class="flex flex-col gap-space-xs"><li class="list-none"><a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface transition-colors" data-path="contact-sales" href="#">فريق المبيعات</a></li><li class="list-none"><a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface transition-colors" data-path="partner-program" href="#">برنامج الشركاء والمحاسبين</a></li><li class="list-none"><a class="font-body-md text-body-md text-on-surface-variant hover:text-on-surface transition-colors" data-path="knowledge-base" href="#">مركز المعرفة والتدريب</a></li></ul></div></div><div class="pt-space-lg flex flex-col md:flex-row items-center justify-between gap-space-md text-on-surface-variant font-body-sm text-body-sm"><p>© 2025 مرصود ERP (marsoud.com). جميع الحقوق محفوظة لشركة مرصود للحلول السحابية.</p><div class="flex items-center gap-space-md"><span class="inline-flex items-center gap-space-2xs text-emerald-core"><span class="material-symbols-outlined text-[14px]">verified</span>متوافق مع هيئة الضرائب والفوترة الإلكترونية</span></div></div></div></footer></body></html>
