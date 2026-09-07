@@ -145,6 +145,44 @@
       </div>
     </div>
 
+    {# MARSOUD-INVOICE-PAYMENT-CHANNELS-01 — InstaPay + e-wallet.
+       Same "hide-if-empty" rule as the bank block: the invoice PDF
+       won't render an empty channel row. Kept in a separate card so
+       the settings page reads as three distinct payment options. #}
+    <div class="border border-amber-100 rounded-lg p-4 bg-amber-50/40">
+      <h3 class="font-bold text-navy-900 mb-1 text-sm">💳 قنوات دفع إضافية (تظهر على فاتورة الـ PDF)</h3>
+      <p class="text-xs text-slate-500 mb-3">اختياري — أي حقل بيفضل فاضي بيختفي من الفاتورة تلقائياً.</p>
+      <div class="grid grid-cols-2 gap-3">
+        <div class="col-span-2">
+          <label class="block text-xs font-semibold text-slate-700 mb-1">
+            💠 عنوان/رقم InstaPay
+          </label>
+          <input type="text" name="instapay_handle"
+                 value="{{ company.instapay_handle if company else '' }}"
+                 dir="ltr" placeholder="owner@instapay أو رقم الموبايل"
+                 class="input text-sm font-mono">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">
+            📱 رقم المحفظة الإلكترونية
+          </label>
+          <input type="text" name="ewallet_number"
+                 value="{{ company.ewallet_number if company else '' }}"
+                 dir="ltr" placeholder="01012345678"
+                 class="input text-sm font-mono">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">
+            اسم المحفظة
+          </label>
+          <input type="text" name="ewallet_provider"
+                 value="{{ company.ewallet_provider if company else '' }}"
+                 placeholder="فودافون كاش / اتصالات كاش / …"
+                 class="input text-sm">
+        </div>
+      </div>
+    </div>
+
     {% if company %}
     <div class="border border-slate-200 rounded-lg p-4 bg-slate-50">
       <h3 class="font-bold text-navy-900 mb-3">أيام العطلة الأسبوعية</h3>

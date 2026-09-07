@@ -205,6 +205,15 @@ def edit(company_id):
         company.bank_account_holder = (request.form.get("bank_account_holder") or "").strip() or None
         company.bank_account_number = (request.form.get("bank_account_number") or "").strip() or None
         company.iban = (request.form.get("iban") or "").strip() or None
+        # MARSOUD-INVOICE-PAYMENT-CHANNELS-01 — InstaPay + e-wallet.
+        # Same "" → None normalisation so an empty submit clears the
+        # field cleanly and doesn't leave a whitespace ghost.
+        company.instapay_handle = (
+            request.form.get("instapay_handle") or "").strip() or None
+        company.ewallet_number = (
+            request.form.get("ewallet_number") or "").strip() or None
+        company.ewallet_provider = (
+            request.form.get("ewallet_provider") or "").strip() or None
 
         # MARSOUD-TZ-01 — company-level timezone. Falls back to
         # existing value (default "Asia/Riyadh") if the field is

@@ -344,6 +344,42 @@
     {% if invoice.balance > 0.01 and invoice.status.value in ['SENT', 'PARTIALLY_PAID', 'OVERDUE'] %}
     <div class="card p-5">
       <h3 class="font-bold text-navy-900 mb-3">تسجيل دفعة</h3>
+      {# MARSOUD-INVOICE-PAYMENT-CHANNELS-01 — internal reference for
+         the accountant on how the customer can pay. Each channel
+         renders only when the tenant has actually configured it in
+         settings; hidden entirely when everything is empty. #}
+      {% set _co = invoice.company %}
+      {% if _co.bank_name or _co.iban or _co.bank_account_number
+             or _co.instapay_handle or _co.ewallet_number %}
+      <details class="mb-3 rounded-lg border border-slate-200 bg-slate-50/60">
+        <summary class="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-700">
+          💳 قنوات الدفع اللي المفروض العميل يقدر يستخدمها
+        </summary>
+        <div class="px-3 py-2 text-xs space-y-1 border-t border-slate-200">
+          {% if _co.bank_name or _co.iban or _co.bank_account_number %}
+          <div>
+            🏦 <strong>{{ _co.bank_name or 'بنك' }}</strong>
+            {% if _co.bank_account_holder %} — {{ _co.bank_account_holder }}{% endif %}
+            {% if _co.bank_account_number %}<div class="ml-4 font-mono" dir="ltr">Acc: {{ _co.bank_account_number }}</div>{% endif %}
+            {% if _co.iban %}<div class="ml-4 font-mono" dir="ltr">IBAN: {{ _co.iban }}</div>{% endif %}
+          </div>
+          {% endif %}
+          {% if _co.instapay_handle %}
+          <div>
+            💠 <strong>InstaPay:</strong>
+            <span class="font-mono" dir="ltr">{{ _co.instapay_handle }}</span>
+          </div>
+          {% endif %}
+          {% if _co.ewallet_number %}
+          <div>
+            📱 <strong>محفظة{% if _co.ewallet_provider %}
+              ({{ _co.ewallet_provider }}){% endif %}:</strong>
+            <span class="font-mono" dir="ltr">{{ _co.ewallet_number }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </details>
+      {% endif %}
       {% set active_methods = active_company.payment_methods|selectattr('is_active')|list %}
       {% if not active_methods %}
         <div class="bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-lg p-3 mb-3">

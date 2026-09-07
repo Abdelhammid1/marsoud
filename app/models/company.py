@@ -84,6 +84,18 @@ class Company(db.Model):
     bank_account_holder = db.Column(db.String(150))
     bank_account_number = db.Column(db.String(50))
     iban = db.Column(db.String(50))
+    # MARSOUD-INVOICE-PAYMENT-CHANNELS-01 (2026-09-08) — two extra
+    # payment channels the customer can use straight from the invoice
+    # PDF alongside bank transfer:
+    #   · InstaPay handle (e.g. `owner@instapay` or the phone number)
+    #   · e-wallet number + provider label (Vodafone Cash / Etisalat
+    #     Cash / Orange Cash / We Pay …). Provider is a free string
+    #     so a tenant on an unlisted provider still fits.
+    # All nullable — every field that stays empty is silently hidden
+    # from the invoice; no "empty line" ever renders.
+    instapay_handle = db.Column(db.String(100))
+    ewallet_number = db.Column(db.String(30))
+    ewallet_provider = db.Column(db.String(60))
     # MARSOUD-57.2 + 57.3 — commercial plan + subscription window
     plan_id = db.Column(db.Integer, db.ForeignKey("plans.id"))
     # MARSOUD-CHOOSE-PLAN (Abdelhamid 2026-07-22) — plan the OWNER

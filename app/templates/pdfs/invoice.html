@@ -168,7 +168,12 @@ table.items tr:last-child td { border-bottom: none; }
       مستحقة الدفع بتاريخ {{ ar_date(invoice.due_date) }}
     </div>
 
-    {# ── BANK ACCOUNT DETAILS ───────────────────────────────── #}
+    {# ── PAYMENT CHANNELS ───────────────────────────────────
+       MARSOUD-INVOICE-PAYMENT-CHANNELS-01 (2026-09-08) — three
+       stacked blocks (bank + InstaPay + e-wallet). Each renders
+       only when its own fields are populated; a tenant using just
+       InstaPay gets exactly one clean block, not three with two
+       empty rows. #}
     {% if invoice.company.bank_name or invoice.company.iban or invoice.company.bank_account_number %}
     <div class="pay-note">
       يُفضّل الدفع بتحويل بنكي إلى الحساب الموضّح أدناه. يُرجى ذكر رقم الفاتورة عند التحويل.
@@ -181,6 +186,21 @@ table.items tr:last-child td { border-bottom: none; }
         {% if invoice.company.bank_account_number %}رقم الحساب: {{ invoice.company.bank_account_number }}<br>{% endif %}
         {% if invoice.company.iban %}IBAN: {{ invoice.company.iban }}{% endif %}
       </div>
+    </div>
+    {% endif %}
+    {% if invoice.company.instapay_handle %}
+    <div class="pay-address">
+      <div class="lbl">💠 InstaPay:</div>
+      <div class="line">{{ invoice.company.instapay_handle }}</div>
+    </div>
+    {% endif %}
+    {% if invoice.company.ewallet_number %}
+    <div class="pay-address">
+      <div class="lbl">
+        📱 محفظة إلكترونية{% if invoice.company.ewallet_provider %}
+        ({{ invoice.company.ewallet_provider }}){% endif %}:
+      </div>
+      <div class="line">{{ invoice.company.ewallet_number }}</div>
     </div>
     {% endif %}
 
