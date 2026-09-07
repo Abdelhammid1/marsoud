@@ -36,7 +36,16 @@ def create_installment_plan(invoice, rows, *, actor_id=None):
         raise InstallmentError(
             "خطة الأقساط يجب أن تحتوي على قسطين على الأقل")
 
-    total_target = _q(invoice.total)
+    # MARSOUD-INVOICE-INSTALLMENTS-DISPLAY-01 (2026-09-08) — validate
+    # against the invoice's REMAINING balance, not its full total.
+    # For every existing caller (plan created on an untouched invoice)
+    # balance == total, so behavior is byte-identical. For the new
+    # create-form caller — where a down-payment has already been
+    # recorded via record_payment before this runs — the plan
+    # legitimately covers only (total - down_payment), and validating
+    # against the full total would refuse a correct plan.
+    total_target = _q(float(invoice.total or 0)
+                      - float(invoice.paid_amount or 0))
     total_rows = Decimal("0")
     parsed = []
     for i, r in enumerate(rows, start=1):
@@ -53,7 +62,7 @@ def create_installment_plan(invoice, rows, *, actor_id=None):
         total_rows += amt
     if total_rows != total_target:
         raise InstallmentError(
-            f"مجموع الأقساط ({total_rows}) لا يساوي قيمة الفاتورة "
+            f"مجموع الأقساط ({total_rows}) لا يساوي المبلغ المتبقّي على الفاتورة "
             f"({total_target})")
 
     for i, (amt, due) in enumerate(parsed, start=1):

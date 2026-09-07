@@ -126,6 +126,17 @@
               </form>
             {% endif %}
           </div>
+          {# MARSOUD-INVOICE-INSTALLMENTS-DISPLAY-01 (2026-09-08) — the
+             up-front slice the cashier collected the moment they
+             created the invoice. Renders only when the field is set
+             so backfilled invoices without a down-payment stay quiet. #}
+          {% if invoice.down_payment_amount and invoice.down_payment_amount > 0 %}
+          <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs rounded-lg p-2 mb-3">
+            💰 دفعة مقدّمة عند الإصدار:
+            <span class="font-mono font-bold">{{ '%.2f'|format(invoice.down_payment_amount) }}</span>
+            {{ invoice.currency|currency_ar }}
+          </div>
+          {% endif %}
           <table class="w-full text-xs">
             <thead class="text-slate-500 border-b">
               <tr><th class="text-right py-1">#</th><th class="text-right">القيمة</th><th class="text-right">الاستحقاق</th><th class="text-right">الحالة</th><th></th></tr>

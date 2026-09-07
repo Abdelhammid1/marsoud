@@ -186,6 +186,58 @@
     <textarea name="internal_notes" rows="2" placeholder="ملاحظات لفريقك فقط — لن تظهر للعميل" class="textarea">{{ invoice.internal_notes or '' if invoice else '' }}</textarea>
   </div>
 
+  {# MARSOUD-INVOICE-INSTALLMENTS-DISPLAY-01 (2026-09-08) — installment
+     plan + up-front collection, all in one card. Create-only: on edit
+     the /invoices/<id> view page keeps the plan-management surface
+     (add plan, drop plan, collect an installment) so this form stays
+     for authoring only. Collapsed by default via <details> so a plain
+     cash sale doesn't have to look at it. #}
+  {% if not invoice %}
+  <details class="card p-4" id="inst-card">
+    <summary class="cursor-pointer font-bold text-navy-900 list-none flex items-center gap-2">
+      <span class="text-lg">📅</span>
+      <span>تقسيط + دفعة مقدّمة (اختياري)</span>
+      <span class="text-xs text-slate-500 mr-auto">اضغط للفتح</span>
+    </summary>
+    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+      <label class="block">
+        <span class="text-xs text-slate-600 mb-1 block">عدد الأقساط</span>
+        <input type="number" name="installment_count" min="2" max="60"
+               class="input" placeholder="مثلاً: 3">
+      </label>
+      <label class="block">
+        <span class="text-xs text-slate-600 mb-1 block">تاريخ أول قسط</span>
+        <input type="date" name="installment_start_date" class="input">
+      </label>
+      <label class="block">
+        <span class="text-xs text-slate-600 mb-1 block">
+          الدفعة المقدّمة (اختياري)
+        </span>
+        <input type="number" name="down_payment_amount" step="0.01" min="0"
+               class="input" placeholder="مبلغ يُقبض ساعة الإصدار">
+      </label>
+      <label class="block">
+        <span class="text-xs text-slate-600 mb-1 block">
+          طريقة الدفع للمقدّم
+        </span>
+        <select name="down_payment_method_id" class="select">
+          <option value="">— اختر —</option>
+          {% for pm in payment_methods or [] %}
+            <option value="{{ pm.id }}" {% if pm.is_default %}selected{% endif %}>
+              {{ pm.name_ar or pm.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <p class="text-xs text-slate-500 mt-3 leading-relaxed">
+      💡 لو حطّيت "دفعة مقدّمة"، النظام هيخصمها من الإجمالي والباقي يتقسّم
+      على الأقساط بالتساوي (الفرق يذهب لآخر قسط). لازم تختار "إرسال + تسجيل
+      قيد" عشان الخطة والقبض يتفعّلوا؛ "حفظ كعرض سعر" مايفعّلش شيء.
+    </p>
+  </details>
+  {% endif %}
+
   <div class="card p-4 flex items-center justify-between bg-sky-50/50 border-sky-100">
     <div class="flex items-center gap-6">
       <label class="flex items-center gap-2 text-sm text-navy-900 cursor-pointer">

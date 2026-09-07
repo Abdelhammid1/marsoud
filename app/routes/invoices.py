@@ -243,6 +243,158 @@ def _populate_invoice_from_form(invoice, form):
     invoice.recalc()
 
 
+# MARSOUD-INVOICE-INSTALLMENTS-DISPLAY-01 (2026-09-08) — up-front
+# validation for the installment + down-payment form inputs. Runs
+# BEFORE post_invoice_to_ledger commits so a bad input surfaces as a
+# refusal, not an orphan invoice.
+def _validate_installment_form(form, total, inv_currency, base_currency):
+    def _fnum(x):
+        try:
+            return float((x or "").strip())
+        except (TypeError, ValueError, AttributeError):
+            return 0.0
+
+    dp_amount = _fnum(form.get("down_payment_amount"))
+    inst_count_raw = (form.get("installment_count") or "").strip()
+    try:
+        inst_count = int(inst_count_raw) if inst_count_raw else 0
+    except (TypeError, ValueError):
+        inst_count = 0
+    inst_start_raw = (form.get("installment_start_date") or "").strip()
+
+    # No installment section touched → nothing to validate.
+    if inst_count < 2 and dp_amount <= 0:
+        return
+
+    if dp_amount < 0 or dp_amount > total + 0.005:
+        raise LedgerError(
+            f"الدفعة المقدّمة يجب أن تكون بين 0 و {total:.2f}")
+    if dp_amount > 0 and not (form.get("down_payment_method_id") or "").strip():
+        raise LedgerError("اختر طريقة الدفع للدفعة المقدّمة")
+    if inst_count >= 2:
+        if not inst_start_raw:
+            raise LedgerError("تاريخ أول قسط مطلوب لخطة الأقساط")
+        from datetime import datetime as _dt
+        try:
+            _dt.strptime(inst_start_raw, "%Y-%m-%d").date()
+        except (TypeError, ValueError):
+            raise LedgerError("تاريخ أول قسط غير صالح")
+        if (total - dp_amount) <= 0.005:
+            raise LedgerError(
+                "المبلغ المتبقّي بعد الدفعة المقدّمة يجب أن يكون أكبر من صفر")
+    # Foreign-currency guard — down-payment on a non-base invoice needs
+    # exchange_rate; the shared record_payment path enforces it too,
+    # but surface a nicer message here rather than deep inside ledger.
+    inv_ccy = (inv_currency or "").upper()
+    base = (base_currency or "EGP").upper()
+    if dp_amount > 0 and inv_ccy != base:
+        fx_raw = (form.get("exchange_rate") or "").strip()
+        try:
+            fx = float(fx_raw) if fx_raw else 0.0
+        except (TypeError, ValueError):
+            fx = 0.0
+        if fx <= 0:
+            raise LedgerError(
+                "الفاتورة بعملة أجنبية — سعر الصرف مطلوب لتحصيل الدفعة "
+                "المقدّمة")
+
+
+# MARSOUD-INVOICE-INSTALLMENTS-DISPLAY-01 (2026-09-08) — create-form
+# extras: installment plan + up-front payment. Extracted from the
+# `new()` post-branch so the flow stays legible + so the audit can
+# exercise this side of the logic without POSTing a full form.
+def _apply_create_form_installments(invoice, form, actor_id):
+    """Apply the optional installment plan + down-payment captured on
+    the create form. Called only after `post_invoice_to_ledger` (so
+    the AR row exists) and only on the send path (draft/quote path
+    doesn't wire installments — the ticket asks for one-shot creation
+    + activation, not a deferred plan). All-nothing: any error rolls
+    the whole invoice back."""
+    from app.services.installments import (
+        create_installment_plan, InstallmentError,
+    )
+    from datetime import datetime as _dt
+
+    def _fnum(x):
+        try:
+            return float((x or "").strip())
+        except (TypeError, ValueError, AttributeError):
+            return 0.0
+
+    dp_amount = _fnum(form.get("down_payment_amount"))
+    dp_method_id = form.get("down_payment_method_id") or ""
+    try:
+        dp_method_id = int(dp_method_id) if dp_method_id else None
+    except (TypeError, ValueError):
+        dp_method_id = None
+    inst_count_raw = (form.get("installment_count") or "").strip()
+    try:
+        inst_count = int(inst_count_raw) if inst_count_raw else 0
+    except (TypeError, ValueError):
+        inst_count = 0
+    inst_start_raw = (form.get("installment_start_date") or "").strip()
+
+    # Nothing on this section → return silently (regular sale path).
+    if inst_count < 2 and dp_amount <= 0:
+        return
+
+    total = float(invoice.total or 0)
+    if dp_amount < 0 or dp_amount > total + 0.005:
+        raise LedgerError(
+            f"الدفعة المقدّمة يجب أن تكون بين 0 و {total:.2f}")
+
+    # ─── Down-payment first — record_payment bumps invoice.paid_amount
+    # so the plan validation (which now compares sum-of-rows to the
+    # REMAINING balance) sees the correct target when it runs. ──────
+    if dp_amount > 0:
+        if not dp_method_id:
+            raise LedgerError(
+                "اختر طريقة الدفع للدفعة المقدّمة")
+        invoice.down_payment_amount = dp_amount
+        # exchange_rate forwarded when a foreign-currency invoice is
+        # in play; blank/None → EGP path unchanged.
+        _fx_raw = (form.get("exchange_rate") or "").strip()
+        try:
+            _fx = float(_fx_raw) if _fx_raw else None
+        except (TypeError, ValueError):
+            _fx = None
+        record_payment(invoice, dp_amount,
+                        payment_method_id=dp_method_id,
+                        created_by=actor_id, notify=False,
+                        exchange_rate=_fx)
+
+    # ─── Installment plan (optional) ─────────────────────────────────
+    if inst_count >= 2:
+        if not inst_start_raw:
+            raise LedgerError("تاريخ أول قسط مطلوب لخطة الأقساط")
+        try:
+            start_date = _dt.strptime(inst_start_raw, "%Y-%m-%d").date()
+        except (TypeError, ValueError):
+            raise LedgerError("تاريخ أول قسط غير صالح")
+        remaining = total - dp_amount
+        if remaining <= 0.005:
+            raise LedgerError(
+                "المبلغ المتبقّي بعد الدفعة المقدّمة يجب أن يكون أكبر من صفر")
+        per = round(remaining / inst_count, 2)
+        rows = []
+        due = start_date
+        acc = 0.0
+        for i in range(inst_count):
+            if i == inst_count - 1:
+                amt = round(remaining - acc, 2)
+            else:
+                amt = per
+                acc += amt
+            rows.append({"amount": amt, "due_date": due})
+            # Monthly step matching the /invoices/<id>/installments
+            # panel: +30 days.  The service accepts any date sequence.
+            due = due.fromordinal(due.toordinal() + 30)
+        try:
+            create_installment_plan(invoice, rows, actor_id=actor_id)
+        except InstallmentError as e:
+            raise LedgerError(str(e))
+
+
 @bp.route("/new", methods=["GET", "POST"])
 @login_required
 @require_permission("invoices.create")
@@ -290,8 +442,21 @@ def new():
             should_send = request.form.get("send") == "1"
             email_customer = request.form.get("email_customer") == "1"
             if should_send:
+                # MARSOUD-INVOICE-INSTALLMENTS-DISPLAY-01 (2026-09-08) —
+                # validate the installment/down-payment inputs BEFORE
+                # the ledger post commits.  Once post_invoice_to_ledger
+                # runs its own db.session.commit() the invoice is
+                # persisted for real, so a later LedgerError would
+                # leave an orphan invoice.  Fail-fast up front.
+                _validate_installment_form(
+                    request.form, float(invoice.total or 0),
+                    invoice.currency,
+                    (g.active_company.base_currency or "EGP"))
                 invoice.status = InvoiceStatus.SENT
                 post_invoice_to_ledger(invoice, created_by=current_user.id)
+                # Now the AR row exists — apply the plan + down-payment.
+                _apply_create_form_installments(
+                    invoice, request.form, current_user.id)
             db.session.commit()
             try:
                 from app.services.superadmin import log_platform_action
@@ -319,7 +484,17 @@ def new():
                                  g.active_company.id),
                              # MARSOUD-INVOICE-FX-01 — feeds the
                              # currency picker on the create form.
-                             allowed_currencies=_ALLOWED_INVOICE_CURRENCIES)
+                             allowed_currencies=_ALLOWED_INVOICE_CURRENCIES,
+                             # MARSOUD-INVOICE-INSTALLMENTS-DISPLAY-01
+                             # — down-payment method picker on the
+                             # installment card. Filtered to active
+                             # so a disabled channel doesn't show up.
+                             payment_methods=(
+                                 PaymentMethod.query
+                                 .filter_by(company_id=g.active_company.id,
+                                             is_active=True)
+                                 .order_by(PaymentMethod.is_default.desc(),
+                                            PaymentMethod.name).all()))
 
 
 @bp.route("/<int:invoice_id>/edit", methods=["GET", "POST"])

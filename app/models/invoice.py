@@ -80,6 +80,14 @@ class Invoice(db.Model):
     # by any balance math (invoice.total / invoice.paid_amount stay in
     # the invoice's currency, whatever it is).
     fx_rate_at_receipt = db.Column(db.Numeric(15, 6), nullable=True)
+    # MARSOUD-INVOICE-INSTALLMENTS-DISPLAY-01 (2026-09-08) — the
+    # down-payment the cashier collected the moment they created the
+    # invoice. Kept purely for the audit trail + the invoice view's
+    # "دفعة مقدّمة عند الإصدار: X" line. Not read by any balance math
+    # (the down-payment lives in the Payment table like any other
+    # collection; this column is the metadata bit that says "yes, this
+    # was the up-front slice"). NULL for plain invoices without one.
+    down_payment_amount = db.Column(db.Numeric(15, 2), nullable=True)
     status = db.Column(db.Enum(InvoiceStatus), default=InvoiceStatus.DRAFT, nullable=False)
     notes = db.Column(db.Text)              # customer-facing
     internal_notes = db.Column(db.Text)     # private to the company
