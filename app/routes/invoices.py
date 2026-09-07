@@ -257,13 +257,21 @@ def new():
     reps = _company_reps()
     if request.method == "POST":
         try:
+            # MARSOUD-INVOICE-FX-01 — currency picked on the form.
+            # Defaults to the company's base currency when the user
+            # didn't touch the picker (or the picker isn't rendered).
+            # Whitelisted against _ALLOWED_INVOICE_CURRENCIES so a
+            # hand-crafted POST can't inject an unsupported code.
+            _picked = (request.form.get("currency") or "").strip().upper()
+            _picked = _picked if _picked in _ALLOWED_INVOICE_CURRENCIES else None
+            _inv_currency = _picked or g.active_company.base_currency
             invoice = Invoice(
                 company_id=g.active_company.id,
                 number=_next_number(g.active_company.id),
                 customer_id=int(request.form.get("customer_id")),
                 issue_date=date.today(),
                 due_date=date.today() + timedelta(days=30),
-                currency=g.active_company.base_currency,
+                currency=_inv_currency,
                 # MARSOUD-INVOICE-TAX-ZERO (Batch 9 Ticket 1) —
                 # placeholder; the real value gets set inside
                 # _populate_invoice_from_form a few lines down,
@@ -308,7 +316,10 @@ def new():
                              invoice=None, reps=reps,
                              # MARSOUD-COST-CENTERS-03-REVENUE-SPLIT
                              cost_centers=_company_cost_centers(
-                                 g.active_company.id))
+                                 g.active_company.id),
+                             # MARSOUD-INVOICE-FX-01 — feeds the
+                             # currency picker on the create form.
+                             allowed_currencies=_ALLOWED_INVOICE_CURRENCIES)
 
 
 @bp.route("/<int:invoice_id>/edit", methods=["GET", "POST"])
@@ -341,7 +352,13 @@ def edit(invoice_id):
                              invoice=invoice, reps=reps,
                              # MARSOUD-COST-CENTERS-03-REVENUE-SPLIT
                              cost_centers=_company_cost_centers(
-                                 g.active_company.id))
+                                 g.active_company.id),
+                             # MARSOUD-INVOICE-FX-01 — passed for
+                             # symmetry; the template hides the
+                             # picker on the edit path (currency is
+                             # frozen once created — use the separate
+                             # /change_currency route to relabel).
+                             allowed_currencies=_ALLOWED_INVOICE_CURRENCIES)
 
 
 # ─── MARSOUD-CURRENCY-TAX-DEFAULTS (Batch 8 Ticket 4c, 2026-07-30) ──

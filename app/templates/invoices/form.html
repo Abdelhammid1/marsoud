@@ -52,6 +52,53 @@
         <input type="date" name="due_date" id="due_date" value="{{ invoice.due_date.isoformat() if invoice else '' }}" required class="input">
       </div>
     </div>
+    {# MARSOUD-INVOICE-FX-01 (2026-09-08) — currency picker on the
+       CREATE form only. Once an invoice exists, its currency is
+       frozen (change via /change_currency for a label swap). The
+       banner underneath fires as soon as the user picks anything
+       other than the base currency so they know the JE gets
+       deferred until collection. #}
+    {% if not invoice %}
+    {% set _base_ccy = (active_company.base_currency or 'EGP')|upper %}
+    <div class="grid grid-cols-2 gap-4 mt-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">
+          العملة
+          <span class="text-xs text-slate-500 font-normal">(افتراضي: {{ _base_ccy }})</span>
+        </label>
+        <select name="currency" id="currency" class="select" onchange="_fxBannerSync()">
+          {% for code in (allowed_currencies or [_base_ccy]) %}
+          <option value="{{ code }}"
+                  {% if code == _base_ccy %}selected{% endif %}>
+            {{ code }} — {{ code|currency_ar }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <div id="fx-issue-banner" hidden
+             class="rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs p-2 mt-6">
+          💱 فاتورة بعملة أجنبية — القيد المحاسبي بيتأجل لحد التحصيل.
+          الكاشير هيدخل سعر الصرف يوم استلام الفلوس.
+        </div>
+      </div>
+    </div>
+    <script>
+    (function(){
+      const BASE = "{{ _base_ccy }}";
+      window._fxBannerSync = function(){
+        const s = document.getElementById('currency');
+        const b = document.getElementById('fx-issue-banner');
+        if (!s || !b) return;
+        b.hidden = (s.value === BASE);
+      };
+      // Trigger once on load in case something (a browser autofill,
+      // a back-navigation restore) left the picker on a non-base value.
+      window._fxBannerSync();
+    })();
+    </script>
+    {% endif %}
+
     <div class="grid grid-cols-2 gap-4 mt-4">
       <div>
         <label class="block text-sm font-semibold text-slate-700 mb-2">
