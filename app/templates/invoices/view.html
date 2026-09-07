@@ -351,8 +351,38 @@
           <a href="{{ url_for('payment_methods.index') }}" class="underline font-bold">الإعدادات</a>
         </div>
       {% else %}
-      <form method="POST" action="{{ url_for('invoices.pay', invoice_id=invoice.id) }}" class="space-y-3">
-        <input type="number" name="amount" step="0.01" max="{{ invoice.balance }}" placeholder="المبلغ" required class="input text-sm">
+      {# MARSOUD-INVOICE-FX-01 — foreign-currency banner + rate input.
+         Renders only when invoice.currency != company.base_currency;
+         everything else stays byte-identical to today's form. #}
+      {% set _base_ccy = (active_company.base_currency or 'EGP')|upper %}
+      {% set _inv_ccy = (invoice.currency or '')|upper %}
+      {% set _is_foreign = _inv_ccy != _base_ccy %}
+      {% if _is_foreign %}
+      <div class="bg-amber-50 border border-amber-200 text-amber-900 text-sm rounded-lg p-3 mb-3">
+        💱 <strong>فاتورة بعملة أجنبية ({{ invoice.currency|currency_ar }}):</strong>
+        اكتب سعر الصرف اليوم — النظام هيرحّل القيد بالجنيه بالسعر ده.
+      </div>
+      {% endif %}
+      <form method="POST" action="{{ url_for('invoices.pay', invoice_id=invoice.id) }}" class="space-y-3" id="fx-pay-form">
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">
+            المبلغ ({{ invoice.currency|currency_ar }})
+          </label>
+          <input type="number" name="amount" id="fx-amount" step="0.01" max="{{ invoice.balance }}" placeholder="المبلغ" required class="input text-sm">
+        </div>
+        {% if _is_foreign %}
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">
+            سعر الصرف اليوم (1 {{ invoice.currency }} = ? {{ _base_ccy }})
+            <span class="text-red-600">*</span>
+          </label>
+          <input type="number" name="exchange_rate" id="fx-rate" step="0.0001" min="0.0001" required class="input text-sm font-mono" placeholder="مثلاً: 15.5000">
+          <div class="text-xs text-slate-600 mt-1">
+            المبلغ بالجنيه:
+            <span id="fx-preview" class="font-mono font-bold text-emerald-700">—</span>
+          </div>
+        </div>
+        {% endif %}
         <select name="payment_method_id" required class="select text-sm">
           {% for pm in active_methods %}
           <option value="{{ pm.id }}" {% if pm.is_default %}selected{% endif %}>{{ pm.name_ar or pm.name }}</option>
@@ -364,6 +394,26 @@
         </label>
         <button type="submit" class="btn-accent w-full">تسجيل الدفعة</button>
       </form>
+      {% if _is_foreign %}
+      <script>
+      (function(){
+        const a = document.getElementById('fx-amount');
+        const r = document.getElementById('fx-rate');
+        const p = document.getElementById('fx-preview');
+        function _sync(){
+          const av = parseFloat(a.value || 0);
+          const rv = parseFloat(r.value || 0);
+          if (av > 0 && rv > 0) {
+            p.textContent = (av * rv).toFixed(2) + ' {{ _base_ccy }}';
+          } else {
+            p.textContent = '—';
+          }
+        }
+        a.addEventListener('input', _sync);
+        r.addEventListener('input', _sync);
+      })();
+      </script>
+      {% endif %}
       {% endif %}
     </div>
     {% endif %}

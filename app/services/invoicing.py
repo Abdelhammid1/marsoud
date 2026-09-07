@@ -78,7 +78,30 @@ def post_invoice_to_ledger(invoice, created_by=None):
     """Dr Accounts Receivable / Cr Revenue (split per cost center)
     + Cr VAT Payable. See _revenue_lines_by_cost_center for the
     split logic; VAT + AR stay aggregate.
+
+    MARSOUD-INVOICE-FX-01 (2026-09-08) — foreign-currency invoices
+    (currency != company.base_currency) take a completely different
+    path: no ledger entry at issue AT ALL. Physical stock still
+    moves so the warehouse stays accurate, and the CoGS + AR +
+    Revenue + VAT are posted in one EGP-denominated JE by
+    `record_payment` once the cashier types the collection-day
+    exchange rate. Existing EGP invoices are byte-identical to the
+    pre-ticket flow.
     """
+    # MARSOUD-INVOICE-FX-01 — foreign-currency invoices defer the JE
+    # entirely. Runs BEFORE the AR/revenue-account lookups so a
+    # tenant without a fully-set-up CoA can still raise a SAR
+    # invoice (they can't collect it without 1110/4100/2120 either
+    # way, but that failure surfaces at the payment form).
+    company = invoice.company
+    base_ccy = ((company.base_currency if company else None) or "EGP").upper()
+    inv_ccy = (invoice.currency or "").upper()
+    is_foreign = inv_ccy != base_ccy
+    if is_foreign:
+        _move_stock_only_for_invoice(invoice, created_by=created_by)
+        _log_invoice_activity(invoice)
+        return None
+
     # MARSOUD-COA-REBUILD — AR debit lands on the customer's own
     # sub-account (auto-created the first time we need it) rather than
     # the parent header. Without this we'd trip post_journal's
@@ -142,6 +165,126 @@ def post_invoice_to_ledger(invoice, created_by=None):
         )
 
     # MARSOUD-ACTLOG-01 — record the invoice posting as a CREATE action.
+    _log_invoice_activity(invoice)
+
+    return entry
+
+
+def _fx_collection_journal(*, invoice, ar, receiving_account,
+                            method_label, amount_foreign,
+                            exchange_rate, payment_date, created_by):
+    """MARSOUD-INVOICE-FX-01 — post the deferred sale-side + the
+    collection cash-side + the proportional COGS/Stock as ONE
+    EGP-denominated journal entry.
+
+    Since the foreign invoice never posted at issue, the AR sub-
+    account has a zero balance — Cr AR here would create a negative.
+    Instead we go direct: Dr Cash, Cr Revenue (per CC), Cr VAT, and
+    Dr COGS / Cr Stock for the same share of tracked-item cost. The
+    proportional share `share = amount_foreign / invoice.total`
+    means partial payments each book their own share cleanly with
+    no reconciliation needed.
+
+    All lines are EGP because currency=company.base_currency and
+    exchange_rate=1.0 on the underlying post_journal call — the
+    ledger has no idea a foreign invoice ever existed here, which
+    is exactly what "ma tlmesh el compute_balance" needed.
+    """
+    total_foreign = float(invoice.total or 0)
+    if total_foreign <= 0:
+        raise LedgerError("إجمالي الفاتورة صفر — لا يمكن تحصيلها")
+    share = amount_foreign / total_foreign
+
+    taxable_egp = (float(invoice.taxable_base or 0)
+                   * share * exchange_rate)
+    vat_egp = (float(invoice.tax_amount or 0)
+                * share * exchange_rate)
+    paid_egp = amount_foreign * exchange_rate
+
+    # Cost basis for the tracked items on this invoice — in EGP
+    # already (unit_cost_at_sale was frozen at issue via
+    # record_sale). Proportional to the share of the sale collected.
+    total_cogs_egp = 0.0
+    for it in invoice.items:
+        ucs = float(getattr(it, "unit_cost_at_sale", 0) or 0)
+        if ucs <= 0:
+            continue
+        base_qty = it.base_quantity if it.base_quantity is not None \
+            else it.quantity
+        total_cogs_egp += ucs * float(base_qty or 0)
+    cogs_share_egp = round(total_cogs_egp * share, 2)
+
+    revenue = get_account_by_code(invoice.company_id, "4100")
+    vat_payable = get_account_by_code(invoice.company_id, "2120")
+    if not revenue:
+        raise LedgerError("حساب الإيرادات (4100) غير موجود")
+
+    lines = [
+        {"account_id": receiving_account.id,
+         "debit": round(paid_egp, 2), "credit": 0,
+         "memo": f"تحصيل — سعر الصرف {exchange_rate}"},
+    ]
+    # Reuse the CC-split helper — for the paid share we synthesise a
+    # temporary "shrunk" invoice-like proxy so the same logic works.
+    # Simpler: just push a single Revenue credit here; CC-split can
+    # be added when the first tenant asks for it (foreign-currency
+    # invoices don't set item.cost_center_id in v1).
+    lines.append({
+        "account_id": revenue.id, "debit": 0,
+        "credit": round(taxable_egp, 2),
+        "memo": "إيراد (صافي بعد الخصم) — تحصيل بعملة أجنبية",
+    })
+    if vat_egp > 0.001 and vat_payable:
+        lines.append({
+            "account_id": vat_payable.id, "debit": 0,
+            "credit": round(vat_egp, 2),
+            "memo": "ضريبة قيمة مضافة",
+        })
+
+    # COGS + Stock — only when the invoice actually has tracked
+    # items (services-only invoice → cogs_share_egp is 0.0 and we
+    # skip both lines cleanly).
+    if cogs_share_egp > 0.001:
+        cogs_acc = get_account_by_code(invoice.company_id, "5100")
+        stock_acc = get_account_by_code(invoice.company_id, "1140")
+        if cogs_acc and stock_acc:
+            lines.append({
+                "account_id": cogs_acc.id,
+                "debit": cogs_share_egp, "credit": 0,
+                "memo": "تكلفة البضاعة المباعة",
+            })
+            lines.append({
+                "account_id": stock_acc.id, "debit": 0,
+                "credit": cogs_share_egp,
+                "memo": "خصم من المخزون",
+            })
+
+    customer_label = (invoice.customer.name if invoice.customer
+                       else "زبون نقدي")
+    company = invoice.company
+    base_ccy = ((company.base_currency if company else None) or "EGP")
+    entry = post_journal(
+        company_id=invoice.company_id,
+        description=(f"تحصيل من {customer_label} — "
+                      f"فاتورة #{invoice.number} "
+                      f"({invoice.currency}→{base_ccy}) "
+                      f"({method_label})"),
+        lines=lines,
+        entry_date=payment_date,
+        reference=f"PMT-{invoice.number}",
+        currency=base_ccy,
+        exchange_rate=1.0,
+        created_by=created_by,
+        source_type="payment",
+        source_id=invoice.id,
+    )
+    return entry
+
+
+def _log_invoice_activity(invoice):
+    """Extracted so the EGP path and the FX-deferred path share one
+    activity-log call site. Any log failure is swallowed — the audit
+    trail is nice-to-have, never a blocker on invoice posting."""
     try:
         from app.services.activity import log_action
         log_action(
@@ -156,15 +299,37 @@ def post_invoice_to_ledger(invoice, created_by=None):
     except Exception:
         pass
 
-    return entry
+
+def _move_stock_only_for_invoice(invoice, created_by):
+    """MARSOUD-INVOICE-FX-01 — physical stock movement without the
+    COGS journal. Foreign-currency invoices call this at ISSUE time
+    (so stock leaves the warehouse immediately) and defer the COGS +
+    Revenue + VAT ledger side to the collection JE that
+    `record_payment` posts once the cashier has typed the actual
+    exchange rate.
+
+    Returns the total cost basis (sum of unit_cost_at_sale × base_qty
+    over every tracked line) so the deferred JE can size the COGS
+    debit correctly. Returns 0.0 for services-only invoices.
+    """
+    return _apply_inventory_side_for_invoice(
+        invoice, entry=None, created_by=created_by,
+        skip_cogs_journal=True)
 
 
-def _apply_inventory_side_for_invoice(invoice, entry, created_by):
+def _apply_inventory_side_for_invoice(invoice, entry, created_by,
+                                       *, skip_cogs_journal=False):
     """For each tracked invoice line:
       - resolve variant + warehouse (default to company's main warehouse)
       - call record_sale() to drop stock + snapshot the cost
       - aggregate the cost basis, then post a single COGS journal
         (Dr 5100 / Cr 1140) covering the whole invoice.
+
+    MARSOUD-INVOICE-FX-01 — when `skip_cogs_journal=True` the stock
+    movements still fire but the COGS journal is skipped and NOT
+    linked to any entry. The caller (foreign-currency issue path)
+    is responsible for posting the collection JE later. Returns the
+    aggregated `total_cogs` in EGP so the caller can size that JE.
     """
     from app.services.inventory import (
         record_sale, default_warehouse, post_sale_cogs_journal,
@@ -234,7 +399,7 @@ def _apply_inventory_side_for_invoice(invoice, entry, created_by):
         item.base_quantity = base_qty
         total_cogs += unit_cost * base_qty
 
-    if total_cogs > 0.001:
+    if total_cogs > 0.001 and not skip_cogs_journal:
         cogs_entry = post_sale_cogs_journal(
             company_id=invoice.company_id,
             total_cost=total_cogs, invoice=invoice,
@@ -248,18 +413,48 @@ def _apply_inventory_side_for_invoice(invoice, entry, created_by):
                 source_type="invoice_item", source_id=item.id,
                 journal_entry_id=None,
             ).update({"journal_entry_id": cogs_entry.id})
+    # MARSOUD-INVOICE-FX-01 — the foreign-currency issue path needs
+    # the COGS total to size its collection JE later. EGP callers
+    # ignore the return value (backward compatible).
+    return total_cogs
 
 
-def record_payment(invoice, amount, payment_date=None, method=None, payment_method_id=None, created_by=None, notify=True):
+def record_payment(invoice, amount, payment_date=None, method=None,
+                    payment_method_id=None, created_by=None, notify=True,
+                    exchange_rate=None):
     """Record a payment posting Dr <method.account> / Cr AR. Resolves the receiving
     account either from a PaymentMethod row (preferred) or from the legacy
     'cash'/'bank' string.
+
+    MARSOUD-INVOICE-FX-01 (2026-09-08) — when invoice.currency !=
+    company.base_currency, `exchange_rate` is REQUIRED (raises
+    LedgerError otherwise) and the collection JE is a full
+    EGP-denominated 5-line entry covering Cash + Revenue + VAT +
+    COGS + Stock proportional to this slice of the sale — because
+    the AR/Revenue/VAT + COGS side was deferred at issue time. EGP
+    invoices are byte-identical to the pre-ticket flow.
     """
     amount = float(amount)
     if amount <= 0:
         raise LedgerError("المبلغ يجب أن يكون أكبر من صفر")
     if amount > invoice.balance + 0.01:
         raise LedgerError(f"المبلغ ({amount:.2f}) أكبر من الرصيد المتبقي ({invoice.balance:.2f})")
+
+    # ─── MARSOUD-INVOICE-FX-01 — foreign vs base branch ─────────────
+    company = invoice.company
+    base_ccy = ((company.base_currency if company else None) or "EGP").upper()
+    inv_ccy = (invoice.currency or "").upper()
+    is_foreign = inv_ccy != base_ccy
+    if is_foreign:
+        if exchange_rate is None:
+            raise LedgerError(
+                "سعر الصرف مطلوب لتحصيل فاتورة بعملة أجنبية")
+        try:
+            exchange_rate = float(exchange_rate)
+        except (TypeError, ValueError):
+            raise LedgerError("سعر الصرف غير صالح") from None
+        if exchange_rate <= 0:
+            raise LedgerError("سعر الصرف يجب أن يكون أكبر من صفر")
 
     pm = None
     receiving_account = None
@@ -288,20 +483,38 @@ def record_payment(invoice, amount, payment_date=None, method=None, payment_meth
     if not receiving_account or not ar:
         raise LedgerError("حسابات النقدية / العملاء غير موجودة")
 
-    entry = post_journal(
-        company_id=invoice.company_id,
-        description=f"تحصيل من {invoice.customer.name if invoice.customer else 'زبون نقدي'} — فاتورة #{invoice.number} ({method_label})",
-        lines=[
-            {"account_id": receiving_account.id, "debit": amount, "credit": 0},
-            {"account_id": ar.id, "debit": 0, "credit": amount},
-        ],
-        entry_date=payment_date or date.today(),
-        reference=f"PMT-{invoice.number}",
-        currency=invoice.currency,
-        created_by=created_by,
-        source_type="payment",
-        source_id=invoice.id,
-    )
+    if is_foreign:
+        # ─── MARSOUD-INVOICE-FX-01 — deferred EGP collection JE ─────
+        # Because post_invoice_to_ledger skipped the sale-side JE at
+        # issue, this collection recognises the whole accounting
+        # picture in one go: Cash (Dr) + Revenue (Cr) + VAT (Cr) +
+        # COGS (Dr) + Stock (Cr), all in EGP at the cashier's rate.
+        # Proportional to the paid slice so partial payments each
+        # book their own share cleanly.
+        entry = _fx_collection_journal(
+            invoice=invoice, ar=ar,
+            receiving_account=receiving_account,
+            method_label=method_label,
+            amount_foreign=amount,
+            exchange_rate=exchange_rate,
+            payment_date=payment_date or date.today(),
+            created_by=created_by,
+        )
+    else:
+        entry = post_journal(
+            company_id=invoice.company_id,
+            description=f"تحصيل من {invoice.customer.name if invoice.customer else 'زبون نقدي'} — فاتورة #{invoice.number} ({method_label})",
+            lines=[
+                {"account_id": receiving_account.id, "debit": amount, "credit": 0},
+                {"account_id": ar.id, "debit": 0, "credit": amount},
+            ],
+            entry_date=payment_date or date.today(),
+            reference=f"PMT-{invoice.number}",
+            currency=invoice.currency,
+            created_by=created_by,
+            source_type="payment",
+            source_id=invoice.id,
+        )
 
     payment = Payment(
         invoice_id=invoice.id,
@@ -311,11 +524,18 @@ def record_payment(invoice, amount, payment_date=None, method=None, payment_meth
         payment_method_id=pm.id if pm else None,
         method=(pm.name if pm else method),
         journal_entry_id=entry.id,
+        # MARSOUD-INVOICE-FX-01 — capture the rate on the row; NULL
+        # for base-currency payments so historic rows stay untouched.
+        fx_rate=(exchange_rate if is_foreign else None),
     )
     db.session.add(payment)
 
     invoice.paid_amount = float(invoice.paid_amount or 0) + amount
     is_full = invoice.paid_amount >= float(invoice.total) - 0.01
+    # MARSOUD-INVOICE-FX-01 — stamp the last-collection rate on the
+    # invoice too, so reports don't have to join through Payment.
+    if is_foreign:
+        invoice.fx_rate_at_receipt = exchange_rate
     if is_full:
         invoice.status = InvoiceStatus.PAID
         # MARSOUD-LOYALTY-POINTS-01 — award loyalty points on the

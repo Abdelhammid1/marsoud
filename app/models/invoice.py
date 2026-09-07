@@ -73,6 +73,13 @@ class Invoice(db.Model):
     tax_amount = db.Column(db.Numeric(15, 4), default=0)
     total = db.Column(db.Numeric(15, 4), default=0)
     paid_amount = db.Column(db.Numeric(15, 4), default=0)
+    # MARSOUD-INVOICE-FX-01 (2026-09-08) — the exchange rate the
+    # cashier entered when the LAST collection landed. Only ever set
+    # for foreign-currency invoices (currency != company.base_currency);
+    # NULL for every EGP invoice. Kept for audit + reports; not read
+    # by any balance math (invoice.total / invoice.paid_amount stay in
+    # the invoice's currency, whatever it is).
+    fx_rate_at_receipt = db.Column(db.Numeric(15, 6), nullable=True)
     status = db.Column(db.Enum(InvoiceStatus), default=InvoiceStatus.DRAFT, nullable=False)
     notes = db.Column(db.Text)              # customer-facing
     internal_notes = db.Column(db.Text)     # private to the company
@@ -305,6 +312,10 @@ class Payment(db.Model):
     method = db.Column(db.String(30), default="cash")  # historical fallback
     notes = db.Column(db.Text)
     journal_entry_id = db.Column(db.Integer, db.ForeignKey("journal_entries.id"))
+    # MARSOUD-INVOICE-FX-01 — foreign-currency payment: the rate the
+    # cashier entered at collection time. NULL for base-currency
+    # payments (every EGP payment on an EGP-tenant EGP invoice).
+    fx_rate = db.Column(db.Numeric(15, 6), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     payment_method = db.relationship("PaymentMethod")

@@ -548,10 +548,17 @@ def pay(invoice_id):
         amount = _safe_float(request.form.get("amount"), 0)
         pmid = request.form.get("payment_method_id") or None
         notify = request.form.get("notify_customer", "1") == "1"
+        # MARSOUD-INVOICE-FX-01 — optional; ignored for base-currency
+        # invoices, required for foreign ones (service enforces).
+        fx_raw = (request.form.get("exchange_rate") or "").strip()
+        exchange_rate = _safe_float(fx_raw, 0) if fx_raw else None
+        if exchange_rate == 0:
+            exchange_rate = None
         record_payment(
             invoice, amount,
             payment_method_id=int(pmid) if pmid else None,
             created_by=current_user.id, notify=notify,
+            exchange_rate=exchange_rate,
         )
         try:
             from app.services.superadmin import log_platform_action
