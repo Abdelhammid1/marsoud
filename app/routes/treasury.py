@@ -57,6 +57,16 @@ def _int_or_none(x):
 def receive_route():
     cid = g.active_company.id
     try:
+        # MARSOUD-INVOICE-FX-01 — optional; consumed only for
+        # source=invoice + foreign-currency invoice. Blank/0 → None
+        # so an EGP collection keeps its byte-identical flow.
+        _fx_raw = (request.form.get("exchange_rate") or "").strip()
+        try:
+            _fx = float(_fx_raw) if _fx_raw else None
+        except (TypeError, ValueError):
+            _fx = None
+        if _fx is not None and _fx <= 0:
+            _fx = None
         receive(
             cid,
             amount=request.form.get("amount"),
@@ -65,6 +75,7 @@ def receive_route():
             invoice_id=_int_or_none(request.form.get("invoice_id")),
             note=request.form.get("note"),
             actor_id=current_user.id,
+            exchange_rate=_fx,
         )
         flash("تم تسجيل القبض", "success")
     except (TreasuryError, LedgerError) as e:
@@ -142,12 +153,18 @@ def lookup_invoices():
     if q:
         query = query.filter(Invoice.number.ilike(f"%{q}%"))
     rows = query.order_by(Invoice.issue_date.desc()).limit(20).all()
+    # MARSOUD-INVOICE-FX-01 — surface the invoice's currency so the
+    # receive modal's JS can conditionally show the exchange_rate
+    # field when the picked invoice is non-base.
+    base_ccy = (g.active_company.base_currency or "EGP").upper()
     return jsonify([
         {
             "id": inv.id, "number": inv.number,
             "customer": (inv.customer.name if inv.customer else "—"),
             "balance": float(inv.balance or 0),
             "total": float(inv.total or 0),
+            "currency": (inv.currency or base_ccy).upper(),
+            "is_foreign": (inv.currency or base_ccy).upper() != base_ccy,
         } for inv in rows
     ])
 

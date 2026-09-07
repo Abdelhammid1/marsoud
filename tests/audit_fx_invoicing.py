@@ -361,6 +361,101 @@ def _():
         return f"2 JEs @ 15.0 + 16.0 → cash 1500 + 1600"
 
 
+@check("7. Treasury Hub receive() forwards exchange_rate → foreign "
+        "collection posts EGP JE at cashier's rate")
+def _():
+    """Fixes the gap the user pointed out — collection happens from
+    /treasury, not /invoices/<id>/pay. treasury.receive() must forward
+    the accountant's rate to record_payment or foreign collections
+    from the hub would refuse with 'سعر الصرف مطلوب'."""
+    from app import create_app, db
+    from app.models import JournalEntry, JournalLine, Account
+    from app.services.invoicing import post_invoice_to_ledger
+    from app.services.treasury import receive
+    from app.models.invoice import InvoiceStatus
+    app = create_app()
+    with app.app_context():
+        email, cid, oid = _boot("FX7")
+        cust = _make_customer(cid)
+        pm = _make_pm(cid)
+        # 100 SAR, tax 15% → 115 SAR total.
+        inv = _make_invoice(cid, cust, 100, currency="SAR",
+                             tax_rate=15)
+        post_invoice_to_ledger(inv, created_by=oid)
+        # Same call the /treasury/receive route makes, with the FX
+        # rate the modal now surfaces.
+        receive(cid, amount=115,
+                 account_id=pm.account_id,
+                 source="invoice", invoice_id=inv.id,
+                 actor_id=oid, exchange_rate=15.5)
+        db.session.refresh(inv)
+        assert inv.status == InvoiceStatus.PAID, (
+            "treasury collection did not flip invoice to PAID: "
+            f"{inv.status}")
+        assert abs(float(inv.fx_rate_at_receipt) - 15.5) < 1e-4
+        # And the JE lands in EGP at 115 × 15.5.
+        entries = JournalEntry.query.filter_by(
+            source_type="payment", source_id=inv.id).all()
+        assert len(entries) == 1
+        lines = JournalLine.query.filter_by(entry_id=entries[0].id).all()
+        cash = sum(float(l.debit) for l in lines if
+                   db.session.get(Account, l.account_id).code == "1110")
+        assert abs(cash - 1782.5) < 0.05, cash
+        # And WITHOUT a rate the treasury path must refuse too.
+        from app.services.ledger import LedgerError
+        inv2 = _make_invoice(cid, cust, 50, currency="SAR", tax_rate=0)
+        post_invoice_to_ledger(inv2, created_by=oid)
+        try:
+            receive(cid, amount=50,
+                     account_id=pm.account_id,
+                     source="invoice", invoice_id=inv2.id,
+                     actor_id=oid)   # no exchange_rate
+        except LedgerError as e:
+            assert "سعر الصرف مطلوب" in str(e)
+        else:
+            raise AssertionError(
+                "treasury.receive should refuse foreign invoice "
+                "without exchange_rate")
+        return ("treasury.receive → 1 EGP JE @ 15.5 (cash 1782.5); "
+                "refuses when rate is missing")
+
+
+@check("8. Treasury lookup_invoices exposes currency + is_foreign so "
+        "the receive modal can toggle the FX field")
+def _():
+    """The receive modal's JS relies on these two fields in the
+    JSON. If a future refactor drops either, the FX row silently
+    stays hidden and users hit the LedgerError instead of a
+    friendly input."""
+    from app import create_app
+    from app.models.invoice import InvoiceStatus
+    app = create_app()
+    with app.app_context():
+        email, cid, oid = _boot("FX8")
+        cust = _make_customer(cid)
+        # One EGP + one SAR invoice, both SENT so the lookup picks
+        # them up.
+        _make_invoice(cid, cust, 100, currency="EGP",
+                       status_val=InvoiceStatus.SENT)
+        _make_invoice(cid, cust, 200, currency="SAR",
+                       status_val=InvoiceStatus.SENT)
+        client = app.test_client()
+        with client.session_transaction() as s:
+            s["_user_id"] = str(oid)
+            s["active_company_id"] = cid
+        r = client.get("/treasury/lookup/invoices")
+        assert r.status_code == 200, r.status_code
+        rows = r.get_json()
+        # Both rows must include currency + is_foreign.
+        assert all("currency" in x and "is_foreign" in x for x in rows), (
+            f"lookup_invoices missing currency/is_foreign: {rows}")
+        egp = [x for x in rows if x["currency"] == "EGP"]
+        sar = [x for x in rows if x["currency"] == "SAR"]
+        assert egp and not egp[0]["is_foreign"], egp
+        assert sar and sar[0]["is_foreign"], sar
+        return "lookup_invoices exposes currency + is_foreign"
+
+
 @check("6. EGP invoice with stray exchange_rate → silently ignored")
 def _():
     from app import create_app, db

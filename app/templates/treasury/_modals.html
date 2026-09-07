@@ -36,17 +36,43 @@
         </div>
         <div id="tr-receive-invoice-row">
           <label class="block text-sm font-semibold text-slate-700 mb-1">رقم الفاتورة</label>
-          <input type="text" name="invoice_id" list="tr-invoice-datalist" class="input" placeholder="ابحث برقم الفاتورة">
+          <input type="text" name="invoice_id" id="tr-receive-invoice-input" list="tr-invoice-datalist" class="input" placeholder="ابحث برقم الفاتورة">
           <datalist id="tr-invoice-datalist"></datalist>
           <div class="text-xs text-slate-400 mt-1">استخدم رقم الفاتورة الرقمي — سيظهر ID في القائمة</div>
+        </div>
+        {# MARSOUD-INVOICE-FX-01 (2026-09-08) — the receive modal is
+           the accountant's main collection surface (not POS). When the
+           picked invoice is foreign, we need the same sعر-الصرف field
+           the /invoices/<id>/pay form already exposes so record_payment
+           doesn't refuse with "سعر الصرف مطلوب…". Row is hidden by
+           default; the JS shows it as soon as an invoice whose
+           `is_foreign` is true gets picked. #}
+        <div id="tr-receive-fx-row" hidden>
+          <div class="rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs p-2 mb-2">
+            💱 <strong>فاتورة بعملة <span id="tr-receive-fx-ccy"></span>:</strong>
+            اكتب سعر الصرف اليوم — النظام هيرحّل القيد بالجنيه بالسعر ده.
+          </div>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">
+            سعر الصرف اليوم
+            <span class="text-red-600">*</span>
+          </label>
+          <input type="number" step="0.0001" min="0.0001"
+                 name="exchange_rate" id="tr-receive-fx-rate"
+                 class="input font-mono" placeholder="مثلاً: 15.5000">
+          <div class="text-xs text-slate-600 mt-1">
+            المبلغ بالجنيه:
+            <span id="tr-receive-fx-preview" class="font-mono font-bold text-emerald-700">—</span>
+          </div>
         </div>
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-1">إلى الحساب</label>
           <select name="account_id" class="select" required>{{ account_options(groups) }}</select>
         </div>
         <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-1">المبلغ</label>
-          <input type="number" step="0.01" min="0.01" name="amount" class="input" required>
+          <label class="block text-sm font-semibold text-slate-700 mb-1">
+            المبلغ <span id="tr-receive-amount-ccy" class="text-slate-500 text-xs"></span>
+          </label>
+          <input type="number" step="0.01" min="0.01" name="amount" id="tr-receive-amount" class="input" required>
         </div>
         <div>
           <label class="block text-sm font-semibold text-slate-700 mb-1">ملاحظة (للقبض العام)</label>
@@ -197,8 +223,78 @@
     } catch (_e) { /* silent — datalist just stays empty */ }
   }
   // Prime once at page load.
-  primeDatalist('{{ url_for("treasury.lookup_invoices") }}',      'tr-invoice-datalist',
-                x => `${x.number} — ${x.customer} — رصيد ${x.balance.toFixed(2)}`);
+  // MARSOUD-INVOICE-FX-01 — extended prime: also caches each row's
+  // currency + is_foreign so the receive modal can conditionally
+  // surface the exchange_rate field once the accountant picks a
+  // foreign invoice.
+  const _RECEIVE_INV_CACHE = {};   // id → row
+  (async () => {
+    try {
+      const r = await fetch(
+        '{{ url_for("treasury.lookup_invoices") }}');
+      const rows = await r.json();
+      const dl = document.getElementById('tr-invoice-datalist');
+      if (dl) {
+        dl.innerHTML = rows.map(x => (
+          `<option value="${x.id}">`
+          + `${x.number} — ${x.customer} — `
+          + `رصيد ${x.balance.toFixed(2)} ${x.currency || ''}</option>`
+        )).join('');
+      }
+      for (const x of rows) { _RECEIVE_INV_CACHE[String(x.id)] = x; }
+    } catch (_e) { /* silent — datalist just stays empty */ }
+  })();
+
+  // ─── MARSOUD-INVOICE-FX-01 — receive modal FX wiring ───────────
+  // When the accountant picks a foreign invoice, unhide the
+  // exchange_rate field + label the amount input with the invoice's
+  // currency + live-preview the EGP equivalent.
+  const _receiveInvInput = document.getElementById('tr-receive-invoice-input');
+  const _receiveFxRow = document.getElementById('tr-receive-fx-row');
+  const _receiveFxRate = document.getElementById('tr-receive-fx-rate');
+  const _receiveFxCcy = document.getElementById('tr-receive-fx-ccy');
+  const _receiveFxPreview = document.getElementById('tr-receive-fx-preview');
+  const _receiveAmount = document.getElementById('tr-receive-amount');
+  const _receiveAmountCcy = document.getElementById('tr-receive-amount-ccy');
+
+  function _receiveOnInvoicePick(){
+    const raw = (_receiveInvInput.value || '').trim();
+    const row = _RECEIVE_INV_CACHE[raw];
+    if (row && row.is_foreign) {
+      _receiveFxRow.hidden = false;
+      _receiveFxRate.required = true;
+      _receiveFxCcy.textContent = row.currency;
+      _receiveAmountCcy.textContent = '(' + row.currency + ')';
+    } else {
+      _receiveFxRow.hidden = true;
+      _receiveFxRate.required = false;
+      _receiveFxRate.value = '';
+      _receiveFxCcy.textContent = '';
+      _receiveAmountCcy.textContent = '';
+      _receiveFxPreview.textContent = '—';
+    }
+  }
+  function _receiveSyncPreview(){
+    const av = parseFloat(_receiveAmount.value || 0);
+    const rv = parseFloat(_receiveFxRate.value || 0);
+    _receiveFxPreview.textContent = (av > 0 && rv > 0)
+      ? (av * rv).toFixed(2) + ' ج.م' : '—';
+  }
+  if (_receiveInvInput) {
+    _receiveInvInput.addEventListener('input', _receiveOnInvoicePick);
+    _receiveInvInput.addEventListener('change', _receiveOnInvoicePick);
+  }
+  if (_receiveAmount) _receiveAmount.addEventListener('input', _receiveSyncPreview);
+  if (_receiveFxRate) _receiveFxRate.addEventListener('input', _receiveSyncPreview);
+  // Also hide when source flips back to "misc".
+  if (rSrc) {
+    rSrc.addEventListener('change', () => {
+      if (rSrc.value === 'misc' && _receiveFxRow) {
+        _receiveFxRow.hidden = true;
+        _receiveFxRate.required = false;
+      }
+    });
+  }
 
   // ─── MARSOUD-TREASURY-VENDOR-PICKER-01 — vendor+bills wiring ────
   // Bill option TEXT is the display number (e.g. "VB-0094 — شركة ABC

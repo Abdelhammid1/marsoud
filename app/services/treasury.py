@@ -132,7 +132,8 @@ def _pm_for_account(company_id, account_id):
 
 # ─── Receive (قبض) ─────────────────────────────────────────────────
 def receive(company_id, *, amount, account_id, source,
-            invoice_id=None, note=None, actor_id=None):
+            invoice_id=None, note=None, actor_id=None,
+            exchange_rate=None):
     """Record incoming money.
 
       * `source="invoice"` + `invoice_id` → delegates to
@@ -162,9 +163,14 @@ def receive(company_id, *, amount, account_id, source,
         pm = _pm_for_account(company_id, acc.id)
         # record_payment handles balance-check + status flip +
         # commission firing internally.
+        # MARSOUD-INVOICE-FX-01 — forward the cashier's rate so
+        # foreign-currency collections from the Treasury Hub go
+        # through the same deferred-JE path the /invoices/<id>/pay
+        # form uses. Ignored for base-currency invoices.
         record_payment(inv, amt,
                         payment_method_id=pm.id,
-                        created_by=actor_id)
+                        created_by=actor_id,
+                        exchange_rate=exchange_rate)
         return None  # entry created inside record_payment
 
     if source == "misc":
