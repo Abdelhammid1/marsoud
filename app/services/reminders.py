@@ -189,32 +189,17 @@ def _installment_mark_sent(installment_id, company_id, kind, days):
 
 
 def _send_installment_reminder(invoice, installment, label):
-    """Format + send the customer email. Uses the existing invoice
-    reminder template — we add installment-specific context so the
-    same shell can render either flavor without a new template."""
-    if not invoice.customer or not invoice.customer.email:
-        return False
-    if label.startswith("before_"):
-        n = label.split("_", 1)[1]
-        subject = (f"تذكير: القسط #{installment.sequence_no} من فاتورة "
-                    f"#{invoice.number} يستحق خلال {n} أيام")
-    elif label.startswith("overdue_"):
-        n = label.split("_", 1)[1]
-        subject = (f"القسط #{installment.sequence_no} من فاتورة "
-                    f"#{invoice.number} متأخر منذ {n} يوم")
-    else:
-        # MARSOUD-INVOICE-INSTALLMENTS-DISPLAY-01 follow-up
-        # (2026-09-08) — day-of-due wording. "تجاوز موعد الاستحقاق"
-        # implies past due, which is inaccurate on the day the
-        # installment first becomes due — the customer sees this
-        # subject line right at the moment payment is expected,
-        # not after they were late.
-        subject = (f"تذكير: القسط #{installment.sequence_no} من فاتورة "
-                    f"#{invoice.number} مستحق اليوم")
-    html = render_template("emails/invoice_reminder.html",
-                             invoice=invoice, days_label=label,
-                             installment=installment)
-    return send_email(invoice.customer.email, subject, html)
+    """MARSOUD-INVOICE-INSTALLMENT-EMAILS-01 (2026-09-08) — delegate
+    to send_installment_email so all installment-flavored notifications
+    share one template + one visual language (the Tabby-style
+    timeline).  `label` here is one of "before_<N>", "overdue" (the
+    day-of-due bucket in the cron), or "overdue_<N>" — normalise the
+    bare "overdue" to "due_today" so the template can pick the amber
+    "مستحق اليوم" banner instead of the red past-due one."""
+    from app.services.email import send_installment_email
+    kind = "due_today" if label == "overdue" else label
+    return send_installment_email(
+        invoice, kind, installment=installment)
 
 
 # ─── MARSOUD-57.3: subscription expiry reminders ─────────────────────────

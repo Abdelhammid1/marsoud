@@ -164,15 +164,17 @@ def _():
         # Intercept the actual mail-send at the boundary — we care
         # that ONE call goes out, with the right subject, to the
         # customer's email.
-        with patch("app.services.reminders.send_email",
+        with patch("app.services.email.send_email",
                     return_value=True) as spy:
             counts = process_installment_reminders()
-        assert counts["overdue"] == 1, counts
-        assert spy.call_count == 1, spy.call_args_list
-        to, subject, _html = spy.call_args_list[0].args
-        assert to == cust.email
+        assert spy.call_count >= 1, counts
+        mine = [c for c in spy.call_args_list
+                 if c.args[0] == cust.email and inv.number in c.args[1]]
+        assert len(mine) == 1, (
+            f"expected exactly 1 email for {inv.number} → {cust.email}, "
+            f"got {len(mine)} among {spy.call_count} calls")
+        to, subject, _html = mine[0].args
         assert "القسط" in subject
-        assert inv.number in subject
         # MARSOUD-INVOICE-INSTALLMENTS-DISPLAY-01 follow-up — day-of-due
         # wording should be "مستحق اليوم", not "تجاوز موعد الاستحقاق"
         # (the latter implies past due, which is inaccurate at t=0).
@@ -188,15 +190,24 @@ def _():
     with app.app_context():
         cid, oid = _boot("REM2")
         cust = _make_customer_with_email(cid)
-        _make_invoice_with_installment_due_today(cid, cust)
-        with patch("app.services.reminders.send_email",
+        inv = _make_invoice_with_installment_due_today(cid, cust)
+        with patch("app.services.email.send_email",
                     return_value=True) as spy:
             process_installment_reminders()
+            first_tick_calls = spy.call_count
             process_installment_reminders()   # second tick, same day
             process_installment_reminders()   # third tick, same day
-        assert spy.call_count == 1, (
-            f"cron re-ran; expected 1 email, got {spy.call_count}")
-        return "3 cron ticks → still exactly 1 email"
+        # The 2nd + 3rd ticks must not add ANY new emails — every
+        # candidate had its row written by tick 1, guarded by the
+        # InstallmentReminderSent unique index.
+        assert spy.call_count == first_tick_calls, (
+            f"cron re-ran; ticks 2/3 sent "
+            f"{spy.call_count - first_tick_calls} extra emails")
+        # And OUR invoice fired exactly once during the whole window.
+        mine = [c for c in spy.call_args_list
+                 if c.args[0] == cust.email and inv.number in c.args[1]]
+        assert len(mine) == 1
+        return "3 cron ticks → still exactly 1 email for our invoice"
 
 
 @check("3. No email for a PAID installment")
@@ -216,7 +227,7 @@ def _():
                   .filter_by(invoice_id=inv.id, sequence_no=1).first())
         first.status = INSTALLMENT_PAID
         db.session.commit()
-        with patch("app.services.reminders.send_email",
+        with patch("app.services.email.send_email",
                     return_value=True) as spy:
             process_installment_reminders()
         # None of the other two installments are due today, so 0.
@@ -234,7 +245,7 @@ def _():
         # No email on the customer.
         cust = _make_customer_with_email(cid, email=None)
         _make_invoice_with_installment_due_today(cid, cust)
-        with patch("app.services.reminders.send_email",
+        with patch("app.services.email.send_email",
                     return_value=True) as spy:
             process_installment_reminders()
         assert spy.call_count == 0, spy.call_args_list
@@ -251,11 +262,113 @@ def _():
         cust = _make_customer_with_email(cid)
         _make_invoice_with_installment_due_today(
             cid, cust, send_reminders=False)
-        with patch("app.services.reminders.send_email",
+        with patch("app.services.email.send_email",
                     return_value=True) as spy:
             process_installment_reminders()
         assert spy.call_count == 0, spy.call_args_list
         return "opted-out invoice → 0 emails sent"
+
+
+@check("6. plan_created email — fires the moment /invoices/new "
+        "ships a plan; body includes the timeline")
+def _():
+    """MARSOUD-INVOICE-INSTALLMENT-EMAILS-01 — the "invoice created +
+    here's the schedule" email the accountant asked for."""
+    from app import create_app
+    from app.services.email import send_installment_email
+    from app.models import Invoice
+    from app.models.invoice_installment import InvoiceInstallment
+    app = create_app()
+    with app.app_context():
+        cid, oid = _boot("REM6")
+        cust = _make_customer_with_email(cid)
+        inv = _make_invoice_with_installment_due_today(cid, cust)
+        with patch("app.services.email.send_email",
+                    return_value=True) as spy:
+            send_installment_email(inv, kind="plan_created")
+        assert spy.call_count == 1
+        to, subject, html = spy.call_args_list[0].args
+        assert to == cust.email
+        assert "تم إنشاء الفاتورة" in subject
+        assert inv.number in subject
+        # Body must carry each installment's due date + amount.
+        assert "خطة الأقساط" in html
+        installments = InvoiceInstallment.query.filter_by(
+            invoice_id=inv.id).all()
+        for inst in installments:
+            assert inst.due_date.strftime('%Y-%m-%d') in html, (
+                f"missing due date {inst.due_date}")
+        return f"1 plan_created email, subject «{subject[:60]}…»"
+
+
+@check("7. payment_received email — fires after a pay_installment "
+        "call; highlights the NEXT pending row, not the just-paid one")
+def _():
+    from app import create_app
+    from app.services.installments import pay_installment
+    from app.models import PaymentMethod
+    from app.models.invoice_installment import InvoiceInstallment
+    app = create_app()
+    with app.app_context():
+        cid, oid = _boot("REM7")
+        cust = _make_customer_with_email(cid)
+        inv = _make_invoice_with_installment_due_today(cid, cust)
+        from app import db
+        pm = PaymentMethod.query.filter_by(
+            company_id=cid, is_active=True).first()
+        first_inst = (InvoiceInstallment.query
+                       .filter_by(invoice_id=inv.id, sequence_no=1)
+                       .first())
+        with patch("app.services.email.send_email",
+                    return_value=True) as spy:
+            pay_installment(first_inst, payment_method=pm,
+                             actor_id=oid)
+        assert spy.call_count == 1, spy.call_args_list
+        to, subject, html = spy.call_args_list[0].args
+        assert to == cust.email
+        assert "شكراً" in subject or "شكرا" in subject
+        # The just-paid row (#1, 300) is line-through in the timeline.
+        # The next pending row (#2, 300) is the highlighted CURRENT
+        # row — its due date is bold. Just guard the paid row shows
+        # struck-through so the customer sees the visual close-out.
+        assert "line-through" in html, "paid row must show strikethrough"
+        return f"1 payment_received email, subject «{subject[:60]}…»"
+
+
+@check("8. Reminder templates use the Tabby-style timeline — every "
+        "installment row appears in the email body")
+def _():
+    from app import create_app
+    from app.services.reminders import process_installment_reminders
+    from app.models.invoice_installment import InvoiceInstallment
+    app = create_app()
+    with app.app_context():
+        cid, oid = _boot("REM8")
+        cust = _make_customer_with_email(cid)
+        inv = _make_invoice_with_installment_due_today(cid, cust)
+        with patch("app.services.email.send_email",
+                    return_value=True) as spy:
+            process_installment_reminders()
+        # Prior checks may have left other due-today installments in
+        # the DB (each with its own PENDING first row); the cron
+        # fires one email per due candidate, so match by invoice
+        # number instead of insisting on a call count of 1.
+        assert spy.call_count >= 1, spy.call_args_list
+        target_html = None
+        for call in spy.call_args_list:
+            _to, subject, html = call.args
+            if inv.number in subject:
+                target_html = html
+                break
+        assert target_html is not None, (
+            f"no reminder email for {inv.number} "
+            f"among {spy.call_count} calls")
+        installments = InvoiceInstallment.query.filter_by(
+            invoice_id=inv.id).all()
+        for inst in installments:
+            assert inst.due_date.strftime('%Y-%m-%d') in target_html
+        assert "خطة الأقساط" in target_html
+        return "reminder body renders the full timeline"
 
 
 def main():

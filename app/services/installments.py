@@ -110,6 +110,26 @@ def pay_installment(installment, *, payment_method, actor_id=None,
 
     _rollup_invoice_status(inv)
     db.session.commit()
+
+    # MARSOUD-INVOICE-INSTALLMENT-EMAILS-01 (2026-09-08) — thank-you
+    # after each installment collection. Uses the same Tabby-style
+    # timeline template so the customer sees the paid row struck
+    # through + the next pending row highlighted as "coming up".
+    # Don't pass `installment=` — the email function auto-picks the
+    # next PENDING row (i.e. the one the customer owes next), not
+    # the one we just cleared. Non-blocking: a mail failure must
+    # not roll back the payment.
+    try:
+        from app.services.email import send_installment_email
+        send_installment_email(inv, kind="payment_received",
+                                payment=after_payment)
+    except Exception:
+        import logging
+        logging.getLogger("ledgeros.installments").exception(
+            "Failed to send installment payment_received email "
+            "for invoice %s installment %s",
+            inv.number, installment.sequence_no)
+
     return installment
 
 

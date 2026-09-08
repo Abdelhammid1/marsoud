@@ -1,0 +1,254 @@
+{# MARSOUD-INVOICE-INSTALLMENT-EMAILS-01 (2026-09-08) — one shared
+   installment-flavored email template, driven by `kind`:
+
+     kind = "plan_created"     → invoice + plan just issued
+     kind = "before_<N>"       → reminder N days before due
+     kind = "due_today"        → reminder on the due date itself
+     kind = "overdue_<N>"      → reminder N days after due
+     kind = "payment_received" → thank-you after a payment landed
+
+   Context vars:
+     invoice           — Invoice (required)
+     kind              — one of the strings above
+     installment       — the InvoiceInstallment being talked about
+                          (payment_received uses the just-paid one;
+                          before/due_today/overdue use the one being
+                          reminded; plan_created uses the FIRST one)
+     payment           — Payment row (payment_received only)
+#}
+{% extends "emails/_base.html" %}
+{% block title %}
+{% if kind == "plan_created" %}فاتورة #{{ invoice.number }} — خطة الأقساط
+{% elif kind == "payment_received" %}تم استلام دفعة — فاتورة #{{ invoice.number }}
+{% elif kind and kind.startswith("before_") %}تذكير — القسط #{{ installment.sequence_no }}
+{% elif kind == "due_today" %}القسط #{{ installment.sequence_no }} مستحق اليوم
+{% elif kind and kind.startswith("overdue_") %}قسط متأخر — فاتورة #{{ invoice.number }}
+{% else %}فاتورة #{{ invoice.number }}
+{% endif %}
+{% endblock %}
+{% block content %}
+
+{# ─── Hero banner (varies by kind) ─────────────────────────────── #}
+{% set is_overdue = kind and kind.startswith("overdue_") %}
+{% set is_paid = kind == "payment_received" %}
+{% set is_plan = kind == "plan_created" %}
+{% set is_due_today = kind == "due_today" %}
+{% set is_before = kind and kind.startswith("before_") %}
+
+{% if is_overdue %}
+  {% set n = kind.split("_",1)[1] %}
+  {% set hero_bg = "#FEE2E2" %}
+  {% set hero_border = "#FCA5A5" %}
+  {% set hero_text = "#B91C1C" %}
+  {% set hero_line = "⚠ القسط #" ~ installment.sequence_no ~ " متأخر منذ " ~ n ~ " يوم" %}
+  {% set greeting_intro = "دفعتك على فاتورة" %}
+{% elif is_due_today %}
+  {% set hero_bg = "#FEF3C7" %}
+  {% set hero_border = "#FDE68A" %}
+  {% set hero_text = "#92400E" %}
+  {% set hero_line = "⏰ القسط #" ~ installment.sequence_no ~ " مستحق اليوم" %}
+  {% set greeting_intro = "دفعتك على فاتورة" %}
+{% elif is_before %}
+  {% set n = kind.split("_",1)[1] %}
+  {% set hero_bg = "#DBEAFE" %}
+  {% set hero_border = "#93C5FD" %}
+  {% set hero_text = "#1E40AF" %}
+  {% set hero_line = "🔔 تُستحق قريباً إحدى دفعاتك — بعد " ~ n ~ " أيام" %}
+  {% set greeting_intro = "دفعتك القادمة على فاتورة" %}
+{% elif is_paid %}
+  {% set hero_bg = "#DCFCE7" %}
+  {% set hero_border = "#86EFAC" %}
+  {% set hero_text = "#15803D" %}
+  {% set hero_line = "✅ شكراً لسداد الدفعة" %}
+  {% set greeting_intro = "دفعتك على فاتورة" %}
+{% else %}{# plan_created + fallback #}
+  {% set hero_bg = "#EFF6FF" %}
+  {% set hero_border = "#BFDBFE" %}
+  {% set hero_text = "#1E3A8A" %}
+  {% set hero_line = "📅 تم إنشاء الفاتورة + خطة الأقساط" %}
+  {% set greeting_intro = "فاتورتك مع" %}
+{% endif %}
+
+<div style="background:{{ hero_bg }};border:1px solid {{ hero_border }};border-radius:14px;padding:18px;margin-bottom:20px;text-align:center">
+  <div style="font-size:14px;color:{{ hero_text }};font-weight:bold">
+    {{ hero_line }}
+  </div>
+</div>
+
+<h2 style="color:#0A2540;margin:0 0 8px;font-size:20px">
+  {% if is_paid %}شكراً {% else %}مرحباً {% endif %}
+  {{ invoice.customer.name }}
+</h2>
+<p style="line-height:1.7;color:#475569;margin:0 0 20px;font-size:14px">
+  {{ greeting_intro }} <strong>{{ invoice.company.display_name }}</strong>.
+</p>
+
+{# ─── Hero amount block — Tabby-style big number on the LEFT ────── #}
+{% if is_paid and payment %}
+  {% set hero_amount_label = "دفعة اليوم" %}
+  {% set hero_amount_value = payment.amount %}
+{% elif installment %}
+  {% if is_paid %}
+    {% set hero_amount_label = "الدفعة القادمة" %}
+    {% set hero_amount_value = installment.amount %}
+  {% else %}
+    {% set hero_amount_label = "المستحق" %}
+    {% set hero_amount_value = installment.amount %}
+  {% endif %}
+{% else %}
+  {% set hero_amount_label = "إجمالي الفاتورة" %}
+  {% set hero_amount_value = invoice.total %}
+{% endif %}
+
+<table cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:100%;margin-bottom:22px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px">
+  <tr>
+    <td align="right" valign="middle" style="padding:16px 20px">
+      <div style="color:#64748B;font-size:12px;margin-bottom:4px">{{ hero_amount_label }}</div>
+      <div style="color:#0A2540;font-size:14px;font-weight:600">فاتورة #{{ invoice.number }}</div>
+    </td>
+    <td align="left" valign="middle" style="padding:16px 20px">
+      <div style="background:#FEF3C7;display:inline-block;padding:6px 12px;border-radius:8px;font-family:monospace;font-weight:bold;font-size:20px;color:#0A2540;direction:ltr">
+        {{ "%.2f"|format(hero_amount_value|float) }} {{ invoice.currency|currency_ar }}
+      </div>
+    </td>
+  </tr>
+</table>
+
+{# ─── Timeline of ALL installments — Tabby's signature vertical list.
+     One row per installment; RTL layout means:
+       ┌─────────────────────────────────────────────┐
+       │  <amount pill>       <due date>  <circle> │
+       └─────────────────────────────────────────────┘
+     Circle colouring:
+       PAID          → solid green with ✓
+       CURRENT (the one this email is about) → green ring
+       OVERDUE       → solid red with !
+       PENDING       → gray hollow
+#}
+{% if invoice.installments %}
+<div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:18px 20px;margin-bottom:22px">
+  <table cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:100%">
+    <tr>
+      <td align="right" style="padding-bottom:12px;font-weight:bold;color:#0A2540;font-size:14px">
+        📅 خطة الأقساط
+      </td>
+      <td align="left" style="padding-bottom:12px;font-size:12px;color:#64748B">
+        {{ invoice.company.display_name }}
+      </td>
+    </tr>
+    {% for inst in invoice.installments %}
+      {% set is_paid_row = inst.status == 'PAID' %}
+      {% set is_overdue_row = inst.status == 'OVERDUE' %}
+      {% set is_current_row = installment and inst.id == installment.id and not is_paid_row %}
+      {% if is_paid_row %}
+        {% set circle_bg = "#10B981" %}
+        {% set circle_border = "#10B981" %}
+        {% set circle_char = "✓" %}
+        {% set circle_char_color = "#fff" %}
+        {% set date_color = "#94A3B8" %}
+        {% set date_weight = "400" %}
+        {% set amount_bg = "#F0FDF4" %}
+        {% set amount_color = "#94A3B8" %}
+      {% elif is_overdue_row %}
+        {% set circle_bg = "#DC2626" %}
+        {% set circle_border = "#DC2626" %}
+        {% set circle_char = "!" %}
+        {% set circle_char_color = "#fff" %}
+        {% set date_color = "#B91C1C" %}
+        {% set date_weight = "700" %}
+        {% set amount_bg = "#FEE2E2" %}
+        {% set amount_color = "#B91C1C" %}
+      {% elif is_current_row %}
+        {% set circle_bg = "#fff" %}
+        {% set circle_border = "#10B981" %}
+        {% set circle_char = "" %}
+        {% set circle_char_color = "#10B981" %}
+        {% set date_color = "#0A2540" %}
+        {% set date_weight = "700" %}
+        {% set amount_bg = "#FEF3C7" %}
+        {% set amount_color = "#0A2540" %}
+      {% else %}{# pending / upcoming #}
+        {% set circle_bg = "#fff" %}
+        {% set circle_border = "#CBD5E1" %}
+        {% set circle_char = "" %}
+        {% set circle_char_color = "#CBD5E1" %}
+        {% set date_color = "#64748B" %}
+        {% set date_weight = "400" %}
+        {% set amount_bg = "#FEF3C7" %}
+        {% set amount_color = "#0A2540" %}
+      {% endif %}
+      <tr>
+        <td align="right" style="padding:8px 0;border-top:1px solid #F1F5F9">
+          <span style="display:inline-block;background:{{ amount_bg }};padding:4px 10px;border-radius:6px;font-family:monospace;font-weight:600;color:{{ amount_color }};font-size:13px;direction:ltr;{% if is_paid_row %}text-decoration:line-through{% endif %}">
+            {{ "%.2f"|format(inst.amount|float) }} {{ invoice.currency|currency_ar }}
+          </span>
+        </td>
+        <td align="left" style="padding:8px 0;border-top:1px solid #F1F5F9;color:{{ date_color }};font-size:13px;font-weight:{{ date_weight }}">
+          <span>{{ inst.due_date.strftime('%Y-%m-%d') }}</span>
+          <span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:{{ circle_bg }};border:2px solid {{ circle_border }};color:{{ circle_char_color }};text-align:center;line-height:14px;font-size:12px;font-weight:bold;margin-right:8px;vertical-align:middle">{{ circle_char }}</span>
+        </td>
+      </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endif %}
+
+{# ─── Invoice / order details ──────────────────────────────────── #}
+<table cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:22px">
+  <tr>
+    <th align="right" style="background:#059669;color:#fff;padding:9px 12px;font-weight:600;font-size:11.5px">البند</th>
+    <th align="left" style="background:#059669;color:#fff;padding:9px 12px;font-weight:600;font-size:11.5px">القيمة</th>
+  </tr>
+  <tr>
+    <td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">رقم الفاتورة</td>
+    <td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540;font-weight:bold">{{ invoice.number }}</td>
+  </tr>
+  <tr>
+    <td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">تاريخ الإصدار</td>
+    <td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ invoice.issue_date.isoformat() }}</td>
+  </tr>
+  <tr>
+    <td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">إجمالي الفاتورة</td>
+    <td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ "%.2f"|format(invoice.total|float) }} {{ invoice.currency|currency_ar }}</td>
+  </tr>
+  {% if invoice.down_payment_amount and invoice.down_payment_amount > 0 %}
+  <tr>
+    <td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">دفعة مقدّمة عند الإصدار</td>
+    <td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#059669">{{ "%.2f"|format(invoice.down_payment_amount|float) }} {{ invoice.currency|currency_ar }}</td>
+  </tr>
+  {% endif %}
+  <tr>
+    <td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">المدفوع حتى الآن</td>
+    <td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#059669">{{ "%.2f"|format(invoice.paid_amount|float) }} {{ invoice.currency|currency_ar }}</td>
+  </tr>
+  <tr>
+    <td style="padding:12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13.5px">المتبقي</td>
+    <td align="left" style="padding:12px;font-weight:800;border-top:2px solid #0A2540;font-family:monospace;color:#059669;font-size:16px">{{ "%.2f"|format(invoice.balance) }} {{ invoice.currency|currency_ar }}</td>
+  </tr>
+</table>
+
+{# ─── Signature block ─────────────────────────────────────────── #}
+<div style="color:#64748B;font-size:12px;margin-top:20px;padding-top:16px;border-top:1px solid #F1F5F9;line-height:1.7">
+  {% if invoice.company.official_name %}
+  <div><strong style="color:#0A2540">{{ invoice.company.official_name }}</strong>
+    {% if invoice.company.brand_name and invoice.company.brand_name != invoice.company.official_name %}
+    · {{ invoice.company.brand_name }}
+    {% endif %}
+  </div>
+  {% endif %}
+  {% if invoice.company.commercial_register_no %}
+  <div>س.ت: <span dir="ltr" style="font-family:monospace">{{ invoice.company.commercial_register_no }}</span></div>
+  {% endif %}
+  {% if invoice.company.tax_number %}
+  <div>الرقم الضريبي: <span dir="ltr" style="font-family:monospace">{{ invoice.company.tax_number }}</span></div>
+  {% endif %}
+</div>
+
+<p style="color:#475569;font-size:13px;margin-top:24px">
+  {% if is_paid %}
+    استلمنا دفعتك — شكراً. لو الدفعة القادمة موجودة، هتشوفها في الجدول فوق.
+  {% else %}
+    لو سُدّدت الدفعة بالفعل، تجاوز هذه الرسالة. هذا بريد إلكتروني تلقائي، برجاء عدم الرد عليه.
+  {% endif %}
+</p>
+{% endblock %}

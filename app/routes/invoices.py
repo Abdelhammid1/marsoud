@@ -393,6 +393,21 @@ def _apply_create_form_installments(invoice, form, actor_id):
             create_installment_plan(invoice, rows, actor_id=actor_id)
         except InstallmentError as e:
             raise LedgerError(str(e))
+        # MARSOUD-INVOICE-INSTALLMENT-EMAILS-01 (2026-09-08) — send
+        # the "invoice created + here's the schedule" email the
+        # moment the plan lands. Non-blocking — a mail failure must
+        # not roll back the invoice. Respects the same email_customer
+        # checkbox that gates the regular /invoices/new notification.
+        if (form.get("email_customer") == "1"
+                and invoice.customer and invoice.customer.email):
+            try:
+                from app.services.email import send_installment_email
+                send_installment_email(invoice, kind="plan_created")
+            except Exception:
+                import logging
+                logging.getLogger("ledgeros.invoicing").exception(
+                    "Failed to send installment plan_created email "
+                    "for invoice %s", invoice.number)
 
 
 @bp.route("/new", methods=["GET", "POST"])
@@ -467,7 +482,15 @@ def new():
             except Exception:
                 pass
             if should_send and email_customer:
-                send_invoice_notification(invoice)
+                # MARSOUD-INVOICE-INSTALLMENT-EMAILS-01 (2026-09-08)
+                # — when the invoice ships with a plan, the plan_
+                # created email was already sent from inside
+                # _apply_create_form_installments and carries the
+                # schedule + timeline the customer needs. Sending
+                # the generic invoice_sent on top would double-notify
+                # for the same event.  Suppress in that case.
+                if not invoice.installments:
+                    send_invoice_notification(invoice)
             flash(f"تم إنشاء الفاتورة {invoice.number}", "success")
             return redirect(url_for("invoices.view", invoice_id=invoice.id))
         except LedgerError as e:

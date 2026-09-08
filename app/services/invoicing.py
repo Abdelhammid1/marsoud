@@ -597,8 +597,22 @@ def record_payment(invoice, amount, payment_date=None, method=None,
     # Email notification — non-blocking, controlled by caller
     if notify:
         try:
-            from app.services.email import send_payment_received_email
-            send_payment_received_email(invoice, payment, is_full=is_full)
+            # MARSOUD-INVOICE-INSTALLMENT-EMAILS-01 (2026-09-08) —
+            # when the invoice carries a plan, route the payment
+            # notification through the installment-flavored template
+            # so the customer sees the Tabby-style timeline (paid
+            # row struck through + next pending row highlighted).
+            # Plain invoices keep the legacy payment_full /
+            # payment_partial templates unchanged.
+            if invoice.installments:
+                from app.services.email import send_installment_email
+                send_installment_email(
+                    invoice, kind="payment_received",
+                    payment=payment)
+            else:
+                from app.services.email import send_payment_received_email
+                send_payment_received_email(
+                    invoice, payment, is_full=is_full)
         except Exception:
             import logging
             logging.getLogger("ledgeros.invoicing").exception("Failed to send payment email")

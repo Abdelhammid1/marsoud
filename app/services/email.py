@@ -138,6 +138,61 @@ def send_payment_received_email(invoice, payment, is_full):
     return send_email(invoice.customer.email, subject, html)
 
 
+# MARSOUD-INVOICE-INSTALLMENT-EMAILS-01 (2026-09-08) — one entry point
+# for every installment-flavored notification. Wires:
+#   * plan_created      — the moment /invoices/new ships a plan
+#   * before_<N>        — reminder N days ahead of an installment
+#   * due_today         — reminder on the due date itself
+#   * overdue_<N>       — reminder N days past due
+#   * payment_received  — thank-you the moment an installment is paid
+# All routes render app/templates/emails/installment_email.html — one
+# template, one visual language, so the customer sees the same
+# Tabby-inspired timeline every step of the way.
+def send_installment_email(invoice, kind, *, installment=None,
+                            payment=None):
+    if not invoice.customer or not invoice.customer.email:
+        logger.info(
+            "Skip installment email: invoice %s — customer has no email",
+            invoice.number)
+        return False
+
+    # Pick the highlighted installment for kinds that don't get one
+    # passed explicitly.  plan_created lights up the FIRST pending
+    # row; payment_received lights up the NEXT pending row (so the
+    # customer sees "next up: X").
+    if installment is None:
+        pending = [i for i in (invoice.installments or [])
+                   if i.status != "PAID"]
+        installment = pending[0] if pending else None
+
+    if kind == "plan_created":
+        subject = (f"تم إنشاء الفاتورة #{invoice.number} "
+                    f"— {len(invoice.installments or [])} أقساط")
+    elif kind == "payment_received":
+        subject = (f"شكراً لسداد الدفعة — فاتورة #{invoice.number}")
+    elif kind == "due_today":
+        subject = (f"تذكير: القسط "
+                    f"#{installment.sequence_no if installment else '?'} "
+                    f"من فاتورة #{invoice.number} مستحق اليوم")
+    elif kind.startswith("before_"):
+        n = kind.split("_", 1)[1]
+        subject = (f"تذكير: القسط "
+                    f"#{installment.sequence_no if installment else '?'} "
+                    f"من فاتورة #{invoice.number} يستحق خلال {n} أيام")
+    elif kind.startswith("overdue_"):
+        n = kind.split("_", 1)[1]
+        subject = (f"القسط "
+                    f"#{installment.sequence_no if installment else '?'} "
+                    f"من فاتورة #{invoice.number} متأخر منذ {n} يوم")
+    else:
+        subject = f"فاتورة #{invoice.number}"
+
+    html = render_template("emails/installment_email.html",
+                            invoice=invoice, kind=kind,
+                            installment=installment, payment=payment)
+    return send_email(invoice.customer.email, subject, html)
+
+
 def send_overdue_reminder(invoice, days_label):
     """days_label: 'before_<N>', 'overdue', or 'overdue_<N>'"""
     if not invoice.customer.email:
