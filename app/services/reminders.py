@@ -203,8 +203,14 @@ def _send_installment_reminder(invoice, installment, label):
         subject = (f"القسط #{installment.sequence_no} من فاتورة "
                     f"#{invoice.number} متأخر منذ {n} يوم")
     else:
-        subject = (f"القسط #{installment.sequence_no} من فاتورة "
-                    f"#{invoice.number} تجاوز موعد الاستحقاق")
+        # MARSOUD-INVOICE-INSTALLMENTS-DISPLAY-01 follow-up
+        # (2026-09-08) — day-of-due wording. "تجاوز موعد الاستحقاق"
+        # implies past due, which is inaccurate on the day the
+        # installment first becomes due — the customer sees this
+        # subject line right at the moment payment is expected,
+        # not after they were late.
+        subject = (f"تذكير: القسط #{installment.sequence_no} من فاتورة "
+                    f"#{invoice.number} مستحق اليوم")
     html = render_template("emails/invoice_reminder.html",
                              invoice=invoice, days_label=label,
                              installment=installment)
