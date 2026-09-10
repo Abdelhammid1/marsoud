@@ -1131,9 +1131,14 @@ src="https://www.facebook.com/tr?id=1356436859976572&ev=PageView&noscript=1"
       </div>
  <div class="foot-col">
         <h4>قانوني</h4>
-        <a href="#">الخصوصية</a>
-        <a href="#">الشروط</a>
-        <a href="#">الدعم</a>
+        {# MARSOUD-ACCOUNT-DELETION-01 (2026-09-11) — landing footer
+           links were broken placeholders (`href="#"`). Wired to the
+           real /privacy, /terms, plus a "حذف حسابي" entry that
+           lands on the delete-account flow (which itself gates via
+           login — visitors get bounced to sign-in first). #}
+        <a href="/privacy">الخصوصية</a>
+        <a href="/terms">الشروط</a>
+        <a href="{{ url_for('auth.delete_account') }}">حذف حسابي</a>
       </div>
     </div> 
     <div class="foot-bottom" --

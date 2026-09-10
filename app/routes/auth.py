@@ -628,6 +628,57 @@ def logout():
     return redirect(url_for("auth.login"))
 
 
+# ─── MARSOUD-ACCOUNT-DELETION-01 (2026-09-11) ───────────────────────────
+# Apple App Store guideline 5.1.1(v) + Google Play User Data policy
+# both require an in-app account deletion path.  The web has to
+# satisfy the same bar so a user who signed up online can close their
+# file the same way they opened it. Two-step UI: preview page shows
+# what will be deleted + confirm-by-typing-email input; POST executes
+# via app.services.account_deletion.
+@bp.route("/account/delete", methods=["GET", "POST"])
+@login_required
+def delete_account():
+    from app.services.account_deletion import (
+        AccountDeletionError, delete_account as _do_delete,
+        preview_deletion,
+    )
+    plan = preview_deletion(current_user)
+
+    if request.method == "POST":
+        typed = (request.form.get("confirm_email") or "").strip().lower()
+        expected = (current_user.email or "").strip().lower()
+        if typed != expected:
+            flash(
+                "الرجاء كتابة بريدك الإلكتروني بالضبط للتأكيد.",
+                "error")
+            return redirect(url_for("auth.delete_account"))
+        try:
+            deleted = _do_delete(current_user, actor_id=current_user.id)
+        except AccountDeletionError as e:
+            # blocked — refuse cleanly + re-render with the reason
+            flash(str(e), "error")
+            return redirect(url_for("auth.delete_account"))
+        # Success — log out + drop session + goodbye page.
+        try:
+            from app.services.activity import (
+                end_session_by_token, SESSION_KEY,
+            )
+            end_session_by_token(session.get(SESSION_KEY))
+            session.pop(SESSION_KEY, None)
+        except Exception:
+            pass
+        logout_user()
+        session.pop("active_company_id", None)
+        flash(
+            "تم حذف حسابك نهائياً. نتمنّى لك التوفيق.",
+            "success")
+        # Redirect to landing (or login page — either lands outside
+        # the authenticated shell).
+        return redirect(url_for("auth.login"))
+
+    return render_template("auth/delete_account.html", plan=plan)
+
+
 # ─── MARSOUD-ACTLOG-01: heartbeat ───────────────────────────────────────
 @bp.route("/heartbeat", methods=["POST"])
 @login_required

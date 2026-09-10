@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block page_title %}حذف حسابي{% endblock %}
+{% block content %}
+{# MARSOUD-ACCOUNT-DELETION-01 (2026-09-11) — the user-facing
+   "delete my account" page.  Layout:
+     · Red warning card explaining what's about to disappear
+     · Section listing every company that will be deleted (sole
+       owner + no others), every membership that will be removed,
+       and every blocker (sole owner + others — refuses with a
+       clear next step)
+     · Type-your-email input the button reads to enable
+     · Big red "احذف حسابي نهائياً" button
+
+   Apple App Store guideline 5.1.1(v) and Google Play both require
+   an in-app path to delete one's account.  The mobile app links
+   here via WebView / deep link to reuse this one implementation.
+#}
+<div class="max-w-2xl mx-auto">
+  <div class="card p-6 border-2 border-red-200">
+    <div class="flex items-baseline justify-between mb-4 pb-4 border-b border-red-100">
+      <h2 class="text-xl font-bold text-red-700">⚠ حذف حسابي نهائياً</h2>
+      <a href="{{ url_for('dashboard.index') }}"
+         class="text-xs text-slate-500 hover:underline">إلغاء والعودة</a>
+    </div>
+
+    <p class="text-sm text-slate-700 leading-relaxed mb-4">
+      حذف حسابك <b>نهائي وغير قابل للاسترجاع</b>. بعد التأكيد،
+      كل بياناتك الشخصية + الشركات اللي إنت المالك الوحيد لها
+      هتُمحى من قواعد البيانات ولا نقدر نرجّعها.
+    </p>
+
+    {# ── Blockers — refuse cleanly with a next step ─────────── #}
+    {% if plan.blockers %}
+    <div class="rounded-lg bg-amber-50 border border-amber-200 p-4 mb-4">
+      <div class="text-sm font-bold text-amber-900 mb-2">
+        🛑 مش هنقدر نحذف الحساب دلوقتي — الشركات دي محتاجة قرار منك أولاً:
+      </div>
+      <ul class="space-y-2 text-sm text-amber-900">
+        {% for company, reason in plan.blockers %}
+        <li class="border-r-4 border-amber-400 pr-3">
+          <b>{{ company.name }}</b>
+          <div class="text-xs mt-1 leading-relaxed">{{ reason }}</div>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {# ── Companies to be deleted ─────────────────────────────── #}
+    {% if plan.companies_to_delete %}
+    <div class="rounded-lg bg-red-50 border border-red-200 p-4 mb-4">
+      <div class="text-sm font-bold text-red-800 mb-2">
+        🗑️ الشركات التي ستُحذف نهائياً مع كل بياناتها:
+      </div>
+      <ul class="list-disc pr-6 text-sm text-red-900 space-y-1">
+        {% for c in plan.companies_to_delete %}
+        <li><b>{{ c.name }}</b></li>
+        {% endfor %}
+      </ul>
+      <p class="text-xs text-red-700 mt-2">
+        (فواتير، عملاء، موردين، قيود محاسبية، موظفين، خزائن — الكل)
+      </p>
+    </div>
+    {% endif %}
+
+    {# ── Memberships to be removed ──────────────────────────── #}
+    {% if plan.memberships_to_remove %}
+    <div class="rounded-lg bg-slate-50 border border-slate-200 p-4 mb-4">
+      <div class="text-sm font-bold text-slate-800 mb-2">
+        👋 هتخرج من الشركات دي (الشركات نفسها مش هتتأثر):
+      </div>
+      <ul class="list-disc pr-6 text-sm text-slate-700 space-y-1">
+        {% for c in plan.memberships_to_remove %}
+        <li>{{ c.name }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {# ── Confirmation form ──────────────────────────────────── #}
+    {% if plan.can_proceed %}
+    <form method="POST"
+          action="{{ url_for('auth.delete_account') }}"
+          class="space-y-4"
+          onsubmit="return confirm('آخر تأكيد — حذف حسابك نهائياً؟ لا يمكن التراجع.');">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-2">
+          للتأكيد، اكتب بريدك الإلكتروني بالضبط:
+          <span class="text-xs text-slate-500 font-mono block mt-1" dir="ltr">
+            {{ current_user.email }}
+          </span>
+        </label>
+        <input type="email" name="confirm_email" required
+               autocomplete="off"
+               placeholder="بريدك الإلكتروني هنا"
+               class="input w-full font-mono" dir="ltr"
+               id="fx-delete-confirm">
+      </div>
+      <div class="flex items-center gap-3 justify-end">
+        <a href="{{ url_for('dashboard.index') }}"
+           class="btn-secondary">إلغاء</a>
+        <button type="submit"
+                class="btn-primary bg-red-600 hover:bg-red-700 border-red-700"
+                id="fx-delete-btn" disabled>
+          🗑️ احذف حسابي نهائياً
+        </button>
+      </div>
+    </form>
+    <script>
+      // Enable the destructive button only when the typed email
+      // exactly matches the account email.  Belt: the server
+      // re-verifies before doing anything.
+      (function(){
+        const expected = {{ current_user.email|tojson }};
+        const input = document.getElementById('fx-delete-confirm');
+        const btn = document.getElementById('fx-delete-btn');
+        input.addEventListener('input', () => {
+          btn.disabled = (input.value.trim().toLowerCase() !==
+                          expected.trim().toLowerCase());
+        });
+      })();
+    </script>
+    {% else %}
+    <div class="text-center">
+      <a href="{{ url_for('dashboard.index') }}"
+         class="btn-secondary">العودة إلى لوحة التحكم</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <p class="text-xs text-slate-500 text-center mt-4 leading-relaxed">
+    عندك سؤال قبل الحذف؟
+    <a href="{{ url_for('public.privacy') }}" class="underline">
+      اقرأ سياسة الخصوصية
+    </a>
+    — أو راسل الدعم من داخل النظام.
+  </p>
+</div>
+{% endblock %}

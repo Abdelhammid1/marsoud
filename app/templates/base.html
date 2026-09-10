@@ -1075,6 +1075,19 @@ tailwind.config = {
                 <span aria-hidden="true">📦</span><span>عهدي العينية</span>
               </a>
               {% endif %}
+              {# MARSOUD-ACCOUNT-DELETION-01 (2026-09-11) — Privacy
+                 policy + delete-my-account links, one dropdown click
+                 away from every page. Required for App Store /
+                 Play Store compliance (Apple guideline 5.1.1(v)). #}
+              <a href="{{ url_for('public.privacy') }}"
+                 target="_blank" rel="noopener"
+                 class="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-emerald-50 hover:text-emerald-800 border-t border-slate-100">
+                <span aria-hidden="true">🔒</span><span>سياسة الخصوصية</span>
+              </a>
+              <a href="{{ url_for('auth.delete_account') }}"
+                 class="flex items-center gap-2 px-3 py-2 text-sm text-red-700 hover:bg-red-50">
+                <span aria-hidden="true">🗑️</span><span>حذف حسابي</span>
+              </a>
               <form method="POST" action="{{ url_for('auth.logout') }}" class="border-t border-slate-100 mt-1 pt-1">
                 <button type="submit" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-red-50 hover:text-red-700 text-right">
                   <span aria-hidden="true">🚪</span><span>تسجيل الخروج</span>
