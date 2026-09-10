@@ -110,6 +110,30 @@ def send_email(to, subject, html_body, attachments=None, text_body=None):
         return False
 
 
+# MARSOUD-INVOICE-EMAIL-PDF-ATTACH-01 (2026-09-10) — one helper so
+# every customer-facing invoice email (initial send, reminder, payment
+# thank-you, installment update) attaches the invoice PDF the same
+# way. Before this ticket only send_invoice_email attached one;
+# reminders + payment confirmations + installment emails were HTML-
+# only, so the customer had to dig up the original email each time
+# they needed to look at the actual invoice.
+#
+# Non-blocking: a PDF render failure logs + returns [] so the email
+# still goes out (with just the HTML body) rather than silently
+# skipping the whole notification.
+def _invoice_pdf_attachment(invoice):
+    try:
+        from app.services.export import export_invoice_pdf
+        pdf = export_invoice_pdf(invoice)
+        return [(f"invoice-{invoice.number}.pdf",
+                 pdf.getvalue(), "application/pdf")]
+    except Exception as e:
+        logger.warning(
+            "Could not attach invoice PDF for %s: %s",
+            invoice.number, e)
+        return []
+
+
 def send_invoice_email(invoice, attach_pdf=True):
     """Notify customer of a sent invoice. Attaches PDF if requested."""
     if not invoice.customer.email:
@@ -117,14 +141,7 @@ def send_invoice_email(invoice, attach_pdf=True):
         return False
     subject = f"فاتورة جديدة #{invoice.number} من {invoice.company.name}"
     html = render_template("emails/invoice_sent.html", invoice=invoice)
-    attachments = []
-    if attach_pdf:
-        try:
-            from app.services.export import export_invoice_pdf
-            pdf = export_invoice_pdf(invoice)
-            attachments.append((f"invoice-{invoice.number}.pdf", pdf.getvalue(), "application/pdf"))
-        except Exception as e:
-            logger.warning("Could not attach invoice PDF: %s", e)
+    attachments = _invoice_pdf_attachment(invoice) if attach_pdf else []
     return send_email(invoice.customer.email, subject, html, attachments=attachments)
 
 
@@ -135,7 +152,11 @@ def send_payment_received_email(invoice, payment, is_full):
     label = "تم سداد فاتورة" if is_full else "تم تسجيل دفعة جزئية"
     subject = f"{label} #{invoice.number}"
     html = render_template(template, invoice=invoice, payment=payment)
-    return send_email(invoice.customer.email, subject, html)
+    # MARSOUD-INVOICE-EMAIL-PDF-ATTACH-01 — attach the current-state
+    # PDF so the customer's receipt email carries a printable copy
+    # showing the just-recorded payment reflected in the totals.
+    return send_email(invoice.customer.email, subject, html,
+                       attachments=_invoice_pdf_attachment(invoice))
 
 
 # MARSOUD-INVOICE-INSTALLMENT-EMAILS-01 (2026-09-08) — one entry point
@@ -190,7 +211,12 @@ def send_installment_email(invoice, kind, *, installment=None,
     html = render_template("emails/installment_email.html",
                             invoice=invoice, kind=kind,
                             installment=installment, payment=payment)
-    return send_email(invoice.customer.email, subject, html)
+    # MARSOUD-INVOICE-EMAIL-PDF-ATTACH-01 — attach the invoice PDF
+    # (with the installment plan block the PDF template ships now)
+    # so every touchpoint carries the printable statement, not just
+    # the HTML timeline.
+    return send_email(invoice.customer.email, subject, html,
+                       attachments=_invoice_pdf_attachment(invoice))
 
 
 def send_overdue_reminder(invoice, days_label):
@@ -210,7 +236,12 @@ def send_overdue_reminder(invoice, days_label):
     else:
         subject = f"فاتورة #{invoice.number} تجاوزت تاريخ الاستحقاق"
     html = render_template("emails/invoice_reminder.html", invoice=invoice, days_label=days_label)
-    return send_email(invoice.customer.email, subject, html)
+    # MARSOUD-INVOICE-EMAIL-PDF-ATTACH-01 — attach the current PDF so
+    # the reminder email doubles as a self-contained statement the
+    # customer can print or forward, not a "come see it inside the
+    # app" nag.
+    return send_email(invoice.customer.email, subject, html,
+                       attachments=_invoice_pdf_attachment(invoice))
 
 
 def send_refund_email(invoice, refund):
@@ -219,7 +250,11 @@ def send_refund_email(invoice, refund):
         return False
     subject = f"تأكيد استرداد — فاتورة #{invoice.number}"
     html = render_template("emails/refund_issued.html", invoice=invoice, refund=refund)
-    return send_email(invoice.customer.email, subject, html)
+    # MARSOUD-INVOICE-EMAIL-PDF-ATTACH-01 — attach the current PDF
+    # so the refund confirmation carries an updated statement of the
+    # invoice's state after the reversal.
+    return send_email(invoice.customer.email, subject, html,
+                       attachments=_invoice_pdf_attachment(invoice))
 
 
 def send_credit_note_email(invoice, credit_note):
@@ -228,7 +263,10 @@ def send_credit_note_email(invoice, credit_note):
         return False
     subject = f"إشعار دائن (Credit Note) — فاتورة #{invoice.number}"
     html = render_template("emails/credit_note_issued.html", invoice=invoice, credit_note=credit_note)
-    return send_email(invoice.customer.email, subject, html)
+    # MARSOUD-INVOICE-EMAIL-PDF-ATTACH-01 — attach the current PDF
+    # so the credit-note email carries the updated invoice statement.
+    return send_email(invoice.customer.email, subject, html,
+                       attachments=_invoice_pdf_attachment(invoice))
 
 
 def send_invitation_email(invitation, accept_url):
