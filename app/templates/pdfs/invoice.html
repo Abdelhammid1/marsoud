@@ -255,7 +255,7 @@ table.items tr:last-child td { border-bottom: none; }
       {% if invoice.invoice_discount_amount and invoice.invoice_discount_amount|float > 0 %}
       <tr><td class="lbl">إجمالي الخصومات</td><td class="val">- {{ amount(invoice.invoice_discount_amount) }}</td></tr>
       {% endif %}
-      <tr><td class="lbl">الإجمالي بدون ضريبة</td><td class="val">{{ amount(invoice.subtotal - (invoice.invoice_discount_amount|float if invoice.invoice_discount_amount else 0)) }}</td></tr>
+      <tr><td class="lbl">الإجمالي بدون ضريبة</td><td class="val">{{ amount(invoice.subtotal|float - (invoice.invoice_discount_amount|float if invoice.invoice_discount_amount else 0)) }}</td></tr>
       <tr><td class="lbl">ضريبة القيمة المضافة ({{ "%g"|format(invoice.tax_rate|float) }}%)</td><td class="val">{{ amount(invoice.tax_amount) }}</td></tr>
       <tr class="grand"><td>الإجمالي</td><td class="val">{{ amount(invoice.total) }}</td></tr>
       {% if paid_amt > 0 %}
