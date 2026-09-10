@@ -360,30 +360,34 @@
          renders only when the tenant has actually configured it in
          settings; hidden entirely when everything is empty. #}
       {% set _co = invoice.company %}
-      {% if _co.bank_name or _co.iban or _co.bank_account_number
-             or _co.instapay_handle or _co.ewallet_number %}
+      {# MARSOUD-INVOICE-PDF-POLISH-01 (2026-09-10) — same "None"-ghost
+         guard as the PDF template so a poisoned row doesn't leak a
+         "InstaPay: None" line onto the accountant's view. #}
+      {% macro _ok(x) %}{% if x and (x|string) != 'None' %}1{% endif %}{% endmacro %}
+      {% if _ok(_co.bank_name) or _ok(_co.iban) or _ok(_co.bank_account_number)
+             or _ok(_co.instapay_handle) or _ok(_co.ewallet_number) %}
       <details class="mb-3 rounded-lg border border-slate-200 bg-slate-50/60">
         <summary class="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-700">
           💳 قنوات الدفع اللي المفروض العميل يقدر يستخدمها
         </summary>
         <div class="px-3 py-2 text-xs space-y-1 border-t border-slate-200">
-          {% if _co.bank_name or _co.iban or _co.bank_account_number %}
+          {% if _ok(_co.bank_name) or _ok(_co.iban) or _ok(_co.bank_account_number) %}
           <div>
-            🏦 <strong>{{ _co.bank_name or 'بنك' }}</strong>
-            {% if _co.bank_account_holder %} — {{ _co.bank_account_holder }}{% endif %}
-            {% if _co.bank_account_number %}<div class="ml-4 font-mono" dir="ltr">Acc: {{ _co.bank_account_number }}</div>{% endif %}
-            {% if _co.iban %}<div class="ml-4 font-mono" dir="ltr">IBAN: {{ _co.iban }}</div>{% endif %}
+            🏦 <strong>{{ _co.bank_name if _ok(_co.bank_name) else 'بنك' }}</strong>
+            {% if _ok(_co.bank_account_holder) %} — {{ _co.bank_account_holder }}{% endif %}
+            {% if _ok(_co.bank_account_number) %}<div class="ml-4 font-mono" dir="ltr">Acc: {{ _co.bank_account_number }}</div>{% endif %}
+            {% if _ok(_co.iban) %}<div class="ml-4 font-mono" dir="ltr">IBAN: {{ _co.iban }}</div>{% endif %}
           </div>
           {% endif %}
-          {% if _co.instapay_handle %}
+          {% if _ok(_co.instapay_handle) %}
           <div>
             💠 <strong>InstaPay:</strong>
             <span class="font-mono" dir="ltr">{{ _co.instapay_handle }}</span>
           </div>
           {% endif %}
-          {% if _co.ewallet_number %}
+          {% if _ok(_co.ewallet_number) %}
           <div>
-            📱 <strong>محفظة{% if _co.ewallet_provider %}
+            📱 <strong>محفظة{% if _ok(_co.ewallet_provider) %}
               ({{ _co.ewallet_provider }}){% endif %}:</strong>
             <span class="font-mono" dir="ltr">{{ _co.ewallet_number }}</span>
           </div>

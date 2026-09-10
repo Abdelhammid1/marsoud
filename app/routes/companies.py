@@ -201,19 +201,29 @@ def edit(company_id):
         company.commercial_register_no = (
             request.form.get("commercial_register_no") or "").strip() or None
         # MARSOUD-51 — bank info for invoice PDF (all optional)
-        company.bank_name = (request.form.get("bank_name") or "").strip() or None
-        company.bank_account_holder = (request.form.get("bank_account_holder") or "").strip() or None
-        company.bank_account_number = (request.form.get("bank_account_number") or "").strip() or None
-        company.iban = (request.form.get("iban") or "").strip() or None
+        # MARSOUD-INVOICE-PDF-POLISH-01 (2026-09-10) — the form used
+        # to render `value="{{ company.iban if company else '' }}"`
+        # which spat out the literal string "None" when a field was
+        # empty; a subsequent save re-read "None" as data and stored
+        # it, poisoning the PDF's truthy guards. `_clean_channel`
+        # normalises both an empty submit AND the "None" ghost back
+        # to real Python None so historically-dirtied rows self-heal
+        # the next time the owner saves.
+        def _clean_channel(name):
+            v = (request.form.get(name) or "").strip()
+            if v.lower() == "none":
+                v = ""
+            return v or None
+        company.bank_name = _clean_channel("bank_name")
+        company.bank_account_holder = _clean_channel("bank_account_holder")
+        company.bank_account_number = _clean_channel("bank_account_number")
+        company.iban = _clean_channel("iban")
         # MARSOUD-INVOICE-PAYMENT-CHANNELS-01 — InstaPay + e-wallet.
         # Same "" → None normalisation so an empty submit clears the
         # field cleanly and doesn't leave a whitespace ghost.
-        company.instapay_handle = (
-            request.form.get("instapay_handle") or "").strip() or None
-        company.ewallet_number = (
-            request.form.get("ewallet_number") or "").strip() or None
-        company.ewallet_provider = (
-            request.form.get("ewallet_provider") or "").strip() or None
+        company.instapay_handle = _clean_channel("instapay_handle")
+        company.ewallet_number = _clean_channel("ewallet_number")
+        company.ewallet_provider = _clean_channel("ewallet_provider")
 
         # MARSOUD-TZ-01 — company-level timezone. Falls back to
         # existing value (default "Asia/Riyadh") if the field is

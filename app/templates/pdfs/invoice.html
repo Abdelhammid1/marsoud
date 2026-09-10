@@ -173,31 +173,39 @@ table.items tr:last-child td { border-bottom: none; }
        stacked blocks (bank + InstaPay + e-wallet). Each renders
        only when its own fields are populated; a tenant using just
        InstaPay gets exactly one clean block, not three with two
-       empty rows. #}
-    {% if invoice.company.bank_name or invoice.company.iban or invoice.company.bank_account_number %}
+       empty rows.
+
+       MARSOUD-INVOICE-PDF-POLISH-01 (2026-09-10) — every guard is
+       now `_ok(x)` (see below) instead of a bare truthy check. That
+       treats the literal string "None" as empty, so historic rows
+       poisoned by the "None" ghost render as empty even before the
+       owner saves the form to actually clean the DB. #}
+    {% set _ns = namespace(_=None) %}
+    {% macro _ok(x) %}{% if x and (x|string) != 'None' %}1{% endif %}{% endmacro %}
+    {% if _ok(invoice.company.bank_name) or _ok(invoice.company.iban) or _ok(invoice.company.bank_account_number) %}
     <div class="pay-note">
       يُفضّل الدفع بتحويل بنكي إلى الحساب الموضّح أدناه. يُرجى ذكر رقم الفاتورة عند التحويل.
     </div>
     <div class="pay-address">
       <div class="lbl">بيانات حسابي البنكي:</div>
       <div class="line">
-        {% if invoice.company.bank_account_holder %}{{ invoice.company.bank_account_holder }}<br>{% endif %}
-        {% if invoice.company.bank_name %}{{ invoice.company.bank_name }}<br>{% endif %}
-        {% if invoice.company.bank_account_number %}رقم الحساب: {{ invoice.company.bank_account_number }}<br>{% endif %}
-        {% if invoice.company.iban %}IBAN: {{ invoice.company.iban }}{% endif %}
+        {% if _ok(invoice.company.bank_account_holder) %}{{ invoice.company.bank_account_holder }}<br>{% endif %}
+        {% if _ok(invoice.company.bank_name) %}{{ invoice.company.bank_name }}<br>{% endif %}
+        {% if _ok(invoice.company.bank_account_number) %}رقم الحساب: {{ invoice.company.bank_account_number }}<br>{% endif %}
+        {% if _ok(invoice.company.iban) %}IBAN: {{ invoice.company.iban }}{% endif %}
       </div>
     </div>
     {% endif %}
-    {% if invoice.company.instapay_handle %}
+    {% if _ok(invoice.company.instapay_handle) %}
     <div class="pay-address">
       <div class="lbl">💠 InstaPay:</div>
       <div class="line">{{ invoice.company.instapay_handle }}</div>
     </div>
     {% endif %}
-    {% if invoice.company.ewallet_number %}
+    {% if _ok(invoice.company.ewallet_number) %}
     <div class="pay-address">
       <div class="lbl">
-        📱 محفظة إلكترونية{% if invoice.company.ewallet_provider %}
+        📱 محفظة إلكترونية{% if _ok(invoice.company.ewallet_provider) %}
         ({{ invoice.company.ewallet_provider }}){% endif %}:
       </div>
       <div class="line">{{ invoice.company.ewallet_number }}</div>
@@ -264,54 +272,84 @@ table.items tr:last-child td { border-bottom: none; }
       <div class="val" style="color:{{ status_color }}">{{ "%.2f"|format((bal if bal > 0.005 else invoice.total|float)) }} <span class="cur">{{ invoice.currency|currency_ar }}</span></div>
     </div>
 
-    {# MARSOUD-INVOICE-INSTALLMENTS-DISPLAY-01 (2026-09-08) — the
-       installment plan lands on the printed / emailed PDF too, not
-       just the app view. Renders only when a plan actually exists,
-       so a regular one-shot invoice is byte-identical to the
-       pre-ticket PDF. The down-payment (if any) is called out
-       inside the plan card so the customer sees the up-front slice
-       that was already collected before totting up what's due on
-       each row. #}
+    {# MARSOUD-INVOICE-PDF-POLISH-01 (2026-09-10) — installments PDF
+       block, redesigned to mirror the Tabby-style timeline the email
+       template already renders. The old version was a plain table
+       with grey banded rows and a small text badge — legible but
+       flat next to the polished email. Now each row carries an
+       amount-pill on the RIGHT, the due date centre-left, and a
+       status circle on the far LEFT that colour-codes the row at a
+       glance:
+         PAID    → solid green circle with ✓, amount strike-through
+         OVERDUE → solid red circle with `!`
+         PENDING → hollow grey circle
+       Down-payment banner stays green and moves inside the card, so
+       the printed PDF and the email tell exactly the same story. #}
     {% if invoice.installments %}
-    <div style="margin-top:22px;border:1px solid #E2E8F0;border-radius:10px;padding:14px 16px;background:#F8FAFC">
-      <div style="font-weight:700;color:#0F172A;font-size:12pt;margin-bottom:8px">
-        📅 خطة الأقساط
-      </div>
+    <div style="margin-top:22px;background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:18px 20px">
+      <table cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:100%;margin-bottom:12px">
+        <tr>
+          <td align="right" style="font-weight:700;color:#0A2540;font-size:12pt">
+            📅 خطة الأقساط
+          </td>
+          <td align="left" style="font-size:9.5pt;color:#64748B">
+            {{ invoice.company.display_name }}
+          </td>
+        </tr>
+      </table>
       {% if invoice.down_payment_amount and invoice.down_payment_amount > 0 %}
-      <div style="background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46;font-size:9.5pt;border-radius:6px;padding:6px 10px;margin-bottom:8px">
+      <div style="background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46;font-size:9.5pt;border-radius:8px;padding:8px 12px;margin-bottom:10px">
         💰 دفعة مقدّمة عند الإصدار:
         <strong>{{ '%.2f'|format(invoice.down_payment_amount) }} {{ invoice.currency|currency_ar }}</strong>
       </div>
       {% endif %}
-      <table style="width:100%;border-collapse:collapse;font-size:9.5pt">
-        <thead>
-          <tr style="background:#F1F5F9;color:#334155">
-            <th style="text-align:right;padding:6px 8px">#</th>
-            <th style="text-align:right;padding:6px 8px">القيمة</th>
-            <th style="text-align:right;padding:6px 8px">تاريخ الاستحقاق</th>
-            <th style="text-align:right;padding:6px 8px">الحالة</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for inst in invoice.installments %}
-          <tr style="border-bottom:1px solid #E2E8F0
-                     {% if inst.status == 'PAID' %};background:#F0FDF4{% endif %}
-                     {% if inst.status == 'OVERDUE' %};background:#FEF2F2{% endif %}">
-            <td style="padding:5px 8px">{{ inst.sequence_no }}</td>
-            <td style="padding:5px 8px;font-family:monospace">{{ '%.2f'|format(inst.amount) }} {{ invoice.currency|currency_ar }}</td>
-            <td style="padding:5px 8px">{{ inst.due_date.strftime('%Y-%m-%d') }}</td>
-            <td style="padding:5px 8px">
-              {% if inst.status == 'PAID' %}
-                <span style="color:#059669;font-weight:600">مدفوع</span>
-              {% elif inst.status == 'OVERDUE' %}
-                <span style="color:#DC2626;font-weight:600">متأخر</span>
-              {% else %}
-                <span style="color:#B45309">معلّق</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
+      <table cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:100%;border-collapse:collapse">
+        {% for inst in invoice.installments %}
+          {% if inst.status == 'PAID' %}
+            {% set circle_bg = '#10B981' %}
+            {% set circle_border = '#10B981' %}
+            {% set circle_char = '✓' %}
+            {% set circle_char_color = '#fff' %}
+            {% set date_color = '#94A3B8' %}
+            {% set date_weight = '400' %}
+            {% set amount_bg = '#F0FDF4' %}
+            {% set amount_color = '#94A3B8' %}
+            {% set amount_strike = 'text-decoration:line-through;' %}
+          {% elif inst.status == 'OVERDUE' %}
+            {% set circle_bg = '#DC2626' %}
+            {% set circle_border = '#DC2626' %}
+            {% set circle_char = '!' %}
+            {% set circle_char_color = '#fff' %}
+            {% set date_color = '#B91C1C' %}
+            {% set date_weight = '700' %}
+            {% set amount_bg = '#FEE2E2' %}
+            {% set amount_color = '#B91C1C' %}
+            {% set amount_strike = '' %}
+          {% else %}
+            {% set circle_bg = '#fff' %}
+            {% set circle_border = '#CBD5E1' %}
+            {% set circle_char = '' %}
+            {% set circle_char_color = '#CBD5E1' %}
+            {% set date_color = '#0A2540' %}
+            {% set date_weight = '600' %}
+            {% set amount_bg = '#FEF3C7' %}
+            {% set amount_color = '#0A2540' %}
+            {% set amount_strike = '' %}
+          {% endif %}
+        <tr>
+          <td align="right" valign="middle" style="padding:8px 0;border-top:1px solid #F1F5F9;width:35%">
+            <span style="display:inline-block;background:{{ amount_bg }};padding:5px 12px;border-radius:6px;font-family:monospace;font-weight:600;color:{{ amount_color }};font-size:10pt;direction:ltr;{{ amount_strike }}">
+              {{ '%.2f'|format(inst.amount|float) }} {{ invoice.currency|currency_ar }}
+            </span>
+          </td>
+          <td align="left" valign="middle" style="padding:8px 0;border-top:1px solid #F1F5F9;color:{{ date_color }};font-size:10pt;font-weight:{{ date_weight }}">
+            <span style="vertical-align:middle">
+              القسط #{{ inst.sequence_no }} — {{ inst.due_date.strftime('%Y-%m-%d') }}
+            </span>
+            <span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:{{ circle_bg }};border:2px solid {{ circle_border }};color:{{ circle_char_color }};text-align:center;line-height:16px;font-size:11pt;font-weight:bold;margin-right:10px;vertical-align:middle">{{ circle_char }}</span>
+          </td>
+        </tr>
+        {% endfor %}
       </table>
     </div>
     {% endif %}
