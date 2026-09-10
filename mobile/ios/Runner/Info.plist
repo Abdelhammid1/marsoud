@@ -58,6 +58,17 @@
 	<string>يستخدم تطبيق مرصود موقعك لتسجيل حضورك وانصرافك من موقع الشركة.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>يستخدم تطبيق مرصود موقعك لتسجيل حضورك وانصرافك من موقع الشركة.</string>
+	<!-- MARSOUD-MOBILE-XCODE-CLOUD-01 (2026-09-09) — background modes
+	     required by firebase_messaging so silent pushes wake the
+	     app + a token-refresh callback can complete outside the
+	     foreground. `remote-notification` is what makes background
+	     data pushes work at all; `fetch` covers the periodic
+	     backend-driven refresh path. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

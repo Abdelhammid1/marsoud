@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- MARSOUD-MOBILE-XCODE-CLOUD-01 (2026-09-09) — Push
+         Notifications entitlement.  Required by firebase_messaging.
+         Value must be:
+           · "development"  → TestFlight builds (Xcode Cloud "Archive"
+                              step signs with the Apple Development
+                              distribution profile)
+           · "production"   → App Store submission builds
+         Xcode Cloud switches this automatically when you configure a
+         workflow whose destination is "App Store" vs. "TestFlight". -->
+    <key>aps-environment</key>
+    <string>development</string>
+</dict>
+</plist>
