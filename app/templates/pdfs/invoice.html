@@ -13,12 +13,12 @@
    stylesheets instead of an invalid <style> nested inside <style>. #}
 {{ amiri_font_face|safe }}
 <style>
-@page { size: A4; margin: 0; }
+@page { size: A4; margin: 50px 56px 90px 56px; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { width: 100%; height: 100%; }
 body { font-family: 'Amiri', 'Segoe UI', Tahoma, sans-serif; direction: rtl; background: #fff; color: #0A2540; }
-.page { width: 100%; height: 297mm; position: relative; overflow: hidden; }
-.pad { position: relative; z-index: 1; padding: 50px 56px; }
+.page { width: 100%; position: relative; }
+.pad { position: relative; z-index: 1; padding: 0; }
 
 .brand-row { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
 .logo-box { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 20px; overflow: hidden; flex-shrink: 0; }
@@ -36,6 +36,10 @@ body { font-family: 'Amiri', 'Segoe UI', Tahoma, sans-serif; direction: rtl; bac
 .kv td.c { width: 14px; color: #0A2540; }
 .kv td.v { color: #0A2540; }
 .kv td.v.mono { font-family: monospace; }
+.meta-pay-row { display: flex; gap: 40px; margin-bottom: 22px; align-items: flex-start; }
+.meta-pay-row > div { flex: 1; min-width: 0; }
+.parties, .payment-col, .due-block, table.items, .totals-kv { page-break-inside: avoid; }
+table.items tr { page-break-inside: avoid; }
 
 .parties { display: flex; gap: 48px; margin-bottom: 24px; }
 .party { flex: 1; }
@@ -71,7 +75,7 @@ table.items tr:last-child td { border-bottom: none; }
 .due-block .val { font-size: 28px; font-weight: 800; color: #059669; font-family: monospace; }
 .due-block .val .cur { font-size: 13px; }
 
-.footer { position: absolute; bottom: 0; right: 0; left: 0; padding: 16px 56px; border-top: 1px solid #E2E8F0; display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; color: #94A3B8; background: #fff; }
+.footer { position: fixed; bottom: -70px; right: -56px; left: -56px; padding: 16px 56px; border-top: 1px solid #E2E8F0; display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; color: #94A3B8; background: #fff; }
 .footer strong { color: #059669; }
 </style>
 </head>
@@ -108,8 +112,8 @@ table.items tr:last-child td { border-bottom: none; }
 {% set paid_amt = invoice.paid_amount|float if invoice.paid_amount else 0 %}
 {% set bal = invoice.balance|float %}
 <div class="page">
-  <svg style="position:absolute;top:0;left:0" width="70" height="70" viewBox="0 0 70 70"><polygon points="0,0 70,0 0,70" fill="#059669"/></svg>
-  <svg style="position:absolute;bottom:0;right:0" width="70" height="70" viewBox="0 0 70 70"><polygon points="70,70 0,70 70,0" fill="#059669"/></svg>
+  <svg style="position:fixed;top:-50px;left:-56px" width="70" height="70" viewBox="0 0 70 70"><polygon points="0,0 70,0 0,70" fill="#059669"/></svg>
+  <svg style="position:fixed;bottom:-90px;right:-56px" width="70" height="70" viewBox="0 0 70 70"><polygon points="70,70 0,70 70,0" fill="#059669"/></svg>
   <div class="pad">
 
     {# ── BRAND / TITLE ──────────────────────────────────────── #}
@@ -126,6 +130,8 @@ table.items tr:last-child td { border-bottom: none; }
     <div class="rule"></div>
 
     {# ── META (رقم / تاريخ / ضريبي / سجل تجاري) ─────────────── #}
+    <div class="meta-pay-row">
+    <div>
     <table class="kv">
       <tr><td class="k">رقم الفاتورة</td><td class="c">:</td><td class="v mono">{{ invoice.number }}</td></tr>
       <tr><td class="k">تاريخ الإصدار</td><td class="c">:</td><td class="v">{{ ar_date(invoice.issue_date) }}</td></tr>
@@ -137,37 +143,8 @@ table.items tr:last-child td { border-bottom: none; }
       <tr><td class="k">السجل التجاري</td><td class="c">:</td><td class="v mono">{{ invoice.company.commercial_register_no }}</td></tr>
       {% endif %}
     </table>
-
-    {# ── FROM / TO ──────────────────────────────────────────── #}
-    <div class="parties">
-      <div class="party">
-        <div class="lbl">من</div>
-        <div class="name">{{ invoice.company.official_name }}</div>
-        {% if invoice.company.brand_name and invoice.company.brand_name != invoice.company.official_name %}
-        <div class="brand-sub">{{ invoice.company.brand_name }}</div>
-        {% endif %}
-        <div class="line">
-          {% if invoice.company.address %}{{ invoice.company.address|replace('\n', '<br>')|safe }}{% endif %}
-        </div>
-      </div>
-      <div class="party">
-        <div class="lbl">إلى</div>
-        <div class="name">{{ invoice.customer.name if invoice.customer else 'زبون نقدي' }}</div>
-        <div class="line">
-          {% if invoice.customer and invoice.customer.address %}{{ invoice.customer.address|replace('\n', '<br>')|safe }}<br>{% endif %}
-          {% if invoice.customer and invoice.customer.tax_number %}الرقم الضريبي: {{ invoice.customer.tax_number }}<br>{% endif %}
-          {% if invoice.customer and invoice.customer.email %}{{ invoice.customer.email }}<br>{% endif %}
-          {% if invoice.customer and invoice.customer.phone %}{{ invoice.customer.phone }}{% endif %}
-        </div>
-      </div>
     </div>
-
-    {# ── DUE HEADLINE ───────────────────────────────────────── #}
-    <div class="due-headline">
-      <span class="amt">{{ "%.2f"|format(invoice.total|float) }} {{ invoice.currency|currency_ar }}</span>
-      مستحقة الدفع بتاريخ {{ ar_date(invoice.due_date) }}
-    </div>
-
+    <div class="payment-col">
     {# ── PAYMENT CHANNELS ───────────────────────────────────
        MARSOUD-INVOICE-PAYMENT-CHANNELS-01 (2026-09-08) — three
        stacked blocks (bank + InstaPay + e-wallet). Each renders
@@ -211,6 +188,38 @@ table.items tr:last-child td { border-bottom: none; }
       <div class="line">{{ invoice.company.ewallet_number }}</div>
     </div>
     {% endif %}
+    </div>
+    </div>
+
+    {# ── FROM / TO ──────────────────────────────────────────── #}
+    <div class="parties">
+      <div class="party">
+        <div class="lbl">من</div>
+        <div class="name">{{ invoice.company.official_name }}</div>
+        {% if invoice.company.brand_name and invoice.company.brand_name != invoice.company.official_name %}
+        <div class="brand-sub">{{ invoice.company.brand_name }}</div>
+        {% endif %}
+        <div class="line">
+          {% if invoice.company.address %}{{ invoice.company.address|replace('\n', '<br>')|safe }}{% endif %}
+        </div>
+      </div>
+      <div class="party">
+        <div class="lbl">إلى</div>
+        <div class="name">{{ invoice.customer.name if invoice.customer else 'زبون نقدي' }}</div>
+        <div class="line">
+          {% if invoice.customer and invoice.customer.address %}{{ invoice.customer.address|replace('\n', '<br>')|safe }}<br>{% endif %}
+          {% if invoice.customer and invoice.customer.tax_number %}الرقم الضريبي: {{ invoice.customer.tax_number }}<br>{% endif %}
+          {% if invoice.customer and invoice.customer.email %}{{ invoice.customer.email }}<br>{% endif %}
+          {% if invoice.customer and invoice.customer.phone %}{{ invoice.customer.phone }}{% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# ── DUE HEADLINE ───────────────────────────────────────── #}
+    <div class="due-headline">
+      <span class="amt">{{ "%.2f"|format(invoice.total|float) }} {{ invoice.currency|currency_ar }}</span>
+      مستحقة الدفع بتاريخ {{ ar_date(invoice.due_date) }}
+    </div>
 
     {# ── ITEMS TABLE ────────────────────────────────────────── #}
     <div class="section-title">تفاصيل الفاتورة</div>
