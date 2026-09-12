@@ -16,7 +16,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:url_launcher/url_launcher.dart';
+
 import '../../app/theme.dart';
+import '../../app/env.dart';
 import '../../data/api_client.dart';
 import '../../data/my_account_repository.dart';
 import '../../widgets/gradient_button.dart';
@@ -151,6 +154,21 @@ class _MyAccountScreenState extends ConsumerState<MyAccountScreen> {
                 subtitle:
                     'أدخل كلمة السر القديمة أولاً، ثم الجديدة مرتين للتأكيد. كلمة السر لازم تكون 6 أحرف على الأقل.',
                 child: const _PasswordForm(),
+              ),
+              const SizedBox(height: 12),
+              // MARSOUD-ACCOUNT-DELETION-01 (2026-09-11) — Privacy
+              // policy + delete-my-account links. Required for App
+              // Store / Play Store compliance (Apple guideline 5.1.1
+              // (v) + Google Play User Data policy). Both open the
+              // matching web pages in the OS browser; deletion
+              // happens on the same backend the app authenticates
+              // against so the account really goes away.
+              _SectionCard(
+                emoji: '🔐',
+                title: 'الخصوصية والحساب',
+                subtitle:
+                    'روابط إلزامية للامتثال لسياسات المتاجر — سياسة الخصوصية + حذف الحساب نهائياً.',
+                child: const _PrivacyAndDeleteLinks(),
               ),
             ],
           ),
@@ -1207,6 +1225,126 @@ class _ErrorView extends StatelessWidget {
               onPressed: onRetry,
               child: const Text('إعادة المحاولة'),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+// MARSOUD-ACCOUNT-DELETION-01 (2026-09-11) — Privacy + delete-my-
+// account links required by App Store guideline 5.1.1(v) and Google
+// Play User Data policy. Each tile launches the corresponding web
+// page in the OS browser via url_launcher; deletion actually happens
+// on the same Flask backend so the account really goes away.
+class _PrivacyAndDeleteLinks extends StatelessWidget {
+  const _PrivacyAndDeleteLinks();
+
+  Future<void> _open(BuildContext context, String path) async {
+    final base = Env.webBaseUrl.replaceAll(RegExp(r'/+$'), '');
+    if (base.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('لا يوجد رابط ويب مضبوط للتطبيق — تواصل مع الدعم.'),
+      ));
+      return;
+    }
+    final uri = Uri.parse('$base$path');
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('تعذّر فتح الرابط: $uri'),
+      ));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _LinkTile(
+          icon: Icons.lock_outline,
+          iconColor: BrandColors.emerald700,
+          title: 'سياسة الخصوصية',
+          subtitle: 'كيف نستخدم بياناتك ونحميها.',
+          onTap: () => _open(context, '/privacy'),
+        ),
+        const SizedBox(height: 8),
+        _LinkTile(
+          icon: Icons.delete_outline,
+          iconColor: Colors.red.shade600,
+          title: 'حذف حسابي نهائياً',
+          subtitle:
+              'حذف الحساب + كل بياناتك المرتبطة به. الإجراء لا يمكن التراجع عنه.',
+          onTap: () => _open(context, '/account/delete'),
+        ),
+      ],
+    );
+  }
+}
+
+
+class _LinkTile extends StatelessWidget {
+  const _LinkTile({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: BrandColors.slate200),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: BrandColors.navy900,
+                      )),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: BrandColors.slate500,
+                        height: 1.5,
+                      )),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_left,
+                color: BrandColors.slate400, size: 20),
           ],
         ),
       ),
