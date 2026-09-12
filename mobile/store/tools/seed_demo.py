@@ -60,14 +60,27 @@ undo()
 
 from werkzeug.security import generate_password_hash  # noqa: E402
 
+# MARSOUD-ACCOUNT-DELETION-01 (2026-09-12) — pick up the platform's
+# CURRENT terms version from platform_settings instead of hardcoding
+# "1.0". The re-accept-terms middleware compares user.terms_version
+# against the live one; a mismatch bounces the demo login into the
+# web-only re-accept flow with the message "يجب قبول شروط الاستخدام
+# المحدثة". Falls back to "v1.0" (the DEFAULT_TERMS_VERSION) when
+# the superadmin hasn't published anything yet.
+_tv_row = c.execute(
+    "SELECT value FROM platform_settings WHERE key = 'terms_version'"
+).fetchone()
+CURRENT_TERMS_VERSION = (
+    _tv_row["value"].strip() if _tv_row and _tv_row["value"] else "v1.0")
+
 c.execute(
     "INSERT INTO users (email, full_name, password_hash, locale, created_at,"
     " is_superadmin, is_active, status, email_verified_at,"
     " failed_login_attempts, terms_accepted_at, terms_version,"
     " requires_approval)"
-    " VALUES (?,?,?,?,?,0,1,'active',?,0,?,'1.0',0)",
+    " VALUES (?,?,?,?,?,0,1,'active',?,0,?,?,0)",
     (EMAIL, "سارة عبد الرحمن", generate_password_hash(PASSWORD), "ar", now,
-     now, now))
+     now, now, CURRENT_TERMS_VERSION))
 uid = c.execute("SELECT id FROM users WHERE email=?", (EMAIL,)).fetchone()["id"]
 
 role = c.execute(
