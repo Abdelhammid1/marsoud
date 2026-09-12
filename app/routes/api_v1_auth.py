@@ -260,6 +260,154 @@ def login():
     })
 
 
+# ─── Accept updated terms ─────────────────────────────────────────────
+# MARSOUD-MOBILE-REACCEPT-TERMS-01 (2026-09-12) — the /login endpoint
+# above refuses to mint a bearer when the user's terms_version is
+# stale, and today the mobile app just shows an error asking the user
+# to "open the browser" — that's neither Apple-compliant nor useful
+# to a Google Play reviewer. This endpoint gives the mobile app an
+# in-app path to accept updated terms and get its bearer in one go:
+#
+#   1. Client re-sends email + password + agreed=true
+#   2. Server re-checks credentials the same way login does (same
+#      throttle, same lockout policy) so this can't be used to skip
+#      the brute-force guard
+#   3. Server updates user.terms_version + terms_accepted_at
+#      + records consent via record_consent() for the audit log
+#   4. Server mints the bearer + returns the SAME response shape as
+#      /login so the mobile side can reuse its login handler wholesale
+@bp.route("/accept-terms", methods=["POST"])
+def accept_terms():
+    body = request.get_json(silent=True) or request.form
+    email = (body.get("email") or "").strip().lower()
+    password = body.get("password") or ""
+    agreed = body.get("agreed") in (True, "true", "on", "1", 1)
+    device = (body.get("device_name") or "").strip()[:40]
+
+    if not agreed:
+        return _err("agreement_required", 400)
+
+    # Same throttle knob as /login so this endpoint can't be used to
+    # bypass rate-limits.
+    ip = request.headers.get(
+        "X-Forwarded-For", request.remote_addr or "unknown"
+    ).split(",")[0].strip() or "unknown"
+    blocked, retry = _login_throttled(("ip", ip), _LOGIN_MAX_PER_IP)
+    if blocked:
+        return _throttle_response(retry)
+    if email:
+        blocked, retry = _login_throttled(
+            ("email", email), _LOGIN_MAX_PER_EMAIL)
+        if blocked:
+            return _throttle_response(retry)
+
+    if not email or not password:
+        return _err("missing_credentials", 400)
+
+    user = User.query.filter_by(email=email).first()
+    if user and user.locked_until and user.locked_until > datetime.utcnow():
+        remaining = int(
+            (user.locked_until - datetime.utcnow()).total_seconds() // 60) + 1
+        return _err("account_locked", 403,
+                    retry_after_minutes=remaining)
+    if not user or not user.check_password(password):
+        if user:
+            user.failed_login_attempts = (
+                (user.failed_login_attempts or 0) + 1)
+            if user.failed_login_attempts >= 5:
+                user.locked_until = datetime.utcnow() + timedelta(minutes=15)
+            db.session.commit()
+        return _err("invalid_credentials", 401)
+    if not user.is_active:
+        return _err("account_inactive", 403)
+
+    active_companies = [c for c in user.companies
+                        if (c.status or "ACTIVE") != "SUSPENDED"]
+    if user.companies and not active_companies and not user.is_superadmin:
+        return _err("all_companies_suspended", 403)
+    if not active_companies and not user.is_superadmin:
+        return _err("no_companies", 403)
+
+    from app.models.user import user_companies
+    rows = db.session.execute(
+        user_companies.select().where(
+            user_companies.c.user_id == user.id)
+    ).fetchall()
+    role_by_cid = {r.company_id: r.role for r in rows}
+
+    # Now the actual consent bit — update user + record for audit.
+    from app.services.legal import get_terms_version, record_consent
+    current_v = get_terms_version()
+    user.terms_version = current_v
+    user.terms_accepted_at = datetime.utcnow()
+    try:
+        record_consent(user, source="mobile_reaccept",
+                        company_id=(active_companies[0].id
+                                     if active_companies else None),
+                        document_version=current_v, request=request)
+    except Exception:
+        # Consent-log failure must not block the login itself.
+        import logging
+        logging.getLogger("ledgeros.legal").exception(
+            "record_consent failed on mobile reaccept for user %s",
+            user.id)
+
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    user.last_login_at = datetime.utcnow()
+    db.session.commit()
+
+    # Still enforce plan-selection AFTER accepting terms, matching what
+    # /login does — otherwise an owner without a plan would land on
+    # the home screen and start hitting 403s.
+    default_co = active_companies[0]
+    if (not default_co.plan_id and not default_co.intended_plan_id
+            and role_by_cid.get(default_co.id) == "owner"):
+        return _err("plan_selection_required", 403,
+                    web_action_url="/auth/choose-plan")
+
+    token_name = f"mobile:{device or 'unknown'}"
+    try:
+        raw_token, tok = generate_token(user, token_name)
+    except ValueError as e:
+        return _err(str(e), 400)
+
+    return jsonify({
+        "token": raw_token,
+        "token_id": tok.id,
+        "user": _user_public(user),
+        "companies": [
+            _company_public(c, role=role_by_cid.get(c.id))
+            for c in active_companies
+        ],
+        "default_company_id": active_companies[0].id if active_companies else None,
+    })
+
+
+# ─── Fetch the current terms + privacy content for the mobile UI ──
+# MARSOUD-MOBILE-REACCEPT-TERMS-01 — small companion endpoint so the
+# accept-terms screen can render the CURRENT (super-admin-published)
+# text right inside the mobile UI, no browser handoff required.
+@bp.route("/legal", methods=["GET"])
+def legal_content():
+    from app.services.legal import get_terms_version
+    try:
+        from app.models import PlatformSetting
+        def _get(k):
+            r = PlatformSetting.query.filter_by(key=k).first()
+            return r.value if r and r.value else ""
+        terms_html = _get("terms_content_html")
+        privacy_html = _get("privacy_content_html")
+    except Exception:
+        terms_html = ""
+        privacy_html = ""
+    return jsonify({
+        "terms_version": get_terms_version(),
+        "terms_html": terms_html,
+        "privacy_html": privacy_html,
+    })
+
+
 # ─── Logout ───────────────────────────────────────────────────────────
 @bp.route("/logout", methods=["POST"])
 def logout():

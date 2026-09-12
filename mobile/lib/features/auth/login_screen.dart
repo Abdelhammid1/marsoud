@@ -22,6 +22,7 @@ import '../../data/auth_state.dart';
 import '../../data/push_service.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/gradient_heading.dart';
+import 'reaccept_terms_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -79,6 +80,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // login navigation.
       unawaited(ref.read(pushServiceProvider).onLogin());
     } on ApiException catch (e) {
+      // MARSOUD-MOBILE-REACCEPT-TERMS-01 (2026-09-12) — the
+      // backend returns 403 terms_acceptance_required when the
+      // super-admin has published new terms since this user last
+      // agreed. Route them to a dedicated Flutter screen that
+      // shows the current terms + a checkbox → the screen
+      // resends creds via /accept-terms which mints the bearer.
+      if (e.message == 'terms_acceptance_required' && mounted) {
+        final ok = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(
+            builder: (_) => ReacceptTermsScreen(
+              email: _emailCtrl.text.trim(),
+              password: _passCtrl.text,
+              deviceLabel: _deviceLabel(),
+            ),
+          ),
+        );
+        // If ReacceptTermsScreen popped `true`, it already set
+        // the session via authProvider — nothing else to do here.
+        if (ok == true) return;
+        // Otherwise (user tapped back / declined), fall through
+        // to the humanised error message.
+      }
       setState(() => _error = _humanize(e));
     } catch (e) {
       // MARSOUD-MOBILE-SHIP-READY-01 (H7) — used to show raw `$e`
@@ -116,7 +139,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       case 'email_verification_required':
         return 'يجب تفعيل بريدك الإلكتروني أولاً — افتح تطبيق مرصود من المتصفح لإكمال التفعيل.';
       case 'terms_acceptance_required':
-        return 'يجب قبول شروط الاستخدام المحدّثة — افتح تطبيق مرصود من المتصفح لقبولها.';
+        // MARSOUD-MOBILE-REACCEPT-TERMS-01 — the login flow now
+        // pushes ReacceptTermsScreen for this code, so this
+        // fallback message only shows when the user backed out
+        // of that screen without accepting.
+        return 'لم يتم قبول الشروط. لتسجيل الدخول لازم تقبل الشروط المحدّثة.';
       case 'plan_selection_required':
         return 'يجب اختيار باقة اشتراك — افتح تطبيق مرصود من المتصفح لاختيارها.';
       default:
