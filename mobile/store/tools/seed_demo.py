@@ -20,7 +20,7 @@ sys.stdout.reconfigure(encoding="utf-8")
 DB = "instance/ledgeros.db"
 EMAIL = "sara.demo@marsoud.com"
 PASSWORD = "Demo@2026"
-CO = 1
+CO = 19
 
 c = sqlite3.connect(DB)
 c.row_factory = sqlite3.Row
@@ -84,7 +84,7 @@ c.execute(
 uid = c.execute("SELECT id FROM users WHERE email=?", (EMAIL,)).fetchone()["id"]
 
 role = c.execute(
-    "SELECT id FROM roles WHERE company_id=? LIMIT 1", (CO,)).fetchone()
+    "SELECT id FROM roles WHERE company_id=? AND code='employee'", (CO,)).fetchone()
 c.execute(
     "INSERT INTO user_companies (user_id, company_id, role, role_id)"
     " VALUES (?,?,?,?)", (uid, CO, "employee", role["id"] if role else None))
