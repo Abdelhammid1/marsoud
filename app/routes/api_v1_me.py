@@ -195,57 +195,121 @@ def _require_gps(lat, lng):
 @bp.route("/account", methods=["GET"])
 def account():
     """One payload with everything the mobile home screen needs, so the
-    initial paint is a single round trip."""
+    initial paint is a single round trip.
+
+    MARSOUD-MOBILE-ACCOUNT-500-GUARD-01 (2026-09-16) — the endpoint
+    used to be six sub-queries in a row; one broken FK anywhere (a
+    payroll line whose run was hard-deleted, a leave-request whose
+    type was removed, an advance whose payment-method was
+    unpublished) blew up the whole /account request as a 500 and
+    the mobile home screen showed "internal error" with no way to
+    tell which section failed. Now each section is wrapped in an
+    isolated try; a failure logs the exception with enough context
+    that the server log points at the exact section + employee,
+    and returns an empty payload for THAT section only. The mobile
+    UI shows the sections that DID load, plus a `sections_failed`
+    list so the app can flag partial state instead of an empty
+    home screen.
+    """
     from app.services.attendance import checkin_for
     from app.services.advances import active_advance_for, repayments_for
+    import logging
 
     emp = _my_employee_or_404()
     if not emp:
         return _no_employee()
 
-    payslips = (
-        db.session.query(PayrollLine, PayrollRun)
-        .join(PayrollRun, PayrollLine.run_id == PayrollRun.id)
-        .filter(PayrollLine.employee_id == emp.id)
-        .order_by(PayrollRun.period_year.desc(),
-                  PayrollRun.period_month.desc())
-        .all()
-    )
+    logger = logging.getLogger("ledgeros.mobile.account")
+    failed = []
 
-    balances = LeaveBalance.query.filter_by(
-        employee_id=emp.id, year=date.today().year,
-    ).all()
-    leave_types = LeaveType.query.filter_by(
-        company_id=emp.company_id, is_active=True,
-    ).order_by(LeaveType.name).all()
-    requests = LeaveRequest.query.filter_by(
-        employee_id=emp.id,
-    ).order_by(LeaveRequest.created_at.desc()).limit(50).all()
+    def _safe(section, fn, default):
+        try:
+            return fn()
+        except Exception as e:  # noqa: BLE001
+            logger.exception(
+                "/api/v1/my/account section=%s employee_id=%s "
+                "company_id=%s user_id=%s → %s: %s",
+                section, emp.id, emp.company_id, current_user.id,
+                type(e).__name__, e)
+            failed.append(section)
+            return default
 
-    today_ci = checkin_for(emp.id, date.today())
-    advance = active_advance_for(emp.id)
-    advance_repayments = repayments_for(advance.id) if advance else []
-    advance_requests = AdvanceRequest.query.filter_by(
-        employee_id=emp.id,
-    ).order_by(AdvanceRequest.created_at.desc()).limit(50).all()
+    employee_dto = _safe("employee", lambda: S.employee_full(emp), {})
+    tenure = _safe("tenure_label",
+                    lambda: _tenure_label(emp.start_date), "—")
+
+    def _payslips():
+        rows = (db.session.query(PayrollLine, PayrollRun)
+                .join(PayrollRun, PayrollLine.run_id == PayrollRun.id)
+                .filter(PayrollLine.employee_id == emp.id)
+                .order_by(PayrollRun.period_year.desc(),
+                           PayrollRun.period_month.desc())
+                .all())
+        return [S.payroll_line_brief(line, run=run) for line, run in rows]
+    payslips = _safe("payslips", _payslips, [])
+
+    def _leave_types():
+        rows = (LeaveType.query.filter_by(
+            company_id=emp.company_id, is_active=True)
+            .order_by(LeaveType.name).all())
+        return [S.leave_type_brief(lt) for lt in rows]
+    leave_types = _safe("leave.types", _leave_types, [])
+
+    def _leave_balances():
+        rows = LeaveBalance.query.filter_by(
+            employee_id=emp.id, year=date.today().year).all()
+        return [S.leave_balance_brief(b) for b in rows]
+    leave_balances = _safe("leave.balances", _leave_balances, [])
+
+    def _leave_requests():
+        rows = (LeaveRequest.query.filter_by(employee_id=emp.id)
+                .order_by(LeaveRequest.created_at.desc()).limit(50).all())
+        return [S.leave_request_brief(r) for r in rows]
+    leave_requests = _safe("leave.requests", _leave_requests, [])
+
+    today_ci_dto = _safe(
+        "today_checkin",
+        lambda: S.checkin_brief(checkin_for(emp.id, date.today())),
+        None)
+
+    def _advance_bundle():
+        adv = active_advance_for(emp.id)
+        return {
+            "active": S.advance_brief(adv),
+            "repayments": [S.advance_repayment_brief(r)
+                           for r in (repayments_for(adv.id) if adv else [])],
+        }
+    advance_bundle = _safe(
+        "advance.active_and_repayments", _advance_bundle,
+        {"active": None, "repayments": []})
+
+    def _advance_requests():
+        rows = (AdvanceRequest.query.filter_by(employee_id=emp.id)
+                .order_by(AdvanceRequest.created_at.desc()).limit(50).all())
+        return [S.advance_request_brief(r) for r in rows]
+    advance_requests_dto = _safe(
+        "advance.requests", _advance_requests, [])
 
     return jsonify({
-        "employee": S.employee_full(emp),
-        "tenure_label": _tenure_label(emp.start_date),
-        "payslips": [
-            S.payroll_line_brief(line, run=run) for line, run in payslips
-        ],
+        "employee": employee_dto,
+        "tenure_label": tenure,
+        "payslips": payslips,
         "leave": {
-            "types": [S.leave_type_brief(lt) for lt in leave_types],
-            "balances": [S.leave_balance_brief(b) for b in balances],
-            "requests": [S.leave_request_brief(r) for r in requests],
+            "types": leave_types,
+            "balances": leave_balances,
+            "requests": leave_requests,
         },
         "advance": {
-            "active": S.advance_brief(advance),
-            "repayments": [S.advance_repayment_brief(r) for r in advance_repayments],
-            "requests": [S.advance_request_brief(r) for r in advance_requests],
+            "active": advance_bundle["active"],
+            "repayments": advance_bundle["repayments"],
+            "requests": advance_requests_dto,
         },
-        "today_checkin": S.checkin_brief(today_ci),
+        "today_checkin": today_ci_dto,
+        # MARSOUD-MOBILE-ACCOUNT-500-GUARD-01 — empty for the happy
+        # path; populated with section names when one or more
+        # sub-queries threw. Mobile can surface a soft banner instead
+        # of showing "internal error".
+        "sections_failed": failed,
     })
 
 
