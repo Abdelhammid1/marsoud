@@ -1,7 +1,16 @@
 name: marsoud
 description: "Marsoud — mobile app for employees, HR, and sales."
 publish_to: 'none'
-version: 1.0.3+4
+# MARSOUD-MOBILE-VERSION-BUMP (2026-09-16) — Apple rejected the
+# 1.0.3 build (train ID 6811166755, build 12) with ITMS-90186
+# "Invalid Pre-Release Train" + ITMS-90062 "This bundle is invalid".
+# Once a marketing version is approved or has a closed pre-release
+# train, the same X.Y.Z can never be submitted again. Bumped to
+# 1.0.4 for the next TestFlight submission; build number jumps to
+# +13 so it stays strictly higher than the last upload (12) —
+# Apple rejects any build whose CFBundleVersion is <= a previously
+# uploaded build within the same marketing version.
+version: 1.0.4+13
 
 environment:
   sdk: ^3.5.0
