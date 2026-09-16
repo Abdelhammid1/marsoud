@@ -26,46 +26,85 @@ class AttendanceScreen extends ConsumerStatefulWidget {
 class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
   bool _submitting = false;
 
-  Future<({double? lat, double? lng})> _tryLocation() async {
+  // Track WHY GPS acquisition failed so we can show the user a
+  // specific message instead of the generic "gps مطلوب" that
+  // conflates "you denied permission" with "we timed out".
+  //
+  // MARSOUD-MOBILE-IOS-GPS-01 (2026-09-16) — iOS cold-start GPS
+  // acquisition inside a building routinely exceeds the previous
+  // 8+5 s budget, and the old flow surfaced the same "gps مطلوب"
+  // banner for both "permission denied" (user action needed) and
+  // "GPS timed out indoors" (retry, maybe move closer to a window).
+  // Now we distinguish + retry more aggressively:
+  //
+  //   Step 1  — Geolocator.getLastKnownPosition (INSTANT, no wait).
+  //             iOS caches the last GPS fix; if fresh enough, use
+  //             it. Cheap win when the user just used Maps.
+  //   Step 2  — high accuracy, 12 s timeout
+  //   Step 3  — medium accuracy, 10 s timeout
+  //   Step 4  — low accuracy, 10 s timeout
+  //   Worst-case ≈ 32 s (vs 13 s before) but success rate indoors
+  //   is dramatically better on iOS, and every step catches its
+  //   own error so a hardware failure doesn't kill the whole
+  //   chain.
+  Future<({double? lat, double? lng, String? reason})> _tryLocation() async {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return (lat: null, lng: null);
+      if (!serviceEnabled) {
+        return (lat: null, lng: null, reason: 'service_off');
+      }
       var perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) {
         perm = await Geolocator.requestPermission();
       }
       if (perm == LocationPermission.denied ||
           perm == LocationPermission.deniedForever) {
-        return (lat: null, lng: null);
+        return (lat: null, lng: null, reason: 'permission_denied');
       }
-      // MARSOUD-MOBILE-SHIP-READY-01 (H5) — try high accuracy first
-      // (best fix, ideal outdoors) and fall back to medium+longer
-      // timeout for indoor/weak-signal cases. A single 8s
-      // high-accuracy try returned null inside buildings, showing
-      // users "GPS مطلوب" while sitting at their desk. Total worst-
-      // case wait is now ~13s but the success rate on a bad-GPS
-      // office is dramatically better.
+
+      // Step 1 — last-known position. Instant; only used if the
+      // fix is recent (within 2 minutes) so we're not sending a
+      // stale coordinate for a "check-in".
       try {
-        final pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            timeLimit: Duration(seconds: 8),
-          ),
-        );
-        return (lat: pos.latitude, lng: pos.longitude);
+        final last = await Geolocator.getLastKnownPosition();
+        if (last != null &&
+            last.timestamp != null &&
+            DateTime.now().difference(last.timestamp!).inSeconds < 120) {
+          return (lat: last.latitude, lng: last.longitude, reason: null);
+        }
       } catch (_) {
-        // Retry with lower accuracy target — often succeeds when
-        // high-accuracy has drifted out due to weak sky visibility.
-        final pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.medium,
-            timeLimit: Duration(seconds: 5),
-          ),
-        );
-        return (lat: pos.latitude, lng: pos.longitude);
+        // No last-known → fall through to a live fix.
       }
+
+      // Steps 2-4 — 3-accuracy fallback chain.
+      const attempts = [
+        (LocationAccuracy.high, 12),
+        (LocationAccuracy.medium, 10),
+        (LocationAccuracy.low, 10),
+      ];
+      for (final (accuracy, seconds) in attempts) {
+        try {
+          final pos = await Geolocator.getCurrentPosition(
+            locationSettings: LocationSettings(
+              accuracy: accuracy,
+              timeLimit: Duration(seconds: seconds),
+            ),
+          );
+          return (lat: pos.latitude, lng: pos.longitude, reason: null);
+        } catch (_) {
+          // Try the next (looser) accuracy tier.
+          continue;
+        }
+      }
+      // All three attempts failed → most likely the user is deep
+      // inside a building with no sky view. The server-side
+      // "gps_required" gate will reject the request anyway, but
+      // we want to tell them SPECIFICALLY that we timed out so
+      // they know to try again (vs "permission denied" which
+      // needs a settings trip).
+      return (lat: null, lng: null, reason: 'timeout');
     } catch (_) {
-      return (lat: null, lng: null);
+      return (lat: null, lng: null, reason: 'unknown');
     }
   }
 
@@ -73,26 +112,53 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
     if (_submitting) return;
     setState(() => _submitting = true);
     final messenger = ScaffoldMessenger.of(context);
+    // MARSOUD-MOBILE-IOS-GPS-01 (2026-09-16) — cold-start GPS on
+    // iOS can take 10-30 s in a building. Give the user a visible
+    // "we're working on it" cue so they don't tap again thinking
+    // the button did nothing. Cleared as soon as _tryLocation
+    // returns.
+    final progress = messenger.showSnackBar(const SnackBar(
+      content: Text('📍 جاري تحديد موقعك...'),
+      duration: Duration(seconds: 40),
+    ));
     try {
       final loc = await _tryLocation();
-      // MARSOUD-MOBILE-TKT-04 (2026-08-18) — GPS is mandatory.
-      // If _tryLocation() returned (null, null) — either the service
-      // is off, the permission was denied, or the fix timed out — DO
-      // NOT hit the network. Show a clear message + an "open
-      // settings" action so the user can turn on Location without
-      // hunting through Android/iOS menus.
+      progress.close();
       if (loc.lat == null || loc.lng == null) {
-        messenger.showSnackBar(SnackBar(
-          duration: const Duration(seconds: 6),
-          content: const Text(
-            'لا يمكن تسجيل الحضور بدون GPS. تأكد من تفعيل الموقع '
-            '+ الإذن ثم حاول مرة أخرى.'),
-          action: SnackBarAction(
-            label: 'فتح الإعدادات',
-            onPressed: () async {
-              await Geolocator.openLocationSettings();
-            },
+        // MARSOUD-MOBILE-IOS-GPS-01 — surface the SPECIFIC reason
+        // instead of the old generic banner that conflated
+        // "you denied permission" with "iOS timed out indoors".
+        final (String message, bool showSettings) = switch (loc.reason) {
+          'service_off' => (
+            'خدمة الموقع مطفية على جهازك — فعّلها من الإعدادات ثم حاول مرة أخرى.',
+            true,
           ),
+          'permission_denied' => (
+            'التطبيق مش مصرحله يقرأ موقعك — اسمح بالإذن من إعدادات '
+            'التطبيق ثم حاول مرة أخرى.',
+            true,
+          ),
+          'timeout' => (
+            'مقدرش يحدد موقعك دلوقتي (إشارة GPS ضعيفة). '
+            'قرّب من نافذة أو اطلع مكان مفتوح وحاول تاني.',
+            false,
+          ),
+          _ => (
+            'مقدرش يحدد موقعك — حاول تاني بعد شوية.',
+            false,
+          ),
+        };
+        messenger.showSnackBar(SnackBar(
+          duration: const Duration(seconds: 8),
+          content: Text(message),
+          action: showSettings
+              ? SnackBarAction(
+                  label: 'فتح الإعدادات',
+                  onPressed: () async {
+                    await Geolocator.openLocationSettings();
+                  },
+                )
+              : null,
         ));
         return;
       }
