@@ -46,9 +46,27 @@ class MeetingsScreen extends ConsumerWidget {
               children: [
                 if (meetings.isEmpty)
                   SectionCard(
-                    child: const EmptyState(
-                      icon: Icons.event_note,
-                      message: 'ما فيش اجتماعات قادمة خلال 30 يوم.',
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Column(
+                        children: [
+                          const EmptyState(
+                            icon: Icons.event_note,
+                            message:
+                                'ما فيش اجتماعات قادمة خلال 30 يوم.',
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'اضغط على "اجتماع جديد" أسفل الشاشة\nلإضافة أول اجتماع.',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: BrandColors.slate500,
+                              height: 1.5,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   )
                 else

@@ -38,9 +38,28 @@ class ScheduleScreen extends ConsumerWidget {
             children: [
               if (rows.isEmpty)
                 SectionCard(
-                  child: const EmptyState(
-                    icon: Icons.schedule,
-                    message: 'ما فيش جدولات متكررة عندك.',
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Column(
+                      children: [
+                        const EmptyState(
+                          icon: Icons.schedule,
+                          message: 'ما فيش جدولات متكررة عندك.',
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'الجدولات المتكررة بتتعمل من نسخة الويب —\n'
+                          'داخل المشروع، اختر "جدولة مهمة متكررة" \n'
+                          'وهتظهر هنا تلقائياً.',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: BrandColors.slate500,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 )
               else
