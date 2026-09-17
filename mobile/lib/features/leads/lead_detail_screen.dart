@@ -1,6 +1,15 @@
 // MARSOUD-MOBILE-TKT-01 (2026-08-18) — lead detail. Basic info +
 // status picker + timeline of activities + "add activity" sheet.
 //
+// MARSOUD-MOBILE-LEAD-FILES-01 (2026-09-17) — Batch 3 tail: the
+// two file slots the web /leads/<id>/upload/<kind> endpoint already
+// writes (quotation_path, contract_path) are now rendered as a
+// "الملفات والمرفقات" section between the sales-action bar and the
+// activities feed.  Tapping a chip opens the PDF in the phone
+// browser via `url_launcher`.  Section is hidden entirely when the
+// tenant has uploaded neither.  Upload from mobile is deferred to
+// a follow-up (needs file_picker + a new /api/v1/my endpoint).
+//
 // MARSOUD-MOBILE-LEADS-DETAIL-02 (2026-09-17) — Abdelhamid's
 // feedback on the 1.0.4 build: the screen was showing basic info +
 // stage picker + a bare activities list. Missing (per screenshot):
@@ -18,6 +27,7 @@
 // endpoints; those are deferred to Batch 3.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/theme.dart';
 import '../../data/api_client.dart';
@@ -65,6 +75,12 @@ class LeadDetailScreen extends ConsumerWidget {
             (lead['meeting_notes'] ?? '').toString().trim();
         final salesAction =
             (lead['sales_action_required'] ?? '').toString().trim();
+        final quotationUrl =
+            (lead['quotation_url'] ?? '').toString().trim();
+        final contractUrl =
+            (lead['contract_url'] ?? '').toString().trim();
+        final hasFiles =
+            quotationUrl.isNotEmpty || contractUrl.isNotEmpty;
         return RefreshIndicator(
           color: BrandColors.emerald600,
           onRefresh: () async => ref.invalidate(_leadProvider(leadId)),
@@ -164,6 +180,47 @@ class LeadDetailScreen extends ConsumerWidget {
                       height: 1.6,
                       fontWeight: FontWeight.w600,
                     ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // ── الملفات والمرفقات ───────────────────────────
+              // MARSOUD-MOBILE-LEAD-FILES-01 (2026-09-17) — عرض
+              // السعر والعقد من الويب.  Hidden when the tenant has
+              // neither so the section doesn't add noise to an
+              // empty lead.
+              if (hasFiles) ...[
+                SectionCard(
+                  emoji: '📎',
+                  title: 'الملفات والمرفقات',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (quotationUrl.isNotEmpty)
+                        _FileChip(
+                          label: 'عرض السعر',
+                          emoji: '📄',
+                          url: quotationUrl,
+                        ),
+                      if (quotationUrl.isNotEmpty &&
+                          contractUrl.isNotEmpty)
+                        const SizedBox(height: 8),
+                      if (contractUrl.isNotEmpty)
+                        _FileChip(
+                          label: 'العقد',
+                          emoji: '📑',
+                          url: contractUrl,
+                        ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'الرفع بيتم من نسخة الويب حالياً.',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: BrandColors.slate500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -279,6 +336,80 @@ class _InfoRow extends StatelessWidget {
               style: const TextStyle(
                   color: BrandColors.slate700, fontSize: 12))),
         ],
+      ),
+    );
+  }
+}
+
+/// MARSOUD-MOBILE-LEAD-FILES-01 (2026-09-17) — tappable chip that
+/// opens the PDF (or any file the server serves) in the phone
+/// browser via url_launcher.  A failed launch shows a snack bar
+/// with the raw URL so the user can copy it manually — never
+/// silently swallows.
+class _FileChip extends StatelessWidget {
+  final String label;
+  final String emoji;
+  final String url;
+  const _FileChip({
+    required this.label,
+    required this.emoji,
+    required this.url,
+  });
+
+  Future<void> _open(BuildContext context) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final ok = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!ok) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('تعذّر فتح الملف. $url')),
+        );
+      }
+    } catch (_) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('تعذّر فتح الملف. $url')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => _open(context),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: BrandColors.slate50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: BrandColors.slate200),
+        ),
+        child: Row(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 18)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: BrandColors.navy900,
+                ),
+              ),
+            ),
+            const Icon(
+              Icons.open_in_new,
+              size: 16,
+              color: BrandColors.slate500,
+            ),
+          ],
+        ),
       ),
     );
   }

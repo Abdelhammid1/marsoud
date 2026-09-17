@@ -26,7 +26,7 @@ are per-user by default.
 """
 from datetime import datetime, timedelta
 
-from flask import Blueprint, jsonify, request, g
+from flask import Blueprint, current_app, jsonify, request, g
 from flask_login import current_user
 
 from app import db
@@ -71,6 +71,21 @@ def _parse_dt(raw):
         return datetime.fromisoformat(s.replace("Z", "+00:00"))
     except (ValueError, AttributeError):
         return None
+
+
+def _abs_doc_url(rel):
+    """MARSOUD-MOBILE-LEAD-FILES-01 — turn a `/static/docs/...`
+    relative path stored on a Lead into an absolute URL the phone
+    can hit.  Returns None for empty/None inputs so the mobile can
+    skip rendering the section.  Preserves the URL as-is if it's
+    already absolute (external CDN case)."""
+    if not rel or not str(rel).strip():
+        return None
+    s = str(rel).strip()
+    if s.startswith("http://") or s.startswith("https://"):
+        return s
+    base = (current_app.config.get("SITE_URL") or "").rstrip("/")
+    return f"{base}/{s.lstrip('/')}" if base else s
 
 
 def _lead_brief(lead):
@@ -363,6 +378,15 @@ def lead_detail(lead_id):
         "sales_action_required": lead.sales_action_required,
         "activities": [_lead_activity_brief(a) for a in activities],
         "history": [_lead_event_brief(e) for e in history],
+        # MARSOUD-MOBILE-LEAD-FILES-01 (2026-09-17) — the two file
+        # slots that the web /leads/<id>/upload/<kind> endpoint
+        # writes.  Stored on the Lead as `/static/docs/...` relative
+        # paths; the mobile can't fetch a relative URL so we prepend
+        # SITE_URL when set.  Null when the tenant hasn't uploaded
+        # a quote/contract yet — the mobile hides the section in
+        # that case.
+        "quotation_url": _abs_doc_url(lead.quotation_path),
+        "contract_url": _abs_doc_url(lead.contract_path),
     })
     return jsonify({"lead": body})
 
