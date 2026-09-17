@@ -13,6 +13,7 @@ import '../features/auth/login_screen.dart';
 import '../features/custody/custody_screen.dart';
 import '../features/daily_reports/daily_report_detail_screen.dart';
 import '../features/daily_reports/daily_reports_screen.dart';
+import '../features/dashboard/dashboard_screen.dart';
 import '../features/files/files_screen.dart';
 import '../features/home/home_shell.dart';
 import '../features/items/items_screen.dart';
@@ -47,7 +48,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       final onAuthPage = loc == '/login';
       if (!loggedIn) return onAuthPage ? null : '/login';
       if (loggedIn && (loc == '/login' || loc == '/splash')) {
-        return '/home';
+        // MARSOUD-MOBILE-DASHBOARD-01 (2026-09-17) — the landing
+        // screen after login is now /dashboard (KPI tiles +
+        // quick actions), not the old /home (which was My Account
+        // and is still reachable from the drawer + dashboard).
+        return '/dashboard';
       }
       // MARSOUD-MOBILE-BIOMETRIC-01 (2026-09-17) — if biometric is
       // on for this session AND the user hasn't unlocked it yet
@@ -62,7 +67,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         return '/lock';
       }
       if (!locked && loc == '/lock') {
-        return '/home';
+        return '/dashboard';
       }
       return null;
     },
@@ -76,6 +81,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       ShellRoute(
         builder: (context, state, child) => HomeShell(child: child),
         routes: [
+          // MARSOUD-MOBILE-DASHBOARD-01 (2026-09-17) — new landing.
+          // KPI tiles + quick actions + upcoming meetings.  /home
+          // stays as My Account so old push deep-links + drawer
+          // entries continue to work.
+          GoRoute(path: '/dashboard',
+              builder: (_, __) => const DashboardScreen()),
           GoRoute(path: '/home',
               builder: (_, __) => const MyAccountScreen()),
           GoRoute(path: '/attendance',

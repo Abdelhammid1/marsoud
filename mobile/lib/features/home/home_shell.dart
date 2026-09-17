@@ -53,6 +53,11 @@ class _DrawerSection {
 }
 
 const _employeeDrawer = <_DrawerSection>[
+  // MARSOUD-MOBILE-DASHBOARD-01 (2026-09-17) — dashboard sits at
+  // the top of the drawer too so users who prefer the drawer can
+  // still get there in one tap.  Duplicates the bottom-nav
+  // destination on purpose — the two navs coexist.
+  _DrawerSection(label: 'الرئيسية', emoji: '🏠', route: '/dashboard'),
   _DrawerSection(
     label: 'حسابي', emoji: '👤',
     children: [
@@ -126,13 +131,14 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         });
       }
     });
+    final currentPath = GoRouterState.of(context).matchedLocation;
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: Colors.transparent,
       drawer: _SideDrawer(
         session: session,
         links: _drawerFor(session.activeRole),
-        currentPath: GoRouterState.of(context).matchedLocation,
+        currentPath: currentPath,
       ),
       body: ScaffoldGradient(
         child: SafeArea(
@@ -148,6 +154,94 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           ),
         ),
       ),
+      // MARSOUD-MOBILE-DASHBOARD-01 (2026-09-17) — bottom nav gives
+      // users a one-tap path to the four screens they open every
+      // day: Dashboard, Tasks, Leads, and the full menu.  Drawer
+      // is still the source of truth for the long-tail (projects,
+      // meetings, files, requests, notifications, support) — the
+      // bottom nav is deliberately narrow, not a duplicate of the
+      // drawer.
+      bottomNavigationBar: _BottomNav(
+        currentPath: currentPath,
+        onOpenMenu: () => _scaffoldKey.currentState?.openDrawer(),
+      ),
+    );
+  }
+}
+
+/// MARSOUD-MOBILE-DASHBOARD-01 (2026-09-17) — persistent bottom nav
+/// pinned to four destinations that users hit the most.  The fourth
+/// tab is a "menu" opener rather than a page — it slides the drawer
+/// out so the long-tail nav stays a single tap away without
+/// duplicating a dozen icons in the bar.
+class _BottomNav extends StatelessWidget {
+  final String currentPath;
+  final VoidCallback onOpenMenu;
+  const _BottomNav({required this.currentPath, required this.onOpenMenu});
+
+  int _indexFor(String path) {
+    if (path == '/dashboard') return 0;
+    // A path like '/tasks/new' or '/tasks/123' still counts as the
+    // tasks tab — the user is inside the tasks stack.
+    if (path == '/tasks' || path.startsWith('/tasks/')) return 1;
+    if (path == '/leads' || path.startsWith('/leads/')) return 2;
+    return -1;   // no tab highlighted (e.g. /notifications, /files)
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final idx = _indexFor(currentPath);
+    return NavigationBar(
+      selectedIndex: idx < 0 ? 0 : idx,
+      // idx == -1 → nothing lit; keep index 0 for the Widget but
+      // dim the tint so the user isn't misled.  A tap always
+      // navigates regardless.
+      backgroundColor: Colors.white,
+      indicatorColor:
+          idx < 0 ? Colors.transparent : BrandColors.emerald50,
+      surfaceTintColor: Colors.white,
+      height: 60,
+      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+      destinations: const [
+        NavigationDestination(
+          icon: Icon(Icons.dashboard_outlined),
+          selectedIcon:
+              Icon(Icons.dashboard, color: BrandColors.emerald700),
+          label: 'الرئيسية',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.check_circle_outline),
+          selectedIcon:
+              Icon(Icons.check_circle, color: BrandColors.emerald700),
+          label: 'مهامي',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.track_changes_outlined),
+          selectedIcon:
+              Icon(Icons.track_changes, color: BrandColors.emerald700),
+          label: 'عملائي',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.menu),
+          label: 'القائمة',
+        ),
+      ],
+      onDestinationSelected: (i) {
+        switch (i) {
+          case 0:
+            context.go('/dashboard');
+            break;
+          case 1:
+            context.go('/tasks');
+            break;
+          case 2:
+            context.go('/leads');
+            break;
+          case 3:
+            onOpenMenu();
+            break;
+        }
+      },
     );
   }
 }

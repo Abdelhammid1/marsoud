@@ -10,7 +10,7 @@ publish_to: 'none'
 # +13 so it stays strictly higher than the last upload (12) —
 # Apple rejects any build whose CFBundleVersion is <= a previously
 # uploaded build within the same marketing version.
-version: 1.0.12+21
+version: 1.0.13+22
 
 environment:
   sdk: ^3.5.0
