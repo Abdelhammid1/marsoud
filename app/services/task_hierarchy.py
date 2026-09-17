@@ -79,19 +79,69 @@ def available_parents_for(task_or_none, company_id, user_id,
     Uses the existing visible_tasks_query so the picker never
     leaks tasks the user can't otherwise see. Archived tasks are
     excluded (a parent that isn't on the board would confuse the
-    breadcrumb)."""
+    breadcrumb).
+
+    MARSOUD-TASK-PARENT-BY-PROJECT-01 (2026-09-17) — sort is now
+    `created_at DESC` (was alphabetic on Task.title). Newest tasks
+    are the ones the user just made and most likely to pick as a
+    parent; alphabetic order made the picker feel arbitrary.
+    """
     from app.services.tasks_extras import visible_tasks_query
     from app.models import Task
     q = (visible_tasks_query(company_id, user_id,
                               full_visibility, pm_project_ids)
          .filter(Task.archived_at.is_(None)))
     if task_or_none is None:
-        return q.order_by(Task.title).all()
+        return q.order_by(Task.created_at.desc()).all()
     excluded = descendant_ids(task_or_none) | {task_or_none.id}
     if not excluded:
-        return q.order_by(Task.title).all()
+        return q.order_by(Task.created_at.desc()).all()
     return (q.filter(~Task.id.in_(excluded))
-             .order_by(Task.title).all())
+             .order_by(Task.created_at.desc()).all())
+
+
+# MARSOUD-TASK-PARENT-BY-PROJECT-01 (2026-09-17) — the Create Task
+# form filters the Parent Task dropdown by the currently-selected
+# Project. Same pattern as `milestones_by_project`: server ships
+# ONE grouped payload; JS switches the visible options on project
+# change so the user doesn't hunt through unrelated tasks.
+def parents_by_project_grouped(company_id, user_id,
+                                full_visibility, pm_project_ids=None,
+                                exclude_task=None):
+    """Return a {bucket_key: [{"id", "title", "project_id"}, ...]}
+    map where:
+      · bucket_key = str(project_id) for tasks with a project
+      · bucket_key = "none" for tasks with no project
+    Each bucket is ordered by `created_at DESC`.
+
+    `exclude_task` (optional) is the task being edited — its
+    descendants + itself are dropped so a task can't be made its
+    own parent (mirrors available_parents_for's cycle guard). On
+    create, pass None.
+
+    Visibility, tenancy, and archived-filter come straight from
+    `visible_tasks_query`, so the JSON payload never leaks a task
+    the user shouldn't otherwise see.
+    """
+    from app.services.tasks_extras import visible_tasks_query
+    from app.models import Task
+    q = (visible_tasks_query(company_id, user_id,
+                              full_visibility, pm_project_ids)
+         .filter(Task.archived_at.is_(None))
+         .order_by(Task.created_at.desc()))
+    if exclude_task is not None:
+        excluded_ids = descendant_ids(exclude_task) | {exclude_task.id}
+        if excluded_ids:
+            q = q.filter(~Task.id.in_(excluded_ids))
+    result = {"none": []}
+    for t in q.all():
+        key = str(t.project_id) if t.project_id else "none"
+        result.setdefault(key, []).append({
+            "id": t.id,
+            "title": t.title,
+            "project_id": t.project_id,
+        })
+    return result
 
 
 def validate_parent(task, new_parent_id):

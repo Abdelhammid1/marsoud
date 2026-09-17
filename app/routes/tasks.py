@@ -692,10 +692,31 @@ def new():
     # MARSOUD-PARENT-CHILD-TASK-HIERARCHY (2026-08-09) — parent
     # picker candidates + pre-selected parent from ?parent_task_id
     # (used by the "+ subtask" button on a parent's detail page).
-    from app.services.task_hierarchy import available_parents_for
-    parent_choices = available_parents_for(
-        None, cid, current_user.id,
-        _has_full_task_visibility(), _pm_project_ids() or None)
+    #
+    # MARSOUD-TASK-PARENT-BY-PROJECT-01 (2026-09-17) — the picker
+    # now filters by the currently-selected Project. `parent_choices`
+    # still ships the initial list the server renders on page load
+    # (either the "no-project" bucket or the picked-project bucket),
+    # and `parents_by_project` ships every bucket so the JS in
+    # form.html can switch the visible options on project change
+    # without a round-trip.
+    from app.services.task_hierarchy import (
+        available_parents_for, parents_by_project_grouped,
+    )
+    _full_vis = _has_full_task_visibility()
+    _pm_ids = _pm_project_ids() or None
+    parents_by_project = parents_by_project_grouped(
+        cid, current_user.id, _full_vis, _pm_ids)
+    # Initial dropdown content = the bucket for the pre-selected
+    # project (or "none" if no project). Matches whatever the JS
+    # would show after the first `refreshParents()` call, so the
+    # user sees the right list even before touching the picker.
+    _initial_key = (str(selected_project)
+                    if selected_project else "none")
+    parent_choices = [
+        {"id": t["id"], "title": t["title"]}
+        for t in parents_by_project.get(_initial_key, [])
+    ]
     raw_parent = (request.args.get("parent_task_id") or "").strip()
     selected_parent_id = int(raw_parent) if raw_parent.isdigit() else None
     return render_template("tasks/form.html",
@@ -706,6 +727,7 @@ def new():
                            selected_project=selected_project,
                            selected_assignee_ids=[],
                            parent_choices=parent_choices,
+                           parents_by_project=parents_by_project,
                            selected_parent_id=selected_parent_id)
 
 
@@ -911,10 +933,23 @@ def edit(task_id):
     # feeds the <select name="parent_task_id"> in form.html;
     # excludes self + descendants so the user can't build a cycle
     # by picking (see services/task_hierarchy.py).
-    from app.services.task_hierarchy import available_parents_for
-    parent_choices = available_parents_for(
-        t, cid, current_user.id,
-        _has_full_task_visibility(), _pm_project_ids() or None)
+    #
+    # MARSOUD-TASK-PARENT-BY-PROJECT-01 (2026-09-17) — same
+    # project-filter as `new()`. Initial dropdown shows only the
+    # task's current-project bucket; JS switches on project change.
+    from app.services.task_hierarchy import (
+        available_parents_for, parents_by_project_grouped,
+    )
+    _full_vis = _has_full_task_visibility()
+    _pm_ids = _pm_project_ids() or None
+    parents_by_project = parents_by_project_grouped(
+        cid, current_user.id, _full_vis, _pm_ids,
+        exclude_task=t)
+    _initial_key = str(t.project_id) if t.project_id else "none"
+    parent_choices = [
+        {"id": tt["id"], "title": tt["title"]}
+        for tt in parents_by_project.get(_initial_key, [])
+    ]
     return render_template("tasks/form.html",
                            task=t, projects=projects, users=users,
                            priorities=TaskPriority,
@@ -922,6 +957,7 @@ def edit(task_id):
                            milestones_by_project=milestones_by_project,
                            selected_assignee_ids=list(assignee_ids_for(t)),
                            parent_choices=parent_choices,
+                           parents_by_project=parents_by_project,
                            selected_parent_id=t.parent_task_id)
 
 

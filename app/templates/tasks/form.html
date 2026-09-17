@@ -227,4 +227,52 @@
 })();
 </script>
 {% endif %}
+
+{# MARSOUD-TASK-PARENT-BY-PROJECT-01 (2026-09-17) — parent-task
+   picker follows the project selection. The map ships every
+   bucket (project_id → sorted list of tasks, plus a "none" bucket
+   for orphan tasks); the change listener swaps the visible
+   options + auto-deselects any parent that no longer belongs to
+   the picked project. Sorting comes from the server (created_at
+   DESC) so newest tasks show first — no client-side sort needed. #}
+{% if parents_by_project is defined and parents_by_project %}
+<script id="task-parents-data" type="application/json">{{ parents_by_project|tojson }}</script>
+<script>
+(function(){
+  const dataEl = document.getElementById('task-parents-data');
+  const projSel = document.getElementById('task-project-select');
+  const parentSel = document.getElementById('task-parent-select');
+  if (!dataEl || !projSel || !parentSel) return;
+  let map = {};
+  try { map = JSON.parse(dataEl.textContent || '{}'); } catch(_) {}
+  function refreshParents(){
+    const pid = projSel.value;
+    const key = pid ? String(pid) : 'none';
+    const list = Array.isArray(map[key]) ? map[key] : [];
+    // Remember whatever the user had picked so we can restore it
+    // only when it's still valid under the new project.
+    const previouslySelected = parentSel.value;
+    parentSel.innerHTML = '<option value="">— بدون (مهمة أساسية) —</option>';
+    let stillValid = false;
+    list.forEach(function(t){
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = t.title;
+      if (String(t.id) === previouslySelected) {
+        opt.selected = true;
+        stillValid = true;
+      }
+      parentSel.appendChild(opt);
+    });
+    // If the previously-selected parent isn't inside the new
+    // project's bucket, drop it — matches the AC "Parent Task
+    // غير التابعة للـProject الجديد يتم إلغاء اختيارها".
+    if (!stillValid) {
+      parentSel.value = '';
+    }
+  }
+  projSel.addEventListener('change', refreshParents);
+})();
+</script>
+{% endif %}
 {% endblock %}
