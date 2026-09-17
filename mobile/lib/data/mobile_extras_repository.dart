@@ -88,6 +88,23 @@ class MobileExtrasRepository {
         if (followUpDate != null) 'follow_up_date': followUpDate,
       })) as Map<String, dynamic>;
 
+  /// MARSOUD-MOBILE-ACTIVITY-FILES-01 (2026-09-17) — attach a
+  /// photo/PDF/doc to an existing activity. Reuses the backend's
+  /// generic Document store; caller can attach multiple files by
+  /// calling once per file.
+  Future<Map<String, dynamic>> uploadActivityAttachment(
+    int leadId,
+    int activityId, {
+    required String filePath,
+    String? filename,
+  }) async =>
+      (await _api.postFile(
+        '/api/v1/my/leads/$leadId/activities/$activityId/attachments',
+        field: 'file',
+        filePath: filePath,
+        filename: filename,
+      )) as Map<String, dynamic>;
+
   // ─── Meetings ─────────────────────────────────────────────
   Future<Map<String, dynamic>> meetings({int days = 30}) async =>
       (await _api.get('/api/v1/my/meetings?days=$days'))

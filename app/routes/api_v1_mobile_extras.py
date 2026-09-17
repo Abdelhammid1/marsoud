@@ -114,7 +114,11 @@ def _lead_brief(lead):
     }
 
 
-def _lead_activity_brief(a):
+def _lead_activity_brief(a, attachments=None):
+    """attachments: optional pre-fetched list of Document rows tied
+    to this activity (source_type='LEAD_ACTIVITY', source_id=a.id).
+    Callers that walk N activities should batch-fetch to avoid a
+    per-row query — see `lead_detail` for the pattern."""
     return {
         "id": a.id,
         "type": a.type.value if a.type else None,
@@ -130,6 +134,16 @@ def _lead_activity_brief(a):
         "follow_up_date":
             a.follow_up_date.isoformat()
             if a.follow_up_date else None,
+        "attachments": [
+            {
+                "id": d.id,
+                "name": d.name,
+                "url": _abs_doc_url(d.file_path),
+                "mimetype": d.mimetype,
+                "size_bytes": d.size_bytes,
+            }
+            for d in (attachments or [])
+        ],
     }
 
 
@@ -370,13 +384,33 @@ def lead_detail(lead_id):
                 .filter_by(lead_id=lead.id)
                 .order_by(LeadStatusEvent.created_at.desc())
                 .limit(100).all())
+    # MARSOUD-MOBILE-ACTIVITY-FILES-01 (2026-09-17) — one query for
+    # every attachment across the returned activities, then bucketed
+    # in Python.  Keeps the list endpoint at O(1) queries even for
+    # long timelines and lets `_lead_activity_brief` fold the
+    # attachments in without knowing how they were fetched.
+    from app.models import Document
+    activity_ids = [a.id for a in activities]
+    docs_by_activity = {}
+    if activity_ids:
+        docs = (Document.query
+                 .filter(Document.company_id == lead.company_id,
+                          Document.source_type == "LEAD_ACTIVITY",
+                          Document.source_id.in_(activity_ids))
+                 .order_by(Document.created_at.asc())
+                 .all())
+        for d in docs:
+            docs_by_activity.setdefault(d.source_id, []).append(d)
     body = _lead_brief(lead)
     body.update({
         "notes": lead.notes,
         "meeting_notes": lead.meeting_notes,
         "request_description": lead.request_description,
         "sales_action_required": lead.sales_action_required,
-        "activities": [_lead_activity_brief(a) for a in activities],
+        "activities": [
+            _lead_activity_brief(a, attachments=docs_by_activity.get(a.id))
+            for a in activities
+        ],
         "history": [_lead_event_brief(e) for e in history],
         # MARSOUD-MOBILE-LEAD-FILES-01 (2026-09-17) — the two file
         # slots that the web /leads/<id>/upload/<kind> endpoint
@@ -466,6 +500,56 @@ def lead_add_activity(lead_id):
     return jsonify({
         "ok": True,
         "activity": _lead_activity_brief(row),
+    }), 201
+
+
+# MARSOUD-MOBILE-ACTIVITY-FILES-01 (2026-09-17) — Batch 3 tail: mobile
+# users can attach a photo/PDF to an activity (proof of a WhatsApp
+# send, delivery note from a site visit, scanned quote receipt).
+# Reuses the same `save_document` service the web /leads/upload
+# endpoint calls; enum was extended to include LEAD_ACTIVITY and the
+# whitelist widened accordingly.  Multiple attachments per activity
+# are allowed — each POST appends one file.
+@leads_bp.route("/<int:lead_id>/activities/<int:activity_id>/attachments",
+                methods=["POST"])
+def lead_activity_add_attachment(lead_id, activity_id):
+    from app.services.opsflow_extras import (
+        save_document, DocumentError,
+    )
+    from app.models import DocumentSourceType, DocumentVisibility
+    lead = _get_lead_or_404(lead_id)
+    if not isinstance(lead, Lead):
+        return lead
+    activity = (LeadActivity.query
+                 .filter_by(id=activity_id, lead_id=lead.id,
+                             company_id=lead.company_id)
+                 .first())
+    if activity is None:
+        return _err("activity_not_found", 404)
+    file_storage = request.files.get("file")
+    if file_storage is None or not file_storage.filename:
+        return _err("file_required", 400)
+    try:
+        doc = save_document(
+            company_id=lead.company_id,
+            source_type=DocumentSourceType.LEAD_ACTIVITY,
+            source_id=activity.id,
+            file_storage=file_storage,
+            visibility=DocumentVisibility.INTERNAL,
+            uploaded_by_id=current_user.id,
+            name=file_storage.filename,
+        )
+    except DocumentError as e:
+        return _err(str(e), 400)
+    return jsonify({
+        "ok": True,
+        "attachment": {
+            "id": doc.id,
+            "name": doc.name,
+            "url": _abs_doc_url(doc.file_path),
+            "mimetype": doc.mimetype,
+            "size_bytes": doc.size_bytes,
+        },
     }), 201
 
 

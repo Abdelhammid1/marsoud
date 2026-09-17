@@ -288,7 +288,11 @@ def save_document(*, company_id, source_type, source_id, file_storage,
     # attaching transfer receipt on approval).
     if src not in ("LEAD", "PROJECT", "TASK",
                     "CASH_CUSTODY_SETTLEMENT", "ITEM_CUSTODY",
-                    "CASH_CUSTODY_REQUEST"):
+                    "CASH_CUSTODY_REQUEST",
+                    # MARSOUD-MOBILE-ACTIVITY-FILES-01 (2026-09-17) —
+                    # mobile users can attach a photo/PDF to a lead
+                    # activity when logging a QUOTE_SENT, VISIT, etc.
+                    "LEAD_ACTIVITY"):
         raise DocumentError("نوع غير صالح")
 
     doc_dir = Path(current_app.root_path) / "static" / "docs" / str(company_id) / src.lower()

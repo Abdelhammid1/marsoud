@@ -70,6 +70,30 @@ class ApiClient {
     return _run(() => _dio.post(path, data: body, queryParameters: query));
   }
 
+  /// MARSOUD-MOBILE-ACTIVITY-FILES-01 (2026-09-17) — multipart file
+  /// upload. `field` is the form field name (backend reads it via
+  /// `request.files.get(field)`), `filePath` is the local absolute
+  /// path from file_picker/image_picker, `filename` overrides the
+  /// browser-side name if provided.  Content-Type is switched to
+  /// `multipart/form-data` for this request only.
+  Future<dynamic> postFile(
+    String path, {
+    required String field,
+    required String filePath,
+    String? filename,
+    Map<String, dynamic>? query,
+  }) async {
+    final form = FormData.fromMap({
+      field: await MultipartFile.fromFile(filePath, filename: filename),
+    });
+    return _run(() => _dio.post(
+          path,
+          data: form,
+          queryParameters: query,
+          options: Options(contentType: 'multipart/form-data'),
+        ));
+  }
+
   // MARSOUD-MOBILE-TKT-05 (2026-08-18) — DELETE with an optional
   // body. Used by the push-token revoke-by-token endpoint.
   Future<dynamic> delete(String path,

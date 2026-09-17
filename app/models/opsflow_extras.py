@@ -30,6 +30,15 @@ class DocumentSourceType(str, enum.Enum):
     # proof even if the resulting custody is later cancelled or
     # reversed.
     CASH_CUSTODY_REQUEST = "CASH_CUSTODY_REQUEST"
+    # MARSOUD-MOBILE-ACTIVITY-FILES-01 (2026-09-17) — attachments
+    # pinned to a specific LeadActivity row (a photo of a signed
+    # quote, a screenshot of a WhatsApp receipt, the delivery note
+    # from a site visit).  source_id points at LeadActivity.id.
+    # Kept as its own type so a future doc-library query can slice
+    # "everything sent as evidence during the sales cycle" without
+    # tangling it with the Lead-wide quotation_path / contract_path
+    # slots.
+    LEAD_ACTIVITY = "LEAD_ACTIVITY"
 
 
 class DocumentVisibility(str, enum.Enum):

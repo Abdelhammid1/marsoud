@@ -25,6 +25,7 @@
 // sections + polishes the activity tile.  Nothing on the backend
 // changes.  Files-per-activity, contracts, and quotes require new
 // endpoints; those are deferred to Batch 3.
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -520,6 +521,9 @@ class _ActivityCard extends StatelessWidget {
     final when = _fmtActivityWhen(
         activity['activity_date']?.toString());
     final followUp = activity['follow_up_date']?.toString();
+    final attachments = (activity['attachments'] as List?)
+            ?.cast<Map<String, dynamic>>() ??
+        const [];
     return Container(
       margin: const EdgeInsets.only(top: 8),
       padding: const EdgeInsets.all(10),
@@ -602,7 +606,95 @@ class _ActivityCard extends StatelessWidget {
               ),
             ),
           ],
+          // MARSOUD-MOBILE-ACTIVITY-FILES-01 (2026-09-17) — per-activity
+          // attachments (proof of a WhatsApp send, delivery note,
+          // scanned receipt).  Each renders as a compact chip that
+          // opens the file in the OS browser.
+          if (attachments.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final att in attachments)
+                  _AttachmentPill(attachment: att),
+              ],
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+/// MARSOUD-MOBILE-ACTIVITY-FILES-01 (2026-09-17) — one attached file
+/// as a compact pill; tapping opens it in the OS handler.
+class _AttachmentPill extends StatelessWidget {
+  final Map<String, dynamic> attachment;
+  const _AttachmentPill({required this.attachment});
+
+  Future<void> _open(BuildContext context) async {
+    final url = (attachment['url'] ?? '').toString();
+    if (url.isEmpty) return;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final ok = await launchUrl(uri,
+          mode: LaunchMode.externalApplication);
+      if (!ok) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('تعذّر فتح المرفق. $url')),
+        );
+      }
+    } catch (_) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('تعذّر فتح المرفق. $url')),
+      );
+    }
+  }
+
+  IconData _iconFor(String? mime) {
+    final m = (mime ?? '').toLowerCase();
+    if (m.startsWith('image/')) return Icons.image_outlined;
+    if (m == 'application/pdf') return Icons.picture_as_pdf_outlined;
+    return Icons.insert_drive_file_outlined;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (attachment['name'] ?? 'ملف').toString();
+    return InkWell(
+      onTap: () => _open(context),
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: BrandColors.emerald50,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: BrandColors.emerald100),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(_iconFor(attachment['mimetype']?.toString()),
+                size: 14, color: BrandColors.emerald700),
+            const SizedBox(width: 6),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 160),
+              child: Text(
+                name,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: BrandColors.emerald700,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -683,12 +775,36 @@ class _AddActivitySheetState extends ConsumerState<_AddActivitySheet> {
   final _subject = TextEditingController();
   final _body = TextEditingController();
   bool _submitting = false;
+  // MARSOUD-MOBILE-ACTIVITY-FILES-01 (2026-09-17) — files staged for
+  // upload AFTER the activity row is created (need its id).  Cleared
+  // on submit success.
+  final List<PlatformFile> _stagedFiles = [];
 
   @override
   void dispose() {
     _subject.dispose();
     _body.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+        withData: false,
+      );
+      if (result == null) return;
+      setState(() {
+        _stagedFiles.addAll(
+          result.files.where((f) => f.path != null && f.path!.isNotEmpty),
+        );
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذّر اختيار الملف: $e')),
+      );
+    }
   }
 
   @override
@@ -717,6 +833,17 @@ class _AddActivitySheetState extends ConsumerState<_AddActivitySheet> {
               DropdownMenuItem(value: 'WHATSAPP',
                   child: Text('💬 واتساب')),
               DropdownMenuItem(value: 'VISIT', child: Text('🚶 زيارة')),
+              // MARSOUD-MOBILE-ACTIVITY-FILES-01 (2026-09-17) — now
+              // that files-per-activity is wired, expose the
+              // taxonomy the web uses for sending quotes/files/
+              // contracts so reporting stays consistent between
+              // the two clients.
+              DropdownMenuItem(value: 'FILE_SENT',
+                  child: Text('📎 إرسال ملف')),
+              DropdownMenuItem(value: 'QUOTE_SENT',
+                  child: Text('📄 إرسال عرض سعر')),
+              DropdownMenuItem(value: 'CONTRACT_SIGNED',
+                  child: Text('✍ توقيع عقد')),
             ],
             onChanged: (v) => setState(() => _type = v ?? 'CALL'),
           ),
@@ -732,6 +859,36 @@ class _AddActivitySheetState extends ConsumerState<_AddActivitySheet> {
                 labelText: 'النتيجة / التعليق'),
             maxLines: 4,
           ),
+          const SizedBox(height: 8),
+          // MARSOUD-MOBILE-ACTIVITY-FILES-01 — pick multiple files to
+          // attach.  They stage locally and upload only after the
+          // activity row is created (needs its id), so the note is
+          // never lost when an upload fails mid-flight.
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton.icon(
+              onPressed: _submitting ? null : _pickFile,
+              icon: const Icon(Icons.attach_file, size: 16),
+              label: const Text('إرفاق ملف'),
+            ),
+          ),
+          if (_stagedFiles.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (var i = 0; i < _stagedFiles.length; i++)
+                  InputChip(
+                    label: Text(_stagedFiles[i].name,
+                        style: const TextStyle(fontSize: 11)),
+                    onDeleted: _submitting
+                        ? null
+                        : () => setState(() => _stagedFiles.removeAt(i)),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
           FilledButton(
             onPressed: _submitting ? null : _submit,
@@ -749,14 +906,37 @@ class _AddActivitySheetState extends ConsumerState<_AddActivitySheet> {
   Future<void> _submit() async {
     setState(() => _submitting = true);
     final messenger = ScaffoldMessenger.of(context);
+    final repo = ref.read(mobileExtrasRepoProvider);
     try {
-      await ref.read(mobileExtrasRepoProvider).addLeadActivity(
+      final res = await repo.addLeadActivity(
         widget.leadId,
         type: _type,
         subject: _subject.text.trim().isEmpty
             ? null : _subject.text.trim(),
         body: _body.text.trim().isEmpty ? null : _body.text.trim(),
       );
+      // MARSOUD-MOBILE-ACTIVITY-FILES-01 — upload each staged file
+      // AFTER the activity exists.  Failures per-file surface as
+      // snack bars but never lose the activity itself.
+      final aid = (res['activity'] as Map?)?['id'];
+      if (aid is int && _stagedFiles.isNotEmpty) {
+        for (final f in _stagedFiles) {
+          final path = f.path;
+          if (path == null || path.isEmpty) continue;
+          try {
+            await repo.uploadActivityAttachment(
+              widget.leadId,
+              aid,
+              filePath: path,
+              filename: f.name,
+            );
+          } on ApiException catch (e) {
+            messenger.showSnackBar(SnackBar(
+              content: Text('${f.name}: ${e.message}'),
+            ));
+          }
+        }
+      }
       widget.onCreated();
       if (mounted) Navigator.of(context).pop();
     } on ApiException catch (e) {
