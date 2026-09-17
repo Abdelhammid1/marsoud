@@ -27,28 +27,56 @@ class _DrawerLink {
 // الحضور and سجل نشاطي used to live here but are both reachable from
 // the tab strip inside حسابي (My Account). Keeping duplicate entry
 // points was noise — matches the web sidebar convention (base.html:566-575).
-const _employeeDrawer = <_DrawerLink>[
-  _DrawerLink('حسابي', '👤', '/home'),
-  // MARSOUD-MOBILE-TKT-01 (2026-08-18) — three modules added:
-  // leads, meetings, schedule. Placed near the top since the
-  // ticket lists them as employee-critical.
-  _DrawerLink('عملائي المحتملين', '🎯', '/leads'),
-  _DrawerLink('اجتماعاتي', '📅', '/meetings'),
-  _DrawerLink('جدولي', '🗓', '/schedule'),
-  // MARSOUD-MOBILE-TKT-03 (2026-08-18) — طلبات الموظف
-  // (leave / permission / advance forms).
-  _DrawerLink('طلباتي', '📮', '/requests'),
-  // إدارة العمل — matches base.html:658-664
-  _DrawerLink('المهام', '✅', '/tasks'),
-  _DrawerLink('المشاريع', '📂', '/projects'),
-  _DrawerLink('أرشيفي', '🗂', '/archive'),
-  // تقارير + عهد + ملفات + دعم
-  _DrawerLink('تقاريري اليومية', '📝', '/daily-reports'),
-  _DrawerLink('عهدتي النقدية', '💵', '/custody'),
-  _DrawerLink('عهدي العينية', '📦', '/items'),
-  _DrawerLink('ملفاتي', '📁', '/files'),
-  _DrawerLink('الدعم الفني', '🆘', '/support'),
-  _DrawerLink('الإشعارات', '🔔', '/notifications'),
+//
+// MARSOUD-MOBILE-SHELL-POLISH-01 (2026-09-17) — sidebar reorganized
+// into three top-level buckets to reduce scroll + let the user find
+// things by category, not by scanning a 14-item flat list:
+//
+//   حسابي bucket:      طلباتي, تقاريري اليومية, عهدتي, عهدي, ملفاتي
+//   المهام bucket:     أرشيفي (subtasks under Tasks)
+//   Everything else:  top-level (Leads, Projects, Meetings, …)
+//
+// Rendered as ExpansionTile in the drawer so buckets can collapse.
+// The `children` field is empty for a plain link.
+class _DrawerSection {
+  final String label;
+  final String emoji;
+  final String? route;             // top-level link (children empty)
+  final List<_DrawerLink> children; // nested expander (route null)
+  const _DrawerSection({
+    required this.label,
+    required this.emoji,
+    this.route,
+    this.children = const [],
+  });
+  bool get isExpander => route == null;
+}
+
+const _employeeDrawer = <_DrawerSection>[
+  _DrawerSection(
+    label: 'حسابي', emoji: '👤',
+    children: [
+      _DrawerLink('نظرة عامة', '👤', '/home'),
+      _DrawerLink('طلباتي', '📮', '/requests'),
+      _DrawerLink('تقاريري اليومية', '📝', '/daily-reports'),
+      _DrawerLink('عهدتي النقدية', '💵', '/custody'),
+      _DrawerLink('عهدي العينية', '📦', '/items'),
+      _DrawerLink('ملفاتي', '📁', '/files'),
+    ],
+  ),
+  _DrawerSection(label: 'عملائي المحتملين', emoji: '🎯', route: '/leads'),
+  _DrawerSection(label: 'اجتماعاتي', emoji: '📅', route: '/meetings'),
+  _DrawerSection(label: 'جدولي', emoji: '🗓', route: '/schedule'),
+  _DrawerSection(
+    label: 'المهام', emoji: '✅',
+    children: [
+      _DrawerLink('كل المهام', '✅', '/tasks'),
+      _DrawerLink('أرشيفي', '🗂', '/archive'),
+    ],
+  ),
+  _DrawerSection(label: 'المشاريع', emoji: '📂', route: '/projects'),
+  _DrawerSection(label: 'الإشعارات', emoji: '🔔', route: '/notifications'),
+  _DrawerSection(label: 'الدعم الفني', emoji: '🆘', route: '/support'),
 ];
 
 // MARSOUD-MOBILE-SHIP-READY-01 (L1) — TODO(persona): the README
@@ -57,7 +85,7 @@ const _employeeDrawer = <_DrawerLink>[
 // non-employee role also gets the Employee drawer — cosmetic today
 // (all our test users are employees) but ships a wrong menu the
 // moment we add a manager.
-List<_DrawerLink> _drawerFor(String role) => _employeeDrawer;
+List<_DrawerSection> _drawerFor(String role) => _employeeDrawer;
 
 class HomeShell extends ConsumerStatefulWidget {
   final Widget child;
@@ -143,21 +171,35 @@ class _TopBar extends ConsumerWidget {
         children: [
           // MARSOUD-MOBILE-SHIP-READY-01 (H1) — was menu-only. On
           // detail screens (context.canPop) show a back arrow so
-          // iOS users have a visible affordance to return. Menu
-          // stays as fallback for the root shell tabs.
-          if (Navigator.of(context).canPop())
-            IconButton(
-              icon: const Icon(Icons.arrow_forward,
-                  color: BrandColors.navy900),
-              tooltip: 'رجوع',
-              onPressed: () => Navigator.of(context).maybePop(),
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.menu, color: BrandColors.navy900),
-              tooltip: 'القائمة',
-              onPressed: onMenu,
-            ),
+          // iOS users have a visible affordance to return.
+          //
+          // MARSOUD-MOBILE-SHELL-POLISH-01 (2026-09-17) — the old
+          // check used `Navigator.of(context).canPop()`, which
+          // returns FALSE inside a ShellRoute even when go_router
+          // has a real stack (leads → lead detail, tasks → task
+          // detail, projects → project detail).  That's why users
+          // saw the hamburger on every screen and no way back.
+          //
+          // Switched to `GoRouter.of(context).canPop()` which
+          // consults the actual go_router stack, so every
+          // `context.push('/leads/123')` now gets a working back
+          // arrow.  Icon is Icons.arrow_back (Flutter mirrors
+          // it to arrow_forward automatically in RTL layouts, so
+          // the RTL user sees an arrow that points right → the
+          // direction their eye reads).
+          Builder(builder: (ctx) {
+            final canPop = GoRouter.of(ctx).canPop();
+            return IconButton(
+              icon: Icon(
+                canPop ? Icons.arrow_back : Icons.menu,
+                color: BrandColors.navy900,
+              ),
+              tooltip: canPop ? 'رجوع' : 'القائمة',
+              onPressed: canPop
+                  ? () => GoRouter.of(ctx).pop()
+                  : onMenu,
+            );
+          }),
           // MARSOUD-MOBILE-BRAND-LOGO-01 (2026-09-03) — real logo,
           // falls back to the "م" mark if the asset ever fails.
           Container(
@@ -363,7 +405,7 @@ final unreadCountProvider = StreamProvider.autoDispose<int>((ref) async* {
 
 class _SideDrawer extends ConsumerWidget {
   final AuthSession session;
-  final List<_DrawerLink> links;
+  final List<_DrawerSection> links;
   final String currentPath;
   const _SideDrawer({
     required this.session,
@@ -379,13 +421,28 @@ class _SideDrawer extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // MARSOUD-MOBILE-SHELL-POLISH-01 (2026-09-17) — was a
+            // dark navy gradient (navy900 → navy700). Feedback:
+            // "خلي الباك جراوند اللي تحتها فاتحة". Switched to a
+            // soft emerald-tinted white so the Marsoud logo reads
+            // and the section separator with the list below feels
+            // like one canvas, not a hard cut. Text colours
+            // adjusted to navy900 for contrast on the light bg.
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topRight,
                   end: Alignment.bottomLeft,
-                  colors: [BrandColors.navy900, BrandColors.navy700],
+                  colors: [
+                    BrandColors.emerald50,
+                    Colors.white,
+                  ],
+                ),
+                border: Border(
+                  bottom: BorderSide(
+                    color: BrandColors.slate200.withValues(alpha: 0.6),
+                  ),
                 ),
               ),
               child: Column(
@@ -397,8 +454,18 @@ class _SideDrawer extends ConsumerWidget {
                         width: 44,
                         height: 44,
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: BrandColors.emerald100),
+                          boxShadow: [
+                            BoxShadow(
+                              color: BrandColors.emerald500
+                                  .withValues(alpha: 0.15),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         alignment: Alignment.center,
                         child: ClipRRect(
@@ -411,7 +478,7 @@ class _SideDrawer extends ConsumerWidget {
                             errorBuilder: (_, __, ___) => const Text(
                               'م',
                               style: TextStyle(
-                                color: Colors.white,
+                                color: BrandColors.emerald700,
                                 fontWeight: FontWeight.w800,
                                 fontSize: 22,
                               ),
@@ -423,7 +490,7 @@ class _SideDrawer extends ConsumerWidget {
                       const Text(
                         'مرصود',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: BrandColors.navy900,
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
                         ),
@@ -434,7 +501,7 @@ class _SideDrawer extends ConsumerWidget {
                   Text(
                     session.user.name,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: BrandColors.navy900,
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                     ),
@@ -444,14 +511,12 @@ class _SideDrawer extends ConsumerWidget {
                   // MARSOUD-MOBILE-COMPANY-SWITCHER-01 (2026-09-03)
                   // — was a static Text. If the user is on more
                   // than one company, tap opens a picker sheet.
-                  // Single-company users see the plain label they
-                  // saw before, so no regression.
                   Builder(builder: (ctx) {
                     final label = session.activeCompany?.name ?? '';
                     if (session.companies.length <= 1) {
                       return Text(label,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.75),
+                          style: const TextStyle(
+                            color: BrandColors.slate500,
                             fontSize: 11,
                           ));
                     }
@@ -467,8 +532,8 @@ class _SideDrawer extends ConsumerWidget {
                             Flexible(
                               child: Text(
                                 label,
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.85),
+                                style: const TextStyle(
+                                  color: BrandColors.slate700,
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -476,9 +541,9 @@ class _SideDrawer extends ConsumerWidget {
                               ),
                             ),
                             const SizedBox(width: 4),
-                            Icon(Icons.swap_horiz,
+                            const Icon(Icons.swap_horiz,
                                 size: 14,
-                                color: Colors.white.withValues(alpha: 0.85)),
+                                color: BrandColors.slate500),
                           ],
                         ),
                       ),
@@ -492,15 +557,25 @@ class _SideDrawer extends ConsumerWidget {
               child: ListView(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 children: [
-                  for (final l in links)
-                    _DrawerItem(
-                      link: l,
-                      active: currentPath == l.route,
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        context.go(l.route);
-                      },
-                    ),
+                  for (final s in links)
+                    if (s.isExpander)
+                      _DrawerExpander(
+                        section: s,
+                        currentPath: currentPath,
+                        onLinkTap: (route) {
+                          Navigator.of(context).pop();
+                          context.go(route);
+                        },
+                      )
+                    else
+                      _DrawerItem(
+                        link: _DrawerLink(s.label, s.emoji, s.route!),
+                        active: currentPath == s.route,
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          context.go(s.route!);
+                        },
+                      ),
                 ],
               ),
             ),
@@ -546,10 +621,17 @@ class _DrawerItem extends StatelessWidget {
   final _DrawerLink link;
   final bool active;
   final VoidCallback onTap;
+  // MARSOUD-MOBILE-SHELL-POLISH-01 (2026-09-17) — the same widget
+  // renders both top-level shell links and the nested children
+  // inside an expander section (طلباتي under حسابي, أرشيفي under
+  // المهام).  `dense: true` shrinks the vertical padding so nested
+  // children look like siblings, not a duplicate top-level list.
+  final bool dense;
   const _DrawerItem({
     required this.link,
     required this.active,
     required this.onTap,
+    this.dense = false,
   });
 
   @override
@@ -557,7 +639,8 @@ class _DrawerItem extends StatelessWidget {
     // Matches base.html `.nav-link.active` — mint tint + right emerald
     // border + emerald text.
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      margin: EdgeInsets.symmetric(
+          horizontal: dense ? 4 : 8, vertical: 2),
       decoration: BoxDecoration(
         color: active ? BrandColors.emerald50 : Colors.transparent,
         borderRadius: BorderRadius.circular(10),
@@ -575,11 +658,13 @@ class _DrawerItem extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 14, vertical: 12),
+            padding: EdgeInsets.symmetric(
+                horizontal: dense ? 12 : 14,
+                vertical: dense ? 8 : 12),
             child: Row(
               children: [
-                Text(link.emoji, style: const TextStyle(fontSize: 18)),
+                Text(link.emoji,
+                    style: TextStyle(fontSize: dense ? 15 : 18)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -591,6 +676,7 @@ class _DrawerItem extends StatelessWidget {
                       fontWeight: active
                           ? FontWeight.w800
                           : FontWeight.w600,
+                      fontSize: dense ? 13 : 14,
                     ),
                   ),
                 ),
@@ -598,6 +684,67 @@ class _DrawerItem extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+
+// MARSOUD-MOBILE-SHELL-POLISH-01 (2026-09-17) — a collapsible
+// section in the drawer. Used for حسابي (with طلباتي / تقاريري /
+// عهدتي / …) and المهام (with أرشيفي). Auto-expands when the
+// current path matches any of the section's children so the user
+// doesn't lose their spot after navigating.
+class _DrawerExpander extends StatelessWidget {
+  final _DrawerSection section;
+  final String currentPath;
+  final ValueChanged<String> onLinkTap;
+  const _DrawerExpander({
+    required this.section,
+    required this.currentPath,
+    required this.onLinkTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final childRoutes = section.children.map((l) => l.route).toSet();
+    final isChildActive = childRoutes.contains(currentPath);
+    return Theme(
+      // ExpansionTile paints a divider under the header when
+      // expanded; kill it so the whole drawer reads as one canvas.
+      data: Theme.of(context).copyWith(
+        dividerColor: Colors.transparent,
+      ),
+      child: ExpansionTile(
+        initiallyExpanded: isChildActive,
+        tilePadding: const EdgeInsets.symmetric(
+            horizontal: 14, vertical: 2),
+        childrenPadding: const EdgeInsets.only(
+            right: 12, left: 8, bottom: 4),
+        leading: Text(section.emoji,
+            style: const TextStyle(fontSize: 18)),
+        title: Text(
+          section.label,
+          style: TextStyle(
+            color: isChildActive
+                ? BrandColors.emerald700
+                : BrandColors.slate700,
+            fontWeight: isChildActive
+                ? FontWeight.w800
+                : FontWeight.w700,
+          ),
+        ),
+        iconColor: BrandColors.slate500,
+        collapsedIconColor: BrandColors.slate500,
+        children: [
+          for (final child in section.children)
+            _DrawerItem(
+              link: child,
+              active: currentPath == child.route,
+              onTap: () => onLinkTap(child.route),
+              dense: true,
+            ),
+        ],
       ),
     );
   }
