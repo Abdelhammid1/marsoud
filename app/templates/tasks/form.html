@@ -1,6 +1,8 @@
 {% extends "base.html" %}
+{% import "_rich_text_editor.html" as rte %}
 {% block page_title %}{% if task %}تعديل مهمة{% else %}مهمة جديدة{% endif %}{% endblock %}
 {% block content %}
+{{ rte.assets() }}
 <div class="card p-6 max-w-3xl">
   {# MARSOUD — multi-file upload at task creation. The form submits as
      multipart so the route can read request.files.getlist('attachments').
@@ -23,7 +25,16 @@
     </div>
     <div>
       <label class="block text-sm font-semibold text-slate-700 mb-2">الوصف</label>
-      <textarea name="description" rows="3" class="textarea">{{ task.description if task else '' }}</textarea>
+      {# MARSOUD-RICH-TEXT-EDITOR-01 (2026-09-17) — was a plain
+         <textarea>. Rich-text editor now handles bold/italic/lists/
+         headings/links/code/checklist + RTL default. Existing plain-
+         text descriptions still render via the `rich_text` filter's
+         legacy-text branch. #}
+      {{ rte.editor(
+           name="description",
+           value=(task.description if task else ""),
+           placeholder="اكتب وصف المهمة…",
+           height="12rem") }}
     </div>
     {# MARSOUD-PARENT-CHILD-TASK-HIERARCHY (2026-08-09) — optional
        parent picker. `parent_choices` is filtered by

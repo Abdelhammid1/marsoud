@@ -124,20 +124,30 @@
     </div>
 
     <!-- ─── Description (MARSOUD: creator-only edit) ───────────────── -->
+    {# MARSOUD-RICH-TEXT-EDITOR-01 (2026-09-17) — was plain-text with
+       `whitespace-pre-wrap | linkify`. Now uses the `rich_text`
+       filter which handles both HTML content (sanitized) and legacy
+       plain-text (escaped + nl2br), + the reusable editor macro on
+       the inline-edit form.  The linkify filter's job (auto-linking
+       bare URLs in plain text) is folded into the sanitizer's
+       bleach.linkify pass, so no need to double-run it. #}
+    {% import "_rich_text_editor.html" as rte %}
     {% set is_creator = task.created_by_id and task.created_by_id == current_user.id %}
     {% if can_edit and is_creator %}
     <div class="bg-slate-50 rounded-lg p-3 mb-3">
       <div class="text-xs text-slate-500 font-semibold mb-1">📝 الوصف</div>
       {% if task.description %}
-      {# MARSOUD-LINKIFY — read-only preview always visible so URLs
-         inside the description are clickable even for the creator. #}
-      <div class="text-sm whitespace-pre-wrap mb-2">{{ task.description | linkify }}</div>
+      <div class="text-sm mb-2 rich-text-display">{{ task.description | rich_text }}</div>
       {% endif %}
       <details {% if not task.description %}open{% endif %}>
         <summary class="cursor-pointer text-xs text-slate-500">✎ تعديل الوصف</summary>
+        {{ rte.assets() }}
         <form method="POST" action="{{ url_for('tasks.inline_edit', task_id=task.id) }}" class="mt-2">
-          <textarea name="description" rows="4" class="input text-sm w-full"
-                    placeholder="وصف المهمة…">{{ task.description or '' }}</textarea>
+          {{ rte.editor(
+               name="description",
+               value=(task.description or ""),
+               placeholder="وصف المهمة…",
+               height="10rem") }}
           <button type="submit" class="btn-primary text-sm mt-2">حفظ الوصف</button>
         </form>
       </details>
@@ -148,9 +158,7 @@
         📝 الوصف
         {% if not is_creator %}<span class="text-slate-500 font-normal">(للقراءة — لا يمكن تعديله إلا من قِبل من أنشأ المهمة)</span>{% endif %}
       </div>
-      {# MARSOUD-LINKIFY (Abdelhamid 2026-07-16) — URLs pasted into
-         the description render as clickable anchors. #}
-      <div class="text-sm whitespace-pre-wrap">{{ task.description | linkify }}</div>
+      <div class="text-sm rich-text-display">{{ task.description | rich_text }}</div>
     </div>
     {% endif %}
     {% if task.notes %}

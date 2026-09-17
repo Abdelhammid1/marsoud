@@ -33,3 +33,10 @@ python-dateutil
 # app/services/fcm.py) so dev + CI environments don't need the
 # credentials file.
 firebase-admin>=6.5.0
+
+# MARSOUD-RICH-TEXT-EDITOR-01 (2026-09-17) — server-side HTML
+# sanitizer for the rich-text editor. Every task description /
+# note the client posts is HTML-shaped now; bleach strips any
+# <script>, on* handler, javascript:/data: URLs, disallowed tags,
+# so a POST with a crafted <img onerror=…> can't XSS the viewer.
+bleach>=6.1.0

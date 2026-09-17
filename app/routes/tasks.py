@@ -32,6 +32,20 @@ from app.services.tasks_extras import (
     add_comment, apply_inline_edit, log_activity,
     team_stats, delete_task_fully,
 )
+from app.services.rich_text import sanitize_html
+
+
+def _read_description(form):
+    """MARSOUD-RICH-TEXT-EDITOR-01 (2026-09-17) — every write path
+    for Task.description now runs through the sanitizer.  The
+    editor emits HTML, so the plain `.strip() or None` we used
+    before would happily store a `<script>` payload.  bleach drops
+    every tag / attribute / URL scheme we don't allow; an empty
+    result (after bleach) collapses to None so the DB doesn't hold
+    an empty `<p><br></p>` husk."""
+    raw = form.get("description") or ""
+    cleaned = sanitize_html(raw).strip()
+    return cleaned or None
 
 bp = Blueprint("tasks", __name__)
 
@@ -570,8 +584,7 @@ def new():
                         company_id=cid,
                         created_by_id=current_user.id,
                         title=title,
-                        description=(request.form.get("description")
-                                     or "").strip() or None,
+                        description=_read_description(request.form),
                         priority=priority_str,
                         project_id=pid,
                         milestone_id=milestone_id,
@@ -596,7 +609,7 @@ def new():
             t = Task(
                 company_id=cid,
                 title=(request.form.get("title") or "").strip(),
-                description=(request.form.get("description") or "").strip() or None,
+                description=_read_description(request.form),
                 project_id=pid,
                 milestone_id=milestone_id,
                 assigned_to_id=assignee_ids[0],
@@ -770,7 +783,7 @@ def edit(task_id):
     if request.method == "POST":
         try:
             new_title = (request.form.get("title") or t.title).strip()
-            new_desc = (request.form.get("description") or "").strip() or None
+            new_desc = _read_description(request.form)
             # MARSOUD-TASK-EDIT-PROJECT-STAGE (2026-08-06) — before this
             # ticket the edit form ignored project_id (the template also
             # disabled the <select> and re-submitted the current value
@@ -1114,7 +1127,16 @@ def unarchive_mine(task_id):
 @require_permission("tasks.view")
 def inline_edit(task_id):
     t = _task_or_403(task_id)
-    desc_in = request.form.get("description")
+    # MARSOUD-RICH-TEXT-EDITOR-01 — the inline description edit
+    # comes via the same rich-text editor macro, so sanitize before
+    # apply_inline_edit sees it. `desc_in = None` when the field
+    # wasn't submitted (partial update); an EMPTY submitted field
+    # is a distinct signal that the user cleared the description.
+    _raw_desc = request.form.get("description")
+    if _raw_desc is None:
+        desc_in = None
+    else:
+        desc_in = sanitize_html(_raw_desc).strip() or ""
     # MARSOUD — description is creator-only. Silently drop the submitted
     # value when a non-creator sends it (the editor form is hidden in the
     # template, but defence-in-depth covers direct POSTs).

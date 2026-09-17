@@ -1,0 +1,204 @@
+{# MARSOUD-RICH-TEXT-EDITOR-01 (2026-09-17) — Phase 1 reusable
+   editor macro.
+
+   Usage:
+
+     {% import "_rich_text_editor.html" as rte %}
+     {{ rte.editor(
+          name="description",
+          value=task.description if task else "",
+          placeholder="اكتب وصف المهمة…",
+          height="10rem") }}
+
+   How it works:
+
+   · Renders a hidden `<textarea name="{{ name }}">` — that's what
+     the form actually POSTs.  Quill lives inside a sibling
+     `<div class="rich-text-quill">`; on form submit we copy Quill's
+     `.root.innerHTML` into the textarea.  So NO backend change is
+     needed on the receiving side: the field still shows up in
+     `request.form.get("description")` like any plain textarea.
+
+   · The initial value is injected into the Quill container's
+     `innerHTML`.  That's already sanitized on the way OUT of the
+     DB (via the `rich_text` filter policy).  On write the server
+     re-sanitizes anyway — belt + suspenders.
+
+   · Quill 2 loads once per page.  The `<script>` block at the top
+     of the macro is idempotent — a page with two editors on it
+     only registers Quill once.
+
+   · Direction is auto: the editor picks up the closest `dir`
+     attribute (base.html sets dir="rtl" on <html>), so Arabic
+     types RTL by default and mixed content behaves.
+
+   Not shipped in Phase 1:  emoji picker, image attachments,
+   mentions.  Those are Phase 2/3 (see the ticket).
+#}
+
+{% macro editor(name, value="", placeholder="", height="10rem", id=None) %}
+  {% set editor_id = id or ("rte-" ~ (name|replace("[","")|replace("]",""))|replace(".","-") ~ "-" ~ range(100000, 999999)|random) %}
+  <div class="rte-wrap" data-rte-name="{{ name }}"
+       style="min-height: {{ height }}">
+    {# Toolbar. Class names come from Quill's Snow theme so its own
+       stylesheet paints the buttons; we just declare which
+       formats we want exposed. #}
+    <div class="rte-toolbar" id="{{ editor_id }}-toolbar">
+      <span class="ql-formats">
+        <select class="ql-header">
+          <option value="1">عنوان 1</option>
+          <option value="2">عنوان 2</option>
+          <option value="3">عنوان 3</option>
+          <option selected>نص عادي</option>
+        </select>
+      </span>
+      <span class="ql-formats">
+        <button class="ql-bold" title="عريض (Ctrl+B)"></button>
+        <button class="ql-italic" title="مائل (Ctrl+I)"></button>
+        <button class="ql-underline" title="تحته خط (Ctrl+U)"></button>
+        <button class="ql-strike" title="مشطوب"></button>
+      </span>
+      <span class="ql-formats">
+        <select class="ql-color"></select>
+        <select class="ql-background"></select>
+      </span>
+      <span class="ql-formats">
+        <button class="ql-list" value="ordered" title="قائمة مرقّمة"></button>
+        <button class="ql-list" value="bullet" title="قائمة نقطية"></button>
+        <button class="ql-list" value="check" title="Checklist"></button>
+      </span>
+      <span class="ql-formats">
+        <button class="ql-indent" value="-1" title="تقليل الإزاحة"></button>
+        <button class="ql-indent" value="+1" title="زيادة الإزاحة"></button>
+        <select class="ql-align"></select>
+      </span>
+      <span class="ql-formats">
+        <button class="ql-link" title="رابط (Ctrl+K)"></button>
+        <button class="ql-code" title="كود سطر واحد"></button>
+        <button class="ql-code-block" title="كود متعدد الأسطر"></button>
+        <button class="ql-blockquote" title="اقتباس"></button>
+      </span>
+      <span class="ql-formats">
+        <button class="ql-clean" title="إزالة التنسيق"></button>
+      </span>
+    </div>
+    {# The editor container.  innerHTML seeds it with the current
+       value; Quill parses that on init. #}
+    <div class="rte-editor" id="{{ editor_id }}"
+         data-placeholder="{{ placeholder }}"
+         style="min-height: {{ height }}">{{ value|safe if value else "" }}</div>
+    {# The hidden textarea that actually POSTs.  Quill syncs its
+       HTML into `.value` on every change + right before submit. #}
+    <textarea name="{{ name }}" id="{{ editor_id }}-input"
+              hidden aria-hidden="true">{{ value|e if value else "" }}</textarea>
+  </div>
+{% endmacro %}
+
+
+{# One-time loader.  Put `{{ rte.assets() }}` inside `{% block extra_head %}`
+   or at the bottom of a form template.  Idempotent — a page with two
+   editor macros only loads Quill once because the loader guards on
+   `window.__marsoudQuillLoaded`. #}
+{% macro assets() %}
+{% if not caller %}
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<style>
+  /* Wrapper spacing: sit inside marsoud's card-p-6 without a double border. */
+  .rte-wrap { background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; overflow: hidden; }
+  .rte-toolbar.ql-toolbar,
+  .rte-toolbar { border: none !important; border-bottom: 1px solid #F1F5F9 !important; background: #F8FAFC; }
+  .rte-editor.ql-container { border: none !important; font-size: 14px; }
+  .rte-editor.ql-container .ql-editor { min-height: 8rem; }
+  /* Placeholder — Quill puts it in a data attr; the Snow theme
+     already targets `.ql-editor.ql-blank::before`.  We just tweak
+     the colour to match the rest of marsoud's inputs. */
+  .rte-editor.ql-container .ql-editor.ql-blank::before {
+    color: #94A3B8; font-style: normal; font-family: inherit;
+  }
+  /* RTL default (base.html sets dir=rtl on <html>). */
+  html[dir="rtl"] .rte-editor.ql-container .ql-editor {
+    direction: rtl; text-align: right;
+  }
+  /* Display-side polish so the SAVED content reads well in the
+     detail page even without a full `.prose` framework. */
+  .rich-text-display { line-height: 1.75; color: #0F172A; }
+  .rich-text-display h1, .rich-text-display h2, .rich-text-display h3 {
+    color: #0A2540; font-weight: 700; margin: 1rem 0 0.5rem;
+  }
+  .rich-text-display h1 { font-size: 1.375rem; }
+  .rich-text-display h2 { font-size: 1.2rem; }
+  .rich-text-display h3 { font-size: 1.05rem; }
+  .rich-text-display ul, .rich-text-display ol { padding-inline-start: 1.5rem; margin: 0.5rem 0; }
+  .rich-text-display a { color: #059669; text-decoration: underline; }
+  .rich-text-display code { background: #F1F5F9; padding: 1px 4px; border-radius: 3px; font-size: 0.9em; }
+  .rich-text-display pre { background: #0F172A; color: #E2E8F0; padding: 0.75rem 1rem; border-radius: 6px; overflow-x: auto; font-size: 12px; }
+  .rich-text-display blockquote { border-inline-start: 3px solid #10B981; padding-inline-start: 0.75rem; color: #64748B; margin: 0.5rem 0; }
+</style>
+<script>
+(function(){
+  if (window.__marsoudRTELoaded) return;
+  window.__marsoudRTELoaded = true;
+
+  // Wait for Quill to actually be defined — cdn.jsdelivr can lag
+  // fractionally behind DOMContentLoaded on slow networks.
+  function ready(fn){
+    if (document.readyState !== "loading") fn();
+    else document.addEventListener("DOMContentLoaded", fn);
+  }
+  ready(function(){
+    var poll = setInterval(function(){
+      if (window.Quill) {
+        clearInterval(poll);
+        initAll();
+      }
+    }, 30);
+  });
+
+  function initAll(){
+    var wraps = document.querySelectorAll(".rte-wrap");
+    wraps.forEach(function(wrap){
+      var editorEl = wrap.querySelector(".rte-editor");
+      var toolbarEl = wrap.querySelector(".rte-toolbar");
+      var inputEl = wrap.querySelector("textarea");
+      if (!editorEl || !toolbarEl || !inputEl) return;
+      if (editorEl.__quill) return;
+      var quill = new Quill(editorEl, {
+        theme: "snow",
+        modules: { toolbar: toolbarEl },
+        placeholder: editorEl.getAttribute("data-placeholder") || "",
+      });
+      editorEl.__quill = quill;
+
+      // Every keystroke: mirror the HTML into the textarea so if
+      // the user hits Ctrl+Enter or the browser auto-submits (or
+      // some code reads `form.description.value` for a preview
+      // panel later), the value is fresh.
+      quill.on("text-change", function(){
+        var html = quill.root.innerHTML;
+        if (html === "<p><br></p>") html = "";
+        inputEl.value = html;
+      });
+
+      // Belt: on the enclosing form's submit, sync one more time.
+      var form = wrap.closest("form");
+      if (form && !form.__rteHooked) {
+        form.__rteHooked = true;
+        form.addEventListener("submit", function(){
+          form.querySelectorAll(".rte-wrap").forEach(function(w){
+            var q = w.querySelector(".rte-editor");
+            var i = w.querySelector("textarea");
+            if (q && q.__quill && i) {
+              var html = q.__quill.root.innerHTML;
+              if (html === "<p><br></p>") html = "";
+              i.value = html;
+            }
+          });
+        });
+      }
+    });
+  }
+})();
+</script>
+{% endif %}
+{% endmacro %}

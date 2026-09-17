@@ -1136,6 +1136,17 @@ def create_app(config_class=Config):
         from app.services.mentions import render_mentions
         return render_mentions(text)
 
+    @app.template_filter("rich_text")
+    def _rich_text_filter(value):
+        """MARSOUD-RICH-TEXT-EDITOR-01 (2026-09-17) — safe display of
+        the rich-text-editor's HTML output.  On a value that already
+        contains tags: re-sanitize (defense in depth) + emit as
+        Markup.  On plain text (every pre-editor description in the
+        DB today): escape + convert newlines to <br>.  See
+        app/services/rich_text.py for the full contract."""
+        from app.services.rich_text import render_rich_text
+        return render_rich_text(value)
+
     @app.template_filter("linkify")
     def _linkify_filter(text):
         """MARSOUD-LINKIFY (Abdelhamid 2026-07-16) — auto-detect URLs
