@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../data/auth_state.dart';
+import '../data/biometric_service.dart';
 import '../features/activity/activity_screen.dart';
 import '../features/archive/archive_screen.dart';
 import '../features/attendance/attendance_screen.dart';
+import '../features/auth/lock_screen.dart';
 import '../features/auth/login_screen.dart';
 import '../features/custody/custody_screen.dart';
 import '../features/daily_reports/daily_report_detail_screen.dart';
@@ -47,11 +49,30 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (loggedIn && (loc == '/login' || loc == '/splash')) {
         return '/home';
       }
+      // MARSOUD-MOBILE-BIOMETRIC-01 (2026-09-17) — if biometric is
+      // on for this session AND the user hasn't unlocked it yet
+      // this app run → send them to the lock screen. The
+      // biometricLockedProvider is set by SplashScreen on boot
+      // (from shared_preferences) and cleared by LockScreen on a
+      // successful OS-auth prompt.  /lock never redirects to itself,
+      // and /login stays reachable so "logout and log in with
+      // password" is always an option.
+      final locked = ref.read(biometricLockedProvider);
+      if (locked && loc != '/lock' && loc != '/login') {
+        return '/lock';
+      }
+      if (!locked && loc == '/lock') {
+        return '/home';
+      }
       return null;
     },
     routes: [
       GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+      // MARSOUD-MOBILE-BIOMETRIC-01 (2026-09-17) — biometric gate.
+      // Sits OUTSIDE the ShellRoute so it doesn't get the drawer /
+      // top-bar chrome — the user is locked out until they auth.
+      GoRoute(path: '/lock', builder: (_, __) => const LockScreen()),
       ShellRoute(
         builder: (context, state, child) => HomeShell(child: child),
         routes: [

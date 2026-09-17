@@ -21,6 +21,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../app/theme.dart';
 import '../../app/env.dart';
 import '../../data/api_client.dart';
+import '../../data/biometric_service.dart';
 import '../../data/my_account_repository.dart';
 import '../../widgets/gradient_button.dart';
 
@@ -170,6 +171,13 @@ class _MyAccountScreenState extends ConsumerState<MyAccountScreen> {
                     'روابط إلزامية للامتثال لسياسات المتاجر — سياسة الخصوصية + حذف الحساب نهائياً.',
                 child: const _PrivacyAndDeleteLinks(),
               ),
+              const SizedBox(height: 12),
+              // MARSOUD-MOBILE-BIOMETRIC-01 (2026-09-17) — Face ID /
+              // Fingerprint gate. Section is entirely hidden on
+              // devices with no biometric hardware AND no device
+              // credential, so we don't offer a setting the user
+              // can't actually turn on.
+              const _BiometricSection(),
             ],
           ),
         );
@@ -1347,6 +1355,113 @@ class _LinkTile extends StatelessWidget {
                 color: BrandColors.slate400, size: 20),
           ],
         ),
+      ),
+    );
+  }
+}
+
+
+// MARSOUD-MOBILE-BIOMETRIC-01 (2026-09-17) — Face ID / Fingerprint
+// toggle inside حسابي. Hidden on devices with no biometric or
+// device-credential lock (nothing to prompt through).  Turning ON
+// runs the OS auth prompt as a proof-of-life; turning OFF also
+// prompts, so a "leave the phone unlocked on the desk" attacker
+// can't disable the gate without touching the sensor.
+class _BiometricSection extends ConsumerStatefulWidget {
+  const _BiometricSection();
+  @override
+  ConsumerState<_BiometricSection> createState() =>
+      _BiometricSectionState();
+}
+
+class _BiometricSectionState extends ConsumerState<_BiometricSection> {
+  bool? _supported;
+  bool _enabled = false;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final bio = ref.read(biometricServiceProvider);
+    final s = await bio.isDeviceSupported();
+    final e = await bio.isEnabled();
+    if (!mounted) return;
+    setState(() { _supported = s; _enabled = e; });
+  }
+
+  Future<void> _toggle(bool next) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final bio = ref.read(biometricServiceProvider);
+    // Run the OS prompt as proof-of-life either way (turn on or off).
+    final ok = await bio.authenticate(
+      reason: next
+          ? 'أكّد هويتك لتفعيل قفل التطبيق بالبصمة'
+          : 'أكّد هويتك لإيقاف قفل التطبيق بالبصمة',
+    );
+    if (!ok) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      messenger.showSnackBar(const SnackBar(
+        content: Text('تعذّر التحقق. لم يتم تغيير الإعداد.'),
+      ));
+      return;
+    }
+    await bio.setEnabled(next);
+    if (!mounted) return;
+    setState(() { _enabled = next; _busy = false; });
+    messenger.showSnackBar(SnackBar(
+      content: Text(next
+          ? 'تم تفعيل قفل التطبيق بالبصمة.'
+          : 'تم إيقاف قفل التطبيق بالبصمة.'),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_supported == null) {
+      return const SizedBox.shrink();
+    }
+    if (_supported == false) {
+      return const SizedBox.shrink();
+    }
+    return _SectionCard(
+      emoji: '🔒',
+      title: 'قفل التطبيق بالبصمة / Face ID',
+      subtitle:
+          'لما يبقى مفعّل، هيتطلب منك تأكيد هويتك في كل مرة تفتح التطبيق.',
+      child: Row(
+        children: [
+          const Icon(Icons.fingerprint,
+              color: BrandColors.emerald700, size: 22),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Text(
+              'تفعيل القفل',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: BrandColors.navy900,
+              ),
+            ),
+          ),
+          if (_busy)
+            const SizedBox(
+              width: 20, height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            Switch.adaptive(
+              value: _enabled,
+              onChanged: _toggle,
+              activeColor: BrandColors.emerald600,
+            ),
+        ],
       ),
     );
   }

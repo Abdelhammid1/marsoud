@@ -1,10 +1,47 @@
 // Shown while AuthNotifier restores the token from secure storage.
+//
+// MARSOUD-MOBILE-BIOMETRIC-01 (2026-09-17) — the splash also
+// consults SharedPreferences on boot for the biometric_enabled
+// flag; if true AND a valid session was restored, we flip
+// biometricLockedProvider to true so the router's redirect sends
+// the user to /lock BEFORE any authenticated screen paints.
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/theme.dart';
+import '../../data/auth_state.dart';
+import '../../data/biometric_service.dart';
 
-class SplashScreen extends StatelessWidget {
+
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
+  @override
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends ConsumerState<SplashScreen> {
+  bool _checked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (_checked) return;
+      _checked = true;
+      // Only lock the app when a session actually exists — a
+      // logged-out user hits /login, not /lock.  The auth notifier
+      // fires _restore() from its own constructor; wait a tick so
+      // the state reflects it.
+      await Future.delayed(const Duration(milliseconds: 50));
+      final session = ref.read(authProvider).value;
+      if (session == null) return;
+      final bio = ref.read(biometricServiceProvider);
+      final enabled = await bio.isEnabled();
+      if (enabled && !bio.isUnlocked && mounted) {
+        ref.read(biometricLockedProvider.notifier).state = true;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

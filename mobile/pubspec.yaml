@@ -10,7 +10,7 @@ publish_to: 'none'
 # +13 so it stays strictly higher than the last upload (12) —
 # Apple rejects any build whose CFBundleVersion is <= a previously
 # uploaded build within the same marketing version.
-version: 1.0.7+16
+version: 1.0.8+17
 
 environment:
   sdk: ^3.5.0
@@ -72,6 +72,14 @@ dependencies:
   # page satisfies it (Apple accepts a WebView / external browser
   # handoff so long as the deletion actually works).
   url_launcher: ^6.3.0
+
+  # MARSOUD-MOBILE-BIOMETRIC-01 (2026-09-17) — Face ID on iOS +
+  # Fingerprint on Android for gate-the-app-on-open. Talks to iOS's
+  # LocalAuthentication + Android's BiometricPrompt APIs; no
+  # credentials leave the device.  Opt-in through the setting inside
+  # حسابي — the app stays password-based for anyone who doesn't
+  # explicitly turn it on.
+  local_auth: ^2.3.0
 
 dev_dependencies:
   flutter_test:

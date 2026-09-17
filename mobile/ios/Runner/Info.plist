@@ -64,6 +64,14 @@
 	     foreground. `remote-notification` is what makes background
 	     data pushes work at all; `fetch` covers the periodic
 	     backend-driven refresh path. -->
+	<!-- MARSOUD-MOBILE-BIOMETRIC-01 (2026-09-17) — required so iOS
+	     shows the Face ID permission dialog + our auth-prompt sheet.
+	     Without this string, LocalAuthentication.authenticate hard-
+	     fails on any device with Face ID (older iPhones with Touch ID
+	     don't need the string, but it's cheap to ship it everywhere).
+	     The text is what the user reads in the OS prompt itself. -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>يستخدم مرصود Face ID لقفل التطبيق وحماية بياناتك عند الدخول.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
