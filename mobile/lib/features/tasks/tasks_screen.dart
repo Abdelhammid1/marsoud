@@ -16,10 +16,22 @@ import '../../widgets/section_card.dart';
 final _tasksProvider = FutureProvider.autoDispose<Map<String, dynamic>>(
     (ref) => ref.watch(myAccountRepoProvider).myTasks());
 
-class TasksScreen extends ConsumerWidget {
+// MARSOUD-MOBILE-TASKS-FILTER-01 (2026-09-17) — was ConsumerWidget
+// (stateless). Now stateful so the filter chip row can drive which
+// bucket is visible without a full rebuild path. `_activeFilter`
+// null means "show every bucket the backend sent"; a status value
+// (e.g. "IN_PROGRESS") narrows to that one.
+class TasksScreen extends ConsumerStatefulWidget {
   const TasksScreen({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TasksScreen> createState() => _TasksScreenState();
+}
+
+class _TasksScreenState extends ConsumerState<TasksScreen> {
+  String? _activeFilter;
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(_tasksProvider);
     return async.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -45,6 +57,17 @@ class TasksScreen extends ConsumerWidget {
           final s = t['status']?.toString() ?? 'TODO';
           buckets.putIfAbsent(s, () => []).add(t);
         }
+        // MARSOUD-MOBILE-TASKS-FILTER-01 — bucket order after the
+        // filter is applied: if the user picked a status, only that
+        // bucket renders; otherwise every non-empty bucket in the
+        // canonical order + any unknown backend-sent statuses at
+        // the end.
+        final visibleBuckets = _activeFilter != null
+            ? [_activeFilter!]
+            : [
+                ..._order,
+                ...buckets.keys.where((k) => !_order.contains(k)),
+              ];
         return RefreshIndicator(
           color: BrandColors.emerald600,
           onRefresh: () async => ref.invalidate(_tasksProvider),
@@ -59,8 +82,47 @@ class TasksScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _CountsRow(buckets: buckets),
-                    const SizedBox(height: 8),
+                    _CountsRow(
+                      buckets: buckets,
+                      activeFilter: _activeFilter,
+                      onToggle: (status) {
+                        setState(() {
+                          _activeFilter =
+                              _activeFilter == status ? null : status;
+                        });
+                      },
+                    ),
+                    if (_activeFilter != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Text(
+                            'المعروض: ${_statusLabel(_activeFilter!)}',
+                            style: const TextStyle(
+                              color: BrandColors.emerald700,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: () =>
+                                setState(() => _activeFilter = null),
+                            icon: const Icon(Icons.clear, size: 14),
+                            label: const Text('إلغاء الفلتر',
+                                style: TextStyle(fontSize: 11)),
+                            style: TextButton.styleFrom(
+                              minimumSize: Size.zero,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              tapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else
+                      const SizedBox(height: 8),
                   ],
                 ),
               ),
@@ -72,16 +134,21 @@ class TasksScreen extends ConsumerWidget {
                     message: 'ما فيش مهام مسندة لك حالياً.',
                   ),
                 )
+              else if (_activeFilter != null &&
+                  (buckets[_activeFilter!] ?? const []).isEmpty)
+                SectionCard(
+                  child: EmptyState(
+                    icon: Icons.filter_alt_off,
+                    message: 'مافيش مهام في «${_statusLabel(_activeFilter!)}».',
+                  ),
+                )
               else
                 // MARSOUD-MOBILE-SHIP-READY-01 (L2) — render known
                 // buckets first, then any unknown status the backend
                 // ships (e.g. CANCELLED). Was: only the known list.
                 // A backend-added status silently disappeared from
                 // the list.
-                for (final bucket in [
-                  ..._order,
-                  ...buckets.keys.where((k) => !_order.contains(k)),
-                ])
+                for (final bucket in visibleBuckets)
                   if ((buckets[bucket] ?? const []).isNotEmpty) ...[
                     Padding(
                       padding: const EdgeInsets.only(
@@ -130,34 +197,61 @@ class TasksScreen extends ConsumerWidget {
 
 class _CountsRow extends StatelessWidget {
   final Map<String, List<Map<String, dynamic>>> buckets;
-  const _CountsRow({required this.buckets});
+  // MARSOUD-MOBILE-TASKS-FILTER-01 (2026-09-17) — cells are now
+  // tappable filter chips. `activeFilter` = null → no filter; a
+  // status → that cell is highlighted, others are dimmed.
+  final String? activeFilter;
+  final ValueChanged<String> onToggle;
+  const _CountsRow({
+    required this.buckets,
+    required this.activeFilter,
+    required this.onToggle,
+  });
+
   @override
   Widget build(BuildContext context) {
     Widget cell(String key, String label, Color bg, Color fg) {
       final n = buckets[key]?.length ?? 0;
+      final isActive = activeFilter == key;
+      final isDimmed = activeFilter != null && !isActive;
       return Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
-          decoration: BoxDecoration(
-            color: bg.withValues(alpha: 0.18),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
             borderRadius: BorderRadius.circular(10),
-          ),
-          child: Column(
-            children: [
-              Text('$n',
-                  style: TextStyle(
-                    color: fg,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                    fontFamily: 'monospace',
-                  )),
-              Text(label,
-                  style: TextStyle(
-                    color: fg,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                  )),
-            ],
+            onTap: () => onToggle(key),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(
+                  vertical: 10, horizontal: 6),
+              decoration: BoxDecoration(
+                color: isActive
+                    ? bg.withValues(alpha: 0.55)
+                    : bg.withValues(alpha: isDimmed ? 0.08 : 0.18),
+                borderRadius: BorderRadius.circular(10),
+                border: isActive
+                    ? Border.all(color: fg, width: 1.5)
+                    : Border.all(color: Colors.transparent, width: 1.5),
+              ),
+              child: Column(
+                children: [
+                  Text('$n',
+                      style: TextStyle(
+                        color: isDimmed ? fg.withValues(alpha: 0.4) : fg,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                        fontFamily: 'monospace',
+                      )),
+                  Text(label,
+                      style: TextStyle(
+                        color: isDimmed ? fg.withValues(alpha: 0.4) : fg,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      )),
+                ],
+              ),
+            ),
           ),
         ),
       );
