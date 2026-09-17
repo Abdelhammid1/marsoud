@@ -27,6 +27,7 @@ import '../features/schedule/schedule_screen.dart';
 import '../features/splash/splash_screen.dart';
 import '../features/support/support_screen.dart';
 import '../features/tasks/task_detail_screen.dart';
+import '../features/tasks/task_new_screen.dart';
 import '../features/tasks/tasks_screen.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -82,6 +83,12 @@ final routerProvider = Provider<GoRouter>((ref) {
               builder: (_, __) => const ActivityScreen()),
           GoRoute(path: '/tasks',
               builder: (_, __) => const TasksScreen()),
+          // MARSOUD-MOBILE-TASK-CREATE-01 (2026-09-17) — /tasks/new
+          // route MUST come BEFORE '/tasks/:id' so the "new" literal
+          // wins the go_router match; otherwise the ":id" segment
+          // would grab "new" and int.parse would throw.
+          GoRoute(path: '/tasks/new',
+              builder: (_, __) => const TaskNewScreen()),
           GoRoute(
             path: '/tasks/:id',
             builder: (context, state) => TaskDetailScreen(

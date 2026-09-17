@@ -213,6 +213,39 @@ class MyAccountRepository {
               query: {'assigned_to_me': assignedToMe.toString()}))
           as Map<String, dynamic>;
 
+  // MARSOUD-MOBILE-TASK-CREATE-01 (2026-09-17) — new endpoints
+  // backing the create-task screen: list every assignable user
+  // in the active tenant + POST a new task.  Both live on the
+  // shared /api/v1/ blueprint (see app/routes/api_v1.py).
+  Future<Map<String, dynamic>> companyUsers() async =>
+      (await _api.get('/api/v1/company/users'))
+          as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> createTask({
+    required String title,
+    required List<int> assigneeIds,
+    String? description,
+    int? projectId,
+    int? milestoneId,
+    String priority = 'MEDIUM',
+    String? deadline,       // ISO date, YYYY-MM-DD
+    String? notes,
+    int? parentTaskId,
+  }) async =>
+      (await _api.post('/api/v1/tasks', body: {
+        'title': title,
+        'assignee_ids': assigneeIds,
+        if (description != null && description.isNotEmpty)
+          'description': description,
+        if (projectId != null) 'project_id': projectId,
+        if (milestoneId != null) 'milestone_id': milestoneId,
+        'priority': priority,
+        if (deadline != null && deadline.isNotEmpty)
+          'deadline': deadline,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+        if (parentTaskId != null) 'parent_task_id': parentTaskId,
+      })) as Map<String, dynamic>;
+
   // ─── Notifications ─────────────────────────────────────────────
   Future<Map<String, dynamic>> notifications({int limit = 50}) async =>
       (await _api.get('/api/v1/notifications', query: {'limit': limit}))

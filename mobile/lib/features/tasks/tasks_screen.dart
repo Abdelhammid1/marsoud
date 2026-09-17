@@ -33,7 +33,21 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(_tasksProvider);
-    return async.when(
+    return Scaffold(
+      // MARSOUD-MOBILE-TASK-CREATE-01 (2026-09-17) — new FAB opens
+      // /tasks/new.  On return (pop from the create screen), the
+      // tasks provider is invalidated so the new row appears
+      // without a manual refresh.
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          await context.push('/tasks/new');
+          if (mounted) ref.invalidate(_tasksProvider);
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('مهمة جديدة'),
+        backgroundColor: BrandColors.emerald600,
+      ),
+      body: async.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
         child: Padding(
@@ -181,6 +195,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
           ),
         );
       },
+    ),
     );
   }
 

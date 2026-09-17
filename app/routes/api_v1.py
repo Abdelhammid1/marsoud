@@ -517,6 +517,176 @@ def task_detail(task_id):
     return jsonify({"task": _task_full(t)})
 
 
+# MARSOUD-MOBILE-TASK-CREATE-01 (2026-09-17) — the mobile "Tasks"
+# screen shipped in 1.0.6+15 shows the list + filter but had no way
+# to CREATE a task; the web /tasks/new page was doing all the
+# validation and there was no JSON mirror.  Abdelhamid's Batch 2
+# feedback (Image 46): "عاوز اقدر أضيف مهمة زي ما بنضيفها ع الجهاز
+# يكون فيها كل حاجة".
+#
+# This endpoint mirrors app/routes/tasks.py::new() — same validation
+# surface, same helpers (set_assignees), same visibility rules — but
+# swaps the HTML form parsing for a plain JSON body.  Schedule modes
+# (ONCE / DAILY) are OUT of scope here; the mobile only creates
+# regular tasks.  Milestone + parent-task are supported but optional.
+@bp.route("/tasks", methods=["POST"])
+def task_create():
+    from app.models import Milestone
+    from app.services.tasks_extras import set_assignees
+    if not has_permission("tasks.manage"):
+        return _err("tasks.manage permission required", 403)
+
+    body = request.get_json(silent=True) or {}
+    cid = g.active_company.id
+
+    title = (body.get("title") or "").strip()
+    if not title:
+        return _err("title is required", 400)
+
+    assignee_ids_raw = body.get("assignee_ids") or []
+    if not isinstance(assignee_ids_raw, list) or not assignee_ids_raw:
+        return _err("assignee_ids must be a non-empty list", 400)
+    try:
+        assignee_ids = [int(x) for x in assignee_ids_raw]
+    except (TypeError, ValueError):
+        return _err("assignee_ids contain invalid entries", 400)
+
+    # Validate every assignee belongs to this tenant.  Same
+    # cross-tenant guard tasks.new() uses.
+    cid_users = db.session.execute(
+        task_assignees.select().where(  # any table with company scope
+            False)  # placeholder; use a direct query instead
+    )
+    from app.models.user import user_companies
+    valid_uids = {
+        r.user_id for r in db.session.execute(
+            user_companies.select().where(
+                user_companies.c.company_id == cid)
+        ).fetchall()
+    }
+    if any(uid not in valid_uids for uid in assignee_ids):
+        return _err("one or more assignees not in this company", 400)
+
+    project = None
+    pid_raw = body.get("project_id")
+    if pid_raw is not None:
+        try:
+            pid = int(pid_raw)
+        except (TypeError, ValueError):
+            return _err("project_id must be an integer", 400)
+        project = db.session.get(Project, pid)
+        if not project or project.company_id != cid:
+            return _err("project not found", 404)
+
+    milestone_id = None
+    m_raw = body.get("milestone_id")
+    if m_raw is not None:
+        if project is None:
+            return _err(
+                "milestone_id requires a project_id", 400)
+        try:
+            milestone_id = int(m_raw)
+        except (TypeError, ValueError):
+            return _err("milestone_id must be an integer", 400)
+        m = db.session.get(Milestone, milestone_id)
+        if not m or m.project_id != project.id:
+            return _err("milestone does not belong to that project", 400)
+
+    priority_str = (body.get("priority") or "MEDIUM").upper()
+    try:
+        priority = TaskPriority[priority_str]
+    except KeyError:
+        return _err(f"unknown priority: {priority_str}", 400)
+
+    # Deadline is optional; iso date string.
+    deadline = None
+    d_raw = (body.get("deadline") or "").strip() if isinstance(
+        body.get("deadline"), str) else body.get("deadline")
+    if d_raw:
+        try:
+            deadline = date.fromisoformat(d_raw)
+        except ValueError:
+            return _err(
+                "deadline must be an ISO date (YYYY-MM-DD)", 400)
+
+    # Build the task the same way tasks.new() does.
+    t = Task(
+        company_id=cid,
+        title=title,
+        description=(body.get("description") or "").strip() or None,
+        project_id=project.id if project else None,
+        milestone_id=milestone_id,
+        assigned_to_id=assignee_ids[0],
+        created_by_id=current_user.id,
+        priority=priority,
+        status=TaskStatus.TODO,
+        deadline=deadline,
+        notes=(body.get("notes") or "").strip() or None,
+    )
+    db.session.add(t)
+    db.session.flush()
+
+    # Optional parent task.  Reuse the validate_parent helper the
+    # web form uses so the cross-tenant + self + cycle guards fire
+    # identically.
+    parent_raw = body.get("parent_task_id")
+    if parent_raw is not None:
+        from app.services.task_hierarchy import (
+            validate_parent, TaskHierarchyError,
+        )
+        try:
+            parent = validate_parent(t, parent_raw)
+        except TaskHierarchyError as e:
+            db.session.rollback()
+            return _err(str(e), 400)
+        t.parent_task_id = parent.id if parent else None
+
+    # Set the assignees via the shared helper so the notification /
+    # activity-log side-effects match the web flow.
+    try:
+        set_assignees(t, assignee_ids, actor_id=current_user.id)
+    except TaskError as e:
+        db.session.rollback()
+        return _err(str(e), 400)
+
+    db.session.commit()
+    return jsonify({
+        "ok": True,
+        "task_id": t.id,
+        "task": _task_full(t),
+    }), 201
+
+
+# MARSOUD-MOBILE-TASK-CREATE-01 — companion endpoint that lists
+# every user in the active tenant, so the mobile create-task form
+# can populate its assignee picker without inventing a new users
+# route.  Ships name + email + role for compact display.
+@bp.route("/company/users", methods=["GET"])
+def company_users_list():
+    from app.models.user import user_companies
+    cid = g.active_company.id
+    rows = db.session.execute(
+        user_companies.select().where(
+            user_companies.c.company_id == cid)
+    ).fetchall()
+    result = []
+    for r in rows:
+        u = db.session.get(User, r.user_id)
+        if not u or not u.is_active:
+            continue
+        result.append({
+            "id": u.id,
+            "name": u.full_name or u.email,
+            "email": u.email,
+            "role": r.role or "",
+            "is_me": u.id == current_user.id,
+        })
+    # Put me first, then sort the rest by name so the picker is
+    # predictable.
+    result.sort(key=lambda x: (not x["is_me"], x["name"]))
+    return jsonify({"count": len(result), "users": result})
+
+
 @bp.route("/tasks/search", methods=["GET"])
 def tasks_search():
     q = (request.args.get("q") or "").strip()
