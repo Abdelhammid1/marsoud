@@ -25,7 +25,7 @@ import threading
 from collections import deque
 from datetime import datetime, timedelta
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user
 
 from app import db
@@ -115,7 +115,34 @@ def _user_public(u):
 
 
 def _company_public(c, role=None):
-    return {"id": c.id, "name": c.name, "role": role}
+    # MARSOUD-MOBILE-COMPANY-LOGO-01 (2026-09-17) — added logo_url
+    # so the mobile top-bar can render the tenant's own mark instead
+    # of a plain "م" placeholder.  Resolution order matches how the
+    # web templates read it:
+    #   1. `logo_url` — the tenant pasted a full URL (custom CDN,
+    #      external image host)
+    #   2. `logo_path` — an uploaded file on our /static/logos/ path;
+    #      returned as an absolute URL rooted at SITE_URL so the
+    #      mobile can Image.network it without knowing the API
+    #      host layout
+    # NULL when the tenant hasn't set either — the mobile falls
+    # back to the Marsoud logo, same behaviour as before.
+    logo_url = None
+    raw = getattr(c, "logo_url", None)
+    if raw and str(raw).strip():
+        logo_url = str(raw).strip()
+    else:
+        logo_path = getattr(c, "logo_path", None)
+        if logo_path and str(logo_path).strip():
+            base = current_app.config.get("SITE_URL", "").rstrip("/")
+            rel = str(logo_path).lstrip("/")
+            logo_url = f"{base}/{rel}" if base else f"/{rel}"
+    return {
+        "id": c.id,
+        "name": c.name,
+        "role": role,
+        "logo_url": logo_url,
+    }
 
 
 # ─── Login ────────────────────────────────────────────────────────────

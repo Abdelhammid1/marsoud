@@ -32,15 +32,32 @@ class MarsoudCompany {
   /// project_manager, accountant, team_member, viewer, employee, client,
   /// ceo. Same source of truth as the web sidebar.
   final String role;
-  const MarsoudCompany(
-      {required this.id, required this.name, required this.role});
+  /// MARSOUD-MOBILE-COMPANY-LOGO-01 (2026-09-17) — absolute URL of
+  /// the tenant's own logo, or null when they haven't uploaded one.
+  /// Populated by the backend from company.logo_url (external CDN)
+  /// or company.logo_path + SITE_URL (uploaded). Old cached sessions
+  /// without the field decode to null gracefully.
+  final String? logoUrl;
+  const MarsoudCompany({
+    required this.id,
+    required this.name,
+    required this.role,
+    this.logoUrl,
+  });
   factory MarsoudCompany.fromJson(Map<String, dynamic> j) => MarsoudCompany(
         id: j['id'] as int,
         name: (j['name'] ?? '') as String,
         role: (j['role'] ?? 'employee') as String,
+        logoUrl: (j['logo_url'] as String?)?.isNotEmpty == true
+            ? j['logo_url'] as String
+            : null,
       );
-  Map<String, dynamic> toJson() =>
-      {'id': id, 'name': name, 'role': role};
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'role': role,
+        if (logoUrl != null) 'logo_url': logoUrl,
+      };
 }
 
 class AuthSession {

@@ -200,8 +200,12 @@ class _TopBar extends ConsumerWidget {
                   : onMenu,
             );
           }),
-          // MARSOUD-MOBILE-BRAND-LOGO-01 (2026-09-03) — real logo,
-          // falls back to the "م" mark if the asset ever fails.
+          // MARSOUD-MOBILE-COMPANY-LOGO-01 (2026-09-17) — top-bar
+          // prefers the tenant's own logo when set (from
+          // company.logo_url or company.logo_path via SITE_URL).
+          // Falls back to the Marsoud brand mark if the tenant
+          // hasn't uploaded one, and to the "م" glyph if that
+          // asset itself ever fails to load.
           Container(
             width: 36,
             height: 36,
@@ -213,20 +217,7 @@ class _TopBar extends ConsumerWidget {
             alignment: Alignment.center,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(7),
-              child: Image.asset(
-                'assets/images/logo.png',
-                width: 28,
-                height: 28,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Text(
-                  'م',
-                  style: TextStyle(
-                    color: BrandColors.emerald700,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 17,
-                  ),
-                ),
-              ),
+              child: _CompanyLogo(logoUrl: session.activeCompany?.logoUrl),
             ),
           ),
           const SizedBox(width: 10),
@@ -257,6 +248,48 @@ class _TopBar extends ConsumerWidget {
           _NotificationBell(),
         ],
       ),
+    );
+  }
+}
+
+/// MARSOUD-MOBILE-COMPANY-LOGO-01 (2026-09-17) — 28x28 tenant logo
+/// with a two-level fallback. If [logoUrl] is set, tries to load it
+/// over the network; on failure OR when null, shows the Marsoud
+/// asset; if THAT fails, shows the "م" glyph.  Kept as its own
+/// widget so the fallback chain reads top-to-bottom.
+class _CompanyLogo extends StatelessWidget {
+  final String? logoUrl;
+  const _CompanyLogo({required this.logoUrl});
+
+  Widget _marsoudFallback() => Image.asset(
+        'assets/images/logo.png',
+        width: 28,
+        height: 28,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => const Text(
+          'م',
+          style: TextStyle(
+            color: BrandColors.emerald700,
+            fontWeight: FontWeight.w800,
+            fontSize: 17,
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final url = logoUrl;
+    if (url == null || url.isEmpty) return _marsoudFallback();
+    return Image.network(
+      url,
+      width: 28,
+      height: 28,
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => _marsoudFallback(),
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return _marsoudFallback();
+      },
     );
   }
 }
