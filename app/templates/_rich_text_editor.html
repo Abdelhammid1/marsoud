@@ -79,6 +79,9 @@
         <button class="ql-blockquote" title="اقتباس"></button>
       </span>
       <span class="ql-formats">
+        <button type="button" class="rte-emoji-btn" title="إيموجي">😀</button>
+      </span>
+      <span class="ql-formats">
         <button class="ql-clean" title="إزالة التنسيق"></button>
       </span>
     </div>
@@ -108,6 +111,48 @@
   .rte-wrap { background: #fff; border: 1px solid #E2E8F0; border-radius: 10px; overflow: hidden; }
   .rte-toolbar.ql-toolbar,
   .rte-toolbar { border: none !important; border-bottom: 1px solid #F1F5F9 !important; background: #F8FAFC; }
+  /* Compact toolbar: smaller buttons + tighter spacing so every
+     group fits on one row without horizontal scroll. */
+  .rte-toolbar.ql-toolbar {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center;
+    padding: 4px 6px !important;
+  }
+  .rte-toolbar.ql-toolbar .ql-formats {
+    margin-left: 4px !important;
+    margin-right: 0 !important;
+  }
+  .rte-toolbar.ql-toolbar button {
+    width: 22px !important;
+    height: 22px !important;
+    padding: 2px !important;
+  }
+  .rte-toolbar.ql-toolbar button svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  .rte-toolbar.ql-toolbar .ql-picker {
+    font-size: 12px !important;
+  }
+  .rte-toolbar.ql-toolbar .ql-picker.ql-header {
+    width: 80px !important;
+    margin-left: 10px !important;
+  }
+  .rte-toolbar.ql-toolbar .ql-picker.ql-color,
+  .rte-toolbar.ql-toolbar .ql-picker.ql-background {
+    width: 22px !important;
+  }
+  .rte-emoji-btn {
+    font-size: 14px !important;
+    width: 22px !important;
+    height: 22px !important;
+    line-height: 1 !important;
+    padding: 0 !important;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+  }
   .rte-editor.ql-container { border: none !important; font-size: 14px; }
   .rte-editor.ql-container .ql-editor { min-height: 8rem; }
   /* Placeholder — Quill puts it in a data attr; the Snow theme
@@ -169,6 +214,50 @@
         placeholder: editorEl.getAttribute("data-placeholder") || "",
       });
       editorEl.__quill = quill;
+
+      // Emoji picker: simple popup, no external library.
+      var emojiBtn = toolbarEl.querySelector(".rte-emoji-btn");
+      if (emojiBtn && !emojiBtn.__wired) {
+        emojiBtn.__wired = true;
+        var EMOJI_LIST = ["😀","😁","😂","🤣","😊","😍","😎","🤔","😢","😭",
+          "😡","👍","👎","👏","🙏","💪","🔥","✅","❌","⚠️",
+          "❤️","⭐","🎉","🚀","📌","📎","📅","💰","📈","📉",
+          "✔️","➡️","⏰","💡","🏆","👌","🙌","😴","🤝","🙋"];
+        var popup = document.createElement("div");
+        popup.className = "rte-emoji-popup";
+        popup.style.cssText = "display:none;position:absolute;z-index:1000;background:#fff;border:1px solid #E2E8F0;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.12);padding:8px;grid-template-columns:repeat(8,1fr);gap:4px;max-width:280px;";
+        EMOJI_LIST.forEach(function(em){
+          var span = document.createElement("span");
+          span.textContent = em;
+          span.style.cssText = "cursor:pointer;font-size:18px;text-align:center;padding:2px;border-radius:4px;";
+          span.addEventListener("mouseenter", function(){ span.style.background = "#F1F5F9"; });
+          span.addEventListener("mouseleave", function(){ span.style.background = "transparent"; });
+          span.addEventListener("click", function(){
+            var range = quill.getSelection(true);
+            quill.insertText(range ? range.index : quill.getLength(), em, "user");
+            quill.setSelection((range ? range.index : quill.getLength()) + em.length);
+            popup.style.display = "none";
+          });
+          popup.appendChild(span);
+        });
+        document.body.appendChild(popup);
+        emojiBtn.addEventListener("click", function(e){
+          e.preventDefault();
+          if (popup.style.display === "grid") {
+            popup.style.display = "none";
+            return;
+          }
+          var rect = emojiBtn.getBoundingClientRect();
+          popup.style.top = (window.scrollY + rect.bottom + 4) + "px";
+          popup.style.left = (window.scrollX + rect.left) + "px";
+          popup.style.display = "grid";
+        });
+        document.addEventListener("click", function(e){
+          if (e.target !== emojiBtn && !popup.contains(e.target)) {
+            popup.style.display = "none";
+          }
+        });
+      }
 
       // Every keystroke: mirror the HTML into the textarea so if
       // the user hits Ctrl+Enter or the browser auto-submits (or
