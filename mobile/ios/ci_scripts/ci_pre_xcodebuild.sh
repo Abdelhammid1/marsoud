@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # MARSOUD-MOBILE-XCODE-CLOUD-DART-DEFINE-01 (2026-09-20) — pre-xcodebuild
 # hook.  Xcode Cloud runs `xcodebuild archive` on Runner.xcworkspace,
 # which invokes Flutter's build phase via `xcode_backend.sh build`.
@@ -27,7 +27,9 @@
 # and be executable.  Xcode Cloud runs it AFTER ci_post_clone.sh and
 # BEFORE xcodebuild.
 
-set -e
+set -euxo pipefail
+
+trap 'echo "!! ci_pre_xcodebuild.sh FAILED at line $LINENO — see the traced command above."' ERR
 
 echo "==> Marsoud · Xcode Cloud pre-xcodebuild hook"
 
