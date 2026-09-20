@@ -148,21 +148,11 @@ def post_invoice_to_ledger(invoice, created_by=None):
     # error (e.g. overdraw) rolls both back together.
     _apply_inventory_side_for_invoice(invoice, entry, created_by)
 
-    # MARSOUD-COMM-ACCRUAL — accrue the sales-rep commission the
-    # moment the invoice is posted (dated invoice.issue_date), so
-    # revenue + commission expense land in the same period. This
-    # replaces the old behaviour of accruing at payment time, which
-    # split them across months and broke monthly profit closes.
-    try:
-        from app.services.sales_commissions import (
-            record_commission_accrual_for_invoice,
-        )
-        record_commission_accrual_for_invoice(invoice, created_by=created_by)
-    except Exception:
-        import logging
-        logging.getLogger("ledgeros.invoicing").exception(
-            "Failed to accrue commission for invoice %s", invoice.number,
-        )
+    # MARSOUD-COMM-CASH-BASIS-01 (2026-09-20) — the accrual-at-post
+    # branch used to sit here (record_commission_accrual_for_invoice).
+    # Removed: commissions are now cash-basis, posted per payment in
+    # record_payment() via record_commission_for_payment(), and dated
+    # to the payment (not the invoice).  No call here on purpose.
 
     # MARSOUD-ACTLOG-01 — record the invoice posting as a CREATE action.
     _log_invoice_activity(invoice)
@@ -553,9 +543,13 @@ def record_payment(invoice, amount, payment_date=None, method=None,
     else:
         invoice.status = InvoiceStatus.PARTIALLY_PAID
 
-    # MARSOUD-COMM-01 Phase A — record + post a commission row for the
-    # customer's assigned sales rep, if any. Wrapped + try/except so a
-    # commission posting failure never blocks the actual payment.
+    # MARSOUD-COMM-CASH-BASIS-01 (2026-09-20) — commission is now
+    # posted per real customer payment.  For a foreign invoice we
+    # thread the same `exchange_rate` the payment-side JE used so
+    # the commission amount lands in the company's base currency
+    # (which is what the rep will be paid in via payroll).  Wrapped
+    # + try/except so a commission posting failure never blocks the
+    # actual payment.
     try:
         from app.services.sales_commissions import record_commission_for_payment
         # payment was added but not flushed yet; flush so we have payment.id
@@ -563,6 +557,7 @@ def record_payment(invoice, amount, payment_date=None, method=None,
         record_commission_for_payment(
             invoice, payment, amount,
             payment_date=payment_date or date.today(),
+            exchange_rate=exchange_rate,
             created_by=created_by,
         )
     except Exception:

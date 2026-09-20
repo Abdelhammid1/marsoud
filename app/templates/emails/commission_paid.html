@@ -1,0 +1,38 @@
+{% extends "emails/_base.html" %}
+{% block title %}صرف عمولة مبيعات — فاتورة {{ invoice.number if invoice else '' }}{% endblock %}
+{% block content %}
+<div style="text-align:center;margin-bottom:24px">
+  <div style="display:inline-block;width:72px;height:72px;background:linear-gradient(135deg,#10B981 0%,#047857 100%);border-radius:50%;line-height:72px;color:#fff;font-size:36px;box-shadow:0 8px 24px -8px rgba(16,185,129,0.5)">💰</div>
+</div>
+
+<h2 style="color:#0A2540;margin:0 0 8px;text-align:center;font-size:24px">تم صرف عمولتك</h2>
+<p style="line-height:1.7;color:#475569;text-align:center;margin:0 0 24px;font-size:14px">
+  اتصرفلك عمولة على تحصيل فاتورة
+  {% if invoice %}<strong>{{ invoice.number }}</strong>{% endif %}
+  — التفاصيل تحت.
+</p>
+
+<div style="background:linear-gradient(135deg,#10B981 0%,#047857 100%);color:#fff;border-radius:14px;padding:20px;margin:0 0 16px;text-align:center">
+  <div style="font-size:11px;color:rgba(255,255,255,0.7);letter-spacing:1px">المبلغ المصروف الآن</div>
+  <div style="font-size:34px;font-weight:bold;font-family:monospace;margin-top:4px">{{ "%.2f"|format(amount_paid) }}</div>
+</div>
+
+<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:13px">
+  {% if invoice %}
+  <tr><td style="padding:10px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9;width:45%">الفاتورة</td><td style="padding:10px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace;font-weight:bold">{{ invoice.number }}</td></tr>
+  {% if invoice.customer %}
+  <tr><td style="padding:10px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">العميل</td><td style="padding:10px 12px;text-align:left;border-bottom:1px solid #F1F5F9">{{ invoice.customer.name }}</td></tr>
+  {% endif %}
+  {% endif %}
+  <tr><td style="padding:10px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">إجمالي العمولة على الدفعة</td><td style="padding:10px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace">{{ "%.2f"|format(commission.amount|float) }}</td></tr>
+  <tr><td style="padding:10px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">النسبة</td><td style="padding:10px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace">{{ "%.2f"|format(commission.commission_rate|float) }}%</td></tr>
+  {% set _remaining = commission.remaining %}
+  {% if _remaining|float > 0.005 %}
+  <tr><td style="padding:10px 12px;color:#94A3B8">المتبقي على العمولة</td><td style="padding:10px 12px;text-align:left;font-family:monospace">{{ "%.2f"|format(_remaining) }}</td></tr>
+  {% endif %}
+</table>
+
+<p style="color:#475569;font-size:13px;margin-top:24px;border-top:1px solid #F1F5F9;padding-top:16px;text-align:center">
+  هذا بريد إلكتروني تلقائي — برجاء عدم الرد عليه.
+</p>
+{% endblock %}

@@ -151,6 +151,27 @@
           {% if r.invoice %}
             · <a href="{{ url_for('invoices.view', invoice_id=r.invoice_id) }}" class="text-brand-600 hover:underline">{{ r.invoice.number }}</a>
           {% endif %}
+          {# MARSOUD-COMM-CASH-BASIS-01 (2026-09-20) — under
+             cash-basis every commission row is tied to ONE
+             payment.  Show that payment's slice inline so the
+             operator sees "how much of the invoice this
+             commission actually earned on" without opening the
+             invoice.  Voided rows and legacy rows without a
+             payment_id both fall through to the plain layout. #}
+          {% if r.payment and r.invoice %}
+            {% set _p = r.payment.amount|float %}
+            {% set _t = r.invoice.total|float %}
+            {% set _b = _t - (r.invoice.paid_amount|float) %}
+            <div class="text-xs text-slate-500 mt-1">
+              دفعة: <span class="font-mono">{{ "%.2f"|format(_p) }}</span>
+              من إجمالي <span class="font-mono">{{ "%.2f"|format(_t) }}</span>
+              {% if _b > 0.01 %}
+                — الباقي على الفاتورة <span class="font-mono">{{ "%.2f"|format(_b) }}</span>
+              {% else %}
+                <span class="text-emerald-600">— مسددة بالكامل</span>
+              {% endif %}
+            </div>
+          {% endif %}
         </td>
         <td class="text-right font-mono {% if is_negative %}text-red-600{% elif not is_voided %}text-navy-900 font-bold{% endif %}">{{ "%.2f"|format(r.amount|float) }}</td>
         <td class="text-right font-mono text-xs text-slate-500">{{ "%.2f"|format(r.commission_rate|float) }}%</td>

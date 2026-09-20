@@ -269,6 +269,32 @@ def send_credit_note_email(invoice, credit_note):
                        attachments=_invoice_pdf_attachment(invoice))
 
 
+def send_commission_paid_email(commission, amount_paid):
+    """MARSOUD-COMM-CASH-BASIS-01 (2026-09-20) — notify the sales rep
+    that a commission was settled.  Fires from
+    `settle_commission_manual()`.  `amount_paid` is what the rep just
+    received for THIS settlement (may be a partial payment against a
+    larger accrual — the template shows the running remainder).
+
+    Never raises: no email on file → False; SMTP down → the shared
+    `send_email` swallows.  Same non-blocking discipline the payment
+    emails use.
+    """
+    rep = commission.sales_rep
+    if not rep or not getattr(rep, "email", None):
+        return False
+    inv = commission.invoice
+    inv_no = (inv.number if inv else f"#{commission.invoice_id}")
+    subject = f"صرف عمولة مبيعات — فاتورة {inv_no}"
+    html = render_template(
+        "emails/commission_paid.html",
+        commission=commission,
+        invoice=inv,
+        amount_paid=float(amount_paid or 0),
+    )
+    return send_email(rep.email, subject, html)
+
+
 def send_invitation_email(invitation, accept_url):
     """Notify an invited user that they have access to a company."""
     role_label = {"owner": "مالك", "admin": "مدير", "accountant": "محاسب", "viewer": "مشاهد"}.get(

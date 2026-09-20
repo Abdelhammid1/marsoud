@@ -56,6 +56,15 @@ class SalesCommission(db.Model):
     is_carry_forward = db.Column(db.Boolean, nullable=False, default=False)
     journal_entry_id = db.Column(db.Integer,
                                   db.ForeignKey("journal_entries.id"))
+    # MARSOUD-COMM-CASH-BASIS-01 (2026-09-20) — for a payment on a
+    # foreign-currency invoice, the rate that converted the payment
+    # slice to base currency at posting time.  `amount` is ALWAYS in
+    # company base currency (that's what the payroll settles in);
+    # this column is the audit trail so a later report can retrace
+    # base = payment_foreign × taxable_ratio × fx_rate.  NULL for
+    # base-currency payments and for every row that predates the
+    # cash-basis switch.
+    fx_rate = db.Column(db.Numeric(15, 6), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     # MARSOUD-COMM-DASHBOARD (2026-08-31) — cancellation trail.
