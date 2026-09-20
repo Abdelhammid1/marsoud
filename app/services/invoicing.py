@@ -787,36 +787,80 @@ def issue_refund(invoice, refund_type, amount=None, reason=None, created_by=None
             source_id=invoice.id,
         )
     else:
-        if float(invoice.paid_amount or 0) > 0:
-            # Refund actual cash
-            entry = post_journal(
-                company_id=invoice.company_id,
-                description=f"استرداد للعميل {invoice.customer.name} — فاتورة #{invoice.number}",
-                lines=debit_lines + [
-                    {"account_id": cash.id, "debit": 0, "credit": amount, "memo": "صرف نقدي للعميل"},
-                ],
-                entry_date=date.today(),
-                reference=ref_no,
-                currency=invoice.currency,
-                created_by=created_by,
-                source_type="refund",
-                source_id=invoice.id,
-            )
-            invoice.paid_amount = float(invoice.paid_amount or 0) - amount
+        # MARSOUD-VOID-PAID-SLICE-01 (2026-09-20) — before this fix the
+        # FULL branch credited Cash for the WHOLE `amount` (=invoice.total)
+        # even when the customer had only paid a fraction of the invoice.
+        # For a partially-paid invoice that leaked the unpaid portion out
+        # of the cash account (dashboard "متاح" dropped by ghost cash)
+        # AND drove `invoice.paid_amount` negative on line
+        # `paid_amount = paid_amount - amount`.
+        #
+        # The fix: split the credit side.  Cash gets what the customer
+        # actually paid; AR gets the outstanding balance so the customer
+        # sub-account closes to zero.  Both are conditional so a
+        # fully-unpaid or fully-paid invoice degenerates to the old
+        # one-line shape.  Debit total (subtotal + tax = invoice.total)
+        # is unchanged so revenue/VAT reversal still matches the
+        # original posting exactly.
+        paid = float(invoice.paid_amount or 0)
+        if refund_type == RefundType.FULL:
+            cash_credit = paid
+            ar_credit = float(amount) - paid
+        else:  # PARTIAL
+            # A partial refund only ever returns money the customer
+            # already paid — see the > paid_amount guard higher up in
+            # this function.  So the whole amount is a cash movement;
+            # AR isn't touched.
+            cash_credit = float(amount)
+            ar_credit = 0.0
+
+        credit_lines = []
+        if cash_credit > 0.01:
+            credit_lines.append({
+                "account_id": cash.id, "debit": 0, "credit": cash_credit,
+                "memo": "صرف نقدي للعميل",
+            })
+        if ar_credit > 0.01:
+            credit_lines.append({
+                "account_id": ar.id, "debit": 0, "credit": ar_credit,
+                "memo": "إلغاء الذمم",
+            })
+        # An unpaid FULL void with `paid == 0` produces zero cash_credit
+        # and ar_credit = amount → the JE shape becomes the pre-fix
+        # "no payment yet — just reverse the receivable" case.  Same
+        # net effect, one code path.
+        desc = (f"استرداد للعميل {invoice.customer.name} — "
+                f"فاتورة #{invoice.number}") if cash_credit > 0.01 else \
+               f"إلغاء فاتورة #{invoice.number}"
+        entry = post_journal(
+            company_id=invoice.company_id,
+            description=desc,
+            lines=debit_lines + credit_lines,
+            entry_date=date.today(),
+            reference=ref_no,
+            currency=invoice.currency,
+            created_by=created_by,
+            source_type="refund",
+            source_id=invoice.id,
+        )
+        if refund_type == RefundType.FULL:
+            # MARSOUD-VOID-PAID-SLICE-01 (2026-09-20) — snapshot the
+            # pre-void paid slice on the ORM object so the commission
+            # clawback further down knows how much the customer had
+            # actually paid.  Attribute is transient (not persisted),
+            # lives on the in-memory Invoice for the rest of this
+            # transaction only.
+            invoice.paid_amount_before_void = float(invoice.paid_amount or 0)
+            # The invoice is dead — zero the paid counter.  Historical
+            # proof of what was received stays on the Payment rows and
+            # on this refund's JournalEntry.  Never negative.
+            invoice.paid_amount = 0.0
         else:
-            # No payment yet — just reverse the receivable
-            entry = post_journal(
-                company_id=invoice.company_id,
-                description=f"إلغاء فاتورة #{invoice.number}",
-                lines=debit_lines + [
-                    {"account_id": ar.id, "debit": 0, "credit": amount, "memo": "إلغاء الذمم"},
-                ],
-                entry_date=date.today(),
-                reference=ref_no,
-                currency=invoice.currency,
-                created_by=created_by,
-                source_type="refund",
-                source_id=invoice.id,
+            # PARTIAL: `amount` is bounded by `paid_amount` above, so
+            # the subtraction is guaranteed >= 0.  max() belt-and-braces
+            # against a future edge case (e.g. rounding at the boundary).
+            invoice.paid_amount = max(
+                0.0, float(invoice.paid_amount or 0) - float(amount)
             )
 
     refund = Refund(
@@ -841,10 +885,30 @@ def issue_refund(invoice, refund_type, amount=None, reason=None, created_by=None
     # refunded portion. Reverses from the rep's unpaid bucket if any
     # exists, else creates a carry-forward charge against next month.
     # Wrapped so a commission posting failure never blocks the refund.
+    #
+    # MARSOUD-VOID-PAID-SLICE-01 (2026-09-20) — for a FULL void of a
+    # partially-paid invoice, only claw back the commission earned on
+    # the slice the customer actually paid.  The rep never received
+    # commission on the unpaid portion under cash-basis (post-ticket-3),
+    # and even under the current accrual model the void of an unpaid
+    # slice zeroes revenue that was already reversed on the AR side
+    # above — clawing it back a SECOND time via commission would
+    # double-count.
     try:
         from app.services.sales_commissions import record_commission_refund
+        clawback_base = (
+            float(invoice.paid_amount_before_void)   # snapshot
+            if refund_type == RefundType.FULL and
+               hasattr(invoice, "paid_amount_before_void")
+            else amount
+        )
+        # `paid_amount` was just reset to 0 above for the FULL branch,
+        # so the snapshot is captured earlier in this function.  If it
+        # wasn't (defensive), fall back to `amount` — matches the
+        # pre-fix behaviour so nothing regresses on the fully-paid
+        # code path where amount == paid == total anyway.
         record_commission_refund(
-            invoice, refund, amount,
+            invoice, refund, clawback_base,
             refund_date=date.today(),
             created_by=created_by,
         )
