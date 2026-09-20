@@ -92,6 +92,28 @@ Variables don't include `MARSOUD_API`, or the ci hook isn't passing
 them through to `flutter build`. Check the Xcode Cloud build log for
 the `flutter pub get` line — the runner's shell should have it set.
 
+### App Store "update" lands, but the phone shows the OLD app
+Classic symptom of Xcode Cloud shipping a broken .ipa: the archive
+uploads fine but the compiled Dart has an empty `MARSOUD_API`, so
+`Env.assertConfigured()` throws at `main.dart:15` the moment the
+app launches.  iOS catches the crash and keeps the last-known-good
+binary running when the user hits "Open" — nothing looks different
+even though the "installed" version bumped.
+
+  * Verify installed version in `Settings → General → iPhone
+    Storage → Marsoud` (should match `pubspec.yaml`'s `version:`).
+  * Verify the Xcode Cloud build log for the pre-xcodebuild step
+    printed `flutter build ios ... --dart-define=MARSOUD_API=...`
+    with a non-empty value.  Missing → the `MARSOUD_API` env var
+    isn't set on the workflow (App Store Connect → Xcode Cloud →
+    Workflow → Environment).
+  * MARSOUD-MOBILE-XCODE-CLOUD-DART-DEFINE-01 (2026-09-20) — the
+    fix is `ios/ci_scripts/ci_pre_xcodebuild.sh`, which pre-compiles
+    the Flutter framework with `--dart-define=MARSOUD_API=$MARSOUD_API`
+    so the Dart already carries the value when xcodebuild archives.
+    Without it, the workflow's env vars never reach Flutter and
+    every build ships a brick.
+
 ### Push notifications don't arrive on TestFlight
   - Check `Runner.entitlements` → `aps-environment` = `development`
     (Xcode Cloud auto-switches to `production` for App Store builds)

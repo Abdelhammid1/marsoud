@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/theme.dart';
 import '../../data/api_client.dart';
 import '../../data/my_account_repository.dart';
+import '../../utils/rich_text.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/section_card.dart';
 
@@ -91,7 +92,15 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
         }
         final t = snap.data!['task'] as Map<String, dynamic>;
         final status = t['status']?.toString() ?? 'TODO';
-        final desc = t['description']?.toString() ?? '';
+        // MARSOUD-MOBILE-STRIP-HTML-01 (2026-09-20) — the web's
+        // rich-text editor writes descriptions as HTML (`<p>`,
+        // `<strong>`, `<code>`, `<span class="ql-ui">`...).  A plain
+        // Text widget rendered that as literal tags — Abdelhamid saw
+        // his own ticket description as a wall of markup on his
+        // iPhone.  Strip to readable plain text; formatting loss is
+        // acceptable here since the mobile display is a single
+        // paragraph anyway.
+        final desc = stripHtml(t['description']?.toString());
         final assignees = (t['assignees'] as List?)
                 ?.cast<Map<String, dynamic>>() ??
             const [];

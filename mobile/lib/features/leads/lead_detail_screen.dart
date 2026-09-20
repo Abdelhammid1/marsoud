@@ -33,6 +33,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../app/theme.dart';
 import '../../data/api_client.dart';
 import '../../data/mobile_extras_repository.dart';
+import '../../utils/rich_text.dart';
 import '../../widgets/section_card.dart';
 
 final _leadProvider = FutureProvider.autoDispose
@@ -69,13 +70,18 @@ class LeadDetailScreen extends ConsumerWidget {
         final history = (lead['history'] as List?)
                 ?.cast<Map<String, dynamic>>() ??
             const [];
-        final requestDesc =
-            (lead['request_description'] ?? '').toString().trim();
-        final notes = (lead['notes'] ?? '').toString().trim();
-        final meetingNotes =
-            (lead['meeting_notes'] ?? '').toString().trim();
-        final salesAction =
-            (lead['sales_action_required'] ?? '').toString().trim();
+        // MARSOUD-MOBILE-STRIP-HTML-01 (2026-09-20) — these four free-
+        // text fields can be edited from the web via the rich-text
+        // editor and come back as HTML; strip so the mobile doesn't
+        // render literal `<p><strong>...` tags.  Empty/plain-text
+        // input passes through unchanged.
+        final requestDesc = stripHtml(
+            lead['request_description']?.toString());
+        final notes = stripHtml(lead['notes']?.toString());
+        final meetingNotes = stripHtml(
+            lead['meeting_notes']?.toString());
+        final salesAction = stripHtml(
+            lead['sales_action_required']?.toString());
         final quotationUrl =
             (lead['quotation_url'] ?? '').toString().trim();
         final contractUrl =
@@ -517,7 +523,7 @@ class _ActivityCard extends StatelessWidget {
     final typeIcon = (activity['type_icon'] ?? '📌').toString();
     final typeLabel = (activity['type_label_ar'] ?? '').toString();
     final subject = (activity['subject'] ?? '').toString().trim();
-    final body = (activity['body'] ?? '').toString().trim();
+    final body = stripHtml(activity['body']?.toString());
     final when = _fmtActivityWhen(
         activity['activity_date']?.toString());
     final followUp = activity['follow_up_date']?.toString();
