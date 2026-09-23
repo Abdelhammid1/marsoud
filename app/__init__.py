@@ -1222,6 +1222,7 @@ def create_app(config_class=Config):
     # fetch /static/ relative paths).
     from app.services.email import company_logo_email_uri
     app.jinja_env.globals["company_logo_email_uri"] = company_logo_email_uri
+    app.jinja_env.globals["site_url"] = app.config.get("SITE_URL", "").rstrip("/")
 
     # MARSOUD-CASH-CUSTODY-01 (2026-08-07, slice 3) — the custody
     # detail template renders per-line attachments inline (one
