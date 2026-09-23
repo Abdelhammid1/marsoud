@@ -179,6 +179,14 @@
   .rich-text-display code { background: #F1F5F9; padding: 1px 4px; border-radius: 3px; font-size: 0.9em; }
   .rich-text-display pre { background: #0F172A; color: #E2E8F0; padding: 0.75rem 1rem; border-radius: 6px; overflow-x: auto; font-size: 12px; }
   .rich-text-display blockquote { border-inline-start: 3px solid #10B981; padding-inline-start: 0.75rem; color: #64748B; margin: 0.5rem 0; }
+  /* MARSOUD-RICH-TEXT-IMAGE-UPLOAD-01 (2026-09-23) — inline pasted
+     images. Cap the display width so a screenshot doesn't overflow
+     the card, and add a subtle border so it's visually distinct from
+     the surrounding text.  In the editor itself Quill sizes the img
+     naturally; these rules only apply to the read-only rendered
+     description. */
+  .rich-text-display img { max-width: 100%; height: auto; border-radius: 6px; border: 1px solid #E2E8F0; margin: 0.4rem 0; display: block; }
+  .rte-editor .ql-editor img { max-width: 100%; height: auto; }
 </style>
 <script>
 (function(){
@@ -256,6 +264,80 @@
           if (e.target !== emojiBtn && !popup.contains(e.target)) {
             popup.style.display = "none";
           }
+        });
+      }
+
+      // MARSOUD-RICH-TEXT-IMAGE-UPLOAD-01 (2026-09-23) — pasted
+      // images.  Quill's default behavior when the clipboard
+      // contains an image is to embed it as a `data:image/*;base64`
+      // URI, which balloons the description (500 KB screenshot →
+      // 700 KB base64) and slows every later fetch that reads
+      // the row.  Intercept the paste, upload the blob to
+      // /uploads/rich-text-image, and insert an `<img src="URL">`
+      // at the caret with the returned path.
+      //
+      // Files pasted alongside text (e.g. mixed HTML paste from
+      // Google Docs) are handled the same way — the text still
+      // flows through Quill's own paste matcher; only image items
+      // get diverted.
+      editorEl.addEventListener("paste", function(e){
+        if (!e.clipboardData || !e.clipboardData.items) return;
+        var items = e.clipboardData.items;
+        var imageItems = [];
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].kind === "file" &&
+              items[i].type.indexOf("image/") === 0) {
+            imageItems.push(items[i]);
+          }
+        }
+        if (imageItems.length === 0) return;
+        // Prevent Quill's default handling — it would base64-embed.
+        e.preventDefault();
+        imageItems.forEach(function(item){
+          var blob = item.getAsFile();
+          if (!blob) return;
+          _uploadAndInsert(quill, blob);
+        });
+      });
+
+      function _uploadAndInsert(q, blob) {
+        var range = q.getSelection(true) ||
+                     { index: q.getLength(), length: 0 };
+        // Placeholder while the upload runs so the user sees
+        // something happening — text is fine; a broken img would
+        // be misleading.  Replaced with the real <img> when the
+        // POST returns.
+        var placeholder = "…رفع الصورة… ";
+        q.insertText(range.index, placeholder, "user");
+        var fd = new FormData();
+        fd.append("file", blob, "pasted.png");
+        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        var headers = {};
+        if (csrfMeta) headers["X-CSRFToken"] = csrfMeta.content;
+        fetch("/uploads/rich-text-image", {
+          method: "POST",
+          body: fd,
+          headers: headers,
+          credentials: "same-origin",
+        }).then(function(r){
+          if (!r.ok) throw new Error("upload failed: " + r.status);
+          return r.json();
+        }).then(function(json){
+          if (!json || !json.url) throw new Error("no url in response");
+          // Remove placeholder, insert the img at the same spot.
+          q.deleteText(range.index, placeholder.length);
+          q.insertEmbed(range.index, "image", json.url, "user");
+          q.setSelection(range.index + 1);
+          // Sync the mirror textarea straight away so a fast
+          // submit doesn't miss the newly-inserted image.
+          var html = q.root.innerHTML;
+          if (html === "<p><br></p>") html = "";
+          inputEl.value = html;
+        }).catch(function(err){
+          q.deleteText(range.index, placeholder.length);
+          q.insertText(range.index,
+                        "[تعذّر رفع الصورة]\n", "user");
+          if (window.console) console.error("[rte] image upload:", err);
         });
       }
 

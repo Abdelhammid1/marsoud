@@ -252,6 +252,13 @@ def create_app(config_class=Config):
     app.register_blueprint(inventory_counts_bp,
                             url_prefix="/inventory/counts")
 
+    # MARSOUD-RICH-TEXT-IMAGE-UPLOAD-01 (2026-09-23) — Quill editor
+    # pastes images to this endpoint and drops the returned URL into
+    # the document.  Registered under /uploads to keep the URL short
+    # + not tangle with any existing route namespace.
+    from app.routes.rich_text import bp as rich_text_bp
+    app.register_blueprint(rich_text_bp, url_prefix="/uploads")
+
     # MARSOUD-API-V1 — make sure /api/v1/* abort(...) / unauthorized
     # responses come out as JSON instead of HTML / login redirects.
     from werkzeug.exceptions import HTTPException as _HTTPException

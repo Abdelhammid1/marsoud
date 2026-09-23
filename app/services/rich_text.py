@@ -47,12 +47,44 @@ _ALLOWED_TAGS = frozenset({
     "span", "code",
     # Anchors
     "a",
+    # MARSOUD-RICH-TEXT-IMAGE-UPLOAD-01 (2026-09-23) — inline images
+    # pasted through the Quill editor.  The `src` allowlist below
+    # restricts them to our own upload path, so a hostile paste
+    # can't reference an off-site tracking pixel or a base64 payload.
+    "img",
 })
 
 # Per-tag attribute allowlist. `class` is allowed on a small set so
 # Quill's `.ql-align-*` / `.ql-indent-*` classes survive.  Colour and
 # highlight land in an inline `style="color:…"` — we let bleach
 # through them via the CSSSanitizer below.
+def _img_attrs(tag, name, value):
+    """MARSOUD-RICH-TEXT-IMAGE-UPLOAD-01 (2026-09-23) — bleach
+    attribute filter for `<img>`.  Called once per attribute on
+    every img element.
+
+    Return True → keep.  Return False → drop the attribute (the
+    element itself stays, minus that attribute).  An `<img>` that
+    loses its `src` renders as a broken image icon, which is the
+    right behaviour for a rejected src (the reader can see that
+    something was there and complain).
+
+    Rules:
+      · `src`:  MUST be a same-origin relative path starting with
+                `/static/uploads/rich-text/`.  Absolute URLs,
+                `data:` URIs, and any other path are dropped.
+      · `alt`:  free-text, kept as-is (bleach handles quoting).
+      · `title`: same.
+      · anything else: dropped.
+    """
+    if name == "src":
+        v = (value or "").strip()
+        return v.startswith("/static/uploads/rich-text/")
+    if name in ("alt", "title"):
+        return True
+    return False
+
+
 _ALLOWED_ATTRS = {
     "a": ["href", "title", "target", "rel"],
     "span": ["class", "style"],
@@ -66,6 +98,7 @@ _ALLOWED_ATTRS = {
     "h1": ["class"], "h2": ["class"], "h3": ["class"],
     "h4": ["class"], "h5": ["class"], "h6": ["class"],
     "blockquote": ["class"],
+    "img": _img_attrs,
 }
 
 # Which URL protocols links are allowed to point at.  `javascript:`
