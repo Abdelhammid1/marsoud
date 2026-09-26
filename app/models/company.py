@@ -96,6 +96,14 @@ class Company(db.Model):
     instapay_handle = db.Column(db.String(100))
     ewallet_number = db.Column(db.String(30))
     ewallet_provider = db.Column(db.String(60))
+    # MARSOUD-INVOICE-BRAND-COLOR (2026-09-26) — the tenant's chosen
+    # brand color for their PDF invoice. Stored as a 7-char hex string
+    # (`#RRGGBB`). NULL means "use the app-wide Marsoud green default
+    # (#059669)", so a fresh company that never touched the setting
+    # still renders exactly as before. See app/templates/pdfs/invoice.html
+    # for how it's applied (single-color model — every green surface on
+    # the PDF re-tints together; PAID/OVERDUE stay semantic).
+    invoice_brand_color = db.Column(db.String(9))
     # MARSOUD-57.2 + 57.3 — commercial plan + subscription window
     plan_id = db.Column(db.Integer, db.ForeignKey("plans.id"))
     # MARSOUD-CHOOSE-PLAN (Abdelhamid 2026-07-22) — plan the OWNER

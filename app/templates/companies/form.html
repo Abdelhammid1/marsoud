@@ -1,300 +1,539 @@
 {% extends "base.html" %}
 {% block page_title %}{% if company %}تعديل الشركة{% else %}شركة جديدة{% endif %}{% endblock %}
 {% block content %}
+{# MARSOUD-COMPANY-SETTINGS-REDESIGN (2026-09-26) — the whole form was
+   one long scroll of loose section-cards. It is now a keyboard-navigable
+   tab shell (General / Payments & Invoices / Invoice Appearance /
+   Inventory & Loyalty), with the "Invoice Appearance" tab hosting a
+   single brand-color picker and a LIVE preview of the invoice PDF that
+   recolors as you drag. Danger zone stays below the tabs (not a tab
+   itself — deleting the company is not a routine setting). #}
+
+{% set _color = (company and company.invoice_brand_color) or '#059669' %}
+
+<style>
+  /* Local, scoped to this page — clean, calm, Claude-inspired tabs. */
+  .ms-tabs { position: relative; }
+  .ms-tabs-list {
+    display: flex; gap: 4px; padding: 4px;
+    background: #F1F5F9; border-radius: 12px; margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .ms-tab {
+    flex: 1 1 auto; min-width: 0;
+    padding: 10px 14px;
+    border: 0; background: transparent;
+    color: #475569; font-weight: 600; font-size: 13.5px;
+    border-radius: 8px; cursor: pointer;
+    transition: background .15s, color .15s, box-shadow .15s;
+    text-align: center; white-space: nowrap;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .ms-tab:hover:not([aria-selected="true"]) { color: #0A2540; background: rgba(255,255,255,.5); }
+  .ms-tab[aria-selected="true"] {
+    background: #fff; color: #0A2540;
+    box-shadow: 0 2px 6px rgba(15,23,42,.06), 0 0 0 1px rgba(15,23,42,.04);
+  }
+  .ms-tab:focus-visible { outline: 2px solid #2563EB; outline-offset: 2px; }
+  .ms-panel { display: none; }
+  .ms-panel[data-active="true"] { display: block; animation: fade .18s ease-out; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  /* Section-card variant used INSIDE tabs — tighter than the old page. */
+  .ms-section {
+    border: 1px solid #E2E8F0; border-radius: 12px; padding: 18px;
+    background: #fff; margin-bottom: 14px;
+  }
+  .ms-section > h3 { margin: 0 0 4px; font-size: 14px; font-weight: 700; color: #0A2540; }
+  .ms-section > .ms-hint { font-size: 12px; color: #64748B; margin: 0 0 12px; }
+
+  /* Live-preview mini invoice */
+  .inv-preview-wrap {
+    background: linear-gradient(180deg, #F8FAFC, #EEF2F7);
+    border: 1px solid #E2E8F0; border-radius: 14px;
+    padding: 18px; display: flex; justify-content: center; align-items: flex-start;
+  }
+  .inv-preview {
+    --inv-brand: {{ _color }};
+    width: 100%; max-width: 420px;
+    background: #fff; border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(10,37,64,.10);
+    position: relative; overflow: hidden;
+    font-family: 'Amiri', 'Cairo', system-ui, sans-serif;
+    direction: rtl; color: #0A2540;
+  }
+  .inv-preview .corner-tl,
+  .inv-preview .corner-br {
+    position: absolute; width: 42px; height: 42px;
+    background: var(--inv-brand); transition: background .15s;
+  }
+  .inv-preview .corner-tl { top: 0; left: 0; clip-path: polygon(0 0, 100% 0, 0 100%); }
+  .inv-preview .corner-br { bottom: 0; right: 0; clip-path: polygon(100% 100%, 0 100%, 100% 0); }
+  .inv-preview .p { padding: 20px 22px; position: relative; z-index: 1; }
+  .inv-preview .brand-row {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+  }
+  .inv-preview .logo-dot {
+    width: 30px; height: 30px; border-radius: 6px;
+    background: #0A2540; color: #fff; display: flex;
+    align-items: center; justify-content: center;
+    font-weight: 800; font-size: 14px;
+  }
+  .inv-preview .brand-name { font-weight: 800; font-size: 15px; }
+  .inv-preview .doc-title {
+    text-align: center; font-size: 20px; font-weight: 800;
+    color: var(--inv-brand); margin: 4px 0 8px;
+    transition: color .15s;
+  }
+  .inv-preview .status-pill {
+    display: inline-block; padding: 2px 10px; border-radius: 999px;
+    background: #F1F5F9; color: #0A2540; font-size: 10px; font-weight: 700;
+  }
+  .inv-preview .status-wrap { text-align: center; margin-bottom: 10px; }
+  .inv-preview .rule { height: 2px; background: #0A2540; margin-bottom: 12px; }
+  .inv-preview .headline {
+    font-size: 12px; font-weight: 700; margin-bottom: 12px;
+  }
+  .inv-preview .headline .amt { color: var(--inv-brand); transition: color .15s; }
+  .inv-preview table.items { width: 100%; font-size: 10px; border-collapse: collapse; }
+  .inv-preview table.items th {
+    background: var(--inv-brand); color: #fff; padding: 5px 8px;
+    text-align: right; font-weight: 600; font-size: 9.5px;
+    transition: background .15s;
+  }
+  .inv-preview table.items td { padding: 6px 8px; border-bottom: 1px solid #E2E8F0; }
+  .inv-preview .due-block {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding-right: 10px; border-right: 3px solid var(--inv-brand);
+    margin: 14px 0 10px; transition: border-color .15s;
+  }
+  .inv-preview .due-block .lbl { font-size: 10px; color: #64748B; }
+  .inv-preview .due-block .val {
+    font-size: 18px; font-weight: 800; color: var(--inv-brand);
+    transition: color .15s; font-family: ui-monospace, monospace;
+  }
+  .inv-preview .inst-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 10px; }
+  .inv-preview .inst-circle { width: 14px; height: 14px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 9px; color: #fff; }
+  .inv-preview .inst-circle.paid { background: #10B981; }        /* semantic — stays green */
+  .inv-preview .inst-circle.overdue { background: #DC2626; }     /* semantic — stays red */
+  .inv-preview .inst-pill { margin-inline-start: auto; padding: 3px 8px; border-radius: 5px; font-family: ui-monospace, monospace; font-weight: 600; }
+  .inv-preview .inst-pill.paid { background: #F0FDF4; color: #94A3B8; text-decoration: line-through; }
+  .inv-preview .inst-pill.overdue { background: #FEE2E2; color: #B91C1C; }
+  .inv-preview .footer { margin-top: 12px; padding-top: 8px; border-top: 1px solid #E2E8F0; font-size: 9px; color: #94A3B8; display: flex; justify-content: space-between; }
+  .inv-preview .footer strong { color: var(--inv-brand); transition: color .15s; }
+
+  /* Color-picker row */
+  .color-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .color-row .swatch {
+    width: 44px; height: 44px; border-radius: 10px;
+    border: 2px solid #fff; box-shadow: 0 0 0 1px #CBD5E1, 0 2px 6px rgba(15,23,42,.06);
+    cursor: pointer; position: relative; overflow: hidden;
+  }
+  .color-row .swatch input[type="color"] {
+    position: absolute; inset: -4px; opacity: 0; cursor: pointer; border: 0;
+    width: calc(100% + 8px); height: calc(100% + 8px);
+  }
+  .color-row .hex-input {
+    font-family: ui-monospace, monospace; font-size: 14px;
+    text-transform: uppercase; letter-spacing: .05em; max-width: 130px;
+  }
+  .color-row .reset-btn {
+    font-size: 12px; color: #64748B; background: transparent;
+    border: 1px dashed #CBD5E1; border-radius: 8px; padding: 6px 12px;
+    cursor: pointer;
+  }
+  .color-row .reset-btn:hover { background: #F8FAFC; color: #0A2540; }
+  .swatch-strip { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .swatch-strip button {
+    width: 28px; height: 28px; border-radius: 8px; border: 2px solid #fff;
+    box-shadow: 0 0 0 1px rgba(15,23,42,.08); cursor: pointer;
+  }
+  .swatch-strip button:focus-visible { outline: 2px solid #2563EB; outline-offset: 2px; }
+</style>
+
 {% if company %}
-<div class="max-w-2xl mb-4 flex gap-2">
+<div class="max-w-5xl mx-auto mb-4 flex gap-2">
   <a href="{{ url_for('companies.index', sort='activity') }}"
      class="inline-flex items-center gap-2 btn-secondary text-sm">
     🏢 شركاتي
   </a>
-  {# MARSOUD-COMPANY-BRANCHES-01 — quick jump to the branches page. #}
   <a href="{{ url_for('companies.branches', company_id=company.id) }}"
      class="inline-flex items-center gap-2 btn-secondary text-sm">
     🏬 الفروع
   </a>
 </div>
 {% endif %}
-<div class="card p-6 max-w-2xl">
-  <form method="POST" enctype="multipart/form-data" class="space-y-4">
-    <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">اسم الشركة</label>
-      <input type="text" name="name" required value="{{ company.name if company else '' }}" class="input">
-    </div>
+
+<div class="card p-6 max-w-5xl mx-auto">
+  <form method="POST" enctype="multipart/form-data" class="space-y-4" id="company-form">
+
+    {# ── Tabs header ─────────────────────────────────────────── #}
     {% if company %}
-    <div class="border border-slate-200 rounded-lg p-4 bg-slate-50">
-      <label class="block text-sm font-semibold text-slate-700 mb-2">شعار الشركة (يظهر على الفواتير والإيميلات)</label>
-      <div class="flex items-center gap-4 mb-3">
-        {% if company.logo_path %}
-        <img src="{{ company.logo_path }}" alt="شعار {{ company.name }}" class="h-16 w-auto max-w-[160px] rounded border border-slate-200 bg-white p-1 object-contain">
-        <label class="flex items-center gap-2 text-sm text-rose-700 cursor-pointer">
-          <input type="checkbox" name="remove_logo" value="1" class="w-4 h-4">
-          إزالة الشعار الحالي
-        </label>
-        {% else %}
-        <div class="text-sm text-slate-500">لا يوجد شعار حالياً — ارفع صورة لإظهارها في رأس الفواتير والإيميلات.</div>
-        {% endif %}
+    <div class="ms-tabs" role="tablist" aria-label="أقسام إعدادات الشركة">
+      <div class="ms-tabs-list">
+        <button type="button" class="ms-tab" role="tab" aria-selected="true"  aria-controls="tab-general"  id="t-general">⚙️ عام</button>
+        <button type="button" class="ms-tab" role="tab" aria-selected="false" aria-controls="tab-payments" id="t-payments">💳 الفواتير والدفع</button>
+        <button type="button" class="ms-tab" role="tab" aria-selected="false" aria-controls="tab-appearance" id="t-appearance">🎨 مظهر الفاتورة</button>
+        <button type="button" class="ms-tab" role="tab" aria-selected="false" aria-controls="tab-ops"      id="t-ops">📦 المخزون والولاء</button>
       </div>
-      <input type="file" name="logo_file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" class="text-sm">
-      <p class="text-xs text-slate-500 mt-1">PNG / JPG / SVG • الحد الأقصى 2 ميجا • ينعكس فوراً على الفواتير المُصدّرة والإيميلات الجديدة</p>
     </div>
     {% endif %}
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">العملة الأساسية</label>
-        <select name="base_currency" class="select" {% if company %}disabled{% endif %}>
-          {% for code in currency_codes %}
-          <option value="{{ code }}" {% if company and company.base_currency == code %}selected{% endif %}>{{ code }} — {{ code|currency_ar }}</option>
+
+    {# ══════════════════════ TAB 1: GENERAL ══════════════════════ #}
+    <div class="ms-panel" data-active="true" role="tabpanel" id="tab-general" aria-labelledby="t-general">
+
+      <div class="ms-section">
+        <h3>🏢 المعلومات الأساسية</h3>
+        <p class="ms-hint">اسم الشركة كما هيتعرض في كل مكان في التطبيق.</p>
+        <div>
+          <label class="block text-sm font-semibold text-slate-700 mb-2">اسم الشركة</label>
+          <input type="text" name="name" required value="{{ company.name if company else '' }}" class="input">
+        </div>
+      </div>
+
+      {% if company %}
+      <div class="ms-section" style="background:#F8FAFC">
+        <h3>🖼️ شعار الشركة</h3>
+        <p class="ms-hint">يظهر على الفواتير والإيميلات. PNG / JPG / SVG • الحد الأقصى 2 ميجا.</p>
+        <div class="flex items-center gap-4 mb-3">
+          {% if company.logo_path %}
+          <img src="{{ company.logo_path }}" alt="شعار {{ company.name }}" class="h-16 w-auto max-w-[160px] rounded border border-slate-200 bg-white p-1 object-contain">
+          <label class="flex items-center gap-2 text-sm text-rose-700 cursor-pointer">
+            <input type="checkbox" name="remove_logo" value="1" class="w-4 h-4">
+            إزالة الشعار الحالي
+          </label>
+          {% else %}
+          <div class="text-sm text-slate-500">لا يوجد شعار حالياً — ارفع صورة لإظهارها في رأس الفواتير والإيميلات.</div>
+          {% endif %}
+        </div>
+        <input type="file" name="logo_file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" class="text-sm">
+      </div>
+      {% endif %}
+
+      <div class="ms-section">
+        <h3>💰 العملة والضريبة</h3>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">العملة الأساسية</label>
+            <select name="base_currency" class="select" {% if company %}disabled{% endif %}>
+              {% for code in currency_codes %}
+              <option value="{{ code }}" {% if company and company.base_currency == code %}selected{% endif %}>{{ code }} — {{ code|currency_ar }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-2">نسبة الضريبة %</label>
+            <input type="number" name="vat_rate" step="0.01" value="{{ company.vat_rate if company else 0 }}" class="input">
+          </div>
+        </div>
+
+        {% set _tz = (company.timezone if company else 'Asia/Riyadh') %}
+        <div class="mt-4">
+          <label class="block text-sm font-semibold text-slate-700 mb-2">🕒 المنطقة الزمنية</label>
+          <select name="timezone" class="select">
+            {% for tz in ['Asia/Riyadh', 'Africa/Cairo', 'Asia/Dubai', 'Asia/Amman', 'Asia/Kuwait', 'Asia/Baghdad', 'Africa/Casablanca', 'Africa/Tunis', 'Europe/London', 'America/New_York', 'UTC'] %}
+            <option value="{{ tz }}" {% if _tz == tz %}selected{% endif %}>{{ tz }}</option>
+            {% endfor %}
+          </select>
+          <div class="text-xs text-slate-500 mt-1">كل التواريخ (الفواتير، الإيميلات، السجل) هتتعرض بتوقيت الشركة ده.</div>
+        </div>
+      </div>
+
+      <div class="ms-section">
+        <h3>📄 إعدادات الشركة الرسمية</h3>
+        <p class="ms-hint">
+          بتظهر تلقائيًا في الفواتير وعروض الأسعار وسندات القبض والصرف والإيميلات ومستندات الـ PDF.
+          اتركها فاضية لو مش هتستعملها وهيرجع للاسم الأساسي فوق.
+        </p>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">الاسم الرسمي (Legal Name)</label>
+            <input type="text" name="legal_name"
+                   value="{{ company.legal_name if company and company.legal_name else '' }}"
+                   placeholder="اسم الشركة كما هو في السجل التجاري"
+                   class="input text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">الاسم التجاري (Brand Name)</label>
+            <input type="text" name="brand_name"
+                   value="{{ company.brand_name if company and company.brand_name else '' }}"
+                   placeholder="الاسم اللي بيعرفوا بيه العملاء"
+                   class="input text-sm">
+          </div>
+          <div class="col-span-2">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">رقم السجل التجاري (Commercial Register No)</label>
+            <input type="text" name="commercial_register_no" dir="ltr"
+                   value="{{ company.commercial_register_no if company and company.commercial_register_no else '' }}"
+                   class="input text-sm font-mono">
+          </div>
+          <div class="col-span-2">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">الرقم الضريبي</label>
+            <input type="text" name="tax_number" value="{{ company.tax_number if company else '' }}" class="input text-sm">
+          </div>
+          <div class="col-span-2">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">العنوان</label>
+            <textarea name="address" rows="2" class="textarea text-sm">{{ company.address if company else '' }}</textarea>
+          </div>
+        </div>
+      </div>
+
+      {% if company %}
+      <div class="ms-section">
+        <h3>📅 أيام العطلة الأسبوعية</h3>
+        <p class="ms-hint">تُستثنى من حساب أيام الإجازة وحضور الموظفين. الافتراضي: الجمعة + السبت.</p>
+        <input type="hidden" name="weekend_config_present" value="1">
+        {% set rw = company.rest_weekdays %}
+        <div class="grid grid-cols-7 gap-2 text-center text-xs">
+          {% for label, idx in [('السبت',5),('الأحد',6),('الإثنين',0),('الثلاثاء',1),('الأربعاء',2),('الخميس',3),('الجمعة',4)] %}
+          <label class="cursor-pointer">
+            <input type="checkbox" name="weekend_day" value="{{ idx }}" {% if idx in rw %}checked{% endif %} class="peer sr-only">
+            <span class="block py-2 px-1 rounded-md border border-slate-200 bg-white peer-checked:bg-navy-900 peer-checked:text-white peer-checked:border-navy-900 transition">{{ label }}</span>
+          </label>
           {% endfor %}
-        </select>
+        </div>
       </div>
-      <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">نسبة الضريبة %</label>
-        {# MARSOUD-CURRENCY-TAX-DEFAULTS (Batch 8 Ticket 4b,
-           2026-07-30) — new companies default to 0% VAT;
-           existing rows keep whatever was saved. #}
-        <input type="number" name="vat_rate" step="0.01" value="{{ company.vat_rate if company else 0 }}" class="input">
-      </div>
+      {% endif %}
     </div>
 
-    {# MARSOUD-TZ-01 — every date/time in the app is displayed in this
-       timezone. Stored value is IANA (e.g. "Asia/Riyadh"). #}
-    {% set _tz = (company.timezone if company else 'Asia/Riyadh') %}
-    <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">🕒 المنطقة الزمنية</label>
-      <select name="timezone" class="select">
-        {% for tz in ['Asia/Riyadh', 'Africa/Cairo', 'Asia/Dubai', 'Asia/Amman', 'Asia/Kuwait', 'Asia/Baghdad', 'Africa/Casablanca', 'Africa/Tunis', 'Europe/London', 'America/New_York', 'UTC'] %}
-        <option value="{{ tz }}" {% if _tz == tz %}selected{% endif %}>{{ tz }}</option>
-        {% endfor %}
-      </select>
-      <div class="text-xs text-slate-500 mt-1">
-        كل التواريخ (الفواتير، الإيميلات، السجل) هتتعرض بتوقيت الشركة ده.
-      </div>
-    </div>
-    {# MARSOUD-COMPANY-LEGAL — official metadata surfaced on every
-       invoice / quotation / receipt / email / PDF via the shared
-       document_context() helper on Company. Every field is optional;
-       an empty value falls back to the built-in `name`. #}
-    <div class="border border-slate-200 rounded-lg p-4 bg-slate-50/40">
-      <h3 class="font-bold text-navy-900 mb-1 text-sm">📄 بيانات الشركة الرسمية</h3>
-      <p class="text-xs text-slate-500 mb-3">
-        بتظهر تلقائيًا في الفواتير وعروض الأسعار وسندات القبض والصرف
-        والإيميلات ومستندات الـ PDF. اتركها فاضية لو مش هتستعملها
-        وهيرجع للاسم الأساسي فوق.
-      </p>
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">
-            الاسم الرسمي (Legal Name)
-          </label>
-          <input type="text" name="legal_name"
-                 value="{{ company.legal_name if company and company.legal_name else '' }}"
-                 placeholder="اسم الشركة كما هو في السجل التجاري"
-                 class="input text-sm">
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">
-            الاسم التجاري (Brand Name)
-          </label>
-          <input type="text" name="brand_name"
-                 value="{{ company.brand_name if company and company.brand_name else '' }}"
-                 placeholder="الاسم اللي بيعرفوا بيه العملاء"
-                 class="input text-sm">
-        </div>
-        <div class="col-span-2">
-          <label class="block text-xs font-semibold text-slate-700 mb-1">
-            رقم السجل التجاري (Commercial Register No)
-          </label>
-          <input type="text" name="commercial_register_no"
-                 dir="ltr"
-                 value="{{ company.commercial_register_no if company and company.commercial_register_no else '' }}"
-                 class="input text-sm font-mono">
-        </div>
-      </div>
-    </div>
-
-    <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">الرقم الضريبي</label>
-      <input type="text" name="tax_number" value="{{ company.tax_number if company else '' }}" class="input">
-    </div>
-    <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">العنوان</label>
-      <textarea name="address" rows="2" class="textarea">{{ company.address if company else '' }}</textarea>
-    </div>
-
-    {# MARSOUD-51 — bank info shown on the new invoice PDF (optional). #}
-    <div class="border border-emerald-100 rounded-lg p-4 bg-emerald-50/40">
-      <h3 class="font-bold text-navy-900 mb-1 text-sm">🏦 بيانات التحويل البنكي (تظهر على فاتورة الـ PDF)</h3>
-      <p class="text-xs text-slate-500 mb-3">اختياري — لو سيبتها فاضية، قسم البنك يختفي من الفاتورة تلقائياً.</p>
-      <div class="grid grid-cols-2 gap-3">
-        {# MARSOUD-INVOICE-PDF-POLISH-01 (2026-09-10) — every value
-           expression here reads `X or ''` instead of the bare
-           attribute. Bare Jinja `{{ None }}` outputs the literal
-           string "None" straight into the HTML `value=` attr, and
-           a subsequent save reads that back as data, dirtying the
-           row with a real "None" string that the PDF's truthy
-           guards can't distinguish from a real handle. `or ''`
-           collapses the None cleanly. #}
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">اسم البنك</label>
-          <input type="text" name="bank_name" value="{{ (company.bank_name or '') if company else '' }}" class="input text-sm">
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">اسم صاحب الحساب</label>
-          <input type="text" name="bank_account_holder" value="{{ (company.bank_account_holder or '') if company else '' }}" class="input text-sm">
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">رقم الحساب</label>
-          <input type="text" name="bank_account_number" value="{{ (company.bank_account_number or '') if company else '' }}" dir="ltr" class="input text-sm font-mono">
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">IBAN</label>
-          <input type="text" name="iban" value="{{ (company.iban or '') if company else '' }}" dir="ltr" class="input text-sm font-mono">
-        </div>
-      </div>
-    </div>
-
-    {# MARSOUD-INVOICE-PAYMENT-CHANNELS-01 — InstaPay + e-wallet.
-       Same "hide-if-empty" rule as the bank block: the invoice PDF
-       won't render an empty channel row. Kept in a separate card so
-       the settings page reads as three distinct payment options. #}
-    <div class="border border-amber-100 rounded-lg p-4 bg-amber-50/40">
-      <h3 class="font-bold text-navy-900 mb-1 text-sm">💳 قنوات دفع إضافية (تظهر على فاتورة الـ PDF)</h3>
-      <p class="text-xs text-slate-500 mb-3">اختياري — أي حقل بيفضل فاضي بيختفي من الفاتورة تلقائياً.</p>
-      <div class="grid grid-cols-2 gap-3">
-        <div class="col-span-2">
-          <label class="block text-xs font-semibold text-slate-700 mb-1">
-            💠 عنوان/رقم InstaPay
-          </label>
-          <input type="text" name="instapay_handle"
-                 value="{{ (company.instapay_handle or '') if company else '' }}"
-                 dir="ltr" placeholder="owner@instapay أو رقم الموبايل"
-                 class="input text-sm font-mono">
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">
-            📱 رقم المحفظة الإلكترونية
-          </label>
-          <input type="text" name="ewallet_number"
-                 value="{{ (company.ewallet_number or '') if company else '' }}"
-                 dir="ltr" placeholder="01012345678"
-                 class="input text-sm font-mono">
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">
-            اسم المحفظة
-          </label>
-          <input type="text" name="ewallet_provider"
-                 value="{{ (company.ewallet_provider or '') if company else '' }}"
-                 placeholder="فودافون كاش / اتصالات كاش / …"
-                 class="input text-sm">
-        </div>
-      </div>
-    </div>
-
+    {# ══════════════════════ TAB 2: PAYMENTS & INVOICES ══════════════════════ #}
     {% if company %}
-    <div class="border border-slate-200 rounded-lg p-4 bg-slate-50">
-      <h3 class="font-bold text-navy-900 mb-3">أيام العطلة الأسبوعية</h3>
-      <p class="text-xs text-slate-500 mb-3">تُستثنى من حساب أيام الإجازة وحضور الموظفين. الافتراضي: الجمعة + السبت.</p>
-      <input type="hidden" name="weekend_config_present" value="1">
-      {% set rw = company.rest_weekdays %}
-      <div class="grid grid-cols-7 gap-2 text-center text-xs">
-        {% for label, idx in [('السبت',5),('الأحد',6),('الإثنين',0),('الثلاثاء',1),('الأربعاء',2),('الخميس',3),('الجمعة',4)] %}
-        <label class="cursor-pointer">
-          <input type="checkbox" name="weekend_day" value="{{ idx }}" {% if idx in rw %}checked{% endif %} class="peer sr-only">
-          <span class="block py-2 px-1 rounded-md border border-slate-200 bg-white peer-checked:bg-navy-900 peer-checked:text-white peer-checked:border-navy-900 transition">
-            {{ label }}
-          </span>
+    <div class="ms-panel" role="tabpanel" id="tab-payments" aria-labelledby="t-payments">
+
+      <div class="ms-section" style="border-color:#A7F3D0;background:#ECFDF5">
+        <h3>🏦 بيانات التحويل البنكي</h3>
+        <p class="ms-hint">تظهر على فاتورة الـ PDF. اختياري — أي حقل بيفضل فاضي بيختفي تلقائياً.</p>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">اسم البنك</label>
+            <input type="text" name="bank_name" value="{{ (company.bank_name or '') if company else '' }}" class="input text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">اسم صاحب الحساب</label>
+            <input type="text" name="bank_account_holder" value="{{ (company.bank_account_holder or '') if company else '' }}" class="input text-sm">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">رقم الحساب</label>
+            <input type="text" name="bank_account_number" value="{{ (company.bank_account_number or '') if company else '' }}" dir="ltr" class="input text-sm font-mono">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">IBAN</label>
+            <input type="text" name="iban" value="{{ (company.iban or '') if company else '' }}" dir="ltr" class="input text-sm font-mono">
+          </div>
+        </div>
+      </div>
+
+      <div class="ms-section" style="border-color:#FDE68A;background:#FFFBEB">
+        <h3>💳 قنوات دفع إضافية</h3>
+        <p class="ms-hint">تظهر على فاتورة الـ PDF بجانب البنك.</p>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="col-span-2">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">💠 عنوان/رقم InstaPay</label>
+            <input type="text" name="instapay_handle"
+                   value="{{ (company.instapay_handle or '') if company else '' }}"
+                   dir="ltr" placeholder="owner@instapay أو رقم الموبايل"
+                   class="input text-sm font-mono">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">📱 رقم المحفظة الإلكترونية</label>
+            <input type="text" name="ewallet_number"
+                   value="{{ (company.ewallet_number or '') if company else '' }}"
+                   dir="ltr" placeholder="01012345678"
+                   class="input text-sm font-mono">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">اسم المحفظة</label>
+            <input type="text" name="ewallet_provider"
+                   value="{{ (company.ewallet_provider or '') if company else '' }}"
+                   placeholder="فودافون كاش / اتصالات كاش / …"
+                   class="input text-sm">
+          </div>
+        </div>
+      </div>
+
+      {% set r = company.reminders %}
+      <div class="ms-section">
+        <h3>⏰ تذكيرات الفواتير</h3>
+        <p class="ms-hint">إشعارات تلقائية للعميل قبل وبعد تاريخ الاستحقاق.</p>
+        <label class="flex items-center gap-2 mb-3 cursor-pointer">
+          <input type="checkbox" name="reminders_enabled" value="1" {% if r.enabled %}checked{% endif %} class="w-4 h-4 rounded text-brand-600">
+          <span class="text-sm">تفعيل التذكيرات التلقائية</span>
         </label>
-        {% endfor %}
-      </div>
-    </div>
-
-    {% set r = company.reminders %}
-    <div class="border border-slate-200 rounded-lg p-4 bg-slate-50">
-      <h3 class="font-bold text-navy-900 mb-3">تذكيرات الفواتير</h3>
-      <label class="flex items-center gap-2 mb-3 cursor-pointer">
-        <input type="checkbox" name="reminders_enabled" value="1" {% if r.enabled %}checked{% endif %} class="w-4 h-4 rounded text-brand-600">
-        <span class="text-sm">تفعيل التذكيرات التلقائية</span>
-      </label>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">قبل تاريخ الاستحقاق (بالأيام)</label>
-          <input type="text" name="reminders_days_before"
-                 value="{{ r.days_before|join(',') }}"
-                 placeholder="7,3"
-                 class="input text-sm font-mono">
-          <p class="text-xs text-slate-500 mt-1">قائمة مفصولة بفواصل، مثال: 14,7,3</p>
-        </div>
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">بعد تاريخ الاستحقاق (بالأيام)</label>
-          <input type="text" name="reminders_overdue_days"
-                 value="{{ r.overdue_days|join(',') }}"
-                 placeholder="0,7,14"
-                 class="input text-sm font-mono">
-          <p class="text-xs text-slate-500 mt-1">0 = يوم الاستحقاق نفسه</p>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">قبل تاريخ الاستحقاق (بالأيام)</label>
+            <input type="text" name="reminders_days_before" value="{{ r.days_before|join(',') }}"
+                   placeholder="7,3" class="input text-sm font-mono">
+            <p class="text-xs text-slate-500 mt-1">قائمة مفصولة بفواصل، مثال: 14,7,3</p>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">بعد تاريخ الاستحقاق (بالأيام)</label>
+            <input type="text" name="reminders_overdue_days" value="{{ r.overdue_days|join(',') }}"
+                   placeholder="0,7,14" class="input text-sm font-mono">
+            <p class="text-xs text-slate-500 mt-1">0 = يوم الاستحقاق نفسه</p>
+          </div>
         </div>
       </div>
     </div>
-    {% endif %}
 
-    {% if company %}
-    <div class="border border-slate-200 rounded-lg p-4">
-      <h3 class="font-bold text-navy-900 mb-3">📦 إعدادات المخزون والبيع</h3>
+    {# ══════════════════════ TAB 3: INVOICE APPEARANCE ══════════════════════ #}
+    <div class="ms-panel" role="tabpanel" id="tab-appearance" aria-labelledby="t-appearance">
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
+      <div class="lg:col-span-2 space-y-4">
 
-      <label class="flex items-center gap-2 mb-3">
-        <input type="checkbox" name="stock_strict_mode"
-               {% if company.stock_strict_mode %}checked{% endif %}>
-        <span class="text-sm">رفض البيع لو الكمية مش متاحة (Strict mode)</span>
-      </label>
+      <div class="ms-section">
+        <h3>🎨 اللون الأساسي للفاتورة</h3>
+        <p class="ms-hint">
+          كل حاجة خضراء على الفاتورة (العنوان، رأس الجدول، الأرقام الكبيرة، الزوايا) هتتغيّر للون اللي تختاره.
+          ألوان <strong>مدفوعة</strong> و<strong>متأخرة</strong> ثابتة (أخضر / أحمر) — دي دلالات مش شكل.
+          خليها فاضية لو عايز اللون الافتراضي لمرصود.
+        </p>
 
-      <label class="flex items-center gap-2 mb-3">
-        <input type="checkbox" name="shift_required_for_pos"
-               {% if company.shift_required_for_pos %}checked{% endif %}>
-        <span class="text-sm">يستلزم فتح وردية قبل استخدام نقطة البيع</span>
-      </label>
+        <div class="color-row">
+          <label class="swatch" title="اختر لون">
+            <span id="swatch-fill" style="display:block;width:100%;height:100%;background:{{ _color }};"></span>
+            <input type="color" id="invoice_brand_color_picker" value="{{ _color }}">
+          </label>
+          <input type="text" name="invoice_brand_color" id="invoice_brand_color"
+                 value="{{ (company.invoice_brand_color or '') if company else '' }}"
+                 placeholder="#059669" maxlength="7"
+                 pattern="#[0-9A-Fa-f]{6}"
+                 class="input hex-input text-sm">
+          <button type="button" class="reset-btn" id="reset-color">↺ الافتراضي</button>
+        </div>
 
-      <div class="mt-3">
-        <label class="block text-sm font-semibold text-slate-700 mb-1">طريقة تقييم تكلفة المخزون</label>
-        <select name="cost_method" class="select text-sm">
-          <option value="AVERAGE" {% if company.cost_method == 'AVERAGE' %}selected{% endif %}>متوسط مرجّح (Weighted Average) — الافتراضي</option>
-          <option value="FIFO" {% if company.cost_method == 'FIFO' %}selected{% endif %}>وارد أولاً صادر أولاً (FIFO)</option>
-        </select>
-        <p class="text-xs text-slate-500 mt-1">
-          ⚠ بعد التفعيل بـ FIFO، البيوعات اللاحقة تستخدم تكلفة أقدم الأصناف أولاً. التكلفة الموجودة على فواتير قديمة لا تتغيّر.
+        <div class="swatch-strip" aria-label="ألوان جاهزة">
+          {% for c in ['#059669','#2563EB','#7C3AED','#DC2626','#F59E0B','#0891B2','#DB2777','#0A2540'] %}
+          <button type="button" class="preset" data-color="{{ c }}" style="background:{{ c }}" title="{{ c }}" aria-label="اختيار {{ c }}"></button>
+          {% endfor %}
+        </div>
+      </div>
+
+      </div>
+      <div class="lg:col-span-3">
+      <div class="ms-section" style="padding:14px">
+        <h3>👀 معاينة مباشرة</h3>
+        <p class="ms-hint">اللي بتشوفه هنا هو نفس ما بيبعت للعميل — يتغيّر لحظة ما تلعب في اللون.</p>
+
+        <div class="inv-preview-wrap">
+          <div class="inv-preview" id="inv-preview">
+            <span class="corner-tl"></span>
+            <span class="corner-br"></span>
+            <div class="p">
+              <div class="brand-row">
+                <div class="logo-dot">{{ (company.name[:1] if company else 'م')|upper }}</div>
+                <div class="brand-name">{{ (company.brand_name or company.name) if company else 'اسم شركتك' }}</div>
+              </div>
+              <div class="doc-title">فاتورة</div>
+              <div class="status-wrap"><span class="status-pill">مستحقة الدفع</span></div>
+              <div class="rule"></div>
+
+              <div class="headline">
+                <span class="amt">1,250.00 ج.م</span>
+                مستحقة الدفع بتاريخ 30 سبتمبر 2026
+              </div>
+
+              <table class="items">
+                <thead>
+                  <tr>
+                    <th>الوصف</th>
+                    <th style="text-align:left">الكمية</th>
+                    <th style="text-align:left">المبلغ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>خدمة استشارية</td>
+                    <td style="text-align:left;font-family:ui-monospace,monospace">1</td>
+                    <td style="text-align:left;font-family:ui-monospace,monospace">1,250.00</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="due-block">
+                <div class="lbl">المبلغ المستحق</div>
+                <div class="val">1,250.00 <span style="font-size:10px">ج.م</span></div>
+              </div>
+
+              <div style="font-size:10px;font-weight:700;margin-bottom:4px">📅 خطة الأقساط</div>
+              <div class="inst-row">
+                <span class="inst-circle paid">✓</span>
+                <span>القسط #1 — 2026-09-01</span>
+                <span class="inst-pill paid">625.00 ج.م</span>
+              </div>
+              <div class="inst-row">
+                <span class="inst-circle overdue">!</span>
+                <span>القسط #2 — 2026-09-15</span>
+                <span class="inst-pill overdue">625.00 ج.م</span>
+              </div>
+
+              <div class="footer">
+                <span>© 2026 <strong>مرصود</strong></span>
+                <span>صفحة 1 من 1</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-xs text-slate-500 mt-3">
+          💡 دائرة <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10B981;vertical-align:middle"></span>
+          و<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#DC2626;vertical-align:middle"></span>
+          مش بيتغيروا مع اللون — دي إشارات ثابتة للعميل يعرف ازاي حال القسط بسرعة.
         </p>
       </div>
+      </div>
+      </div>
     </div>
+    {% endif %}
 
-    {# MARSOUD-LOYALTY-POINTS-01 — loyalty settings card. #}
-    <div class="border border-slate-200 rounded-lg p-4">
-      <h3 class="font-bold text-navy-900 mb-3">⭐ برنامج نقاط الولاء</h3>
-      <label class="flex items-center gap-2 mb-3">
-        <input type="checkbox" name="loyalty_enabled"
-               {% if company.loyalty_enabled %}checked{% endif %}>
-        <span class="text-sm">تفعيل نقاط الولاء لعملاء المتجر</span>
-      </label>
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-1">معدل الكسب</label>
-          <input type="number" step="0.01" min="0.01"
-                 name="loyalty_earn_rate"
-                 value="{{ company.loyalty_earn_rate or 10 }}"
-                 class="input text-sm font-mono">
-          <p class="text-xs text-slate-500 mt-1">كل X من العملة = نقطة واحدة. مثال: 10 يعني كل 10 جنيه = نقطة.</p>
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-1">قيمة النقطة عند الصرف</label>
-          <input type="number" step="0.001" min="0.001"
-                 name="loyalty_redemption_value"
-                 value="{{ company.loyalty_redemption_value or 0.10 }}"
-                 class="input text-sm font-mono">
-          <p class="text-xs text-slate-500 mt-1">قيمة النقطة الواحدة بالعملة كخصم. مثال: 0.10 يعني النقطة = 10 قروش.</p>
+    {# ══════════════════════ TAB 4: INVENTORY & LOYALTY ══════════════════════ #}
+    {% if company %}
+    <div class="ms-panel" role="tabpanel" id="tab-ops" aria-labelledby="t-ops">
+
+      <div class="ms-section">
+        <h3>📦 إعدادات المخزون والبيع</h3>
+        <label class="flex items-center gap-2 mb-3">
+          <input type="checkbox" name="stock_strict_mode" {% if company.stock_strict_mode %}checked{% endif %}>
+          <span class="text-sm">رفض البيع لو الكمية مش متاحة (Strict mode)</span>
+        </label>
+        <label class="flex items-center gap-2 mb-3">
+          <input type="checkbox" name="shift_required_for_pos" {% if company.shift_required_for_pos %}checked{% endif %}>
+          <span class="text-sm">يستلزم فتح وردية قبل استخدام نقطة البيع</span>
+        </label>
+        <div class="mt-3">
+          <label class="block text-sm font-semibold text-slate-700 mb-1">طريقة تقييم تكلفة المخزون</label>
+          <select name="cost_method" class="select text-sm">
+            <option value="AVERAGE" {% if company.cost_method == 'AVERAGE' %}selected{% endif %}>متوسط مرجّح (Weighted Average) — الافتراضي</option>
+            <option value="FIFO" {% if company.cost_method == 'FIFO' %}selected{% endif %}>وارد أولاً صادر أولاً (FIFO)</option>
+          </select>
+          <p class="text-xs text-slate-500 mt-1">⚠ بعد التفعيل بـ FIFO، البيوعات اللاحقة تستخدم تكلفة أقدم الأصناف أولاً. التكلفة الموجودة على فواتير قديمة لا تتغيّر.</p>
         </div>
       </div>
-      <p class="text-xs text-slate-500 mt-2">
-        الكسب بيحصل تلقائيًا لحظة اكتمال دفع الفاتورة (على أساس السعر بعد الخصم قبل الضريبة).
-        الصرف بيتم من شاشة الكاشير كخصم على فاتورة جديدة.
-      </p>
+
+      <div class="ms-section">
+        <h3>⭐ برنامج نقاط الولاء</h3>
+        <label class="flex items-center gap-2 mb-3">
+          <input type="checkbox" name="loyalty_enabled" {% if company.loyalty_enabled %}checked{% endif %}>
+          <span class="text-sm">تفعيل نقاط الولاء لعملاء المتجر</span>
+        </label>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1">معدل الكسب</label>
+            <input type="number" step="0.01" min="0.01" name="loyalty_earn_rate"
+                   value="{{ company.loyalty_earn_rate or 10 }}" class="input text-sm font-mono">
+            <p class="text-xs text-slate-500 mt-1">كل X من العملة = نقطة واحدة. مثال: 10 يعني كل 10 جنيه = نقطة.</p>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1">قيمة النقطة عند الصرف</label>
+            <input type="number" step="0.001" min="0.001" name="loyalty_redemption_value"
+                   value="{{ company.loyalty_redemption_value or 0.10 }}" class="input text-sm font-mono">
+            <p class="text-xs text-slate-500 mt-1">قيمة النقطة الواحدة بالعملة كخصم. مثال: 0.10 يعني النقطة = 10 قروش.</p>
+          </div>
+        </div>
+        <p class="text-xs text-slate-500 mt-2">
+          الكسب بيحصل تلقائيًا لحظة اكتمال دفع الفاتورة (على أساس السعر بعد الخصم قبل الضريبة).
+          الصرف بيتم من شاشة الكاشير كخصم على فاتورة جديدة.
+        </p>
+      </div>
     </div>
     {% endif %}
 
@@ -304,8 +543,6 @@
     </div>
   </form>
 
-  {# MARSOUD-J — owner soft-delete. Only renders when editing AND the
-     current user is the owner of THIS company. #}
   {% if company and current_role == 'owner' %}
   <hr class="my-6 border-rose-100">
   <div class="bg-rose-50 border border-rose-200 rounded-lg p-5">
@@ -319,9 +556,7 @@
           onsubmit="return confirm('هل أنت متأكد من حذف الشركة {{ company.name }}؟\nلن تستطيع الوصول إليها إلا عبر فريق الدعم.');"
           class="space-y-3">
       <div>
-        <label class="block text-xs font-semibold text-rose-800 mb-1">
-          سبب الحذف <span class="text-rose-500">(مطلوب)</span>
-        </label>
+        <label class="block text-xs font-semibold text-rose-800 mb-1">سبب الحذف <span class="text-rose-500">(مطلوب)</span></label>
         <textarea name="reason" rows="2" required minlength="5" maxlength="500"
                   placeholder="مثلاً: قفلت الشركة، أو محتاج فصل بياناتها عن باقي شركاتي…"
                   class="textarea text-sm w-full border-rose-200 focus:border-rose-400"></textarea>
@@ -333,4 +568,65 @@
   </div>
   {% endif %}
 </div>
+
+<script>
+(function(){
+  /* ── Tab shell — accessible, remembers last tab per company id ── */
+  const tabs = document.querySelectorAll('.ms-tab');
+  const panels = document.querySelectorAll('.ms-panel');
+  if (!tabs.length) return;
+  const storeKey = 'ms-company-tab-{{ company.id if company else "new" }}';
+  function activate(id){
+    tabs.forEach(t => t.setAttribute('aria-selected', t.getAttribute('aria-controls') === id));
+    panels.forEach(p => p.setAttribute('data-active', p.id === id));
+    try { localStorage.setItem(storeKey, id); } catch(_) {}
+  }
+  tabs.forEach((t, i) => {
+    t.addEventListener('click', () => activate(t.getAttribute('aria-controls')));
+    t.addEventListener('keydown', e => {
+      if (!['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) return;
+      e.preventDefault();
+      let idx = i;
+      if (e.key === 'ArrowLeft')  idx = (i - 1 + tabs.length) % tabs.length;
+      if (e.key === 'ArrowRight') idx = (i + 1) % tabs.length;
+      if (e.key === 'Home')       idx = 0;
+      if (e.key === 'End')        idx = tabs.length - 1;
+      tabs[idx].focus();
+      activate(tabs[idx].getAttribute('aria-controls'));
+    });
+  });
+  try {
+    const saved = localStorage.getItem(storeKey);
+    if (saved && document.getElementById(saved)) activate(saved);
+  } catch(_) {}
+
+  /* ── Live color preview ── */
+  const picker = document.getElementById('invoice_brand_color_picker');
+  const hex    = document.getElementById('invoice_brand_color');
+  const fill   = document.getElementById('swatch-fill');
+  const preview = document.getElementById('inv-preview');
+  const defaultColor = '#059669';
+  function apply(c){
+    if (!/^#[0-9A-Fa-f]{6}$/.test(c)) return;
+    const up = c.toUpperCase();
+    if (fill)    fill.style.background = up;
+    if (preview) preview.style.setProperty('--inv-brand', up);
+    if (picker && picker.value.toUpperCase() !== up) picker.value = up;
+  }
+  if (picker && hex) {
+    // Boot preview to current effective color (even when hex input is empty).
+    apply(picker.value || defaultColor);
+    picker.addEventListener('input', e => { hex.value = e.target.value.toUpperCase(); apply(e.target.value); });
+    hex.addEventListener('input', e => {
+      const v = e.target.value.trim();
+      if (/^#[0-9A-Fa-f]{6}$/.test(v)) apply(v);
+    });
+    document.querySelectorAll('.preset').forEach(btn => {
+      btn.addEventListener('click', () => { hex.value = btn.dataset.color.toUpperCase(); apply(btn.dataset.color); });
+    });
+    const reset = document.getElementById('reset-color');
+    if (reset) reset.addEventListener('click', () => { hex.value = ''; apply(defaultColor); });
+  }
+})();
+</script>
 {% endblock %}

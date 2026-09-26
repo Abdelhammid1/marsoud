@@ -319,7 +319,7 @@ SUB_ITEM_CATALOG = {
         ("settings_activity.index", "نشاط الموظفين", "👣"),
         ("settings_backup.index", "نسخة احتياطية (Excel)", "📥"),
         ("payment_methods.index", "طرق الدفع", "💳"),
-        ("companies.edit", "بيانات الشركة", "🏢"),
+        ("companies.edit", "إعدادات الشركة", "🏢"),
         ("audit_log.index", "سجل التدقيق", "🔍"),
         # MARSOUD-PLAN-SUBITEMS-27 (2026-08-09).
         ("settings_employee_reports.index", "إعدادات تقارير الموظفين", "📝"),

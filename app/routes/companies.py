@@ -1,4 +1,5 @@
 import os
+import re
 from werkzeug.utils import secure_filename
 from flask import Blueprint, render_template, redirect, url_for, flash, request, session, g, current_app
 from flask_login import login_required, current_user
@@ -224,6 +225,20 @@ def edit(company_id):
         company.instapay_handle = _clean_channel("instapay_handle")
         company.ewallet_number = _clean_channel("ewallet_number")
         company.ewallet_provider = _clean_channel("ewallet_provider")
+
+        # MARSOUD-INVOICE-BRAND-COLOR (2026-09-26) — tenant-chosen PDF
+        # brand color. Accept only strict `#RRGGBB` hex (case-insensitive)
+        # so the value can be safely inlined into the PDF template's
+        # CSS/HTML without an escape pass. An empty submit clears the
+        # setting, which restores the app default (#059669) on the next
+        # render — matches how every other "optional PDF appearance"
+        # setting on this page behaves.
+        _raw_color = (request.form.get("invoice_brand_color") or "").strip()
+        if _raw_color and re.fullmatch(r"#[0-9A-Fa-f]{6}", _raw_color):
+            company.invoice_brand_color = _raw_color.upper()
+        elif not _raw_color:
+            company.invoice_brand_color = None
+        # else: ignore junk input silently, keep whatever was saved.
 
         # MARSOUD-TZ-01 — company-level timezone. Falls back to
         # existing value (default "Asia/Riyadh") if the field is

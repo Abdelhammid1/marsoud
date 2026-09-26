@@ -194,7 +194,7 @@ def _():
     # Owner-only URLs must NOT appear in accountant sidebar.
     assert "/settings/usage" not in body, \
         "settings/usage leaked to accountant"
-    # Note: /companies/edit stays visible under 'بيانات الشركة' via
+    # Note: /companies/edit stays visible under 'إعدادات الشركة' via
     # users.manage — the ONE we hide from accountant is the multi-
     # company "كل شركاتي" listing at /companies/ (no path suffix).
     # We check the exact anchor with the label text to avoid false

@@ -12,6 +12,13 @@
    template's own <style> tag so the browser/WeasyPrint sees two adjacent
    stylesheets instead of an invalid <style> nested inside <style>. #}
 {{ amiri_font_face|safe }}
+{# MARSOUD-INVOICE-BRAND-COLOR (2026-09-26) — one hex driving every
+   "brand" surface on the PDF (title, table headers, corner accents,
+   due-amount number, footer highlight, due-block border). Falls back
+   to Marsoud green when the tenant hasn't set one, so pre-existing
+   companies render identically. PAID (#10B981) and OVERDUE (#DC2626)
+   stay hard-coded — those are semantic, not brand. #}
+{% set BRAND = invoice.company.invoice_brand_color or '#059669' %}
 <style>
 @page { size: A4; margin: 50px 56px 90px 56px; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -25,7 +32,7 @@ body { font-family: 'Amiri', 'Segoe UI', Tahoma, sans-serif; direction: rtl; bac
 .logo-box.fallback { background: #0A2540; }
 .logo-box img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .brand-name { font-size: 24px; font-weight: 800; color: #0A2540; }
-.doc-title { font-size: 26px; font-weight: 800; color: #059669; margin-bottom: 10px; text-align: center; }
+.doc-title { font-size: 26px; font-weight: 800; color: {{ BRAND }}; margin-bottom: 10px; text-align: center; }
 .rule { height: 2px; background: #0A2540; margin-bottom: 20px; }
 .status-badge-wrap { text-align: center; margin-bottom: 14px; }
 .status-badge { display: inline-block; padding: 4px 16px; border-radius: 20px; font-size: 11.5px; font-weight: 700; }
@@ -49,7 +56,7 @@ table.items tr { page-break-inside: avoid; }
 .party .line { font-size: 12px; color: #475569; line-height: 1.85; }
 
 .due-headline { font-size: 17px; font-weight: 800; color: #0A2540; margin: 8px 0 20px; }
-.due-headline .amt { color: #059669; }
+.due-headline .amt { color: {{ BRAND }}; }
 
 .pay-note { font-size: 11px; color: #475569; line-height: 1.8; margin: 4px 0 14px; padding-bottom: 16px; border-bottom: 1px dashed #E2E8F0; }
 .pay-address { margin-bottom: 24px; }
@@ -58,7 +65,7 @@ table.items tr { page-break-inside: avoid; }
 
 .section-title { font-size: 15px; font-weight: 800; color: #0A2540; margin-bottom: 10px; }
 table.items { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 22px; }
-table.items th { background: #059669; color: #fff; padding: 9px 12px; font-weight: 600; font-size: 11.5px; text-align: right; }
+table.items th { background: {{ BRAND }}; color: #fff; padding: 9px 12px; font-weight: 600; font-size: 11.5px; text-align: right; }
 table.items th.num { text-align: left; }
 table.items td { padding: 9px 12px; border-bottom: 1px solid #E2E8F0; vertical-align: top; }
 table.items td.num { text-align: left; font-family: monospace; }
@@ -70,13 +77,13 @@ table.items tr:last-child td { border-bottom: none; }
 .totals-kv td.val { text-align: left; font-family: monospace; color: #0A2540; }
 .totals-kv tr.grand td { padding: 10px 0; font-weight: 800; border-top: 2px solid #0A2540; color: #0A2540; font-size: 13.5px; }
 
-.due-block { display: flex; justify-content: space-between; align-items: baseline; padding-right: 16px; border-right: 3px solid #059669; margin: 24px 0 32px; }
+.due-block { display: flex; justify-content: space-between; align-items: baseline; padding-right: 16px; border-right: 3px solid {{ BRAND }}; margin: 24px 0 32px; }
 .due-block .lbl { font-size: 13px; color: #64748B; }
-.due-block .val { font-size: 28px; font-weight: 800; color: #059669; font-family: monospace; }
+.due-block .val { font-size: 28px; font-weight: 800; color: {{ BRAND }}; font-family: monospace; }
 .due-block .val .cur { font-size: 13px; }
 
 .footer { position: fixed; bottom: -70px; right: -56px; left: -56px; padding: 16px 56px; border-top: 1px solid #E2E8F0; display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; color: #94A3B8; background: #fff; }
-.footer strong { color: #059669; }
+.footer strong { color: {{ BRAND }}; }
 </style>
 </head>
 <body>
@@ -112,8 +119,8 @@ table.items tr:last-child td { border-bottom: none; }
 {% set paid_amt = invoice.paid_amount|float if invoice.paid_amount else 0 %}
 {% set bal = invoice.balance|float %}
 <div class="page">
-  <svg style="position:fixed;top:-50px;left:-56px" width="70" height="70" viewBox="0 0 70 70"><polygon points="0,0 70,0 0,70" fill="#059669"/></svg>
-  <svg style="position:fixed;bottom:-90px;right:-56px" width="70" height="70" viewBox="0 0 70 70"><polygon points="70,70 0,70 70,0" fill="#059669"/></svg>
+  <svg style="position:fixed;top:-50px;left:-56px" width="70" height="70" viewBox="0 0 70 70"><polygon points="0,0 70,0 0,70" fill="{{ BRAND }}"/></svg>
+  <svg style="position:fixed;bottom:-90px;right:-56px" width="70" height="70" viewBox="0 0 70 70"><polygon points="70,70 0,70 70,0" fill="{{ BRAND }}"/></svg>
   <div class="pad">
 
     {# ── BRAND / TITLE ──────────────────────────────────────── #}
@@ -175,7 +182,7 @@ table.items tr:last-child td { border-bottom: none; }
     {% endif %}
     {% if _ok(invoice.company.instapay_handle) %}
     <div class="pay-address">
-      <div class="lbl">💠 InstaPay:</div>
+      <div class="lbl">InstaPay:</div>
       <div class="line">{{ invoice.company.instapay_handle }}</div>
     </div>
     {% endif %}
