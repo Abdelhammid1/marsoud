@@ -32,6 +32,11 @@ import '../features/support/support_screen.dart';
 import '../features/tasks/task_detail_screen.dart';
 import '../features/tasks/task_new_screen.dart';
 import '../features/tasks/tasks_screen.dart';
+// MARSOUD-MOBILE-DESIGN-PREVIEW-01 (2026-09-28) — debug-only gallery
+// for the new Stitch-generated design system, reachable at
+// /design-preview.  Isolated in features_new/ so nothing in the real
+// app changes until we start migrating individual screens over.
+import '../features_new/design_preview.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authProvider);
@@ -87,6 +92,11 @@ final routerProvider = Provider<GoRouter>((ref) {
           // entries continue to work.
           GoRoute(path: '/dashboard',
               builder: (_, __) => const DashboardScreen()),
+          // MARSOUD-MOBILE-DESIGN-PREVIEW-01 (2026-09-28) — new-design
+          // gallery, debug-only.  Navigate to /design-preview from
+          // anywhere in the app to browse the 30 Stitch screens.
+          GoRoute(path: '/design-preview',
+              builder: (_, __) => const DesignPreviewScreen()),
           GoRoute(path: '/home',
               builder: (_, __) => const MyAccountScreen()),
           GoRoute(path: '/attendance',

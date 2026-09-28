@@ -82,6 +82,10 @@ const _employeeDrawer = <_DrawerSection>[
   _DrawerSection(label: 'المشاريع', emoji: '📂', route: '/projects'),
   _DrawerSection(label: 'الإشعارات', emoji: '🔔', route: '/notifications'),
   _DrawerSection(label: 'الدعم الفني', emoji: '🆘', route: '/support'),
+  // MARSOUD-MOBILE-DESIGN-PREVIEW-01 (2026-09-28) — debug-only entry
+  // to browse the new-design gallery.  Remove when the migration is
+  // complete and the old features/ folder is deleted.
+  _DrawerSection(label: 'معاينة التصميم الجديد', emoji: '🎨', route: '/design-preview'),
 ];
 
 // MARSOUD-MOBILE-SHIP-READY-01 (L1) — TODO(persona): the README
