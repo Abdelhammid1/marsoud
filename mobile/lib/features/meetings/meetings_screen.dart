@@ -25,6 +25,7 @@ class MeetingsScreen extends ConsumerWidget {
         icon: const Icon(Icons.add),
         label: const Text('اجتماع جديد'),
         backgroundColor: BrandColors.emerald600,
+        foregroundColor: Colors.white,
       ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),

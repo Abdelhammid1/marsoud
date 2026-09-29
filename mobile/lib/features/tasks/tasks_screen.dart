@@ -46,6 +46,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
         icon: const Icon(Icons.add),
         label: const Text('مهمة جديدة'),
         backgroundColor: BrandColors.emerald600,
+        foregroundColor: Colors.white,
       ),
       body: async.when(
       loading: () => const Center(child: CircularProgressIndicator()),

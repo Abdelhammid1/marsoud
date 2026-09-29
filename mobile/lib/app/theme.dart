@@ -90,6 +90,18 @@ class MarsoudTheme {
         ),
         iconTheme: const IconThemeData(color: BrandColors.navy900),
       ),
+      // MARSOUD-MOBILE-FAB-CONTRAST-01 (2026-09-29) — Material 3's
+      // default FAB foreground is `colorScheme.onPrimaryContainer`,
+      // which resolves to a dark-emerald on our emerald seed.  When
+      // a screen overrides `backgroundColor: emerald600` the label
+      // ended up dark green on emerald green — invisible (reported
+      // on the tasks/meetings FABs).  Anchoring both the background
+      // and foreground here means new FABs inherit a legible
+      // emerald / white combo unless they explicitly pick otherwise.
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: BrandColors.emerald600,
+        foregroundColor: Colors.white,
+      ),
       cardTheme: CardThemeData(
         color: Colors.white,
         elevation: 0,
