@@ -73,7 +73,7 @@
           {{ c.check_out_time.strftime('%H:%M') if c.check_out_time else '—' }}
         </td>
         <td class="text-left font-mono">
-          {% if c.worked_hours %}{{ "%.2f"|format(c.worked_hours) }}{% else %}—{% endif %}
+          {% if c.worked_hours %}{{ c.worked_hours|money }}{% else %}—{% endif %}
         </td>
       </tr>
       {% endfor %}
@@ -106,7 +106,7 @@
           {% if ex.is_excused %}<span class="badge badge-sent">مبرر</span>{% endif %}
         </td>
         <td class="text-left font-mono">
-          {% if ex.duration_hours %}{{ "%.2f"|format(ex.duration_hours) }} س{% else %}—{% endif %}
+          {% if ex.duration_hours %}{{ ex.duration_hours|money }} س{% else %}—{% endif %}
         </td>
         <td class="text-xs text-slate-500">{{ (ex.note or '')|truncate(80) }}</td>
       </tr>
@@ -134,7 +134,7 @@
           {{ p.start_time.strftime('%H:%M') if p.start_time else '—' }} —
           {{ p.end_time.strftime('%H:%M') if p.end_time else '—' }}
         </td>
-        <td class="text-left font-mono">{{ "%.2f"|format(p.hours_count) }}</td>
+        <td class="text-left font-mono">{{ p.hours_count|money }}</td>
         <td>
           {% set s = p.status.value %}
           {% if s == 'APPROVED' %}<span class="badge badge-paid">معتمد</span>
@@ -163,9 +163,9 @@
       {% for b in balances %}
       <tr>
         <td>{{ b.leave_type.name if b.leave_type else '—' }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(b.balance_days) }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(b.used_days) }}</td>
-        <td class="text-left font-mono font-bold">{{ "%.2f"|format(b.remaining_days) }}</td>
+        <td class="text-left font-mono">{{ b.balance_days|money }}</td>
+        <td class="text-left font-mono">{{ b.used_days|money }}</td>
+        <td class="text-left font-mono font-bold">{{ b.remaining_days|money }}</td>
       </tr>
       {% endfor %}
     </tbody>

@@ -88,7 +88,7 @@
           <td class="text-xs">{{ m.warehouse.code if m.warehouse else '—' }}</td>
           <td class="text-end font-mono {% if m.qty_delta and m.qty_delta < 0 %}text-rose-600{% else %}text-emerald-700{% endif %}">{{ '%+.2f'|format(m.qty_delta) }}</td>
           <td class="text-end font-mono">{{ '%.4f'|format(m.unit_cost_at_time) }}</td>
-          <td class="text-end font-mono font-semibold">{{ '%.2f'|format(m.balance_qty_after) }}</td>
+          <td class="text-end font-mono font-semibold">{{ m.balance_qty_after|money }}</td>
           {# MARSOUD-SOURCE-REFERENCE-01 (Abdelhamid 2026-07-25) —
              resolve to a human-readable label + link when possible.
              ref_map is a dict keyed on (source_type, source_id); if

@@ -10,7 +10,7 @@
     <div class="flex items-center gap-3">
       <div class="text-right">
         <div class="text-xs text-slate-500">إجمالي الصافي</div>
-        <div class="text-2xl font-bold text-navy-900 font-mono">{{ "%.2f"|format(run.total_net) }}</div>
+        <div class="text-2xl font-bold text-navy-900 font-mono">{{ run.total_net|money }}</div>
       </div>
       <div class="flex flex-col gap-1">
         <a href="{{ url_for('payroll.export_run', run_id=run.id, fmt='pdf') }}" class="btn-secondary text-xs">📄 PDF</a>
@@ -43,14 +43,14 @@
           <div class="text-xs text-slate-500">{{ l.employee.employee_number or '' }}</div>
         </td>
         <td class="text-center font-mono">{{ l.working_days }}/30</td>
-        <td class="text-right font-mono">{{ "%.2f"|format(l.basic) }}</td>
-        <td class="text-right font-mono">{{ "%.2f"|format(l.allowances) }}</td>
-        <td class="text-right font-mono text-emerald-600">{{ "%.2f"|format(l.overtime) }}</td>
-        <td class="text-right font-mono text-emerald-600">{{ "%.2f"|format(l.bonus) }}</td>
-        <td class="text-right font-mono text-red-600">{{ "%.2f"|format((l.deductions or 0) + (l.absence_deduction or 0) + (l.late_deduction or 0) + (l.advance_deduction or 0)) }}</td>
-        <td class="text-right font-mono font-bold">{{ "%.2f"|format(l.net) }}</td>
-        <td class="text-right font-mono">{{ "%.2f"|format(l.amount_paid or 0) }}</td>
-        <td class="text-right font-mono {% if accrued > 0 %}text-amber-700 font-semibold{% else %}text-slate-300{% endif %}">{{ "%.2f"|format(accrued) }}</td>
+        <td class="text-right font-mono">{{ l.basic|money }}</td>
+        <td class="text-right font-mono">{{ l.allowances|money }}</td>
+        <td class="text-right font-mono text-emerald-600">{{ l.overtime|money }}</td>
+        <td class="text-right font-mono text-emerald-600">{{ l.bonus|money }}</td>
+        <td class="text-right font-mono text-red-600">{{ (l.deductions or 0) + (l.absence_deduction or 0) + (l.late_deduction or 0) + (l.advance_deduction or 0)|money }}</td>
+        <td class="text-right font-mono font-bold">{{ l.net|money }}</td>
+        <td class="text-right font-mono">{{ l.amount_paid or 0|money }}</td>
+        <td class="text-right font-mono {% if accrued > 0 %}text-amber-700 font-semibold{% else %}text-slate-300{% endif %}">{{ accrued|money }}</td>
       </tr>
       <tr class="bg-slate-50/60">
         <td colspan="10" class="py-2 px-4 text-left">
@@ -64,14 +64,14 @@
             {% for d in _decs %}
               {% if d.kind == 'PENALTY' %}
               <div class="text-red-700">
-                🔻 من ضمنها {{ "%.2f"|format(d.amount|float) }} —
+                🔻 من ضمنها {{ d.amount|money }} —
                 <a href="{{ url_for('hr_decisions.detail', dec_id=d.id) }}"
                    class="underline hover:text-red-900">جزاء «{{ d.title }}»</a>
                 بتاريخ {{ d.effective_date.isoformat() }}
               </div>
               {% elif d.kind == 'BONUS' %}
               <div class="text-emerald-700">
-                🎁 من ضمنها {{ "%.2f"|format(d.amount|float) }} —
+                🎁 من ضمنها {{ d.amount|money }} —
                 <a href="{{ url_for('hr_decisions.detail', dec_id=d.id) }}"
                    class="underline hover:text-emerald-900">مكافأة «{{ d.title }}»</a>
                 بتاريخ {{ d.effective_date.isoformat() }}
@@ -88,7 +88,7 @@
       {% endfor %}
       <tr class="border-t-2 border-navy-900 font-bold bg-navy-50">
         <td colspan="7" class="text-right py-3">الإجمالي</td>
-        <td class="text-right font-mono text-lg">{{ "%.2f"|format(run.total_net) }}</td>
+        <td class="text-right font-mono text-lg">{{ run.total_net|money }}</td>
         <td colspan="2"></td>
       </tr>
     </tbody>

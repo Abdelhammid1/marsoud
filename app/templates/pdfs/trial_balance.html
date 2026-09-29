@@ -46,7 +46,7 @@
 {# AC #4 — imbalance banner FIRST, so it can't be missed. #}
 {% if not data.totals.balanced %}
 <div style="margin:0 0 12px;padding:10px 12px;border:1px solid #FCA5A5;background:#FEF2F2;color:#991B1B;font-weight:700;border-radius:6px;font-size:12px">
-  ⚠ تنبيه: مجموع المدين لا يساوي مجموع الدائن (فرق {{ "%.2f"|format(data.totals.diff|float) }}).
+  ⚠ تنبيه: مجموع المدين لا يساوي مجموع الدائن (فرق {{ data.totals.diff|money }}).
 </div>
 {% endif %}
 

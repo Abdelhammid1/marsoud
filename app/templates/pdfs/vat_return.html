@@ -57,11 +57,11 @@
   <tbody>
     <tr>
       <td>ضريبة محصّلة على المبيعات</td>
-      <td class="num" style="color:#059669">{{ "%.2f"|format(data.collected|float) }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
+      <td class="num" style="color:#059669">{{ data.collected|money }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
     </tr>
     <tr>
       <td>ضريبة مدفوعة للموردين</td>
-      <td class="num" style="color:#B45309">{{ "%.2f"|format(data.paid|float) }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
+      <td class="num" style="color:#B45309">{{ data.paid|money }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
     </tr>
   </tbody>
 </table>

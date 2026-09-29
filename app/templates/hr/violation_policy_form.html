@@ -51,12 +51,12 @@
       <div>
         <label class="block text-xs font-semibold text-slate-600 mb-1">غياب مبرر (يوم)</label>
         <input type="number" step="0.25" min="0" name="absence_excused_deduction_days" class="input" dir="ltr"
-               value="{{ '%.2f'|format(policy.absence_excused_deduction_days) if policy else '1.00' }}">
+               value="{{ policy.absence_excused_deduction_days|money if policy else '1.00' }}">
       </div>
       <div>
         <label class="block text-xs font-semibold text-slate-600 mb-1">غياب غير مبرر (يوم)</label>
         <input type="number" step="0.25" min="0" name="absence_unexcused_deduction_days" class="input" dir="ltr"
-               value="{{ '%.2f'|format(policy.absence_unexcused_deduction_days) if policy else '1.00' }}">
+               value="{{ policy.absence_unexcused_deduction_days|money if policy else '1.00' }}">
       </div>
     </div>
     <p class="text-xs text-slate-500 mt-1">القيمة الافتراضية 1.00 لكليهما — نفس السلوك الحالي.</p>
@@ -92,7 +92,7 @@
       <div>
         <label class="block text-xs font-semibold text-slate-600 mb-1">أقصى ساعات للطلب الواحد</label>
         <input type="number" step="0.5" min="0" name="permission_max_hours" class="input" dir="ltr"
-               value="{{ '%.2f'|format(policy.permission_max_hours) if policy else '0.00' }}">
+               value="{{ policy.permission_max_hours|money if policy else '0.00' }}">
       </div>
     </div>
     <p class="text-xs text-slate-500 mt-1">

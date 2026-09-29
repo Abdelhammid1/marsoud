@@ -6,15 +6,15 @@
   </div>
   <div class="card p-4 bg-blue-50/50 border-blue-100">
     <div class="text-xs text-blue-700 mb-1">إجمالي المدين</div>
-    <div class="text-2xl font-bold text-blue-700 font-mono">{{ "%.2f"|format(total_debit) }}</div>
+    <div class="text-2xl font-bold text-blue-700 font-mono">{{ total_debit|money }}</div>
   </div>
   <div class="card p-4 bg-purple-50/50 border-purple-100">
     <div class="text-xs text-purple-700 mb-1">إجمالي الدائن</div>
-    <div class="text-2xl font-bold text-purple-700 font-mono">{{ "%.2f"|format(total_credit) }}</div>
+    <div class="text-2xl font-bold text-purple-700 font-mono">{{ total_credit|money }}</div>
   </div>
   <div class="card p-4 {% if (total_debit - total_credit)|abs < 0.01 %}bg-emerald-50/50 border-emerald-100{% else %}bg-red-50/50 border-red-100{% endif %}">
     <div class="text-xs mb-1 {% if (total_debit - total_credit)|abs < 0.01 %}text-emerald-700{% else %}text-red-700{% endif %}">فرق التوازن</div>
-    <div class="text-2xl font-bold font-mono {% if (total_debit - total_credit)|abs < 0.01 %}text-emerald-700{% else %}text-red-700{% endif %}">{{ "%.2f"|format(total_debit - total_credit) }}</div>
+    <div class="text-2xl font-bold font-mono {% if (total_debit - total_credit)|abs < 0.01 %}text-emerald-700{% else %}text-red-700{% endif %}">{{ total_debit - total_credit|money }}</div>
   </div>
 </div>
 
@@ -52,8 +52,8 @@
         {% else %}<span class="badge bg-slate-50 text-slate-500 text-[10px]">يدوي</span>{% endif %}
       </td>
       <td class="text-xs text-slate-500 font-mono">{{ e.reference or '—' }}</td>
-      <td class="text-right font-mono">{{ "%.2f"|format(e.total_debit) }}</td>
-      <td class="text-right font-mono">{{ "%.2f"|format(e.total_credit) }}</td>
+      <td class="text-right font-mono">{{ e.total_debit|money }}</td>
+      <td class="text-right font-mono">{{ e.total_credit|money }}</td>
       <td><a href="{{ url_for('journals.view', entry_id=e.id) }}" class="text-brand-600 hover:underline text-sm">عرض</a></td>
     </tr>
     {% else %}

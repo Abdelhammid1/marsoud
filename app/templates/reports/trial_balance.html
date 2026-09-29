@@ -31,7 +31,7 @@
 {% if not data.totals.balanced %}
 <div class="mb-3 rounded-lg border border-red-300 bg-red-50 text-red-800 p-3 font-bold">
   ⚠ تنبيه: مجموع المدين لا يساوي مجموع الدائن
-  (فرق: {{ "%.2f"|format(data.totals.diff) }}).
+  (فرق: {{ data.totals.diff|money }}).
   راجع القيود قبل الاعتماد على هذا التقرير.
 </div>
 {% endif %}
@@ -62,10 +62,10 @@
         <tr>
           <td class="font-mono text-xs text-slate-500">{{ r.code }}</td>
           <td>{{ r.name }}</td>
-          <td class="text-right font-mono">{{ "%.2f"|format(r.debit) if r.debit else '—' }}</td>
-          <td class="text-right font-mono">{{ "%.2f"|format(r.credit) if r.credit else '—' }}</td>
+          <td class="text-right font-mono">{{ r.debit|money if r.debit else '—' }}</td>
+          <td class="text-right font-mono">{{ r.credit|money if r.credit else '—' }}</td>
           <td class="text-right font-mono {% if r.balance < 0 %}text-red-600{% endif %}">
-            {{ "%.2f"|format(r.balance) }}
+            {{ r.balance|money }}
           </td>
         </tr>
         {% else %}
@@ -76,10 +76,10 @@
       <tfoot>
         <tr class="font-bold" style="border-top:2px solid #0A2540">
           <td colspan="2" class="text-navy-900">الإجمالي</td>
-          <td class="text-right font-mono text-navy-900">{{ "%.2f"|format(data.totals.debit) }}</td>
-          <td class="text-right font-mono text-navy-900">{{ "%.2f"|format(data.totals.credit) }}</td>
+          <td class="text-right font-mono text-navy-900">{{ data.totals.debit|money }}</td>
+          <td class="text-right font-mono text-navy-900">{{ data.totals.credit|money }}</td>
           <td class="text-right font-mono {% if data.totals.balanced %}text-emerald-600{% else %}text-red-600{% endif %}">
-            {% if data.totals.balanced %}✓ متوازن{% else %}✕ فرق {{ "%.2f"|format(data.totals.diff) }}{% endif %}
+            {% if data.totals.balanced %}✓ متوازن{% else %}✕ فرق {{ data.totals.diff|money }}{% endif %}
           </td>
         </tr>
       </tfoot>
@@ -90,9 +90,9 @@
   <div class="mt-4 text-center text-sm font-semibold
               {% if data.totals.balanced %}text-emerald-600{% else %}text-red-600{% endif %}">
     {% if data.totals.balanced %}
-      ✓ مجموع المدين = مجموع الدائن ({{ "%.2f"|format(data.totals.debit) }})
+      ✓ مجموع المدين = مجموع الدائن ({{ data.totals.debit|money }})
     {% else %}
-      ⚠ الميزان غير متوازن — فرق {{ "%.2f"|format(data.totals.diff) }}
+      ⚠ الميزان غير متوازن — فرق {{ data.totals.diff|money }}
     {% endif %}
   </div>
 </div>

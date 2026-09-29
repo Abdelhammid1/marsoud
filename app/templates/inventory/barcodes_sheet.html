@@ -56,7 +56,7 @@
     <div class="name">{{ v.display_name }}</div>
     <img src="{{ url_for('inventory.variant_barcode', variant_id=v.id) }}" alt="{{ v.barcode or v.sku }}">
     {% if v.product.default_price %}
-    <div style="font-size:10pt;font-weight:bold;">{{ '%.2f'|format(v.product.default_price) }}</div>
+    <div style="font-size:10pt;font-weight:bold;">{{ v.product.default_price|money }}</div>
     {% endif %}
   </div>
   {% else %}

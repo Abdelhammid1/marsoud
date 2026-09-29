@@ -97,7 +97,7 @@ table.items tr:last-child td { border-bottom: none; }
   {% if d %}{{ d.day }} {{ AR_MONTHS[d.month] }} {{ d.year }}{% else %}—{% endif %}
 {%- endmacro %}
 {% macro amount(v) -%}
-  {{ "%.2f"|format(v|float) }} {{ invoice.currency|currency_ar }}
+  {{ v|money }} {{ invoice.currency|currency_ar }}
 {%- endmacro %}
 {# ── Status → (label, text color, bg color) ──────────────── #}
 {# MARSOUD-TKT-INVOICE-DRAFT-LABEL-QUOTE (2026-08-31) — DRAFT badge
@@ -224,7 +224,7 @@ table.items tr:last-child td { border-bottom: none; }
 
     {# ── DUE HEADLINE ───────────────────────────────────────── #}
     <div class="due-headline">
-      <span class="amt">{{ "%.2f"|format(invoice.total|float) }} {{ invoice.currency|currency_ar }}</span>
+      <span class="amt">{{ invoice.total|money }} {{ invoice.currency|currency_ar }}</span>
       مستحقة الدفع بتاريخ {{ ar_date(invoice.due_date) }}
     </div>
 
@@ -257,9 +257,9 @@ table.items tr:last-child td { border-bottom: none; }
           <td class="num">{{ loop.index }}</td>
           <td>{{ item.description }}</td>
           <td class="num">{{ "%g"|format(qty) }}</td>
-          <td class="num">{{ "%.2f"|format(price) }} {{ invoice.currency|currency_ar }}</td>
+          <td class="num">{{ price|money }} {{ invoice.currency|currency_ar }}</td>
           <td class="num">{{ "%g"|format(invoice.tax_rate|float) }}%</td>
-          <td class="num">{{ "%.2f"|format(pre_tax + line_tax) }} {{ invoice.currency|currency_ar }}</td>
+          <td class="num">{{ pre_tax + line_tax|money }} {{ invoice.currency|currency_ar }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -285,7 +285,7 @@ table.items tr:last-child td { border-bottom: none; }
     {# ── AMOUNT DUE (big, green signature element) ──────────── #}
     <div class="due-block" style="border-right-color:{{ status_color }}">
       <div class="lbl">{{ "المبلغ المسدد بالكامل" if status_key == "PAID" else "المبلغ المتبقي المستحق" if bal > 0.005 else "المبلغ المستحق" }}</div>
-      <div class="val" style="color:{{ status_color }}">{{ "%.2f"|format((bal if bal > 0.005 else invoice.total|float)) }} <span class="cur">{{ invoice.currency|currency_ar }}</span></div>
+      <div class="val" style="color:{{ status_color }}">{{ (bal if bal > 0.005 else invoice.total|float)|money }} <span class="cur">{{ invoice.currency|currency_ar }}</span></div>
     </div>
 
     {# MARSOUD-INVOICE-PDF-POLISH-01 (2026-09-10) — installments PDF
@@ -316,7 +316,7 @@ table.items tr:last-child td { border-bottom: none; }
       {% if invoice.down_payment_amount and invoice.down_payment_amount > 0 %}
       <div style="background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46;font-size:9.5pt;border-radius:8px;padding:8px 12px;margin-bottom:10px">
         💰 دفعة مقدّمة عند الإصدار:
-        <strong>{{ '%.2f'|format(invoice.down_payment_amount) }} {{ invoice.currency|currency_ar }}</strong>
+        <strong>{{ invoice.down_payment_amount|money }} {{ invoice.currency|currency_ar }}</strong>
       </div>
       {% endif %}
       <table cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:100%;border-collapse:collapse">
@@ -355,7 +355,7 @@ table.items tr:last-child td { border-bottom: none; }
         <tr>
           <td align="right" valign="middle" style="padding:8px 0;border-top:1px solid #F1F5F9;width:35%">
             <span style="display:inline-block;background:{{ amount_bg }};padding:5px 12px;border-radius:6px;font-family:monospace;font-weight:600;color:{{ amount_color }};font-size:10pt;direction:ltr;{{ amount_strike }}">
-              {{ '%.2f'|format(inst.amount|float) }} {{ invoice.currency|currency_ar }}
+              {{ inst.amount|money }} {{ invoice.currency|currency_ar }}
             </span>
           </td>
           <td align="left" valign="middle" style="padding:8px 0;border-top:1px solid #F1F5F9;color:{{ date_color }};font-size:10pt;font-weight:{{ date_weight }}">

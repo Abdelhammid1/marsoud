@@ -43,14 +43,14 @@
         </td>
         <td class="text-xs text-slate-700">{{ (r.purpose or '—')[:80] }}</td>
         <td class="text-left font-mono">
-          {{ "%.2f"|format(r.amount) }}
+          {{ r.amount|money }}
           {# MARSOUD-CUSTODY-REQUEST-APPROVE-01 (2026-08-10) —
              when the accountant approved a different figure,
              show it side-by-side with what was requested so
              the row tells the story at a glance. #}
           {% if r.custody and r.custody.amount_issued != r.amount %}
           <div class="text-xs text-emerald-700 mt-1">
-            اعتُمد: {{ "%.2f"|format(r.custody.amount_issued) }}
+            اعتُمد: {{ r.custody.amount_issued|money }}
           </div>
           {% endif %}
           {# Transfer-receipt link — one per file attached at

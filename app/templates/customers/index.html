@@ -70,7 +70,7 @@
         </td>
         <td class="text-sm text-slate-500">{{ c.email or '—' }}</td>
         <td class="text-sm text-slate-500" dir="ltr">{{ c.phone or '—' }}</td>
-        <td class="text-right font-mono {% if c.balance > 0 %}text-amber-600 font-semibold{% endif %}">{{ "%.2f"|format(c.balance) }}</td>
+        <td class="text-right font-mono {% if c.balance > 0 %}text-amber-600 font-semibold{% endif %}">{{ c.balance|money }}</td>
         <td class="text-right"><a href="{{ url_for('customers.view', customer_id=c.id) }}" class="text-brand-600 hover:underline text-sm">عرض</a></td>
       </tr>
       {% else %}

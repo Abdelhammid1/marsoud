@@ -17,15 +17,15 @@
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
   <div class="card p-4">
     <div class="text-xs text-slate-500">إجمالي مصروف</div>
-    <div class="text-xl font-bold text-navy-900 font-mono">{{ "%.2f"|format(data.totals.issued) }}</div>
+    <div class="text-xl font-bold text-navy-900 font-mono">{{ data.totals.issued|money }}</div>
   </div>
   <div class="card p-4">
     <div class="text-xs text-slate-500">إجمالي مُسوَّى</div>
-    <div class="text-xl font-bold text-sky-700 font-mono">{{ "%.2f"|format(data.totals.settled) }}</div>
+    <div class="text-xl font-bold text-sky-700 font-mono">{{ data.totals.settled|money }}</div>
   </div>
   <div class="card p-4">
     <div class="text-xs text-slate-500">معلَّق (لم يُسوَّ)</div>
-    <div class="text-xl font-bold text-amber-700 font-mono">{{ "%.2f"|format(data.totals.pending) }}</div>
+    <div class="text-xl font-bold text-amber-700 font-mono">{{ data.totals.pending|money }}</div>
   </div>
   <div class="card p-4">
     <div class="text-xs text-slate-500">متأخرة</div>
@@ -66,10 +66,10 @@
         </td>
         <td class="text-xs text-slate-700">{{ (r.purpose or '—')[:50] }}</td>
         <td class="font-mono text-xs">{{ r.issued_on }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(r.amount_issued) }}</td>
-        <td class="text-left font-mono text-slate-500">{{ "%.2f"|format(r.amount_settled) }}</td>
+        <td class="text-left font-mono">{{ r.amount_issued|money }}</td>
+        <td class="text-left font-mono text-slate-500">{{ r.amount_settled|money }}</td>
         <td class="text-left font-mono font-bold {% if r.amount_pending %}text-amber-700{% endif %}">
-          {{ "%.2f"|format(r.amount_pending) }}
+          {{ r.amount_pending|money }}
         </td>
         <td class="text-center font-mono text-xs">{{ r.days_open }}</td>
         <td class="font-mono text-xs">
@@ -92,9 +92,9 @@
     <tfoot>
       <tr class="font-bold">
         <td colspan="4" class="text-left">الإجمالي</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(data.totals.issued) }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(data.totals.settled) }}</td>
-        <td class="text-left font-mono text-amber-700">{{ "%.2f"|format(data.totals.pending) }}</td>
+        <td class="text-left font-mono">{{ data.totals.issued|money }}</td>
+        <td class="text-left font-mono">{{ data.totals.settled|money }}</td>
+        <td class="text-left font-mono text-amber-700">{{ data.totals.pending|money }}</td>
         <td colspan="3"></td>
       </tr>
     </tfoot>

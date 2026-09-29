@@ -72,11 +72,11 @@
     <tr>
       <td>{{ line.employee.name }}</td>
       <td class="num">{{ line.working_days }}/30</td>
-      <td class="num">{{ "%.2f"|format(basic) }}</td>
-      <td class="num">{{ "%.2f"|format(allowances) }}</td>
-      <td class="num" style="color:#059669">{{ "%.2f"|format(bonus_ot) }}</td>
-      <td class="num" style="color:#B45309">{{ "%.2f"|format(deductions) }}</td>
-      <td class="num" style="font-weight:600;color:#0A2540">{{ "%.2f"|format(net) }}</td>
+      <td class="num">{{ basic|money }}</td>
+      <td class="num">{{ allowances|money }}</td>
+      <td class="num" style="color:#059669">{{ bonus_ot|money }}</td>
+      <td class="num" style="color:#B45309">{{ deductions|money }}</td>
+      <td class="num" style="font-weight:600;color:#0A2540">{{ net|money }}</td>
     </tr>
     {% else %}
     <tr><td colspan="7" style="text-align:center;color:#94A3B8;padding:24px">لا يوجد موظفين في هذا الكشف.</td></tr>
@@ -84,11 +84,11 @@
     {% if run.lines %}
     <tr>
       <td colspan="2" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">الإجمالي</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(ns.basic) }}</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(ns.allowances) }}</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#059669">{{ "%.2f"|format(ns.bonus_ot) }}</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#B45309">{{ "%.2f"|format(ns.deductions) }}</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(ns.net) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ ns.basic|money }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ ns.allowances|money }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#059669">{{ ns.bonus_ot|money }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#B45309">{{ ns.deductions|money }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ ns.net|money }}</td>
     </tr>
     {% endif %}
   </tbody>

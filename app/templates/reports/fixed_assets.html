@@ -25,20 +25,20 @@
         <td class="text-sm">{{ r.vendor or '—' }}</td>
         <td class="text-sm">{{ r.purchase_date.isoformat() }}</td>
         <td class="text-sm">{{ r.useful_life_years }} سنة</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(r.cost) }}</td>
-        <td class="text-left font-mono text-amber-700">{{ "%.2f"|format(r.annual_dep) }}</td>
-        <td class="text-left font-mono text-amber-600">{{ "%.2f"|format(r.accumulated_dep) }}</td>
-        <td class="text-left font-mono font-bold">{{ "%.2f"|format(r.nbv) }}</td>
+        <td class="text-left font-mono">{{ r.cost|money }}</td>
+        <td class="text-left font-mono text-amber-700">{{ r.annual_dep|money }}</td>
+        <td class="text-left font-mono text-amber-600">{{ r.accumulated_dep|money }}</td>
+        <td class="text-left font-mono font-bold">{{ r.nbv|money }}</td>
       </tr>
       {% else %}
       <tr><td colspan="8" class="text-center text-slate-500 py-8">لا توجد أصول ثابتة</td></tr>
       {% endfor %}
       <tr class="border-t-2 border-navy-900 font-bold bg-navy-50">
         <td colspan="4" class="py-3">الإجمالي</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(data.totals.cost) }}</td>
-        <td class="text-left font-mono text-amber-700">{{ "%.2f"|format(data.totals.annual_dep) }}</td>
-        <td class="text-left font-mono text-amber-700">{{ "%.2f"|format(data.totals.accumulated_dep) }}</td>
-        <td class="text-left font-mono text-lg">{{ "%.2f"|format(data.totals.nbv) }}</td>
+        <td class="text-left font-mono">{{ data.totals.cost|money }}</td>
+        <td class="text-left font-mono text-amber-700">{{ data.totals.annual_dep|money }}</td>
+        <td class="text-left font-mono text-amber-700">{{ data.totals.accumulated_dep|money }}</td>
+        <td class="text-left font-mono text-lg">{{ data.totals.nbv|money }}</td>
       </tr>
     </tbody>
   </table>
@@ -58,7 +58,7 @@
         الأصول المشطوبة / المستبعدة
         <span class="text-sm font-normal text-slate-500 mr-2">
           ({{ data.disposed.rows|length }} أصل — تكلفة إجمالية
-          {{ "%.2f"|format(data.disposed.totals.cost) }})
+          {{ data.disposed.totals.cost|money }})
         </span>
       </h2>
       <span class="text-xs text-slate-500">اضغط للتوسيع</span>
@@ -82,10 +82,10 @@
           </td>
           <td class="font-mono text-sm">{{ r.disposal_date or '—' }}</td>
           <td class="text-sm">{{ r.disposal_reason_ar or '—' }}</td>
-          <td class="text-left font-mono">{{ "%.2f"|format(r.cost) }}</td>
-          <td class="text-left font-mono text-amber-700">{{ "%.2f"|format(r.accumulated_dep) }}</td>
-          <td class="text-left font-mono">{{ "%.2f"|format(r.nbv) }}</td>
-          <td class="text-left font-mono">{{ "%.2f"|format(r.disposal_proceeds) }}</td>
+          <td class="text-left font-mono">{{ r.cost|money }}</td>
+          <td class="text-left font-mono text-amber-700">{{ r.accumulated_dep|money }}</td>
+          <td class="text-left font-mono">{{ r.nbv|money }}</td>
+          <td class="text-left font-mono">{{ r.disposal_proceeds|money }}</td>
           <td>
             {% if r.disposal_entry_id %}
             <a href="{{ url_for('journals.view', entry_id=r.disposal_entry_id) }}"
@@ -96,10 +96,10 @@
         {% endfor %}
         <tr class="border-t-2 border-slate-400 font-bold bg-slate-50">
           <td colspan="3" class="py-3">إجمالي المشطوب</td>
-          <td class="text-left font-mono">{{ "%.2f"|format(data.disposed.totals.cost) }}</td>
-          <td class="text-left font-mono text-amber-700">{{ "%.2f"|format(data.disposed.totals.accumulated_dep) }}</td>
-          <td class="text-left font-mono">{{ "%.2f"|format(data.disposed.totals.nbv) }}</td>
-          <td class="text-left font-mono">{{ "%.2f"|format(data.disposed.totals.proceeds) }}</td>
+          <td class="text-left font-mono">{{ data.disposed.totals.cost|money }}</td>
+          <td class="text-left font-mono text-amber-700">{{ data.disposed.totals.accumulated_dep|money }}</td>
+          <td class="text-left font-mono">{{ data.disposed.totals.nbv|money }}</td>
+          <td class="text-left font-mono">{{ data.disposed.totals.proceeds|money }}</td>
           <td></td>
         </tr>
       </tbody>

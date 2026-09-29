@@ -41,10 +41,10 @@
         <td class="font-semibold">{{ b.leave_type.name }}
           {% if not b.leave_type.is_paid %}<span class="badge badge-partial text-xs">بدون راتب</span>{% endif %}
         </td>
-        <td class="text-left font-mono">{{ "%.2f"|format(b.balance_days) }}</td>
-        <td class="text-left font-mono text-amber-600">{{ "%.2f"|format(b.used_days) }}</td>
-        <td class="text-left font-mono font-bold text-emerald-700">{{ "%.2f"|format(b.remaining_days) }}</td>
-        <td class="text-left font-mono text-slate-500">{{ "%.2f"|format(b.leave_type.max_balance) }}</td>
+        <td class="text-left font-mono">{{ b.balance_days|money }}</td>
+        <td class="text-left font-mono text-amber-600">{{ b.used_days|money }}</td>
+        <td class="text-left font-mono font-bold text-emerald-700">{{ b.remaining_days|money }}</td>
+        <td class="text-left font-mono text-slate-500">{{ b.leave_type.max_balance|money }}</td>
         <td class="text-left">
           <form method="POST"
                 action="{{ url_for('hr.grant_leave_balance', employee_id=employee.id) }}"
@@ -53,7 +53,7 @@
             <input type="hidden" name="year" value="{{ year }}">
             <input type="number" step="0.25" min="0" required
                    name="balance_days" placeholder="رصيد جديد"
-                   value="{{ '%.2f'|format(b.balance_days) }}"
+                   value="{{ b.balance_days|money }}"
                    class="input text-xs w-24 font-mono" dir="ltr">
             <button type="submit"
                     class="text-xs text-emerald-700 hover:underline whitespace-nowrap">
@@ -81,7 +81,7 @@
         <td>{{ r.leave_type.name }}</td>
         <td class="font-mono text-xs">{{ r.start_date.isoformat() }}</td>
         <td class="font-mono text-xs">{{ r.end_date.isoformat() }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(r.days_count) }}</td>
+        <td class="text-left font-mono">{{ r.days_count|money }}</td>
         <td>
           {% set s = r.status.value %}
           {% if s == 'APPROVED' %}<span class="badge badge-paid">معتمد</span>

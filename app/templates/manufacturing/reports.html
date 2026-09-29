@@ -20,11 +20,11 @@
       <tr>
         <td class="font-mono"><a href="{{ url_for('manufacturing.work_order_detail', work_order_id=r.wo.id) }}" class="text-brand-600 hover:underline">{{ r.wo.number }}</a></td>
         <td>{{ r.wo.bom.product_variant.name or r.wo.bom.product_variant.sku }}</td>
-        <td class="font-mono">{{ "%.2f"|format(r.wo.quantity_to_produce|float) }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(r.material) }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(r.labor) }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(r.overhead) }}</td>
-        <td class="text-left font-mono font-bold text-navy-900">{{ "%.2f"|format(r.total) }}</td>
+        <td class="font-mono">{{ r.wo.quantity_to_produce|money }}</td>
+        <td class="text-left font-mono">{{ r.material|money }}</td>
+        <td class="text-left font-mono">{{ r.labor|money }}</td>
+        <td class="text-left font-mono">{{ r.overhead|money }}</td>
+        <td class="text-left font-mono font-bold text-navy-900">{{ r.total|money }}</td>
       </tr>
     {% else %}
       <tr><td colspan="7" class="text-center text-slate-500 py-8">لا توجد أوامر إنتاج مكتملة.</td></tr>

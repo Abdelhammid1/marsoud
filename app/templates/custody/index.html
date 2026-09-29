@@ -52,9 +52,9 @@
         </td>
         <td class="text-xs text-slate-700">{{ (c.purpose or '—')[:60] }}</td>
         <td class="font-mono text-xs">{{ c.issued_on.isoformat() }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(c.amount_issued) }}</td>
-        <td class="text-left font-mono text-slate-500">{{ "%.2f"|format(c.amount_settled) }}</td>
-        <td class="text-left font-mono font-bold">{{ "%.2f"|format(c.amount_pending) }}</td>
+        <td class="text-left font-mono">{{ c.amount_issued|money }}</td>
+        <td class="text-left font-mono text-slate-500">{{ c.amount_settled|money }}</td>
+        <td class="text-left font-mono font-bold">{{ c.amount_pending|money }}</td>
         <td class="font-mono text-xs">
           {% if c.settlement_due_date %}
             {{ c.settlement_due_date.isoformat() }}

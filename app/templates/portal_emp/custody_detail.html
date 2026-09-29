@@ -9,17 +9,17 @@
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
   <div class="card p-4">
     <div class="text-xs text-slate-500">مصروف عليك</div>
-    <div class="text-2xl font-bold text-navy-900 font-mono">{{ "%.2f"|format(custody.amount_issued) }}</div>
+    <div class="text-2xl font-bold text-navy-900 font-mono">{{ custody.amount_issued|money }}</div>
     <div class="text-xs text-slate-500 mt-1">{{ custody.issued_on.isoformat() }}</div>
   </div>
   <div class="card p-4">
     <div class="text-xs text-slate-500">مُنفَق بإيصالات</div>
-    <div class="text-2xl font-bold text-sky-700 font-mono">{{ "%.2f"|format(custody.amount_settled) }}</div>
+    <div class="text-2xl font-bold text-sky-700 font-mono">{{ custody.amount_settled|money }}</div>
   </div>
   <div class="card p-4">
     <div class="text-xs text-slate-500">لسه معلَّق</div>
     <div class="text-2xl font-bold {% if custody.amount_pending %}text-amber-700{% else %}text-emerald-700{% endif %} font-mono">
-      {{ "%.2f"|format(custody.amount_pending) }}
+      {{ custody.amount_pending|money }}
     </div>
     <div class="text-xs text-slate-500 mt-1">
       {% set s = custody.status.value %}
@@ -73,7 +73,7 @@
             {{ l.expense_account.name_ar or l.expense_account.name }}
           {% else %}<span class="text-slate-500">—</span>{% endif %}
         </td>
-        <td class="text-left font-mono">{{ "%.2f"|format(l.amount) }}</td>
+        <td class="text-left font-mono">{{ l.amount|money }}</td>
         <td class="text-xs text-slate-600">
           {{ l.receipt_note or '—' }}
           {# MARSOUD-CUSTODY-ATTACH-01 (2026-08-10) — read-only

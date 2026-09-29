@@ -15,7 +15,7 @@
       <tr>
         <td class="font-mono">{{ o.number }}</td>
         <td>{{ o.bom.name }}</td>
-        <td class="font-mono">{{ "%.2f"|format(o.quantity_to_produce|float) }}</td>
+        <td class="font-mono">{{ o.quantity_to_produce|money }}</td>
         <td>{{ o.warehouse.name }}</td>
         <td>
           {% set colour = {

@@ -24,7 +24,7 @@
         <div class="text-xs text-emerald-700 font-semibold">الضريبة المُحَصَّلة</div>
         <div class="text-xs text-slate-500 mt-1">من فواتير المبيعات للعملاء</div>
       </div>
-      <div class="text-2xl font-bold text-emerald-700 font-mono">+{{ "%.2f"|format(data.collected) }}</div>
+      <div class="text-2xl font-bold text-emerald-700 font-mono">+{{ data.collected|money }}</div>
     </div>
 
     <div class="flex items-center justify-between p-5 rounded-xl border border-amber-200 bg-amber-50">
@@ -32,7 +32,7 @@
         <div class="text-xs text-amber-700 font-semibold">الضريبة المدفوعة</div>
         <div class="text-xs text-slate-500 mt-1">من المشتريات والمصاريف</div>
       </div>
-      <div class="text-2xl font-bold text-amber-700 font-mono">−{{ "%.2f"|format(data.paid) }}</div>
+      <div class="text-2xl font-bold text-amber-700 font-mono">−{{ data.paid|money }}</div>
     </div>
 
     <div class="flex items-center justify-between p-6 rounded-xl bg-gradient-to-br from-navy-900 to-navy-700 text-white">
@@ -40,15 +40,15 @@
         <div class="text-sm font-bold">صافي المستحق للحكومة</div>
         <div class="text-xs text-navy-200 mt-1">المحصلة − المدفوعة</div>
       </div>
-      <div class="text-3xl font-bold font-mono">{{ "%.2f"|format(data.net) }}</div>
+      <div class="text-3xl font-bold font-mono">{{ data.net|money }}</div>
     </div>
   </div>
 
   <div class="mt-6 text-center text-xs text-slate-500">
     {% if data.net > 0 %}
-      💰 يجب سداد <span class="font-bold text-navy-900">{{ "%.2f"|format(data.net) }}</span> {{ active_company.base_currency|currency_ar }} للجهات الضريبية
+      💰 يجب سداد <span class="font-bold text-navy-900">{{ data.net|money }}</span> {{ active_company.base_currency|currency_ar }} للجهات الضريبية
     {% elif data.net < 0 %}
-      ↩ مبلغ مسترد منتظر من الجهات الضريبية: <span class="font-bold">{{ "%.2f"|format(data.net|abs) }}</span>
+      ↩ مبلغ مسترد منتظر من الجهات الضريبية: <span class="font-bold">{{ data.net|abs|money }}</span>
     {% else %}
       ✓ لا يوجد مستحق ولا مسترد
     {% endif %}

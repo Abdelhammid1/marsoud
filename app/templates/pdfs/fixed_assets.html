@@ -50,10 +50,10 @@
       <td>{{ r.vendor or '—' }}</td>
       <td class="mono">{{ r.purchase_date }}</td>
       <td class="num">{{ r.useful_life_years }}</td>
-      <td class="num">{{ "%.2f"|format(r.cost|float) }}</td>
-      <td class="num" style="color:#B45309">{{ "%.2f"|format(r.annual_dep|float) }}</td>
-      <td class="num" style="color:#B45309">{{ "%.2f"|format(r.accumulated_dep|float) }}</td>
-      <td class="num" style="font-weight:600;color:#059669">{{ "%.2f"|format(r.nbv|float) }}</td>
+      <td class="num">{{ r.cost|money }}</td>
+      <td class="num" style="color:#B45309">{{ r.annual_dep|money }}</td>
+      <td class="num" style="color:#B45309">{{ r.accumulated_dep|money }}</td>
+      <td class="num" style="font-weight:600;color:#059669">{{ r.nbv|money }}</td>
     </tr>
     {% else %}
     <tr><td colspan="8" style="text-align:center;color:#94A3B8;padding:24px">لا توجد أصول ثابتة نشطة.</td></tr>
@@ -61,10 +61,10 @@
     {% if data.rows %}
     <tr>
       <td colspan="4" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">الإجمالي</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(data.totals.cost|float) }}</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#B45309">{{ "%.2f"|format(data.totals.annual_dep|float) }}</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#B45309">{{ "%.2f"|format(data.totals.accumulated_dep|float) }}</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#059669">{{ "%.2f"|format(data.totals.nbv|float) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ data.totals.cost|money }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#B45309">{{ data.totals.annual_dep|money }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#B45309">{{ data.totals.accumulated_dep|money }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#059669">{{ data.totals.nbv|money }}</td>
     </tr>
     {% endif %}
   </tbody>

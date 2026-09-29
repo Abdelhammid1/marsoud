@@ -64,10 +64,10 @@
     <tr>
       <td class="mono">{{ r.sku }}</td>
       <td>{{ r.name }}</td>
-      <td class="num">{{ "%.2f"|format(r.qty|float) }}</td>
-      <td class="num">{{ "%.2f"|format(r.revenue|float) }}</td>
-      <td class="num" style="color:#B45309">{{ "%.2f"|format(r.cogs|float) }}</td>
-      <td class="num" style="color:{% if r.gross_profit >= 0 %}#059669{% else %}#DC2626{% endif %};font-weight:600">{{ "%.2f"|format(r.gross_profit|float) }}</td>
+      <td class="num">{{ r.qty|money }}</td>
+      <td class="num">{{ r.revenue|money }}</td>
+      <td class="num" style="color:#B45309">{{ r.cogs|money }}</td>
+      <td class="num" style="color:{% if r.gross_profit >= 0 %}#059669{% else %}#DC2626{% endif %};font-weight:600">{{ r.gross_profit|money }}</td>
       <td class="num" style="color:{% if r.gross_margin >= 0 %}#059669{% else %}#DC2626{% endif %}">{{ "%.1f"|format(r.gross_margin|float) }}%</td>
     </tr>
     {% else %}
@@ -76,10 +76,10 @@
     {% if rows %}
     <tr>
       <td colspan="2" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">الإجمالي</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(rows|sum(attribute='qty')|float) }}</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(total_rev) }}</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#B45309">{{ "%.2f"|format(total_cogs) }}</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:{% if total_gp >= 0 %}#059669{% else %}#DC2626{% endif %}">{{ "%.2f"|format(total_gp) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ rows|sum(attribute='qty')|money }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ total_rev|money }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#B45309">{{ total_cogs|money }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:{% if total_gp >= 0 %}#059669{% else %}#DC2626{% endif %}">{{ total_gp|money }}</td>
       <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:{% if total_gm >= 0 %}#059669{% else %}#DC2626{% endif %}">{{ "%.1f"|format(total_gm) }}%</td>
     </tr>
     {% endif %}

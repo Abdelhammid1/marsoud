@@ -16,11 +16,11 @@
 <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
   <div class="card p-4">
     <div class="text-xs text-slate-500 mb-1">💰 إجمالي مستحق حالياً</div>
-    <div class="text-3xl font-bold text-amber-700 font-mono">{{ "%.2f"|format(total_unpaid) }}</div>
+    <div class="text-3xl font-bold text-amber-700 font-mono">{{ total_unpaid|money }}</div>
   </div>
   <div class="card p-4">
     <div class="text-xs text-slate-500 mb-1">✅ مدفوع من أول يوم</div>
-    <div class="text-3xl font-bold text-emerald-700 font-mono">{{ "%.2f"|format(total_paid) }}</div>
+    <div class="text-3xl font-bold text-emerald-700 font-mono">{{ total_paid|money }}</div>
   </div>
 </div>
 
@@ -47,7 +47,7 @@
             · <a href="{{ url_for('invoices.view', invoice_id=r.invoice_id) }}" class="text-brand-600 hover:underline">{{ r.invoice.number }}</a>
           {% endif %}
         </td>
-        <td class="text-right font-mono {% if is_negative %}text-red-600{% elif not is_voided %}text-navy-900 font-bold{% endif %}">{{ "%.2f"|format(r.amount|float) }}</td>
+        <td class="text-right font-mono {% if is_negative %}text-red-600{% elif not is_voided %}text-navy-900 font-bold{% endif %}">{{ r.amount|money }}</td>
         <td class="text-xs">{{ r.period_month }}/{{ r.period_year }}</td>
         <td>
           {% if is_voided %}

@@ -68,14 +68,14 @@
         </td>
         <td class="font-mono text-xs">{{ r.issue_date.isoformat() }}</td>
         <td>{{ r.vendor.name if r.vendor else '—' }}</td>
-        <td class="text-right font-mono">{{ "%.2f"|format(r.total|float) }}</td>
+        <td class="text-right font-mono">{{ r.total|money }}</td>
         <td>
           <span class="badge
             {% if r.status.value == 'RECEIVED' or r.status.value == 'CLOSED' %}badge-paid
             {% elif r.status.value in ('REJECTED', 'CANCELLED') %}badge-cancelled
             {% else %}badge-draft{% endif %}">{{ r.status_ar }}</span>
         </td>
-        <td class="text-xs font-mono">{{ "%.2f"|format(recv_qty) }} / {{ "%.2f"|format(total_qty) }}</td>
+        <td class="text-xs font-mono">{{ recv_qty|money }} / {{ total_qty|money }}</td>
         <td class="text-xs">
           <a href="{{ url_for('purchase_orders.detail', po_id=r.id) }}" class="text-brand-600 hover:underline">فتح</a>
         </td>

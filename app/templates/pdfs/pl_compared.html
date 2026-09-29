@@ -63,8 +63,8 @@
       {% endif %}
     <tr>
       <td style="font-weight:{% if label == 'صافي الربح' %}800{% else %}600{% endif %};color:#0A2540">{{ label }}</td>
-      <td class="num">{{ "%.2f"|format(cur) }}</td>
-      <td class="num" style="color:#64748B">{{ "%.2f"|format(pri) }}</td>
+      <td class="num">{{ cur|money }}</td>
+      <td class="num" style="color:#64748B">{{ pri|money }}</td>
       <td class="num" style="color:{% if is_good %}#059669{% else %}#DC2626{% endif %};font-weight:700">
         {{ "%+.2f"|format(delta) }}
       </td>

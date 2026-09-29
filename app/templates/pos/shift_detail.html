@@ -31,9 +31,9 @@
     </div>
 
     <div class="bg-slate-50 rounded p-3 text-sm space-y-1 mb-4">
-      <div class="flex justify-between"><span>الافتتاحي</span><span class="font-mono">{{ '%.2f'|format(shift.opening_cash) }}</span></div>
-      <div class="flex justify-between"><span>المتوقع</span><span class="font-mono">{{ '%.2f'|format(shift.expected_cash) if shift.expected_cash is not none else '—' }}</span></div>
-      <div class="flex justify-between"><span>الفعلي</span><span class="font-mono">{{ '%.2f'|format(shift.closing_cash) if shift.closing_cash is not none else '—' }}</span></div>
+      <div class="flex justify-between"><span>الافتتاحي</span><span class="font-mono">{{ shift.opening_cash|money }}</span></div>
+      <div class="flex justify-between"><span>المتوقع</span><span class="font-mono">{{ shift.expected_cash|money if shift.expected_cash is not none else '—' }}</span></div>
+      <div class="flex justify-between"><span>الفعلي</span><span class="font-mono">{{ shift.closing_cash|money if shift.closing_cash is not none else '—' }}</span></div>
       <div class="flex justify-between font-bold {% if shift.variance and shift.variance < 0 %}text-rose-600{% elif shift.variance and shift.variance > 0 %}text-emerald-700{% endif %}">
         <span>الفرق</span><span class="font-mono">{{ '%+.2f'|format(shift.variance) if shift.variance is not none else '—' }}</span>
       </div>
@@ -47,13 +47,13 @@
       </div>
       <div class="bg-emerald-50 rounded p-3">
         <div class="text-xs text-slate-500">صافي البيوعات</div>
-        <div class="text-2xl font-bold font-mono text-emerald-700">{{ '%.2f'|format(summary.net) }}</div>
+        <div class="text-2xl font-bold font-mono text-emerald-700">{{ summary.net|money }}</div>
       </div>
       <div class="bg-emerald-50 rounded p-3">
         <div class="text-xs text-slate-500 mb-1">حسب طريقة الدفع</div>
         {% for mname, amt in summary.by_method.items() %}
         <div class="flex justify-between text-sm">
-          <span>{{ mname }}</span><span class="font-mono">{{ '%.2f'|format(amt) }}</span>
+          <span>{{ mname }}</span><span class="font-mono">{{ amt|money }}</span>
         </div>
         {% else %}—{% endfor %}
       </div>

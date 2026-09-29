@@ -35,7 +35,7 @@
         <td class="text-xs font-mono">{{ t.created_at | company_dt('%Y-%m-%d %H:%M') }}</td>
         <td class="text-xs">{{ t.from_warehouse.code }}</td>
         <td class="text-xs">{{ t.to_warehouse.code }}</td>
-        <td class="text-end font-mono">{{ '%.2f'|format(t.total_qty) }}</td>
+        <td class="text-end font-mono">{{ t.total_qty|money }}</td>
         <td>
           {% set st = t.status_enum %}
           {% if st and st.value == 'POSTED' %}<span class="badge badge-paid">{{ st.label_ar }}</span>

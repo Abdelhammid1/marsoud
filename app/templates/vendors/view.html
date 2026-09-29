@@ -16,8 +16,8 @@
         <tr>
           <td class="font-mono"><a href="{{ url_for('vendor_bills.view', bill_id=b.id) }}" class="text-brand-600 hover:underline">{{ b.number }}</a></td>
           <td class="text-sm">{{ b.issue_date.isoformat() }}</td>
-          <td class="text-left font-mono">{{ "%.2f"|format(b.total) }}</td>
-          <td class="text-left font-mono">{{ "%.2f"|format(b.balance) }}</td>
+          <td class="text-left font-mono">{{ b.total|money }}</td>
+          <td class="text-left font-mono">{{ b.balance|money }}</td>
           <td><span class="badge">{{ b.status.value }}</span></td>
         </tr>
       {% else %}
@@ -33,7 +33,7 @@
         <h2 class="text-xl font-bold text-navy-900">مرتجعات المشتريات ({{ refunds|length }})</h2>
         <div class="text-sm">
           <span class="text-slate-500">الإجمالي:</span>
-          <span class="font-mono font-bold text-amber-700">{{ "%.2f"|format(refunds_total) }}</span>
+          <span class="font-mono font-bold text-amber-700">{{ refunds_total|money }}</span>
         </div>
       </div>
       <table class="data-table">
@@ -44,7 +44,7 @@
             <td class="font-mono text-sm">{{ r.number or '—' }}</td>
             <td class="font-mono text-sm"><a href="{{ url_for('vendor_bills.view', bill_id=bill.id) }}" class="text-brand-600 hover:underline">{{ bill.number }}</a></td>
             <td class="text-sm">{{ r.type.label_ar }}</td>
-            <td class="text-left font-mono">{{ "%.2f"|format(r.amount) }}</td>
+            <td class="text-left font-mono">{{ r.amount|money }}</td>
             <td class="text-sm text-slate-500">{{ r.created_at | company_dt if r.created_at else '' }}</td>
             <td class="text-sm text-slate-500 truncate max-w-[220px]" title="{{ r.reason or '' }}">{{ r.reason or '—' }}</td>
           </tr>
@@ -60,7 +60,7 @@
         <h2 class="text-xl font-bold text-navy-900">إشعارات المدين ({{ debit_notes|length }})</h2>
         <div class="text-sm">
           <span class="text-slate-500">الرصيد المتاح:</span>
-          <span class="font-mono font-bold text-emerald-700">{{ "%.2f"|format(open_dn_balance) }}</span>
+          <span class="font-mono font-bold text-emerald-700">{{ open_dn_balance|money }}</span>
         </div>
       </div>
       <table class="data-table">
@@ -73,9 +73,9 @@
                 <a href="{{ url_for('vendor_bills.view', bill_id=dn.bill.id) }}" class="text-brand-600 hover:underline">{{ dn.bill.number }}</a>
               {% else %}—{% endif %}
             </td>
-            <td class="text-left font-mono">{{ "%.2f"|format(dn.amount) }}</td>
-            <td class="text-left font-mono text-slate-500">{{ "%.2f"|format(dn.used_amount or 0) }}</td>
-            <td class="text-left font-mono text-emerald-700 font-semibold">{{ "%.2f"|format(dn.balance) }}</td>
+            <td class="text-left font-mono">{{ dn.amount|money }}</td>
+            <td class="text-left font-mono text-slate-500">{{ dn.used_amount or 0|money }}</td>
+            <td class="text-left font-mono text-emerald-700 font-semibold">{{ dn.balance|money }}</td>
             <td class="text-sm text-slate-500">{{ dn.created_at | company_dt if dn.created_at else '' }}</td>
           </tr>
         {% endfor %}
@@ -108,7 +108,7 @@
     <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm">
       <div class="text-xs text-slate-500 font-semibold mb-1">💰 رصيد افتتاحي</div>
       <div class="font-mono font-semibold text-slate-800">
-        {{ "%.2f"|format(opening_balance.amount|float) }}
+        {{ opening_balance.amount|money }}
         <span class="text-xs text-slate-500">· {{ opening_balance.entry_date.isoformat() }}</span>
       </div>
     </div>
@@ -117,18 +117,18 @@
     <hr class="my-4 border-slate-100">
     <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-3">
       <div class="text-xs text-amber-700 font-semibold mb-1">إجمالي الالتزام</div>
-      <div class="text-2xl font-bold text-amber-900 font-mono">{{ "%.2f"|format(vendor.balance) }}</div>
+      <div class="text-2xl font-bold text-amber-900 font-mono">{{ vendor.balance|money }}</div>
     </div>
 
     {% if refunds_total > 0 or open_dn_balance > 0 %}
     <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 mb-3 text-sm">
       <div class="text-xs text-slate-500 font-semibold mb-1">إجمالي المرتجعات</div>
-      <div class="font-mono font-semibold text-slate-700">{{ "%.2f"|format(refunds_total) }}</div>
+      <div class="font-mono font-semibold text-slate-700">{{ refunds_total|money }}</div>
     </div>
     {% if open_dn_balance > 0 %}
     <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
       <div class="text-xs text-emerald-700 font-semibold mb-1">رصيد إشعارات مدين متاح</div>
-      <div class="text-2xl font-bold text-emerald-900 font-mono">{{ "%.2f"|format(open_dn_balance) }}</div>
+      <div class="text-2xl font-bold text-emerald-900 font-mono">{{ open_dn_balance|money }}</div>
     </div>
     {% endif %}
     {% endif %}

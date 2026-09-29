@@ -15,13 +15,13 @@
     <td style="padding:0 0 12px 8px;width:50%">
       <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:12px;padding:14px;text-align:center">
         <div style="font-size:11px;color:#15803D;letter-spacing:1px">المسدد الآن</div>
-        <div style="font-size:22px;font-weight:bold;font-family:monospace;color:#047857;margin-top:4px">{{ "%.2f"|format(payment.amount) }}</div>
+        <div style="font-size:22px;font-weight:bold;font-family:monospace;color:#047857;margin-top:4px">{{ payment.amount|money }}</div>
       </div>
     </td>
     <td style="padding:0 8px 12px 0;width:50%">
       <div style="background:#FEF3C7;border:1px solid #FDE68A;border-radius:12px;padding:14px;text-align:center">
         <div style="font-size:11px;color:#92400E;letter-spacing:1px">المتبقي</div>
-        <div style="font-size:22px;font-weight:bold;font-family:monospace;color:#B45309;margin-top:4px">{{ "%.2f"|format(invoice.balance) }}</div>
+        <div style="font-size:22px;font-weight:bold;font-family:monospace;color:#B45309;margin-top:4px">{{ invoice.balance|money }}</div>
       </div>
     </td>
   </tr>
@@ -30,8 +30,8 @@
 <table style="width:100%;border-collapse:collapse;font-size:13px">
   <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">رقم الفاتورة</td><td style="padding:8px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace;font-weight:bold">{{ invoice.number }}</td></tr>
   <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">تاريخ الدفعة</td><td style="padding:8px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace">{{ payment.payment_date.isoformat() }}</td></tr>
-  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">إجمالي المدفوع للآن</td><td style="padding:8px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace">{{ "%.2f"|format(invoice.paid_amount) }} {{ invoice.currency|currency_ar }}</td></tr>
-  <tr><td style="padding:8px 12px;color:#94A3B8">إجمالي الفاتورة</td><td style="padding:8px 12px;text-align:left;font-family:monospace">{{ "%.2f"|format(invoice.total) }} {{ invoice.currency|currency_ar }}</td></tr>
+  <tr><td style="padding:8px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">إجمالي المدفوع للآن</td><td style="padding:8px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace">{{ invoice.paid_amount|money }} {{ invoice.currency|currency_ar }}</td></tr>
+  <tr><td style="padding:8px 12px;color:#94A3B8">إجمالي الفاتورة</td><td style="padding:8px 12px;text-align:left;font-family:monospace">{{ invoice.total|money }} {{ invoice.currency|currency_ar }}</td></tr>
 </table>
 
 <p style="color:#475569;font-size:13px;margin-top:24px;text-align:center">

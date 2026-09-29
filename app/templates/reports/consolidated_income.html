@@ -29,14 +29,14 @@
         {% for item in data.revenue %}
         <div class="flex justify-between py-1.5 border-b border-slate-100">
           <span><span class="text-xs text-slate-500 font-mono">{{ item.code }}</span> {{ item.name }}</span>
-          <span class="font-mono">{{ "%.2f"|format(item.balance) }}</span>
+          <span class="font-mono">{{ item.balance|money }}</span>
         </div>
         {% else %}
         <div class="text-sm text-slate-400 text-center py-4">— لا توجد إيرادات —</div>
         {% endfor %}
         <div class="flex justify-between font-bold py-2 border-t-2 border-navy-900 text-brand-600">
           <span>إجمالي الإيرادات</span>
-          <span class="font-mono">{{ "%.2f"|format(data.total_revenue) }}</span>
+          <span class="font-mono">{{ data.total_revenue|money }}</span>
         </div>
       </div>
     </div>
@@ -46,21 +46,21 @@
         {% for item in data.expenses %}
         <div class="flex justify-between py-1.5 border-b border-slate-100">
           <span><span class="text-xs text-slate-500 font-mono">{{ item.code }}</span> {{ item.name }}</span>
-          <span class="font-mono">{{ "%.2f"|format(item.balance) }}</span>
+          <span class="font-mono">{{ item.balance|money }}</span>
         </div>
         {% else %}
         <div class="text-sm text-slate-400 text-center py-4">— لا توجد مصروفات —</div>
         {% endfor %}
         <div class="flex justify-between font-bold py-2 border-t-2 border-navy-900 text-red-600">
           <span>إجمالي المصروفات</span>
-          <span class="font-mono">{{ "%.2f"|format(data.total_expense) }}</span>
+          <span class="font-mono">{{ data.total_expense|money }}</span>
         </div>
       </div>
     </div>
   </div>
 
   <div class="mt-6 text-center text-lg font-bold {% if data.net_income >= 0 %}text-emerald-700{% else %}text-red-600{% endif %}">
-    صافي الربح المجمّع: <span class="font-mono">{{ "%.2f"|format(data.net_income) }}</span>
+    صافي الربح المجمّع: <span class="font-mono">{{ data.net_income|money }}</span>
   </div>
 </div>
 
@@ -74,15 +74,15 @@
       <div class="grid grid-cols-3 gap-2 text-sm">
         <div>
           <div class="text-xs text-slate-500">إيرادات</div>
-          <div class="font-mono text-brand-600">{{ "%.2f"|format(branch.data.total_revenue) }}</div>
+          <div class="font-mono text-brand-600">{{ branch.data.total_revenue|money }}</div>
         </div>
         <div>
           <div class="text-xs text-slate-500">مصروفات</div>
-          <div class="font-mono text-red-600">{{ "%.2f"|format(branch.data.total_expense) }}</div>
+          <div class="font-mono text-red-600">{{ branch.data.total_expense|money }}</div>
         </div>
         <div>
           <div class="text-xs text-slate-500">صافي</div>
-          <div class="font-mono {% if branch.data.net_income >= 0 %}text-emerald-700{% else %}text-red-600{% endif %}">{{ "%.2f"|format(branch.data.net_income) }}</div>
+          <div class="font-mono {% if branch.data.net_income >= 0 %}text-emerald-700{% else %}text-red-600{% endif %}">{{ branch.data.net_income|money }}</div>
         </div>
       </div>
     </div>

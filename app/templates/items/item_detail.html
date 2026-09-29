@@ -28,7 +28,7 @@
     </div>
     {% if not item.fixed_asset %}
     <div><dt class="text-slate-500 inline">التقييم:</dt>
-      <dd class="inline font-mono">{{ "%.2f"|format(item.estimated_value or 0) }}</dd></div>
+      <dd class="inline font-mono">{{ item.estimated_value or 0|money }}</dd></div>
     {% endif %}
     <div><dt class="text-slate-500 inline">تاريخ التسجيل:</dt>
       <dd class="inline text-xs">{{ item.created_at | company_dt('%Y-%m-%d') if item.created_at else '—' }}</dd></div>

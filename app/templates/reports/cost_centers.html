@@ -19,9 +19,9 @@
 <div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 p-4">
   <div class="font-bold mb-1">⚠ الجزء غير المُصنّف من إجمالي المصاريف</div>
   <div class="text-sm">
-    إجمالي مصاريف الشركة في الفترة: <strong class="font-mono">{{ "%.2f"|format(totals.total_company_expense) }}</strong>
-    · مصنّف على مراكز تكلفة: <strong class="font-mono text-emerald-700">{{ "%.2f"|format(totals.expense) }}</strong>
-    · <strong class="text-red-700">غير مُصنّف: <span class="font-mono">{{ "%.2f"|format(totals.unclassified) }}</span></strong>
+    إجمالي مصاريف الشركة في الفترة: <strong class="font-mono">{{ totals.total_company_expense|money }}</strong>
+    · مصنّف على مراكز تكلفة: <strong class="font-mono text-emerald-700">{{ totals.expense|money }}</strong>
+    · <strong class="text-red-700">غير مُصنّف: <span class="font-mono">{{ totals.unclassified|money }}</span></strong>
   </div>
   <div class="text-xs mt-1 text-amber-700">المبلغ ده مش ظاهر في الجدول تحت — عشان لسه مش متعلم على مركز تكلفة. لو عايز الجدول يوضح كل المصاريف، اتأكد من تخصيص كل بند فاتورة/قيد جديد لمركز تكلفة.</div>
 </div>
@@ -50,9 +50,9 @@
       <tr>
         <td class="font-mono text-xs">{{ r.code }}</td>
         <td>{{ r.name }}</td>
-        <td class="text-right font-mono text-emerald-700">{{ "%.2f"|format(r.revenue) }}</td>
-        <td class="text-right font-mono text-red-600">{{ "%.2f"|format(r.expense) }}</td>
-        <td class="text-right font-mono {% if r.net < 0 %}text-red-600{% else %}text-navy-900 font-bold{% endif %}">{{ "%.2f"|format(r.net) }}</td>
+        <td class="text-right font-mono text-emerald-700">{{ r.revenue|money }}</td>
+        <td class="text-right font-mono text-red-600">{{ r.expense|money }}</td>
+        <td class="text-right font-mono {% if r.net < 0 %}text-red-600{% else %}text-navy-900 font-bold{% endif %}">{{ r.net|money }}</td>
       </tr>
       {% else %}
       <tr><td colspan="5" class="text-center text-slate-400 py-6">لا توجد بيانات مصنّفة في هذه الفترة.</td></tr>
@@ -62,9 +62,9 @@
     <tfoot>
       <tr class="font-bold" style="border-top:2px solid #0A2540">
         <td colspan="2" class="text-navy-900">الإجمالي (المصنّف)</td>
-        <td class="text-right font-mono text-emerald-700">{{ "%.2f"|format(totals.revenue) }}</td>
-        <td class="text-right font-mono text-red-600">{{ "%.2f"|format(totals.expense) }}</td>
-        <td class="text-right font-mono {% if totals.net < 0 %}text-red-600{% else %}text-navy-900{% endif %}">{{ "%.2f"|format(totals.net) }}</td>
+        <td class="text-right font-mono text-emerald-700">{{ totals.revenue|money }}</td>
+        <td class="text-right font-mono text-red-600">{{ totals.expense|money }}</td>
+        <td class="text-right font-mono {% if totals.net < 0 %}text-red-600{% else %}text-navy-900{% endif %}">{{ totals.net|money }}</td>
       </tr>
     </tfoot>
     {% endif %}

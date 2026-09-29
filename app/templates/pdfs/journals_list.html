@@ -57,8 +57,8 @@
       <td>{{ ar_date(e.date) }}</td>
       <td>{{ (e.description or '—')[:60] }}</td>
       <td class="mono">{{ e.reference or '—' }}</td>
-      <td class="num">{{ "%.2f"|format(ed) }}</td>
-      <td class="num">{{ "%.2f"|format(ec) }}</td>
+      <td class="num">{{ ed|money }}</td>
+      <td class="num">{{ ec|money }}</td>
     </tr>
     {% else %}
     <tr><td colspan="6" style="text-align:center;color:#94A3B8;padding:24px">لا توجد قيود في الفترة المحددة.</td></tr>
@@ -72,18 +72,18 @@
 <table class="totals-kv">
   <tr>
     <td class="lbl">إجمالي المدين (كل القيود)</td>
-    <td class="val">{{ "%.2f"|format(ns.total_debit) }}</td>
+    <td class="val">{{ ns.total_debit|money }}</td>
   </tr>
   <tr>
     <td class="lbl">إجمالي الدائن (كل القيود)</td>
-    <td class="val">{{ "%.2f"|format(ns.total_credit) }}</td>
+    <td class="val">{{ ns.total_credit|money }}</td>
   </tr>
   <tr class="grand">
     <td style="color:{% if list_balanced %}#059669{% else %}#DC2626{% endif %}">
       {% if list_balanced %}الفرق (كل القيود متوازنة){% else %}الفرق (اختلال){% endif %}
     </td>
     <td class="val" style="color:{% if list_balanced %}#059669{% else %}#DC2626{% endif %}">
-      {{ "%.2f"|format(list_diff) }}
+      {{ list_diff|money }}
     </td>
   </tr>
 </table>

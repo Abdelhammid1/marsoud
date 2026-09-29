@@ -10,7 +10,7 @@
       ({% if req.holder_type.value == 'EMPLOYEE' %}موظف{% else %}قسم{% endif %})
     </div>
     <div><span class="text-slate-500">المبلغ:</span>
-      <span class="font-mono font-bold">{{ "%.2f"|format(req.amount) }}</span></div>
+      <span class="font-mono font-bold">{{ req.amount|money }}</span></div>
     <div><span class="text-slate-500">الغرض:</span> {{ req.purpose }}</div>
     {% if req.needed_by_date %}
     <div><span class="text-slate-500">موعد الحاجة:</span>
@@ -29,11 +29,11 @@
         المبلغ المُعتَمَد
       </label>
       <input type="number" name="amount" step="0.01" min="0.01"
-             value="{{ '%.2f'|format(req.amount) }}"
+             value="{{ req.amount|money }}"
              required class="input">
       <p class="text-xs text-slate-500 mt-1">
         المبلغ اللي طلبه الموظف:
-        <span class="font-mono">{{ '%.2f'|format(req.amount) }}</span>.
+        <span class="font-mono">{{ req.amount|money }}</span>.
         عدّله لو محتاج تصرف مبلغ أقل أو أعلى.
       </p>
     </div>

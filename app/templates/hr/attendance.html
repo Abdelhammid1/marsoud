@@ -155,7 +155,7 @@ function promptReason(form) {
             {% elif ex.type.value == 'APPROVED_LEAVE' %}<span class="badge badge-paid">إجازة معتمدة</span>
             {% else %}<span class="badge badge-cancelled">بدون راتب</span>{% endif %}
           </td>
-          <td class="font-mono text-xs">{{ "%.2f"|format(ex.duration_hours) if ex.duration_hours else '—' }}</td>
+          <td class="font-mono text-xs">{{ ex.duration_hours|money if ex.duration_hours else '—' }}</td>
           <td class="text-sm text-slate-500">{{ ex.note or '—' }}</td>
           <td class="text-xs">
             {% if ex.leave_request_id %}من طلب إجازة #{{ ex.leave_request_id }}{% else %}يدوي{% endif %}

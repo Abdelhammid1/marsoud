@@ -9,9 +9,9 @@
    received), tone-warning for outstanding (attention needed). #}
 <div class="grid grid-cols-4 gap-3 mb-4">
   {{ ui.stat_tile("عدد الفواتير", totals.count, value_class="") }}
-  {{ ui.stat_tile("إجمالي المفوتر", "%.2f"|format(totals.invoiced)) }}
-  {{ ui.stat_tile("📥 إجمالي المحصل", "%.2f"|format(totals.collected), tone="success") }}
-  {{ ui.stat_tile("⏳ المتبقي", "%.2f"|format(totals.outstanding), tone="warning") }}
+  {{ ui.stat_tile("إجمالي المفوتر", totals.invoiced|money) }}
+  {{ ui.stat_tile("📥 إجمالي المحصل", totals.collected|money, tone="success") }}
+  {{ ui.stat_tile("⏳ المتبقي", totals.outstanding|money, tone="warning") }}
 </div>
 
 <div class="card p-6">
@@ -75,8 +75,8 @@
         <td class="{% if inv.voided_at %}line-through decoration-rose-400 text-slate-500{% endif %}">{{ inv.customer.name }}</td>
         <td class="text-sm text-slate-500">{{ inv.issue_date.isoformat() }}</td>
         <td class="text-sm {% if inv.status.value == 'OVERDUE' and not inv.voided_at %}text-red-600 font-semibold{% else %}text-slate-500{% endif %}">{{ inv.due_date.isoformat() }}</td>
-        <td class="text-left font-mono font-semibold {% if inv.voided_at %}line-through decoration-rose-400 text-slate-400{% endif %}">{{ "%.2f"|format(inv.total) }}</td>
-        <td class="text-left font-mono {% if inv.voided_at %}line-through decoration-rose-400 text-slate-400{% elif inv.balance > 0 %}text-amber-600{% else %}text-emerald-600{% endif %}">{{ "%.2f"|format(inv.balance) }}</td>
+        <td class="text-left font-mono font-semibold {% if inv.voided_at %}line-through decoration-rose-400 text-slate-400{% endif %}">{{ inv.total|money }}</td>
+        <td class="text-left font-mono {% if inv.voided_at %}line-through decoration-rose-400 text-slate-400{% elif inv.balance > 0 %}text-amber-600{% else %}text-emerald-600{% endif %}">{{ inv.balance|money }}</td>
         <td>
           {% if inv.voided_at %}
           <span class="badge badge-cancelled" title="محذوفة — لا تدخل في أي حسابات مالية">🗑️ محذوفة</span>

@@ -45,7 +45,7 @@
         </td>
         <td class="font-mono text-xs">{{ r.start_date.isoformat() }}</td>
         <td class="font-mono text-xs">{{ r.end_date.isoformat() }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(r.days_count) }}</td>
+        <td class="text-left font-mono">{{ r.days_count|money }}</td>
         <td>
           {% set s = r.status.value %}
           {% if s == 'APPROVED' %}<span class="badge badge-paid">معتمد</span>

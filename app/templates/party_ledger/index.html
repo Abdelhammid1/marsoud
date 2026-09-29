@@ -68,15 +68,15 @@
     </div>
     <div>
       <div class="text-xs text-slate-500">الرصيد الافتتاحي</div>
-      <div class="font-mono font-bold">{{ "%.2f"|format(statement.opening_balance) }}</div>
+      <div class="font-mono font-bold">{{ statement.opening_balance|money }}</div>
     </div>
     <div>
       <div class="text-xs text-slate-500">إجمالي مدين</div>
-      <div class="font-mono font-bold text-emerald-700">{{ "%.2f"|format(statement.total_debit) }}</div>
+      <div class="font-mono font-bold text-emerald-700">{{ statement.total_debit|money }}</div>
     </div>
     <div>
       <div class="text-xs text-slate-500">إجمالي دائن</div>
-      <div class="font-mono font-bold text-rose-700">{{ "%.2f"|format(statement.total_credit) }}</div>
+      <div class="font-mono font-bold text-rose-700">{{ statement.total_credit|money }}</div>
     </div>
     <div>
       <div class="text-xs text-slate-500">الرصيد النهائي</div>
@@ -84,7 +84,7 @@
                   {% if statement.closing_balance > 0 %}text-emerald-700
                   {% elif statement.closing_balance < 0 %}text-rose-700
                   {% else %}text-slate-500{% endif %}">
-        {{ "%.2f"|format(statement.closing_balance) }}
+        {{ statement.closing_balance|money }}
       </div>
     </div>
   </div>
@@ -113,7 +113,7 @@
         <td colspan="5">الرصيد الافتتاحي</td>
         <td class="text-right font-mono">—</td>
         <td class="text-right font-mono">—</td>
-        <td class="text-right font-mono">{{ "%.2f"|format(statement.opening_balance) }}</td>
+        <td class="text-right font-mono">{{ statement.opening_balance|money }}</td>
       </tr>
       {% for row in statement.rows %}
       <tr class="hover:bg-slate-50">
@@ -139,20 +139,20 @@
         <td>{{ row.description }}</td>
         <td class="text-slate-500 text-[11px]">{{ row.memo }}</td>
         <td class="text-right font-mono">
-          {% if row.debit %}{{ "%.2f"|format(row.debit) }}{% endif %}
+          {% if row.debit %}{{ row.debit|money }}{% endif %}
         </td>
         <td class="text-right font-mono">
-          {% if row.credit %}{{ "%.2f"|format(row.credit) }}{% endif %}
+          {% if row.credit %}{{ row.credit|money }}{% endif %}
         </td>
-        <td class="text-right font-mono font-semibold">{{ "%.2f"|format(row.balance) }}</td>
+        <td class="text-right font-mono font-semibold">{{ row.balance|money }}</td>
       </tr>
       {% endfor %}
       {# Closing totals row #}
       <tr class="bg-slate-100 font-bold border-t-2 border-slate-300">
         <td colspan="5">الإجماليات</td>
-        <td class="text-right font-mono">{{ "%.2f"|format(statement.total_debit) }}</td>
-        <td class="text-right font-mono">{{ "%.2f"|format(statement.total_credit) }}</td>
-        <td class="text-right font-mono">{{ "%.2f"|format(statement.closing_balance) }}</td>
+        <td class="text-right font-mono">{{ statement.total_debit|money }}</td>
+        <td class="text-right font-mono">{{ statement.total_credit|money }}</td>
+        <td class="text-right font-mono">{{ statement.closing_balance|money }}</td>
       </tr>
     </tbody>
   </table>
@@ -161,7 +161,7 @@
   <div class="text-center text-slate-500 py-8">
     لا توجد حركات في الفترة المحددة.
     {% if statement.opening_balance %}
-    <br>الرصيد الافتتاحي: {{ "%.2f"|format(statement.opening_balance) }}
+    <br>الرصيد الافتتاحي: {{ statement.opening_balance|money }}
     {% endif %}
   </div>
   {% endif %}

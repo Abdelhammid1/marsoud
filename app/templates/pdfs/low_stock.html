@@ -51,10 +51,10 @@
     <tr>
       <td class="mono">{{ r.sku }}</td>
       <td>{{ r.name }}</td>
-      <td class="num" style="color:#DC2626;font-weight:700">{{ "%.2f"|format(r.on_hand|float) }}</td>
-      <td class="num" style="color:#64748B">{{ "%.2f"|format(r.reorder_level|float) }}</td>
-      <td class="num" style="color:#64748B">{{ "%.2f"|format(r.avg_cost|float) }}</td>
-      <td class="num" style="font-weight:600;color:#0A2540">{{ "%.2f"|format(r.total_value|float) }}</td>
+      <td class="num" style="color:#DC2626;font-weight:700">{{ r.on_hand|money }}</td>
+      <td class="num" style="color:#64748B">{{ r.reorder_level|money }}</td>
+      <td class="num" style="color:#64748B">{{ r.avg_cost|money }}</td>
+      <td class="num" style="font-weight:600;color:#0A2540">{{ r.total_value|money }}</td>
     </tr>
     {% else %}
     <tr><td colspan="6" style="text-align:center;color:#059669;padding:24px">✓ كل الأصناف فوق حد إعادة الطلب. المخزون في أمان.</td></tr>
@@ -62,7 +62,7 @@
     {% if rows %}
     <tr>
       <td colspan="5" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">إجمالي قيمة النقص</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#DC2626">{{ "%.2f"|format(ns.total_value) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#DC2626">{{ ns.total_value|money }}</td>
     </tr>
     {% endif %}
   </tbody>

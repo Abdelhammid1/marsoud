@@ -42,10 +42,10 @@
         </td>
         <td class="font-mono text-xs">{{ r.issue_date.isoformat() }}</td>
         <td>{{ r.vendor.name if r.vendor else '—' }}</td>
-        <td class="text-right font-mono">{{ "%.2f"|format(r.total|float) }}</td>
+        <td class="text-right font-mono">{{ r.total|money }}</td>
         <td><span class="badge badge-draft">{{ r.status_ar }}</span></td>
-        <td class="text-right font-mono {% if to_recv > 0 %}text-amber-700{% endif %}">{{ "%.2f"|format(to_recv) }}</td>
-        <td class="text-right font-mono {% if to_inv > 0 %}text-emerald-700{% endif %}">{{ "%.2f"|format(to_inv) }}</td>
+        <td class="text-right font-mono {% if to_recv > 0 %}text-amber-700{% endif %}">{{ to_recv|money }}</td>
+        <td class="text-right font-mono {% if to_inv > 0 %}text-emerald-700{% endif %}">{{ to_inv|money }}</td>
       </tr>
     {% else %}
       <tr><td colspan="7" class="text-center text-slate-400 py-6">لا توجد أوامر شراء معلّقة.</td></tr>

@@ -12,7 +12,7 @@
   {% for label, rows in groups %}
     <optgroup label="{{ label }}">
       {% for r in rows %}
-        <option value="{{ r.account.id }}">{{ r.account.code }} — {{ r.account.name_ar or r.account.name }} ({{ "%.2f"|format(r.balance) }})</option>
+        <option value="{{ r.account.id }}">{{ r.account.code }} — {{ r.account.name_ar or r.account.name }} ({{ r.balance|money }})</option>
       {% endfor %}
     </optgroup>
   {% endfor %}

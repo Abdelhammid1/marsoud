@@ -9,7 +9,7 @@
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
   <div class="card p-4">
     <div class="text-xs text-slate-500">المصروف</div>
-    <div class="text-2xl font-bold text-navy-900 font-mono">{{ "%.2f"|format(custody.amount_issued) }}</div>
+    <div class="text-2xl font-bold text-navy-900 font-mono">{{ custody.amount_issued|money }}</div>
     <div class="text-xs text-slate-500 mt-1">
       {{ custody.issued_on.isoformat() }}
       {% if custody.entry %} · <a href="{{ url_for('journals.view', entry_id=custody.entry.id) }}"
@@ -18,13 +18,13 @@
   </div>
   <div class="card p-4">
     <div class="text-xs text-slate-500">مُنفَق بإيصالات</div>
-    <div class="text-2xl font-bold text-sky-700 font-mono">{{ "%.2f"|format(custody.amount_settled) }}</div>
+    <div class="text-2xl font-bold text-sky-700 font-mono">{{ custody.amount_settled|money }}</div>
     <div class="text-xs text-slate-500 mt-1">{{ custody.settlement_lines|length }} بند تسوية</div>
   </div>
   <div class="card p-4">
     <div class="text-xs text-slate-500">متبقّي معلَّق</div>
     <div class="text-2xl font-bold {% if custody.amount_pending %}text-amber-700{% else %}text-emerald-700{% endif %} font-mono">
-      {{ "%.2f"|format(custody.amount_pending) }}
+      {{ custody.amount_pending|money }}
     </div>
     <div class="text-xs text-slate-500 mt-1">
       {% set s = custody.status.value %}
@@ -83,7 +83,7 @@
             {{ l.expense_account.name_ar or l.expense_account.name }}
           {% else %}<span class="text-slate-500">—</span>{% endif %}
         </td>
-        <td class="text-left font-mono">{{ "%.2f"|format(l.amount) }}</td>
+        <td class="text-left font-mono">{{ l.amount|money }}</td>
         <td class="text-xs text-slate-600">{{ l.receipt_note or '—' }}</td>
         <td class="text-xs">
           {% for d in docs %}
@@ -111,7 +111,7 @@
     <tfoot>
       <tr>
         <td colspan="2" class="text-left font-bold">الإجمالي</td>
-        <td class="text-left font-mono font-bold">{{ "%.2f"|format(custody.amount_settled) }}</td>
+        <td class="text-left font-mono font-bold">{{ custody.amount_settled|money }}</td>
         <td colspan="2"></td>
       </tr>
     </tfoot>
@@ -170,8 +170,8 @@
       </div>
     </div>
     <div class="text-xs text-slate-500 bg-slate-50 rounded p-3">
-      قاعدة الإقفال: مجموع البنود ({{ "%.2f"|format(custody.amount_settled) }})
-      + الفائض + العجز = المبلغ المصروف ({{ "%.2f"|format(custody.amount_issued) }}).
+      قاعدة الإقفال: مجموع البنود ({{ custody.amount_settled|money }})
+      + الفائض + العجز = المبلغ المصروف ({{ custody.amount_issued|money }}).
       لو الأرقام مش مظبوطة، الإقفال هيترفض.
     </div>
     <div class="flex justify-end">

@@ -28,20 +28,20 @@
     <tbody>
       <tr class="bg-emerald-50">
         <td class="font-bold">إجمالي الإيرادات</td>
-        <td class="text-center font-mono font-semibold">{{ "%.2f"|format(data.current.total_revenue) }}</td>
-        <td class="text-center font-mono text-slate-600">{{ "%.2f"|format(data.prior.total_revenue) }}</td>
+        <td class="text-center font-mono font-semibold">{{ data.current.total_revenue|money }}</td>
+        <td class="text-center font-mono text-slate-600">{{ data.prior.total_revenue|money }}</td>
         <td class="text-center font-mono {% if data.delta_revenue >= 0 %}text-emerald-700{% else %}text-red-600{% endif %}">{{ "%+.2f"|format(data.delta_revenue) }}</td>
       </tr>
       <tr class="bg-red-50">
         <td class="font-bold">إجمالي المصروفات</td>
-        <td class="text-center font-mono font-semibold">{{ "%.2f"|format(data.current.total_expense) }}</td>
-        <td class="text-center font-mono text-slate-600">{{ "%.2f"|format(data.prior.total_expense) }}</td>
+        <td class="text-center font-mono font-semibold">{{ data.current.total_expense|money }}</td>
+        <td class="text-center font-mono text-slate-600">{{ data.prior.total_expense|money }}</td>
         <td class="text-center font-mono {% if data.delta_expense <= 0 %}text-emerald-700{% else %}text-red-600{% endif %}">{{ "%+.2f"|format(data.delta_expense) }}</td>
       </tr>
       <tr class="border-t-2 border-navy-900 bg-navy-900 text-white">
         <td class="font-bold py-4">صافي الربح / الخسارة</td>
-        <td class="text-center font-mono font-bold text-lg">{{ "%.2f"|format(data.current.net_income) }}</td>
-        <td class="text-center font-mono text-navy-200">{{ "%.2f"|format(data.prior.net_income) }}</td>
+        <td class="text-center font-mono font-bold text-lg">{{ data.current.net_income|money }}</td>
+        <td class="text-center font-mono text-navy-200">{{ data.prior.net_income|money }}</td>
         <td class="text-center font-mono font-bold {% if data.delta_net >= 0 %}text-emerald-300{% else %}text-red-300{% endif %}">{{ "%+.2f"|format(data.delta_net) }}</td>
       </tr>
     </tbody>

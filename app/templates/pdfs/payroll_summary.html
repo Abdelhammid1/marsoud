@@ -66,12 +66,12 @@
       <td class="mono">{{ r.period }}</td>
       <td class="mono">{{ r.run_number or '—' }}</td>
       <td>{{ r.employee }}</td>
-      <td class="num">{{ "%.2f"|format(r.basic|float) }}</td>
-      <td class="num">{{ "%.2f"|format(r.allowances|float) }}</td>
-      <td class="num" style="color:#059669">{{ "%.2f"|format(r.overtime|float) }}</td>
-      <td class="num" style="color:#059669">{{ "%.2f"|format(r.bonus|float) }}</td>
-      <td class="num" style="color:#B45309">{{ "%.2f"|format(r.deductions|float) }}</td>
-      <td class="num" style="font-weight:600;color:#0A2540">{{ "%.2f"|format(r.net|float) }}</td>
+      <td class="num">{{ r.basic|money }}</td>
+      <td class="num">{{ r.allowances|money }}</td>
+      <td class="num" style="color:#059669">{{ r.overtime|money }}</td>
+      <td class="num" style="color:#059669">{{ r.bonus|money }}</td>
+      <td class="num" style="color:#B45309">{{ r.deductions|money }}</td>
+      <td class="num" style="font-weight:600;color:#0A2540">{{ r.net|money }}</td>
     </tr>
     {% else %}
     <tr><td colspan="9" style="text-align:center;color:#94A3B8;padding:24px">لا توجد رواتب في الفترة المحددة.</td></tr>
@@ -79,12 +79,12 @@
     {% if data.rows %}
     <tr>
       <td colspan="3" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">الإجمالي</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(data.totals.basic|float) }}</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(data.totals.allowances|float) }}</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#059669">{{ "%.2f"|format(data.totals.overtime|float) }}</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#059669">{{ "%.2f"|format(data.totals.bonus|float) }}</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#B45309">{{ "%.2f"|format(data.totals.deductions|float) }}</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ "%.2f"|format(data.totals.net|float) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ data.totals.basic|money }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ data.totals.allowances|money }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#059669">{{ data.totals.overtime|money }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#059669">{{ data.totals.bonus|money }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#B45309">{{ data.totals.deductions|money }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">{{ data.totals.net|money }}</td>
     </tr>
     {% endif %}
   </tbody>

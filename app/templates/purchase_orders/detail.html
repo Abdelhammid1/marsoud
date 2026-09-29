@@ -39,18 +39,18 @@
         {% for it in po.items %}
         <tr>
           <td>{{ it.description }}</td>
-          <td class="text-right font-mono">{{ "%.2f"|format(it.quantity|float) }}</td>
-          <td class="text-right font-mono {% if it.qty_received < it.quantity %}text-amber-600{% else %}text-emerald-700{% endif %}">{{ "%.2f"|format(it.qty_received|float) }}</td>
-          <td class="text-right font-mono">{{ "%.2f"|format(it.qty_invoiced|float) }}</td>
+          <td class="text-right font-mono">{{ it.quantity|money }}</td>
+          <td class="text-right font-mono {% if it.qty_received < it.quantity %}text-amber-600{% else %}text-emerald-700{% endif %}">{{ it.qty_received|money }}</td>
+          <td class="text-right font-mono">{{ it.qty_invoiced|money }}</td>
           <td class="text-right font-mono text-xs text-slate-500">{{ "%.4f"|format(it.unit_price|float) }}</td>
-          <td class="text-right font-mono">{{ "%.2f"|format(it.line_total|float) }}</td>
+          <td class="text-right font-mono">{{ it.line_total|money }}</td>
         </tr>
         {% endfor %}
       </tbody>
       <tfoot>
         <tr class="font-bold" style="border-top:2px solid #0A2540">
           <td colspan="5" class="text-left">الإجمالي</td>
-          <td class="text-right font-mono text-navy-900">{{ "%.2f"|format(po.total|float) }}</td>
+          <td class="text-right font-mono text-navy-900">{{ po.total|money }}</td>
         </tr>
       </tfoot>
     </table>

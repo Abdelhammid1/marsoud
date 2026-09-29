@@ -70,8 +70,8 @@
       <tr>
         <td>{{ it.description }}</td>
         <td class="right mono">{{ '%.0f'|format(it.quantity) }}</td>
-        <td class="right mono">{{ '%.2f'|format(it.unit_price) }}</td>
-        <td class="right mono">{{ '%.2f'|format(it.line_total) }}</td>
+        <td class="right mono">{{ it.unit_price|money }}</td>
+        <td class="right mono">{{ it.line_total|money }}</td>
       </tr>
       {% endfor %}
       {% for bg in bundles %}
@@ -83,22 +83,22 @@
         </td>
         <td class="right mono">{{ '%.0f'|format(bg.qty or 1) }}</td>
         <td class="right mono">—</td>
-        <td class="right mono">{{ '%.2f'|format(bg.total) }}</td>
+        <td class="right mono">{{ bg.total|money }}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
 
-  <div class="row b"><span>قبل الضريبة</span><span class="mono">{{ '%.2f'|format(invoice.taxable_base) }}</span></div>
+  <div class="row b"><span>قبل الضريبة</span><span class="mono">{{ invoice.taxable_base|money }}</span></div>
   {% if invoice.invoice_discount_amount and invoice.invoice_discount_amount > 0 %}
-  <div class="row"><span>خصم</span><span class="mono">-{{ '%.2f'|format(invoice.invoice_discount_amount) }}</span></div>
+  <div class="row"><span>خصم</span><span class="mono">-{{ invoice.invoice_discount_amount|money }}</span></div>
   {% endif %}
-  <div class="row"><span>الضريبة ({{ invoice.tax_rate }}%)</span><span class="mono">{{ '%.2f'|format(invoice.tax_amount) }}</span></div>
-  <div class="row total"><span>الإجمالي</span><span class="mono">{{ '%.2f'|format(invoice.total) }}</span></div>
+  <div class="row"><span>الضريبة ({{ invoice.tax_rate }}%)</span><span class="mono">{{ invoice.tax_amount|money }}</span></div>
+  <div class="row total"><span>الإجمالي</span><span class="mono">{{ invoice.total|money }}</span></div>
 
   {% if invoice.cash_received is not none %}
-  <div class="row"><span>المستلم</span><span class="mono">{{ '%.2f'|format(invoice.cash_received) }}</span></div>
-  <div class="row"><span>الباقي</span><span class="mono">{{ '%.2f'|format(invoice.change_due) }}</span></div>
+  <div class="row"><span>المستلم</span><span class="mono">{{ invoice.cash_received|money }}</span></div>
+  <div class="row"><span>الباقي</span><span class="mono">{{ invoice.change_due|money }}</span></div>
   {% endif %}
 
   {% if invoice.is_voided %}

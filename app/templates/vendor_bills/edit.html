@@ -152,25 +152,25 @@
               {% if full_edit %}
               <input type="number" name="item_quantity[]" step="0.001" value="{{ item.quantity }}" class="input text-sm font-mono">
               {% else %}
-              <span class="text-slate-500">{{ "%.2f"|format(item.quantity) }}</span>
+              <span class="text-slate-500">{{ item.quantity|money }}</span>
               {% endif %}
             </td>
             <td class="font-mono">
               {% if full_edit %}
               <input type="number" name="item_unit_price[]" step="0.01" value="{{ item.unit_price }}" class="input text-sm font-mono">
               {% else %}
-              <span class="text-slate-500">{{ "%.2f"|format(item.unit_price) }}</span>
+              <span class="text-slate-500">{{ item.unit_price|money }}</span>
               {% endif %}
             </td>
-            <td class="text-left font-mono">{{ "%.2f"|format(item.line_total) }}</td>
+            <td class="text-left font-mono">{{ item.line_total|money }}</td>
           </tr>
         {% endfor %}
           {# MARSOUD-COST-CENTERS-02-EXPENSE-COVERAGE — one extra column
              now sits between "الحساب" and "الكمية", so every footer row
              spans one more cell to keep the total column aligned. #}
-          <tr><td colspan="6" class="text-left font-semibold py-2">المجموع قبل الضريبة</td><td class="text-left font-mono">{{ "%.2f"|format(bill.subtotal) }}</td></tr>
-          <tr><td colspan="6" class="text-left py-2">الضريبة</td><td class="text-left font-mono">{{ "%.2f"|format(bill.tax_amount) }}</td></tr>
-          <tr class="border-t-2 border-navy-900"><td colspan="6" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold text-lg">{{ "%.2f"|format(bill.total) }} {{ bill.currency|currency_ar }}</td></tr>
+          <tr><td colspan="6" class="text-left font-semibold py-2">المجموع قبل الضريبة</td><td class="text-left font-mono">{{ bill.subtotal|money }}</td></tr>
+          <tr><td colspan="6" class="text-left py-2">الضريبة</td><td class="text-left font-mono">{{ bill.tax_amount|money }}</td></tr>
+          <tr class="border-t-2 border-navy-900"><td colspan="6" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold text-lg">{{ bill.total|money }} {{ bill.currency|currency_ar }}</td></tr>
         </tbody>
       </table>
     </div>

@@ -22,10 +22,10 @@
       <tbody>
         <tr><td class="text-slate-500 text-sm">التركيبة</td><td>{{ wo.bom.name }}</td></tr>
         <tr><td class="text-slate-500 text-sm">المنتج التام</td><td>{{ wo.bom.product_variant.name or wo.bom.product_variant.sku }}</td></tr>
-        <tr><td class="text-slate-500 text-sm">الكمية</td><td class="font-mono">{{ "%.2f"|format(wo.quantity_to_produce|float) }}</td></tr>
+        <tr><td class="text-slate-500 text-sm">الكمية</td><td class="font-mono">{{ wo.quantity_to_produce|money }}</td></tr>
         <tr><td class="text-slate-500 text-sm">المخزن</td><td>{{ wo.warehouse.name }}</td></tr>
-        <tr><td class="text-slate-500 text-sm">أجور مباشرة</td><td class="font-mono">{{ "%.2f"|format(wo.direct_labor_cost|float) }}</td></tr>
-        <tr><td class="text-slate-500 text-sm">مصاريف صناعية</td><td class="font-mono">{{ "%.2f"|format(wo.overhead_cost|float) }}</td></tr>
+        <tr><td class="text-slate-500 text-sm">أجور مباشرة</td><td class="font-mono">{{ wo.direct_labor_cost|money }}</td></tr>
+        <tr><td class="text-slate-500 text-sm">مصاريف صناعية</td><td class="font-mono">{{ wo.overhead_cost|money }}</td></tr>
       </tbody>
     </table>
 
@@ -37,9 +37,9 @@
       {% for c in wo.consumption %}
         <tr>
           <td>{{ c.component_variant.name or c.component_variant.sku }}</td>
-          <td class="text-left font-mono">{{ "%.2f"|format(c.qty_consumed|float) }}</td>
-          <td class="text-left font-mono">{{ "%.2f"|format(c.unit_cost_at_time|float) }}</td>
-          <td class="text-left font-mono font-semibold">{{ "%.2f"|format(c.total_cost) }}</td>
+          <td class="text-left font-mono">{{ c.qty_consumed|money }}</td>
+          <td class="text-left font-mono">{{ c.unit_cost_at_time|money }}</td>
+          <td class="text-left font-mono font-semibold">{{ c.total_cost|money }}</td>
         </tr>
       {% endfor %}
       </tbody>

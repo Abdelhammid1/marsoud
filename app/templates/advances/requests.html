@@ -42,7 +42,7 @@
           <a href="{{ url_for('payroll.employee_profile', employee_id=r.employee_id) }}"
              class="hover:text-brand-600">{{ r.employee.name }}</a>
         </td>
-        <td class="text-left font-mono font-bold">{{ "%.2f"|format(r.amount) }}</td>
+        <td class="text-left font-mono font-bold">{{ r.amount|money }}</td>
         <td class="text-xs text-slate-600">{{ r.reason or '—' }}</td>
         <td class="font-mono text-xs">{{ r.created_at | company_dt('%Y-%m-%d') if r.created_at else '—' }}</td>
         <td>

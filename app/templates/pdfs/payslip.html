@@ -107,24 +107,24 @@ table.items tr.total td:first-child { font-family: 'Amiri', sans-serif; }
       <thead><tr><th>البند</th><th class="l">المبلغ ({{ employee.company.base_currency|currency_ar }})</th></tr></thead>
       <tbody>
         {% if basic > 0 %}
-        <tr><td>الراتب الأساسي</td><td class="l">{{ "%.2f"|format(basic) }}</td></tr>
+        <tr><td>الراتب الأساسي</td><td class="l">{{ basic|money }}</td></tr>
         {% endif %}
         {% if allowances > 0 %}
-        <tr><td>البدلات</td><td class="l">{{ "%.2f"|format(allowances) }}</td></tr>
+        <tr><td>البدلات</td><td class="l">{{ allowances|money }}</td></tr>
         {% endif %}
         {% if bonus > 0 %}
-        <tr><td>بونص</td><td class="l">{{ "%.2f"|format(bonus) }}</td></tr>
+        <tr><td>بونص</td><td class="l">{{ bonus|money }}</td></tr>
         {% endif %}
         {% if overtime > 0 %}
-        <tr><td>أوفرتايم{% if overtime_hours > 0 %} ({{ "%g"|format(overtime_hours) }} ساعة){% endif %}</td><td class="l">{{ "%.2f"|format(overtime) }}</td></tr>
+        <tr><td>أوفرتايم{% if overtime_hours > 0 %} ({{ "%g"|format(overtime_hours) }} ساعة){% endif %}</td><td class="l">{{ overtime|money }}</td></tr>
         {% endif %}
         {% if commissions > 0 %}
-        <tr><td>عمولات مبيعات</td><td class="l">{{ "%.2f"|format(commissions) }}</td></tr>
+        <tr><td>عمولات مبيعات</td><td class="l">{{ commissions|money }}</td></tr>
         {% endif %}
         {% if total_add == 0 %}
         <tr><td>لا يوجد إضافات</td><td class="l">0.00</td></tr>
         {% endif %}
-        <tr class="total"><td>إجمالي الإضافات</td><td class="l">{{ "%.2f"|format(total_add) }}</td></tr>
+        <tr class="total"><td>إجمالي الإضافات</td><td class="l">{{ total_add|money }}</td></tr>
       </tbody>
     </table>
 
@@ -134,30 +134,30 @@ table.items tr.total td:first-child { font-family: 'Amiri', sans-serif; }
       <thead><tr><th>البند</th><th class="l">المبلغ ({{ employee.company.base_currency|currency_ar }})</th></tr></thead>
       <tbody>
         {% if commissions < 0 %}
-        <tr><td>تسوية عمولات (استرجاع سابق)</td><td class="l">{{ "%.2f"|format(-commissions) }}</td></tr>
+        <tr><td>تسوية عمولات (استرجاع سابق)</td><td class="l">{{ -commissions|money }}</td></tr>
         {% endif %}
         {% if abs_ded > 0 %}
-        <tr><td>خصم غياب{% if absences_count > 0 %} ({{ absences_count }} يوم){% endif %}</td><td class="l">{{ "%.2f"|format(abs_ded) }}</td></tr>
+        <tr><td>خصم غياب{% if absences_count > 0 %} ({{ absences_count }} يوم){% endif %}</td><td class="l">{{ abs_ded|money }}</td></tr>
         {% endif %}
         {% if late_ded > 0 %}
-        <tr><td>خصم تأخير{% if late_hours > 0 %} ({{ "%g"|format(late_hours) }} ساعة){% endif %}</td><td class="l">{{ "%.2f"|format(late_ded) }}</td></tr>
+        <tr><td>خصم تأخير{% if late_hours > 0 %} ({{ "%g"|format(late_hours) }} ساعة){% endif %}</td><td class="l">{{ late_ded|money }}</td></tr>
         {% endif %}
         {% if fixed_ded > 0 %}
-        <tr><td>خصومات ثابتة</td><td class="l">{{ "%.2f"|format(fixed_ded) }}</td></tr>
+        <tr><td>خصومات ثابتة</td><td class="l">{{ fixed_ded|money }}</td></tr>
         {% endif %}
         {% if adv_ded > 0 %}
-        <tr><td>سلف مستردة</td><td class="l">{{ "%.2f"|format(adv_ded) }}</td></tr>
+        <tr><td>سلف مستردة</td><td class="l">{{ adv_ded|money }}</td></tr>
         {% endif %}
         {% if total_ded == 0 %}
         <tr><td>لا يوجد خصومات</td><td class="l">0.00</td></tr>
         {% endif %}
-        <tr class="total"><td>إجمالي الخصومات</td><td class="l">{{ "%.2f"|format(total_ded) }}</td></tr>
+        <tr class="total"><td>إجمالي الخصومات</td><td class="l">{{ total_ded|money }}</td></tr>
       </tbody>
     </table>
 
     {# ─── NET + PAYMENT METHOD ─────────────────────────────── #}
     <table class="net-kv">
-      <tr><td class="k">صافي الراتب</td><td class="c">:</td><td class="v net">{{ "%.2f"|format(line.net|float) }} {{ employee.company.base_currency|currency_ar }}</td></tr>
+      <tr><td class="k">صافي الراتب</td><td class="c">:</td><td class="v net">{{ line.net|money }} {{ employee.company.base_currency|currency_ar }}</td></tr>
       
     </table>
 

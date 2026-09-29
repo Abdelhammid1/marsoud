@@ -43,7 +43,7 @@
         <td class="text-xs">#{{ r.id }}</td>
         <td class="text-xs">{{ (r.purpose or '—')[:60] }}</td>
         <td class="text-left font-mono">
-          {{ "%.2f"|format(r.amount) }}
+          {{ r.amount|money }}
           {# MARSOUD-CUSTODY-REQUEST-APPROVE-01 (2026-08-10) —
              the employee sees what they asked for AND what was
              actually approved when the accountant overrode.
@@ -51,7 +51,7 @@
              page — transparency both directions. #}
           {% if r.custody and r.custody.amount_issued != r.amount %}
           <div class="text-xs text-emerald-700 mt-1">
-            اعتُمد: {{ "%.2f"|format(r.custody.amount_issued) }}
+            اعتُمد: {{ r.custody.amount_issued|money }}
           </div>
           {% endif %}
           {# Read-only view of the transfer receipt the
@@ -103,9 +103,9 @@
       <tr>
         <td class="text-xs">#{{ c.id }}</td>
         <td class="text-xs">{{ (c.purpose or '—')[:50] }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(c.amount_issued) }}</td>
-        <td class="text-left font-mono text-slate-500">{{ "%.2f"|format(c.amount_settled) }}</td>
-        <td class="text-left font-mono font-bold">{{ "%.2f"|format(c.amount_pending) }}</td>
+        <td class="text-left font-mono">{{ c.amount_issued|money }}</td>
+        <td class="text-left font-mono text-slate-500">{{ c.amount_settled|money }}</td>
+        <td class="text-left font-mono font-bold">{{ c.amount_pending|money }}</td>
         <td class="font-mono text-xs">
           {% if c.settlement_due_date %}
             {{ c.settlement_due_date.isoformat() }}

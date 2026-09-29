@@ -11,7 +11,7 @@
     </div>
     <div class="flex justify-between mb-1">
       <span class="text-slate-600">المبلغ المطلوب</span>
-      <span class="font-mono font-bold">{{ "%.2f"|format(req.amount) }}</span>
+      <span class="font-mono font-bold">{{ req.amount|money }}</span>
     </div>
     <div class="flex justify-between">
       <span class="text-slate-600">تاريخ الطلب</span>

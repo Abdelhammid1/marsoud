@@ -71,7 +71,7 @@
     <tr>
       <td>{{ label }}</td>
       <td class="num" style="color:{% if is_inflow %}#0A2540{% else %}#B45309{% endif %}">
-        {{ "%.2f"|format(val) }}{% if currency_ar %} {{ currency_ar }}{% endif %}
+        {{ val|money }}{% if currency_ar %} {{ currency_ar }}{% endif %}
       </td>
     </tr>
     {% endfor %}

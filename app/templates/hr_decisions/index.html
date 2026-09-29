@@ -94,7 +94,7 @@
           <a href="{{ url_for('hr_decisions.detail', dec_id=r.id) }}" class="text-brand-600 hover:underline">{{ r.title }}</a>
         </td>
         <td class="text-right font-mono">
-          {% if r.amount %}{{ "%.2f"|format(r.amount|float) }}{% else %}—{% endif %}
+          {% if r.amount %}{{ r.amount|money }}{% else %}—{% endif %}
         </td>
         <td>
           <span class="badge {% if r.status == 'EXECUTED' %}badge-paid{% elif r.status == 'CANCELLED' %}badge-cancelled{% else %}badge-draft{% endif %}">

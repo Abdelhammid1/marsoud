@@ -11,24 +11,24 @@
       {% for r in report.rows %}
       <tr>
         <td class="font-semibold">{{ r.customer }}</td>
-        <td class="text-right font-mono">{{ "%.2f"|format(r.current) }}</td>
-        <td class="text-right font-mono">{{ "%.2f"|format(r.d30) }}</td>
-        <td class="text-right font-mono text-amber-600">{{ "%.2f"|format(r.d60) }}</td>
-        <td class="text-right font-mono text-orange-600">{{ "%.2f"|format(r.d90) }}</td>
-        <td class="text-right font-mono text-red-600 font-bold">{{ "%.2f"|format(r.d90plus) }}</td>
-        <td class="text-right font-mono font-bold">{{ "%.2f"|format(r.total) }}</td>
+        <td class="text-right font-mono">{{ r.current|money }}</td>
+        <td class="text-right font-mono">{{ r.d30|money }}</td>
+        <td class="text-right font-mono text-amber-600">{{ r.d60|money }}</td>
+        <td class="text-right font-mono text-orange-600">{{ r.d90|money }}</td>
+        <td class="text-right font-mono text-red-600 font-bold">{{ r.d90plus|money }}</td>
+        <td class="text-right font-mono font-bold">{{ r.total|money }}</td>
       </tr>
       {% else %}
       <tr><td colspan="7" class="text-center text-slate-500 py-8">لا توجد ديون قائمة</td></tr>
       {% endfor %}
       <tr class="border-t-2 border-navy-900 font-bold bg-navy-50">
         <td class="py-3">الإجمالي</td>
-        <td class="text-right font-mono">{{ "%.2f"|format(report.totals.current) }}</td>
-        <td class="text-right font-mono">{{ "%.2f"|format(report.totals.d30) }}</td>
-        <td class="text-right font-mono">{{ "%.2f"|format(report.totals.d60) }}</td>
-        <td class="text-right font-mono">{{ "%.2f"|format(report.totals.d90) }}</td>
-        <td class="text-right font-mono">{{ "%.2f"|format(report.totals.d90plus) }}</td>
-        <td class="text-right font-mono text-lg">{{ "%.2f"|format(report.totals.total) }}</td>
+        <td class="text-right font-mono">{{ report.totals.current|money }}</td>
+        <td class="text-right font-mono">{{ report.totals.d30|money }}</td>
+        <td class="text-right font-mono">{{ report.totals.d60|money }}</td>
+        <td class="text-right font-mono">{{ report.totals.d90|money }}</td>
+        <td class="text-right font-mono">{{ report.totals.d90plus|money }}</td>
+        <td class="text-right font-mono text-lg">{{ report.totals.total|money }}</td>
       </tr>
     </tbody>
   </table>

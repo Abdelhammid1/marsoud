@@ -42,14 +42,14 @@
         <td class="font-mono">{{ r.sku }}</td>
         <td>{{ r.name }}</td>
         <td class="text-xs">{{ r.warehouse }}</td>
-        <td class="text-end font-mono">{{ '%.2f'|format(r.qty) }}</td>
+        <td class="text-end font-mono">{{ r.qty|money }}</td>
         <td class="text-end font-mono">{{ '%.4f'|format(r.avg_cost) }}</td>
-        <td class="text-end font-mono font-semibold">{{ '%.2f'|format(r.value) }}</td>
+        <td class="text-end font-mono font-semibold">{{ r.value|money }}</td>
       </tr>
       {% endfor %}
       <tr class="bg-slate-50 font-bold">
         <td colspan="5" class="text-end">إجمالي القيمة</td>
-        <td class="text-end font-mono text-emerald-700">{{ '%.2f'|format(total_value) }}</td>
+        <td class="text-end font-mono text-emerald-700">{{ total_value|money }}</td>
       </tr>
     </tbody>
   </table>

@@ -45,24 +45,24 @@
     <th align="left" style="background:#059669;color:#fff;padding:9px 12px;font-weight:600;font-size:11.5px">المبلغ ({{ employee.company.base_currency|currency_ar }})</th>
   </tr>
   {% if basic > 0 %}
-  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">الراتب الأساسي</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ "%.2f"|format(basic) }}</td></tr>
+  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">الراتب الأساسي</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ basic|money }}</td></tr>
   {% endif %}
   {% if allowances > 0 %}
-  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">البدلات</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ "%.2f"|format(allowances) }}</td></tr>
+  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">البدلات</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ allowances|money }}</td></tr>
   {% endif %}
   {% if bonus > 0 %}
-  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">بونص</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ "%.2f"|format(bonus) }}</td></tr>
+  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">بونص</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ bonus|money }}</td></tr>
   {% endif %}
   {% if overtime > 0 %}
-  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">أوفرتايم{% if overtime_hours > 0 %} ({{ "%g"|format(overtime_hours) }} ساعة){% endif %}</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ "%.2f"|format(overtime) }}</td></tr>
+  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">أوفرتايم{% if overtime_hours > 0 %} ({{ "%g"|format(overtime_hours) }} ساعة){% endif %}</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ overtime|money }}</td></tr>
   {% endif %}
   {% if commissions > 0 %}
-  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">عمولات مبيعات</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ "%.2f"|format(commissions) }}</td></tr>
+  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">عمولات مبيعات</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ commissions|money }}</td></tr>
   {% endif %}
   {% if total_add == 0 %}
   <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">لا يوجد إضافات</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">0.00</td></tr>
   {% endif %}
-  <tr><td style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">إجمالي الإضافات</td><td align="left" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;font-family:monospace;color:#0A2540">{{ "%.2f"|format(total_add) }}</td></tr>
+  <tr><td style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">إجمالي الإضافات</td><td align="left" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;font-family:monospace;color:#0A2540">{{ total_add|money }}</td></tr>
 </table>
 
 {# ─── DEDUCTIONS ────────────────────────────────────────────── #}
@@ -73,29 +73,29 @@
     <th align="left" style="background:#059669;color:#fff;padding:9px 12px;font-weight:600;font-size:11.5px">المبلغ ({{ employee.company.base_currency|currency_ar }})</th>
   </tr>
   {% if commissions < 0 %}
-  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">تسوية عمولات (استرجاع سابق)</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ "%.2f"|format(-commissions) }}</td></tr>
+  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">تسوية عمولات (استرجاع سابق)</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ -commissions|money }}</td></tr>
   {% endif %}
   {% if abs_ded > 0 %}
-  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">خصم غياب{% if absences_count > 0 %} ({{ absences_count }} يوم){% endif %}</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ "%.2f"|format(abs_ded) }}</td></tr>
+  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">خصم غياب{% if absences_count > 0 %} ({{ absences_count }} يوم){% endif %}</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ abs_ded|money }}</td></tr>
   {% endif %}
   {% if late_ded > 0 %}
-  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">خصم تأخير{% if late_hours > 0 %} ({{ "%g"|format(late_hours) }} ساعة){% endif %}</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ "%.2f"|format(late_ded) }}</td></tr>
+  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">خصم تأخير{% if late_hours > 0 %} ({{ "%g"|format(late_hours) }} ساعة){% endif %}</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ late_ded|money }}</td></tr>
   {% endif %}
   {% if fixed_ded > 0 %}
-  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">خصومات ثابتة</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ "%.2f"|format(fixed_ded) }}</td></tr>
+  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">خصومات ثابتة</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ fixed_ded|money }}</td></tr>
   {% endif %}
   {% if adv_ded > 0 %}
-  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">سلف مستردة</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ "%.2f"|format(adv_ded) }}</td></tr>
+  <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">سلف مستردة</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">{{ adv_ded|money }}</td></tr>
   {% endif %}
   {% if total_ded == 0 %}
   <tr><td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">لا يوجد خصومات</td><td align="left" style="padding:9px 12px;border-bottom:1px solid #E2E8F0;font-family:monospace;color:#0A2540">0.00</td></tr>
   {% endif %}
-  <tr><td style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">إجمالي الخصومات</td><td align="left" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;font-family:monospace;color:#0A2540">{{ "%.2f"|format(total_ded) }}</td></tr>
+  <tr><td style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540">إجمالي الخصومات</td><td align="left" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;font-family:monospace;color:#0A2540">{{ total_ded|money }}</td></tr>
 </table>
 
 {# ─── NET ───────────────────────────────────────────────────── #}
 <table cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:100%;font-size:13px;margin-bottom:20px">
-  <tr><td style="padding:4px 0;font-weight:800;color:#0A2540;width:120px">صافي الراتب</td><td style="padding:4px 0;width:14px;color:#0A2540">:</td><td style="padding:4px 0;font-weight:800;color:#059669;font-family:monospace;font-size:16px">{{ "%.2f"|format(net_f) }} {{ employee.company.base_currency|currency_ar }}</td></tr>
+  <tr><td style="padding:4px 0;font-weight:800;color:#0A2540;width:120px">صافي الراتب</td><td style="padding:4px 0;width:14px;color:#0A2540">:</td><td style="padding:4px 0;font-weight:800;color:#059669;font-family:monospace;font-size:16px">{{ net_f|money }} {{ employee.company.base_currency|currency_ar }}</td></tr>
 </table>
 
 {# ─── PAID / REMAINING ──────────────────────────────────────── #}
@@ -103,7 +103,7 @@
   <table cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:100%">
     <tr>
       <td style="color:#0F6E56;font-weight:600">المدفوع فعلياً</td>
-      <td align="left" style="font-family:monospace;font-weight:700;color:#04342C">{{ "%.2f"|format(paid_f) }} {{ employee.company.base_currency|currency_ar }}</td>
+      <td align="left" style="font-family:monospace;font-weight:700;color:#04342C">{{ paid_f|money }} {{ employee.company.base_currency|currency_ar }}</td>
     </tr>
   </table>
   {% if line.payment_method or line.payment_date or employee.bank_account_last4 %}
@@ -117,7 +117,7 @@
   <table cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:100%;margin-top:10px;padding-top:10px;border-top:1px solid #A7E4CE">
     <tr>
       <td style="color:#B45309;font-weight:600">المتبقي مستحق</td>
-      <td align="left" style="font-family:monospace;font-weight:700;color:#B45309">{{ "%.2f"|format(remaining) }} {{ employee.company.base_currency|currency_ar }}</td>
+      <td align="left" style="font-family:monospace;font-weight:700;color:#B45309">{{ remaining|money }} {{ employee.company.base_currency|currency_ar }}</td>
     </tr>
   </table>
   {% endif %}

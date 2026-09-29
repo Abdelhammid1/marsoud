@@ -86,7 +86,7 @@
         <tr>
           <td>
             <div class="font-semibold">{{ e.name }}</div>
-            <div class="text-xs text-slate-500">أساسي: {{ "%.2f"|format(e.basic_salary) }} · بدلات: {{ "%.2f"|format(e.allowances) }}</div>
+            <div class="text-xs text-slate-500">أساسي: {{ e.basic_salary|money }} · بدلات: {{ e.allowances|money }}</div>
             {% if e.start_date and e.start_date.year == year and e.start_date.month == month %}
             <div class="text-xs text-amber-700 mt-1">⚠ تم تعيينه يوم {{ e.start_date.isoformat() }} — الأيام المستحقة افتراضياً: {{ default_days }}</div>
             {% endif %}
@@ -94,17 +94,17 @@
             <div class="text-xs text-emerald-700 mt-1">✓ محسوب تلقائياً من سجل الحضور</div>
             {% endif %}
             {% if adv_due > 0 %}
-            <div class="text-xs text-amber-700 mt-1">💵 قسط سلفة مستحق: {{ "%.2f"|format(adv_due) }}</div>
+            <div class="text-xs text-amber-700 mt-1">💵 قسط سلفة مستحق: {{ adv_due|money }}</div>
             {% endif %}
             {% if comm_open > 0.005 %}
             <div class="text-xs text-emerald-700 mt-1"
                  title="مجموع عمولات المبيعات المفتوحة لهذا المندوب حتى {{ month }}/{{ year }}. هتتضاف للإجمالي وهيتقفل بيها حساب 2150 تلقائياً عند الحفظ.">
-              💼 عمولات مستحقة هتتصفّى: {{ "%.2f"|format(comm_open) }}
+              💼 عمولات مستحقة هتتصفّى: {{ comm_open|money }}
             </div>
             {% elif comm_open < -0.005 %}
             <div class="text-xs text-rose-700 mt-1"
                  title="رصيد مرحّل سالب (استرداد عمولة). مش هيتخصم من الراتب — هيستهلك أرباح الشهور الجاية.">
-              ⏩ رصيد عمولة مرحّل: {{ "%.2f"|format(comm_open) }}
+              ⏩ رصيد عمولة مرحّل: {{ comm_open|money }}
             </div>
             {% endif %}
           </td>
@@ -115,17 +115,17 @@
             <input type="number" name="absence_days_{{ e.id }}" step="1" value="{{ auto_abs_count }}" class="input w-full text-sm font-mono">
           </td>
           <td>
-            <input type="number" name="absence_{{ e.id }}" step="0.01" value="{{ "%.2f"|format(auto_abs) }}"
+            <input type="number" name="absence_{{ e.id }}" step="0.01" value="{{ auto_abs|money }}"
                    class="input w-full text-sm font-mono {% if has_ex %}bg-emerald-50{% endif %}"
                    {% if has_ex %}title="افتراضي محسوب من سجل الحضور — يمكنك تعديله للاستبدال اليدوي"{% endif %}>
           </td>
           <td>
-            <input type="number" name="late_{{ e.id }}" step="0.01" value="{{ "%.2f"|format(auto_late_amt) }}"
+            <input type="number" name="late_{{ e.id }}" step="0.01" value="{{ auto_late_amt|money }}"
                    class="input w-full text-sm font-mono {% if has_ex %}bg-emerald-50{% endif %}"
                    {% if has_ex %}title="افتراضي محسوب من سجل الحضور — يمكنك تعديله للاستبدال اليدوي"{% endif %}>
           </td>
           <td>
-            <input type="number" name="advance_{{ e.id }}" step="0.01" value="{{ "%.2f"|format(adv_due) }}"
+            <input type="number" name="advance_{{ e.id }}" step="0.01" value="{{ adv_due|money }}"
                    class="input w-full text-sm font-mono {% if adv_due > 0 %}bg-amber-50{% endif %}"
                    {% if adv_due > 0 %}title="قسط السلفة المستحق هذا الشهر — يمكنك تعديله"{% endif %}>
           </td>

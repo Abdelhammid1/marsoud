@@ -48,10 +48,10 @@
         <td><a href="{{ url_for('assets.view', asset_id=a.id) }}" class="font-semibold hover:text-brand-600">{{ a.name }}</a></td>
         <td class="text-sm">{% if a.vendor %}<a href="{{ url_for('vendors.index') }}" class="text-brand-600 hover:underline">{{ a.vendor.name }}</a>{% else %}—{% endif %}</td>
         <td class="text-sm">{{ a.purchase_date.isoformat() }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(a.cost) }}</td>
+        <td class="text-left font-mono">{{ a.cost|money }}</td>
         <td class="text-left">{{ a.useful_life_years }} سنة</td>
-        <td class="text-left font-mono text-slate-700">{{ "%.2f"|format(a.annual_depreciation) }}</td>
-        <td class="text-left font-mono font-bold">{{ "%.2f"|format(a.net_book_value) }}</td>
+        <td class="text-left font-mono text-slate-700">{{ a.annual_depreciation|money }}</td>
+        <td class="text-left font-mono font-bold">{{ a.net_book_value|money }}</td>
         <td class="text-center">
           {% if period_status[a.id] %}<span class="badge badge-paid">✓ تم</span>
           {% else %}<span class="badge bg-amber-50 text-amber-700">في انتظار</span>{% endif %}

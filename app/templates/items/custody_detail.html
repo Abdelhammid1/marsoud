@@ -47,7 +47,7 @@
     {% endif %}
     {% if custody.damage_value and custody.damage_value > 0 %}
     <div><dt class="text-slate-500 inline">قيمة الضرر:</dt>
-      <dd class="inline font-mono font-bold">{{ "%.2f"|format(custody.damage_value) }}</dd></div>
+      <dd class="inline font-mono font-bold">{{ custody.damage_value|money }}</dd></div>
     {% endif %}
     {% if custody.entry %}
     <div><dt class="text-slate-500 inline">قيد التحميل:</dt>

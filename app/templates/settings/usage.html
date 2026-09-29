@@ -77,14 +77,14 @@
               <td class="py-2">{{ r.used }}</td>
               <td class="py-2">{{ r.included }}</td>
               <td class="py-2 text-red-600 font-bold">+{{ r.extra }}</td>
-              <td class="py-2 font-bold">{{ '%.2f'|format(r.amount) }} ج</td>
+              <td class="py-2 font-bold">{{ r.amount|money }} ج</td>
             </tr>
           {% endfor %}
         </tbody>
         <tfoot>
           <tr>
             <td colspan="4" class="pt-3 text-right font-bold">الإجمالي:</td>
-            <td class="pt-3 font-bold text-red-600 text-lg">{{ '%.2f'|format(overage_total) }} ج</td>
+            <td class="pt-3 font-bold text-red-600 text-lg">{{ overage_total|money }} ج</td>
           </tr>
         </tfoot>
       </table>

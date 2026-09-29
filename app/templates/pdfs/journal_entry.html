@@ -77,8 +77,8 @@
     <tr>
       <td><span class="mono">{{ acc_code }}</span> · {{ acc_name }}</td>
       <td>{{ line.memo or '—' }}</td>
-      <td class="num">{% if line.debit and (line.debit|float) > 0 %}{{ "%.2f"|format(line.debit|float) }}{% else %}—{% endif %}</td>
-      <td class="num">{% if line.credit and (line.credit|float) > 0 %}{{ "%.2f"|format(line.credit|float) }}{% else %}—{% endif %}</td>
+      <td class="num">{% if line.debit and (line.debit|float) > 0 %}{{ line.debit|money }}{% else %}—{% endif %}</td>
+      <td class="num">{% if line.credit and (line.credit|float) > 0 %}{{ line.credit|money }}{% else %}—{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -92,18 +92,18 @@
 <table class="totals-kv">
   <tr>
     <td class="lbl">إجمالي المدين</td>
-    <td class="val">{{ "%.2f"|format(total_debit) }} {{ entry.currency|currency_ar }}</td>
+    <td class="val">{{ total_debit|money }} {{ entry.currency|currency_ar }}</td>
   </tr>
   <tr>
     <td class="lbl">إجمالي الدائن</td>
-    <td class="val">{{ "%.2f"|format(total_credit) }} {{ entry.currency|currency_ar }}</td>
+    <td class="val">{{ total_credit|money }} {{ entry.currency|currency_ar }}</td>
   </tr>
   <tr class="grand">
     <td style="color:{% if is_balanced %}#059669{% else %}#DC2626{% endif %}">
       {% if is_balanced %}الفرق (متوازن){% else %}الفرق (غير متوازن){% endif %}
     </td>
     <td class="val" style="color:{% if is_balanced %}#059669{% else %}#DC2626{% endif %}">
-      {{ "%.2f"|format(diff) }} {{ entry.currency|currency_ar }}
+      {{ diff|money }} {{ entry.currency|currency_ar }}
     </td>
   </tr>
 </table>

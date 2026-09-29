@@ -45,8 +45,8 @@
           <td class="font-mono"><a href="{{ url_for('invoices.view', invoice_id=inv.id) }}" class="text-brand-600 hover:underline">{{ inv.number }}</a></td>
           <td class="text-sm">{{ inv.issue_date.isoformat() }}</td>
           <td class="text-sm">{{ inv.due_date.isoformat() }}</td>
-          <td class="text-left font-mono">{{ "%.2f"|format(inv.total) }}</td>
-          <td class="text-left font-mono">{{ "%.2f"|format(inv.balance) }}</td>
+          <td class="text-left font-mono">{{ inv.total|money }}</td>
+          <td class="text-left font-mono">{{ inv.balance|money }}</td>
           <td><span class="badge {{ status_class.get(inv.status.value, 'badge-draft') }}">{{ inv.status.value }}</span></td>
         </tr>
       {% else %}
@@ -66,7 +66,7 @@
         {% if active_deposits_total and active_deposits_total > 0 %}
         <div class="text-sm">
           <span class="text-slate-500">رصيد العربونات المتاحة:</span>
-          <span class="font-mono font-bold text-emerald-700">{{ "%.2f"|format(active_deposits_total) }}</span>
+          <span class="font-mono font-bold text-emerald-700">{{ active_deposits_total|money }}</span>
         </div>
         {% endif %}
       </div>
@@ -123,7 +123,7 @@
           <tr>
             <td class="font-mono text-sm">{{ d.doc_number }}</td>
             <td class="text-sm">{{ d.date.strftime('%Y-%m-%d') }}</td>
-            <td class="text-left font-mono">{{ "%.2f"|format(d.amount) }}</td>
+            <td class="text-left font-mono">{{ d.amount|money }}</td>
             <td class="text-sm">{{ d.payment_method.name_ar or d.payment_method.name if d.payment_method else '—' }}</td>
             <td>
               {% if d.status == 'ACTIVE' %}
@@ -176,7 +176,7 @@
         <h2 class="text-xl font-bold text-navy-900">مرتجعات العميل ({{ customer_refunds|length }})</h2>
         <div class="text-sm">
           <span class="text-slate-500">الإجمالي:</span>
-          <span class="font-mono font-bold text-emerald-700">{{ "%.2f"|format(refunds_total) }}</span>
+          <span class="font-mono font-bold text-emerald-700">{{ refunds_total|money }}</span>
         </div>
       </div>
       <table class="data-table">
@@ -188,7 +188,7 @@
             <td class="font-mono text-sm">{{ r.number or ('REF-' ~ inv.number) }}</td>
             <td class="font-mono text-sm"><a href="{{ url_for('invoices.view', invoice_id=inv.id) }}" class="text-brand-600 hover:underline">{{ inv.number }}</a></td>
             <td class="text-sm">{{ type_ar }}</td>
-            <td class="text-left font-mono">{{ "%.2f"|format(r.amount) }}</td>
+            <td class="text-left font-mono">{{ r.amount|money }}</td>
             <td class="text-sm text-slate-500">{{ r.created_at | company_dt if r.created_at else '' }}</td>
             <td class="text-sm text-slate-500 truncate max-w-[220px]" title="{{ r.reason or '' }}">{{ r.reason or '—' }}</td>
           </tr>
@@ -230,7 +230,7 @@
     <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm">
       <div class="text-xs text-slate-500 font-semibold mb-1">💰 رصيد افتتاحي</div>
       <div class="font-mono font-semibold text-slate-800">
-        {{ "%.2f"|format(opening_balance.amount|float) }}
+        {{ opening_balance.amount|money }}
         <span class="text-xs text-slate-500">· {{ opening_balance.entry_date.isoformat() }}</span>
       </div>
     </div>
@@ -252,7 +252,7 @@
       {% set _lv = (customer.loyalty_points_balance or 0)
                    * (g.active_company.loyalty_redemption_value or 0) %}
       <div class="text-xs text-fuchsia-700 mt-1">
-        تعادل ≈ <span class="font-mono">{{ "%.2f"|format(_lv|float) }}</span>
+        تعادل ≈ <span class="font-mono">{{ _lv|money }}</span>
         {{ customer.company.base_currency if customer.company else '' }}
       </div>
     </div>
@@ -261,7 +261,7 @@
     <hr class="my-4 border-slate-100">
     <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
       <div class="text-xs text-amber-700 font-semibold mb-1">إجمالي المديونية</div>
-      <div class="text-2xl font-bold text-amber-900 font-mono">{{ "%.2f"|format(customer.balance) }}</div>
+      <div class="text-2xl font-bold text-amber-900 font-mono">{{ customer.balance|money }}</div>
     </div>
   </div>
 </div>

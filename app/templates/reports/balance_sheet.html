@@ -26,12 +26,12 @@
         {% for item in data.assets %}
         <div class="flex justify-between py-1.5 border-b border-slate-100">
           <span><span class="text-xs text-slate-500 font-mono">{{ item.code }}</span> {{ item.name }}</span>
-          <span class="font-mono">{{ "%.2f"|format(item.balance) }}</span>
+          <span class="font-mono">{{ item.balance|money }}</span>
         </div>
         {% endfor %}
         <div class="flex justify-between font-bold py-2 border-t-2 border-navy-900 text-brand-600">
           <span>إجمالي الأصول</span>
-          <span class="font-mono">{{ "%.2f"|format(data.totals.assets) }}</span>
+          <span class="font-mono">{{ data.totals.assets|money }}</span>
         </div>
       </div>
     </div>
@@ -43,30 +43,30 @@
         {% for item in data.liabilities %}
         <div class="flex justify-between py-1.5 border-b border-slate-100">
           <span><span class="text-xs text-slate-500 font-mono">{{ item.code }}</span> {{ item.name }}</span>
-          <span class="font-mono">{{ "%.2f"|format(item.balance) }}</span>
+          <span class="font-mono">{{ item.balance|money }}</span>
         </div>
         {% endfor %}
-        <div class="flex justify-between font-semibold py-1.5"><span>إجمالي الالتزامات</span><span class="font-mono">{{ "%.2f"|format(data.totals.liabilities) }}</span></div>
+        <div class="flex justify-between font-semibold py-1.5"><span>إجمالي الالتزامات</span><span class="font-mono">{{ data.totals.liabilities|money }}</span></div>
       </div>
       <div class="text-xs text-slate-500 mb-2 font-semibold">حقوق الملكية</div>
       <div class="space-y-1.5 text-sm">
         {% for item in data.equity %}
         <div class="flex justify-between py-1.5 border-b border-slate-100">
           <span><span class="text-xs text-slate-500 font-mono">{{ item.code }}</span> {{ item.name }}</span>
-          <span class="font-mono">{{ "%.2f"|format(item.balance) }}</span>
+          <span class="font-mono">{{ item.balance|money }}</span>
         </div>
         {% endfor %}
-        <div class="flex justify-between font-semibold py-1.5"><span>إجمالي حقوق الملكية</span><span class="font-mono">{{ "%.2f"|format(data.totals.equity) }}</span></div>
+        <div class="flex justify-between font-semibold py-1.5"><span>إجمالي حقوق الملكية</span><span class="font-mono">{{ data.totals.equity|money }}</span></div>
         <div class="flex justify-between font-bold py-2 border-t-2 border-navy-900 text-brand-600">
           <span>إجمالي الالتزامات + حقوق الملكية</span>
-          <span class="font-mono">{{ "%.2f"|format(data.total_liab_equity) }}</span>
+          <span class="font-mono">{{ data.total_liab_equity|money }}</span>
         </div>
       </div>
     </div>
   </div>
 
   <div class="mt-6 text-center text-sm font-semibold {% if data.balanced %}text-emerald-600{% else %}text-red-600{% endif %}">
-    {% if data.balanced %}✓ الميزانية متوازنة{% else %}⚠ الميزانية غير متوازنة (فرق: {{ "%.2f"|format(data.totals.assets - data.total_liab_equity) }}){% endif %}
+    {% if data.balanced %}✓ الميزانية متوازنة{% else %}⚠ الميزانية غير متوازنة (فرق: {{ data.totals.assets - data.total_liab_equity|money }}){% endif %}
   </div>
 </div>
 {% endblock %}

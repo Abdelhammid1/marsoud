@@ -10,11 +10,11 @@
 <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
   <div class="card p-4">
     <div class="text-xs text-slate-500 mb-1">💰 إجمالي مستحق (كل المندوبين)</div>
-    <div class="text-2xl font-bold text-navy-900 font-mono">{{ "%.2f"|format(kpi.unpaid_total) }}</div>
+    <div class="text-2xl font-bold text-navy-900 font-mono">{{ kpi.unpaid_total|money }}</div>
   </div>
   <div class="card p-4">
     <div class="text-xs text-slate-500 mb-1">✅ مدفوع هذا الشهر</div>
-    <div class="text-2xl font-bold text-emerald-700 font-mono">{{ "%.2f"|format(kpi.settled_this_month) }}</div>
+    <div class="text-2xl font-bold text-emerald-700 font-mono">{{ kpi.settled_this_month|money }}</div>
   </div>
   <div class="card p-4">
     <div class="text-xs text-slate-500 mb-1">⏳ عدد العمولات المعلقة</div>
@@ -26,7 +26,7 @@
       {% for r in kpi.top_owed %}
       <div class="flex justify-between text-xs">
         <a href="{{ url_for('commissions_admin.rep_detail', user_id=r.id) }}" class="hover:underline text-brand-600">{{ r.name }}</a>
-        <span class="font-mono">{{ "%.2f"|format(r.amount) }}</span>
+        <span class="font-mono">{{ r.amount|money }}</span>
       </div>
       {% else %}
       <div class="text-xs text-slate-400">—</div>
@@ -101,8 +101,8 @@
           <a href="{{ url_for('commissions_admin.rep_detail', user_id=r.id) }}" class="text-brand-600 hover:underline">{{ r.name }}</a>
         </td>
         <td class="text-xs text-slate-500" dir="ltr">{{ r.email }}</td>
-        <td class="text-right font-mono {% if r.unpaid > 0 %}text-amber-700 font-bold{% endif %}">{{ "%.2f"|format(r.unpaid) }}</td>
-        <td class="text-right font-mono text-emerald-700">{{ "%.2f"|format(r.paid) }}</td>
+        <td class="text-right font-mono {% if r.unpaid > 0 %}text-amber-700 font-bold{% endif %}">{{ r.unpaid|money }}</td>
+        <td class="text-right font-mono text-emerald-700">{{ r.paid|money }}</td>
         <td class="font-mono text-xs">{{ r.last_settle.strftime('%Y-%m-%d') if r.last_settle else '—' }}</td>
         <td><a href="{{ url_for('commissions_admin.rep_detail', user_id=r.id) }}" class="text-brand-600 hover:underline text-xs">فتح</a></td>
       </tr>
@@ -163,18 +163,18 @@
             {% set _t = r.invoice.total|float %}
             {% set _b = _t - (r.invoice.paid_amount|float) %}
             <div class="text-xs text-slate-500 mt-1">
-              دفعة: <span class="font-mono">{{ "%.2f"|format(_p) }}</span>
-              من إجمالي <span class="font-mono">{{ "%.2f"|format(_t) }}</span>
+              دفعة: <span class="font-mono">{{ _p|money }}</span>
+              من إجمالي <span class="font-mono">{{ _t|money }}</span>
               {% if _b > 0.01 %}
-                — الباقي على الفاتورة <span class="font-mono">{{ "%.2f"|format(_b) }}</span>
+                — الباقي على الفاتورة <span class="font-mono">{{ _b|money }}</span>
               {% else %}
                 <span class="text-emerald-600">— مسددة بالكامل</span>
               {% endif %}
             </div>
           {% endif %}
         </td>
-        <td class="text-right font-mono {% if is_negative %}text-red-600{% elif not is_voided %}text-navy-900 font-bold{% endif %}">{{ "%.2f"|format(r.amount|float) }}</td>
-        <td class="text-right font-mono text-xs text-slate-500">{{ "%.2f"|format(r.commission_rate|float) }}%</td>
+        <td class="text-right font-mono {% if is_negative %}text-red-600{% elif not is_voided %}text-navy-900 font-bold{% endif %}">{{ r.amount|money }}</td>
+        <td class="text-right font-mono text-xs text-slate-500">{{ r.commission_rate|money }}%</td>
         <td class="text-xs">{{ r.period_month }}/{{ r.period_year }}</td>
         <td>
           {% if is_voided %}

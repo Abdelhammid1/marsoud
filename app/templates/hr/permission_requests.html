@@ -42,7 +42,7 @@
           {{ r.start_time.strftime('%H:%M') if r.start_time else '—' }} —
           {{ r.end_time.strftime('%H:%M') if r.end_time else '—' }}
         </td>
-        <td class="text-left font-mono">{{ "%.2f"|format(r.hours_count) }}</td>
+        <td class="text-left font-mono">{{ r.hours_count|money }}</td>
         <td class="text-xs text-slate-500">{{ (r.reason or '')|truncate(60) }}</td>
         <td>
           {% set s = r.status.value %}

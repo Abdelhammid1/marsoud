@@ -52,9 +52,9 @@
       <td class="mono">{{ r.sku }}</td>
       <td>{{ r.name }}</td>
       <td class="mono">{{ r.warehouse }}</td>
-      <td class="num">{{ "%.2f"|format(r.qty|float) }}</td>
+      <td class="num">{{ r.qty|money }}</td>
       <td class="num" style="color:#64748B">{{ "%.4f"|format(r.avg_cost|float) }}</td>
-      <td class="num" style="font-weight:600;color:#0A2540">{{ "%.2f"|format(r.value|float) }}</td>
+      <td class="num" style="font-weight:600;color:#0A2540">{{ r.value|money }}</td>
     </tr>
     {% else %}
     <tr><td colspan="6" style="text-align:center;color:#94A3B8;padding:24px">لا توجد أصناف في المخزن.</td></tr>
@@ -62,7 +62,7 @@
     {% if rows %}
     <tr>
       <td colspan="5" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">إجمالي قيمة المخزون</td>
-      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#059669">{{ "%.2f"|format(ns.total_value) }}</td>
+      <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#059669">{{ ns.total_value|money }}</td>
     </tr>
     {% endif %}
   </tbody>

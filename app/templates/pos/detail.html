@@ -30,20 +30,20 @@
         <tr>
           <td>{{ it.description }}</td>
           <td class="text-end font-mono">{{ '%.0f'|format(it.quantity) }}</td>
-          <td class="text-end font-mono">{{ '%.2f'|format(it.unit_price) }}</td>
-          <td class="text-end font-mono">{{ '%.2f'|format(it.line_total) }}</td>
+          <td class="text-end font-mono">{{ it.unit_price|money }}</td>
+          <td class="text-end font-mono">{{ it.line_total|money }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
 
     <div class="mt-4 space-y-1 text-sm">
-      <div class="flex justify-between"><span>قبل الضريبة</span><span class="font-mono">{{ '%.2f'|format(invoice.taxable_base) }}</span></div>
-      <div class="flex justify-between"><span>الضريبة ({{ invoice.tax_rate }}%)</span><span class="font-mono">{{ '%.2f'|format(invoice.tax_amount) }}</span></div>
-      <div class="flex justify-between text-lg font-bold text-emerald-700"><span>الإجمالي</span><span class="font-mono">{{ '%.2f'|format(invoice.total) }}</span></div>
+      <div class="flex justify-between"><span>قبل الضريبة</span><span class="font-mono">{{ invoice.taxable_base|money }}</span></div>
+      <div class="flex justify-between"><span>الضريبة ({{ invoice.tax_rate }}%)</span><span class="font-mono">{{ invoice.tax_amount|money }}</span></div>
+      <div class="flex justify-between text-lg font-bold text-emerald-700"><span>الإجمالي</span><span class="font-mono">{{ invoice.total|money }}</span></div>
       {% if invoice.cash_received is not none %}
-      <div class="flex justify-between text-xs text-slate-500"><span>المستلم</span><span class="font-mono">{{ '%.2f'|format(invoice.cash_received) }}</span></div>
-      <div class="flex justify-between text-xs text-slate-500"><span>الباقي</span><span class="font-mono">{{ '%.2f'|format(invoice.change_due) }}</span></div>
+      <div class="flex justify-between text-xs text-slate-500"><span>المستلم</span><span class="font-mono">{{ invoice.cash_received|money }}</span></div>
+      <div class="flex justify-between text-xs text-slate-500"><span>الباقي</span><span class="font-mono">{{ invoice.change_due|money }}</span></div>
       {% endif %}
     </div>
 

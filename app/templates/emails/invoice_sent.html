@@ -41,7 +41,7 @@
   </tr>
   <tr>
     <td style="padding:12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13.5px">الإجمالي المستحق</td>
-    <td align="left" style="padding:12px;font-weight:800;border-top:2px solid #0A2540;font-family:monospace;color:#059669;font-size:16px">{{ "%.2f"|format(invoice.total) }} {{ invoice.currency|currency_ar }}</td>
+    <td align="left" style="padding:12px;font-weight:800;border-top:2px solid #0A2540;font-family:monospace;color:#059669;font-size:16px">{{ invoice.total|money }} {{ invoice.currency|currency_ar }}</td>
   </tr>
 </table>
 

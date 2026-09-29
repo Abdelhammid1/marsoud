@@ -64,7 +64,7 @@
         </td>
         <td class="text-left font-mono">
           {% if it.fixed_asset %}<span class="text-slate-500">—</span>
-          {% else %}{{ "%.2f"|format(it.estimated_value or 0) }}{% endif %}
+          {% else %}{{ it.estimated_value or 0|money }}{% endif %}
         </td>
         <td class="text-xs">
           {% if live %}

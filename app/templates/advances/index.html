@@ -49,11 +49,11 @@
           {% if a.note %}<div class="text-xs text-slate-500">{{ a.note }}</div>{% endif %}
         </td>
         <td class="font-mono text-xs">{{ a.disbursed_on.isoformat() }}</td>
-        <td class="text-left font-mono">{{ "%.2f"|format(a.amount) }}</td>
-        <td class="text-left font-mono text-slate-500">{{ "%.2f"|format(a.paid_amount) }}</td>
-        <td class="text-left font-mono font-bold">{{ "%.2f"|format(a.remaining) }}</td>
+        <td class="text-left font-mono">{{ a.amount|money }}</td>
+        <td class="text-left font-mono text-slate-500">{{ a.paid_amount|money }}</td>
+        <td class="text-left font-mono font-bold">{{ a.remaining|money }}</td>
         <td class="text-left font-mono text-xs">
-          {{ "%.2f"|format(a.monthly_installment) }}
+          {{ a.monthly_installment|money }}
           <span class="text-slate-500">× {{ a.months }}</span>
         </td>
         <td class="text-xs">

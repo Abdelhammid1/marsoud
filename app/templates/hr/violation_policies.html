@@ -43,8 +43,8 @@
         {% else %}كل الموظفين{% endif %}
       </td>
       <td class="text-left text-sm font-mono">
-        {{ "%.2f"|format(p.absence_excused_deduction_days) }} /
-        {{ "%.2f"|format(p.absence_unexcused_deduction_days) }} يوم
+        {{ p.absence_excused_deduction_days|money }} /
+        {{ p.absence_unexcused_deduction_days|money }} يوم
       </td>
       <td class="text-left text-sm font-mono">
         {{ p.daily_free_late_minutes_cap }}د/يوم · {{ p.monthly_free_late_minutes }}د/شهر

@@ -131,7 +131,7 @@
               {% if v.barcode %}<span class="text-xs text-slate-500 font-mono">🏷️ {{ v.barcode }}</span>{% endif %}
             </div>
             <div class="flex items-center gap-2 text-xs">
-              <span class="font-mono">رصيد: <strong>{{ "%.2f"|format(total_qty) }}</strong></span>
+              <span class="font-mono">رصيد: <strong>{{ total_qty|money }}</strong></span>
               {% if total_qty < v.reorder_level|float and v.reorder_level|float > 0 %}
               <span class="badge badge-overdue">⚠ ناقص</span>
               {% endif %}

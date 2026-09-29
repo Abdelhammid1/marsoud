@@ -9,7 +9,7 @@
    handles the tone toggle where the inline template used a conditional
    text-color class). #}
 <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-  {{ ui.stat_tile("إجمالي قيمة المخزون", '%.2f'|format(total_value), hint="جميع المخازن والأصناف", tone="brand") }}
+  {{ ui.stat_tile("إجمالي قيمة المخزون", total_value|money, hint="جميع المخازن والأصناف", tone="brand") }}
   {{ ui.stat_tile("عدد الأصناف النشطة", variants_count, hint="variants فعّالة", value_class="") }}
   {{ ui.stat_tile("أصناف تحت حد الطلب", low_stock|length, hint=("⚠ يحتاج إعادة طلب" if low_stock else "المخزون كافٍ"), tone=("danger" if low_stock else "")) }}
 </div>
@@ -104,7 +104,7 @@
         <td>{% if m.variant %}<a href="{{ url_for('inventory.variant_detail', variant_id=m.variant.id) }}" class="text-emerald-600 hover:underline">{{ m.variant.sku }}</a>{% else %}—{% endif %}</td>
         <td class="text-xs">{{ m.warehouse.code if m.warehouse else '—' }}</td>
         <td class="text-end font-mono {% if m.qty_delta and m.qty_delta < 0 %}text-rose-600{% else %}text-emerald-700{% endif %}">{{ '%+.2f'|format(m.qty_delta) }}</td>
-        <td class="text-end font-mono">{{ '%.2f'|format(m.balance_qty_after) }}</td>
+        <td class="text-end font-mono">{{ m.balance_qty_after|money }}</td>
         <td class="text-xs">{{ m.actor.full_name if m.actor else 'نظام' }}</td>
       </tr>
       {% endfor %}

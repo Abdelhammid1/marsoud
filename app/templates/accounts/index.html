@@ -39,7 +39,7 @@
           <td class="text-xs">{{ acc.normal_side.value }}</td>
           <td class="text-right font-mono font-semibold">
             <a href="{{ url_for('accounts.ledger', account_id=acc.id) }}"
-               class="hover:underline" title="عرض كشف الحركة">{{ "%.2f"|format(acc.balance) }}</a>
+               class="hover:underline" title="عرض كشف الحركة">{{ acc.balance|money }}</a>
           </td>
           <td class="text-right">
             <a href="{{ url_for('accounts.ledger', account_id=acc.id) }}" class="text-xs text-emerald-700 hover:underline ml-3">📋 كشف</a>

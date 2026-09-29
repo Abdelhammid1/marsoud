@@ -117,7 +117,7 @@ body { font-family: 'Amiri', 'Segoe UI', Tahoma, sans-serif; direction: rtl; bac
     {% if is_financial and decision.amount %}
     <div class="financial-box">
       <div class="amt">
-        {{ "%.2f"|format(decision.amount|float) }}
+        {{ decision.amount|money }}
         {{ company.base_currency|currency_ar if company.base_currency else '' }}
       </div>
       <div class="meta">

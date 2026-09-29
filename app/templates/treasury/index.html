@@ -10,15 +10,15 @@
 <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
   <div class="card p-4">
     <div class="text-xs text-slate-500 mb-1">💰 إجمالي النقدية</div>
-    <div class="text-2xl font-bold text-navy-900 font-mono">{{ "%.2f"|format(stats.total_cash) }}</div>
+    <div class="text-2xl font-bold text-navy-900 font-mono">{{ stats.total_cash|money }}</div>
   </div>
   <div class="card p-4">
     <div class="text-xs text-slate-500 mb-1">🏦 إجمالي البنوك</div>
-    <div class="text-2xl font-bold text-navy-900 font-mono">{{ "%.2f"|format(stats.total_bank) }}</div>
+    <div class="text-2xl font-bold text-navy-900 font-mono">{{ stats.total_bank|money }}</div>
   </div>
   <div class="card p-4">
     <div class="text-xs text-slate-500 mb-1">💵 المجموع الكلي</div>
-    <div class="text-2xl font-bold text-brand-600 font-mono">{{ "%.2f"|format(stats.combined) }}</div>
+    <div class="text-2xl font-bold text-brand-600 font-mono">{{ stats.combined|money }}</div>
   </div>
   <div class="card p-4">
     <div class="text-xs text-slate-500 mb-1">📊 عدد الحسابات</div>
@@ -68,7 +68,7 @@
         <div class="text-xs text-slate-500 font-mono">{{ r.account.code }}</div>
         <div class="font-semibold text-sm text-navy-900 mb-1">{{ r.account.name_ar or r.account.name }}</div>
         <div class="text-xl font-mono font-bold {% if is_neg %}text-red-600{% else %}text-navy-900{% endif %}">
-          {{ "%.2f"|format(r.balance) }}
+          {{ r.balance|money }}
         </div>
       </div>
     {% else %}

@@ -47,7 +47,7 @@
     {% if dec.amount %}
     <div>
       <div class="text-xs text-slate-500 mb-1">المبلغ</div>
-      <div class="text-xl font-mono font-bold text-navy-900">{{ "%.2f"|format(dec.amount|float) }}</div>
+      <div class="text-xl font-mono font-bold text-navy-900">{{ dec.amount|money }}</div>
       <div class="text-xs text-slate-500 mt-1">التوقيت:
         {% if dec.timing == 'IMMEDIATE' %}الآن (فوري){% else %}في الراتب القادم{% endif %}
       </div>

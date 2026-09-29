@@ -53,7 +53,7 @@
       <td class="num" style="color:{% if qty < 0 %}#DC2626{% else %}#059669{% endif %};font-weight:600">
         {{ "%+.2f"|format(qty) }}
       </td>
-      <td class="num" style="color:#0A2540">{{ "%.2f"|format(r.balance_after|float) }}</td>
+      <td class="num" style="color:#0A2540">{{ r.balance_after|money }}</td>
       <td style="font-size:11px;color:#64748B">{{ r.actor or 'نظام' }}</td>
     </tr>
     {% else %}

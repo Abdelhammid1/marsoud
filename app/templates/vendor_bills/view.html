@@ -92,7 +92,7 @@
           <td>
             {{ item.description }}
             {% if item.created_asset_id %}<a href="{{ url_for('assets.view', asset_id=item.created_asset_id) }}" class="text-xs text-brand-600 hover:underline block mt-1">🏗️ تم إنشاء الأصل تلقائياً</a>{% endif %}
-            {% if item.line_type.value == 'FIXED_ASSET' %}<div class="text-xs text-slate-500 mt-1">عمر: {{ item.useful_life_years }} سنة · قيمة تخريدية: {{ "%.2f"|format(item.salvage_value or 0) }}</div>{% endif %}
+            {% if item.line_type.value == 'FIXED_ASSET' %}<div class="text-xs text-slate-500 mt-1">عمر: {{ item.useful_life_years }} سنة · قيمة تخريدية: {{ item.salvage_value or 0|money }}</div>{% endif %}
           </td>
           <td class="text-xs">
             {# MARSOUD-VBILL-SUBCAT-DISPLAY-FILTER (Abdelhamid 2026-07-16) —
@@ -111,13 +111,13 @@
           </td>
           <td class="text-sm"><span class="font-mono text-xs text-slate-500">{{ item.account.code }}</span> · {{ item.account.name_ar or item.account.name }}</td>
           <td class="font-mono">
-            {{ "%.2f"|format(item.quantity) }}
+            {{ item.quantity|money }}
             {# MARSOUD-UNIT-CONVERSION-01 — show unit + base equivalent. #}
             {% if item.unit %}
               <span class="text-xs text-slate-500">{{ item.unit.unit_name }}</span>
               {% if not item.unit.is_base and item.base_quantity is not none %}
                 {% set _prod = item.variant.product if item.variant else None %}
-                <div class="text-[10px] text-slate-500">= {{ "%.2f"|format(item.base_quantity|float) }} {{ _prod.base_unit.unit_name if _prod and _prod.base_unit else '' }}</div>
+                <div class="text-[10px] text-slate-500">= {{ item.base_quantity|money }} {{ _prod.base_unit.unit_name if _prod and _prod.base_unit else '' }}</div>
               {% endif %}
             {% endif %}
           </td>
@@ -126,7 +126,7 @@
         </tr>
         {% endfor %}
         <tr><td colspan="5" class="text-left font-semibold py-2">المجموع قبل الضريبة</td><td class="text-left font-mono">{{ bill.subtotal|amount_ar(bill.currency) }}</td></tr>
-        <tr><td colspan="5" class="text-left py-2">الضريبة ({{ "%.2f"|format(bill.tax_rate) }}%)</td><td class="text-left font-mono">{{ bill.tax_amount|amount_ar(bill.currency) }}</td></tr>
+        <tr><td colspan="5" class="text-left py-2">الضريبة ({{ bill.tax_rate|money }}%)</td><td class="text-left font-mono">{{ bill.tax_amount|amount_ar(bill.currency) }}</td></tr>
         <tr class="border-t-2 border-navy-900"><td colspan="5" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold text-lg">{{ bill.total|amount_ar(bill.currency) }}</td></tr>
         <tr><td colspan="5" class="text-left text-emerald-600 py-2">المدفوع</td><td class="text-left font-mono text-emerald-600">{{ (bill.paid_amount or 0)|amount_ar(bill.currency) }}</td></tr>
         <tr><td colspan="5" class="text-left font-bold text-amber-600 py-2">المتبقي</td><td class="text-left font-mono font-bold text-amber-600">{{ bill.balance|amount_ar(bill.currency) }}</td></tr>

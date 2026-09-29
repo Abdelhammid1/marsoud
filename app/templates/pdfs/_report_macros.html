@@ -45,7 +45,7 @@
       {% for item in items %}
       <tr>
         <td><span class="mono">{{ item.code }}</span> · {{ item.name }}</td>
-        <td class="num">{{ "%.2f"|format(item.balance|float) }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
+        <td class="num">{{ item.balance|money }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
       </tr>
       {% else %}
       <tr>
@@ -56,7 +56,7 @@
       {% endfor %}
       <tr>
         <td style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">{{ total_label }}</td>
-        <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">{{ "%.2f"|format(total_value|float) }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
+        <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">{{ total_value|money }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
       </tr>
     </tbody>
   </table>
@@ -88,9 +88,14 @@
       {% for r in rows %}
       <tr>
         <td><span class="mono">{{ r.code }}</span> · {{ r.name }}</td>
-        <td class="num">{% if r.debit %}{{ "%.2f"|format(r.debit|float) }}{% else %}—{% endif %}</td>
-        <td class="num">{% if r.credit %}{{ "%.2f"|format(r.credit|float) }}{% else %}—{% endif %}</td>
-        <td class="num">{{ "%.2f"|format(r.balance|float) }}</td>
+        {# MARSOUD-REPORTS-ZERO-01 (2026-09-29) — a zero balance now
+           renders as "—" so all three money cells in a row share the
+           same "zero → dash" idiom.  Before, debit/credit collapsed
+           to "—" but balance rendered "0.00", making a fully-settled
+           account look busier than an inactive one. #}
+        <td class="num">{% if r.debit %}{{ r.debit|money }}{% else %}—{% endif %}</td>
+        <td class="num">{% if r.credit %}{{ r.credit|money }}{% else %}—{% endif %}</td>
+        <td class="num">{% if r.balance %}{{ r.balance|money }}{% else %}—{% endif %}</td>
       </tr>
       {% else %}
       <tr>
@@ -101,10 +106,10 @@
       {% endfor %}
       <tr>
         <td style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">الإجمالي</td>
-        <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">{{ "%.2f"|format(totals.debit|float) }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
-        <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">{{ "%.2f"|format(totals.credit|float) }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
+        <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">{{ totals.debit|money }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
+        <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:#0A2540;font-size:13px">{{ totals.credit|money }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
         <td class="num" style="padding:10px 12px;font-weight:800;border-top:2px solid #0A2540;color:{% if totals.balanced %}#059669{% else %}#DC2626{% endif %};font-size:13px">
-          {% if totals.balanced %}✓ متوازن{% else %}✕ فرق {{ "%.2f"|format(totals.diff|float) }}{% endif %}
+          {% if totals.balanced %}✓ متوازن{% else %}✕ فرق {{ totals.diff|money }}{% endif %}
         </td>
       </tr>
     </tbody>
@@ -128,7 +133,7 @@
   <div class="due-block" style="border-right-color:{{ tone }}">
     <div class="lbl">{{ label }}</div>
     <div class="val" style="color:{{ tone }}">
-      {{ "%.2f"|format(value|float) }}{% if currency_ar %} <span class="cur">{{ currency_ar }}</span>{% endif %}
+      {{ value|money }}{% if currency_ar %} <span class="cur">{{ currency_ar }}</span>{% endif %}
     </div>
   </div>
 {%- endmacro %}

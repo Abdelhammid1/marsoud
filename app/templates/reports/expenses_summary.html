@@ -28,14 +28,14 @@
              class="badge bg-blue-50 text-blue-700 hover:bg-blue-100">{{ r.entry_count }} قيد ←</a>
           {% else %}—{% endif %}
         </td>
-        <td class="text-left font-mono">{{ "%.2f"|format(r.balance) }}</td>
+        <td class="text-left font-mono">{{ r.balance|money }}</td>
       </tr>
       {% else %}
       <tr><td colspan="4" class="text-center text-slate-500 py-6">لا توجد مصروفات في الفترة</td></tr>
       {% endfor %}
       <tr class="border-t-2 border-navy-900 font-bold bg-red-50">
         <td colspan="3" class="py-3 text-red-800">إجمالي المصروفات</td>
-        <td class="text-left font-mono text-lg text-red-700">{{ "%.2f"|format(data.total) }}</td>
+        <td class="text-left font-mono text-lg text-red-700">{{ data.total|money }}</td>
       </tr>
     </tbody>
   </table>

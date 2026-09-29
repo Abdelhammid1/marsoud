@@ -54,7 +54,7 @@
       <td class="mono">{{ r.code }}</td>
       <td>{{ r.name }}</td>
       <td class="num">{{ r.entry_count }}</td>
-      <td class="num">{{ "%.2f"|format(r.balance|float) }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
+      <td class="num">{{ r.balance|money }}{% if currency_ar %} {{ currency_ar }}{% endif %}</td>
     </tr>
     {% else %}
     <tr><td colspan="4" style="text-align:center;color:#94A3B8;padding:24px">لا توجد مصروفات في الفترة المحددة.</td></tr>

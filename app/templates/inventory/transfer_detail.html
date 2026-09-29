@@ -34,16 +34,16 @@
         <tr>
           <td class="font-mono">{{ it.variant.sku if it.variant else '—' }}</td>
           <td>{{ it.variant.display_name if it.variant else '—' }}</td>
-          <td class="text-end font-mono">{{ '%.2f'|format(it.qty) }}</td>
+          <td class="text-end font-mono">{{ it.qty|money }}</td>
           <td class="text-end font-mono">{{ '%.4f'|format(it.unit_cost_at_time) }}</td>
-          <td class="text-end font-mono">{{ '%.2f'|format(it.qty * it.unit_cost_at_time) }}</td>
+          <td class="text-end font-mono">{{ it.qty * it.unit_cost_at_time|money }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
     <div class="text-xs text-slate-500 mt-3">
-      إجمالي الكمية: <strong>{{ '%.2f'|format(transfer.total_qty) }}</strong>
-      · إجمالي القيمة: <strong>{{ '%.2f'|format(transfer.total_value) }}</strong>
+      إجمالي الكمية: <strong>{{ transfer.total_qty|money }}</strong>
+      · إجمالي القيمة: <strong>{{ transfer.total_value|money }}</strong>
       · <span class="text-emerald-700">لم يُسجَّل أي قيد محاسبي (القيمة لم تتغيّر، فقط الموقع).</span>
     </div>
 

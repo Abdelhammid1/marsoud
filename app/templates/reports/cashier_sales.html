@@ -34,18 +34,18 @@
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <div class="bg-slate-50 rounded p-3">
         <div class="text-xs text-slate-500">الإجمالي</div>
-        <div class="text-xl font-bold font-mono text-emerald-700">{{ '%.2f'|format(r.gross) }}</div>
+        <div class="text-xl font-bold font-mono text-emerald-700">{{ r.gross|money }}</div>
       </div>
       <div class="bg-slate-50 rounded p-3">
         <div class="text-xs text-slate-500">صافي بعد الملغى</div>
-        <div class="text-xl font-bold font-mono text-navy-900">{{ '%.2f'|format(r.net) }}</div>
+        <div class="text-xl font-bold font-mono text-navy-900">{{ r.net|money }}</div>
       </div>
       <div class="bg-emerald-50 rounded p-3">
         <div class="text-xs text-slate-500 mb-1">حسب طريقة الدفع</div>
         {% if r.by_method %}
           {% for mname, amt in r.by_method.items() %}
           <div class="flex justify-between text-sm">
-            <span>{{ mname }}</span><span class="font-mono">{{ '%.2f'|format(amt) }}</span>
+            <span>{{ mname }}</span><span class="font-mono">{{ amt|money }}</span>
           </div>
           {% endfor %}
         {% else %}

@@ -24,7 +24,7 @@
     <div class="text-end">
       <div class="text-xs text-slate-500">الرصيد الحالي (يطابق دليل الحسابات)</div>
       <div class="text-2xl font-bold font-mono {% if account.balance >= 0 %}text-emerald-700{% else %}text-rose-700{% endif %}">
-        {{ "%.2f"|format(account.balance) }}
+        {{ account.balance|money }}
       </div>
     </div>
   </div>
@@ -75,10 +75,10 @@
             <span class="text-slate-500">{{ r.src_label }}</span>
             {% endif %}
           </td>
-          <td class="text-right font-mono">{% if r.debit %}{{ "%.2f"|format(r.debit) }}{% else %}—{% endif %}</td>
-          <td class="text-right font-mono">{% if r.credit %}{{ "%.2f"|format(r.credit) }}{% else %}—{% endif %}</td>
+          <td class="text-right font-mono">{% if r.debit %}{{ r.debit|money }}{% else %}—{% endif %}</td>
+          <td class="text-right font-mono">{% if r.credit %}{{ r.credit|money }}{% else %}—{% endif %}</td>
           <td class="text-right font-mono font-semibold {% if r.running >= 0 %}text-emerald-700{% else %}text-rose-700{% endif %}">
-            {{ "%.2f"|format(r.running) }}
+            {{ r.running|money }}
           </td>
         </tr>
         {% endfor %}
@@ -86,10 +86,10 @@
       <tfoot class="bg-slate-50 font-semibold">
         <tr>
           <td colspan="4" class="text-left text-sm">الإجماليات</td>
-          <td class="text-right font-mono">{{ "%.2f"|format(totals.debit) }}</td>
-          <td class="text-right font-mono">{{ "%.2f"|format(totals.credit) }}</td>
+          <td class="text-right font-mono">{{ totals.debit|money }}</td>
+          <td class="text-right font-mono">{{ totals.credit|money }}</td>
           <td class="text-right font-mono text-base {% if totals.balance >= 0 %}text-emerald-700{% else %}text-rose-700{% endif %}">
-            {{ "%.2f"|format(totals.balance) }}
+            {{ totals.balance|money }}
           </td>
         </tr>
       </tfoot>

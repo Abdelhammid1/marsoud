@@ -12,18 +12,18 @@
       </div>
       <div class="text-right">
         <div class="text-xs text-slate-500">القيمة الدفترية الحالية</div>
-        <div class="text-2xl font-bold text-navy-900 font-mono">{{ "%.2f"|format(asset.net_book_value) }}</div>
+        <div class="text-2xl font-bold text-navy-900 font-mono">{{ asset.net_book_value|money }}</div>
       </div>
     </div>
 
     <div class="grid grid-cols-2 gap-4 text-sm mb-5">
       <div><span class="text-slate-500">تاريخ الشراء:</span> {{ asset.purchase_date.isoformat() }}</div>
       <div><span class="text-slate-500">العمر الإنتاجي:</span> {{ asset.useful_life_years }} سنة</div>
-      <div><span class="text-slate-500">التكلفة الأصلية:</span> <span class="font-mono">{{ "%.2f"|format(asset.cost) }}</span></div>
-      <div><span class="text-slate-500">القيمة التخريدية:</span> <span class="font-mono">{{ "%.2f"|format(asset.salvage_value) }}</span></div>
-      <div><span class="text-slate-500">الإهلاك السنوي:</span> <span class="font-mono">{{ "%.2f"|format(asset.annual_depreciation) }}</span></div>
-      <div><span class="text-slate-500">الإهلاك الشهري:</span> <span class="font-mono">{{ "%.2f"|format(asset.monthly_depreciation) }}</span></div>
-      <div><span class="text-slate-500">مجمع الإهلاك حتى الآن:</span> <span class="font-mono text-amber-600">{{ "%.2f"|format(asset.accumulated_depreciation) }}</span></div>
+      <div><span class="text-slate-500">التكلفة الأصلية:</span> <span class="font-mono">{{ asset.cost|money }}</span></div>
+      <div><span class="text-slate-500">القيمة التخريدية:</span> <span class="font-mono">{{ asset.salvage_value|money }}</span></div>
+      <div><span class="text-slate-500">الإهلاك السنوي:</span> <span class="font-mono">{{ asset.annual_depreciation|money }}</span></div>
+      <div><span class="text-slate-500">الإهلاك الشهري:</span> <span class="font-mono">{{ asset.monthly_depreciation|money }}</span></div>
+      <div><span class="text-slate-500">مجمع الإهلاك حتى الآن:</span> <span class="font-mono text-amber-600">{{ asset.accumulated_depreciation|money }}</span></div>
       <div><span class="text-slate-500">المورد:</span>
         {% if asset.vendor %}<a href="{{ url_for('vendors.index') }}" class="text-brand-600 hover:underline">{{ asset.vendor.name }}</a>{% else %}—{% endif %}
       </div>
@@ -45,7 +45,7 @@
           <div class="text-sm text-rose-800 mt-1">
             السبب: <b>{{ asset.disposal_reason.label_ar if asset.disposal_reason else '—' }}</b>
             {% if asset.disposal_proceeds and asset.disposal_proceeds > 0 %}
-              · تحصيل: <span class="font-mono">{{ "%.2f"|format(asset.disposal_proceeds) }}</span>
+              · تحصيل: <span class="font-mono">{{ asset.disposal_proceeds|money }}</span>
             {% endif %}
             {% if asset.disposed_by %}
               · بواسطة: {{ asset.disposed_by.full_name }}
@@ -113,7 +113,7 @@
                     placeholder="مثلاً: بيع للموظف بسعر رمزي، أو ضاع في حادث..."></textarea>
         </div>
         <div class="text-xs text-slate-600 bg-white rounded p-2">
-          <div>القيمة الدفترية = <span class="font-mono">{{ "%.2f"|format(asset.net_book_value) }}</span></div>
+          <div>القيمة الدفترية = <span class="font-mono">{{ asset.net_book_value|money }}</span></div>
           <div>الفرق (خسارة أو مكسب) يترحّل تلقائياً على حساب 5950 (خسائر) أو 4550 (مكاسب).</div>
         </div>
         <div class="flex justify-end">
@@ -133,8 +133,8 @@
         {% for h in history %}
         <tr>
           <td>{{ h.period_month }}/{{ h.period_year }}</td>
-          <td class="text-left font-mono text-amber-600">{{ "%.2f"|format(h.amount) }}</td>
-          <td class="text-left font-mono font-bold">{{ "%.2f"|format(h.book_value_after) }}</td>
+          <td class="text-left font-mono text-amber-600">{{ h.amount|money }}</td>
+          <td class="text-left font-mono font-bold">{{ h.book_value_after|money }}</td>
           <td><a href="{{ url_for('journals.view', entry_id=h.journal_entry_id) }}" class="text-brand-600 hover:underline text-xs">عرض القيد</a></td>
         </tr>
         {% else %}
@@ -148,12 +148,12 @@
     <h3 class="font-bold text-white mb-4">معادلة الإهلاك</h3>
     <div class="bg-white/10 rounded-lg p-3 text-xs font-mono mb-3">
       Annual = (Cost − Salvage) ÷ Life<br>
-      = ({{ "%.2f"|format(asset.cost) }} − {{ "%.2f"|format(asset.salvage_value) }}) ÷ {{ asset.useful_life_years }}<br>
-      = {{ "%.2f"|format(asset.annual_depreciation) }} / سنة
+      = ({{ asset.cost|money }} − {{ asset.salvage_value|money }}) ÷ {{ asset.useful_life_years }}<br>
+      = {{ asset.annual_depreciation|money }} / سنة
     </div>
     <div class="text-xs text-navy-200 mb-2">المتبقي من القيمة القابلة للإهلاك</div>
     {% set remaining = asset.cost - asset.salvage_value - asset.accumulated_depreciation %}
-    <div class="text-2xl font-bold font-mono">{{ "%.2f"|format(remaining if remaining > 0 else 0) }}</div>
+    <div class="text-2xl font-bold font-mono">{{ remaining if remaining > 0 else 0|money }}</div>
     {% set max_dep = asset.cost - asset.salvage_value %}
     {% set pct = (asset.accumulated_depreciation / max_dep * 100) if max_dep > 0 else 0 %}
     <div class="h-2 bg-white/10 rounded-full overflow-hidden mt-3">

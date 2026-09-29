@@ -102,11 +102,11 @@
     </div>
     <div>
       <div class="text-xs text-slate-500">الراتب الأساسي</div>
-      <div class="font-mono font-semibold">{{ "%.2f"|format(employee.basic_salary|float) }} {{ employee.company.base_currency|currency_ar }}</div>
+      <div class="font-mono font-semibold">{{ employee.basic_salary|money }} {{ employee.company.base_currency|currency_ar }}</div>
     </div>
     <div>
       <div class="text-xs text-slate-500">البدلات</div>
-      <div class="font-mono">{{ "%.2f"|format(employee.allowances|float) }} {{ employee.company.base_currency|currency_ar }}</div>
+      <div class="font-mono">{{ employee.allowances|money }} {{ employee.company.base_currency|currency_ar }}</div>
     </div>
     {% if employee.bank_account_last4 %}
     <div>
@@ -224,7 +224,7 @@
     <p class="text-sm text-slate-500">
       اكتمل تسجيل اليوم
       {% if today_checkin.worked_hours %}
-        — <span class="font-mono">{{ "%.2f"|format(today_checkin.worked_hours) }}</span> ساعة
+        — <span class="font-mono">{{ today_checkin.worked_hours|money }}</span> ساعة
       {% endif %}
     </p>
   {% else %}
@@ -320,19 +320,19 @@
   <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
     <div class="bg-amber-50 rounded-lg p-3 border border-amber-200">
       <div class="text-xs text-amber-700">الرصيد المتبقي</div>
-      <div class="text-lg font-bold text-navy-900 font-mono mt-1">{{ "%.2f"|format(advance.remaining) }}</div>
+      <div class="text-lg font-bold text-navy-900 font-mono mt-1">{{ advance.remaining|money }}</div>
     </div>
     <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
       <div class="text-xs text-slate-500">القسط الشهر القادم</div>
-      <div class="text-lg font-bold text-navy-900 font-mono mt-1">{{ "%.2f"|format(advance.next_installment) }}</div>
+      <div class="text-lg font-bold text-navy-900 font-mono mt-1">{{ advance.next_installment|money }}</div>
     </div>
     <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
       <div class="text-xs text-slate-500">إجمالي السلفة</div>
-      <div class="text-lg font-bold text-navy-900 font-mono mt-1">{{ "%.2f"|format(advance.amount) }}</div>
+      <div class="text-lg font-bold text-navy-900 font-mono mt-1">{{ advance.amount|money }}</div>
     </div>
     <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
       <div class="text-xs text-slate-500">المسدد حتى الآن</div>
-      <div class="text-lg font-bold text-navy-900 font-mono mt-1">{{ "%.2f"|format(advance.paid_amount) }}</div>
+      <div class="text-lg font-bold text-navy-900 font-mono mt-1">{{ advance.paid_amount|money }}</div>
     </div>
   </div>
   <p class="text-xs text-slate-500 mb-2">
@@ -361,7 +361,7 @@
         <tr class="border-b border-slate-100">
           <td class="py-1 font-mono">{{ r.period_year }}-{{ "%02d"|format(r.period_month) }}</td>
           <td class="py-1 font-mono {{ 'text-slate-500' if r.amount|float < 0.005 else 'text-navy-900 font-bold' }}">
-            {{ "%.2f"|format(r.amount) }}
+            {{ r.amount|money }}
             {% if r.amount|float < 0.005 %}<span class="text-[10px]">(لم يُخصم)</span>{% endif %}
           </td>
           <td class="py-1 text-slate-500">
@@ -401,7 +401,7 @@
     <tbody>
       {% for r in advance_requests %}
       <tr>
-        <td class="font-mono">{{ "%.2f"|format(r.amount) }}</td>
+        <td class="font-mono">{{ r.amount|money }}</td>
         <td>{{ r.reason or '—' }}</td>
         <td class="font-mono">{{ r.created_at | company_dt('%Y-%m-%d') if r.created_at else '—' }}</td>
         <td>
@@ -441,11 +441,11 @@
         {% set ded = (line.deductions or 0)|float + (line.absence_deduction or 0)|float + (line.late_deduction or 0)|float + (line.advance_deduction or 0)|float %}
         <tr>
           <td class="font-mono">{{ run.period_year }}-{{ '%02d'|format(run.period_month) }}</td>
-          <td class="text-end font-mono">{{ '%.2f'|format(line.basic|float if line.basic else 0) }}</td>
-          <td class="text-end font-mono">{{ '%.2f'|format(line.allowances|float if line.allowances else 0) }}</td>
-          <td class="text-end font-mono text-emerald-700">+{{ '%.2f'|format(add) }}</td>
-          <td class="text-end font-mono text-rose-700">-{{ '%.2f'|format(ded) }}</td>
-          <td class="text-end font-mono font-bold">{{ '%.2f'|format(line.net|float if line.net else 0) }}</td>
+          <td class="text-end font-mono">{{ line.basic|float if line.basic else 0|money }}</td>
+          <td class="text-end font-mono">{{ line.allowances|float if line.allowances else 0|money }}</td>
+          <td class="text-end font-mono text-emerald-700">+{{ add|money }}</td>
+          <td class="text-end font-mono text-rose-700">-{{ ded|money }}</td>
+          <td class="text-end font-mono font-bold">{{ line.net|float if line.net else 0|money }}</td>
           <td>
             <a href="{{ url_for('portal_emp.payslip_pdf', line_id=line.id) }}" target="_blank" class="text-emerald-700 hover:underline text-xs">📄 تحميل</a>
           </td>

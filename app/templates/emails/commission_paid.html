@@ -14,7 +14,7 @@
 
 <div style="background:linear-gradient(135deg,#10B981 0%,#047857 100%);color:#fff;border-radius:14px;padding:20px;margin:0 0 16px;text-align:center">
   <div style="font-size:11px;color:rgba(255,255,255,0.7);letter-spacing:1px">المبلغ المصروف الآن</div>
-  <div style="font-size:34px;font-weight:bold;font-family:monospace;margin-top:4px">{{ "%.2f"|format(amount_paid) }}</div>
+  <div style="font-size:34px;font-weight:bold;font-family:monospace;margin-top:4px">{{ amount_paid|money }}</div>
 </div>
 
 <table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:13px">
@@ -24,11 +24,11 @@
   <tr><td style="padding:10px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">العميل</td><td style="padding:10px 12px;text-align:left;border-bottom:1px solid #F1F5F9">{{ invoice.customer.name }}</td></tr>
   {% endif %}
   {% endif %}
-  <tr><td style="padding:10px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">إجمالي العمولة على الدفعة</td><td style="padding:10px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace">{{ "%.2f"|format(commission.amount|float) }}</td></tr>
-  <tr><td style="padding:10px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">النسبة</td><td style="padding:10px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace">{{ "%.2f"|format(commission.commission_rate|float) }}%</td></tr>
+  <tr><td style="padding:10px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">إجمالي العمولة على الدفعة</td><td style="padding:10px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace">{{ commission.amount|money }}</td></tr>
+  <tr><td style="padding:10px 12px;color:#94A3B8;border-bottom:1px solid #F1F5F9">النسبة</td><td style="padding:10px 12px;text-align:left;border-bottom:1px solid #F1F5F9;font-family:monospace">{{ commission.commission_rate|money }}%</td></tr>
   {% set _remaining = commission.remaining %}
   {% if _remaining|float > 0.005 %}
-  <tr><td style="padding:10px 12px;color:#94A3B8">المتبقي على العمولة</td><td style="padding:10px 12px;text-align:left;font-family:monospace">{{ "%.2f"|format(_remaining) }}</td></tr>
+  <tr><td style="padding:10px 12px;color:#94A3B8">المتبقي على العمولة</td><td style="padding:10px 12px;text-align:left;font-family:monospace">{{ _remaining|money }}</td></tr>
   {% endif %}
 </table>
 

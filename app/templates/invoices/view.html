@@ -70,33 +70,33 @@
             {% if item.product %}<span class="text-xs text-slate-500">({{ item.product.name }})</span>{% endif %}
           </td>
           <td class="font-mono">
-            {{ "%.2f"|format(item.quantity) }}
+            {{ item.quantity|money }}
             {# MARSOUD-UNIT-CONVERSION-01 — show unit + base equivalent. #}
             {% if item.unit %}
               <span class="text-xs text-slate-500">{{ item.unit.unit_name }}</span>
               {% if not item.unit.is_base and item.base_quantity is not none %}
-                <div class="text-[10px] text-slate-500">= {{ "%.2f"|format(item.base_quantity|float) }} {{ item.product.base_unit.unit_name if item.product and item.product.base_unit else '' }}</div>
+                <div class="text-[10px] text-slate-500">= {{ item.base_quantity|money }} {{ item.product.base_unit.unit_name if item.product and item.product.base_unit else '' }}</div>
               {% endif %}
             {% endif %}
           </td>
-          <td class="font-mono">{{ "%.2f"|format(item.unit_price) }}</td>
+          <td class="font-mono">{{ item.unit_price|money }}</td>
           <td class="font-mono text-amber-600">
             {% if item.discount_type.value == 'PERCENT' %}{{ item.discount_value }}%
-            {% elif item.discount_type.value == 'FIXED' %}{{ "%.2f"|format(item.discount_value) }}
+            {% elif item.discount_type.value == 'FIXED' %}{{ item.discount_value|money }}
             {% else %}—{% endif %}
           </td>
-          <td class="text-left font-mono">{{ "%.2f"|format(item.line_total) }}</td>
+          <td class="text-left font-mono">{{ item.line_total|money }}</td>
         </tr>
         {% endfor %}
-        <tr><td colspan="4" class="text-left font-semibold py-2">إجمالي البنود</td><td class="text-left font-mono">{{ "%.2f"|format(invoice.subtotal) }}</td></tr>
+        <tr><td colspan="4" class="text-left font-semibold py-2">إجمالي البنود</td><td class="text-left font-mono">{{ invoice.subtotal|money }}</td></tr>
         {% if invoice.invoice_discount_amount and invoice.invoice_discount_amount > 0 %}
-        <tr><td colspan="4" class="text-left font-semibold py-2 text-amber-600">خصم الفاتورة</td><td class="text-left font-mono text-amber-600">−{{ "%.2f"|format(invoice.invoice_discount_amount) }}</td></tr>
-        <tr><td colspan="4" class="text-left py-2">الوعاء الضريبي</td><td class="text-left font-mono">{{ "%.2f"|format(invoice.taxable_base) }}</td></tr>
+        <tr><td colspan="4" class="text-left font-semibold py-2 text-amber-600">خصم الفاتورة</td><td class="text-left font-mono text-amber-600">−{{ invoice.invoice_discount_amount|money }}</td></tr>
+        <tr><td colspan="4" class="text-left py-2">الوعاء الضريبي</td><td class="text-left font-mono">{{ invoice.taxable_base|money }}</td></tr>
         {% endif %}
-        <tr><td colspan="4" class="text-left py-2">الضريبة ({{ "%.2f"|format(invoice.tax_rate) }}%)</td><td class="text-left font-mono">{{ "%.2f"|format(invoice.tax_amount) }}</td></tr>
-        <tr class="border-t-2 border-navy-900"><td colspan="4" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold text-lg">{{ "%.2f"|format(invoice.total) }} {{ invoice.currency|currency_ar }}</td></tr>
-        <tr><td colspan="4" class="text-left text-emerald-600 py-2">المدفوع</td><td class="text-left font-mono text-emerald-600">{{ "%.2f"|format(invoice.paid_amount or 0) }}</td></tr>
-        <tr><td colspan="4" class="text-left font-bold text-amber-600 py-2">المتبقي</td><td class="text-left font-mono font-bold text-amber-600">{{ "%.2f"|format(invoice.balance) }}</td></tr>
+        <tr><td colspan="4" class="text-left py-2">الضريبة ({{ invoice.tax_rate|money }}%)</td><td class="text-left font-mono">{{ invoice.tax_amount|money }}</td></tr>
+        <tr class="border-t-2 border-navy-900"><td colspan="4" class="text-left font-bold py-3">الإجمالي</td><td class="text-left font-mono font-bold text-lg">{{ invoice.total|money }} {{ invoice.currency|currency_ar }}</td></tr>
+        <tr><td colspan="4" class="text-left text-emerald-600 py-2">المدفوع</td><td class="text-left font-mono text-emerald-600">{{ invoice.paid_amount or 0|money }}</td></tr>
+        <tr><td colspan="4" class="text-left font-bold text-amber-600 py-2">المتبقي</td><td class="text-left font-mono font-bold text-amber-600">{{ invoice.balance|money }}</td></tr>
       </tbody>
     </table>
 
@@ -133,7 +133,7 @@
           {% if invoice.down_payment_amount and invoice.down_payment_amount > 0 %}
           <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs rounded-lg p-2 mb-3">
             💰 دفعة مقدّمة عند الإصدار:
-            <span class="font-mono font-bold">{{ '%.2f'|format(invoice.down_payment_amount) }}</span>
+            <span class="font-mono font-bold">{{ invoice.down_payment_amount|money }}</span>
             {{ invoice.currency|currency_ar }}
           </div>
           {% endif %}
@@ -145,7 +145,7 @@
             {% for inst in invoice.installments %}
               <tr class="border-b {% if inst.status == 'OVERDUE' %}bg-rose-50{% elif inst.status == 'PAID' %}bg-emerald-50{% endif %}">
                 <td class="py-1">{{ inst.sequence_no }}</td>
-                <td class="font-mono">{{ '%.2f'|format(inst.amount) }}</td>
+                <td class="font-mono">{{ inst.amount|money }}</td>
                 <td>{{ inst.due_date.strftime('%Y-%m-%d') }}</td>
                 <td>
                   {% if inst.status == 'PAID' %}
@@ -209,7 +209,7 @@
       <p class="text-xs text-slate-500 mb-3">
         هذا العميل عنده {{ active_deposits|length }} عربون
         بإجمالي
-        {{ '%.2f'|format(active_deposits | map(attribute='amount') | map('float') | sum) }}.
+        {{ active_deposits | map(attribute='amount') | map('float') | sum|money }}.
       </p>
       <form method="POST"
             action="{{ url_for('invoices.apply_deposit', invoice_id=invoice.id) }}"
@@ -218,7 +218,7 @@
                 class="w-full border rounded px-2 py-1 text-sm">
           {% for d in active_deposits %}
             <option value="{{ d.id }}">
-              {{ d.doc_number }} — {{ '%.2f'|format(d.amount) }}
+              {{ d.doc_number }} — {{ d.amount|money }}
               ({{ d.date.strftime('%Y-%m-%d') }})
             </option>
           {% endfor %}
@@ -530,7 +530,7 @@
             {{ p.payment_date.isoformat() }}
             <span class="text-xs text-slate-500">· {% if p.payment_method %}{{ p.payment_method.name_ar or p.payment_method.name }}{% else %}{{ p.method }}{% endif %}</span>
           </span>
-          <span class="font-mono font-semibold text-emerald-600">{{ "%.2f"|format(p.amount) }}</span>
+          <span class="font-mono font-semibold text-emerald-600">{{ p.amount|money }}</span>
         </div>
       {% endfor %}
       </div>
