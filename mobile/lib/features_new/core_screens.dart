@@ -67,9 +67,7 @@ class _MarsoudSplashScreenState extends State<MarsoudSplashScreen> with SingleTi
                 const SizedBox(height: 24),
                 const Text(
                   'مرصود ERP',
-                  style: TextStyle(
-                    fontFamily: 'Cairo',
-                    fontSize: 32,
+                  style: TextStyle(                    fontSize: 32,
                     fontWeight: FontWeight.w900,
                     color: Colors.white,
                     letterSpacing: 0.5,
@@ -78,9 +76,7 @@ class _MarsoudSplashScreenState extends State<MarsoudSplashScreen> with SingleTi
                 const SizedBox(height: 8),
                 const Text(
                   'المنظومة الإدارية المتكاملة والذكية',
-                  style: TextStyle(
-                    fontFamily: 'Cairo',
-                    fontSize: 14,
+                  style: TextStyle(                    fontSize: 14,
                     color: Color(0xFF94A3B8),
                   ),
                 ),
@@ -147,9 +143,7 @@ class _MarsoudLoginScreenState extends State<MarsoudLoginScreen> {
                 const SizedBox(height: 24),
                 const Text(
                   'تسجيل الدخول',
-                  style: TextStyle(
-                    fontFamily: 'Cairo',
-                    fontSize: 26,
+                  style: TextStyle(                    fontSize: 26,
                     fontWeight: FontWeight.w800,
                     color: Color(0xFF0A2540),
                   ),
@@ -157,9 +151,7 @@ class _MarsoudLoginScreenState extends State<MarsoudLoginScreen> {
                 const SizedBox(height: 6),
                 const Text(
                   'مرحباً بك مجدداً، أدخل بياناتك المؤسسية للمتابعة',
-                  style: TextStyle(
-                    fontFamily: 'Cairo',
-                    fontSize: 14,
+                  style: TextStyle(                    fontSize: 14,
                     color: Color(0xFF64748B),
                   ),
                 ),
@@ -167,12 +159,12 @@ class _MarsoudLoginScreenState extends State<MarsoudLoginScreen> {
 
                 // Form Fields
                 const Text('البريد الإلكتروني المؤسسي',
-                    style: TextStyle(fontFamily: 'Cairo', fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0A2540))),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0A2540))),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
-                  style: const TextStyle(fontFamily: 'Cairo', fontSize: 14),
+                  style: const TextStyle(fontSize: 14),
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.alternate_email_rounded, size: 20, color: Color(0xFF64748B)),
                     filled: true,
@@ -184,12 +176,12 @@ class _MarsoudLoginScreenState extends State<MarsoudLoginScreen> {
                 const SizedBox(height: 20),
 
                 const Text('كلمة المرور',
-                    style: TextStyle(fontFamily: 'Cairo', fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0A2540))),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0A2540))),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
-                  style: const TextStyle(fontFamily: 'Cairo', fontSize: 14),
+                  style: const TextStyle(fontSize: 14),
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20, color: Color(0xFF64748B)),
                     suffixIcon: IconButton(
@@ -215,12 +207,12 @@ class _MarsoudLoginScreenState extends State<MarsoudLoginScreen> {
                           activeColor: const Color(0xFF059669),
                           onChanged: (v) => setState(() => _rememberMe = v ?? false),
                         ),
-                        const Text('تذكر جهازي', style: TextStyle(fontFamily: 'Cairo', fontSize: 13, color: Color(0xFF334155))),
+                        const Text('تذكر جهازي', style: TextStyle(fontSize: 13, color: Color(0xFF334155))),
                       ],
                     ),
                     TextButton(
                       onPressed: () {},
-                      child: const Text('نسيت كلمة المرور؟', style: TextStyle(fontFamily: 'Cairo', fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF059669))),
+                      child: const Text('نسيت كلمة المرور؟', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF059669))),
                     ),
                   ],
                 ),
@@ -234,7 +226,7 @@ class _MarsoudLoginScreenState extends State<MarsoudLoginScreen> {
                     minimumSize: const Size.fromHeight(50),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text('تسجيل الدخول للمنظومة', style: TextStyle(fontFamily: 'Cairo', fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+                  child: const Text('تسجيل الدخول للمنظومة', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
                 ),
                 const SizedBox(height: 20),
 
@@ -242,7 +234,7 @@ class _MarsoudLoginScreenState extends State<MarsoudLoginScreen> {
                 OutlinedButton.icon(
                   onPressed: () {},
                   icon: const Icon(Icons.fingerprint_rounded, color: Color(0xFF0A2540)),
-                  label: const Text('الدخول عبر النفاذ الوطني الموحد', style: TextStyle(fontFamily: 'Cairo', fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0A2540))),
+                  label: const Text('الدخول عبر النفاذ الوطني الموحد', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0A2540))),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(50),
                     side: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -290,13 +282,13 @@ class MarsoudBiometricScreen extends StatelessWidget {
                 const SizedBox(height: 28),
                 const Text(
                   'تأكيد الهوية الحيوية',
-                  style: TextStyle(fontFamily: 'Cairo', fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFF0A2540)),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFF0A2540)),
                 ),
                 const SizedBox(height: 8),
                 const Text(
                   'استخدم بصمة الإصبع أو Face ID للوصول إلى بياناتك المؤسسية بأمان',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontFamily: 'Cairo', fontSize: 14, color: Color(0xFF64748B), height: 1.5),
+                  style: TextStyle(fontSize: 14, color: Color(0xFF64748B), height: 1.5),
                 ),
                 const Spacer(),
                 ElevatedButton(
@@ -306,12 +298,12 @@ class MarsoudBiometricScreen extends StatelessWidget {
                     minimumSize: const Size.fromHeight(50),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text('تفعيل المستشعر الحيوي', style: TextStyle(fontFamily: 'Cairo', fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+                  child: const Text('تفعيل المستشعر الحيوي', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
                 ),
                 const SizedBox(height: 12),
                 TextButton(
                   onPressed: () {},
-                  child: const Text('استخدام رمز المرور المؤسسي (PIN)', style: TextStyle(fontFamily: 'Cairo', fontSize: 14, color: Color(0xFF64748B))),
+                  child: const Text('استخدام رمز المرور المؤسسي (PIN)', style: TextStyle(fontSize: 14, color: Color(0xFF64748B))),
                 ),
               ],
             ),
@@ -376,11 +368,11 @@ class MarsoudNotificationsScreen extends StatelessWidget {
             icon: const Icon(Icons.arrow_forward_ios_rounded, size: 20, color: Color(0xFF0A2540)),
             onPressed: () => Navigator.of(context).maybePop(),
           ),
-          title: const Text('الإشعارات والتنبيهات', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w700, fontSize: 17, color: Color(0xFF0A2540))),
+          title: const Text('الإشعارات والتنبيهات', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17, color: Color(0xFF0A2540))),
           actions: [
             TextButton(
               onPressed: () {},
-              child: const Text('تحديد الكل كمقروء', style: TextStyle(fontFamily: 'Cairo', fontSize: 13, color: Color(0xFF059669), fontWeight: FontWeight.w600)),
+              child: const Text('تحديد الكل كمقروء', style: TextStyle(fontSize: 13, color: Color(0xFF059669), fontWeight: FontWeight.w600)),
             ),
           ],
         ),
@@ -419,23 +411,21 @@ class MarsoudNotificationsScreen extends StatelessWidget {
                           children: [
                             Text(
                               item['title'] as String,
-                              style: TextStyle(
-                                fontFamily: 'Cairo',
-                                fontWeight: isNew ? FontWeight.w800 : FontWeight.w700,
+                              style: TextStyle(                                fontWeight: isNew ? FontWeight.w800 : FontWeight.w700,
                                 fontSize: 14,
                                 color: const Color(0xFF0A2540),
                               ),
                             ),
                             Text(
                               item['time'] as String,
-                              style: const TextStyle(fontFamily: 'Cairo', fontSize: 11, color: Color(0xFF94A3B8)),
+                              style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
                             ),
                           ],
                         ),
                         const SizedBox(height: 6),
                         Text(
                           item['desc'] as String,
-                          style: const TextStyle(fontFamily: 'Cairo', fontSize: 12.5, color: Color(0xFF475569), height: 1.45),
+                          style: const TextStyle(fontSize: 12.5, color: Color(0xFF475569), height: 1.45),
                         ),
                       ],
                     ),
@@ -472,10 +462,10 @@ class MarsoudDashboardScreen extends StatelessWidget {
                 children: const [
                   Text(
                     'أهلاً، سلمان 👋',
-                    style: TextStyle(fontFamily: 'Cairo', fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFF0A2540)),
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFF0A2540)),
                   ),
                   SizedBox(height: 2),
-                  Text('الأربعاء، 24 أكتوبر 2024', style: TextStyle(fontFamily: 'Cairo', fontSize: 12.5, color: Color(0xFF64748B))),
+                  Text('الأربعاء، 24 أكتوبر 2024', style: TextStyle(fontSize: 12.5, color: Color(0xFF64748B))),
                 ],
               ),
               Container(
@@ -489,7 +479,7 @@ class MarsoudDashboardScreen extends StatelessWidget {
                   children: const [
                     CircleAvatar(radius: 4, backgroundColor: Color(0xFF059669)),
                     SizedBox(width: 6),
-                    Text('نشط الآن', style: TextStyle(fontFamily: 'Cairo', fontSize: 11.5, color: Color(0xFF059669), fontWeight: FontWeight.w700)),
+                    Text('نشط الآن', style: TextStyle(fontSize: 11.5, color: Color(0xFF059669), fontWeight: FontWeight.w700)),
                   ],
                 ),
               ),
@@ -543,7 +533,7 @@ class MarsoudDashboardScreen extends StatelessWidget {
           const SizedBox(height: 20),
 
           // Quick Actions
-          const Text('إجراءات سريعة', style: TextStyle(fontFamily: 'Cairo', fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF0A2540))),
+          const Text('إجراءات سريعة', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF0A2540))),
           const SizedBox(height: 10),
           Row(
             children: [
@@ -551,7 +541,7 @@ class MarsoudDashboardScreen extends StatelessWidget {
                 child: ElevatedButton.icon(
                   onPressed: () {},
                   icon: const Icon(Icons.add_task_rounded, size: 18),
-                  label: const Text('إضافة مهمة جديدة', style: TextStyle(fontFamily: 'Cairo', fontSize: 13, fontWeight: FontWeight.w700)),
+                  label: const Text('إضافة مهمة جديدة', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF059669),
                     minimumSize: const Size.fromHeight(44),
@@ -564,7 +554,7 @@ class MarsoudDashboardScreen extends StatelessWidget {
                 child: OutlinedButton.icon(
                   onPressed: () {},
                   icon: const Icon(Icons.fingerprint_rounded, size: 18, color: Color(0xFF059669)),
-                  label: const Text('تسجيل حضور وانصراف', style: TextStyle(fontFamily: 'Cairo', fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0A2540))),
+                  label: const Text('تسجيل حضور وانصراف', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0A2540))),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(44),
                     side: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -580,8 +570,8 @@ class MarsoudDashboardScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: const [
-              Text('اجتماعات قادمة', style: TextStyle(fontFamily: 'Cairo', fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF0A2540))),
-              Text('عرض الكل', style: TextStyle(fontFamily: 'Cairo', fontSize: 13, color: Color(0xFF059669), fontWeight: FontWeight.w700)),
+              Text('اجتماعات قادمة', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF0A2540))),
+              Text('عرض الكل', style: TextStyle(fontSize: 13, color: Color(0xFF059669), fontWeight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 12),
@@ -613,16 +603,16 @@ class MarsoudDashboardScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w700, fontSize: 13.5, color: Color(0xFF0A2540))),
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: Color(0xFF0A2540))),
                 const SizedBox(height: 4),
-                Text(time, style: const TextStyle(fontFamily: 'Cairo', fontSize: 12, color: Color(0xFF64748B))),
+                Text(time, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
               ],
             ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(color: tagBg, borderRadius: BorderRadius.circular(6)),
-            child: Text(tag, style: TextStyle(fontFamily: 'Cairo', fontSize: 11, fontWeight: FontWeight.bold, color: tagColor)),
+            child: Text(tag, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: tagColor)),
           ),
         ],
       ),
@@ -667,16 +657,16 @@ class _KpiTile extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(color: badgeColor, borderRadius: BorderRadius.circular(6)),
-                child: Text(badgeText, style: TextStyle(fontFamily: 'Cairo', fontSize: 10.5, fontWeight: FontWeight.bold, color: textColor)),
+                child: Text(badgeText, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: textColor)),
               ),
             ],
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(value, style: const TextStyle(fontFamily: 'Cairo', fontSize: 24, fontWeight: FontWeight.w800, color: Color(0xFF0A2540), height: 1.1)),
+              Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Color(0xFF0A2540), height: 1.1)),
               const SizedBox(height: 2),
-              Text(title, style: const TextStyle(fontFamily: 'Cairo', fontSize: 11.5, color: Color(0xFF64748B))),
+              Text(title, style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
             ],
           ),
         ],

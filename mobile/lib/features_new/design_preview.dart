@@ -153,9 +153,7 @@ class DesignPreviewScreen extends StatelessWidget {
           elevation: 0,
           title: const Text(
             'معاينة التصميم الجديد',
-            style: TextStyle(
-              fontFamily: 'Cairo',
-              fontWeight: FontWeight.w800,
+            style: TextStyle(              fontWeight: FontWeight.w800,
               fontSize: 16,
               color: Color(0xFF0A2540),
             ),
@@ -193,9 +191,7 @@ class DesignPreviewScreen extends StatelessWidget {
             Expanded(
               child: Text(
                 'شاشات معاينة فقط بدون ربط بيانات — البيانات كلها ثابتة للعرض. لا تمس التطبيق الفعلي.',
-                style: TextStyle(
-                  fontFamily: 'Cairo',
-                  fontSize: 12,
+                style: TextStyle(                  fontSize: 12,
                   color: Color(0xFF047857),
                   height: 1.5,
                 ),
@@ -214,9 +210,7 @@ class DesignPreviewScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Text(
             category,
-            style: const TextStyle(
-              fontFamily: 'Cairo',
-              fontSize: 12,
+            style: const TextStyle(              fontSize: 12,
               fontWeight: FontWeight.w800,
               color: Color(0xFF64748B),
               letterSpacing: 1.2,
@@ -249,9 +243,7 @@ class DesignPreviewScreen extends StatelessWidget {
     return ListTile(
       title: Text(
         e.label,
-        style: const TextStyle(
-          fontFamily: 'Cairo',
-          fontSize: 13.5,
+        style: const TextStyle(          fontSize: 13.5,
           fontWeight: FontWeight.w700,
           color: Color(0xFF0A2540),
         ),

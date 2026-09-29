@@ -18,14 +18,16 @@
 // Apple App Store guideline 5.1.1 requires in-app account
 // management; this replaces the browser hand-off that would have
 // tripped the review.
+// MARSOUD-MOBILE-DESIGN-PREVIEW-01 (2026-09-29) — CTA swapped for
+// the new emerald ElevatedButton, BrandColors refs replaced with
+// inline Stitch palette hex.  Terms/privacy rendering, load
+// pipeline, accept-terms API call all preserved.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../app/theme.dart';
 import '../../data/api_client.dart';
 import '../../data/auth_repository.dart';
 import '../../data/auth_state.dart';
-import '../../widgets/gradient_button.dart';
 
 class ReacceptTermsScreen extends ConsumerStatefulWidget {
   const ReacceptTermsScreen({
@@ -133,7 +135,7 @@ class _ReacceptTermsScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: BrandColors.slate50,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text('قبول الشروط المحدّثة'),
         automaticallyImplyLeading: true,
@@ -165,7 +167,7 @@ class _ReacceptTermsScreenState
                           horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        border: Border.all(color: BrandColors.slate200),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: CheckboxListTile(
@@ -178,7 +180,7 @@ class _ReacceptTermsScreenState
                           style: TextStyle(
                               fontSize: 13.5,
                               fontWeight: FontWeight.w700,
-                              color: BrandColors.navy900),
+                              color: Color(0xFF0A2540)),
                         ),
                         controlAffinity: ListTileControlAffinity.leading,
                       ),
@@ -201,11 +203,33 @@ class _ReacceptTermsScreenState
                       ),
                     ],
                     const SizedBox(height: 20),
-                    GradientButton(
+                    ElevatedButton(
                       onPressed:
                           (_agreed && !_submitting) ? _submit : null,
-                      loading: _submitting,
-                      label: 'متابعة',
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        disabledBackgroundColor: const Color(0xFF94A3B8),
+                        minimumSize: const Size.fromHeight(50),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: _submitting
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.4,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Text(
+                              'متابعة',
+                              style: TextStyle(                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
                     ),
                     const SizedBox(height: 12),
                     TextButton(
@@ -303,7 +327,7 @@ class _ContentCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: BrandColors.slate200),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -315,10 +339,9 @@ class _ContentCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 title,
-                style: const TextStyle(
-                  fontSize: 14,
+                style: const TextStyle(                  fontSize: 14,
                   fontWeight: FontWeight.w800,
-                  color: BrandColors.navy900,
+                  color: Color(0xFF0A2540),
                 ),
               ),
             ],
@@ -331,9 +354,8 @@ class _ContentCard extends StatelessWidget {
                 plain.isEmpty
                     ? '(لم ينشر المدير محتوى بعد. للنسخة الكاملة، افتح الرابط من المتصفح.)'
                     : plain,
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  color: BrandColors.slate700,
+                style: const TextStyle(                  fontSize: 12.5,
+                  color: Color(0xFF334155),
                   height: 1.7,
                 ),
               ),

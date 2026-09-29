@@ -33,7 +33,7 @@ class MarsoudMyAccountScreen extends StatelessWidget {
             icon: const Icon(Icons.arrow_forward_ios_rounded, size: 20, color: Color(0xFF0A2540)),
             onPressed: () => Navigator.of(context).maybePop(),
           ),
-          title: const Text('حسابي', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0A2540))),
+          title: const Text('حسابي', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0A2540))),
           actions: [
             IconButton(icon: const Icon(Icons.qr_code_rounded, color: Color(0xFF0A2540)), onPressed: () {}),
           ],
@@ -60,18 +60,18 @@ class MarsoudMyAccountScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: const Color(0xFF059669).withOpacity(0.25)),
                     ),
-                    child: const Text('س.م', style: TextStyle(fontFamily: 'Cairo', fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF059669))),
+                    child: const Text('س.م', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF059669))),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: const [
-                        Text('سلمان المطيري', style: TextStyle(fontFamily: 'Cairo', fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF0A2540))),
+                        Text('سلمان المطيري', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF0A2540))),
                         SizedBox(height: 2),
-                        Text('مدير العمليات التنفيذي • الرقم الوظيفي: #8821', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, color: Color(0xFF64748B))),
+                        Text('مدير العمليات التنفيذي • الرقم الوظيفي: #8821', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                         SizedBox(height: 4),
-                        Text('شركة الأفق للاستشارات والتقنية', style: TextStyle(fontFamily: 'Cairo', fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF059669))),
+                        Text('شركة الأفق للاستشارات والتقنية', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF059669))),
                       ],
                     ),
                   ),
@@ -93,7 +93,7 @@ class MarsoudMyAccountScreen extends StatelessWidget {
             const SizedBox(height: 20),
 
             // Account Settings Group 1
-            const Text('البيانات الشخصية والوظيفية', style: TextStyle(fontFamily: 'Cairo', fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+            const Text('البيانات الشخصية والوظيفية', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
             const SizedBox(height: 8),
             _menuGroup([
               _menuTile(Icons.badge_outlined, 'بيانات الهوية والعقد الوظيفي', 'ساري حتى 2026', () {}),
@@ -104,7 +104,7 @@ class MarsoudMyAccountScreen extends StatelessWidget {
             const SizedBox(height: 20),
 
             // Account Settings Group 2
-            const Text('تفضيلات التطبيق والنظام', style: TextStyle(fontFamily: 'Cairo', fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
+            const Text('تفضيلات التطبيق والنظام', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF64748B))),
             const SizedBox(height: 8),
             _menuGroup([
               _menuTile(Icons.notifications_none_rounded, 'إعدادات الإشعارات والتنبيهات', 'الكل مفعّل', () {}),
@@ -131,9 +131,9 @@ class MarsoudMyAccountScreen extends StatelessWidget {
           children: [
             Icon(icon, size: 20, color: color),
             const SizedBox(height: 6),
-            Text(value, style: TextStyle(fontFamily: 'Cairo', fontSize: 14, fontWeight: FontWeight.w900, color: color)),
+            Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: color)),
             const SizedBox(height: 2),
-            Text(label, style: const TextStyle(fontFamily: 'Cairo', fontSize: 10.5, color: Color(0xFF64748B)), textAlign: TextAlign.center),
+            Text(label, style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)), textAlign: TextAlign.center),
           ],
         ),
       ),
@@ -154,12 +154,12 @@ class MarsoudMyAccountScreen extends StatelessWidget {
   static Widget _menuTile(IconData icon, String title, String subtitle, VoidCallback onTap) {
     return ListTile(
       leading: Icon(icon, size: 20, color: const Color(0xFF0A2540)),
-      title: Text(title, style: const TextStyle(fontFamily: 'Cairo', fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0A2540))),
+      title: Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0A2540))),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (subtitle.isNotEmpty)
-            Text(subtitle, style: const TextStyle(fontFamily: 'Cairo', fontSize: 11.5, color: Color(0xFF94A3B8))),
+            Text(subtitle, style: const TextStyle(fontSize: 11.5, color: Color(0xFF94A3B8))),
           const SizedBox(width: 6),
           const Icon(Icons.arrow_back_ios_new_rounded, size: 14, color: Color(0xFFCBD5E1)),
         ],
@@ -188,7 +188,7 @@ class MarsoudAttendanceScreen extends StatelessWidget {
             icon: const Icon(Icons.arrow_forward_ios_rounded, size: 20, color: Color(0xFF0A2540)),
             onPressed: () => Navigator.of(context).maybePop(),
           ),
-          title: const Text('الحضور والانصراف', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0A2540))),
+          title: const Text('الحضور والانصراف', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0A2540))),
           actions: [
             IconButton(icon: const Icon(Icons.history_rounded, color: Color(0xFF0A2540)), onPressed: () {}),
           ],
@@ -219,8 +219,8 @@ class MarsoudAttendanceScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: const [
-                            Text('برج الرياض المالي - المقر الرئيسي', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFF0A2540))),
-                            Text('النطاق الجغرافي: ضمن السياج المعتمد (15 متر)', style: TextStyle(fontFamily: 'Cairo', fontSize: 11.5, color: Color(0xFF059669), fontWeight: FontWeight.w600)),
+                            Text('برج الرياض المالي - المقر الرئيسي', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFF0A2540))),
+                            Text('النطاق الجغرافي: ضمن السياج المعتمد (15 متر)', style: TextStyle(fontSize: 11.5, color: Color(0xFF059669), fontWeight: FontWeight.w600)),
                           ],
                         ),
                       ),
@@ -239,13 +239,13 @@ class MarsoudAttendanceScreen extends StatelessWidget {
                     ),
                     child: Column(
                       children: [
-                        const Text('08:32:15 ص', style: TextStyle(fontFamily: 'Cairo', fontSize: 30, fontWeight: FontWeight.w900, color: Color(0xFF0A2540))),
-                        const Text('الأربعاء، 24 أكتوبر 2024', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, color: Color(0xFF64748B))),
+                        const Text('08:32:15 ص', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: Color(0xFF0A2540))),
+                        const Text('الأربعاء، 24 أكتوبر 2024', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                         const SizedBox(height: 20),
                         ElevatedButton.icon(
                           onPressed: () {},
                           icon: const Icon(Icons.fingerprint_rounded, size: 28),
-                          label: const Text('تسجيل الانصراف اليومي', style: TextStyle(fontFamily: 'Cairo', fontSize: 15, fontWeight: FontWeight.w800)),
+                          label: const Text('تسجيل الانصراف اليومي', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFEF4444),
                             foregroundColor: Colors.white,
@@ -254,7 +254,7 @@ class MarsoudAttendanceScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        const Text('تم تسجيل حضورك اليوم بنجاح الساعة 08:30 ص', style: TextStyle(fontFamily: 'Cairo', fontSize: 11, color: Color(0xFF059669), fontWeight: FontWeight.w700)),
+                        const Text('تم تسجيل حضورك اليوم بنجاح الساعة 08:30 ص', style: TextStyle(fontSize: 11, color: Color(0xFF059669), fontWeight: FontWeight.w700)),
                       ],
                     ),
                   ),
@@ -276,7 +276,7 @@ class MarsoudAttendanceScreen extends StatelessWidget {
             const SizedBox(height: 20),
 
             // Week Attendance Log
-            const Text('سجل الحضور لهذا الأسبوع', style: TextStyle(fontFamily: 'Cairo', fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0A2540))),
+            const Text('سجل الحضور لهذا الأسبوع', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0A2540))),
             const SizedBox(height: 10),
             _attendanceRow('الأربعاء 24 أكتوبر', '08:30 ص', 'جاري العمل', 'في الموعد', const Color(0xFF059669), const Color(0xFFECFDF5)),
             _attendanceRow('الثلاثاء 23 أكتوبر', '08:28 ص', '05:04 م', '8 س 36 د', const Color(0xFF059669), const Color(0xFFECFDF5)),
@@ -299,9 +299,9 @@ class MarsoudAttendanceScreen extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Text(val, style: TextStyle(fontFamily: 'Cairo', fontSize: 15, fontWeight: FontWeight.w800, color: color)),
+            Text(val, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: color)),
             const SizedBox(height: 2),
-            Text(title, style: const TextStyle(fontFamily: 'Cairo', fontSize: 11, color: Color(0xFF64748B))),
+            Text(title, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
           ],
         ),
       ),
@@ -323,14 +323,14 @@ class MarsoudAttendanceScreen extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(date, style: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0A2540))),
-              Text('الدخول: $inTime • الخروج: $outTime', style: const TextStyle(fontFamily: 'Cairo', fontSize: 11.5, color: Color(0xFF64748B))),
+              Text(date, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0A2540))),
+              Text('الدخول: $inTime • الخروج: $outTime', style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
             ],
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(6)),
-            child: Text(badge, style: TextStyle(fontFamily: 'Cairo', fontSize: 11, fontWeight: FontWeight.bold, color: badgeColor)),
+            child: Text(badge, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: badgeColor)),
           ),
         ],
       ),
@@ -357,7 +357,7 @@ class MarsoudDailyReportsScreen extends StatelessWidget {
             icon: const Icon(Icons.arrow_forward_ios_rounded, size: 20, color: Color(0xFF0A2540)),
             onPressed: () => Navigator.of(context).maybePop(),
           ),
-          title: const Text('التقارير اليومية', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0A2540))),
+          title: const Text('التقارير اليومية', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0A2540))),
           actions: [
             IconButton(icon: const Icon(Icons.filter_list_rounded, color: Color(0xFF0A2540)), onPressed: () {}),
           ],
@@ -377,7 +377,7 @@ class MarsoudDailyReportsScreen extends StatelessWidget {
                 children: const [
                   Icon(Icons.check_circle_rounded, color: Color(0xFF059669), size: 18),
                   SizedBox(width: 8),
-                  Text('نسبة تسليم التقارير لهذا الشهر: 100% (22/22 يوم)', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF047857))),
+                  Text('نسبة تسليم التقارير لهذا الشهر: 100% (22/22 يوم)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF047857))),
                 ],
               ),
             ),
@@ -416,7 +416,7 @@ class MarsoudDailyReportsScreen extends StatelessWidget {
           onPressed: () {},
           backgroundColor: const Color(0xFF059669),
           icon: const Icon(Icons.note_add_rounded, color: Colors.white),
-          label: const Text('كتابة تقرير اليوم', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w700, color: Colors.white)),
+          label: const Text('كتابة تقرير اليوم', style: TextStyle(fontWeight: FontWeight.w700, color: Colors.white)),
         ),
       ),
     );
@@ -445,16 +445,16 @@ class MarsoudDailyReportsScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(title, style: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFF0A2540))),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFF0A2540))),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(6)),
-                child: Text(status, style: TextStyle(fontFamily: 'Cairo', fontSize: 11, fontWeight: FontWeight.bold, color: statusColor)),
+                child: Text(status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusColor)),
               ),
             ],
           ),
           const SizedBox(height: 6),
-          Text(project, style: const TextStyle(fontFamily: 'Cairo', fontSize: 12, color: Color(0xFF64748B))),
+          Text(project, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
           const Divider(height: 20, color: Color(0xFFF1F5F9)),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -463,11 +463,11 @@ class MarsoudDailyReportsScreen extends StatelessWidget {
                 children: [
                   const Icon(Icons.task_alt_rounded, size: 15, color: Color(0xFF059669)),
                   const SizedBox(width: 4),
-                  Text(completedTasks, style: const TextStyle(fontFamily: 'Cairo', fontSize: 11.5, color: Color(0xFF475569))),
+                  Text(completedTasks, style: const TextStyle(fontSize: 11.5, color: Color(0xFF475569))),
                   const SizedBox(width: 14),
                   const Icon(Icons.access_time_rounded, size: 15, color: Color(0xFF64748B)),
                   const SizedBox(width: 4),
-                  Text(hours, style: const TextStyle(fontFamily: 'Cairo', fontSize: 11.5, color: Color(0xFF475569))),
+                  Text(hours, style: const TextStyle(fontSize: 11.5, color: Color(0xFF475569))),
                 ],
               ),
               const Icon(Icons.arrow_back_ios_new_rounded, size: 13, color: Color(0xFF94A3B8)),
@@ -498,7 +498,7 @@ class MarsoudDailyReportDetailScreen extends StatelessWidget {
             icon: const Icon(Icons.arrow_forward_ios_rounded, size: 20, color: Color(0xFF0A2540)),
             onPressed: () => Navigator.of(context).maybePop(),
           ),
-          title: const Text('تفاصيل التقرير', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0A2540))),
+          title: const Text('تفاصيل التقرير', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0A2540))),
           actions: [
             IconButton(icon: const Icon(Icons.print_outlined, color: Color(0xFF0A2540)), onPressed: () {}),
           ],
@@ -520,18 +520,18 @@ class MarsoudDailyReportDetailScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('تقرير الأربعاء 24 أكتوبر 2024', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w800, fontSize: 15, color: Color(0xFF0A2540))),
+                      const Text('تقرير الأربعاء 24 أكتوبر 2024', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Color(0xFF0A2540))),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(color: const Color(0xFFECFDF5), borderRadius: BorderRadius.circular(6)),
-                        child: const Text('معتمد', style: TextStyle(fontFamily: 'Cairo', fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF059669))),
+                        child: const Text('معتمد', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF059669))),
                       ),
                     ],
                   ),
                   const SizedBox(height: 6),
-                  const Text('مقدّم بواسطة: سلمان المطيري (مدير العمليات)', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, color: Color(0xFF64748B))),
+                  const Text('مقدّم بواسطة: سلمان المطيري (مدير العمليات)', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                   const SizedBox(height: 4),
-                  const Text('اعتماد: فهد السبيعي (رئيس إدارة المشاريع)', style: TextStyle(fontFamily: 'Cairo', fontSize: 11.5, color: Color(0xFF059669), fontWeight: FontWeight.w600)),
+                  const Text('اعتماد: فهد السبيعي (رئيس إدارة المشاريع)', style: TextStyle(fontSize: 11.5, color: Color(0xFF059669), fontWeight: FontWeight.w600)),
                 ],
               ),
             ),
@@ -548,7 +548,7 @@ class MarsoudDailyReportDetailScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('المهام المنجزة خلال ساعات العمل', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFF0A2540))),
+                  const Text('المهام المنجزة خلال ساعات العمل', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFF0A2540))),
                   const SizedBox(height: 12),
                   _taskBullet('إغلاق اختبارات ربط الفوترة الإلكترونية مع هيئة الزكاة والضريبة (ZATCA Stage 2).'),
                   _taskBullet('عقد اجتماع تنسيقي مع الإدارة المالية لمجموعة الأفق لمناقشة عروض الأسعار المحدثة.'),
@@ -569,10 +569,10 @@ class MarsoudDailyReportDetailScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: const [
-                  Text('المعوقات والملاحظات الإدارية', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFF0A2540))),
+                  Text('المعوقات والملاحظات الإدارية', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFF0A2540))),
                   SizedBox(height: 8),
                   Text('لا توجد معوقات جوهرية اليوم، تم حل تأخير استجابة السيرفر عبر تحديث شهادة الأمان SSL بنجاح.',
-                      style: TextStyle(fontFamily: 'Cairo', fontSize: 12.5, color: Color(0xFF475569), height: 1.5)),
+                      style: TextStyle(fontSize: 12.5, color: Color(0xFF475569), height: 1.5)),
                 ],
               ),
             ),
@@ -590,7 +590,7 @@ class MarsoudDailyReportDetailScreen extends StatelessWidget {
         children: [
           const Icon(Icons.check_circle_rounded, color: Color(0xFF059669), size: 16),
           const SizedBox(width: 8),
-          Expanded(child: Text(text, style: const TextStyle(fontFamily: 'Cairo', fontSize: 12.5, color: Color(0xFF334155), height: 1.4))),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 12.5, color: Color(0xFF334155), height: 1.4))),
         ],
       ),
     );
@@ -616,7 +616,7 @@ class MarsoudMyRequestsScreen extends StatelessWidget {
             icon: const Icon(Icons.arrow_forward_ios_rounded, size: 20, color: Color(0xFF0A2540)),
             onPressed: () => Navigator.of(context).maybePop(),
           ),
-          title: const Text('طلباتي', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0A2540))),
+          title: const Text('طلباتي', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0A2540))),
         ),
         body: ListView(
           padding: const EdgeInsets.all(16),
@@ -634,9 +634,9 @@ class MarsoudMyRequestsScreen extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: const [
-                      Text('رصيد الإجازات السنوية المتاح', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, color: Color(0xFF94A3B8))),
+                      Text('رصيد الإجازات السنوية المتاح', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
                       SizedBox(height: 4),
-                      Text('18 يوماً متبقية', style: TextStyle(fontFamily: 'Cairo', fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white)),
+                      Text('18 يوماً متبقية', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white)),
                     ],
                   ),
                   ElevatedButton(
@@ -646,7 +646,7 @@ class MarsoudMyRequestsScreen extends StatelessWidget {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                     ),
-                    child: const Text('طلب جديد', style: TextStyle(fontFamily: 'Cairo', fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+                    child: const Text('طلب جديد', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
                   ),
                 ],
               ),
@@ -712,16 +712,16 @@ class MarsoudMyRequestsScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(type, style: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w700, fontSize: 13.5, color: Color(0xFF0A2540))),
+                Text(type, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: Color(0xFF0A2540))),
                 const SizedBox(height: 3),
-                Text(date, style: const TextStyle(fontFamily: 'Cairo', fontSize: 11.5, color: Color(0xFF64748B))),
+                Text(date, style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
               ],
             ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(6)),
-            child: Text(status, style: TextStyle(fontFamily: 'Cairo', fontSize: 11, fontWeight: FontWeight.bold, color: statusColor)),
+            child: Text(status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusColor)),
           ),
         ],
       ),
@@ -748,7 +748,7 @@ class MarsoudCashCustodyScreen extends StatelessWidget {
             icon: const Icon(Icons.arrow_forward_ios_rounded, size: 20, color: Color(0xFF0A2540)),
             onPressed: () => Navigator.of(context).maybePop(),
           ),
-          title: const Text('عهدتي النقدية', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0A2540))),
+          title: const Text('عهدتي النقدية', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0A2540))),
         ),
         body: ListView(
           padding: const EdgeInsets.all(16),
@@ -764,15 +764,15 @@ class MarsoudCashCustodyScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('الرصيد المتبقي في العهدة الحالية', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, color: Color(0xFF64748B))),
+                  const Text('الرصيد المتبقي في العهدة الحالية', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                   const SizedBox(height: 4),
-                  const Text('3,450.00 ر.س', style: TextStyle(fontFamily: 'Cairo', fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF059669))),
+                  const Text('3,450.00 ر.س', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF059669))),
                   const Divider(height: 24, color: Color(0xFFF1F5F9)),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: const [
-                      Text('إجمالي المنصرف: 1,550 ر.س', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, color: Color(0xFF64748B))),
-                      Text('سقف العهدة: 5,000 ر.س', style: TextStyle(fontFamily: 'Cairo', fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0A2540))),
+                      Text('إجمالي المنصرف: 1,550 ر.س', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+                      Text('سقف العهدة: 5,000 ر.س', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF0A2540))),
                     ],
                   ),
                 ],
@@ -787,7 +787,7 @@ class MarsoudCashCustodyScreen extends StatelessWidget {
                   child: ElevatedButton.icon(
                     onPressed: () {},
                     icon: const Icon(Icons.receipt_long_rounded, size: 18),
-                    label: const Text('إضافة فاتورة صرف', style: TextStyle(fontFamily: 'Cairo', fontSize: 13, fontWeight: FontWeight.w700)),
+                    label: const Text('إضافة فاتورة صرف', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF059669),
                       minimumSize: const Size.fromHeight(44),
@@ -800,7 +800,7 @@ class MarsoudCashCustodyScreen extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: () {},
                     icon: const Icon(Icons.add_card_rounded, size: 18, color: Color(0xFF0A2540)),
-                    label: const Text('طلب تغذية نقدية', style: TextStyle(fontFamily: 'Cairo', fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0A2540))),
+                    label: const Text('طلب تغذية نقدية', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF0A2540))),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size.fromHeight(44),
                       side: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -813,7 +813,7 @@ class MarsoudCashCustodyScreen extends StatelessWidget {
             const SizedBox(height: 20),
 
             // Expenses List
-            const Text('سجل المصروفات والفواتير', style: TextStyle(fontFamily: 'Cairo', fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0A2540))),
+            const Text('سجل المصروفات والفواتير', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF0A2540))),
             const SizedBox(height: 10),
             _expenseRow('سداد وقود ونقل ميداني لفريق العمل', '24 أكتوبر • ضريبة ZATCA', '240.00 ر.س', 'مطابق'),
             _expenseRow('شراء مستلزمات مكتبية وضيافة عملاء', '22 أكتوبر • مؤسسة الركائز', '380.00 ر.س', 'مطابق'),
@@ -840,17 +840,17 @@ class MarsoudCashCustodyScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0A2540))),
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0A2540))),
                 const SizedBox(height: 2),
-                Text(sub, style: const TextStyle(fontFamily: 'Cairo', fontSize: 11, color: Color(0xFF64748B))),
+                Text(sub, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
               ],
             ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(amount, style: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFFEF4444))),
-              Text(tag, style: const TextStyle(fontFamily: 'Cairo', fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF059669))),
+              Text(amount, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFFEF4444))),
+              Text(tag, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Color(0xFF059669))),
             ],
           ),
         ],
@@ -878,7 +878,7 @@ class MarsoudItemCustodyScreen extends StatelessWidget {
             icon: const Icon(Icons.arrow_forward_ios_rounded, size: 20, color: Color(0xFF0A2540)),
             onPressed: () => Navigator.of(context).maybePop(),
           ),
-          title: const Text('عهدي العينية', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0A2540))),
+          title: const Text('عهدي العينية', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0A2540))),
         ),
         body: ListView(
           padding: const EdgeInsets.all(16),
@@ -937,18 +937,18 @@ class MarsoudItemCustodyScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w800, fontSize: 13.5, color: Color(0xFF0A2540))),
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: Color(0xFF0A2540))),
                 const SizedBox(height: 2),
-                Text(serial, style: const TextStyle(fontFamily: 'Cairo', fontSize: 11.5, color: Color(0xFF64748B))),
+                Text(serial, style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B))),
                 const SizedBox(height: 4),
-                Text(date, style: const TextStyle(fontFamily: 'Cairo', fontSize: 10.5, color: Color(0xFF94A3B8))),
+                Text(date, style: const TextStyle(fontSize: 10.5, color: Color(0xFF94A3B8))),
               ],
             ),
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(color: const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(6)),
-            child: Text(tag, style: const TextStyle(fontFamily: 'Cairo', fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF475569))),
+            child: Text(tag, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF475569))),
           ),
         ],
       ),
@@ -975,7 +975,7 @@ class MarsoudMyFilesScreen extends StatelessWidget {
             icon: const Icon(Icons.arrow_forward_ios_rounded, size: 20, color: Color(0xFF0A2540)),
             onPressed: () => Navigator.of(context).maybePop(),
           ),
-          title: const Text('ملفاتي', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0A2540))),
+          title: const Text('ملفاتي', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17, color: Color(0xFF0A2540))),
           actions: [
             IconButton(icon: const Icon(Icons.search_rounded, color: Color(0xFF0A2540)), onPressed: () {}),
           ],
@@ -1019,9 +1019,9 @@ class MarsoudMyFilesScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0A2540))),
+                Text(name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Color(0xFF0A2540))),
                 const SizedBox(height: 2),
-                Text(meta, style: const TextStyle(fontFamily: 'Cairo', fontSize: 11, color: Color(0xFF64748B))),
+                Text(meta, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
               ],
             ),
           ),

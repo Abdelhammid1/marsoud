@@ -1,12 +1,15 @@
-// MARSOUD-MOBILE-FLUTTER — login screen, matched to app/templates/auth/login.html
+// MARSOUD-MOBILE-FLUTTER — login screen.
 //
-// Layout (mirrors the web):
-//   [logo circle] + [مرصود gradient title] + subtitle
-//   heading "مرحباً بعودتك" + "سجّل دخولك للاستمرار"
-//   white card, rounded-2xl, shadow-xl, border, p-8
-//     · email + password inputs (12px radius, blue focus ring)
-//     · navy-gradient submit button
-//   inline error surface
+// MARSOUD-MOBILE-DESIGN-PREVIEW-01 (2026-09-29) — visual layout
+// swapped to the Stitch-generated design (white bg, emerald shield
+// mark, Cairo headings, fill-tinted inputs, emerald primary CTA).
+// All the real behaviour is preserved:
+//   · authRepositoryProvider.login() → authProvider.setSession()
+//   · FCM token registration after login (fire-and-forget)
+//   · terms_acceptance_required → ReacceptTermsScreen push
+//   · humanised error messages via _humanize()
+//   · forgot-password bottom sheet pointing at the web reset flow
+//   · device label attached to the login for the session record
 import 'dart:async';
 import 'dart:io' show Platform;
 
@@ -15,13 +18,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/env.dart';
-import '../../app/theme.dart';
 import '../../data/api_client.dart';
 import '../../data/auth_repository.dart';
 import '../../data/auth_state.dart';
 import '../../data/push_service.dart';
-import '../../widgets/gradient_button.dart';
-import '../../widgets/gradient_heading.dart';
 import 'reaccept_terms_screen.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -47,10 +47,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _submit() async {
     if (_submitting) return;
-    // MARSOUD-MOBILE-SHIP-READY-01 (M8) — trivial client-side
-    // validation so we don't pay a network round-trip for an empty
-    // form (also gives bad-actor rate-limit surface for /login POSTs
-    // less air to breathe).
     final email = _emailCtrl.text.trim();
     final pw = _passCtrl.text;
     if (email.isEmpty || pw.isEmpty) {
@@ -73,19 +69,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         deviceName: _deviceLabel(),
       );
       await ref.read(authProvider.notifier).setSession(session);
-      // MARSOUD-MOBILE-TKT-05 (2026-08-18) — register the FCM
-      // token with the backend right after login. Best-effort —
-      // silent on any Firebase/permission failure. Fire-and-
-      // forget: we don't want a Firebase hiccup to hold up the
-      // login navigation.
       unawaited(ref.read(pushServiceProvider).onLogin());
     } on ApiException catch (e) {
-      // MARSOUD-MOBILE-REACCEPT-TERMS-01 (2026-09-12) — the
-      // backend returns 403 terms_acceptance_required when the
-      // super-admin has published new terms since this user last
-      // agreed. Route them to a dedicated Flutter screen that
-      // shows the current terms + a checkbox → the screen
-      // resends creds via /accept-terms which mints the bearer.
       if (e.message == 'terms_acceptance_required' && mounted) {
         final ok = await Navigator.of(context).push<bool>(
           MaterialPageRoute(
@@ -96,20 +81,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ),
         );
-        // If ReacceptTermsScreen popped `true`, it already set
-        // the session via authProvider — nothing else to do here.
         if (ok == true) return;
-        // Otherwise (user tapped back / declined), fall through
-        // to the humanised error message.
       }
       setState(() => _error = _humanize(e));
     } catch (e) {
-      // MARSOUD-MOBILE-SHIP-READY-01 (H7) — used to show raw `$e`
-      // which may include a stack-tracey / mixed-language string
-      // (SocketException, TimeoutException, TypeError on bad JSON).
-      // Keep a short, user-facing sentence; the details go to debug.
       if (kDebugMode) debugPrint('[login] $e');
-      setState(() => _error = 'تعذّر الاتصال — تأكد من الإنترنت وحاول مرة أخرى.');
+      setState(() =>
+          _error = 'تعذّر الاتصال — تأكد من الإنترنت وحاول مرة أخرى.');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -139,10 +117,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       case 'email_verification_required':
         return 'يجب تفعيل بريدك الإلكتروني أولاً — افتح تطبيق مرصود من المتصفح لإكمال التفعيل.';
       case 'terms_acceptance_required':
-        // MARSOUD-MOBILE-REACCEPT-TERMS-01 — the login flow now
-        // pushes ReacceptTermsScreen for this code, so this
-        // fallback message only shows when the user backed out
-        // of that screen without accepting.
         return 'لم يتم قبول الشروط. لتسجيل الدخول لازم تقبل الشروط المحدّثة.';
       case 'plan_selection_required':
         return 'يجب اختيار باقة اشتراك — افتح تطبيق مرصود من المتصفح لاختيارها.';
@@ -152,12 +126,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _openForgotPasswordSheet() async {
-    // MARSOUD-MOBILE-FORGOT-PW-01 + SHIP-READY-01 (H9) — surface the
-    // WEB host (Env.webBaseUrl), NOT the API host. In split-domain
-    // prod (api.marsoud.com vs app.marsoud.com), the reset page
-    // lives on the web host — pasting an API-host URL into a browser
-    // 404s. `webBaseUrl` falls back to `apiBaseUrl` when unset, so
-    // dev + single-host prod still work.
     final base = Env.webBaseUrl;
     final url = base.isEmpty
         ? '/forgot-password'
@@ -170,70 +138,82 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-          left: 20, right: 20, top: 20,
-          bottom: 20 + MediaQuery.of(ctx).viewInsets.bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'استعادة كلمة السر',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: BrandColors.navy900,
-                fontWeight: FontWeight.w800,
-                fontSize: 18,
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'استعادة كلمة السر متاحة حالياً من متصفح الويب فقط. '
-              'افتح الرابط التالي من المتصفح، أدخل بريدك، وستصلك '
-              'رسالة بتفعيل كلمة سر جديدة:',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: BrandColors.slate500,
-                fontSize: 13,
-                height: 1.7,
-              ),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: BrandColors.slate100,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: SelectableText(
-                url,
-                textDirection: TextDirection.ltr,
+      builder: (ctx) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 20, right: 20, top: 20,
+            bottom: 20 + MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'استعادة كلمة السر',
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: BrandColors.navy900,
-                  fontFamily: 'monospace',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                style: TextStyle(                  color: Color(0xFF0A2540),
+                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'يمكنك الضغط طويلاً على الرابط لنسخه.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: BrandColors.slate400,
-                fontSize: 11,
+              const SizedBox(height: 12),
+              const Text(
+                'استعادة كلمة السر متاحة حالياً من متصفح الويب فقط. '
+                'افتح الرابط التالي من المتصفح، أدخل بريدك، وستصلك '
+                'رسالة بتفعيل كلمة سر جديدة:',
+                textAlign: TextAlign.center,
+                style: TextStyle(                  color: Color(0xFF64748B),
+                  fontSize: 13,
+                  height: 1.7,
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            GradientButton.navy(
-              label: 'تم',
-              onPressed: () => Navigator.of(ctx).pop(),
-            ),
-          ],
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: SelectableText(
+                  url,
+                  textDirection: TextDirection.ltr,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF0A2540),
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'يمكنك الضغط طويلاً على الرابط لنسخه.',
+                textAlign: TextAlign.center,
+                style: TextStyle(                  color: Color(0xFF94A3B8),
+                  fontSize: 11,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF059669),
+                  minimumSize: const Size.fromHeight(48),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text(
+                  'تم',
+                  style: TextStyle(                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -252,254 +232,248 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: ScaffoldGradient(
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 16),
-                    _LogoRow(),
-                    const SizedBox(height: 24),
-                    GradientHeading.navy(
-                      'مرحباً بعودتك',
-                      fontSize: 28,
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 20),
+                // Real Marsoud logo asset (not the Stitch shield).
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFD1FAE5)),
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'سجّل دخولك للاستمرار',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: BrandColors.slate500,
-                        fontSize: 15,
+                    alignment: Alignment.center,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.asset(
+                        'assets/images/logo.png',
+                        width: 42,
+                        height: 42,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Text(
+                          'م',
+                          style: TextStyle(
+                            color: Color(0xFF047857),
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 28),
-                    // Card — matches the web `.bg-white rounded-2xl shadow-xl border p-8`.
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: BrandColors.slate100),
-                        boxShadow: [
-                          BoxShadow(
-                            color: BrandColors.navy900.withValues(alpha: 0.08),
-                            blurRadius: 32,
-                            offset: const Offset(0, 12),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.all(28),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (_error != null) ...[
-                            _ErrorBanner(_error!),
-                            const SizedBox(height: 16),
-                          ],
-                          const _FieldLabel('البريد الإلكتروني'),
-                          const SizedBox(height: 6),
-                          Directionality(
-                            textDirection: TextDirection.ltr,
-                            child: TextField(
-                              controller: _emailCtrl,
-                              keyboardType: TextInputType.emailAddress,
-                              autofillHints: const [AutofillHints.email],
-                              textInputAction: TextInputAction.next,
-                              textAlign: TextAlign.left,
-                              decoration: const InputDecoration(
-                                hintText: 'you@company.com',
-                                prefixIcon: Icon(Icons.email_outlined,
-                                    color: BrandColors.slate400),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          const _FieldLabel('كلمة المرور'),
-                          const SizedBox(height: 6),
-                          TextField(
-                            controller: _passCtrl,
-                            obscureText: !_showPassword,
-                            autofillHints: const [AutofillHints.password],
-                            textInputAction: TextInputAction.done,
-                            onSubmitted: (_) => _submit(),
-                            decoration: InputDecoration(
-                              prefixIcon: const Icon(Icons.lock_outline,
-                                  color: BrandColors.slate400),
-                              suffixIcon: IconButton(
-                                color: BrandColors.slate400,
-                                icon: Icon(_showPassword
-                                    ? Icons.visibility_off
-                                    : Icons.visibility),
-                                onPressed: () => setState(
-                                    () => _showPassword = !_showPassword),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          GradientButton.navy(
-                            label: 'تسجيل الدخول',
-                            onPressed: _submitting ? null : _submit,
-                            loading: _submitting,
-                          ),
-                          const SizedBox(height: 16),
-                          Align(
-                            alignment: Alignment.center,
-                            child: TextButton(
-                              // MARSOUD-MOBILE-FORGOT-PW-01 (2026-09-02)
-                              // — used to be `onPressed: () {}` (a
-                              // dead no-op). Until the JSON /api/v1/
-                              // auth/forgot-password endpoint ships,
-                              // point users at the web flow which is
-                              // already live at /forgot-password —
-                              // same shape as the guidance we already
-                              // give for email_verification_required.
-                              onPressed: _openForgotPasswordSheet,
-                              style: TextButton.styleFrom(
-                                foregroundColor: BrandColors.slate500,
-                              ),
-                              child: const Text(
-                                'نسيت كلمة السر؟',
-                                style: TextStyle(fontWeight: FontWeight.w600),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'نظام إدارة أعمال متكامل للشركات',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: BrandColors.slate400,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LogoRow extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        // MARSOUD-MOBILE-BRAND-LOGO-01 (2026-09-03) — real logo
-        // asset (copied from app/static/img/logo.png). The old
-        // emerald "م" puck stays as an errorBuilder fallback so a
-        // missing/corrupt asset still ships an identifiable mark.
-        Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            color: BrandColors.emerald50,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: BrandColors.emerald100, width: 1.5),
-          ),
-          alignment: Alignment.center,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.asset(
-              'assets/images/logo.png',
-              width: 44,
-              height: 44,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const Text(
-                'م',
-                style: TextStyle(
-                  color: BrandColors.emerald700,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
+                const SizedBox(height: 24),
+                const Text(
+                  'تسجيل الدخول',
+                  style: TextStyle(                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0A2540),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 6),
+                const Text(
+                  'مرحباً بك مجدداً، أدخل بياناتك للمتابعة',
+                  style: TextStyle(                    fontSize: 14,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // Inline error surface
+                if (_error != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEE2E2),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFFECACA)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline,
+                            color: Color(0xFFDC2626), size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            _error!,
+                            style: const TextStyle(                              color: Color(0xFFDC2626),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
+                // Email
+                const Text(
+                  'البريد الإلكتروني',
+                  style: TextStyle(                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0A2540),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Directionality(
+                  textDirection: TextDirection.ltr,
+                  child: TextFormField(
+                    controller: _emailCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    autofillHints: const [AutofillHints.email],
+                    textInputAction: TextInputAction.next,
+                    textAlign: TextAlign.left,
+                    style: const TextStyle(
+                        fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'you@company.com',
+                      hintStyle: const TextStyle(                          fontSize: 13,
+                          color: Color(0xFF94A3B8)),
+                      prefixIcon: const Icon(
+                          Icons.alternate_email_rounded,
+                          size: 20,
+                          color: Color(0xFF64748B)),
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                              color: Color(0xFFE2E8F0))),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                              color: Color(0xFFE2E8F0))),
+                      focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                              color: Color(0xFF059669), width: 1.5)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Password
+                const Text(
+                  'كلمة المرور',
+                  style: TextStyle(                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0A2540),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _passCtrl,
+                  obscureText: !_showPassword,
+                  autofillHints: const [AutofillHints.password],
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _submit(),
+                  style: const TextStyle(
+                      fontSize: 14),
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.lock_outline_rounded,
+                        size: 20, color: Color(0xFF64748B)),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                          _showPassword
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          size: 20,
+                          color: const Color(0xFF64748B)),
+                      onPressed: () => setState(
+                          () => _showPassword = !_showPassword),
+                    ),
+                    filled: true,
+                    fillColor: const Color(0xFFF8FAFC),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            const BorderSide(color: Color(0xFFE2E8F0))),
+                    enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            const BorderSide(color: Color(0xFFE2E8F0))),
+                    focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                            color: Color(0xFF059669), width: 1.5)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed:
+                        _submitting ? null : _openForgotPasswordSheet,
+                    child: const Text(
+                      'نسيت كلمة السر؟',
+                      style: TextStyle(                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF059669),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Submit
+                ElevatedButton(
+                  onPressed: _submitting ? null : _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF059669),
+                    disabledBackgroundColor: const Color(0xFF94A3B8),
+                    minimumSize: const Size.fromHeight(50),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: _submitting
+                      ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text(
+                          'تسجيل الدخول',
+                          style: TextStyle(                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                ),
+
+                const SizedBox(height: 24),
+                const Center(
+                  child: Text(
+                    'نظام إدارة أعمال متكامل للشركات',
+                    style: TextStyle(                      color: Color(0xFF94A3B8),
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            GradientHeading(
-              'مرصود',
-              fontSize: 26,
-              fontWeight: FontWeight.w800,
-              align: TextAlign.start,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'نظام إدارة أعمال متكامل',
-              style: TextStyle(
-                color: BrandColors.slate500,
-                fontSize: 11,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _FieldLabel extends StatelessWidget {
-  final String text;
-  const _FieldLabel(this.text);
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: const TextStyle(
-        color: BrandColors.slate700,
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-      ),
-    );
-  }
-}
-
-class _ErrorBanner extends StatelessWidget {
-  final String msg;
-  const _ErrorBanner(this.msg);
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: BrandColors.red50,
-        border: Border.all(color: const Color(0xFFFECACA)),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.error_outline, color: BrandColors.red700, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              msg,
-              style: const TextStyle(
-                color: BrandColors.red700,
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                height: 1.5,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

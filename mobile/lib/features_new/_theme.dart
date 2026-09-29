@@ -45,9 +45,7 @@ class MarsoudColors {
 class MarsoudTheme {
   static ThemeData get lightTheme {
     return ThemeData(
-      useMaterial3: true,
-      fontFamily: 'Cairo',
-      brightness: Brightness.light,
+      useMaterial3: true,      brightness: Brightness.light,
       primaryColor: MarsoudColors.primary,
       scaffoldBackgroundColor: MarsoudColors.background,
       colorScheme: const ColorScheme.light(
@@ -66,9 +64,7 @@ class MarsoudTheme {
         elevation: 0,
         centerTitle: true,
         surfaceTintColor: Colors.transparent,
-        titleTextStyle: TextStyle(
-          fontFamily: 'Cairo',
-          fontSize: 18,
+        titleTextStyle: TextStyle(          fontSize: 18,
           fontWeight: FontWeight.w700,
           color: MarsoudColors.navyHeading,
         ),
@@ -91,9 +87,7 @@ class MarsoudTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: const TextStyle(
-            fontFamily: 'Cairo',
-            fontSize: 15,
+          textStyle: const TextStyle(            fontSize: 15,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -271,8 +265,8 @@ class MarsoudBottomNavigationBar extends StatelessWidget {
         backgroundColor: MarsoudColors.surface,
         selectedItemColor: MarsoudColors.primary,
         unselectedItemColor: MarsoudColors.textMuted,
-        selectedLabelStyle: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w700, fontSize: 11),
-        unselectedLabelStyle: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.w500, fontSize: 11),
+        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11),
+        unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 11),
         elevation: 0,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.grid_view_rounded), label: 'الرئيسية'),
@@ -318,18 +312,14 @@ class MarsoudSideDrawer extends StatelessWidget {
                       children: const [
                         Text(
                           'سلمان المطيري',
-                          style: TextStyle(
-                            fontFamily: 'Cairo',
-                            fontWeight: FontWeight.w800,
+                          style: TextStyle(                            fontWeight: FontWeight.w800,
                             fontSize: 16,
                             color: MarsoudColors.navyHeading,
                           ),
                         ),
                         Text(
                           'مدير العمليات • شركة الأفق',
-                          style: TextStyle(
-                            fontFamily: 'Cairo',
-                            fontSize: 12,
+                          style: TextStyle(                            fontSize: 12,
                             color: MarsoudColors.textMuted,
                           ),
                         ),
@@ -367,7 +357,7 @@ class MarsoudSideDrawer extends StatelessWidget {
                 icon: const Icon(Icons.logout_rounded, color: MarsoudColors.error, size: 20),
                 label: const Text(
                   'تسجيل الخروج',
-                  style: TextStyle(fontFamily: 'Cairo', color: MarsoudColors.error, fontWeight: FontWeight.bold),
+                  style: TextStyle(color: MarsoudColors.error, fontWeight: FontWeight.bold),
                 ),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: MarsoudColors.errorLight),
@@ -391,9 +381,7 @@ class MarsoudSideDrawer extends StatelessWidget {
       ),
       title: Text(
         title,
-        style: TextStyle(
-          fontFamily: 'Cairo',
-          fontSize: 14,
+        style: TextStyle(          fontSize: 14,
           fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
           color: isSelected ? MarsoudColors.primary : MarsoudColors.navyHeading,
         ),
@@ -435,9 +423,7 @@ class MarsoudInitialsAvatar extends StatelessWidget {
       ),
       child: Text(
         initials,
-        style: TextStyle(
-          fontFamily: 'Cairo',
-          fontSize: size * 0.4,
+        style: TextStyle(          fontSize: size * 0.4,
           fontWeight: FontWeight.w700,
           color: textColor,
         ),
