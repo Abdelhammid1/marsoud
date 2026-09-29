@@ -47,7 +47,7 @@
         <td class="text-right font-mono">{{ l.allowances|money }}</td>
         <td class="text-right font-mono text-emerald-600">{{ l.overtime|money }}</td>
         <td class="text-right font-mono text-emerald-600">{{ l.bonus|money }}</td>
-        <td class="text-right font-mono text-red-600">{{ (l.deductions or 0) + (l.absence_deduction or 0) + (l.late_deduction or 0) + (l.advance_deduction or 0)|money }}</td>
+        <td class="text-right font-mono text-red-600">{{ ((l.deductions or 0) + (l.absence_deduction or 0) + (l.late_deduction or 0) + (l.advance_deduction or 0))|money }}</td>
         <td class="text-right font-mono font-bold">{{ l.net|money }}</td>
         <td class="text-right font-mono">{{ l.amount_paid or 0|money }}</td>
         <td class="text-right font-mono {% if accrued > 0 %}text-amber-700 font-semibold{% else %}text-slate-300{% endif %}">{{ accrued|money }}</td>

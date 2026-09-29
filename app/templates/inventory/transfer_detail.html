@@ -36,7 +36,7 @@
           <td>{{ it.variant.display_name if it.variant else '—' }}</td>
           <td class="text-end font-mono">{{ it.qty|money }}</td>
           <td class="text-end font-mono">{{ '%.4f'|format(it.unit_cost_at_time) }}</td>
-          <td class="text-end font-mono">{{ it.qty * it.unit_cost_at_time|money }}</td>
+          <td class="text-end font-mono">{{ (it.qty * it.unit_cost_at_time)|money }}</td>
         </tr>
         {% endfor %}
       </tbody>

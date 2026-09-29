@@ -259,7 +259,7 @@ table.items tr:last-child td { border-bottom: none; }
           <td class="num">{{ "%g"|format(qty) }}</td>
           <td class="num">{{ price|money }} {{ invoice.currency|currency_ar }}</td>
           <td class="num">{{ "%g"|format(invoice.tax_rate|float) }}%</td>
-          <td class="num">{{ pre_tax + line_tax|money }} {{ invoice.currency|currency_ar }}</td>
+          <td class="num">{{ (pre_tax + line_tax)|money }} {{ invoice.currency|currency_ar }}</td>
         </tr>
         {% endfor %}
       </tbody>

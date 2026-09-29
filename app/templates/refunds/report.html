@@ -33,7 +33,7 @@
           <td class="font-mono">{{ mkey }}</td>
           <td class="text-left font-mono text-emerald-700">{{ b.sales|money }}</td>
           <td class="text-left font-mono text-amber-700">{{ b.purchases|money }}</td>
-          <td class="text-left font-mono font-bold">{{ b.sales + b.purchases|money }}</td>
+          <td class="text-left font-mono font-bold">{{ (b.sales + b.purchases)|money }}</td>
         </tr>
         {% else %}
         <tr><td colspan="4" class="text-center text-slate-500 py-4">لا توجد بيانات</td></tr>

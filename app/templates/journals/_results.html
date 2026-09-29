@@ -14,7 +14,7 @@
   </div>
   <div class="card p-4 {% if (total_debit - total_credit)|abs < 0.01 %}bg-emerald-50/50 border-emerald-100{% else %}bg-red-50/50 border-red-100{% endif %}">
     <div class="text-xs mb-1 {% if (total_debit - total_credit)|abs < 0.01 %}text-emerald-700{% else %}text-red-700{% endif %}">فرق التوازن</div>
-    <div class="text-2xl font-bold font-mono {% if (total_debit - total_credit)|abs < 0.01 %}text-emerald-700{% else %}text-red-700{% endif %}">{{ total_debit - total_credit|money }}</div>
+    <div class="text-2xl font-bold font-mono {% if (total_debit - total_credit)|abs < 0.01 %}text-emerald-700{% else %}text-red-700{% endif %}">{{ (total_debit - total_credit)|money }}</div>
   </div>
 </div>
 

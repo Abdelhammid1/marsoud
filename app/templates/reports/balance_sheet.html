@@ -66,7 +66,7 @@
   </div>
 
   <div class="mt-6 text-center text-sm font-semibold {% if data.balanced %}text-emerald-600{% else %}text-red-600{% endif %}">
-    {% if data.balanced %}✓ الميزانية متوازنة{% else %}⚠ الميزانية غير متوازنة (فرق: {{ data.totals.assets - data.total_liab_equity|money }}){% endif %}
+    {% if data.balanced %}✓ الميزانية متوازنة{% else %}⚠ الميزانية غير متوازنة (فرق: {{ (data.totals.assets - data.total_liab_equity)|money }}){% endif %}
   </div>
 </div>
 {% endblock %}

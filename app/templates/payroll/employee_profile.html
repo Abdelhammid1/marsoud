@@ -93,8 +93,8 @@
           <td>{{ line.working_days }}</td>
           <td class="text-left font-mono">{{ line.basic|money }}</td>
           <td class="text-left font-mono">{{ line.allowances|money }}</td>
-          <td class="text-left font-mono text-emerald-600">{{ (line.overtime or 0) + (line.bonus or 0)|money }}</td>
-          <td class="text-left font-mono text-red-600">{{ (line.deductions or 0) + (line.absence_deduction or 0) + (line.late_deduction or 0) + (line.advance_deduction or 0)|money }}</td>
+          <td class="text-left font-mono text-emerald-600">{{ ((line.overtime or 0) + (line.bonus or 0))|money }}</td>
+          <td class="text-left font-mono text-red-600">{{ ((line.deductions or 0) + (line.absence_deduction or 0) + (line.late_deduction or 0) + (line.advance_deduction or 0))|money }}</td>
           <td class="text-left font-mono font-bold">{{ line.net|money }}</td>
           <td><a href="{{ url_for('payroll.payslip_pdf', run_id=line.run_id, line_id=line.id) }}" target="_blank" class="text-brand-600 hover:underline text-xs">PDF</a></td>
         </tr>
