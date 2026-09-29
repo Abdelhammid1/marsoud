@@ -35,11 +35,34 @@
 {{ amiri_font_face|safe }}
 <style>
 {% block style %}
-@page { size: A4; margin: 0; }
+/* MARSOUD-REPORTS-FOOTER-01 (2026-09-29) — the shell used to be
+   `@page { margin: 0 }` with a single 297mm `.page` div that clipped
+   overflow.  Long reports (aging by customer, payroll runs) either
+   got truncated or showed the footer only on the last page because
+   the footer was `position: absolute; bottom: 0` inside that clipped
+   div — it wasn't a `@page` margin-box at all.
+
+   Two related changes:
+     · The bottom `@page` margin (18mm) reserves real room for the
+       footer.  WeasyPrint respects `size: A4` + `margin` and
+       paginates the content flow naturally when it overflows one
+       physical page.
+     · `.footer { position: running(pdfFooter) }` takes the footer
+       element out of the flow and hands it to the `@bottom-center`
+       page margin box, which renders it on every page.  CSS
+       counters (`counter(page)` / `counter(pages)`) produce the
+       "صفحة N من M" that used to be hard-coded to "1 من 1". */
+@page {
+  size: A4;
+  margin: 0 0 18mm 0;
+  @bottom-center {
+    content: element(pdfFooter);
+  }
+}
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { width: 100%; height: 100%; }
+html, body { width: 100%; }
 body { font-family: 'Amiri', 'Segoe UI', Tahoma, sans-serif; direction: rtl; background: #fff; color: #0A2540; }
-.page { width: 100%; height: 297mm; position: relative; overflow: hidden; }
+.page { width: 100%; position: relative; }
 .pad { position: relative; z-index: 1; padding: 50px 56px; }
 
 .brand-row { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
@@ -57,7 +80,13 @@ body { font-family: 'Amiri', 'Segoe UI', Tahoma, sans-serif; direction: rtl; bac
 .kv td.k { font-weight: 600; width: 140px; color: #0A2540; }
 .kv td.c { width: 14px; color: #0A2540; }
 .kv td.v { color: #0A2540; }
-.kv td.v.mono { font-family: monospace; }
+/* MARSOUD-REPORTS-BIDI-01 (2026-09-29) — every monospace numeric
+   cell needs LTR bidi so a leading "-" sign hugs the digits instead
+   of floating to the far side of the RTL run.  Without this the
+   number renders as "1,234.56-" (visually correct order but the
+   sign trails the value).  `unicode-bidi: embed` opens a nested
+   LTR embedding inside the RTL page context. */
+.kv td.v.mono { font-family: monospace; direction: ltr; unicode-bidi: embed; }
 
 .parties { display: flex; gap: 48px; margin-bottom: 24px; }
 .party { flex: 1; }
@@ -71,23 +100,30 @@ table.items { width: 100%; border-collapse: collapse; font-size: 12px; margin-bo
 table.items th { background: #059669; color: #fff; padding: 9px 12px; font-weight: 600; font-size: 11.5px; text-align: right; }
 table.items th.num { text-align: left; }
 table.items td { padding: 9px 12px; border-bottom: 1px solid #E2E8F0; vertical-align: top; }
-table.items td.num { text-align: left; font-family: monospace; }
-table.items td.mono { font-family: monospace; }
+table.items td.num { text-align: left; font-family: monospace; direction: ltr; unicode-bidi: embed; }
+table.items td.mono { font-family: monospace; direction: ltr; unicode-bidi: embed; }
 table.items tr:last-child td { border-bottom: none; }
 
 .totals-kv { width: 100%; font-size: 12.5px; border-collapse: collapse; margin-bottom: 8px; }
 .totals-kv td { padding: 5px 0; }
 .totals-kv td.lbl { color: #475569; }
-.totals-kv td.val { text-align: left; font-family: monospace; color: #0A2540; }
+.totals-kv td.val { text-align: left; font-family: monospace; color: #0A2540; direction: ltr; unicode-bidi: embed; }
 .totals-kv tr.grand td { padding: 10px 0; font-weight: 800; border-top: 2px solid #0A2540; color: #0A2540; font-size: 13.5px; }
 
 .due-block { display: flex; justify-content: space-between; align-items: baseline; padding-right: 16px; border-right: 3px solid #059669; margin: 24px 0 32px; }
 .due-block .lbl { font-size: 13px; color: #64748B; }
-.due-block .val { font-size: 28px; font-weight: 800; color: #059669; font-family: monospace; }
+.due-block .val { font-size: 28px; font-weight: 800; color: #059669; font-family: monospace; direction: ltr; unicode-bidi: embed; }
 .due-block .val .cur { font-size: 13px; }
 
-.footer { position: absolute; bottom: 0; right: 0; left: 0; padding: 16px 56px; border-top: 1px solid #E2E8F0; display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; color: #94A3B8; background: #fff; }
+/* MARSOUD-REPORTS-FOOTER-01 — running element: WeasyPrint takes the
+   `.footer` div out of the flow and renders it inside every page's
+   `@bottom-center` box (declared on `@page` above).  Page-number
+   counter spans read `counter(page)` / `counter(pages)` for the
+   real "صفحة N من M" on multi-page reports. */
+.footer { position: running(pdfFooter); padding: 12px 56px 0 56px; border-top: 1px solid #E2E8F0; display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; color: #94A3B8; background: #fff; }
 .footer strong { color: #059669; }
+.footer .page-num::before   { content: counter(page); }
+.footer .page-count::before { content: counter(pages); }
 {% endblock style %}
 </style>
 </head>
@@ -106,9 +142,12 @@ table.items tr:last-child td { border-bottom: none; }
 {%- endmacro %}
 
 <div class="page">
-  {# Corner accents — the two green triangles that anchor every branded PDF. #}
-  <svg style="position:absolute;top:0;left:0" width="70" height="70" viewBox="0 0 70 70"><polygon points="0,0 70,0 0,70" fill="#059669"/></svg>
-  <svg style="position:absolute;bottom:0;right:0" width="70" height="70" viewBox="0 0 70 70"><polygon points="70,70 0,70 70,0" fill="#059669"/></svg>
+  {# Corner accents — the two green triangles that anchor every
+     branded PDF. `position: fixed` in WeasyPrint means "repeat on
+     every page" (unlike browser fixed, which is viewport-anchored).
+     This keeps the brand look on page 2+ of multi-page reports. #}
+  <svg style="position:fixed;top:0;left:0" width="70" height="70" viewBox="0 0 70 70"><polygon points="0,0 70,0 0,70" fill="#059669"/></svg>
+  <svg style="position:fixed;bottom:0;right:0" width="70" height="70" viewBox="0 0 70 70"><polygon points="70,70 0,70 70,0" fill="#059669"/></svg>
 
   <div class="pad">
     {# Brand row: logo tile + company display name. Falls back to a
@@ -131,9 +170,14 @@ table.items tr:last-child td { border-bottom: none; }
     {% block content %}{% endblock %}
   </div>
 
+  {# The footer div itself is out-of-flow (see `.footer { position: running(pdfFooter) }`).
+     It renders inside `@page { @bottom-center { content: element(pdfFooter) } }` on
+     every page.  `<span class="page-num">` + `<span class="page-count">` receive their
+     text from CSS counters (`counter(page)` / `counter(pages)`), so the numerator
+     updates per page and the denominator reflects the true page count. #}
   <div class="footer">
     <span>© {% block footer_year %}{{ footer_year or '' }}{% endblock %} <strong>مرصود</strong></span>
-    <span>{% block footer_page %}صفحة 1 من 1{% endblock %}</span>
+    <span>{% block footer_page %}صفحة <span class="page-num"></span> من <span class="page-count"></span>{% endblock %}</span>
   </div>
 </div>
 </body>

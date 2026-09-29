@@ -18,7 +18,7 @@
 
 {% block footer_year %}{{ entries[0].date.year if entries and entries[0].date else '' }}{% endblock %}
 
-{% block footer_page %}عدد القيود: {{ entries|length }} · صفحة 1 من 1{% endblock %}
+{% block footer_page %}عدد القيود: {{ entries|length }} · صفحة <span class="page-num"></span> من <span class="page-count"></span>{% endblock %}
 
 {% block content %}
 {# ── META KV (period + row count) ────────────────────────────── #}

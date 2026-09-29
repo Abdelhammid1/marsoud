@@ -235,6 +235,25 @@ tailwind.config = {
     direction: ltr;
     unicode-bidi: embed;
   }
+  /* MARSOUD-REPORTS-BIDI-01 (2026-09-29) — same fix, wider surface.
+     The five flex/card report screens (balance_sheet.html,
+     consolidated_balance.html, cash_flow.html, cashier_sales.html,
+     consolidated_income.html) render amounts inside
+     `<span class="font-mono">` / `<div class="font-mono">` — NOT
+     inside a `td` — so the rule above never touched them. Any
+     negative balance was rendered "1,234.56-" (sign trailing) in
+     RTL context because the parent stayed direction:rtl. Widening
+     the selector to any font-mono span/div inside a report body
+     fixes the balance sheet on screen the same way the audit did
+     for tables. */
+  .rich-text-display span.font-mono,
+  .rich-text-display div.font-mono,
+  main span.font-mono,
+  main div.font-mono {
+    direction: ltr;
+    unicode-bidi: embed;
+    display: inline-block;
+  }
   /* MARSOUD-TABLE-ALIGN follow-up (2026-07-08 evening) — cells with
      an inline dir="ltr" (emails, phone numbers, foreign codes,
      SKUs) sit at the LEFT of their column in LTR flow, but their
