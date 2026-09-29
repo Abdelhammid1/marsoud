@@ -89,7 +89,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
                     color: const Color(0xFFECFDF5),
                     shape: BoxShape.circle,
                     border: Border.all(
-                        color: const Color(0xFF059669).withOpacity(0.2),
+                        color: const Color(0xFF059669).withValues(alpha: 0.2),
                         width: 3),
                   ),
                   alignment: Alignment.center,

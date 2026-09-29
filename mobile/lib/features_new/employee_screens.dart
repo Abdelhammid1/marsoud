@@ -58,7 +58,7 @@ class MarsoudMyAccountScreen extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: const Color(0xFFECFDF5),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFF059669).withOpacity(0.25)),
+                      border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.25)),
                     ),
                     child: const Text('س.م', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF059669))),
                   ),
@@ -371,7 +371,7 @@ class MarsoudDailyReportsScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFFECFDF5),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF059669).withOpacity(0.2)),
+                border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.2)),
               ),
               child: Row(
                 children: const [
@@ -1011,7 +1011,7 @@ class MarsoudMyFilesScreen extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: iconColor.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
+            decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
             child: Icon(icon, color: iconColor, size: 22),
           ),
           const SizedBox(width: 14),

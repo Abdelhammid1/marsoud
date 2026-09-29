@@ -93,7 +93,7 @@ class MarsoudActivityLogScreen extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: tagColor.withOpacity(0.12), shape: BoxShape.circle),
+            decoration: BoxDecoration(color: tagColor.withValues(alpha: 0.12), shape: BoxShape.circle),
             child: Icon(icon, color: tagColor, size: 18),
           ),
           const SizedBox(width: 12),
@@ -109,7 +109,7 @@ class MarsoudActivityLogScreen extends StatelessWidget {
                     Text(time, style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: tagColor.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+                      decoration: BoxDecoration(color: tagColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
                       child: Text(tag, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: tagColor)),
                     ),
                   ],
@@ -153,7 +153,7 @@ class MarsoudSupportTicketsScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF059669).withOpacity(0.3)),
+                border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -536,7 +536,7 @@ class MarsoudTaskDetailScreen extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFFECFDF5),
             shape: BoxShape.circle,
-            border: Border.all(color: const Color(0xFF059669).withOpacity(0.3)),
+            border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.3)),
           ),
           child: Text(initials, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Color(0xFF059669))),
         ),
@@ -559,7 +559,7 @@ class MarsoudTaskDetailScreen extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
             child: Icon(icon, color: color, size: 18),
           ),
           const SizedBox(width: 10),
@@ -930,7 +930,7 @@ class MarsoudProjectDetailScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFFECFDF5),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF059669).withOpacity(0.25)),
+                border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.25)),
               ),
               child: Row(
                 children: const [

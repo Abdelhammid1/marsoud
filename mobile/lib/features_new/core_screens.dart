@@ -54,7 +54,7 @@ class _MarsoudSplashScreenState extends State<MarsoudSplashScreen> with SingleTi
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF059669).withOpacity(0.35),
+                        color: const Color(0xFF059669).withValues(alpha: 0.35),
                         blurRadius: 24,
                         offset: const Offset(0, 8),
                       ),
@@ -275,7 +275,7 @@ class MarsoudBiometricScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: const Color(0xFFECFDF5),
                     shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFF059669).withOpacity(0.2), width: 3),
+                    border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.2), width: 3),
                   ),
                   child: const Icon(Icons.fingerprint_rounded, size: 54, color: Color(0xFF059669)),
                 ),
@@ -388,7 +388,7 @@ class MarsoudNotificationsScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: isNew ? Colors.white : const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: isNew ? const Color(0xFF059669).withOpacity(0.3) : const Color(0xFFE2E8F0)),
+                border: Border.all(color: isNew ? const Color(0xFF059669).withValues(alpha: 0.3) : const Color(0xFFE2E8F0)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -396,7 +396,7 @@ class MarsoudNotificationsScreen extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: (item['color'] as Color).withOpacity(0.12),
+                      color: (item['color'] as Color).withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(item['icon'] as IconData, color: item['color'] as Color, size: 22),
@@ -473,7 +473,7 @@ class MarsoudDashboardScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: const Color(0xFFECFDF5),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFF059669).withOpacity(0.2)),
+                  border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.2)),
                 ),
                 child: Row(
                   children: const [

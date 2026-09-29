@@ -334,7 +334,7 @@ class MarsoudLeadDetailScreen extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: const Color(0xFFECFDF5),
                             borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: const Color(0xFF059669).withOpacity(0.2)),
+                            border: Border.all(color: const Color(0xFF059669).withValues(alpha: 0.2)),
                           ),
                           child: const Text('أ.ف', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF059669))),
                         ),
@@ -553,7 +553,7 @@ class MarsoudLeadDetailScreen extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: color.withOpacity(0.12), shape: BoxShape.circle),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
             child: Icon(icon, size: 16, color: color),
           ),
           const SizedBox(width: 12),
@@ -1082,7 +1082,7 @@ class MarsoudScheduleScreen extends StatelessWidget {
                   if (tag.isNotEmpty)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: tagColor.withOpacity(0.12), borderRadius: BorderRadius.circular(4)),
+                      decoration: BoxDecoration(color: tagColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(4)),
                       child: Text(tag, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: tagColor)),
                     ),
                 ],
