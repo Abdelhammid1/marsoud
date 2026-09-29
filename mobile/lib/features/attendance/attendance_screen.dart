@@ -68,8 +68,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
       try {
         final last = await Geolocator.getLastKnownPosition();
         if (last != null &&
-            last.timestamp != null &&
-            DateTime.now().difference(last.timestamp!).inSeconds < 120) {
+            DateTime.now().difference(last.timestamp).inSeconds < 120) {
           return (lat: last.latitude, lng: last.longitude, reason: null);
         }
       } catch (_) {

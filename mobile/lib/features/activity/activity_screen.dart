@@ -156,7 +156,9 @@ class _ActionRow extends StatelessWidget {
     final a = action.toUpperCase();
     if (a == 'CREATE' || a.startsWith('CREATE_')) return '➕';
     if (a == 'UPDATE' || a.startsWith('UPDATE_')
-        || a == 'EDIT' || a.startsWith('EDIT_')) return '✎';
+        || a == 'EDIT' || a.startsWith('EDIT_')) {
+      return '✎';
+    }
     if (a == 'DELETE' || a.startsWith('DELETE_')) return '🗑';
     if (a == 'LOGIN' || a.startsWith('LOGIN_')) return '🔑';
     if (a == 'LOGOUT' || a.startsWith('LOGOUT_')) return '👋';

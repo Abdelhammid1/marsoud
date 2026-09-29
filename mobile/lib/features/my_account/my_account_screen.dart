@@ -1325,7 +1325,7 @@ class _LinkTile extends StatelessWidget {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.10),
+                color: iconColor.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: iconColor, size: 20),
@@ -1459,7 +1459,7 @@ class _BiometricSectionState extends ConsumerState<_BiometricSection> {
             Switch.adaptive(
               value: _enabled,
               onChanged: _toggle,
-              activeColor: BrandColors.emerald600,
+              activeThumbColor: BrandColors.emerald600,
             ),
         ],
       ),
