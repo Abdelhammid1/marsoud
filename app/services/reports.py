@@ -28,6 +28,44 @@ def _signed_balance(account, debit, credit):
     return credit - debit
 
 
+# MARSOUD-REPORTS-ROLLUP-01 (2026-09-29) — parent-account rollup.
+#
+# Before this, `balance_sheet()` and `trial_balance_report()` emitted
+# each account's own direct-post balance only.  A grouping account
+# like "1100 · Current Assets" whose direct JEs are $0 (all activity
+# posts to leaves 1101/1102/1103) rendered as an empty parent row —
+# operators couldn't read the subtotal at each hierarchy level.
+#
+# `_rollup_balance()` sums an account's own signed balance + every
+# descendant's own signed balance; `_rollup_debit_credit()` does the
+# same on the (debit, credit) pair for trial balance's two-column
+# shape.  Both traverse `account.children` recursively.
+#
+# The rolled-up figure only affects the DISPLAY (row `balance`).
+# `totals["assets"]` etc. still sum every account's OWN balance —
+# which equals Σ leaves — so section totals don't double-count when
+# a parent + its children are both listed.  In a healthy chart of
+# accounts (parents carry zero direct posts) the two coincide anyway.
+
+def _rollup_balance(account, own_by_id):
+    """Signed rolled-up balance for `account` = its own signed balance
+    + Σ of every descendant's own signed balance."""
+    total = own_by_id.get(account.id, 0.0)
+    for child in account.children:
+        total += _rollup_balance(child, own_by_id)
+    return total
+
+
+def _rollup_debit_credit(account, dc_by_id):
+    """Rolled-up (debit, credit) for `account`."""
+    d, c = dc_by_id.get(account.id, (0.0, 0.0))
+    for child in account.children:
+        cd, cc = _rollup_debit_credit(child, dc_by_id)
+        d += cd
+        c += cc
+    return d, c
+
+
 def balance_sheet(company_id, as_of=None):
     """Snapshot of Assets, Liabilities, Equity as of a date."""
     as_of = as_of or date.today()
@@ -36,21 +74,36 @@ def balance_sheet(company_id, as_of=None):
     result = {"assets": [], "liabilities": [], "equity": [], "as_of": as_of}
     totals = {"assets": 0.0, "liabilities": 0.0, "equity": 0.0}
 
+    # MARSOUD-REPORTS-ROLLUP-01 — precompute each account's OWN direct
+    # signed balance in one pass, then when we emit a row we ask
+    # `_rollup_balance()` for the account's own + descendants sum.
+    # Totals still add the row's own balance so a parent + its
+    # children don't double-count into the section total.
+    own_by_id = {}
     for acc in accounts:
-        debit, credit = _account_balance(acc.id, end_date=as_of)
-        bal = _signed_balance(acc, debit, credit)
-        if abs(bal) < 0.01 and not acc.children:
+        d, c = _account_balance(acc.id, end_date=as_of)
+        own_by_id[acc.id] = _signed_balance(acc, d, c)
+
+    for acc in accounts:
+        own = own_by_id[acc.id]
+        rolled = _rollup_balance(acc, own_by_id)
+        # Suppress a leaf that has no movement AND no children; a
+        # parent whose rolled-up balance is still zero is also hidden
+        # so an empty section doesn't wall a fresh CoA with zeros.
+        if abs(rolled) < 0.01 and not acc.children:
             continue
-        item = {"code": acc.code, "name": acc.name_ar or acc.name, "balance": bal}
+        if abs(rolled) < 0.01 and acc.children:
+            continue
+        item = {"code": acc.code, "name": acc.name_ar or acc.name, "balance": rolled}
         if acc.type == AccountType.ASSET:
             result["assets"].append(item)
-            totals["assets"] += bal
+            totals["assets"] += own
         elif acc.type == AccountType.LIABILITY:
             result["liabilities"].append(item)
-            totals["liabilities"] += bal
+            totals["liabilities"] += own
         elif acc.type == AccountType.EQUITY:
             result["equity"].append(item)
-            totals["equity"] += bal
+            totals["equity"] += own
 
     net_income = _net_income(company_id, end_date=as_of)
     if abs(net_income) > 0.01:
@@ -210,28 +263,40 @@ def trial_balance_report(company_id, *, start_date=None, end_date=None):
                 .filter_by(company_id=company_id, is_active=True)
                 .order_by(Account.code).all())
 
+    # MARSOUD-REPORTS-ROLLUP-01 — precompute each account's OWN direct
+    # (debit, credit) in one pass; every row we emit gets the rolled-up
+    # pair so a grouping account shows the sum of its descendants.
+    dc_by_id = {}
+    for acc in accounts:
+        d, c = _account_balance(
+            acc.id, start_date=start_date, end_date=end_date)
+        dc_by_id[acc.id] = (d, c)
+
     rows = []
     total_debit = 0.0
     total_credit = 0.0
     for acc in accounts:
-        debit, credit = _account_balance(
-            acc.id, start_date=start_date, end_date=end_date)
-        has_movement = abs(debit) >= 0.01 or abs(credit) >= 0.01
+        own_d, own_c = dc_by_id[acc.id]
+        rolled_d, rolled_c = _rollup_debit_credit(acc, dc_by_id)
+        has_movement = abs(rolled_d) >= 0.01 or abs(rolled_c) >= 0.01
         if not has_movement and not acc.children:
             continue
-        balance = _signed_balance(acc, debit, credit)
+        balance = _signed_balance(acc, rolled_d, rolled_c)
         rows.append({
             "code": acc.code,
             "name": acc.name_ar or acc.name,
             "type": acc.type.value if hasattr(acc.type, "value") else str(acc.type),
             "natural_side": acc.normal_side.value
             if hasattr(acc.normal_side, "value") else str(acc.normal_side),
-            "debit": debit,
-            "credit": credit,
+            "debit": rolled_d,
+            "credit": rolled_c,
             "balance": balance,
         })
-        total_debit += debit
-        total_credit += credit
+        # Totals SUM OWN posts only — a parent's rolled-up debit
+        # already includes its children, so adding both would
+        # double-count and break the "Σdebit == Σcredit" invariant.
+        total_debit += own_d
+        total_credit += own_c
 
     diff = round(total_debit - total_credit, 2)
     return {
