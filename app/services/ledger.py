@@ -155,6 +155,24 @@ def reverse_journal(entry_id, created_by=None, *,
     if original.is_reversal:
         raise LedgerError("لا يمكن عكس قيد عكسي")
 
+    # MARSOUD-LEDGER-REVERSE-INVOICE-GUARD-01 (2026-09-30) — a JE
+    # posted by an invoice / void-invoice / refund flow is only
+    # safe to reverse through THAT flow's own screen, because
+    # only that flow also flips Invoice.status back.  Reversing
+    # such a JE from the generic /journals page flips the ledger
+    # cleanly but leaves the invoice + JE in contradictory states,
+    # and the trick can be chained (void → reverse → void → …)
+    # to accumulate permanent bad balances on the customer sub
+    # and on 4300 مردودات المبيعات while every individual step
+    # still "balances".  Refuse at the source-of-truth layer so
+    # the guard also protects any other future caller of
+    # reverse_journal(), not just the /journals route.
+    if original.source_type in ("invoice", "refund"):
+        raise LedgerError(
+            "هذا القيد مرتبط بفاتورة مباشرة — استخدم شاشة "
+            "الفاتورة بدل عكسه من هنا"
+        )
+
     # MARSOUD-REVERSE-ONCE (2026-08-05) — the guard above refuses to
     # reverse a REVERSAL, but nothing asked whether THIS entry had
     # already been reversed. Reversing twice posted a second reversing
