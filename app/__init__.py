@@ -2,11 +2,39 @@ from flask import Flask, session, g, request, abort, redirect, url_for, send_fro
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_migrate import Migrate
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 from config import Config
 
 db = SQLAlchemy()
 login_manager = LoginManager()
 migrate = Migrate()
+
+
+# MARSOUD-DB-FK-ENFORCEMENT-01 (2026-09-30) — SQLite defaults
+# `PRAGMA foreign_keys=OFF`, so `ondelete` clauses (CASCADE,
+# RESTRICT, SET NULL) silently no-op.  A data review found real
+# `journal_lines` rows referencing account IDs that no longer
+# exist in the `accounts` table — a hard delete that the FK
+# should have rejected slipped through.  This listener turns the
+# PRAGMA on for every SQLite connection the pool opens.
+#
+# * The normal `/accounts/<id>/delete` route already refuses to
+#   hard-delete an account with lines (routes/accounts.py:301
+#   soft-deletes instead), so this closes the raw-SQL / shell /
+#   ad-hoc-script path that bypasses the ORM guard.
+# * The listener is a no-op on PostgreSQL / MySQL — those enforce
+#   FKs by default — so registering it globally is safe.
+# * The same pattern already lives inside
+#   `tests/audit_invoice_orphan_and_variant_drift.py:323` for
+#   the same reason; this hoists it out of a per-audit toggle
+#   and makes it the app-wide default.
+@event.listens_for(Engine, "connect")
+def _marsoud_enable_sqlite_foreign_keys(dbapi_connection, _record):
+    if dbapi_connection.__class__.__module__.startswith("sqlite3"):
+        cur = dbapi_connection.cursor()
+        cur.execute("PRAGMA foreign_keys=ON")
+        cur.close()
 
 
 def create_app(config_class=Config):
