@@ -286,7 +286,12 @@ def edit(account_id):
         acc.name_ar = name_ar
         acc.type = acc_type
         acc.normal_side = normal_side
+        old_parent_id = acc.parent_id
         acc.parent_id = parent.id if parent else None
+        if old_parent_id and old_parent_id != acc.parent_id:
+            from app.services.account_tree import restore_leaf_if_childless
+            db.session.flush()
+            restore_leaf_if_childless(db.session.get(Account, old_parent_id))
 
         # Classification change cascades to all descendants (keeps tree consistent).
         if type_changed:
@@ -317,12 +322,20 @@ def delete(account_id):
     if not acc or acc.company_id != g.active_company.id:
         flash("غير مسموح", "error")
         return redirect(url_for("accounts.index"))
+    if acc.children:
+        flash("\u0644\u0627 \u064a\u0645\u0643\u0646 \u062d\u0630\u0641 \u062d\u0633\u0627\u0628 \u0644\u0647 \u062d\u0633\u0627\u0628\u0627\u062a \u0641\u0631\u0639\u064a\u0629", "error")
+        return redirect(url_for("accounts.index"))
     if acc.lines.count() > 0:
         flash("لا يمكن حذف حساب له قيود — تم تعطيله بدلاً من ذلك", "warning")
         acc.is_active = False
         db.session.commit()
     else:
+        _pid = acc.parent_id
         db.session.delete(acc)
+        db.session.flush()
+        if _pid:
+            from app.services.account_tree import restore_leaf_if_childless
+            restore_leaf_if_childless(db.session.get(Account, _pid))
         db.session.commit()
         flash("تم الحذف", "success")
     return redirect(url_for("accounts.index"))

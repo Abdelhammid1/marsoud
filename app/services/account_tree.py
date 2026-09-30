@@ -24,3 +24,22 @@ def make_parent_group(parent):
             "قيود مباشرة، "
             "انقلها أولاً")
     parent.is_postable = False
+
+
+def restore_leaf_if_childless(parent):
+    """Undo make_parent_group when the last child leaves.
+
+    Only for accounts that are NOT seed headers (1120, 1130... stay
+    headers forever). Call after the child is deleted/moved + flushed.
+    """
+    if parent is None or parent.is_postable:
+        return
+    from app.models import Account
+    if db.session.query(Account.id).filter(
+            Account.parent_id == parent.id).first():
+        return
+    from app.services.seed_coa import DEFAULT_COA
+    seed_headers = {r[0] for r in DEFAULT_COA if len(r) >= 6 and not r[5]}
+    if parent.code in seed_headers:
+        return
+    parent.is_postable = True
