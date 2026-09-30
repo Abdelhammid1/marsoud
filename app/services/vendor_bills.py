@@ -62,6 +62,7 @@ def get_allowed_accounts_for_line_type(company_id, line_type):
             Account.is_active.is_(True),
             or_(Account.code.like("12%"), Account.code.like("14%"), Account.code.like("17%")),
             Account.code.notin_(_ACCUM_DEPR_CODES),
+            Account.is_postable.is_(True),
             ~Account.name.ilike("%accumulated%"),
             ~Account.name.like("%مجمع%"),
         ).order_by(Account.code).all()
