@@ -76,7 +76,7 @@ def post_journal(
         # MARSOUD-COA-REBUILD — header accounts (is_postable=False) are
         # for grouping/reporting only. Refuse any line that lands on one
         # so we fail loud instead of corrupting reports silently.
-        if not getattr(acc, "is_postable", True):
+        if (not getattr(acc, "is_postable", True)) or acc.children:
             raise LedgerError(
                 f"الحساب {acc.code} ({acc.name_ar or acc.name}) "
                 f"حساب رئيسي ولا يُسمح بالترحيل عليه مباشرة"

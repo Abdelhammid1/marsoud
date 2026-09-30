@@ -63,7 +63,7 @@ class Account(db.Model):
         app already expected — reports + KPIs read .balance on parent
         codes like 1130 (AR) and need it to include every customer.
         """
-        if not getattr(self, "is_postable", True):
+        if (not getattr(self, "is_postable", True)) or self.children:
             return self._rollup_balance()
         return self._direct_balance()
 
