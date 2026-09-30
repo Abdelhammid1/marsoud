@@ -168,6 +168,18 @@ def delete_account(user, *, actor_id=None):
     # references before it deletes the parent — which fails on the
     # NOT NULL columns. Wipe children directly via `sorted_tables`
     # so we bypass the session cascade entirely.
+    #
+    # KNOWN LIMITATION (2026-09-30) — with `PRAGMA foreign_keys=ON`
+    # now globally enabled (`app/__init__.py::_marsoud_enable_sqlite_foreign_keys`),
+    # this flow's raw-DELETE sweep can still trip on a chain of tables
+    # whose FKs are enforced but weren't pre-cleaned.  The
+    # `journal_lines.entry_id -> journal_entries.id` case (below) is
+    # explicitly handled.  A separate ticket needs to walk the rest
+    # of the 30+ FK-to-users + FK-to-companies chains (in particular
+    # `platform_audit_logs.actor_id` + all `*_created_by_id`
+    # columns whose parent tables are outside the sorted_tables
+    # tenant sweep) — for now the sweep is best-effort and the
+    # caller (route) still has to catch IntegrityError.
     from sqlalchemy import inspect as _sql_inspect
     _insp = _sql_inspect(db.engine)
     for company in plan["companies_to_delete"]:
@@ -176,6 +188,23 @@ def delete_account(user, *, actor_id=None):
         # the User row isn't the last handle on it.
         db.session.execute(user_companies.delete().where(
             user_companies.c.company_id == cid_del))
+        # MARSOUD-ACCOUNT-DELETION-CASCADE-AUDIT-01 (2026-09-30) —
+        # nuke `journal_lines` for this tenant BEFORE the sorted_tables
+        # loop reaches `journal_entries`.  `journal_lines` has no
+        # `company_id`, so the loop skips it; with PRAGMA
+        # foreign_keys=ON (globally enabled since 4c0ca97), the raw
+        # `DELETE FROM journal_entries WHERE company_id = :c` then
+        # trips FK RESTRICT because the child rows still point to it.
+        # Doing it deepest-first keeps the sweep well-ordered without
+        # having to drop the PRAGMA (which is per-connection and
+        # doesn't survive commits inside this function).  Same idea
+        # extends to other parent -> child chains where the child has
+        # no `company_id` (invoice_items, vendor_bill_items, etc.);
+        # add them here if they surface.
+        db.session.execute(_sql_text(
+            "DELETE FROM journal_lines "
+            "WHERE entry_id IN (SELECT id FROM journal_entries "
+            "WHERE company_id = :c)"), {"c": cid_del})
         # Now wipe every tenant-scoped child row, table by table,
         # deepest-first so FKs cascade cleanly.
         for t in reversed(db.metadata.sorted_tables):
