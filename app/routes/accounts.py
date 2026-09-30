@@ -141,6 +141,16 @@ def new():
             flash(f"الكود {code} مستخدم بالفعل", "error")
             return render_template("accounts/form.html", parents=parents, account_types=AccountType)
 
+        if parent_id:
+            from app.services.account_tree import make_parent_group, AccountTreeError
+            _p = db.session.get(Account, int(parent_id))
+            if _p and _p.company_id == g.active_company.id:
+                try:
+                    make_parent_group(_p)
+                except AccountTreeError as e:
+                    db.session.rollback()
+                    flash(str(e), "error")
+                    return render_template("accounts/form.html", parents=parents, account_types=AccountType)
         acc = Account(
             company_id=g.active_company.id,
             code=code,
@@ -259,6 +269,15 @@ def edit(account_id):
         if entry_count > 0 and not request.form.get("confirm"):
             flash(f"هذا الحساب (أو أبناؤه) عليه {entry_count} قيد — أكّد التعديل", "warning")
             return render_form()
+
+        if parent and parent.id != acc.parent_id:
+            from app.services.account_tree import make_parent_group, AccountTreeError
+            try:
+                make_parent_group(parent)
+            except AccountTreeError as e:
+                db.session.rollback()
+                flash(str(e), "error")
+                return render_form()
 
         type_changed = acc.type != acc_type
 
