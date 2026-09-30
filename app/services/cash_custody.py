@@ -812,19 +812,24 @@ def custody_account_id_for(custody):
 
 def _ensure_shortfall_expense_account(company_id):
     """Return the "عجز عهدة" expense account, creating it under
-    5990 (Other Operating Expenses) on first use. Lazy so the seed
+    5900 (Other Expenses) on first use. Lazy so the seed
     CoA doesn't need a fresh row for every company."""
     from app.models import Account, AccountType, NormalSide
     acc = Account.query.filter_by(
         company_id=company_id, code="5991").first()
     if acc:
         return acc
+    # 5990 is resolved BY CODE by inventory variance posting, so it must
+    # stay a leaf. Park the shortfall account under the 5900 header.
     parent = Account.query.filter_by(
-        company_id=company_id, code="5990").first()
+        company_id=company_id, code="5900").first()
     if not parent:
-        # Fall back to expense root if 5990 wasn't seeded.
+        # Fall back to expense root if 5900 wasn't seeded.
         parent = Account.query.filter_by(
             company_id=company_id, code="5000").first()
+    if parent is not None:
+        from app.services.account_tree import make_parent_group
+        make_parent_group(parent)
     acc = Account(
         company_id=company_id, code="5991",
         name="Cash Custody Shortfall", name_ar="عجز عهدة نقدية",
