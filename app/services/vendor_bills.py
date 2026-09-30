@@ -29,6 +29,17 @@ from app.services.ledger import post_journal, get_account_by_code, LedgerError
 # valid FIXED_ASSET line for the same depreciation / capitalisation
 # pipeline, so the whitelist now covers both.  Kept as a tuple so
 # the picker + validator agree on the same set.
+# Accumulated depreciation / amortisation accounts are contra-assets and must
+# never be picked as an asset line (1290 tangible, 1490 intangible).
+_ACCUM_DEPR_CODES = ("1290", "1490")
+
+
+def _is_accum_depr(acc):
+    nm = (acc.name or "") + " " + (acc.name_ar or "")
+    return (acc.code in _ACCUM_DEPR_CODES
+            or "accumulated" in nm.lower() or "مجمع" in nm)
+
+
 LINE_TYPE_ACCOUNT_PREFIX = {
     BillLineType.EXPENSE: "5",              # any 5xxx expense
     BillLineType.FIXED_ASSET: ("12", "14", "17"),  # 12xx tangible + 14xx / 17xx intangible (excl. 1290)
@@ -50,7 +61,9 @@ def get_allowed_accounts_for_line_type(company_id, line_type):
             Account.company_id == company_id,
             Account.is_active.is_(True),
             or_(Account.code.like("12%"), Account.code.like("14%"), Account.code.like("17%")),
-            Account.code != "1290",
+            Account.code.notin_(_ACCUM_DEPR_CODES),
+            ~Account.name.ilike("%accumulated%"),
+            ~Account.name.like("%مجمع%"),
         ).order_by(Account.code).all()
     if line_type == BillLineType.INVENTORY:
         return Account.query.filter(
@@ -71,6 +84,8 @@ def _validate_line_account(line, company_id):
     if line.line_type == BillLineType.FIXED_ASSET:
         is_tangible = acc.code.startswith("12") and acc.code != "1290"
         is_intangible = acc.code.startswith("14") or acc.code.startswith("17")
+        if _is_accum_depr(acc):
+            raise LedgerError(f"البند '{line.description}': الحساب مجمع إهلاك/إطفاء ولا يصلح كأصل")
         if not (is_tangible or is_intangible):
             raise LedgerError(f"البند '{line.description}' من نوع أصل ثابت لكن الحساب ليس أصلاً")
         if not line.useful_life_years or line.useful_life_years <= 0:
