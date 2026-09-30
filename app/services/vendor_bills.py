@@ -22,11 +22,17 @@ from app.models import (
 from app.services.ledger import post_journal, get_account_by_code, LedgerError
 
 
-# Account code prefix that's valid for each line type
+# Account code prefix that's valid for each line type.
+# MARSOUD-VENDOR-BILL-INTANGIBLE-ASSET-01 (2026-09-30) — FIXED_ASSET
+# used to be tangible-only (12xx).  Intangibles (software licences,
+# goodwill, patents) live under 14xx per the seeded CoA and are a
+# valid FIXED_ASSET line for the same depreciation / capitalisation
+# pipeline, so the whitelist now covers both.  Kept as a tuple so
+# the picker + validator agree on the same set.
 LINE_TYPE_ACCOUNT_PREFIX = {
-    BillLineType.EXPENSE: "5",        # any 5xxx expense account
-    BillLineType.FIXED_ASSET: "12",   # any 12xx fixed asset account (excl. 1290)
-    BillLineType.INVENTORY: "1300",   # only the inventory account
+    BillLineType.EXPENSE: "5",              # any 5xxx expense
+    BillLineType.FIXED_ASSET: ("12", "14", "17"),  # 12xx tangible + 14xx / 17xx intangible (excl. 1290)
+    BillLineType.INVENTORY: "1300",         # only the inventory account
 }
 
 
@@ -39,10 +45,11 @@ def get_allowed_accounts_for_line_type(company_id, line_type):
             Account.code.like("5%"),
         ).order_by(Account.code).all()
     if line_type == BillLineType.FIXED_ASSET:
+        from sqlalchemy import or_
         return Account.query.filter(
             Account.company_id == company_id,
             Account.is_active.is_(True),
-            Account.code.like("12%"),
+            or_(Account.code.like("12%"), Account.code.like("14%"), Account.code.like("17%")),
             Account.code != "1290",
         ).order_by(Account.code).all()
     if line_type == BillLineType.INVENTORY:
@@ -62,7 +69,9 @@ def _validate_line_account(line, company_id):
     if line.line_type == BillLineType.EXPENSE and not acc.code.startswith("5"):
         raise LedgerError(f"البند '{line.description}' من نوع مصروف لكن الحساب ليس مصروفاً")
     if line.line_type == BillLineType.FIXED_ASSET:
-        if not (acc.code.startswith("12") and acc.code != "1290"):
+        is_tangible = acc.code.startswith("12") and acc.code != "1290"
+        is_intangible = acc.code.startswith("14") or acc.code.startswith("17")
+        if not (is_tangible or is_intangible):
             raise LedgerError(f"البند '{line.description}' من نوع أصل ثابت لكن الحساب ليس أصلاً")
         if not line.useful_life_years or line.useful_life_years <= 0:
             raise LedgerError(f"العمر الإنتاجي مطلوب للأصل: {line.description}")
