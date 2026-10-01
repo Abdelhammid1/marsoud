@@ -64,6 +64,15 @@ from app import create_app, db
 # Ticket-flagged tables the operator wants surfaced first.
 SPOTLIGHT_TABLES = ("role_permissions", "platform_audit_logs", "journal_lines")
 
+# MARSOUD-DB-ORPHAN-CLEANUP-01 (2026-10-01, Abdelhamid) — `--apply`
+# is refused on these tables.  Orphan rows in `journal_lines` or
+# `journal_entries` can only come from a corrupted post or a
+# half-finished cascade, and nuking them silently would erase
+# accounting evidence.  An operator who wants to touch these must
+# inspect each row by hand and reconcile against the originating
+# invoice / vendor bill / payment first.
+FINANCIAL_APPLY_BLACKLIST = frozenset({"journal_lines", "journal_entries"})
+
 
 def enumerate_fks() -> list[tuple[str, str, str, str]]:
     """Walk `db.metadata` and return a list of
@@ -195,6 +204,22 @@ def main():
     only_tables = set(args.table) if args.table else None
     skip_tables = set(args.skip)
 
+    # MARSOUD-DB-ORPHAN-CLEANUP-01 (2026-10-01, Abdelhamid) — refuse
+    # `--apply --table <financial>` outright, not just at delete time,
+    # so an operator who typed the combination gets a clear "nope,
+    # inspect by hand" immediately instead of staring at a `0 rows
+    # deleted` line and wondering what happened.
+    if args.apply and only_tables:
+        blocked = only_tables & FINANCIAL_APPLY_BLACKLIST
+        if blocked:
+            ap.error(
+                f"--apply refuses financial table(s) {sorted(blocked)}. "
+                "Orphans in these tables encode accounting evidence; "
+                "reconcile each row against its originating invoice / "
+                "vendor bill / payment first.  Re-run without --apply "
+                "to see what's there."
+            )
+
     app = create_app()
     with app.app_context():
         dialect = db.engine.dialect.name
@@ -214,6 +239,7 @@ def main():
 
         # Spotlight the three tables the ticket named.
         spotlight = [r for r in fk_rows if r[0] in SPOTLIGHT_TABLES]
+        spot_report: dict = {}
         if spotlight and not only_tables:
             print("── spotlight (ticket-flagged tables) ──")
             spot_report = scan(spotlight, None, skip_tables, args.sample)
@@ -254,9 +280,16 @@ def main():
         print("\nApplying deletes (per-table transactions)…")
         deleted_total = 0
         failures = 0
+        skipped_financial = 0
         for (child_table, child_col), entry in sorted(
             merged.items(), key=lambda x: -x[1]["count"]
         ):
+            if child_table in FINANCIAL_APPLY_BLACKLIST:
+                print(f"  SKIP {child_table}: financial table — orphans "
+                      f"({entry['count']}) must be reconciled by hand; "
+                      f"re-run with --table {child_table} after human review.")
+                skipped_financial += 1
+                continue
             n = delete_orphans(child_table, entry["ids"])
             if n < 0:
                 failures += 1
