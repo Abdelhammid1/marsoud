@@ -33,7 +33,7 @@
           <td class="font-semibold">{{ s.name }}</td>
           <td>{{ s.customer.name if s.customer else '—' }}</td>
           <td>{{ freq_labels.get(s.frequency, s.frequency) }}</td>
-          <td>{{ s.items|map(attribute='quantity')|sum * 0 + (s.items[0].unit_price if s.items else 0)|money }}
+          <td>{{ (s.items[0].unit_price if s.items else 0)|money }}
               <span class="text-xs text-slate-500">
                 ({{ s.items|length }} بند)
               </span>
