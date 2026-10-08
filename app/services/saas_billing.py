@@ -86,6 +86,30 @@ def _tenant_owner_phone(company):
     return row[0] if row and row[0] else None
 
 
+# ─── Email validation ────────────────────────────────────────────
+# MARSOUD-SAAS-EMAIL-VALIDATOR-01 (2026-10-08) — tenant 47's bad
+# email (bad address syntax) propagated to the saas Customer mirror
+# via `ensure_saas_customer`, then the cron's `send_invoice_notification`
+# tripped `smtplib.SMTPRecipientsRefused` on every tick.  Validate at
+# the choke point (the mirror sync) and refuse to copy a malformed
+# address — leaving `cust.email` NULL is strictly better than
+# propagating garbage, because `send_invoice_notification` already
+# skips cleanly when email is None (see app/services/email.py:139,
+# 149, 174, 224).
+import re as _re
+_EMAIL_RE = _re.compile(
+    r"^[A-Za-z0-9._%+-]+@(?!.*\.\.)[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
+
+
+def _is_valid_email(s):
+    """RFC-5321-lite — enough to catch the garbage that reached
+    tenant 47's row.  Not full RFC-5322; nobody needs that in
+    anger."""
+    if not s or not isinstance(s, str):
+        return False
+    return bool(_EMAIL_RE.match(s.strip()))
+
+
 # ─── Customer mirror ─────────────────────────────────────────────
 def ensure_saas_customer(company):
     """Get-or-create the Customer row in Manasty's books that
@@ -112,8 +136,14 @@ def ensure_saas_customer(company):
         cust = db.session.get(Customer, company.saas_customer_id)
         if cust:
             # Keep the mirror's email in sync — the owner might
-            # have changed their address between invoices.
-            if owner_email and cust.email != owner_email:
+            # have changed their address between invoices.  Only
+            # copy the value when it's actually a valid address
+            # (MARSOUD-SAAS-EMAIL-VALIDATOR-01) — tenant 47's cron
+            # failures were caused by a garbage email propagating
+            # from the User row to this mirror and then into
+            # smtplib.
+            if owner_email and _is_valid_email(owner_email) \
+                    and cust.email != owner_email:
                 cust.email = owner_email
             # MARSOUD-SAAS-CUSTOMER-PHONE — heal NULL phone on
             # existing mirrors. Never overwrite an already-set
@@ -124,10 +154,16 @@ def ensure_saas_customer(company):
             return cust
         # Stale FK — fall through and re-create.
     mid = manasty_id()
+    # MARSOUD-SAAS-EMAIL-VALIDATOR-01 — refuse to seed the mirror
+    # with a malformed owner email.  Leaving `email=None` is a
+    # strict improvement over "SMTPRecipientsRefused every cron
+    # tick"; an operator can later fix the User row and the next
+    # ensure_saas_customer run will heal the mirror.
+    safe_email = owner_email if _is_valid_email(owner_email) else None
     cust = Customer(
         company_id=mid,
         name=company.name,
-        email=owner_email,
+        email=safe_email,
         phone=resolved_phone,
         is_active=True,
     )
@@ -416,6 +452,27 @@ def _create_next_cycle_invoice(tenant, admin_user_id=None):
     ))
     next_inv.recalc()
     db.session.flush()
+    # MARSOUD-SAAS-ZERO-INVOICE-GUARD-01 (2026-10-08) — a free-plan,
+    # trial, 100%-coupon, or price_lock=0 tenant produces a
+    # zero-total invoice.  `post_journal` refuses zero JEs at
+    # `app/services/ledger.py:53-54` ("القيد لا يمكن أن يكون بقيمة
+    # صفر"), which used to fail the whole cron for tenant 47 on
+    # every daily tick — the exception bubbled up to
+    # `process_saas_next_invoices`'s outer except, rolled the
+    # transaction back, so `tenant.next_billing_date` never cleared
+    # and the sweep retried the same broken tenant tomorrow.
+    #
+    # Decision (confirmed with Shalaby 2026-10-08): keep the Invoice
+    # row — it IS a record of the subscription cycle that the audit
+    # trail + UI need — but skip the JE (there's no money to move)
+    # and mark it PAID so no reminder emails fire.  The subscription
+    # renewal + email flows still run normally downstream of the
+    # cron caller.
+    if float(next_inv.total or 0) < 0.005:
+        next_inv.status = InvoiceStatus.PAID
+        next_inv.paid_amount = next_inv.total
+        db.session.flush()
+        return next_inv
     _post_to_ledger_idempotent(next_inv, created_by=admin_user_id)
     return next_inv
 
