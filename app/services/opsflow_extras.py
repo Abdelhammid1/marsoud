@@ -137,8 +137,26 @@ TRACKED_FIELDS = {
 }
 
 
-def _record_audit(obj, action, changes=None):
-    """Persist an AuditEntry row. Caller commits."""
+def _record_audit(obj, action, connection, changes=None):
+    """Persist an AuditEntry row via the connection the flush is
+    running on.
+
+    MARSOUD-OPSFLOW-AUDIT-FLUSH-01 (2026-10-08) — this used to call
+    `db.session.add(entry)`, which SQLAlchemy explicitly forbids
+    inside `after_insert` / `after_update` / `after_delete` listeners
+    because they fire DURING a flush.  The warning
+    `SAWarning: Usage of the 'Session.add()' operation is not
+    currently supported within the execution stage of the flush
+    process` kept firing in prod logs (2026-10-08 13:27 + 13:35),
+    and SQLAlchemy promises to turn it into an error in a future
+    release.  Risk today: the queued entry could be lost or
+    duplicated depending on where the flush is in its own loop.
+
+    Fix: `connection.execute(AuditEntry.__table__.insert().values(...))`
+    rides the same transaction without going through the Session,
+    which is what SQLAlchemy actually documents as the safe
+    mid-flush insert pattern.
+    """
     entity_type = type(obj).__name__
     company_id = getattr(obj, "company_id", None)
     if company_id is None:
@@ -151,15 +169,18 @@ def _record_audit(obj, action, changes=None):
             actor_id = current_user.id
     except Exception:
         pass
-    entry = AuditEntry(
-        company_id=company_id,
-        entity_type=entity_type,
-        entity_id=getattr(obj, "id", 0) or 0,
-        action=action,
-        changed_by_id=actor_id,
-        changes_json=json.dumps(changes, default=str, ensure_ascii=False) if changes else None,
+    connection.execute(
+        AuditEntry.__table__.insert().values(
+            company_id=company_id,
+            entity_type=entity_type,
+            entity_id=getattr(obj, "id", 0) or 0,
+            action=action,
+            changed_by_id=actor_id,
+            changes_json=(json.dumps(changes, default=str,
+                                       ensure_ascii=False)
+                           if changes else None),
+        )
     )
-    db.session.add(entry)
 
 
 _AUDIT_LISTENERS_REGISTERED = False
@@ -200,17 +221,17 @@ def init_audit_listeners(app=None):
 
     def _after_insert(mapper, connection, target):
         if type(target).__name__ in TRACKED_FIELDS:
-            _record_audit(target, "CREATE")
+            _record_audit(target, "CREATE", connection)
 
     def _after_update(mapper, connection, target):
         if type(target).__name__ in TRACKED_FIELDS:
             changes = _diff(target)
             if changes:
-                _record_audit(target, "UPDATE", changes)
+                _record_audit(target, "UPDATE", connection, changes)
 
     def _after_delete(mapper, connection, target):
         if type(target).__name__ in TRACKED_FIELDS:
-            _record_audit(target, "DELETE")
+            _record_audit(target, "DELETE", connection)
 
     for cls in (Lead, Project, Task):
         event.listen(cls, "after_insert", _after_insert, propagate=True)
