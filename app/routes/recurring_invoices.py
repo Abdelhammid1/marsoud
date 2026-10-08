@@ -29,11 +29,29 @@ bp = Blueprint("recurring_invoices", __name__)
 @login_required
 @require_permission("invoices.create")
 def index():
-    """List every schedule for the active company (soft-deleted excluded)."""
+    """List every schedule for the active company (soft-deleted excluded).
+
+    MARSOUD-RECURRING-INVOICE-TOTAL-COLUMN-01 (2026-10-08) — the index
+    used to render `s.items[0].unit_price` in the template, which was
+    the first line's unit price, not the real total.  Compute each
+    schedule's total here (same math `services/recurring_invoices.py:
+    85-112` uses when the cron actually generates the invoice) and
+    attach it as a transient `computed_total` attribute.  Keep the
+    arithmetic out of Jinja — `|money` returns a string, which was
+    the root cause of the earlier 500.
+    """
     rows = RecurringInvoice.query.filter_by(
         company_id=g.active_company.id,
         is_deleted=False,
     ).order_by(RecurringInvoice.next_run_date.asc()).all()
+    for s in rows:
+        subtotal = Decimal("0")
+        for i in s.items:
+            qty = Decimal(str(i.get("quantity") or 0))
+            price = Decimal(str(i.get("unit_price") or 0))
+            subtotal += qty * price
+        tax = subtotal * Decimal(str(s.tax_rate or 0)) / Decimal(100)
+        s.computed_total = float(subtotal + tax)
     return render_template(
         "recurring_invoices/index.html",
         rows=rows,
