@@ -356,9 +356,17 @@ def _apply_create_form_installments(invoice, form, actor_id):
     except (TypeError, ValueError):
         inst_count = 0
     inst_start_raw = (form.get("installment_start_date") or "").strip()
+    # MARSOUD-INVOICE-CUSTOM-INSTALLMENTS-01 (2026-10-10) — detect
+    # the mode BEFORE the "nothing touched" early-return.  In custom
+    # mode the operator doesn't fill `installment_count` (that's the
+    # equal-mode field), so without this hoist the function would
+    # bail out and the custom rows would silently vanish.
+    mode = (form.get("installment_mode") or "equal").strip()
 
     # Nothing on this section → return silently (regular sale path).
-    if inst_count < 2 and dp_amount <= 0:
+    # Custom mode is "touched" whenever the operator switched to it,
+    # even without a down-payment — don't short-circuit there.
+    if mode != "custom" and inst_count < 2 and dp_amount <= 0:
         return
 
     total = float(invoice.total or 0)
@@ -387,11 +395,11 @@ def _apply_create_form_installments(invoice, form, actor_id):
                         exchange_rate=_fx)
 
     # ─── Installment plan (optional) ─────────────────────────────────
-    # MARSOUD-INVOICE-CUSTOM-INSTALLMENTS-01 (2026-10-10) — the card
-    # now has a radio toggle "installment_mode = equal | custom".
-    # Default stays `equal`, so every pre-existing POST (which doesn't
-    # send the field) takes the untouched legacy path below.
-    mode = (form.get("installment_mode") or "equal").strip()
+    # The radio toggle "installment_mode = equal | custom" was read
+    # above (before the early-return) so it also gates whether we even
+    # reach this point.  Default stays `equal`, so every pre-existing
+    # POST (which doesn't send the field) takes the untouched legacy
+    # path below.
     rows = None
     if mode == "custom":
         from app.services.installments import (
