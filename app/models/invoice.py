@@ -88,6 +88,17 @@ class Invoice(db.Model):
     # collection; this column is the metadata bit that says "yes, this
     # was the up-front slice"). NULL for plain invoices without one.
     down_payment_amount = db.Column(db.Numeric(15, 2), nullable=True)
+    # MARSOUD-INVOICE-CUSTOM-INSTALLMENTS-01 (2026-10-10) — holds the
+    # serialized {down_payment_amount, down_payment_method_id,
+    # mode, rows:[{due_date, amount}]} payload when "Save as quote"
+    # lands with an installments schedule (custom OR equal).  Lets
+    # the operator author a plan at quote time, email the quote, and
+    # convert to invoice later without re-entering dates/amounts.
+    # Cleared on Send after the plan + down-payment are applied via
+    # `app/services/installments.py::apply_pending_plan`.  NULL for
+    # every existing invoice; `apply_pending_plan` treats absence as
+    # "no stored plan" and returns silently.
+    pending_plan_json = db.Column(db.Text, nullable=True)
     status = db.Column(db.Enum(InvoiceStatus), default=InvoiceStatus.DRAFT, nullable=False)
     notes = db.Column(db.Text)              # customer-facing
     internal_notes = db.Column(db.Text)     # private to the company

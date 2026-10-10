@@ -168,3 +168,146 @@ def _q(v):
     """Coerce to a 2-decimal Decimal — the currency scale for
     invoice amounts."""
     return Decimal(str(v or 0)).quantize(Decimal("0.01"))
+
+
+# ─── MARSOUD-INVOICE-CUSTOM-INSTALLMENTS-01 (2026-10-10) ──────────
+# The equal-split flow computes rows from `installment_count` +
+# `installment_start_date`; the new custom flow reads parallel
+# `custom_due_date[]` + `custom_amount[]` arrays off the form.  The
+# helpers below cover: parsing the arrays, ticket-level validation
+# (max 24, date floor, no duplicates, auto-sort, Decimal compare),
+# and the "save as quote" ↔ "send" bridge via `invoices.pending_plan_json`.
+
+MAX_INSTALLMENTS = 24
+
+
+def _parse_custom_rows(form):
+    """Pull parallel `custom_due_date[]` + `custom_amount[]` arrays
+    off the form, dropping empty rows, returning
+    `[{amount: Decimal, due_date: date}, ...]`.  Keeps the raw text
+    order — downstream `_validate_custom_rows` sorts and dedupes."""
+    from datetime import datetime as _dt
+    dates = form.getlist("custom_due_date[]") if hasattr(
+        form, "getlist") else form.get("custom_due_date[]") or []
+    amounts = form.getlist("custom_amount[]") if hasattr(
+        form, "getlist") else form.get("custom_amount[]") or []
+    rows = []
+    for d_raw, a_raw in zip(dates, amounts):
+        d_raw = (d_raw or "").strip()
+        a_raw = (a_raw or "").strip()
+        if not d_raw and not a_raw:
+            continue  # fully-empty row — operator-added placeholder
+        try:
+            due = _dt.strptime(d_raw, "%Y-%m-%d").date()
+        except (TypeError, ValueError):
+            raise InstallmentError(
+                f"تاريخ قسط غير صالح: {d_raw!r}")
+        try:
+            amt = Decimal(a_raw)
+        except (ArithmeticError, TypeError, ValueError):
+            raise InstallmentError(
+                f"مبلغ قسط غير صالح: {a_raw!r}")
+        rows.append({"amount": _q(amt), "due_date": due})
+    return rows
+
+
+def _validate_custom_rows(rows, invoice_total, down_payment, issue_date):
+    """Enforce the ticket-level rules on top of the service's own
+    sum-vs-remaining check:
+      * at least one row
+      * at most MAX_INSTALLMENTS rows (24)
+      * every amount > 0
+      * every due_date >= issue_date
+      * no duplicate due_dates
+      * Σ amounts (Decimal) == invoice_total − down_payment to the cent
+      * returns a NEW list sorted by due_date so sequence_no reflects
+        chronological order (oldest-first distribution).
+    Raises InstallmentError with an Arabic message naming the exact
+    diff so the operator can self-correct.
+    """
+    if not rows:
+        raise InstallmentError("أدخل قسطًا واحدًا على الأقل")
+    if len(rows) > MAX_INSTALLMENTS:
+        raise InstallmentError(
+            f"عدد الأقساط ({len(rows)}) أكبر من الحد الأقصى "
+            f"({MAX_INSTALLMENTS})")
+    seen_dates = set()
+    for i, r in enumerate(rows, start=1):
+        if r["amount"] <= 0:
+            raise InstallmentError(
+                f"قسط رقم {i}: القيمة يجب أن تكون أكبر من صفر")
+        if issue_date is not None and r["due_date"] < issue_date:
+            raise InstallmentError(
+                f"قسط رقم {i}: تاريخ الاستحقاق قبل تاريخ الفاتورة "
+                f"({issue_date})")
+        if r["due_date"] in seen_dates:
+            raise InstallmentError(
+                f"تاريخ مكرّر: {r['due_date']} — كل قسط يجب أن يكون "
+                f"بتاريخ مختلف")
+        seen_dates.add(r["due_date"])
+    expected = _q(invoice_total) - _q(down_payment or 0)
+    got = sum((r["amount"] for r in rows), Decimal("0"))
+    if got != expected:
+        diff = got - expected
+        raise InstallmentError(
+            f"مجموع الأقساط ({got}) لا يساوي الباقي بعد الدفعة المقدّمة "
+            f"({expected}) — الفرق {diff}")
+    return sorted(rows, key=lambda r: r["due_date"])
+
+
+def serialize_pending_plan(mode, rows, down_payment_amount,
+                             down_payment_method_id):
+    """Return a JSON string suitable for `invoices.pending_plan_json`.
+    Caller validated `rows` already."""
+    import json as _json
+    return _json.dumps({
+        "mode": mode,
+        "down_payment_amount": str(_q(down_payment_amount or 0)),
+        "down_payment_method_id": (int(down_payment_method_id)
+                                     if down_payment_method_id else None),
+        "rows": [
+            {"due_date": r["due_date"].isoformat(),
+             "amount": str(_q(r["amount"]))}
+            for r in rows
+        ],
+    }, ensure_ascii=False)
+
+
+def apply_pending_plan(invoice, *, actor_id=None):
+    """Read `invoice.pending_plan_json`, record the stored down-payment
+    via `record_payment`, hand the rows to `create_installment_plan`,
+    then clear the column.  No-op (returns None) when the invoice has
+    no stored plan — existing-invoice sends behave exactly as before.
+
+    Used by the /send route: the plan was already validated at
+    quote-save time, so Send does NOT re-validate — the ticket's
+    'يتحول لفاتورة عند الإرسال بدون ما يتفقد' rule.
+    """
+    import json as _json
+    from datetime import datetime as _dt
+    if not invoice.pending_plan_json:
+        return None
+    try:
+        payload = _json.loads(invoice.pending_plan_json)
+    except (ValueError, TypeError):
+        raise InstallmentError("خطة الأقساط المخزّنة تالفة")
+    dp_amount = _q(payload.get("down_payment_amount") or 0)
+    dp_method_id = payload.get("down_payment_method_id")
+    if dp_amount > 0:
+        if not dp_method_id:
+            raise InstallmentError(
+                "طريقة الدفع للمقدّم مفقودة في الخطة المخزّنة")
+        from app.services.invoicing import record_payment
+        record_payment(invoice, float(dp_amount),
+                        payment_method_id=int(dp_method_id),
+                        created_by=actor_id, notify=False)
+    rows = []
+    for r in payload.get("rows") or []:
+        rows.append({
+            "amount": _q(r.get("amount")),
+            "due_date": _dt.strptime(r["due_date"], "%Y-%m-%d").date(),
+        })
+    create_installment_plan(invoice, rows, actor_id=actor_id)
+    invoice.pending_plan_json = None
+    db.session.commit()
+    return invoice.installments

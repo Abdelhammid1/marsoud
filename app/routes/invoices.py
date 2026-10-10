@@ -261,6 +261,29 @@ def _validate_installment_form(form, total, inv_currency, base_currency):
     except (TypeError, ValueError):
         inst_count = 0
     inst_start_raw = (form.get("installment_start_date") or "").strip()
+    # MARSOUD-INVOICE-CUSTOM-INSTALLMENTS-01 (2026-10-10) — detect
+    # the custom-schedule mode and defer its validation to the
+    # service-side `_validate_custom_rows` (which raises the exact
+    # Arabic diff message).  Reach the equal-split branch below only
+    # when the operator stayed on the default equal mode.
+    mode = (form.get("installment_mode") or "equal").strip()
+    if mode == "custom":
+        from app.services.installments import (
+            _parse_custom_rows, _validate_custom_rows, InstallmentError,
+        )
+        try:
+            raw = _parse_custom_rows(form)
+            _validate_custom_rows(raw, total, dp_amount, None)
+            # issue_date is None here (the invoice object isn't
+            # created yet at this validation point); the final
+            # `_apply_create_form_installments` runs a second
+            # _validate_custom_rows WITH `invoice.issue_date` after
+            # the invoice row exists.
+        except InstallmentError as e:
+            raise LedgerError(str(e))
+        if dp_amount > 0 and not (form.get("down_payment_method_id") or "").strip():
+            raise LedgerError("اختر طريقة الدفع للدفعة المقدّمة")
+        return
 
     # No installment section touched → nothing to validate.
     if inst_count < 2 and dp_amount <= 0:
@@ -364,7 +387,23 @@ def _apply_create_form_installments(invoice, form, actor_id):
                         exchange_rate=_fx)
 
     # ─── Installment plan (optional) ─────────────────────────────────
-    if inst_count >= 2:
+    # MARSOUD-INVOICE-CUSTOM-INSTALLMENTS-01 (2026-10-10) — the card
+    # now has a radio toggle "installment_mode = equal | custom".
+    # Default stays `equal`, so every pre-existing POST (which doesn't
+    # send the field) takes the untouched legacy path below.
+    mode = (form.get("installment_mode") or "equal").strip()
+    rows = None
+    if mode == "custom":
+        from app.services.installments import (
+            _parse_custom_rows, _validate_custom_rows,
+        )
+        try:
+            raw = _parse_custom_rows(form)
+            rows = _validate_custom_rows(
+                raw, total, dp_amount, invoice.issue_date)
+        except InstallmentError as e:
+            raise LedgerError(str(e))
+    elif inst_count >= 2:
         if not inst_start_raw:
             raise LedgerError("تاريخ أول قسط مطلوب لخطة الأقساط")
         try:
@@ -389,6 +428,7 @@ def _apply_create_form_installments(invoice, form, actor_id):
             # Monthly step matching the /invoices/<id>/installments
             # panel: +30 days.  The service accepts any date sequence.
             due = due.fromordinal(due.toordinal() + 30)
+    if rows:
         try:
             create_installment_plan(invoice, rows, actor_id=actor_id)
         except InstallmentError as e:
@@ -408,6 +448,93 @@ def _apply_create_form_installments(invoice, form, actor_id):
                 logging.getLogger("ledgeros.invoicing").exception(
                     "Failed to send installment plan_created email "
                     "for invoice %s", invoice.number)
+
+
+# MARSOUD-INVOICE-CUSTOM-INSTALLMENTS-01 (2026-10-10) — save-as-quote
+# bridge.  The create form's `/send` branch runs
+# `_apply_create_form_installments` to BUILD the plan immediately;
+# the save-as-quote branch (`should_send=False`) instead calls this
+# helper, which validates the plan AND serializes it onto
+# `invoice.pending_plan_json`.  A later `/invoices/<id>/send` picks
+# it up via `apply_pending_plan` and converts the quote without
+# re-validating.
+def _persist_quote_plan(invoice, form):
+    """If the operator filled out the installments card at
+    save-as-quote time, serialize the plan onto
+    `invoice.pending_plan_json`.  No-op (returns silently) when the
+    card is empty — every pre-existing quote path behaves exactly as
+    before.
+    """
+    from datetime import datetime as _dt
+    from app.services.installments import (
+        _parse_custom_rows, _validate_custom_rows, serialize_pending_plan,
+        InstallmentError, _q,
+    )
+
+    def _fnum(x):
+        try:
+            return float((x or "").strip())
+        except (TypeError, ValueError, AttributeError):
+            return 0.0
+
+    mode = (form.get("installment_mode") or "equal").strip()
+    dp_amount = _fnum(form.get("down_payment_amount"))
+    dp_method_id = (form.get("down_payment_method_id") or "").strip() or None
+    total = float(invoice.total or 0)
+
+    if mode == "custom":
+        try:
+            raw = _parse_custom_rows(form)
+            rows = _validate_custom_rows(
+                raw, total, dp_amount, invoice.issue_date)
+        except InstallmentError as e:
+            raise LedgerError(str(e))
+        if dp_amount > 0 and not dp_method_id:
+            raise LedgerError("اختر طريقة الدفع للدفعة المقدّمة")
+        invoice.pending_plan_json = serialize_pending_plan(
+            "custom", rows, dp_amount, dp_method_id)
+        return
+
+    # Equal mode on the save-as-quote path.  Build the same (amount,
+    # due_date) rows the send path would compute, then serialize.
+    inst_count_raw = (form.get("installment_count") or "").strip()
+    try:
+        inst_count = int(inst_count_raw) if inst_count_raw else 0
+    except (TypeError, ValueError):
+        inst_count = 0
+    inst_start_raw = (form.get("installment_start_date") or "").strip()
+    if inst_count < 2 and dp_amount <= 0:
+        return  # nothing to persist
+    if inst_count >= 2:
+        if not inst_start_raw:
+            raise LedgerError("تاريخ أول قسط مطلوب لخطة الأقساط")
+        try:
+            start_date = _dt.strptime(inst_start_raw, "%Y-%m-%d").date()
+        except (TypeError, ValueError):
+            raise LedgerError("تاريخ أول قسط غير صالح")
+        remaining = total - dp_amount
+        if remaining <= 0.005:
+            raise LedgerError(
+                "المبلغ المتبقّي بعد الدفعة المقدّمة يجب أن يكون أكبر من صفر")
+        per = round(remaining / inst_count, 2)
+        rows = []
+        due = start_date
+        acc = 0.0
+        for i in range(inst_count):
+            if i == inst_count - 1:
+                amt = round(remaining - acc, 2)
+            else:
+                amt = per
+                acc += amt
+            rows.append({"amount": _q(amt), "due_date": due})
+            due = due.fromordinal(due.toordinal() + 30)
+    else:
+        rows = []
+    if dp_amount > 0 and not dp_method_id:
+        raise LedgerError("اختر طريقة الدفع للدفعة المقدّمة")
+    if rows or dp_amount > 0:
+        invoice.pending_plan_json = serialize_pending_plan(
+            "equal", rows, dp_amount, dp_method_id)
 
 
 @bp.route("/new", methods=["GET", "POST"])
@@ -472,6 +599,17 @@ def new():
                 # Now the AR row exists — apply the plan + down-payment.
                 _apply_create_form_installments(
                     invoice, request.form, current_user.id)
+            else:
+                # MARSOUD-INVOICE-CUSTOM-INSTALLMENTS-01 (2026-10-10) —
+                # Save-as-quote path.  If the operator authored any
+                # installments plan (custom OR equal mode), serialize
+                # it onto `invoice.pending_plan_json` so a subsequent
+                # /send call can apply it without the operator having
+                # to re-enter the schedule.  Validates the plan here
+                # so a broken schedule fails on quote-save, not later
+                # on send.  No stored plan when the installments card
+                # was left untouched.
+                _persist_quote_plan(invoice, request.form)
             db.session.commit()
             try:
                 from app.services.superadmin import log_platform_action
@@ -672,8 +810,35 @@ def send(invoice_id):
         try:
             invoice.status = InvoiceStatus.SENT
             post_invoice_to_ledger(invoice, created_by=current_user.id)
+            # MARSOUD-INVOICE-CUSTOM-INSTALLMENTS-01 (2026-10-10) — if
+            # the operator authored an installments plan at quote time
+            # (`invoice.pending_plan_json` is set), apply it NOW without
+            # re-validating.  The plan was validated at save-as-quote
+            # time; the ticket's "يتحول لفاتورة عند الإرسال بدون ما
+            # يتفقد" rule.  Clears the stored blob on success.  No-op
+            # for every existing invoice (NULL column).
+            from app.services.installments import (
+                apply_pending_plan, InstallmentError,
+            )
+            try:
+                had_plan = bool(invoice.pending_plan_json)
+                apply_pending_plan(invoice, actor_id=current_user.id)
+            except InstallmentError as e:
+                raise LedgerError(str(e))
             if request.form.get("email_customer", "1") == "1":
-                send_invoice_notification(invoice)
+                # Same no-double-notify pattern as `new()` POST
+                # at :484-493: when a plan was applied, send the
+                # schedule-aware `plan_created` email; otherwise
+                # the generic `invoice_sent`.
+                if had_plan:
+                    if invoice.customer and invoice.customer.email:
+                        try:
+                            from app.services.email import send_installment_email
+                            send_installment_email(invoice, kind="plan_created")
+                        except Exception:
+                            pass
+                else:
+                    send_invoice_notification(invoice)
             flash("تم إرسال الفاتورة وتسجيل القيد", "success")
         except LedgerError as e:
             flash(str(e), "error")
