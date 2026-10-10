@@ -459,16 +459,17 @@ def _apply_create_form_installments(invoice, form, actor_id):
 # it up via `apply_pending_plan` and converts the quote without
 # re-validating.
 def _persist_quote_plan(invoice, form):
-    """If the operator filled out the installments card at
-    save-as-quote time, serialize the plan onto
-    `invoice.pending_plan_json`.  No-op (returns silently) when the
-    card is empty — every pre-existing quote path behaves exactly as
-    before.
+    """If the operator chose "جدول مخصص" on the save-as-quote path,
+    validate + serialize the custom schedule onto
+    `invoice.pending_plan_json` so a subsequent /send call applies it
+    without re-entering.  No-op for equal-mode or empty card —
+    equal-split plans on save-as-quote are discarded exactly as they
+    were before this ticket, keeping behavior narrowly scoped to the
+    "جدول مخصص" case the ticket actually asked for.
     """
-    from datetime import datetime as _dt
     from app.services.installments import (
         _parse_custom_rows, _validate_custom_rows, serialize_pending_plan,
-        InstallmentError, _q,
+        InstallmentError,
     )
 
     def _fnum(x):
@@ -478,63 +479,23 @@ def _persist_quote_plan(invoice, form):
             return 0.0
 
     mode = (form.get("installment_mode") or "equal").strip()
+    if mode != "custom":
+        return  # equal mode / empty card — nothing new to persist
+
     dp_amount = _fnum(form.get("down_payment_amount"))
     dp_method_id = (form.get("down_payment_method_id") or "").strip() or None
     total = float(invoice.total or 0)
 
-    if mode == "custom":
-        try:
-            raw = _parse_custom_rows(form)
-            rows = _validate_custom_rows(
-                raw, total, dp_amount, invoice.issue_date)
-        except InstallmentError as e:
-            raise LedgerError(str(e))
-        if dp_amount > 0 and not dp_method_id:
-            raise LedgerError("اختر طريقة الدفع للدفعة المقدّمة")
-        invoice.pending_plan_json = serialize_pending_plan(
-            "custom", rows, dp_amount, dp_method_id)
-        return
-
-    # Equal mode on the save-as-quote path.  Build the same (amount,
-    # due_date) rows the send path would compute, then serialize.
-    inst_count_raw = (form.get("installment_count") or "").strip()
     try:
-        inst_count = int(inst_count_raw) if inst_count_raw else 0
-    except (TypeError, ValueError):
-        inst_count = 0
-    inst_start_raw = (form.get("installment_start_date") or "").strip()
-    if inst_count < 2 and dp_amount <= 0:
-        return  # nothing to persist
-    if inst_count >= 2:
-        if not inst_start_raw:
-            raise LedgerError("تاريخ أول قسط مطلوب لخطة الأقساط")
-        try:
-            start_date = _dt.strptime(inst_start_raw, "%Y-%m-%d").date()
-        except (TypeError, ValueError):
-            raise LedgerError("تاريخ أول قسط غير صالح")
-        remaining = total - dp_amount
-        if remaining <= 0.005:
-            raise LedgerError(
-                "المبلغ المتبقّي بعد الدفعة المقدّمة يجب أن يكون أكبر من صفر")
-        per = round(remaining / inst_count, 2)
-        rows = []
-        due = start_date
-        acc = 0.0
-        for i in range(inst_count):
-            if i == inst_count - 1:
-                amt = round(remaining - acc, 2)
-            else:
-                amt = per
-                acc += amt
-            rows.append({"amount": _q(amt), "due_date": due})
-            due = due.fromordinal(due.toordinal() + 30)
-    else:
-        rows = []
+        raw = _parse_custom_rows(form)
+        rows = _validate_custom_rows(
+            raw, total, dp_amount, invoice.issue_date)
+    except InstallmentError as e:
+        raise LedgerError(str(e))
     if dp_amount > 0 and not dp_method_id:
         raise LedgerError("اختر طريقة الدفع للدفعة المقدّمة")
-    if rows or dp_amount > 0:
-        invoice.pending_plan_json = serialize_pending_plan(
-            "equal", rows, dp_amount, dp_method_id)
+    invoice.pending_plan_json = serialize_pending_plan(
+        "custom", rows, dp_amount, dp_method_id)
 
 
 @bp.route("/new", methods=["GET", "POST"])
