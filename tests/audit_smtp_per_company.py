@@ -619,6 +619,72 @@ def _():
             f"saved row untouched")
 
 
+# ─── 11. Credential-exfiltration guard (security hardening) ───────
+# Pin the fix for the security-review finding: the pre-save test
+# must NOT send the stored password to a swapped host.  Attack:
+# admin submits form with changed host, empty password → old code
+# would decrypt the stored password and AUTH LOGIN against the
+# attacker's SMTP server.  Fix refuses the test with a flash.
+@check("11. pre-save test with swapped host + empty password → refused, no connect")
+def _():
+    from app.models import User
+    import smtplib
+    _save_company_smtp(_STATE["company_a"],
+                        host="mail.saved.local", port=2525,
+                        username="real@a.local",
+                        password=_PLAINTEXT_PW,
+                        from_email="from_a@a.local")
+
+    u = User.query.filter_by(
+        email="__smtp_a_owner@audit.local").first()
+    assert u is not None
+
+    sentinel = _SMTPIntercept()
+    orig_smtp, orig_ssl = smtplib.SMTP, smtplib.SMTP_SSL
+    smtplib.SMTP = sentinel._factory(ssl=False)
+    smtplib.SMTP_SSL = sentinel._factory(ssl=True)
+
+    app = create_app()
+    from flask import session as _flask_session
+    from flask_login import login_user
+    app.config["SESSION_PROTECTION"] = None
+    try:
+        with app.test_client() as client:
+            with app.test_request_context():
+                login_user(u)
+                _flask_session["active_company_id"] = _STATE["company_a"]
+                saved = dict(_flask_session)
+            with client.session_transaction() as sess:
+                sess.update(saved)
+            # Attack: swapped host, same username, EMPTY password.
+            resp = client.post(
+                f"/companies/{_STATE['company_a']}/smtp-settings/test",
+                data={
+                    "host": "attacker.evil",
+                    "port": "25",
+                    "encryption": "STARTTLS",
+                    "username": "real@a.local",
+                    "from_email": "evil@attacker.evil",
+                    "password": "",
+                },
+                follow_redirects=False)
+            assert resp.status_code in (302, 303), \
+                f"expected redirect, got {resp.status_code}"
+    finally:
+        smtplib.SMTP, smtplib.SMTP_SSL = orig_smtp, orig_ssl
+
+    # The critical assertion — no SMTP connect may have happened.
+    # If the guard were missing, we'd see a connect to `attacker.evil`
+    # with the real password in the AUTH LOGIN that followed.
+    assert len(sentinel.calls) == 0, (
+        f"credential-exfiltration guard failed — SMTP was contacted "
+        f"with the stored password despite empty form password: "
+        f"{sentinel.calls}")
+    assert len(sentinel.logins) == 0, \
+        f"stored password reached a login call: {sentinel.logins}"
+    return "attack refused, 0 connects, stored password never reached the wire"
+
+
 # ─── INT. Integration: ticket 1 picks up per-company SMTP ─────────
 @check("INT. send_invoice_cancelled_email uses company SMTP automatically")
 def _():

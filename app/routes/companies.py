@@ -567,12 +567,36 @@ def smtp_test(company_id):
         except ValueError:
             port = 0
         enc = (request.form.get("encryption") or "STARTTLS").upper()
+        # Defense-in-depth: whitelist the encryption value so a crafted
+        # POST can't downgrade the test (or the saved row's live sends)
+        # to a mode we didn't branch on.
+        if enc not in _SMTP_ENC_FORM_VALUES:
+            flash("نوع التشفير غير صالح", "error")
+            return redirect(url_for("companies.smtp_settings",
+                                     company_id=company.id))
         user = (request.form.get("username") or "").strip()
         form_pw = request.form.get("password") or ""
+        # Security guard — the pre-save test could become a password-
+        # exfiltration tool if the operator swapped the host but left
+        # the password blank: we would send the STORED password to the
+        # attacker's SMTP server during AUTH LOGIN.  Only trust the
+        # stored password when the submitted host + port + username
+        # EXACTLY match the saved row.  Otherwise, demand that the
+        # operator types the password into the form.
         if form_pw:
             pw = form_pw
-        elif smtp and smtp.password_encrypted:
+        elif (smtp and smtp.password_encrypted
+                and host == smtp.host
+                and port == int(smtp.port)
+                and user == (smtp.username or "")):
             pw = decrypt(smtp.password_encrypted) or ""
+        elif smtp and smtp.password_encrypted:
+            flash(
+                "أدخل كلمة المرور عند اختبار خادم أو مستخدم مختلف "
+                "عن المحفوظ — كلمة المرور المخزّنة لا تُرسل لخوادم "
+                "أخرى.", "error")
+            return redirect(url_for("companies.smtp_settings",
+                                     company_id=company.id))
         else:
             pw = ""
         from_email = (request.form.get("from_email") or "").strip()
