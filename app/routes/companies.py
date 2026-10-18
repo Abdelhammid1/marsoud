@@ -416,6 +416,199 @@ def branches(company_id):
         sub_branches=sub_branches, eligible=eligible)
 
 
+# ─── MARSOUD-SMTP-PER-COMPANY-01 (2026-10-18) ──────────────────────────
+# Per-company SMTP settings UI + test-connection endpoint.  Reuses the
+# `company.edit` permission (sensitive data belongs to the same
+# tenant-config scope as the main edit form, and we don't want to
+# invent a new permission just for one sub-page).  Cross-tenant guard
+# matches the pattern in `edit()` above: `company not in current_user.companies`.
+_SMTP_ENC_FORM_VALUES = ("STARTTLS", "SSL", "NONE")
+
+
+def _smtp_assert_access(company_id):
+    """Shared cross-tenant guard for the three SMTP routes.  Returns
+    the company on success, or (None, redirect) on refusal."""
+    company = db.session.get(Company, company_id)
+    if not company or company not in current_user.companies:
+        flash("غير مسموح", "error")
+        return None, redirect(url_for("companies.index"))
+    return company, None
+
+
+@bp.route("/<int:company_id>/smtp-settings",
+          methods=["GET", "POST"])
+@login_required
+@require_permission("company.edit")
+def smtp_settings(company_id):
+    """Render the SMTP settings form (GET) or save it (POST).
+
+    The password field is NEVER populated from the stored value — on
+    GET it renders blank, and on POST we only overwrite the stored
+    password when the operator typed a new one.  Partial edits (host
+    change, keep password) do not nuke the saved credential.
+    """
+    from app.models import CompanySMTP
+    from app.services.crypto import encrypt
+    company, bail = _smtp_assert_access(company_id)
+    if bail is not None:
+        return bail
+    smtp = (CompanySMTP.query
+            .filter_by(company_id=company.id).first())
+
+    if request.method == "POST":
+        host = (request.form.get("host") or "").strip()
+        port_raw = (request.form.get("port") or "").strip()
+        encryption = (request.form.get("encryption") or "STARTTLS").upper()
+        username = (request.form.get("username") or "").strip() or None
+        new_password = request.form.get("password") or ""
+        from_email = (request.form.get("from_email") or "").strip()
+        from_name = (request.form.get("from_name") or "").strip() or None
+        is_enabled = request.form.get("is_enabled") == "1"
+
+        # Validate.  No encryption → log but keep plain SMTP so dev
+        # mail-trap setups still work; UI warns.
+        if not host:
+            flash("خادم SMTP مطلوب", "error")
+            return redirect(url_for("companies.smtp_settings",
+                                      company_id=company.id))
+        try:
+            port = int(port_raw)
+            if not (1 <= port <= 65535):
+                raise ValueError
+        except ValueError:
+            flash("رقم المنفذ غير صالح (1–65535)", "error")
+            return redirect(url_for("companies.smtp_settings",
+                                      company_id=company.id))
+        if encryption not in _SMTP_ENC_FORM_VALUES:
+            flash("نوع التشفير غير صالح", "error")
+            return redirect(url_for("companies.smtp_settings",
+                                      company_id=company.id))
+        if not from_email or "@" not in from_email:
+            flash("البريد الإلكتروني للمرسل غير صالح", "error")
+            return redirect(url_for("companies.smtp_settings",
+                                      company_id=company.id))
+
+        if smtp is None:
+            smtp = CompanySMTP(company_id=company.id,
+                                host=host, port=port,
+                                encryption=encryption,
+                                username=username,
+                                from_email=from_email,
+                                from_name=from_name,
+                                is_enabled=is_enabled)
+            # New rows: a password MUST be provided (unless the
+            # server is open-relay / no-auth — detectable only
+            # at runtime, so warn, don't block).
+            if new_password:
+                smtp.password_encrypted = encrypt(new_password)
+            db.session.add(smtp)
+        else:
+            smtp.host = host
+            smtp.port = port
+            smtp.encryption = encryption
+            smtp.username = username
+            smtp.from_email = from_email
+            smtp.from_name = from_name
+            smtp.is_enabled = is_enabled
+            # Only touch the password blob when the operator typed
+            # something new — empty submit keeps the stored secret.
+            if new_password:
+                smtp.password_encrypted = encrypt(new_password)
+        db.session.commit()
+        flash("تم حفظ إعدادات SMTP", "success")
+        return redirect(url_for("companies.smtp_settings",
+                                 company_id=company.id))
+
+    return render_template("companies/smtp_settings.html",
+                            company=company, smtp=smtp,
+                            enc_choices=_SMTP_ENC_FORM_VALUES)
+
+
+@bp.route("/<int:company_id>/smtp-settings/test",
+          methods=["POST"])
+@login_required
+@require_permission("company.edit")
+def smtp_test(company_id):
+    """Attempt an SMTP connect + login against the STORED config and
+    stamp `last_test_at` + `last_test_ok` + `last_test_error`.  The
+    operator sees the outcome via a flash on redirect.  Pattern lifted
+    from `app/routes/superadmin.py:1066-1090` — same TLS branches,
+    same timeout.  Never exposes the stored password to the response."""
+    from app.models import CompanySMTP
+    from app.services.crypto import decrypt
+    import smtplib
+    from datetime import datetime as _dt
+    company, bail = _smtp_assert_access(company_id)
+    if bail is not None:
+        return bail
+    smtp = (CompanySMTP.query
+            .filter_by(company_id=company.id).first())
+    if smtp is None:
+        flash("لا توجد إعدادات SMTP للاختبار", "warning")
+        return redirect(url_for("companies.smtp_settings",
+                                 company_id=company.id))
+
+    host = smtp.host
+    port = int(smtp.port)
+    user = smtp.username or ""
+    pw = decrypt(smtp.password_encrypted) or ""
+    enc = (smtp.encryption or "STARTTLS").upper()
+
+    ok, err_text = True, None
+    try:
+        if enc == "SSL":
+            ctx = smtplib.SMTP_SSL(host, port, timeout=15)
+        else:
+            ctx = smtplib.SMTP(host, port, timeout=15)
+        with ctx as server:
+            if enc == "STARTTLS":
+                server.starttls()
+            if user:
+                server.login(user, pw)
+            server.noop()
+    except Exception as e:
+        ok = False
+        # Expose exception TYPE + first line; strip anything that
+        # might carry the password back to the UI.
+        err_text = f"{type(e).__name__}: {str(e)[:300]}"
+
+    smtp.last_test_at = _dt.utcnow()
+    smtp.last_test_ok = ok
+    smtp.last_test_error = err_text if not ok else None
+    db.session.commit()
+    if ok:
+        flash("نجح الاتصال بخادم SMTP", "success")
+    else:
+        flash(f"فشل الاتصال: {err_text}", "error")
+    return redirect(url_for("companies.smtp_settings",
+                             company_id=company.id))
+
+
+@bp.route("/<int:company_id>/smtp-settings/delete",
+          methods=["POST"])
+@login_required
+@require_permission("company.edit")
+def smtp_delete(company_id):
+    """Remove the per-company SMTP row entirely so the next send
+    falls back to the platform default — the ticket's "عند حذف
+    إعدادات الشركة، يعود النظام تلقائيًا إلى SMTP مرصود" requirement."""
+    from app.models import CompanySMTP
+    company, bail = _smtp_assert_access(company_id)
+    if bail is not None:
+        return bail
+    smtp = (CompanySMTP.query
+            .filter_by(company_id=company.id).first())
+    if smtp is None:
+        flash("لا توجد إعدادات SMTP لحذفها", "info")
+    else:
+        db.session.delete(smtp)
+        db.session.commit()
+        flash("تم حذف إعدادات SMTP — ستُستخدم إعدادات مرصود الافتراضية",
+              "success")
+    return redirect(url_for("companies.smtp_settings",
+                             company_id=company.id))
+
+
 # ─── MARSOUD-J: owner soft-deletes their own company ────────────────────
 @bp.route("/<int:company_id>/soft-delete", methods=["POST"])
 @login_required

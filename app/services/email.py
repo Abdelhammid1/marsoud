@@ -11,13 +11,76 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from email.utils import formataddr
-from flask import current_app, render_template
+from flask import current_app, render_template, g, has_request_context
 
 logger = logging.getLogger("ledgeros.email")
 
 
 def _smtp_configured():
     return bool(current_app.config.get("SMTP_HOST"))
+
+
+# MARSOUD-SMTP-PER-COMPANY-01 (2026-10-18) — resolver that picks the
+# SMTP config for a given company_id.  Returns `(cfg_dict, source)`
+# where source is "company" or "default".
+#
+# "company" means a `CompanySMTP` row was found AND is_enabled.  The
+# central `send_email` MUST attempt delivery with that config and
+# MUST NOT silently retry with the platform default on failure
+# (ticket's "لا يؤدي إلى تحويل البريد بصمت" rule).  "default" means
+# we fell back to the platform's `.env` config — this is the correct
+# behavior for tenants that haven't opted in.
+def _resolve_mail_config(company_id):
+    if company_id:
+        try:
+            from app.models import CompanySMTP
+            from app.services.crypto import decrypt
+            row = CompanySMTP.query.filter_by(
+                company_id=company_id, is_enabled=True).first()
+        except Exception:
+            # DB hiccup → do NOT silently fall back; log + treat as
+            # "no company config" (= default path).  This matches the
+            # ticket's spirit: a tenant-config lookup problem is not
+            # a reason to leak mail out from the platform address if
+            # the operator thought they'd configured their own.
+            logger.exception(
+                "CompanySMTP lookup failed for company_id=%s",
+                company_id)
+            row = None
+        if row:
+            return ({
+                "SMTP_HOST": row.host,
+                "SMTP_PORT": int(row.port),
+                "SMTP_USER": row.username or "",
+                "SMTP_PASSWORD": decrypt(row.password_encrypted) or "",
+                "SMTP_FROM": row.from_email,
+                "SMTP_FROM_NAME": row.from_name or row.from_email,
+                "SMTP_ENCRYPTION": row.encryption,
+            }, "company")
+    cfg = current_app.config
+    return ({
+        "SMTP_HOST": cfg.get("SMTP_HOST"),
+        "SMTP_PORT": cfg.get("SMTP_PORT"),
+        "SMTP_USER": cfg.get("SMTP_USER"),
+        "SMTP_PASSWORD": cfg.get("SMTP_PASSWORD"),
+        "SMTP_FROM": cfg.get("SMTP_FROM", "no-reply@marsoud.app"),
+        "SMTP_FROM_NAME": cfg.get("SMTP_FROM_NAME", "Marsoud"),
+        "SMTP_ENCRYPTION": (
+            "STARTTLS" if cfg.get("SMTP_USE_TLS", True) else "NONE"),
+    }, "default")
+
+
+def _implicit_company_id():
+    """When a call-site doesn't pass `company_id=` explicitly AND
+    we're inside a request bound to an active company, pick it up
+    from `g.active_company` so the resolver uses the right tenant.
+    Returns None when we're outside a request context (cron jobs
+    must pass company_id explicitly)."""
+    if has_request_context():
+        co = getattr(g, "active_company", None)
+        if co is not None:
+            return co.id
+    return None
 
 
 def company_logo_email_uri(company):
@@ -38,28 +101,40 @@ def company_logo_email_uri(company):
     return f"{base}/{rel}"
 
 
-def send_email(to, subject, html_body, attachments=None, text_body=None):
-    """Send an email. Returns True on success, False on failure (logged, never raises).
+def send_email(to, subject, html_body, attachments=None,
+                text_body=None, *, company_id=None):
+    """Send an email. Returns True on success, False on failure
+    (logged, never raises).
 
     attachments: list of (filename, bytes, mimetype) tuples
+
+    MARSOUD-SMTP-PER-COMPANY-01 (2026-10-18) — resolver picks the
+    SMTP config for `company_id`.  If `company_id` is None and we're
+    in a request context with an active company, that company's id
+    is used automatically.  Cron / background jobs that outlive the
+    request MUST pass `company_id=` explicitly.
     """
     if not to:
         logger.warning("send_email called with empty 'to'")
         return False
 
-    config = current_app.config
-    from_addr = config.get("SMTP_FROM", "no-reply@marsoud.app")
-    from_name = config.get("SMTP_FROM_NAME", "Marsoud")
+    if company_id is None:
+        company_id = _implicit_company_id()
+    config, source = _resolve_mail_config(company_id)
+    from_addr = config["SMTP_FROM"]
+    from_name = config["SMTP_FROM_NAME"]
 
-    if not _smtp_configured():
-        # Log-only mode for dev
+    if not config.get("SMTP_HOST"):
+        # Log-only mode (dev convenience).  Source is reported so
+        # the operator can tell whether the platform OR a specific
+        # tenant is unconfigured.
         logger.warning(
-            "[EMAIL NOT SENT — SMTP_HOST not configured in .env]\n"
+            "[EMAIL NOT SENT — SMTP_HOST not configured (source=%s)]\n"
             "  To:      %s\n"
             "  Subject: %s\n"
             "  Body:    %s\n"
             "  Attachments: %s",
-            to, subject, (text_body or html_body)[:200],
+            source, to, subject, (text_body or html_body)[:200],
             [a[0] for a in (attachments or [])],
         )
         return True
@@ -87,26 +162,44 @@ def send_email(to, subject, html_body, attachments=None, text_body=None):
         msg = mixed
 
     smtp_host = config["SMTP_HOST"]
-    smtp_port = config["SMTP_PORT"]
+    smtp_port = int(config["SMTP_PORT"])
     smtp_user = config.get("SMTP_USER") or "(no user)"
+    smtp_pw = config.get("SMTP_PASSWORD") or ""
+    encryption = (config.get("SMTP_ENCRYPTION") or "STARTTLS").upper()
     try:
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
-            if config.get("SMTP_USE_TLS", True):
+        # SSL (implicit TLS, typically 465) wraps the socket from the
+        # start.  STARTTLS (typically 587) opens plain, upgrades.
+        # NONE is plain SMTP (dev-only — not safe over public net).
+        if encryption == "SSL":
+            server_ctx = smtplib.SMTP_SSL(smtp_host, smtp_port,
+                                            timeout=30)
+        else:
+            server_ctx = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
+        with server_ctx as server:
+            if encryption == "STARTTLS":
                 server.starttls()
             if config.get("SMTP_USER"):
-                server.login(config["SMTP_USER"], config["SMTP_PASSWORD"])
+                server.login(config["SMTP_USER"], smtp_pw)
             server.send_message(msg)
-        logger.info("Email sent → %s (subject=%r, host=%s:%s, user=%s)",
-                    to, subject, smtp_host, smtp_port, smtp_user)
+        logger.info(
+            "Email sent → %s (subject=%r, source=%s, host=%s:%s, "
+            "user=%s)",
+            to, subject, source, smtp_host, smtp_port, smtp_user)
         return True
     except Exception as e:
-        # Surface every detail we have — host, port, user, and the actual exception text.
-        # This is the line abdelhamid asked about: previously the failure was hidden
-        # under a generic message that hid which step failed (connect / TLS / login / send).
+        # Surface host:port + user + exception type — but NEVER log
+        # smtp_pw.  Ticket's "عدم تسجيل كلمات المرور ... في سجلات
+        # النظام" rule is enforced here (and by never passing the
+        # password dict through to logger.exception's `extra`).
         logger.exception(
-            "SMTP send failed → host=%s:%s, user=%s, to=%s — %s: %s",
-            smtp_host, smtp_port, smtp_user, to, type(e).__name__, str(e)[:300],
+            "SMTP send failed → source=%s, host=%s:%s, user=%s, "
+            "to=%s — %s: %s",
+            source, smtp_host, smtp_port, smtp_user, to,
+            type(e).__name__, str(e)[:300],
         )
+        # Per-ticket rule: `source == "company"` + failure must NOT
+        # silently retry with the platform default.  The caller sees
+        # False and is expected to surface the error.
         return False
 
 
@@ -142,7 +235,9 @@ def send_invoice_email(invoice, attach_pdf=True):
     subject = f"فاتورة جديدة #{invoice.number} من {invoice.company.name}"
     html = render_template("emails/invoice_sent.html", invoice=invoice)
     attachments = _invoice_pdf_attachment(invoice) if attach_pdf else []
-    return send_email(invoice.customer.email, subject, html, attachments=attachments)
+    return send_email(invoice.customer.email, subject, html,
+                       attachments=attachments,
+                       company_id=invoice.company_id)
 
 
 def send_payment_received_email(invoice, payment, is_full):
@@ -156,7 +251,8 @@ def send_payment_received_email(invoice, payment, is_full):
     # PDF so the customer's receipt email carries a printable copy
     # showing the just-recorded payment reflected in the totals.
     return send_email(invoice.customer.email, subject, html,
-                       attachments=_invoice_pdf_attachment(invoice))
+                       attachments=_invoice_pdf_attachment(invoice),
+                       company_id=invoice.company_id)
 
 
 # MARSOUD-INVOICE-INSTALLMENT-EMAILS-01 (2026-09-08) — one entry point
@@ -216,7 +312,8 @@ def send_installment_email(invoice, kind, *, installment=None,
     # so every touchpoint carries the printable statement, not just
     # the HTML timeline.
     return send_email(invoice.customer.email, subject, html,
-                       attachments=_invoice_pdf_attachment(invoice))
+                       attachments=_invoice_pdf_attachment(invoice),
+                       company_id=invoice.company_id)
 
 
 def send_overdue_reminder(invoice, days_label):
@@ -241,7 +338,8 @@ def send_overdue_reminder(invoice, days_label):
     # customer can print or forward, not a "come see it inside the
     # app" nag.
     return send_email(invoice.customer.email, subject, html,
-                       attachments=_invoice_pdf_attachment(invoice))
+                       attachments=_invoice_pdf_attachment(invoice),
+                       company_id=invoice.company_id)
 
 
 def send_refund_email(invoice, refund):
@@ -254,7 +352,8 @@ def send_refund_email(invoice, refund):
     # so the refund confirmation carries an updated statement of the
     # invoice's state after the reversal.
     return send_email(invoice.customer.email, subject, html,
-                       attachments=_invoice_pdf_attachment(invoice))
+                       attachments=_invoice_pdf_attachment(invoice),
+                       company_id=invoice.company_id)
 
 
 def send_credit_note_email(invoice, credit_note):
@@ -266,7 +365,8 @@ def send_credit_note_email(invoice, credit_note):
     # MARSOUD-INVOICE-EMAIL-PDF-ATTACH-01 — attach the current PDF
     # so the credit-note email carries the updated invoice statement.
     return send_email(invoice.customer.email, subject, html,
-                       attachments=_invoice_pdf_attachment(invoice))
+                       attachments=_invoice_pdf_attachment(invoice),
+                       company_id=invoice.company_id)
 
 
 # MARSOUD-INVOICE-CANCEL-EMAIL-01 (2026-10-18) — notify the customer
@@ -289,7 +389,8 @@ def send_invoice_cancelled_email(invoice):
     html = render_template("emails/invoice_cancelled.html",
                             invoice=invoice)
     return send_email(invoice.customer.email, subject, html,
-                       attachments=_invoice_pdf_attachment(invoice))
+                       attachments=_invoice_pdf_attachment(invoice),
+                       company_id=invoice.company_id)
 
 
 def send_commission_paid_email(commission, amount_paid):
@@ -315,7 +416,8 @@ def send_commission_paid_email(commission, amount_paid):
         invoice=inv,
         amount_paid=float(amount_paid or 0),
     )
-    return send_email(rep.email, subject, html)
+    return send_email(rep.email, subject, html,
+                       company_id=(inv.company_id if inv else None))
 
 
 def send_invitation_email(invitation, accept_url):
@@ -328,7 +430,8 @@ def send_invitation_email(invitation, accept_url):
         "emails/invitation.html",
         invitation=invitation, accept_url=accept_url, role_label=role_label,
     )
-    return send_email(invitation.email, subject, html)
+    return send_email(invitation.email, subject, html,
+                       company_id=invitation.company_id)
 
 
 def send_payslip_email(employee, payroll_line, payroll_run, pdf_bytes=None):
@@ -339,7 +442,9 @@ def send_payslip_email(employee, payroll_line, payroll_run, pdf_bytes=None):
     attachments = []
     if pdf_bytes:
         attachments.append((f"payslip-{payroll_run.period_year}-{payroll_run.period_month:02d}.pdf", pdf_bytes, "application/pdf"))
-    return send_email(employee.email, subject, html, attachments=attachments)
+    return send_email(employee.email, subject, html,
+                       attachments=attachments,
+                       company_id=employee.company_id)
 
 
 def send_task_notification_email(recipient, task, *, kind, title=None,
