@@ -272,6 +272,41 @@
        this only updates the currency label + syncs the linked
        journal entry so the ledger stays consistent. Hidden for
        VOIDED invoices. #}
+    {# MARSOUD-INVOICE-CANCEL-EMAIL-01 (2026-10-18) — on a VOIDED
+       invoice, surface whether the cancel notification reached the
+       customer, and offer a one-click retry if it didn't (SMTP was
+       down, customer email was added after the fact, etc.).  The
+       retry endpoint is itself idempotent via `cancel_email_sent_at`
+       so a double-click can't fire a second email. #}
+    {% if invoice.status.value == 'VOIDED' %}
+    <div class="card p-4">
+      <div class="flex items-center justify-between gap-3 text-sm">
+        <span class="flex-1">
+          {% if invoice.cancel_email_sent_at %}
+            <span class="text-emerald-700">✅ تم إرسال إشعار الإلغاء
+              {{ invoice.cancel_email_sent_at.strftime('%Y-%m-%d %H:%M') }}</span>
+          {% elif invoice.customer and invoice.customer.email %}
+            <span class="text-amber-700">⚠ لم يُرسل إشعار الإلغاء بعد —
+              يمكنك إعادة المحاولة.</span>
+          {% else %}
+            <span class="text-slate-500">لا يوجد بريد إلكتروني مسجّل
+              للعميل — تعذّر إرسال إشعار الإلغاء.</span>
+          {% endif %}
+        </span>
+        {% if not invoice.cancel_email_sent_at
+              and invoice.customer and invoice.customer.email %}
+        <form method="POST"
+              action="{{ url_for('invoices.resend_cancel_email',
+                                  invoice_id=invoice.id) }}">
+          <button type="submit" class="btn-secondary text-xs">
+            إعادة إرسال الإشعار
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
     {% if invoice.status.value != 'VOIDED' %}
     <div class="card p-5">
       <h3 class="font-bold text-navy-900 mb-2">💱 تغيير عملة الفاتورة</h3>
@@ -490,7 +525,12 @@
             action="{{ url_for('invoices.delete', invoice_id=invoice.id) }}"
             onsubmit="return confirm('تأكيد حذف الفاتورة {{ invoice.number }}؟')"
             data-once data-once-label="جاري الحذف...">
-        <input type="text" name="reason" placeholder="سبب الحذف (اختياري)"
+        {# MARSOUD-INVOICE-CANCEL-EMAIL-01 — reason is now MANDATORY
+           so the audit trail is always populated AND the notification
+           email that fires on successful void has something meaningful
+           to show the customer. #}
+        <input type="text" name="reason" required
+               placeholder="سبب الإلغاء (مطلوب)"
                class="input text-sm mb-2">
         <button type="submit" class="btn-danger w-full">
           🗑 حذف الفاتورة

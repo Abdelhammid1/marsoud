@@ -269,6 +269,29 @@ def send_credit_note_email(invoice, credit_note):
                        attachments=_invoice_pdf_attachment(invoice))
 
 
+# MARSOUD-INVOICE-CANCEL-EMAIL-01 (2026-10-18) — notify the customer
+# that their sales invoice was cancelled.  Reads `invoice.void_reason`
+# + `invoice.voided_at` for the body (both stamped by `void_invoice`
+# before this helper fires).  Caller stamps
+# `invoice.cancel_email_sent_at` on True so a retry / double-POST
+# through the resend route can't fire twice.
+def send_invoice_cancelled_email(invoice):
+    """Notify customer their sales invoice was cancelled.  Returns
+    False on no-email-on-file (logged) or SMTP failure (the shared
+    send_email already logs).  Never raises — the void_invoice ledger
+    reversal already committed; a mail hiccup must not undo it."""
+    if not invoice.customer or not invoice.customer.email:
+        logger.info(
+            "Skip cancel email: invoice %s — customer has no email",
+            invoice.number)
+        return False
+    subject = f"إشعار بإلغاء فاتورة مبيعات رقم {invoice.number}"
+    html = render_template("emails/invoice_cancelled.html",
+                            invoice=invoice)
+    return send_email(invoice.customer.email, subject, html,
+                       attachments=_invoice_pdf_attachment(invoice))
+
+
 def send_commission_paid_email(commission, amount_paid):
     """MARSOUD-COMM-CASH-BASIS-01 (2026-09-20) — notify the sales rep
     that a commission was settled.  Fires from

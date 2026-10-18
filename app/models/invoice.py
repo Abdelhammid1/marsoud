@@ -113,6 +113,13 @@ class Invoice(db.Model):
     voided_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     void_reason = db.Column(db.Text)
 
+    # MARSOUD-INVOICE-CANCEL-EMAIL-01 (2026-10-18) — stamp when the
+    # cancellation notification landed in the customer's inbox, so a
+    # retry / double-POST through /resend-cancel-email cannot fire a
+    # second notification for the same void.  NULL = never sent (no
+    # customer email on file, SMTP down, or still DRAFT).
+    cancel_email_sent_at = db.Column(db.DateTime, nullable=True)
+
     # MARSOUD-LOYALTY-POINTS-01 — cache for display + the anchor
     # `reverse_points_for_invoice` reads on void. `loyalty_points_awarded_at`
     # doubles as the idempotency guard for `award_points_for_invoice`
