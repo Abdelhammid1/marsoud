@@ -1197,6 +1197,12 @@ def restore(invoice_id):
     invoice.voided_at = None
     invoice.voided_by_id = None
     invoice.void_reason = None
+    # MARSOUD-INVOICE-CANCEL-EMAIL-01 (2026-10-18) — clear the
+    # cancel-notification idempotency stamp too, so a future re-void
+    # of this restored invoice is treated as a NEW business event
+    # that re-notifies the customer.  Leaving the stamp in place
+    # would silently suppress the second notification.
+    invoice.cancel_email_sent_at = None
     paid = float(invoice.paid_amount or 0)
     total = float(invoice.total or 0)
     if paid >= total - 0.01 and total > 0:

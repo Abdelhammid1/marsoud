@@ -189,34 +189,51 @@ def _make_invoice(total=1000.0, status_sent=True, customer_id=None):
 
 
 # ─── 1. Posted invoice + customer email → notification fires ──────
-@check("1. void SENT invoice with customer email → stamps + fires")
+@check("1. void SENT invoice with customer email → stamps + body renders correctly")
 def _():
     from app.services.invoicing import void_invoice
+    from app.services.email import send_invoice_cancelled_email
+    from flask import render_template
     cap = _install_log_capture()
+    reason = "تم الإلغاء بناءً على طلب العميل"
     inv = _make_invoice(1500.0)
     inv_id = inv.id
-    void_invoice(inv, "تم الإلغاء بناءً على طلب العميل",
-                  actor_id=None)
+    void_invoice(inv, reason, actor_id=None)
     db.session.expire_all()
     from app.models import Invoice
     from app.models.invoice import InvoiceStatus
     inv2 = db.session.get(Invoice, inv_id)
     assert inv2.status == InvoiceStatus.VOIDED, \
         f"status not VOIDED: {inv2.status}"
-    assert inv2.void_reason == "تم الإلغاء بناءً على طلب العميل"
+    assert inv2.void_reason == reason
     assert inv2.cancel_email_sent_at is not None, \
         "cancel_email_sent_at was NOT stamped — email did not fire"
+
+    # Gap-1 fix: render the template directly against this invoice and
+    # assert every field the ticket requires is present in the body.
+    html = render_template("emails/invoice_cancelled.html",
+                            invoice=inv2)
+    required_fragments = [
+        inv2.customer.name,              # اسم صاحب الفاتورة
+        inv2.number,                      # رقم الفاتورة
+        inv2.issue_date.strftime("%Y-%m-%d"),  # تاريخ الفاتورة
+        reason,                           # سبب الإلغاء
+        inv2.company.name,                # توقيع الشركة
+    ]
+    for frag in required_fragments:
+        assert frag in html, (
+            f"email body is missing required fragment: {frag!r}")
+
+    # Hand-off log line (either real SMTP or dev log-only fallback).
     msgs = cap.messages()
-    # Either the real SMTP path ("Sending email: ...") or the
-    # log-only fallback ("[EMAIL NOT SENT ...]") counts — both are a
-    # successful hand-off of the message through `send_email`.
     hit = any(("إشعار بإلغاء" in m) or ("Sending email" in m)
               or ("Email body printed" in m) or ("EMAIL NOT SENT" in m)
               for m in msgs)
     assert hit, (
         f"no 'invoice cancelled' log line captured. "
         f"captured: {msgs[-5:]!r}")
-    return f"VOIDED, stamped at {inv2.cancel_email_sent_at}"
+    return (f"VOIDED + all 5 required fields rendered in body + "
+            f"stamp={inv2.cancel_email_sent_at}")
 
 
 # ─── 2. Idempotency — second void raises, no re-send ──────────────
@@ -323,6 +340,13 @@ def _():
                             follow_redirects=False)
         assert resp.status_code in (302, 303), \
             f"expected redirect, got {resp.status_code}"
+        # Gap-3 fix: follow the redirect so the flash message gets
+        # consumed into the next-request response body, then assert
+        # the exact Arabic error text is what the operator sees.
+        follow = client.get(resp.headers["Location"])
+        body = follow.data.decode("utf-8", "replace")
+        assert "سبب الإلغاء مطلوب لإتمام العملية" in body, (
+            "expected mandatory-reason flash message not rendered")
 
     db.session.expire_all()
     inv2 = db.session.get(Invoice, inv_id)
@@ -330,7 +354,7 @@ def _():
         f"status flipped despite empty reason: {inv2.status}"
     assert inv2.voided_at is None, \
         f"voided_at got stamped on refused delete: {inv2.voided_at}"
-    return "empty-reason delete refused, invoice still SENT"
+    return "empty-reason delete refused, flash message rendered"
 
 
 # ─── 6. /resend-cancel-email is idempotent ────────────────────────
@@ -389,6 +413,131 @@ def _():
             (f"second POST moved the timestamp: {first_ts} → "
              f"{inv4.cancel_email_sent_at}")
     return f"first resend stamped {first_ts}, second was a no-op"
+
+
+# ─── 7. SMTP failure → timestamp stays NULL, retry succeeds ───────
+# Gap-2 fix: exercises the actual failure branch of
+# `send_invoice_cancelled_email` by monkey-patching `send_email` to
+# return False once, verifying no stamp lands, then letting the
+# retry endpoint succeed on the second attempt.
+@check("7. SMTP failure → stamp stays NULL, retry endpoint recovers")
+def _():
+    from app import create_app
+    from app.models import Invoice, User
+    from app.models.invoice import InvoiceStatus
+    from app.services import email as email_mod
+    from app.services.invoicing import void_invoice
+
+    inv = _make_invoice(850.0)
+    inv_id = inv.id
+    db.session.commit()
+
+    # Monkey-patch send_email to simulate the SMTP outage.  Restore
+    # it after the void so the retry path uses the real (log-only in
+    # dev) send and can succeed.
+    original_send = email_mod.send_email
+    email_mod.send_email = lambda *a, **kw: False
+    try:
+        void_invoice(inv, "اختبار فشل SMTP", actor_id=None)
+    finally:
+        email_mod.send_email = original_send
+
+    db.session.expire_all()
+    inv2 = db.session.get(Invoice, inv_id)
+    assert inv2.status == InvoiceStatus.VOIDED, \
+        f"void didn't commit despite SMTP failure: {inv2.status}"
+    assert inv2.cancel_email_sent_at is None, (
+        f"stamp landed even though send_email returned False: "
+        f"{inv2.cancel_email_sent_at}")
+
+    # Retry endpoint should now succeed on the restored send_email.
+    u = User.query.filter_by(
+        email="__cancel_email_sender__@audit.local").first()
+    assert u is not None
+    app = create_app()
+    from flask import session as _flask_session
+    from flask_login import login_user
+    app.config["SESSION_PROTECTION"] = None
+    with app.test_client() as client:
+        with app.test_request_context():
+            login_user(u)
+            _flask_session["active_company_id"] = _STATE["company_id"]
+            saved = dict(_flask_session)
+        with client.session_transaction() as sess:
+            sess.update(saved)
+        resp = client.post(
+            f"/invoices/{inv_id}/resend-cancel-email",
+            follow_redirects=False)
+        assert resp.status_code in (302, 303)
+    db.session.expire_all()
+    inv3 = db.session.get(Invoice, inv_id)
+    assert inv3.cancel_email_sent_at is not None, \
+        "retry endpoint didn't stamp after send_email was restored"
+    return "SMTP failure → stamp NULL, retry stamped it"
+
+
+# ─── 8. Re-void after undelete re-notifies the customer ───────────
+# Gap-4 fix: undelete() now clears cancel_email_sent_at so a future
+# re-void treats itself as a new business event and re-fires the
+# notification instead of silently skipping it.
+@check("8. void → undelete → re-void: timestamp cleared, 2nd notification fires")
+def _():
+    from app import create_app
+    from app.models import Invoice, User
+    from app.models.invoice import InvoiceStatus
+    from app.models.user import user_companies
+    from app.services.invoicing import void_invoice
+
+    inv = _make_invoice(950.0)
+    void_invoice(inv, "الإلغاء الأول", actor_id=None)
+    db.session.expire_all()
+    inv2 = db.session.get(Invoice, inv.id)
+    first_ts = inv2.cancel_email_sent_at
+    assert first_ts is not None, "first void didn't stamp"
+
+    u = User.query.filter_by(
+        email="__cancel_email_sender__@audit.local").first()
+    assert u is not None
+
+    app = create_app()
+    from flask import session as _flask_session
+    from flask_login import login_user
+    app.config["SESSION_PROTECTION"] = None
+    with app.test_client() as client:
+        with app.test_request_context():
+            login_user(u)
+            _flask_session["active_company_id"] = _STATE["company_id"]
+            saved = dict(_flask_session)
+        with client.session_transaction() as sess:
+            sess.update(saved)
+        # Restore via /restore — the user-visible path that clears
+        # the void state.
+        resp = client.post(f"/invoices/{inv.id}/restore",
+                            follow_redirects=False)
+        assert resp.status_code in (302, 303), \
+            f"restore returned {resp.status_code}"
+
+    db.session.expire_all()
+    inv3 = db.session.get(Invoice, inv.id)
+    assert inv3.status != InvoiceStatus.VOIDED, \
+        f"restore didn't change status: status={inv3.status}"
+    # The real fix we're verifying — the stamp got cleared.
+    assert inv3.cancel_email_sent_at is None, (
+        f"restore did NOT clear cancel_email_sent_at — a re-void "
+        f"would silently skip the second notification. Still "
+        f"stamped at {inv3.cancel_email_sent_at}")
+
+    # Now re-void and confirm a NEW stamp lands.
+    void_invoice(inv3, "الإلغاء الثاني بعد الاسترجاع", actor_id=None)
+    db.session.expire_all()
+    inv4 = db.session.get(Invoice, inv.id)
+    assert inv4.cancel_email_sent_at is not None, \
+        "re-void didn't notify the customer"
+    assert inv4.cancel_email_sent_at != first_ts, (
+        f"second stamp == first stamp — a new notification should "
+        f"have landed. first={first_ts} second={inv4.cancel_email_sent_at}")
+    return (f"re-void after undelete re-notified: "
+            f"{first_ts} → {inv4.cancel_email_sent_at}")
 
 
 def main():
