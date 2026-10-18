@@ -529,13 +529,22 @@ def smtp_settings(company_id):
 @login_required
 @require_permission("company.edit")
 def smtp_test(company_id):
-    """Attempt an SMTP connect + login against the STORED config and
-    stamp `last_test_at` + `last_test_ok` + `last_test_error`.  The
-    operator sees the outcome via a flash on redirect.  Pattern lifted
-    from `app/routes/superadmin.py:1066-1090` — same TLS branches,
-    same timeout.  Never exposes the stored password to the response."""
+    """Test the SMTP config by connecting, authenticating, AND sending
+    a tiny test email to the operator who clicked the button.
+
+    Accepts form fields (host/port/encryption/username/password/
+    from_email/from_name) — if ANY of those are submitted, the test
+    uses THOSE values (pre-save test, per ticket AC #3 "يمكن اختبار
+    إعدادات SMTP قبل اعتمادها").  If no form fields come in, the
+    test uses the stored row.
+
+    Only stamps `last_test_*` on the stored row — pre-save tests are
+    not persisted (they're meant to validate before saving).
+    """
     from app.models import CompanySMTP
     from app.services.crypto import decrypt
+    from email.mime.text import MIMEText
+    from email.utils import formataddr
     import smtplib
     from datetime import datetime as _dt
     company, bail = _smtp_assert_access(company_id)
@@ -543,16 +552,63 @@ def smtp_test(company_id):
         return bail
     smtp = (CompanySMTP.query
             .filter_by(company_id=company.id).first())
-    if smtp is None:
-        flash("لا توجد إعدادات SMTP للاختبار", "warning")
-        return redirect(url_for("companies.smtp_settings",
-                                 company_id=company.id))
 
-    host = smtp.host
-    port = int(smtp.port)
-    user = smtp.username or ""
-    pw = decrypt(smtp.password_encrypted) or ""
-    enc = (smtp.encryption or "STARTTLS").upper()
+    # Prefer form-submitted values when present (pre-save test).  A
+    # missing `password` field falls back to the stored encrypted
+    # blob — operator can tweak host/port without re-entering the
+    # password.
+    form_host = (request.form.get("host") or "").strip()
+    using_form = bool(form_host)
+
+    if using_form:
+        host = form_host
+        try:
+            port = int(request.form.get("port") or 0)
+        except ValueError:
+            port = 0
+        enc = (request.form.get("encryption") or "STARTTLS").upper()
+        user = (request.form.get("username") or "").strip()
+        form_pw = request.form.get("password") or ""
+        if form_pw:
+            pw = form_pw
+        elif smtp and smtp.password_encrypted:
+            pw = decrypt(smtp.password_encrypted) or ""
+        else:
+            pw = ""
+        from_email = (request.form.get("from_email") or "").strip()
+        from_name = ((request.form.get("from_name") or "").strip()
+                      or from_email)
+        if not host or not port or not from_email:
+            flash("البيانات ناقصة — أدخل الخادم والمنفذ وبريد المرسل",
+                  "error")
+            return redirect(url_for("companies.smtp_settings",
+                                     company_id=company.id))
+    else:
+        if smtp is None:
+            flash("لا توجد إعدادات SMTP للاختبار", "warning")
+            return redirect(url_for("companies.smtp_settings",
+                                     company_id=company.id))
+        host = smtp.host
+        port = int(smtp.port)
+        user = smtp.username or ""
+        pw = decrypt(smtp.password_encrypted) or ""
+        enc = (smtp.encryption or "STARTTLS").upper()
+        from_email = smtp.from_email
+        from_name = smtp.from_name or smtp.from_email
+
+    # Target the operator's own address — guarantees the test lands
+    # somewhere they can actually inspect.
+    to_addr = (current_user.email or from_email)
+    msg = MIMEText(
+        f"<p>هذا بريد اختباري من إعدادات SMTP الخاصة بشركة "
+        f"<b>{company.name}</b>.</p>"
+        f"<p>إذا وصلك هذا البريد فإعدادات SMTP تعمل بشكل صحيح.</p>"
+        f"<p><small>تم الإرسال في "
+        f"{_dt.utcnow().strftime('%Y-%m-%d %H:%M UTC')}</small></p>",
+        "html", "utf-8")
+    msg["Subject"] = f"اختبار SMTP — {company.name}"
+    msg["From"] = formataddr((from_name, from_email))
+    msg["To"] = to_addr
 
     ok, err_text = True, None
     try:
@@ -565,21 +621,28 @@ def smtp_test(company_id):
                 server.starttls()
             if user:
                 server.login(user, pw)
-            server.noop()
+            # AC #3 fix: actually SEND a message, not just NOOP.
+            # Relay-policy rejections (sender not permitted, etc.)
+            # only surface on a real send.
+            server.send_message(msg)
     except Exception as e:
         ok = False
-        # Expose exception TYPE + first line; strip anything that
-        # might carry the password back to the UI.
         err_text = f"{type(e).__name__}: {str(e)[:300]}"
 
-    smtp.last_test_at = _dt.utcnow()
-    smtp.last_test_ok = ok
-    smtp.last_test_error = err_text if not ok else None
-    db.session.commit()
+    # Stamp only when testing the saved row.  Pre-save tests show the
+    # result via flash and don't persist.
+    if not using_form and smtp is not None:
+        smtp.last_test_at = _dt.utcnow()
+        smtp.last_test_ok = ok
+        smtp.last_test_error = err_text if not ok else None
+        db.session.commit()
+
     if ok:
-        flash("نجح الاتصال بخادم SMTP", "success")
+        flash(
+            f"نجح الاختبار — تم إرسال بريد تجريبي إلى {to_addr}",
+            "success")
     else:
-        flash(f"فشل الاتصال: {err_text}", "error")
+        flash(f"فشل الاختبار: {err_text}", "error")
     return redirect(url_for("companies.smtp_settings",
                              company_id=company.id))
 

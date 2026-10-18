@@ -55,6 +55,15 @@ class CompanySMTP(db.Model):
     last_test_ok = db.Column(db.Boolean, nullable=True)
     last_test_error = db.Column(db.Text, nullable=True)
 
+    # MARSOUD-SMTP-PER-COMPANY-01 — audit review follow-up for
+    # ticket AC #8 ("خطأ ... وإظهاره للمستخدم المخوّل"): track the
+    # last live-send attempt so the operator sees failures in the
+    # UI, not just in logs.  Updated by `send_email` when the resolver
+    # picked this row (source == "company").
+    last_send_at = db.Column(db.DateTime, nullable=True)
+    last_send_ok = db.Column(db.Boolean, nullable=True)
+    last_send_error = db.Column(db.Text, nullable=True)
+
     created_at = db.Column(
         db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(

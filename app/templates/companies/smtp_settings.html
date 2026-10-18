@@ -42,10 +42,28 @@
     <strong>آخر اختبار:</strong>
     {{ smtp.last_test_at.strftime('%Y-%m-%d %H:%M') }}
     {% if smtp.last_test_ok %}
-      — <span class="text-emerald-700">نجح الاتصال ✓</span>
+      — <span class="text-emerald-700">نجح الاتصال + تم إرسال بريد تجريبي ✓</span>
     {% else %}
       — <span class="text-rose-700">فشل:</span>
       <code class="text-xs">{{ smtp.last_test_error }}</code>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ── Last live-send strip (AC #8) ────────────────────────── #}
+  {% if smtp and smtp.last_send_at %}
+  <div class="card p-3 text-sm {% if not smtp.last_send_ok %}border border-rose-200 bg-rose-50{% endif %}">
+    <strong>آخر إرسال حقيقي:</strong>
+    {{ smtp.last_send_at.strftime('%Y-%m-%d %H:%M') }}
+    {% if smtp.last_send_ok %}
+      — <span class="text-emerald-700">نجح الإرسال ✓</span>
+    {% else %}
+      — <span class="text-rose-700 font-semibold">فشل:</span>
+      <code class="text-xs">{{ smtp.last_send_error }}</code>
+      <div class="text-xs text-rose-700 mt-1">
+        ⚠ البريد لم يُسلَّم للعميل. لم يتم استخدام إعدادات مرصود
+        الافتراضية — ينبغي مراجعة الإعدادات أعلاه وإعادة الاختبار.
+      </div>
     {% endif %}
   </div>
   {% endif %}

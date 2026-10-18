@@ -13,6 +13,8 @@ from email.mime.application import MIMEApplication
 from email.utils import formataddr
 from flask import current_app, render_template, g, has_request_context
 
+from app import db
+
 logger = logging.getLogger("ledgeros.email")
 
 
@@ -166,6 +168,34 @@ def send_email(to, subject, html_body, attachments=None,
     smtp_user = config.get("SMTP_USER") or "(no user)"
     smtp_pw = config.get("SMTP_PASSWORD") or ""
     encryption = (config.get("SMTP_ENCRYPTION") or "STARTTLS").upper()
+
+    # Scoped stamper — closes over company_id + source so the status
+    # row only updates when the resolver actually picked a company
+    # config.  Writes via a fresh engine connection so a caller
+    # mid-transaction can't accidentally commit (or rollback) our
+    # audit stamp.
+    def _stamp(ok, err_text):
+        if source != "company" or not company_id:
+            return
+        try:
+            from app.models import CompanySMTP
+            from datetime import datetime as _dt
+            with db.engine.begin() as conn:
+                conn.execute(
+                    CompanySMTP.__table__.update()
+                    .where(CompanySMTP.__table__.c.company_id
+                            == company_id)
+                    .values(last_send_at=_dt.utcnow(),
+                             last_send_ok=ok,
+                             last_send_error=(err_text if not ok
+                                                else None)))
+        except Exception:
+            # Never let a stamp failure break the mail flow.  The
+            # log line below still carries the error.
+            logger.exception(
+                "could not record company_smtp send status for %s",
+                company_id)
+
     try:
         # SSL (implicit TLS, typically 465) wraps the socket from the
         # start.  STARTTLS (typically 587) opens plain, upgrades.
@@ -185,21 +215,25 @@ def send_email(to, subject, html_body, attachments=None,
             "Email sent → %s (subject=%r, source=%s, host=%s:%s, "
             "user=%s)",
             to, subject, source, smtp_host, smtp_port, smtp_user)
+        _stamp(ok=True, err_text=None)
         return True
     except Exception as e:
         # Surface host:port + user + exception type — but NEVER log
         # smtp_pw.  Ticket's "عدم تسجيل كلمات المرور ... في سجلات
         # النظام" rule is enforced here (and by never passing the
         # password dict through to logger.exception's `extra`).
+        err_text = f"{type(e).__name__}: {str(e)[:300]}"
         logger.exception(
             "SMTP send failed → source=%s, host=%s:%s, user=%s, "
-            "to=%s — %s: %s",
-            source, smtp_host, smtp_port, smtp_user, to,
-            type(e).__name__, str(e)[:300],
+            "to=%s — %s",
+            source, smtp_host, smtp_port, smtp_user, to, err_text,
         )
         # Per-ticket rule: `source == "company"` + failure must NOT
         # silently retry with the platform default.  The caller sees
-        # False and is expected to surface the error.
+        # False and is expected to surface the error.  AC #8: also
+        # persist the error to CompanySMTP.last_send_* so the UI
+        # shows it (not just logs).
+        _stamp(ok=False, err_text=err_text)
         return False
 
 

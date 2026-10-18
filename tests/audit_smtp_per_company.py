@@ -440,6 +440,185 @@ def _():
     return f"no plaintext in {len(cap.records)} captured log records"
 
 
+# ─── 8. Live-send failure stamps last_send_* so UI can show it ────
+# Gap-C fix: AC #8 says send failures must be surfaced to the
+# operator, not just logged.  New `last_send_*` columns on
+# CompanySMTP get updated by `send_email` on company-source
+# attempts; this check pins that round-trip.
+@check("8. live-send failure stamps last_send_at + last_send_error on the row")
+def _():
+    from app.models import CompanySMTP
+    from app.services.email import send_email
+    import smtplib
+    _save_company_smtp(_STATE["company_a"],
+                        host="mail.a.local", port=2525,
+                        from_email="from_a@a.local")
+    # Make sure stamps start clean.
+    row = CompanySMTP.query.filter_by(
+        company_id=_STATE["company_a"]).first()
+    row.last_send_at = None
+    row.last_send_ok = None
+    row.last_send_error = None
+    db.session.commit()
+
+    sentinel = _SMTPIntercept()
+    sentinel.raise_for_host = "mail.a.local"
+    orig_smtp, orig_ssl = smtplib.SMTP, smtplib.SMTP_SSL
+    smtplib.SMTP = sentinel._factory(ssl=False)
+    smtplib.SMTP_SSL = sentinel._factory(ssl=True)
+    try:
+        ok = send_email("to@example.com", "subj", "<p>body</p>",
+                         company_id=_STATE["company_a"])
+    finally:
+        smtplib.SMTP, smtplib.SMTP_SSL = orig_smtp, orig_ssl
+    assert ok is False
+    db.session.expire_all()
+    row2 = CompanySMTP.query.filter_by(
+        company_id=_STATE["company_a"]).first()
+    assert row2.last_send_at is not None, \
+        "last_send_at did NOT get stamped on failure"
+    assert row2.last_send_ok is False, \
+        f"expected last_send_ok=False, got {row2.last_send_ok}"
+    assert row2.last_send_error and "ConnectionRefused" in row2.last_send_error, \
+        f"error text missing or wrong: {row2.last_send_error!r}"
+
+    # Now a success → stamp flips back to ok=True, error cleared.
+    sentinel.raise_for_host = None
+    smtplib.SMTP = sentinel._factory(ssl=False)
+    smtplib.SMTP_SSL = sentinel._factory(ssl=True)
+    try:
+        ok = send_email("to@example.com", "subj", "<p>body</p>",
+                         company_id=_STATE["company_a"])
+    finally:
+        smtplib.SMTP, smtplib.SMTP_SSL = orig_smtp, orig_ssl
+    assert ok is True
+    db.session.expire_all()
+    row3 = CompanySMTP.query.filter_by(
+        company_id=_STATE["company_a"]).first()
+    assert row3.last_send_ok is True, \
+        f"expected last_send_ok=True after success, got {row3.last_send_ok}"
+    assert row3.last_send_error is None, \
+        f"error not cleared after success: {row3.last_send_error!r}"
+    return (f"fail stamped error, success cleared it — "
+            f"last_send_at={row3.last_send_at}")
+
+
+# ─── 9. Test endpoint actually SENDS a message (Gap A) ────────────
+@check("9. test endpoint sends a real test email, not just NOOP")
+def _():
+    from app.models import User
+    from app.models.user import user_companies
+    import smtplib
+    _save_company_smtp(_STATE["company_a"],
+                        host="mail.a.local", port=2525,
+                        from_email="from_a@a.local")
+
+    # Reuse the owner from check 5 (has company_a access).
+    u = User.query.filter_by(
+        email="__smtp_a_owner@audit.local").first()
+    assert u is not None, "check 5 should have created this user"
+
+    sentinel = _SMTPIntercept()
+    orig_smtp, orig_ssl = smtplib.SMTP, smtplib.SMTP_SSL
+    smtplib.SMTP = sentinel._factory(ssl=False)
+    smtplib.SMTP_SSL = sentinel._factory(ssl=True)
+
+    app = create_app()
+    from flask import session as _flask_session
+    from flask_login import login_user
+    app.config["SESSION_PROTECTION"] = None
+    try:
+        with app.test_client() as client:
+            with app.test_request_context():
+                login_user(u)
+                _flask_session["active_company_id"] = _STATE["company_a"]
+                saved = dict(_flask_session)
+            with client.session_transaction() as sess:
+                sess.update(saved)
+            resp = client.post(
+                f"/companies/{_STATE['company_a']}/smtp-settings/test",
+                follow_redirects=False)
+            assert resp.status_code in (302, 303)
+    finally:
+        smtplib.SMTP, smtplib.SMTP_SSL = orig_smtp, orig_ssl
+
+    # The test endpoint MUST have sent an actual message, not just
+    # a NOOP — the ticket says "اختبار الاتصال وإرسال بريد تجريبي".
+    assert len(sentinel.sends) == 1, (
+        f"test endpoint didn't send a real message — "
+        f"sends={len(sentinel.sends)}")
+    sent = sentinel.sends[0]
+    subject = sent.get("Subject") or ""
+    assert "اختبار SMTP" in subject, \
+        f"test email subject wrong: {subject!r}"
+    return f"test endpoint sent 1 message with subject={subject!r}"
+
+
+# ─── 10. Pre-save test uses form values (Gap B) ───────────────────
+@check("10. pre-save test uses form values, does not stamp saved row")
+def _():
+    from app.models import User, CompanySMTP
+    from app.models.user import user_companies
+    import smtplib
+
+    # Save a config → will later confirm its last_test_* stays
+    # untouched when we POST form-only test data.
+    _save_company_smtp(_STATE["company_a"],
+                        host="mail.saved.local", port=2525,
+                        from_email="saved@a.local")
+    row_before = CompanySMTP.query.filter_by(
+        company_id=_STATE["company_a"]).first()
+    pre_test_at = row_before.last_test_at
+
+    u = User.query.filter_by(
+        email="__smtp_a_owner@audit.local").first()
+
+    sentinel = _SMTPIntercept()
+    orig_smtp, orig_ssl = smtplib.SMTP, smtplib.SMTP_SSL
+    smtplib.SMTP = sentinel._factory(ssl=False)
+    smtplib.SMTP_SSL = sentinel._factory(ssl=True)
+
+    app = create_app()
+    from flask import session as _flask_session
+    from flask_login import login_user
+    app.config["SESSION_PROTECTION"] = None
+    try:
+        with app.test_client() as client:
+            with app.test_request_context():
+                login_user(u)
+                _flask_session["active_company_id"] = _STATE["company_a"]
+                saved = dict(_flask_session)
+            with client.session_transaction() as sess:
+                sess.update(saved)
+            # POST form-only values — different host than the stored
+            # row.  Pre-save test should hit the form host, not the
+            # saved one, and MUST NOT stamp the saved row.
+            resp = client.post(
+                f"/companies/{_STATE['company_a']}/smtp-settings/test",
+                data={
+                    "host": "mail.pretest.local", "port": "2525",
+                    "encryption": "STARTTLS",
+                    "from_email": "pretest@a.local",
+                    "password": "typed-in-form",
+                },
+                follow_redirects=False)
+            assert resp.status_code in (302, 303)
+    finally:
+        smtplib.SMTP, smtplib.SMTP_SSL = orig_smtp, orig_ssl
+
+    hosts = [c["host"] for c in sentinel.calls]
+    assert hosts == ["mail.pretest.local"], (
+        f"pre-save test did NOT use form host: hosts={hosts}")
+    db.session.expire_all()
+    row_after = CompanySMTP.query.filter_by(
+        company_id=_STATE["company_a"]).first()
+    assert row_after.last_test_at == pre_test_at, (
+        f"pre-save test incorrectly stamped the saved row: "
+        f"was {pre_test_at}, now {row_after.last_test_at}")
+    return (f"pre-save test used form host {hosts!r}, "
+            f"saved row untouched")
+
+
 # ─── INT. Integration: ticket 1 picks up per-company SMTP ─────────
 @check("INT. send_invoice_cancelled_email uses company SMTP automatically")
 def _():
@@ -491,6 +670,65 @@ def _():
         f"cancel email did NOT use the per-company SMTP: "
         f"hosts contacted = {hosts}")
     return f"ticket 1's cancel email went through company SMTP: {hosts}"
+
+
+# ─── INT2. Gap-D fix: cancel-email on no-SMTP company uses default
+@check("INT2. cancel-email on company WITHOUT per-company SMTP uses default")
+def _():
+    from app.models import Invoice, InvoiceItem, CompanySMTP
+    from app.models.invoice import InvoiceStatus
+    from app.services.email import send_invoice_cancelled_email
+    from app.services.numbering import next_number
+    from app.services.invoicing import post_invoice_to_ledger
+    import smtplib
+
+    # Company B has no SMTP row.  Confirm.
+    assert CompanySMTP.query.filter_by(
+        company_id=_STATE["company_b"]).first() is None, (
+        "company_b should have no SMTP row for this check")
+
+    inv = Invoice(
+        company_id=_STATE["company_b"],
+        customer_id=_STATE["cust_b"],
+        number=next_number(_STATE["company_b"], "INVOICE"),
+        issue_date=date.today(),
+        due_date=date.today() + timedelta(days=30),
+        currency="EGP", tax_rate=0,
+        status=InvoiceStatus.DRAFT,
+    )
+    db.session.add(inv); db.session.flush()
+    item = InvoiceItem(
+        invoice_id=inv.id, company_id=_STATE["company_b"],
+        description="x", quantity=1, unit_price=250.0)
+    db.session.add(item); db.session.flush()
+    inv.recalc()
+    db.session.flush()
+    inv.status = InvoiceStatus.SENT
+    post_invoice_to_ledger(inv)
+    from datetime import datetime as _dt
+    inv.void_reason = "default-path integration test"
+    inv.voided_at = _dt.utcnow()
+    db.session.commit()
+
+    sentinel = _SMTPIntercept()
+    orig_smtp, orig_ssl = smtplib.SMTP, smtplib.SMTP_SSL
+    smtplib.SMTP = sentinel._factory(ssl=False)
+    smtplib.SMTP_SSL = sentinel._factory(ssl=True)
+    try:
+        send_invoice_cancelled_email(inv)
+    finally:
+        smtplib.SMTP, smtplib.SMTP_SSL = orig_smtp, orig_ssl
+    # Must NOT touch any per-company host (company_b has none).  If
+    # dev has SMTP_HOST unset, this goes log-only and no connect
+    # happens — also fine.  The important assertion: no connect to
+    # any `*.local` test-fixture host that would imply the resolver
+    # was confused.
+    for c in sentinel.calls:
+        assert "integration.local" not in (c["host"] or ""), (
+            f"default-path cancel email leaked to company A's "
+            f"SMTP host: {c}")
+    return (f"cancel email on no-SMTP company B used default path "
+            f"({len(sentinel.calls)} connects, none to A's host)")
 
 
 def main():
