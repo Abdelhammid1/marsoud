@@ -1,5 +1,10 @@
 from app.models.user import User, user_companies, UserStatus
 from app.models.company import Company
+# MARSOUD-SMTP-PER-COMPANY-01 (2026-10-18).
+from app.models.company_smtp import (
+    CompanySMTP, SMTP_ENC_STARTTLS, SMTP_ENC_SSL, SMTP_ENC_NONE,
+    SMTP_ENC_CHOICES,
+)
 from app.models.plan import (
     Plan, PlanPrice, SubscriptionReminderSent, DEFAULT_CURRENCY,
 )

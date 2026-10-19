@@ -1,0 +1,46 @@
+{% extends "emails/_base.html" %}
+{% block title %}إشعار بإلغاء فاتورة مبيعات رقم {{ invoice.number }}{% endblock %}
+{% block content %}
+<h2 style="color:#0A2540;margin:0 0 16px">السيد/ {{ invoice.customer.name }}</h2>
+<p style="line-height:1.7;color:#475569">
+  نود إبلاغكم بأنه تم إلغاء فاتورة المبيعات الخاصة بكم، وفقًا للتفاصيل التالية:
+</p>
+
+<table style="width:100%;border-collapse:collapse;margin:24px 0;background:#F8FAFC;border-radius:12px;overflow:hidden">
+  <tr>
+    <td style="padding:12px 16px;color:#64748B">رقم الفاتورة</td>
+    <td style="padding:12px 16px;text-align:left;font-family:monospace;font-weight:bold">{{ invoice.number }}</td>
+  </tr>
+  {% if invoice.issue_date %}
+  <tr>
+    <td style="padding:12px 16px;color:#64748B">تاريخ الفاتورة</td>
+    <td style="padding:12px 16px;text-align:left">{{ invoice.issue_date.strftime('%Y-%m-%d') }}</td>
+  </tr>
+  {% endif %}
+  {% if invoice.voided_at %}
+  <tr>
+    <td style="padding:12px 16px;color:#64748B">تاريخ الإلغاء</td>
+    <td style="padding:12px 16px;text-align:left">{{ invoice.voided_at | company_dt('%Y-%m-%d %H:%M', company=invoice.company) }}</td>
+  </tr>
+  {% endif %}
+  {% if invoice.void_reason %}
+  <tr>
+    <td style="padding:12px 16px;color:#64748B;vertical-align:top">سبب الإلغاء</td>
+    <td style="padding:12px 16px;text-align:left;line-height:1.6">{{ invoice.void_reason }}</td>
+  </tr>
+  {% endif %}
+</table>
+
+<p style="line-height:1.7;color:#475569">
+  للاستفسار عن تفاصيل الإلغاء، يُرجى التواصل مع الإدارة المختصة.
+</p>
+
+<p style="line-height:1.7;color:#475569;margin-top:24px">
+  مع تحيات،<br>
+  <strong>{{ invoice.company.name }}</strong>
+</p>
+
+<p style="line-height:1.7;color:#94A3B8;font-size:12px;margin-top:16px">
+  هذا بريد إلكتروني تلقائي، برجاء عدم الرد عليه.
+</p>
+{% endblock %}

@@ -999,6 +999,22 @@ def void_invoice(invoice, reason, actor_id):
     invoice.voided_by_id = actor_id
     invoice.void_reason = reason
     db.session.commit()
+
+    # MARSOUD-INVOICE-CANCEL-EMAIL-01 (2026-10-18) — notify the
+    # customer that the invoice they received is now cancelled.
+    # Idempotency guard via `cancel_email_sent_at` so a retry can't
+    # re-send.  Non-blocking: a mail failure logs but does NOT roll
+    # back the void — the ledger reversal already committed above.
+    if invoice.cancel_email_sent_at is None:
+        try:
+            from app.services.email import send_invoice_cancelled_email
+            if send_invoice_cancelled_email(invoice):
+                invoice.cancel_email_sent_at = _dt.utcnow()
+                db.session.commit()
+        except Exception:
+            import logging
+            logging.getLogger("ledgeros.invoicing").exception(
+                "cancel email failed for invoice %s", invoice.number)
     return "voided"
 
 

@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block page_title %}إعدادات SMTP — {{ company.name }}{% endblock %}
+{% block content %}
+
+<div class="max-w-3xl mx-auto space-y-4">
+
+  <div class="flex items-center justify-between">
+    <h2 class="text-xl font-bold text-navy-900">
+      📧 إعدادات البريد الإلكتروني (SMTP)
+    </h2>
+    <a href="{{ url_for('companies.edit', company_id=company.id) }}"
+       class="btn-secondary text-sm">
+      ← الرجوع لإعدادات الشركة
+    </a>
+  </div>
+
+  {# ── Status badge ──────────────────────────────────────────── #}
+  <div class="card p-4">
+    {% if smtp and smtp.is_enabled %}
+      <div class="flex items-center gap-2 text-emerald-700 font-semibold">
+        ✅ تستخدم شركتك الآن SMTP الخاص بها
+        <span class="text-slate-500 text-xs font-normal">
+          ({{ smtp.host }}:{{ smtp.port }} · {{ smtp.encryption }})
+        </span>
+      </div>
+    {% elif smtp and not smtp.is_enabled %}
+      <div class="text-amber-700 font-semibold">
+        ⏸ إعدادات SMTP محفوظة لكنها غير مفعّلة — يتم الإرسال من
+        إعدادات مرصود الافتراضية
+      </div>
+    {% else %}
+      <div class="text-slate-700">
+        ℹ️ لم تُضف شركتك إعدادات SMTP خاصة بعد — يتم إرسال الرسائل
+        من إعدادات مرصود الافتراضية (<code>no-reply@marsoud.app</code>)
+      </div>
+    {% endif %}
+  </div>
+
+  {# ── Last-test strip ──────────────────────────────────────── #}
+  {% if smtp and smtp.last_test_at %}
+  <div class="card p-3 text-sm">
+    <strong>آخر اختبار:</strong>
+    {{ smtp.last_test_at.strftime('%Y-%m-%d %H:%M') }}
+    {% if smtp.last_test_ok %}
+      — <span class="text-emerald-700">نجح الاتصال + تم إرسال بريد تجريبي ✓</span>
+    {% else %}
+      — <span class="text-rose-700">فشل:</span>
+      <code class="text-xs">{{ smtp.last_test_error }}</code>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ── Last live-send strip (AC #8) ────────────────────────── #}
+  {% if smtp and smtp.last_send_at %}
+  <div class="card p-3 text-sm {% if not smtp.last_send_ok %}border border-rose-200 bg-rose-50{% endif %}">
+    <strong>آخر إرسال حقيقي:</strong>
+    {{ smtp.last_send_at.strftime('%Y-%m-%d %H:%M') }}
+    {% if smtp.last_send_ok %}
+      — <span class="text-emerald-700">نجح الإرسال ✓</span>
+    {% else %}
+      — <span class="text-rose-700 font-semibold">فشل:</span>
+      <code class="text-xs">{{ smtp.last_send_error }}</code>
+      <div class="text-xs text-rose-700 mt-1">
+        ⚠ البريد لم يُسلَّم للعميل. لم يتم استخدام إعدادات مرصود
+        الافتراضية — ينبغي مراجعة الإعدادات أعلاه وإعادة الاختبار.
+      </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ── Settings form ────────────────────────────────────────── #}
+  <form method="POST"
+        action="{{ url_for('companies.smtp_settings',
+                            company_id=company.id) }}"
+        class="card p-5 space-y-4">
+
+    <div>
+      <label class="block text-sm font-semibold mb-1">
+        خادم SMTP (Host)
+      </label>
+      <input type="text" name="host" required
+             value="{{ smtp.host if smtp else '' }}"
+             placeholder="smtp.example.com" class="input">
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-semibold mb-1">
+          المنفذ (Port)
+        </label>
+        <input type="number" name="port" required min="1" max="65535"
+               value="{{ smtp.port if smtp else '587' }}"
+               class="input">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-1">
+          التشفير
+        </label>
+        <select name="encryption" class="select">
+          {% for v in enc_choices %}
+          <option value="{{ v }}"
+            {% if smtp and smtp.encryption == v %}selected
+            {% elif not smtp and v == 'STARTTLS' %}selected{% endif %}>
+            {{ v }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-semibold mb-1">
+        اسم المستخدم (Username)
+      </label>
+      <input type="text" name="username" autocomplete="off"
+             value="{{ smtp.username if smtp else '' }}"
+             class="input">
+    </div>
+
+    <div>
+      <label class="block text-sm font-semibold mb-1">
+        كلمة المرور (Password)
+      </label>
+      {# NEVER populate from stored value.  Empty submit keeps the
+         stored secret; typed value overwrites. #}
+      <input type="password" name="password" autocomplete="new-password"
+             placeholder="{% if smtp and smtp.password_encrypted %}غير مُظهر — اتركه فارغًا للإبقاء على الكلمة الحالية{% else %}أدخل كلمة المرور{% endif %}"
+             class="input">
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-sm font-semibold mb-1">
+          اسم المرسل (From Name)
+        </label>
+        <input type="text" name="from_name"
+               value="{{ smtp.from_name if smtp else company.name }}"
+               class="input">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold mb-1">
+          بريد المرسل (From Email) <span class="text-rose-600">*</span>
+        </label>
+        <input type="email" name="from_email" required
+               value="{{ smtp.from_email if smtp else '' }}"
+               placeholder="noreply@example.com" class="input">
+      </div>
+    </div>
+
+    <label class="flex items-center gap-2 text-sm font-semibold">
+      <input type="checkbox" name="is_enabled" value="1"
+             {% if (smtp and smtp.is_enabled) or not smtp %}checked{% endif %}>
+      مفعّل — استخدم هذه الإعدادات للإرسال من هذه الشركة
+    </label>
+
+    <div class="flex gap-2 pt-2">
+      <button type="submit" class="btn-primary">
+        حفظ الإعدادات
+      </button>
+    </div>
+  </form>
+
+  {# ── Test connection + delete (separate forms so they don't
+       accidentally save the password on test) ────────────────── #}
+  {% if smtp %}
+  <div class="card p-4 flex flex-wrap items-center gap-2">
+    <form method="POST"
+          action="{{ url_for('companies.smtp_test',
+                              company_id=company.id) }}"
+          class="inline">
+      <button type="submit" class="btn-secondary text-sm">
+        🧪 اختبار الاتصال
+      </button>
+    </form>
+    <form method="POST"
+          action="{{ url_for('companies.smtp_delete',
+                              company_id=company.id) }}"
+          class="inline"
+          onsubmit="return confirm('حذف إعدادات SMTP الخاصة بالشركة؟ سيتم استخدام إعدادات مرصود الافتراضية بعدها.');">
+      <button type="submit" class="btn-danger-outline text-sm">
+        🗑 حذف الإعدادات
+      </button>
+    </form>
+  </div>
+  {% endif %}
+
+  <p class="text-xs text-slate-500 leading-relaxed">
+    ملاحظة أمنية: كلمة المرور تُخزّن مشفّرة ولا تُعرض بعد الحفظ.
+    عند حذف الإعدادات يعود النظام تلقائيًا لاستخدام SMTP الافتراضي
+    الخاص بمرصود.
+  </p>
+</div>
+
+{% endblock %}

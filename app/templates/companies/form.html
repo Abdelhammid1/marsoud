@@ -175,6 +175,14 @@
         <button type="button" class="ms-tab" role="tab" aria-selected="false" aria-controls="tab-payments" id="t-payments">💳 الفواتير والدفع</button>
         <button type="button" class="ms-tab" role="tab" aria-selected="false" aria-controls="tab-appearance" id="t-appearance">🎨 مظهر الفاتورة</button>
         <button type="button" class="ms-tab" role="tab" aria-selected="false" aria-controls="tab-ops"      id="t-ops">📦 المخزون والولاء</button>
+        {# MARSOUD-SMTP-PER-COMPANY-01 (2026-10-18) — SMTP settings
+           live on their own page because they carry a secret, need a
+           test-connection flow, and must not persist across the main
+           form's "save all" button (which would send the password
+           on every unrelated edit). #}
+        <a href="{{ url_for('companies.smtp_settings', company_id=company.id) }}"
+           class="ms-tab" role="tab" aria-selected="false"
+           style="text-decoration:none">📧 إعدادات SMTP</a>
       </div>
     </div>
     {% endif %}

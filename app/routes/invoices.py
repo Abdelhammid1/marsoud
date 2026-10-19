@@ -1079,7 +1079,15 @@ def delete(invoice_id):
     if not invoice or invoice.company_id != g.active_company.id:
         flash("غير موجود", "error")
         return redirect(url_for("invoices.index"))
-    reason = (request.form.get("reason") or "").strip() or "حذف الفاتورة"
+    # MARSOUD-INVOICE-CANCEL-EMAIL-01 (2026-10-18) — ticket makes the
+    # reason mandatory ("لا يمكن تأكيد الإلغاء دون إدخال السبب") so
+    # the audit trail is always populated AND the notification email
+    # has something meaningful to show the customer.  No more silent
+    # "حذف الفاتورة" fallback.
+    reason = (request.form.get("reason") or "").strip()
+    if not reason:
+        flash("سبب الإلغاء مطلوب لإتمام العملية", "error")
+        return redirect(url_for("invoices.view", invoice_id=invoice_id))
     invoice_number = invoice.number
     invoice_company_id = invoice.company_id
     # MARSOUD-TKT-ADMIN-VOID-SAAS-INVOICE — logic moved to
@@ -1189,6 +1197,12 @@ def restore(invoice_id):
     invoice.voided_at = None
     invoice.voided_by_id = None
     invoice.void_reason = None
+    # MARSOUD-INVOICE-CANCEL-EMAIL-01 (2026-10-18) — clear the
+    # cancel-notification idempotency stamp too, so a future re-void
+    # of this restored invoice is treated as a NEW business event
+    # that re-notifies the customer.  Leaving the stamp in place
+    # would silently suppress the second notification.
+    invoice.cancel_email_sent_at = None
     paid = float(invoice.paid_amount or 0)
     total = float(invoice.total or 0)
     if paid >= total - 0.01 and total > 0:
@@ -1214,6 +1228,39 @@ def restore(invoice_id):
         pass
     flash(f"تم استرجاع الفاتورة {invoice.number} بحالة "
           f"{invoice.status.value}", "success")
+    return redirect(url_for("invoices.view", invoice_id=invoice_id))
+
+
+# MARSOUD-INVOICE-CANCEL-EMAIL-01 (2026-10-18) — retry endpoint for
+# a cancel notification that failed on the first attempt (SMTP down,
+# transient DNS, customer-email-added-after-the-fact).  Idempotent:
+# a second POST after a successful send finds `cancel_email_sent_at`
+# already stamped and flashes an "already sent" notice instead of
+# firing a duplicate.
+@bp.route("/<int:invoice_id>/resend-cancel-email", methods=["POST"])
+@login_required
+@require_permission("invoices.refund")
+def resend_cancel_email(invoice_id):
+    invoice = db.session.get(Invoice, invoice_id)
+    if not invoice or invoice.company_id != g.active_company.id:
+        flash("غير موجود", "error")
+        return redirect(url_for("invoices.index"))
+    if invoice.status != InvoiceStatus.VOIDED:
+        flash("إعادة الإرسال متاحة فقط للفواتير الملغاة", "warning")
+        return redirect(url_for("invoices.view", invoice_id=invoice_id))
+    if invoice.cancel_email_sent_at is not None:
+        flash("تم إرسال الإشعار مسبقاً — لا حاجة لإعادة الإرسال",
+              "info")
+        return redirect(url_for("invoices.view", invoice_id=invoice_id))
+    from app.services.email import send_invoice_cancelled_email
+    from datetime import datetime as _dt
+    if send_invoice_cancelled_email(invoice):
+        invoice.cancel_email_sent_at = _dt.utcnow()
+        db.session.commit()
+        flash("تم إرسال إشعار الإلغاء بنجاح", "success")
+    else:
+        flash("فشل إرسال الإشعار — راجع السجلات أو تواصل مع الدعم",
+              "error")
     return redirect(url_for("invoices.view", invoice_id=invoice_id))
 
 
