@@ -9,6 +9,9 @@ from app.models.user import user_companies
 from app.models.payroll import Employee
 from app.services.seed_coa import seed_default_coa
 from app.services.permissions import require_permission
+# MARSOUD-LANDING-RESTRICT-REGISTER-01 (2026-10-28) — gate for the
+# retired public /companies/new form; only Super Admin creates tenants.
+from app.services.superadmin import superadmin_required
 
 bp = Blueprint("companies", __name__)
 
@@ -89,6 +92,13 @@ def index():
 
 @bp.route("/new", methods=["GET", "POST"])
 @login_required
+# MARSOUD-LANDING-RESTRICT-REGISTER-01 (2026-10-28) — public company
+# creation is retired per the ticket's AC #2.  Only Super Admin can
+# create tenants now; a regular logged-in user hitting GET or POST
+# here gets a 403 from the decorator (backend-level block, not just
+# UI hide — satisfies AC #3's "Any unauthorised creation attempt
+# must be rejected from the Backend").
+@superadmin_required
 def new():
     if request.method == "POST":
         name = request.form.get("name", "").strip()

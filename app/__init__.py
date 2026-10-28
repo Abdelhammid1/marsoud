@@ -1252,6 +1252,12 @@ def create_app(config_class=Config):
     app.jinja_env.globals["company_logo_email_uri"] = company_logo_email_uri
     app.jinja_env.globals["site_url"] = app.config.get("SITE_URL", "").rstrip("/")
 
+    # MARSOUD-LANDING-RESTRICT-REGISTER-01 (2026-10-28) — one source of
+    # truth for the WA signup URL so templates don't drift from the
+    # backend redirect used by `/register`.
+    from app.services.site_contact import whatsapp_signup_url
+    app.jinja_env.globals["whatsapp_signup_url"] = whatsapp_signup_url
+
     # MARSOUD-CASH-CUSTODY-01 (2026-08-07, slice 3) — the custody
     # detail template renders per-line attachments inline (one
     # documents_for call per settlement line). Passing it through

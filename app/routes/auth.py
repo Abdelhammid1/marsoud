@@ -170,7 +170,18 @@ def reset_password(token):
 
 @bp.route("/register", methods=["GET", "POST"])
 def register():
-    if current_user.is_authenticated:
+    # MARSOUD-LANDING-RESTRICT-REGISTER-01 (2026-10-28) — public
+    # self-signup is retired per the ticket's AC #1.  New companies
+    # are created by Super Admin only (companies.new is now gated by
+    # @superadmin_required).  Everything a visitor hits here — GET
+    # OR POST — redirects to the operator-run WhatsApp signup chat
+    # so a crafted POST can't reach the User creation code below.
+    # The old signup pipeline (honeypot, Turnstile, domain blocker,
+    # Employee bootstrap) is intentionally left intact below the
+    # unreachable `return` so a future reopen is a one-line revert.
+    from app.services.site_contact import whatsapp_signup_url
+    return redirect(whatsapp_signup_url(), code=302)
+    if current_user.is_authenticated:  # noqa: unreachable (ticket)
         return redirect(url_for("dashboard.index"))
     if request.method == "POST":
         # MARSOUD-BOT-PROTECTION-01 (Abdelhamid 2026-07-24) — three

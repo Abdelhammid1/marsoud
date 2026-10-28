@@ -1,0 +1,47 @@
+/*! MARSOUD-LANDING-RESTRICT-REGISTER-01 (2026-10-28)
+
+   Self-hosted Material Symbols Outlined.  Lives in /static/css/ so
+   both the public landing (served raw via send_from_directory) and
+   any future Jinja-rendered page can `<link rel="stylesheet">` it.
+
+   Why self-host:
+   - On cold reload the browser renders BEFORE the Google Fonts
+     `.woff2` arrives from `fonts.gstatic.com`.
+   - `.material-symbols-outlined` elements use ligatures — the raw
+     ligature text ("local_shipping", "arrow_back", "verified"...)
+     leaks onto the page until the font loads.
+   - CDN hiccups / regional blocks / CSPs can turn "briefly" into
+     "forever".
+
+   `font-display: block` keeps the glyph slot invisible for ~3s
+   while the font loads (acceptable) rather than flashing the
+   ligature text (unacceptable for icons).  `direction: ltr` on
+   the class keeps icon glyphs upright inside the RTL `dir="rtl"`
+   landing scope.
+*/
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+  src: url('/static/fonts/material-symbols/MaterialSymbolsOutlined.woff2')
+       format('woff2-variations');
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
+}
