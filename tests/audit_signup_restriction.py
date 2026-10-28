@@ -315,6 +315,119 @@ def _():
     return "preload + icons.css wired; @font-face + font-display: block set"
 
 
+# ─── 7. Plain logged-in user hitting /register also redirects ────
+# Gap-C fix: ticket's test #1 says "من مستخدم عادي ومن زائر".
+# Original check 1 covered the visitor; this one covers the plain
+# logged-in path.
+@check("7. /register as a plain logged-in user → still redirects to WA")
+def _():
+    from app.services.site_contact import whatsapp_signup_url
+    app, client = _logged_in_client(_STATE["plain_id"])
+    with client:
+        resp = client.get("/register", follow_redirects=False)
+    assert resp.status_code in (301, 302, 303), (
+        f"plain user /register expected redirect, got {resp.status_code}")
+    assert resp.headers.get("Location", "") == whatsapp_signup_url(), (
+        f"plain user got wrong redirect target: "
+        f"{resp.headers.get('Location')!r}")
+    return "logged-in plain user → 302 to wa.me (same as visitor)"
+
+
+# ─── 8. The other two CTA surfaces also carry zero stale /register
+# Gap-A fix: check 5 only pinned static/landing.html.  The ticket's
+# "جميع الأزرار" rule means every surface must stay clean, not just
+# the live landing.
+@check("8. templates/landing.html + auth/login.html carry zero /register CTAs")
+def _():
+    from app.services.site_contact import whatsapp_signup_url
+    tpl_land = (ROOT / "app" / "templates" / "landing.html").read_text(
+        encoding="utf-8")
+    tpl_login = (ROOT / "app" / "templates" / "auth" / "login.html").read_text(
+        encoding="utf-8")
+
+    for name, txt in (("templates/landing.html", tpl_land),
+                      ("auth/login.html", tpl_login)):
+        for marker in ('href="/register',
+                        'href="https://marsoud.com/register',
+                        "url_for('auth.register')",
+                        'url_for("auth.register")'):
+            assert marker not in txt, (
+                f"stale CTA in {name}: {marker!r}")
+
+    # Both must reference the Jinja global so a future WA number
+    # change hits one line.
+    assert "whatsapp_signup_url" in tpl_land, (
+        "templates/landing.html doesn't use the shared helper")
+    assert "whatsapp_signup_url" in tpl_login, (
+        "auth/login.html doesn't use the shared helper")
+
+    # Smoke: Jinja global must resolve on render — proves the global
+    # is actually registered when a request renders either template.
+    # `test_request_context` so url_for() calls in the template work.
+    app = create_app()
+    with app.test_request_context("/"):
+        from flask import render_template
+        body = render_template("landing.html")
+        assert "wa.me/201044203322" in body, (
+            "rendered templates/landing.html missing wa.me href — "
+            "did the Jinja global drop?")
+    return "both templates clean + Jinja global resolves on render"
+
+
+# ─── 9. POST /login smoke — login flow regression per AC #8 ──────
+# Gap-B fix: AC #8 "تسجيل الدخول ... تعمل دون Regression" wasn't
+# explicitly audited.  A bad import in whatsapp_signup_url or a
+# Jinja global registration failure would break /login's render,
+# because the login template now calls `{{ whatsapp_signup_url() }}`.
+@check("9. /login renders + POST wrong-password returns the form, no regression")
+def _():
+    app = create_app()
+    with app.test_client() as c:
+        r1 = c.get("/login", follow_redirects=False)
+        assert r1.status_code == 200, (
+            f"/login GET broke: {r1.status_code}")
+        body = r1.data.decode("utf-8", "replace")
+        # The retrofit CTA + the WA URL both have to be present.
+        assert "اطلب تفعيل حساب عبر WhatsApp" in body, (
+            "login page lost the WhatsApp CTA label")
+        assert "wa.me/201044203322" in body, (
+            "login page's WhatsApp URL vanished — Jinja global broken?")
+
+        # POST with wrong creds should NOT 500; expect the form back
+        # (200) or a redirect, never an unhandled exception.
+        r2 = c.post("/login",
+                     data={"email": "nope@audit.local",
+                            "password": "wrong"},
+                     follow_redirects=False)
+        assert r2.status_code in (200, 302, 303), (
+            f"POST /login broke with wrong creds: {r2.status_code}")
+    return "/login GET + POST both well-behaved; WA CTA + URL present"
+
+
+# ─── 10. Static landing's charset + rtl/lang metas intact ────────
+# Gap-D fix: AC #7 "النصوص العربية والإنجليزية تظهر بشكل صحيح".
+# The icon-font fix is pinned by check 6; this one asserts the
+# baseline HTML metadata that keeps Arabic rendering correctly
+# after reload (charset, direction, language) stays intact.
+@check("10. static/landing.html carries <meta charset=utf-8> + dir=rtl lang=ar")
+def _():
+    p = ROOT / "app" / "static" / "landing.html"
+    txt = p.read_text(encoding="utf-8")
+    # Charset must be utf-8 — anything else would corrupt Arabic on
+    # browsers that fall back to Windows-1256 / ISO-8859-6 heuristics.
+    assert ('charset="utf-8"' in txt.lower()
+             or 'charset=utf-8' in txt.lower()), (
+        "static/landing.html lost the UTF-8 charset meta")
+    # Direction + language on the root element.
+    assert 'dir="rtl"' in txt, "static landing dropped dir=rtl"
+    assert 'lang="ar"' in txt, "static landing dropped lang=ar"
+    # Belt-and-suspenders: the file must actually decode cleanly as
+    # UTF-8 (would raise above if it couldn't).  Then confirm a
+    # known Arabic string shows up intact.
+    assert "ابدأ" in txt, "Arabic headline missing — encoding corrupted?"
+    return "charset utf-8 + dir=rtl + lang=ar + Arabic strings intact"
+
+
 def main():
     app = create_app()
     passed = failed = 0
