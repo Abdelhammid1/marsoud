@@ -58,9 +58,16 @@
         </a>
       </div>
 
+      {# MARSOUD-LANDING-RESTRICT-REGISTER-01 (2026-10-28) — public
+         self-signup is retired; this CTA now opens WhatsApp with the
+         ticket's prefilled Arabic message so prospects can request a
+         Super-Admin-created tenant. #}
       <div class="mt-6 text-center text-sm text-slate-500">
         ليس لديك حساب؟
-        <a href="{{ url_for('auth.register') }}" class="text-[#2563EB] font-semibold hover:underline">إنشاء حساب جديد</a>
+        <a href="{{ whatsapp_signup_url() }}" target="_blank" rel="noopener"
+           class="text-[#2563EB] font-semibold hover:underline">
+          اطلب تفعيل حساب عبر WhatsApp
+        </a>
       </div>
     </div>
   </div>
