@@ -857,6 +857,7 @@ def create_app(config_class=Config):
 
     @app.context_processor
     def inject_globals():
+        import os as _os_cp
         from datetime import datetime
         from app.services.permissions import has_permission, get_user_role
         from app.services.currency import CURRENCY_ORDER
@@ -949,6 +950,17 @@ def create_app(config_class=Config):
             "active_company": active_company,
             "user_companies": g.get("user_companies", []),
             "now": datetime.utcnow(),
+            "app_name": "مرصود",
+            # MARSOUD-MANASETY-CREDIT (2026-10-30) — shared footer credit
+            # on every admin-shell page (base.html includes _footer.html).
+            # Mirrors the elyasmin pattern; env vars let ops hide / rename
+            # the credit without a code change (BRAND_SHOW=0 removes it).
+            "brand": {
+                "text": _os_cp.getenv("BRAND_TEXT", "Developed by"),
+                "name": _os_cp.getenv("BRAND_NAME", "Manasety"),
+                "url":  _os_cp.getenv("BRAND_URL",  "https://manasety.ai"),
+                "show": _os_cp.getenv("BRAND_SHOW", "1") != "0",
+            },
             "has_permission": has_permission,
             "can_access_endpoint": _can_access_endpoint,
             "current_role": current_role,

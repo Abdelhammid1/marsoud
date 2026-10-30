@@ -1,0 +1,7 @@
+{% if brand and brand.show %}
+<footer class="w-full text-center text-xs text-slate-500 py-3 border-t border-slate-200 bg-white mt-6">
+  &copy; {{ (now() if now is callable else now).year }} {{ app_name or 'مرصود' }} &mdash; {{ brand.text }}
+  <a href="{{ brand.url }}" target="_blank" rel="noopener noreferrer"
+     class="font-bold hover:underline" style="color: var(--ms-brand, #047857);">{{ brand.name }}</a>
+</footer>
+{% endif %}
