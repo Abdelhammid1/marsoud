@@ -19,13 +19,21 @@
    the class keeps icon glyphs upright inside the RTL `dir="rtl"`
    landing scope.
 */
+/* MARSOUD-LANDING-ICONS-SAFARI-FIX (2026-10-30) — `format('woff2-variations')`
+   is a Chromium-only experimental syntax that iOS/macOS Safari REJECTS as
+   invalid, dropping the entire @font-face rule.  Result on iPhone: the
+   ligature names ("arrow_back", "play_circle", "phone_iphone"...) leaked
+   onto marsoud.com's landing exactly like before the self-host fix,
+   because Safari never loaded the font.  Use the plain `format('woff2')`
+   — variable fonts still work (the axes are driven by
+   `font-variation-settings` on `.material-symbols-outlined` below). */
 @font-face {
   font-family: 'Material Symbols Outlined';
   font-style: normal;
   font-weight: 100 700;
   font-display: block;
   src: url('/static/fonts/material-symbols/MaterialSymbolsOutlined.woff2')
-       format('woff2-variations');
+       format('woff2');
 }
 
 .material-symbols-outlined {
