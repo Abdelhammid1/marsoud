@@ -230,6 +230,29 @@ def _amiri_font_face_css():
     return _AMIRI_FONT_FACE_CSS_CACHE
 
 
+import re as _re_brand
+
+_BRAND_DEFAULT = "#059669"
+_BRAND_HEX_RE = _re_brand.compile(r"^#[0-9A-Fa-f]{6}$")
+
+
+def brand_color(company):
+    """Company brand hex (#RRGGBB) for PDFs/exports; falls back to default green."""
+    raw = (getattr(company, "invoice_brand_color", None) or "").strip()
+    return raw if _BRAND_HEX_RE.match(raw) else _BRAND_DEFAULT
+
+
+def _brand_from_context(context):
+    c = context.get("company")
+    if c is None:
+        for key in ("invoice", "run", "employee", "entry", "decision", "line"):
+            obj = context.get(key)
+            c = getattr(obj, "company", None) if obj is not None else None
+            if c is not None:
+                break
+    return brand_color(c)
+
+
 def _weasyprint_render(template_name, **context):
     """Render a Jinja template + run it through WeasyPrint. Returns a BytesIO
     with the PDF. WeasyPrint is imported lazily so the rest of the app keeps
@@ -240,6 +263,7 @@ def _weasyprint_render(template_name, **context):
     # don't each have to remember. Callers may override by passing their
     # own `amiri_font_face` in **context.
     context.setdefault("amiri_font_face", _amiri_font_face_css())
+    context.setdefault("BRAND", _brand_from_context(context))
     html = render_template(template_name, **context)
     buf = io.BytesIO()
     weasyprint.HTML(string=html, base_url=os.path.dirname(os.path.dirname(__file__))).write_pdf(buf)
