@@ -24,7 +24,7 @@ body { font-family: 'Amiri', 'Segoe UI', Tahoma, sans-serif; direction: rtl; bac
 .logo-box.fallback { background: #0A2540; }
 .logo-box img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .brand-name { font-size: 24px; font-weight: 800; color: #0A2540; }
-.doc-title { font-size: 26px; font-weight: 800; color: #059669; margin-bottom: 24px; text-align: center; }
+.doc-title { font-size: 26px; font-weight: 800; color: {{ BRAND|default('#059669') }}; margin-bottom: 24px; text-align: center; }
 .rule { height: 2px; background: #0A2540; margin-bottom: 20px; }
 .kv { width: 100%; font-size: 12.5px; border-collapse: collapse; margin-bottom: 20px; }
 .kv td { padding: 4px 0; }
@@ -33,7 +33,7 @@ body { font-family: 'Amiri', 'Segoe UI', Tahoma, sans-serif; direction: rtl; bac
 .kv td.v.mono { font-family: monospace; }
 .section-title { font-size: 15px; font-weight: 800; color: #0A2540; margin-bottom: 10px; }
 table.items { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 22px; }
-table.items th { background: #059669; color: #fff; padding: 9px 12px; font-weight: 600; font-size: 11.5px; text-align: right; }
+table.items th { background: {{ BRAND|default('#059669') }}; color: #fff; padding: 9px 12px; font-weight: 600; font-size: 11.5px; text-align: right; }
 table.items th.l { text-align: left; }
 table.items td { padding: 9px 12px; border-bottom: 1px solid #E2E8F0; }
 table.items td.l { text-align: left; font-family: monospace; }
@@ -43,7 +43,7 @@ table.items tr.total td:first-child { font-family: 'Amiri', sans-serif; }
 .net-kv td { padding: 4px 0; }
 .net-kv td.k { font-weight: 800; width: 130px; }
 .net-kv td.c { width: 14px; }
-.net-kv td.v.net { font-weight: 800; color: #059669; font-family: monospace; font-size: 15px; }
+.net-kv td.v.net { font-weight: 800; color: {{ BRAND|default('#059669') }}; font-family: monospace; font-size: 15px; }
 .net-kv td.k2 { font-weight: 600; }
 .signatures { display: flex; justify-content: flex-end; align-items: flex-end; }
 .sig-emp { text-align: center; }
@@ -72,8 +72,8 @@ table.items tr.total td:first-child { font-family: 'Amiri', sans-serif; }
 {% set leaves_count = line.leaves_count or 0 %}
 
 <div class="page">
-  <svg style="position:absolute;top:0;left:0" width="70" height="70" viewBox="0 0 70 70"><polygon points="0,0 70,0 0,70" fill="#059669"/></svg>
-  <svg style="position:absolute;bottom:0;right:0" width="70" height="70" viewBox="0 0 70 70"><polygon points="70,70 0,70 70,0" fill="#059669"/></svg>
+  <svg style="position:absolute;top:0;left:0" width="70" height="70" viewBox="0 0 70 70"><polygon points="0,0 70,0 0,70" fill="{{ BRAND|default('#059669') }}"/></svg>
+  <svg style="position:absolute;bottom:0;right:0" width="70" height="70" viewBox="0 0 70 70"><polygon points="70,70 0,70 70,0" fill="{{ BRAND|default('#059669') }}"/></svg>
   <div class="pad">
 
     {# ─── BRAND / TITLE ────────────────────────────────────── #}
