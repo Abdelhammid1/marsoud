@@ -1135,6 +1135,13 @@ def create_app(config_class=Config):
         from datetime import date as _date
         return {"today_date": _date.today}
 
+    @app.template_global("email_brand")
+    def _email_brand(obj=None):
+        """Brand hex for email templates; obj = anything with .company, or a Company."""
+        from app.services.export import brand_color
+        co = getattr(obj, "company", None) or obj
+        return brand_color(co)
+
     @app.template_filter("money")
     def money_filter(value, currency=None):
         if value is None:

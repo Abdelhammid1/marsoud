@@ -27,6 +27,7 @@
 {% endif %}
 {% endblock %}
 {% block content %}
+{% set BRAND = email_brand(invoice) %}
 
 {# ─── Hero banner (varies by kind) ─────────────────────────────── #}
 {% set is_overdue = kind and kind.startswith("overdue_") %}
@@ -196,8 +197,8 @@
 {# ─── Invoice / order details ──────────────────────────────────── #}
 <table cellpadding="0" cellspacing="0" border="0" dir="rtl" style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:22px">
   <tr>
-    <th align="right" style="background:#059669;color:#fff;padding:9px 12px;font-weight:600;font-size:11.5px">البند</th>
-    <th align="left" style="background:#059669;color:#fff;padding:9px 12px;font-weight:600;font-size:11.5px">القيمة</th>
+    <th align="right" style="background:{{ BRAND }};color:#fff;padding:9px 12px;font-weight:600;font-size:11.5px">البند</th>
+    <th align="left" style="background:{{ BRAND }};color:#fff;padding:9px 12px;font-weight:600;font-size:11.5px">القيمة</th>
   </tr>
   <tr>
     <td style="padding:9px 12px;border-bottom:1px solid #E2E8F0;color:#0A2540">رقم الفاتورة</td>
