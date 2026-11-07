@@ -84,7 +84,7 @@ def export_balance_sheet_excel(company, as_of):
 
     row = 5
     ws.cell(row=row, column=1, value="الأصول").font = Font(bold=True, color="FFFFFF")
-    ws.cell(row=row, column=1).fill = PatternFill("solid", fgColor="0A2540")
+    ws.cell(row=row, column=1).fill = PatternFill("solid", fgColor=brand_hex(company))
     row += 1
     for item in data["assets"]:
         ws.cell(row=row, column=1, value=f"  {item['code']} — {item['name']}")
@@ -96,7 +96,7 @@ def export_balance_sheet_excel(company, as_of):
     row += 2
 
     ws.cell(row=row, column=1, value="الالتزامات").font = Font(bold=True, color="FFFFFF")
-    ws.cell(row=row, column=1).fill = PatternFill("solid", fgColor="0A2540")
+    ws.cell(row=row, column=1).fill = PatternFill("solid", fgColor=brand_hex(company))
     row += 1
     for item in data["liabilities"]:
         ws.cell(row=row, column=1, value=f"  {item['code']} — {item['name']}")
@@ -107,7 +107,7 @@ def export_balance_sheet_excel(company, as_of):
     row += 2
 
     ws.cell(row=row, column=1, value="حقوق الملكية").font = Font(bold=True, color="FFFFFF")
-    ws.cell(row=row, column=1).fill = PatternFill("solid", fgColor="0A2540")
+    ws.cell(row=row, column=1).fill = PatternFill("solid", fgColor=brand_hex(company))
     row += 1
     for item in data["equity"]:
         ws.cell(row=row, column=1, value=f"  {item['code']} — {item['name']}")
@@ -131,7 +131,7 @@ def export_income_statement_excel(company, start, end):
 
     row = 5
     ws.cell(row=row, column=1, value="الإيرادات").font = Font(bold=True, color="FFFFFF")
-    ws.cell(row=row, column=1).fill = PatternFill("solid", fgColor="0A2540")
+    ws.cell(row=row, column=1).fill = PatternFill("solid", fgColor=brand_hex(company))
     row += 1
     for item in data["revenue"]:
         ws.cell(row=row, column=1, value=f"  {item['code']} — {item['name']}")
@@ -142,7 +142,7 @@ def export_income_statement_excel(company, start, end):
     row += 2
 
     ws.cell(row=row, column=1, value="المصروفات").font = Font(bold=True, color="FFFFFF")
-    ws.cell(row=row, column=1).fill = PatternFill("solid", fgColor="0A2540")
+    ws.cell(row=row, column=1).fill = PatternFill("solid", fgColor=brand_hex(company))
     row += 1
     for item in data["expenses"]:
         ws.cell(row=row, column=1, value=f"  {item['code']} — {item['name']}")
@@ -240,6 +240,11 @@ def brand_color(company):
     """Company brand hex (#RRGGBB) for PDFs/exports; falls back to default green."""
     raw = (getattr(company, "invoice_brand_color", None) or "").strip()
     return raw if _BRAND_HEX_RE.match(raw) else _BRAND_DEFAULT
+
+
+def brand_hex(company):
+    """Brand color as RRGGBB (no '#') for openpyxl fills."""
+    return brand_color(company).lstrip("#").upper()
 
 
 def _brand_from_context(context):
@@ -515,7 +520,7 @@ def export_trial_balance_excel(company, start, end):
     for col_idx, txt in enumerate(headers, start=1):
         c = ws.cell(row=hdr_row, column=col_idx, value=txt)
         c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor="0A2540")
+        c.fill = PatternFill("solid", fgColor=brand_hex(company))
 
     row = hdr_row + 1
     for r in data["rows"]:
@@ -1167,7 +1172,7 @@ def export_journal_entry_excel(entry):
                               "مدين", "دائن"], 1):
         c = ws.cell(row=row, column=col, value=h)
         c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor="0A2540")
+        c.fill = PatternFill("solid", fgColor=brand_hex(entry.company))
     ws.column_dimensions["A"].width = 12
     ws.column_dimensions["B"].width = 28
     ws.column_dimensions["C"].width = 30
@@ -1373,7 +1378,7 @@ def export_payroll_run_excel(run):
     for col, h in enumerate(headers, 1):
         c = ws.cell(row=row, column=col, value=h)
         c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor="0A2540")
+        c.fill = PatternFill("solid", fgColor=brand_hex(run.company))
         c.alignment = Alignment(horizontal="center")
     ws.column_dimensions["A"].width = 12
     ws.column_dimensions["B"].width = 22
@@ -1494,7 +1499,7 @@ def _list_excel(company, title, period_label, headers, rows, totals_row=None):
     for col, h in enumerate(headers, 1):
         c = ws.cell(row=row_n, column=col, value=h)
         c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor="0A2540")
+        c.fill = PatternFill("solid", fgColor=brand_hex(company))
         c.alignment = Alignment(horizontal="center")
         ws.column_dimensions[chr(64 + col)].width = max(14, len(str(h)) + 4)
 
@@ -2053,7 +2058,7 @@ def export_low_stock_excel(company):
     for col, h in enumerate(headers, start=1):
         c = ws.cell(row=row, column=col, value=h)
         c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor="0A2540")
+        c.fill = PatternFill("solid", fgColor=brand_hex(company))
     row += 1
     for v in low_stock_variants(company.id):
         ws.cell(row=row, column=1, value=v.sku)
@@ -2092,7 +2097,7 @@ def export_stock_movements_excel(company, start, end):
     for col, h in enumerate(headers, start=1):
         c = ws.cell(row=row, column=col, value=h)
         c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor="0A2540")
+        c.fill = PatternFill("solid", fgColor=brand_hex(company))
     row += 1
     kind_labels = {k.value: k.label_ar for k in StockMovementKind}
     from app.services.time import to_company_tz_str
@@ -2231,7 +2236,7 @@ def export_inventory_balance_excel(company, warehouse_id=None):
     for col, h in enumerate(headers, start=1):
         c = ws.cell(row=row, column=col, value=h)
         c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor="0A2540")
+        c.fill = PatternFill("solid", fgColor=brand_hex(company))
     row += 1
     total_value = 0.0
     for r in rows:
@@ -2345,7 +2350,7 @@ def export_profitability_excel(company, start, end):
     for col, h in enumerate(headers, start=1):
         c = ws.cell(row=row, column=col, value=h)
         c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor="0A2540")
+        c.fill = PatternFill("solid", fgColor=brand_hex(company))
     row += 1
     total_rev = total_cogs = 0.0
     for r in rows:
@@ -2467,7 +2472,7 @@ def export_cashier_sales_excel(company, start, end):
     for col, h in enumerate(headers, start=1):
         c = ws.cell(row=row, column=col, value=h)
         c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor="0A2540")
+        c.fill = PatternFill("solid", fgColor=brand_hex(company))
     row += 1
     for r in rows:
         ws.cell(row=row, column=1, value=r["cashier"])
@@ -2647,7 +2652,7 @@ def export_leads_excel(company, leads):
     for col, h in enumerate(headers, 1):
         c = ws.cell(row=row, column=col, value=h)
         c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor="0A2540")
+        c.fill = PatternFill("solid", fgColor=brand_hex(company))
         c.alignment = Alignment(horizontal="center", wrap_text=True)
 
     # Column widths (tuned for Arabic content)
@@ -2740,7 +2745,7 @@ def export_leads_by_campaign_excel(company, leads):
     for col, h in enumerate(summary_headers, 1):
         c = ws0.cell(row=row, column=col, value=h)
         c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor="0A2540")
+        c.fill = PatternFill("solid", fgColor=brand_hex(company))
         c.alignment = Alignment(horizontal="center", wrap_text=True)
     ws0.column_dimensions["A"].width = 28
     for i in range(len(statuses)):
@@ -2793,7 +2798,7 @@ def export_leads_by_campaign_excel(company, leads):
         for col, h in enumerate(headers, 1):
             c = ws.cell(row=5, column=col, value=h)
             c.font = Font(bold=True, color="FFFFFF")
-            c.fill = PatternFill("solid", fgColor="0A2540")
+            c.fill = PatternFill("solid", fgColor=brand_hex(company))
             c.alignment = Alignment(horizontal="center", wrap_text=True)
         widths = [4, 22, 18, 26, 22, 14, 18, 14, 18, 18]
         for i, w in enumerate(widths, 1):
