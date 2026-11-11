@@ -89,7 +89,7 @@ def _log_status_change(entity_type, obj, *, from_status, to_status,
 
 
 def change_lead_status(lead, new_status, *, changed_by_id, note=None,
-                       lost_reason=None):
+                       lost_reason=None, unqualified_reasons=None):
     """Transition a lead to a new status + record an event row."""
     if not isinstance(new_status, LeadStatus):
         try:
@@ -101,10 +101,20 @@ def change_lead_status(lead, new_status, *, changed_by_id, note=None,
     if new_status == lead.status:
         raise CRMError("الحالة الحالية مطابقة")
 
+    if new_status == LeadStatus.UNQUALIFIED:
+        if not unqualified_reasons:
+            raise CRMError("اختار سبب واحد على الأقل لغير مؤهل")
+        note = ((note or "").strip() + " | غير مؤهل: "
+                + "، ".join(unqualified_reasons)).strip(" |")
     old = lead.status
     lead.status = new_status
     if new_status == LeadStatus.LOST:
         lead.lost_reason = (lost_reason or "").strip() or None
+    if new_status == LeadStatus.UNQUALIFIED:
+        from app.services.lead_options import dumps_list
+        lead.unqualified_reasons = dumps_list(unqualified_reasons)
+    elif old == LeadStatus.UNQUALIFIED:
+        lead.unqualified_reasons = None
 
     db.session.add(LeadStatusEvent(
         lead_id=lead.id, from_status=old, to_status=new_status,

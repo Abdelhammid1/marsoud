@@ -238,6 +238,8 @@ def index():
             query = query.filter(Lead.campaign_id == int(campaign_filter))
         except (TypeError, ValueError):
             pass
+    optf = _option_filters()
+    query = _apply_option_filters(query, optf)
     df = _parse_date(date_from)
     if df:
         query = query.filter(Lead.created_at >= datetime.combine(df, datetime.min.time()))
@@ -252,7 +254,8 @@ def index():
     # feeds the /no-response route below (deduped code path).
     leads = query.order_by(Lead.created_at.desc()).all()
     _hide = {LeadStatus.NO_RESPONSE}
-    if status_filter != "UNQUALIFIED":
+    _show_unq = status_filter == "UNQUALIFIED" or bool(optf["reason"])
+    if not _show_unq:
         _hide.add(LeadStatus.UNQUALIFIED)
     pipeline_leads = [l for l in leads if l.status not in _hide]
 
@@ -276,10 +279,11 @@ def index():
         view = "board"
     pipeline_statuses = [s for s in LeadStatus if s != LeadStatus.NO_RESPONSE
                          and (s != LeadStatus.UNQUALIFIED
-                              or status_filter == "UNQUALIFIED")]
+                              or _show_unq)]
     unqualified_count = status_counts.get(LeadStatus.UNQUALIFIED, 0)
-    columns = {s: [] for s in pipeline_statuses}
-    for l in pipeline_leads:
+    board_statuses = list(LeadStatus)  # board shows every stage, closed ones collapsed
+    columns = {s: [] for s in board_statuses}
+    for l in leads:
         columns[l.status].append(l)
 
     return render_template(
@@ -295,7 +299,7 @@ def index():
         q=q, status_filter=status_filter, rep_filter=rep_filter,
         campaign_filter=campaign_filter,
         date_from=date_from, date_to=date_to,
-        view=view, columns=columns,
+        view=view, columns=columns, board_statuses=board_statuses,
     )
 
 
@@ -423,6 +427,8 @@ def export_excel():
                 Lead.campaign_id == int(campaign_filter))
         except (TypeError, ValueError):
             pass
+    optf = _option_filters()
+    query = _apply_option_filters(query, optf)
     if rep_filter:
         try:
             query = query.filter(
@@ -457,6 +463,58 @@ def export_excel():
         mimetype=("application/vnd.openxmlformats-officedocument."
                   "spreadsheetml.sheet"),
     )
+
+
+def _option_filters():
+    a = request.args
+    return {
+        "system": [v.strip() for v in a.getlist("system") if v.strip()],
+        "industry": (a.get("industry") or "").strip(),
+        "idea_stage": (a.get("idea_stage") or "").strip(),
+        "reason": [v.strip() for v in a.getlist("reason") if v.strip()],
+    }
+
+
+def _like_json_label(label):
+    import json
+    needle = json.dumps(label, ensure_ascii=False)
+    needle = needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return "%" + needle + "%"
+
+
+def _apply_option_filters(query, f):
+    if f["system"]:
+        query = query.filter(or_(*[
+            Lead.systems_needed.like(_like_json_label(s), escape="\\")
+            for s in f["system"]]))
+    if f["reason"]:
+        query = query.filter(or_(*[
+            Lead.unqualified_reasons.like(_like_json_label(s), escape="\\")
+            for s in f["reason"]]))
+    if f["industry"]:
+        query = query.filter(Lead.industry == f["industry"])
+    if f["idea_stage"]:
+        query = query.filter(Lead.idea_stage == f["idea_stage"])
+    return query
+
+
+def _parse_unq_reasons():
+    from app.services import lead_options as lo
+    return lo.parse_selected(g.active_company.id, "unqualified_reason",
+                             request.form.getlist("unqualified_reasons"))
+
+
+@bp.context_processor
+def _lead_option_globals():
+    from app.services import lead_options as lo
+
+    def lead_opts(kind):
+        try:
+            return lo.active_labels(g.active_company.id, kind)
+        except Exception:
+            db.session.rollback()
+            return []
+    return {"lead_opts": lead_opts}
 
 
 def _lead_option_ctx(lead):
@@ -651,6 +709,7 @@ def status(lead_id):
             changed_by_id=current_user.id,
             note=request.form.get("note"),
             lost_reason=request.form.get("lost_reason"),
+            unqualified_reasons=_parse_unq_reasons(),
         )
         # MARSOUD-45 — when the new status is "اجتماع مجدول", also persist the
         # date+time the user picked in the conditional inputs.

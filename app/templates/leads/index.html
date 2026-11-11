@@ -6,6 +6,7 @@
    Rich actions: MARSOUD-CRM-EXPANSION §1 view-toggle + two exports +
    MARSOUD-LEAD-EXPORT-BY-CAMPAIGN campaign export + create gate — all
    preserved verbatim inside the captured actions block. #}
+{% set _xf = {'q': q, 'status': status_filter, 'rep': rep_filter, 'campaign': campaign_filter, 'from': date_from, 'to': date_to, 'system': request.args.getlist('system'), 'industry': request.args.get('industry', ''), 'idea_stage': request.args.get('idea_stage', ''), 'reason': request.args.getlist('reason')} %}
 {% set _actions %}
     <div class="inline-flex rounded-md border border-slate-200 overflow-hidden text-xs">
       <a href="?{{ request.query_string.decode()|replace('view=list','')|replace('view=board','') }}&view=board"
@@ -17,11 +18,11 @@
         📊 قائمة
       </a>
     </div>
-    <a href="{{ url_for('leads.export_excel', q=q, status=status_filter, rep=rep_filter, campaign=campaign_filter, **{'from': date_from, 'to': date_to}) }}"
+    <a href="{{ url_for('leads.export_excel', **_xf) }}"
        class="btn-secondary text-sm" title="تنزيل قائمة العملاء المحتملين كملف Excel">
       ⬇ تصدير Excel
     </a>
-    <a href="{{ url_for('leads.export_excel', q=q, status=status_filter, rep=rep_filter, campaign=campaign_filter, group_by='campaign', **{'from': date_from, 'to': date_to}) }}"
+    <a href="{{ url_for('leads.export_excel', group_by='campaign', **_xf) }}"
        class="btn-secondary text-sm" title="تصدير Excel مقسّم حسب الحملة">
       🗂 تصدير حسب الحملة
     </a>
@@ -52,6 +53,11 @@
     <span class="text-amber-600">📂</span>
     <span class="text-slate-600">لا يوجد استجابة</span>
     <span class="font-mono font-bold text-navy-900">{{ no_response_count }}</span>
+  </a>
+  <a href="?status=UNQUALIFIED" class="inline-flex items-center gap-2 card p-2 px-4 hover:border-amber-500 text-sm mr-2">
+    <span>🚫</span>
+    <span class="text-slate-600">غير مؤهل</span>
+    <span class="font-mono font-bold text-navy-900">{{ unqualified_count }}</span>
   </a>
 </div>
 
@@ -104,7 +110,35 @@
       <label class="block text-xs font-semibold text-slate-700 mb-1">إلى تاريخ</label>
       <input type="date" name="to" value="{{ date_to }}" class="input text-sm">
     </div>
-    <button type="submit" class="btn-primary text-sm">تطبيق</button>
+    <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">السيستم المطلوب</label>
+        <select name="system" class="select text-sm">
+          <option value="">الكل</option>
+          {% for o in lead_opts('system') %}<option value="{{ o }}" {% if o in request.args.getlist('system') %}selected{% endif %}>{{ o }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">المجال</label>
+        <select name="industry" class="select text-sm">
+          <option value="">الكل</option>
+          {% for o in lead_opts('industry') %}<option value="{{ o }}" {% if request.args.get('industry') == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">حالة الفكرة</label>
+        <select name="idea_stage" class="select text-sm">
+          <option value="">الكل</option>
+          {% for o in lead_opts('idea_stage') %}<option value="{{ o }}" {% if request.args.get('idea_stage') == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">سبب غير مؤهل</label>
+        <select name="reason" class="select text-sm">
+          <option value="">الكل</option>
+          {% for o in lead_opts('unqualified_reason') %}<option value="{{ o }}" {% if o in request.args.getlist('reason') %}selected{% endif %}>{{ o }}</option>{% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn-primary text-sm">تطبيق</button>
   </form>
 </details>
 
@@ -116,63 +150,157 @@
    can move to any stage — no transition restrictions per spec. #}
 {# MARSOUD-MOBILE-FIX v2 (Ibrahim 2026-07-03) — one column per swipe
    on phone (see tasks/index.html for the full rationale). #}
+<style>
+.lc{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;border-inline-start:3px solid #cbd5e1;transition:box-shadow .15s,border-color .15s}
+.lc:hover{box-shadow:0 4px 14px rgba(15,23,42,.08)}
+.lc-NEW_LEAD{border-inline-start-color:#94a3b8}.lc-CONTACTED{border-inline-start-color:#60a5fa}
+.lc-MEETING_SCHEDULED{border-inline-start-color:#3b82f6}.lc-NEGOTIATION{border-inline-start-color:#f59e0b}
+.lc-PROPOSAL_SENT{border-inline-start-color:#f97316}.lc-WON{border-inline-start-color:#10b981}
+.lc-LOST{border-inline-start-color:#ef4444}.lc-UNQUALIFIED{border-inline-start-color:#64748b}.lc-NO_RESPONSE{border-inline-start-color:#a8a29e}
+.lc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.lc-name{font-weight:700;font-size:13.5px;line-height:1.4;color:#0f172a;word-break:break-word}
+.lc-name:hover{color:#059669}
+.lc-value{font-family:ui-monospace,monospace;font-size:11.5px;font-weight:700;color:#047857;background:#ecfdf5;border-radius:6px;padding:1px 6px;white-space:nowrap;flex:none}
+.lc-num{font-size:10.5px;color:#94a3b8;font-family:ui-monospace,monospace;margin-top:1px}
+.lc-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.lc-chip{font-size:10.5px;line-height:1.2;padding:3px 8px;border-radius:999px;background:#eff6ff;color:#1d4ed8;border:1px solid #dbeafe}
+.lc-chip-more{background:#f1f5f9;color:#475569;border-color:#e2e8f0}
+.lc-chip-bad{background:#fef2f2;color:#b91c1c;border-color:#fee2e2}
+.lc-svc{margin-top:6px;font-size:12px;color:#64748b;word-break:break-word}
+.lc-meta{margin-top:8px;display:grid;gap:3px;font-size:11.5px;color:#64748b}
+.lc-meta>span{display:flex;gap:6px;align-items:baseline}
+.lc-meta .k{opacity:.75;flex:none}
+.lc-mtg{margin-top:8px;font-size:11px;color:#1d4ed8;background:#eff6ff;border-radius:6px;padding:3px 8px;display:inline-block}
+.lc-foot{margin-top:10px;padding-top:8px;border-top:1px dashed #e2e8f0;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:#64748b}
+.lc-owner{display:flex;align-items:center;gap:6px;min-width:0}
+.lc-av{width:22px;height:22px;border-radius:50%;background:#e2e8f0;color:#334155;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex:none}
+.lc-owner-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lc-actions{display:flex;align-items:center;gap:8px;flex:none}
+.lc-call{text-decoration:none;font-size:14px}
+.lc-date{font-size:10.5px;color:#94a3b8}
+.lc-move{margin-top:8px}
+.lc-move summary{cursor:pointer;font-size:11px;color:#64748b;list-style:none}
+.lc-move summary::-webkit-details-marker{display:none}
+.lc-move[open] summary{color:#059669}
+.lc-move form{display:flex;gap:6px;margin-top:6px;align-items:center}
+.lc-move select{flex:1;min-width:0}
+/* board layout: fixed readable columns, horizontal scroll, per-column vertical scroll */
+.lc-board{display:flex!important;gap:12px;overflow-x:auto!important;padding-bottom:10px;align-items:flex-start}
+.lc-col{flex:0 0 320px;width:320px;max-width:100%}
+@media (max-width:639px){.lc-col{flex:0 0 calc(100vw - 1.5rem);width:calc(100vw - 1.5rem)}}
+.lc-colbody{max-height:calc(100vh - 280px);min-height:60px;overflow-y:auto;padding-inline-end:3px;scrollbar-width:thin}
+.lc-head-row{cursor:pointer;user-select:none}
+.lc-head-row:hover{background:rgba(148,163,184,.12);border-radius:6px}
+.lc-col.lc-collapsed{flex:0 0 54px!important;width:54px!important;padding:10px 6px}
+.lc-col.lc-collapsed .lc-colbody{display:none}
+.lc-col.lc-collapsed .lc-head-row{flex-direction:column;align-items:center;gap:8px;border-bottom:0;margin-bottom:0;padding-bottom:0}
+.lc-col.lc-collapsed .badge{writing-mode:vertical-rl;padding:12px 5px;white-space:nowrap}
+</style>
+<script>
+document.addEventListener("DOMContentLoaded",function(){
+  var key="leadsBoardCollapsed", saved=null;
+  try{saved=JSON.parse(localStorage.getItem(key)||"null");}catch(e){}
+  var st=new URLSearchParams(location.search).get("status");
+  document.querySelectorAll(".lc-col").forEach(function(col){
+    var name=col.dataset.status;
+    var closed=(saved&&typeof saved==="object"&&(name in saved))?saved[name]:(name==="WON"||name==="LOST"||name==="NO_RESPONSE"||name==="UNQUALIFIED");
+    if(st===name){closed=false;}
+    col.classList.toggle("lc-collapsed",!!closed);
+    var head=col.querySelector(".lc-head-row");
+    if(!head){return;}
+    function toggle(){
+      col.classList.toggle("lc-collapsed");
+      var s={};
+      try{s=JSON.parse(localStorage.getItem(key)||"{}")||{};}catch(e){}
+      s[name]=col.classList.contains("lc-collapsed");
+      try{localStorage.setItem(key,JSON.stringify(s));}catch(e){}
+    }
+    head.addEventListener("click",toggle);
+    head.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle();}});
+  });
+});
+</script>
 <div class="mobile-kanban-hint text-center text-xs text-slate-500 mb-2 sm:hidden">
   ← اسحب يمين وشمال بين الأعمدة →
 </div>
 {# Position dots — JS builds one dot per Kanban column at page load
    and highlights the active one during scroll. Hidden ≥md. #}
 <div class="kanban-dots" data-for="leads-kanban"></div>
-<div class="kanban-scroll flex lg:grid lg:grid-cols-7 gap-3 overflow-x-auto lg:overflow-visible pb-2 snap-x snap-mandatory lg:snap-none -mx-3 px-3 lg:mx-0 lg:px-0">
-  {% for s in pipeline_statuses %}
-  <div class="bg-slate-50 rounded-lg p-3 flex-shrink-0 w-[calc(100vw-1.5rem)] sm:w-[320px] lg:w-auto snap-start snap-always">
-    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 gap-2">
+<div class="kanban-scroll lc-board flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory -mx-3 px-3 lg:mx-0 lg:px-0">
+  {% for s in board_statuses %}
+  <div class="bg-slate-50 rounded-lg p-3 flex-shrink-0 w-[calc(100vw-1.5rem)] sm:w-[320px] lc-col snap-start snap-always" data-status="{{ s.name }}">
+    <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 gap-2 lc-head-row" role="button" tabindex="0" title="اضغط للطي / الفتح">
       <span class="badge {{ s.badge_class }} text-xs whitespace-nowrap">{{ s.label_ar }}</span>
       <span class="text-xs font-mono text-slate-500">{{ columns.get(s, [])|length }}</span>
     </div>
-    <div class="space-y-2">
+    <div class="space-y-2 lc-colbody">
       {% for l in columns.get(s, []) %}
-      <div class="bg-white rounded-md border border-slate-200 p-3 hover:shadow-soft transition">
-        <a href="{{ url_for('leads.detail', lead_id=l.id) }}"
-           class="text-sm font-semibold text-navy-900 hover:text-brand-600 block break-words">
-          {{ l.client_name }}
-        </a>
-        <div class="text-xs text-slate-500 mt-1 break-words">{{ l.service_needed or '—' }}</div>
-        <div class="mt-2 flex items-center justify-between text-xs flex-wrap gap-1">
-          {% if l.expected_value %}
-          <span class="font-mono font-semibold text-emerald-700">
-            {{ "{:,.0f}".format(l.expected_value|float) }}
-          </span>
+        {% set _sl = l.systems_list %}
+        <article class="lc lc-{{ s.name }}">
+          <div class="lc-head">
+            <a href="{{ url_for('leads.detail', lead_id=l.id) }}" class="lc-name">{{ l.client_name }}</a>
+            {% if l.expected_value %}<span class="lc-value">{{ "{:,.0f}".format(l.expected_value|float) }}</span>{% endif %}
+          </div>
+          <div class="lc-num">{{ l.number or ('#' ~ l.id) }}</div>
+
+          {% if _sl %}
+          <div class="lc-chips">
+            {% for sname in _sl[:3] %}<span class="lc-chip">{{ sname }}</span>{% endfor %}
+            {% if _sl|length > 3 %}<span class="lc-chip lc-chip-more" title="{{ _sl[3:]|join('، ') }}">+{{ _sl|length - 3 }}</span>{% endif %}
+          </div>
+          {% else %}
+          <div class="lc-svc">{{ l.service_needed or '—' }}</div>
           {% endif %}
-          {% if l.phone %}
-          <a href="tel:{{ l.phone }}" class="text-slate-500 hover:text-emerald-700"
-             dir="ltr" title="اتصال">📞</a>
+
+          {% if l.industry or l.idea_stage or l.campaign or l.source %}
+          <div class="lc-meta">
+            {% if l.industry %}<span><span class="k">🏷</span><span>{{ l.industry }}</span></span>{% endif %}
+            {% if l.idea_stage %}<span><span class="k">💡</span><span>{{ l.idea_stage }}</span></span>{% endif %}
+            {% if l.campaign %}<span><span class="k">📣</span><span>{{ l.campaign.name }}</span></span>{% endif %}
+            {% if l.source %}<span><span class="k">🔗</span><span>{{ l.source }}</span></span>{% endif %}
+          </div>
           {% endif %}
-        </div>
-        <div class="mt-1 text-xs text-slate-500">
-          {{ l.assigned_to.full_name if l.assigned_to else '— بدون مسؤول' }}
-        </div>
-        {% if l.next_meeting %}
-        <div class="mt-1 text-[10px] text-brand-600">
-          📅 {{ l.next_meeting | company_dt('%Y-%m-%d %H:%M') }}
-        </div>
-        {% endif %}
-        {% if has_permission('leads.manage') %}
-        <form method="POST" action="{{ url_for('leads.status', lead_id=l.id) }}"
-              class="mt-2 flex gap-1">
-          <input type="hidden" name="return_to" value="board">
-          <select name="new_status" required class="select text-xs py-1">
-            <option value="" disabled selected>→ نقل إلى…</option>
-            {% for st in statuses %}
-              {% if st != l.status %}
-              <option value="{{ st.name }}">{{ st.label_ar }}</option>
-              {% endif %}
-            {% endfor %}
-          </select>
-          <button type="submit" class="text-xs text-brand-600 hover:underline">حفظ</button>
-        </form>
-        {% endif %}
-      </div>
-      {% else %}
+
+          {% if l.unqualified_reasons_list %}
+          <div class="lc-chips">
+            {% for rname in l.unqualified_reasons_list %}<span class="lc-chip lc-chip-bad">{{ rname }}</span>{% endfor %}
+          </div>
+          {% endif %}
+
+          {% if l.next_meeting %}
+          <div class="lc-mtg">📅 {{ l.next_meeting | company_dt('%Y-%m-%d %H:%M') }}</div>
+          {% endif %}
+
+          <div class="lc-foot">
+            <div class="lc-owner">
+              <span class="lc-av">{{ l.assigned_to.full_name[:1] if l.assigned_to else '?' }}</span>
+              <span class="lc-owner-name">{{ l.assigned_to.full_name if l.assigned_to else 'بدون مسؤول' }}</span>
+            </div>
+            <div class="lc-actions">
+              <span class="lc-date">{{ l.created_at | company_dt('%Y-%m-%d') }}</span>
+              {% if l.phone %}<a href="tel:{{ l.phone }}" class="lc-call" dir="ltr" title="اتصال">📞</a>{% endif %}
+            </div>
+          </div>
+
+          {% if has_permission('leads.manage') %}
+          <details class="lc-move">
+            <summary>↔ نقل لمرحلة تانية</summary>
+            <form method="POST" action="{{ url_for('leads.status', lead_id=l.id) }}">
+              <input type="hidden" name="return_to" value="board">
+              <select name="new_status" required class="select text-xs py-1">
+                <option value="" disabled selected>اختار المرحلة…</option>
+                {% for st in statuses %}
+                  {% if st != l.status and st.name != 'UNQUALIFIED' %}
+                  <option value="{{ st.name }}">{{ st.label_ar }}</option>
+                  {% endif %}
+                {% endfor %}
+              </select>
+              <button type="submit" class="text-xs text-brand-600 hover:underline">حفظ</button>
+            </form>
+          </details>
+          {% endif %}
+        </article>
+        {% else %}
       <div class="text-xs text-slate-500 text-center py-4">فارغ</div>
       {% endfor %}
     </div>
@@ -186,7 +314,8 @@
     <thead>
       <tr>
         <th>العميل</th>
-        <th>الخدمة</th>
+        <th>السيستم المطلوب</th>
+          <th>المجال</th>
         <th>المسؤول</th>
         <th>الهاتف</th>
         <th>الحالة</th>
@@ -201,7 +330,8 @@
           <a href="{{ url_for('leads.detail', lead_id=l.id) }}" class="font-semibold hover:text-brand-600">{{ l.client_name }}</a>
           {% if l.email %}<div class="text-xs text-slate-500" dir="ltr">{{ l.email }}</div>{% endif %}
         </td>
-        <td class="text-sm">{{ l.service_needed }}</td>
+        <td class="text-sm">{{ l.systems_list|join("، ") if l.systems_list else l.service_needed }}</td>
+          <td class="text-sm">{{ l.industry or "—" }}</td>
         <td class="text-sm">{{ l.assigned_to.full_name if l.assigned_to else '—' }}</td>
         <td class="text-sm font-mono" dir="ltr">{{ l.phone }}</td>
         <td><span class="badge {{ l.status.badge_class }}">{{ l.status.label_ar }}</span></td>
@@ -209,7 +339,7 @@
         <td class="text-xs text-slate-500">{{ l.created_at | company_dt('%Y-%m-%d') }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="7" class="text-center text-slate-500 py-6">لا يوجد عملاء محتملون مطابقون.</td></tr>
+      <tr><td colspan="8" class="text-center text-slate-500 py-6">لا يوجد عملاء محتملون مطابقون.</td></tr>
     {% endfor %}
     </tbody>
   </table>
