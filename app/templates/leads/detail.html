@@ -72,6 +72,16 @@
 .p18-under_review,.p18-sent_sign,.p18-part_paid,.p18-review{border-inline-start-color:#f59e0b}
 .p18-rejected,.p18-cancelled,.p18-overdue{border-inline-start-color:#e11d48;background:#fff7f8}
 .p18-up select,.p18-up input[type=text]{border:1px solid #cbd5e1;border-radius:.4rem;padding:.4rem .6rem;font-size:.85rem;background:#fff}
+/* MARSOUD-CRM-P20 */
+.p18-partially_paid,.p18-sent,.p18-partially_refunded{border-inline-start-color:#f59e0b}
+.p18-voided,.p18-written_off,.p18-refunded{border-inline-start-color:#94a3b8;background:#f8fafc}
+.p20-grid{display:flex;flex-wrap:wrap;gap:.9rem;font-size:.82rem;margin-top:.35rem}
+/* MARSOUD-CRM-P21 */
+.p21-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:.6rem;padding:.6rem .8rem;margin-bottom:.75rem;font-size:.85rem}
+.p21-box form{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin:.3rem 0 0}
+.p21-box select,.p21-box input[type=text]{border:1px solid #cbd5e1;border-radius:.4rem;padding:.35rem .6rem;font-size:.85rem;background:#fff;max-width:100%}
+.p21-sug{display:flex;flex-direction:column;gap:.3rem;margin:.4rem 0}
+.p21-sug button{text-align:start;border:1px solid #6ee7b7;background:#ecfdf5;border-radius:.4rem;padding:.35rem .6rem;font-size:.82rem;cursor:pointer}
 /* MARSOUD-CRM-P14 mobile polish */
 .p14-det>summary{cursor:pointer;font-weight:700;list-style:none;display:flex;align-items:center;padding:.1rem 0}
 .p14-det>summary::-webkit-details-marker{display:none}
@@ -279,6 +289,44 @@ function p11Log(){
     </div>
     {% endif %}
 
+    {# MARSOUD-CRM-P21 — link to an existing Marsoud customer #}
+    {% if p21 is not none and can_manage_files %}
+    <div class="p21-box" id="cust">
+      {% if p21.linked %}
+      <div>🔗 مرتبط بالعميل: <b>{{ p21.linked.name }}</b>{% if p21.linked.phone %} · {{ p21.linked.phone }}{% endif %}</div>
+      <form method="POST" action="{{ url_for('leads.unlink_customer', lead_id=lead.id) }}" onsubmit="return confirm('فك الربط بالعميل؟');">
+        <button type="submit" class="text-sm" style="border:1px solid #cbd5e1;border-radius:.4rem;padding:.2rem .6rem;background:#fff">فك الربط</button>
+      </form>
+      {% else %}
+      <details>
+        <summary style="cursor:pointer;font-weight:700">🔗 ربط بعميل موجود في مرصود (لو نفس الشخص متسجل مرتين)</summary>
+        {% if p21.sug %}
+        <div class="p21-sug">
+          <div style="font-size:.78rem;color:#047857">اقتراحات مطابقة (إيميل / تليفون / اسم):</div>
+          {% for c in p21.sug %}
+          <form method="POST" action="{{ url_for('leads.link_customer', lead_id=lead.id) }}" onsubmit="return confirm('ربط بالعميل {{ c.name | e }} ؟');">
+            <input type="hidden" name="customer_id" value="{{ c.id }}">
+            <button type="submit">ربط بـ {{ c.name }}{% if c.phone %} · {{ c.phone }}{% endif %}{% if c.email %} · {{ c.email }}{% endif %}</button>
+          </form>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <form method="POST" action="{{ url_for('leads.link_customer', lead_id=lead.id) }}" onsubmit="return confirm('تأكيد الربط بالعميل المختار؟');">
+          <input type="text" id="p21q" placeholder="ابحثي بالاسم أو التليفون" oninput="p21f(this.value)">
+          <select name="customer_id" id="p21s" required>
+            <option value="">— اختاري العميل —</option>
+            {% for c in p21.sug + p21.rest %}<option value="{{ c.id }}">{{ c.name }}{% if c.phone %} — {{ c.phone }}{% endif %}</option>{% endfor %}
+          </select>
+          <button type="submit" class="btn-primary text-sm">ربط</button>
+        </form>
+        <script>
+        function p21f(q){q=(q||'').toLowerCase();var o=document.getElementById('p21s').options;for(var i=1;i<o.length;i++){o[i].hidden=q&&o[i].text.toLowerCase().indexOf(q)<0;}}
+        </script>
+      </details>
+      {% endif %}
+    </div>
+    {% endif %}
+
     {# MARSOUD-CRM-P19 — files centre: one section, a tab per kind; every upload is kept as its own card #}
     {% set _tot = namespace(n=0) %}
     {% for _k in file_kinds %}{% set _tot.n = _tot.n + (p19.by_kind[_k] | length) %}{% endfor %}
@@ -288,6 +336,7 @@ function p11Log(){
       {% for k, cfg in file_kinds.items() %}
       <button type="button" class="p19-tab" data-k="{{ k }}" data-has="{{ 1 if p19.by_kind[k] else 0 }}" onclick="p19Tab('{{ k }}')">{{ cfg.icon }} {{ cfg.label }}{% if p19.by_kind[k] %} <span class="p13-n">({{ p19.by_kind[k] | length }})</span>{% endif %}</button>
       {% endfor %}
+      {% if p20 is not none %}<button type="button" class="p19-tab" data-k="mrinv" data-has="{{ 1 if p20.rows else 0 }}" onclick="p19Tab('mrinv')">🧾 فواتير مرصود{% if p20.rows %} <span class="p13-n">({{ p20.rows | length }})</span>{% endif %}</button>{% endif %}
     </div>
     {% for k, cfg in file_kinds.items() %}
     {% set items = p19.by_kind[k] %}
@@ -347,6 +396,28 @@ function p11Log(){
       {% endif %}
     </div>
     {% endfor %}
+    {% if p20 is not none %}
+    <div class="p19-pane" data-k="mrinv" style="display:none">
+      {% if p20.rows %}
+      <div class="p19-sum">الإجمالي: <b>{{ '{:,.0f}'.format(p20.total | float) }}</b> · المدفوع: <b>{{ '{:,.0f}'.format(p20.paid | float) }}</b> · المتبقي: <b>{{ '{:,.0f}'.format(p20.due | float) }}</b></div>
+      <div class="p18-list">
+        {% for r in p20.rows %}
+        <div class="p18-q p18-{{ r.status | lower }}">
+          <div class="p18-top">
+            <span class="p18-n">فاتورة {{ r.number }}</span>
+            <span class="p18-st">{{ r.label }}</span>
+          </div>
+          <div class="p18-meta">{{ r.date }} · {{ r.currency }}</div>
+          <div class="p20-grid"><span>الإجمالي: <b>{{ '{:,.0f}'.format(r.total | float) }}</b></span><span>المدفوع: <b>{{ '{:,.0f}'.format(r.paid | float) }}</b></span><span>المتبقي: <b>{{ '{:,.0f}'.format(r.rem | float) }}</b></span></div>
+          <div class="p18-actions"><a href="{{ url_for('invoices.view', invoice_id=r.id) }}" target="_blank" rel="noopener">فتح الفاتورة</a></div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-sm text-slate-500">لا توجد فواتير مسجلة على هذا العميل في مرصود بعد.</div>
+      {% endif %}
+    </div>
+    {% endif %}
     <script>
     function p19Tab(k){
       document.querySelectorAll('.p19-pane').forEach(function(p){p.style.display=(p.dataset.k===k)?'block':'none';});

@@ -790,6 +790,8 @@ def detail(lead_id):
                            wa_text=_p17_wa[1],
                            wa_kind=_p17_wa[0],
                            p19=_p19_files(lead),
+                           p20=_p20_invoices(lead),
+                           p21=_p21_ctx(lead),
                            file_kinds=_P19_KINDS,
                            lead=lead, statuses=LeadStatus,
                            lead_types=LeadType, lead_sources=LeadSource,
@@ -988,6 +990,124 @@ def _p19_files(lead):
                 paid += a
         sums[k] = {"total": tot, "paid": paid}
     return {"by_kind": by_kind, "sums": sums}
+
+
+# MARSOUD-CRM-P20 — real Marsoud invoices of the customer this lead was converted to (read-only).
+_P20_ST = {
+    "DRAFT": "مسودة", "SENT": "مُرسلة", "PARTIALLY_PAID": "مدفوعة جزئيًا", "PAID": "مدفوعة",
+    "OVERDUE": "متأخرة", "CANCELLED": "ملغاة", "REFUNDED": "مُستردة",
+    "PARTIALLY_REFUNDED": "مُستردة جزئيًا", "VOIDED": "ملغاة (نقطة بيع)", "WRITTEN_OFF": "مشطوبة",
+}
+_P20_DEAD = ("DRAFT", "CANCELLED", "VOIDED", "REFUNDED", "WRITTEN_OFF")
+
+
+def _p20_rows(invoices):
+    """Pure formatting: list of Invoice-like -> {'rows': [...], 'total','paid','due'} (active invoices only in sums)."""
+    from decimal import Decimal
+    rows, tot, paid, due = [], Decimal(0), Decimal(0), Decimal(0)
+    for inv in invoices:
+        st = getattr(inv.status, "value", None) or str(inv.status)
+        t = Decimal(inv.total or 0)
+        p = Decimal(inv.paid_amount or 0)
+        live = st not in _P20_DEAD
+        rem = max(t - p, Decimal(0)) if live else Decimal(0)
+        if live:
+            tot += t
+            paid += p
+            due += rem
+        rows.append({"id": inv.id, "number": inv.number, "status": st,
+                     "label": _P20_ST.get(st, st), "currency": inv.currency or "",
+                     "total": t, "paid": p, "rem": rem,
+                     "date": inv.issue_date.strftime("%Y-%m-%d") if inv.issue_date else ""})
+    return {"rows": rows, "total": tot, "paid": paid, "due": due}
+
+
+def _p20_invoices(lead):
+    if not lead.converted_customer_id:
+        return None
+    from app.models import Invoice
+    invs = (Invoice.query
+            .filter_by(company_id=lead.company_id, customer_id=lead.converted_customer_id)
+            .order_by(Invoice.issue_date.desc(), Invoice.id.desc()).limit(50).all())
+    return _p20_rows(invs)
+
+
+# MARSOUD-CRM-P21 — link a lead to an EXISTING Marsoud customer (same person entered twice).
+def _p21_digits(s):
+    return "".join(ch for ch in (s or "").translate(str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")) if ch.isdigit())
+
+
+def _p21_pick(lead, customers):
+    """Pure: -> (suggested, others) lists of customers; suggested = same email / phone tail / name."""
+    em = (lead.email or "").strip().lower()
+    ph = _p21_digits(lead.phone)[-9:]
+    nm = (lead.client_name or "").strip().casefold()
+    sug, rest = [], []
+    for c in customers:
+        cph = _p21_digits(c.phone)[-9:]
+        cn = (c.name or "").strip().casefold()
+        hit = ((em and (c.email or "").strip().lower() == em)
+               or (len(ph) >= 7 and cph == ph)
+               or (nm and cn and (cn == nm or nm in cn or cn in nm)))
+        (sug if hit else rest).append(c)
+    return sug, rest
+
+
+def _p21_ctx(lead):
+    if lead.is_converted:
+        return None
+    if lead.converted_customer_id:
+        return {"linked": lead.converted_customer}
+    from app.models.partner import Customer
+    cs = (Customer.query.filter_by(company_id=lead.company_id, is_active=True)
+          .order_by(Customer.name).limit(500).all())
+    sug, rest = _p21_pick(lead, cs)
+    return {"linked": None, "sug": sug, "rest": rest}
+
+
+@bp.route("/<int:lead_id>/link-customer", methods=["POST"])
+@login_required
+@require_permission("leads.manage")
+def link_customer(lead_id):
+    from app.models.partner import Customer
+    lead = _lead_or_403(lead_id)
+    back = redirect(url_for("leads.detail", lead_id=lead.id) + "#cust")
+    if not (_can_view_all_leads() or lead.assigned_to_id == current_user.id):
+        flash("غير مسموح بتعديل هذا العميل المحتمل", "error")
+        return back
+    if lead.is_converted:
+        flash("العميل المحتمل متحوّل لمشروع بالفعل", "error")
+        return back
+    try:
+        cid = int(request.form.get("customer_id") or 0)
+    except ValueError:
+        cid = 0
+    cust = db.session.get(Customer, cid) if cid else None
+    if cust is None or cust.company_id != lead.company_id:
+        flash("اختاري عميل صحيح من القائمة", "error")
+        return back
+    lead.converted_customer_id = cust.id
+    db.session.commit()
+    flash("تم ربط العميل المحتمل بالعميل: " + (cust.name or ""), "success")
+    return redirect(url_for("leads.detail", lead_id=lead.id) + "#files-mrinv")
+
+
+@bp.route("/<int:lead_id>/unlink-customer", methods=["POST"])
+@login_required
+@require_permission("leads.manage")
+def unlink_customer(lead_id):
+    lead = _lead_or_403(lead_id)
+    back = redirect(url_for("leads.detail", lead_id=lead.id) + "#cust")
+    if not (_can_view_all_leads() or lead.assigned_to_id == current_user.id):
+        flash("غير مسموح بتعديل هذا العميل المحتمل", "error")
+        return back
+    if lead.is_converted:
+        flash("لا يمكن فك الربط بعد التحويل لمشروع", "error")
+        return back
+    lead.converted_customer_id = None
+    db.session.commit()
+    flash("تم فك الربط", "success")
+    return back
 
 
 # MARSOUD-CRM-P11 — data for the "next step" bar on the lead page.
@@ -1283,6 +1403,7 @@ def convert(lead_id):
                 start_date=_parse_date(request.form.get("start_date")),
                 end_date=_parse_date(request.form.get("end_date")),
                 created_by_id=current_user.id,
+                customer_id=lead.converted_customer_id or None,  # MARSOUD-CRM-P21
             )
             flash(f"تم تحويل العميل المحتمل إلى مشروع: {project.name}", "success")
             return redirect(url_for("projects.detail", project_id=project.id))
