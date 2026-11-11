@@ -27,6 +27,9 @@ class LeadStatus(enum.Enum):
     # are neither won nor lost, and can be revived onto any
     # pipeline stage at any time.
     NO_RESPONSE = "NO_RESPONSE"
+    # CRM-UNQUALIFIED (2026-11-11) — parked like NO_RESPONSE: not open
+    # pipeline, not LOST. Reasons live in Lead.unqualified_reasons.
+    UNQUALIFIED = "UNQUALIFIED"
 
     @property
     def label_ar(self):
@@ -39,6 +42,7 @@ class LeadStatus(enum.Enum):
             "WON":               "ربحناها",
             "LOST":              "خسرناها",
             "NO_RESPONSE":       "لا يوجد استجابة",
+            "UNQUALIFIED":       "غير مؤهل",
         }[self.value]
 
     @property
@@ -56,6 +60,7 @@ class LeadStatus(enum.Enum):
             # so the pipeline still visually separates "no reply"
             # from "we lost the deal".
             "NO_RESPONSE":       "badge-draft",
+            "UNQUALIFIED":       "badge-draft",
         }[self.value]
 
 
@@ -142,6 +147,12 @@ class Lead(db.Model):
     quotation_path = db.Column(db.Text)
     contract_path = db.Column(db.Text)
 
+    # CRM-UNQUALIFIED / multi-select — JSON lists of option labels
+    systems_needed = db.Column(db.Text, nullable=True)
+    unqualified_reasons = db.Column(db.Text, nullable=True)
+    industry = db.Column(db.String(120), nullable=True)
+    idea_stage = db.Column(db.String(120), nullable=True)
+
     lost_reason = db.Column(db.Text)
     converted_at = db.Column(db.DateTime)
     # On conversion, link to the Customer we auto-created (Marsoud's model).
@@ -176,12 +187,52 @@ class Lead(db.Model):
         # pipeline nor closed deals. They count towards NOTHING in
         # the pipeline stats until the owner revives them.
         return self.status not in (
-            LeadStatus.WON, LeadStatus.LOST, LeadStatus.NO_RESPONSE,
+            LeadStatus.WON, LeadStatus.LOST, LeadStatus.NO_RESPONSE, LeadStatus.UNQUALIFIED,
         )
 
     @property
     def is_parked(self):
         return self.status == LeadStatus.NO_RESPONSE
+
+    @property
+    def is_unqualified(self):
+        return self.status == LeadStatus.UNQUALIFIED
+
+    @staticmethod
+    def _load_list(raw):
+        import json
+        if not raw:
+            return []
+        try:
+            v = json.loads(raw)
+        except (TypeError, ValueError):
+            return []
+        return [str(x) for x in v] if isinstance(v, list) else []
+
+    @property
+    def systems_list(self):
+        return self._load_list(self.systems_needed)
+
+    @property
+    def unqualified_reasons_list(self):
+        return self._load_list(self.unqualified_reasons)
+
+
+class LeadOption(db.Model):
+    """Per-company selectable options for the CRM (see services/lead_options.py)."""
+    __tablename__ = "lead_options"
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"),
+                           nullable=False, index=True)
+    kind = db.Column(db.String(30), nullable=False, index=True)
+    label = db.Column(db.String(120), nullable=False)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "kind", "label",
+                            name="uq_lead_options_company_kind_label"),
+    )
 
 
 class LeadStatusEvent(db.Model):

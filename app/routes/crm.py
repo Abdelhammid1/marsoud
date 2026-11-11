@@ -355,7 +355,7 @@ def analytics():
     # Open leads (not WON, LOST, or NO_RESPONSE) expected pipeline value.
     open_expected = base.filter(
         Lead.status.notin_((
-            LeadStatus.WON, LeadStatus.LOST, LeadStatus.NO_RESPONSE,
+            LeadStatus.WON, LeadStatus.LOST, LeadStatus.NO_RESPONSE, LeadStatus.UNQUALIFIED,
         ))
     ).with_entities(func.coalesce(func.sum(Lead.expected_value), 0)).scalar()
 

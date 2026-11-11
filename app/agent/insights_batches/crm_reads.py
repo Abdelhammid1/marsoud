@@ -174,7 +174,7 @@ def crm_pipeline_counts(args, company_id, user_id):
         }
     return {"by_status": out,
             "total_open": sum(v["count"] for k, v in out.items()
-                              if k not in ("WON", "LOST", "NO_RESPONSE"))}
+                              if k not in ("WON", "LOST", "NO_RESPONSE", "UNQUALIFIED"))}
 
 
 # ─── crm_list_projects ─────────────────────────────────────────

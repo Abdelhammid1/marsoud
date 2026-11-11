@@ -251,7 +251,10 @@ def index():
     # here rather than at query time so the exact same query still
     # feeds the /no-response route below (deduped code path).
     leads = query.order_by(Lead.created_at.desc()).all()
-    pipeline_leads = [l for l in leads if l.status != LeadStatus.NO_RESPONSE]
+    _hide = {LeadStatus.NO_RESPONSE}
+    if status_filter != "UNQUALIFIED":
+        _hide.add(LeadStatus.UNQUALIFIED)
+    pipeline_leads = [l for l in leads if l.status not in _hide]
 
     # Status counts within current visibility scope
     base = Lead.query.filter_by(company_id=cid).filter(Lead.deleted_at.is_(None))
@@ -271,7 +274,10 @@ def index():
     view = (request.args.get("view") or "board").lower()
     if view not in ("board", "list"):
         view = "board"
-    pipeline_statuses = [s for s in LeadStatus if s != LeadStatus.NO_RESPONSE]
+    pipeline_statuses = [s for s in LeadStatus if s != LeadStatus.NO_RESPONSE
+                         and (s != LeadStatus.UNQUALIFIED
+                              or status_filter == "UNQUALIFIED")]
+    unqualified_count = status_counts.get(LeadStatus.UNQUALIFIED, 0)
     columns = {s: [] for s in pipeline_statuses}
     for l in pipeline_leads:
         columns[l.status].append(l)
@@ -283,6 +289,7 @@ def index():
         pipeline_statuses=pipeline_statuses,  # for the Kanban columns
         status_counts=status_counts,
         no_response_count=no_response_count,
+        unqualified_count=unqualified_count,
         reps=_sales_reps() if _can_view_all_leads() else [],
         campaigns=_active_campaigns(),
         q=q, status_filter=status_filter, rep_filter=rep_filter,
@@ -452,6 +459,19 @@ def export_excel():
     )
 
 
+def _lead_option_ctx(lead):
+    from app.services import lead_options as lo
+    cid = g.active_company.id
+    return {
+        "opt_systems": lo.options_for_form(
+            cid, "system", lead.systems_list if lead else []),
+        "opt_industries": lo.options_for_form(
+            cid, "industry", [lead.industry] if lead and lead.industry else []),
+        "opt_idea_stages": lo.options_for_form(
+            cid, "idea_stage", [lead.idea_stage] if lead and lead.idea_stage else []),
+    }
+
+
 @bp.route("/new", methods=["GET", "POST"])
 @login_required
 @require_permission("leads.manage")
@@ -467,13 +487,20 @@ def new():
             # PK. Uses the same next_number() infra as invoices etc.
             from app.services.numbering import next_number
             _lead_number = next_number(g.active_company.id, "LEAD")
+            from app.services import lead_options as lo
+            _cid = g.active_company.id
+            _systems = lo.parse_selected(_cid, "system", request.form.getlist("systems_needed"))
+            _service_text = lo.join_labels(_systems)
             lead = Lead(
                 company_id=g.active_company.id,
                 number=_lead_number,
                 client_name=request.form.get("client_name", "").strip(),
                 phone=request.form.get("phone", "").strip(),
                 email=(request.form.get("email") or "").strip().lower() or None,
-                service_needed=request.form.get("service_needed", "").strip(),
+                service_needed=_service_text,
+                systems_needed=lo.dumps_list(_systems),
+                industry=lo.parse_single(_cid, "industry", request.form.get("industry")),
+                idea_stage=lo.parse_single(_cid, "idea_stage", request.form.get("idea_stage")),
                 lead_type=_validate_enum_value(request.form.get("lead_type"), LeadType),
                 source=_validate_enum_value(request.form.get("source"), LeadSource),
                 assigned_to_id=assigned_id,
@@ -488,7 +515,7 @@ def new():
                 status=LeadStatus.NEW_LEAD,
             )
             if not lead.client_name or not lead.phone or not lead.service_needed:
-                raise CRMError("الاسم والهاتف والخدمة حقول مطلوبة")
+                raise CRMError("الاسم والهاتف واختيار سيستم واحد على الأقل حقول مطلوبة")
             db.session.add(lead)
             db.session.flush()
             db.session.add(LeadStatusEvent(
@@ -509,7 +536,7 @@ def new():
             return redirect(url_for("leads.detail", lead_id=lead.id))
         except (CRMError, ValueError, TypeError) as e:
             flash(str(e), "error")
-    return render_template("leads/form.html", lead=None,
+    return render_template("leads/form.html", lead=None, **_lead_option_ctx(None),
                            reps=_sales_reps(),
                            lead_types=LeadType, lead_sources=LeadSource,
                            campaigns=_active_campaigns())
@@ -556,10 +583,22 @@ def edit(lead_id):
             assigned_id = int(request.form.get("assigned_to_id"))
             if assigned_id not in _company_user_ids():
                 raise CRMError("المسؤول يجب أن يكون من فريق هذه الشركة")
+            from app.services import lead_options as lo
+            _cid = g.active_company.id
+            _systems = lo.parse_selected(_cid, "system", request.form.getlist("systems_needed"),
+                                         keep=lead.systems_list)
+            if not _systems and (lead.systems_list or not lead.service_needed):
+                raise CRMError("اختار سيستم واحد على الأقل")
             lead.client_name = request.form.get("client_name", lead.client_name).strip()
             lead.phone = request.form.get("phone", lead.phone).strip()
             lead.email = (request.form.get("email") or "").strip().lower() or None
-            lead.service_needed = request.form.get("service_needed", lead.service_needed).strip()
+            if _systems:  # legacy leads with free-text service keep it until a system is picked
+                lead.systems_needed = lo.dumps_list(_systems)
+                lead.service_needed = lo.join_labels(_systems)
+            lead.industry = lo.parse_single(_cid, "industry", request.form.get("industry"),
+                                            keep=lead.industry)
+            lead.idea_stage = lo.parse_single(_cid, "idea_stage", request.form.get("idea_stage"),
+                                              keep=lead.idea_stage)
             lead.lead_type = _validate_enum_value(request.form.get("lead_type"), LeadType)
             lead.source = _validate_enum_value(request.form.get("source"), LeadSource)
             lead.assigned_to_id = assigned_id
@@ -575,7 +614,7 @@ def edit(lead_id):
             return redirect(url_for("leads.detail", lead_id=lead.id))
         except (CRMError, ValueError, TypeError) as e:
             flash(str(e), "error")
-    return render_template("leads/form.html", lead=lead, reps=_sales_reps(),
+    return render_template("leads/form.html", lead=lead, **_lead_option_ctx(lead), reps=_sales_reps(),
                            lead_types=LeadType, lead_sources=LeadSource,
                            campaigns=_active_campaigns())
 

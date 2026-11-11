@@ -1336,7 +1336,7 @@ def dashboard_metrics(company_id, period="month"):
     # rollup that feeds owner-dashboard expected-value totals.
     open_lead_statuses = [
         s for s in LeadStatus
-        if s not in (LeadStatus.WON, LeadStatus.LOST, LeadStatus.NO_RESPONSE)
+        if s not in (LeadStatus.WON, LeadStatus.LOST, LeadStatus.NO_RESPONSE, LeadStatus.UNQUALIFIED)
     ]
     open_leads = Lead.query.filter(
         Lead.company_id == company_id,
