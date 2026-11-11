@@ -28,19 +28,66 @@
 </form>
 {% endif %}
 
+{# ─── Filter + summary (phase 7) ─── #}
+<form method="GET" class="card p-4 mb-4 flex flex-wrap items-end gap-3">
+  <div>
+    <label class="block text-xs font-semibold text-slate-700 mb-1">من تاريخ</label>
+    <input type="date" name="from" value="{{ date_from }}" class="input text-sm">
+  </div>
+  <div>
+    <label class="block text-xs font-semibold text-slate-700 mb-1">إلى تاريخ</label>
+    <input type="date" name="to" value="{{ date_to }}" class="input text-sm">
+  </div>
+  <button type="submit" class="btn-primary text-sm">تطبيق</button>
+  {% if date_from or date_to %}<a href="{{ url_for('crm.campaigns_index') }}" class="btn-secondary text-sm">مسح الفلتر</a>{% endif %}
+  <span class="text-xs text-slate-500 mr-auto">الفلتر على تاريخ إنشاء العميل.</span>
+</form>
+
+<div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+  <div class="card p-3 text-center"><div class="text-xs text-slate-500">إجمالي العملاء</div><div class="text-xl font-bold font-mono text-navy-900">{{ totals.leads }}</div></div>
+  <div class="card p-3 text-center"><div class="text-xs text-slate-500">غير مؤهل</div><div class="text-xl font-bold font-mono text-slate-700">{{ totals.unqualified }} <span class="text-xs font-normal">({{ totals.unq_pct }}%)</span></div></div>
+  <div class="card p-3 text-center"><div class="text-xs text-slate-500">تم الربح</div><div class="text-xl font-bold font-mono text-emerald-700">{{ totals.won }}</div></div>
+  <div class="card p-3 text-center"><div class="text-xs text-slate-500">نسبة التحويل</div><div class="text-xl font-bold font-mono text-emerald-700">{{ totals.conv_pct }}%</div></div>
+  <div class="card p-3 text-center"><div class="text-xs text-slate-500">قيمة الصفقات المكسوبة</div><div class="text-xl font-bold font-mono text-emerald-700">{{ "{:,.0f}".format(totals.won_value) }}</div></div>
+</div>
+
+{% macro breakdown(s) %}
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+    <div>
+      <div class="font-semibold text-slate-600 mb-1">أسباب غير مؤهل</div>
+      {% for label, n in s.top_reasons %}<span class="inline-block mb-1 ml-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-100">{{ label }} · {{ n }}</span>{% else %}<span class="text-slate-400">—</span>{% endfor %}
+    </div>
+    <div>
+      <div class="font-semibold text-slate-600 mb-1">السيستم المطلوب</div>
+      {% for label, n in s.top_systems %}<span class="inline-block mb-1 ml-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100">{{ label }} · {{ n }}</span>{% else %}<span class="text-slate-400">—</span>{% endfor %}
+    </div>
+    <div>
+      <div class="font-semibold text-slate-600 mb-1">مجال العميل</div>
+      {% for label, n in s.top_industries %}<span class="inline-block mb-1 ml-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">{{ label }} · {{ n }}</span>{% else %}<span class="text-slate-400">—</span>{% endfor %}
+    </div>
+    <div>
+      <div class="font-semibold text-slate-600 mb-1">حالة الفكرة</div>
+      {% for label, n in s.top_ideas %}<span class="inline-block mb-1 ml-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100">{{ label }} · {{ n }}</span>{% else %}<span class="text-slate-400">—</span>{% endfor %}
+    </div>
+  </div>
+{% endmacro %}
+
 {# ─── Campaigns list with stats ─── #}
 <div class="card p-6">
-  {% if campaigns %}
+  {% if campaigns or nocamp %}
+  <div class="overflow-x-auto">
   <table class="data-table text-sm">
     <thead>
       <tr>
         <th>الحملة</th>
-        <th class="text-center">Leads</th>
-        <th class="text-center">WON</th>
-        <th class="text-center">LOST</th>
-        {# MARSOUD-CRM-NO-RESPONSE — separate column, sits between LOST
-           and the value column per the ticket. #}
-        <th class="text-center">No Response<div class="text-[10px] text-slate-500 font-normal">لا يوجد استجابة</div></th>
+        <th class="text-center">العملاء</th>
+        <th class="text-center">غير مؤهل</th>
+        <th class="text-center">لا يوجد استجابة</th>
+        <th class="text-center">جاري</th>
+        <th class="text-center">ربح</th>
+        <th class="text-center">خسارة</th>
+        <th class="text-center">التحويل</th>
+        <th class="text-left">قيمة المكسوب</th>
         <th class="text-left">قيمة متوقعة</th>
         <th class="text-center">الحالة</th>
         <th></th>
@@ -48,17 +95,21 @@
     </thead>
     <tbody>
     {% for c in campaigns %}
-    {% set s = stats.get(c.id, {}) %}
+    {% set s = stats.get(c.id) %}
       <tr class="{% if not c.active %}opacity-50{% endif %}">
         <td class="font-semibold">
           {{ c.name }}
           {% if c.notes %}<div class="text-xs text-slate-500 font-normal">{{ c.notes }}</div>{% endif %}
         </td>
-        <td class="text-center font-mono">{{ s.get('leads', 0) }}</td>
-        <td class="text-center font-mono text-emerald-700">{{ s.get('won', 0) }}</td>
-        <td class="text-center font-mono text-rose-700">{{ s.get('lost', 0) }}</td>
-        <td class="text-center font-mono text-amber-700">{{ s.get('no_response', 0) }}</td>
-        <td class="text-left font-mono">{{ "{:,.0f}".format(s.get('expected', 0)) }}</td>
+        <td class="text-center font-mono">{{ s.leads }}</td>
+        <td class="text-center font-mono text-slate-700">{{ s.unqualified }}{% if s.leads %} <span class="text-[10px] text-slate-400">({{ s.unq_pct }}%)</span>{% endif %}</td>
+        <td class="text-center font-mono text-amber-700">{{ s.no_response }}</td>
+        <td class="text-center font-mono text-blue-700">{{ s.open }}</td>
+        <td class="text-center font-mono text-emerald-700">{{ s.won }}</td>
+        <td class="text-center font-mono text-rose-700">{{ s.lost }}</td>
+        <td class="text-center font-mono">{{ s.conv_pct }}%</td>
+        <td class="text-left font-mono text-emerald-700">{{ "{:,.0f}".format(s.won_value) }}</td>
+        <td class="text-left font-mono">{{ "{:,.0f}".format(s.expected) }}</td>
         <td class="text-center">
           {% if c.active %}<span class="badge badge-paid">مُفعّلة</span>
           {% else %}<span class="badge badge-cancelled">معطّلة</span>{% endif %}
@@ -73,9 +124,43 @@
           {% else %}<span class="text-slate-500 text-xs">—</span>{% endif %}
         </td>
       </tr>
+      {% if s.leads %}
+      <tr class="{% if not c.active %}opacity-50{% endif %}">
+        <td colspan="12" class="!pt-0">
+          <details>
+            <summary class="text-xs text-brand-600 cursor-pointer select-none">📊 تفاصيل الحملة (الأسباب / الأنظمة / المجالات)</summary>
+            <div class="mt-2">{{ breakdown(s) }}</div>
+          </details>
+        </td>
+      </tr>
+      {% endif %}
     {% endfor %}
+    {% if nocamp %}
+      <tr class="bg-slate-50">
+        <td class="font-semibold">بدون حملة<div class="text-xs text-slate-500 font-normal">عملاء مش مربوطين بحملة</div></td>
+        <td class="text-center font-mono">{{ nocamp.leads }}</td>
+        <td class="text-center font-mono text-slate-700">{{ nocamp.unqualified }} <span class="text-[10px] text-slate-400">({{ nocamp.unq_pct }}%)</span></td>
+        <td class="text-center font-mono text-amber-700">{{ nocamp.no_response }}</td>
+        <td class="text-center font-mono text-blue-700">{{ nocamp.open }}</td>
+        <td class="text-center font-mono text-emerald-700">{{ nocamp.won }}</td>
+        <td class="text-center font-mono text-rose-700">{{ nocamp.lost }}</td>
+        <td class="text-center font-mono">{{ nocamp.conv_pct }}%</td>
+        <td class="text-left font-mono text-emerald-700">{{ "{:,.0f}".format(nocamp.won_value) }}</td>
+        <td class="text-left font-mono">{{ "{:,.0f}".format(nocamp.expected) }}</td>
+        <td></td><td></td>
+      </tr>
+      <tr class="bg-slate-50">
+        <td colspan="12" class="!pt-0">
+          <details>
+            <summary class="text-xs text-brand-600 cursor-pointer select-none">📊 تفاصيل (الأسباب / الأنظمة / المجالات)</summary>
+            <div class="mt-2">{{ breakdown(nocamp) }}</div>
+          </details>
+        </td>
+      </tr>
+    {% endif %}
     </tbody>
   </table>
+  </div>
   {% else %}
   <div class="text-center text-slate-500 py-8">
     مفيش حملات بعد. أضف أول حملة من الفورم فوق.

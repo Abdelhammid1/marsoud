@@ -35,27 +35,96 @@ bp = Blueprint("crm", __name__)
 @require_permission("leads.view")
 def campaigns_index():
     cid = g.active_company.id
+    d_from = _parse_ymd(request.args.get("from"))
+    d_to = _parse_ymd(request.args.get("to"))
     campaigns = Campaign.query.filter_by(company_id=cid).order_by(
         Campaign.active.desc(), Campaign.name).all()
-    # Per-campaign stats: leads count, WON count, expected value sum
-    stats = {}
-    for c in campaigns:
-        leads = Lead.query.filter_by(
-            company_id=cid, campaign_id=c.id
-        ).filter(Lead.deleted_at.is_(None)).all()
-        stats[c.id] = {
-            "leads": len(leads),
-            "won": sum(1 for l in leads if l.status == LeadStatus.WON),
-            "lost": sum(1 for l in leads if l.status == LeadStatus.LOST),
-            # MARSOUD-CRM-NO-RESPONSE — separate counter that must
-            # NOT roll up into WON or LOST anywhere.
-            "no_response": sum(
-                1 for l in leads
-                if l.status == LeadStatus.NO_RESPONSE),
-            "expected": sum(float(l.expected_value or 0) for l in leads),
-        }
-    return render_template("crm/campaigns.html",
-                            campaigns=campaigns, stats=stats)
+    buckets = _campaign_buckets(cid, d_from, d_to)
+    stats = {c.id: _finish_bucket(buckets.get(c.id)) for c in campaigns}
+    nocamp = buckets.get(None)
+    return render_template(
+        "crm/campaigns.html",
+        campaigns=campaigns, stats=stats,
+        nocamp=_finish_bucket(nocamp) if nocamp else None,
+        totals=_finish_bucket(_merge_buckets(buckets.values())),
+        date_from=d_from.isoformat() if d_from else "",
+        date_to=d_to.isoformat() if d_to else "",
+    )
+
+
+def _parse_ymd(s):
+    try:
+        return datetime.strptime((s or "").strip(), "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _new_bucket():
+    from collections import Counter
+    return {"leads": 0, "unqualified": 0, "no_response": 0, "open": 0,
+            "won": 0, "lost": 0, "expected": 0.0, "won_value": 0.0,
+            "reasons": Counter(), "systems": Counter(),
+            "industries": Counter(), "ideas": Counter()}
+
+
+def _campaign_buckets(cid, d_from, d_to):
+    """One query, grouped in Python: {campaign_id or None: bucket}."""
+    q = Lead.query.filter_by(company_id=cid).filter(Lead.deleted_at.is_(None))
+    if d_from:
+        q = q.filter(Lead.created_at >= datetime.combine(d_from, datetime.min.time()))
+    if d_to:
+        q = q.filter(Lead.created_at < datetime.combine(
+            d_to + timedelta(days=1), datetime.min.time()))
+    buckets = {}
+    for l in q.all():
+        b = buckets.setdefault(l.campaign_id, _new_bucket())
+        val = float(l.expected_value or 0)
+        b["leads"] += 1
+        b["expected"] += val
+        if l.status == LeadStatus.WON:
+            b["won"] += 1
+            b["won_value"] += val
+        elif l.status == LeadStatus.LOST:
+            b["lost"] += 1
+        elif l.status == LeadStatus.NO_RESPONSE:
+            b["no_response"] += 1
+        elif l.status == LeadStatus.UNQUALIFIED:
+            b["unqualified"] += 1
+            b["reasons"].update(l.unqualified_reasons_list)
+        else:
+            b["open"] += 1
+        b["systems"].update(l.systems_list)
+        if l.industry:
+            b["industries"][l.industry] += 1
+        if l.idea_stage:
+            b["ideas"][l.idea_stage] += 1
+    return buckets
+
+
+def _merge_buckets(buckets):
+    total = _new_bucket()
+    for b in buckets:
+        for k in ("leads", "unqualified", "no_response", "open", "won",
+                  "lost", "expected", "won_value"):
+            total[k] += b[k]
+        for k in ("reasons", "systems", "industries", "ideas"):
+            total[k].update(b[k])
+    return total
+
+
+def _finish_bucket(b):
+    """Add percentages and top-3 lists. Old keys (leads/won/lost/no_response/
+    expected) are kept so older templates keep working."""
+    b = b or _new_bucket()
+    n = b["leads"]
+    out = {k: v for k, v in b.items() if k not in ("reasons", "systems", "industries", "ideas")}
+    out["unq_pct"] = round(b["unqualified"] * 100.0 / n, 1) if n else 0.0
+    out["conv_pct"] = round(b["won"] * 100.0 / n, 1) if n else 0.0
+    out["top_reasons"] = b["reasons"].most_common(3)
+    out["top_systems"] = b["systems"].most_common(3)
+    out["top_industries"] = b["industries"].most_common(3)
+    out["top_ideas"] = b["ideas"].most_common(3)
+    return out
 
 
 @bp.route("/campaigns/new", methods=["POST"])
