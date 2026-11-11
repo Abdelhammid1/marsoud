@@ -251,6 +251,9 @@ document.addEventListener("DOMContentLoaded",function(){
 .lc-col.p30-over{outline:2px dashed #10b981;outline-offset:-2px;background:#ecfdf5!important}
 .p30-toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:80;background:#1e293b;color:#fff;font-size:13px;padding:9px 16px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.2);max-width:90vw}
 .p30-toast.err{background:#b91c1c}
+/* MARSOUD-CRM-P32 - touch drag */
+.lc[data-url]{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+body.p30-touching{overscroll-behavior:contain}
 </style>
 <script>
 (function(){
@@ -293,6 +296,9 @@ document.addEventListener("DOMContentLoaded",function(){
     if(!card){return;}
     var col=e.target.closest&&e.target.closest('.lc-col'); if(!col){return;}
     e.preventDefault(); clearOver();
+    doMove(col);
+  });
+  function doMove(col){
     var to=col.dataset.status, body=col.querySelector('.lc-colbody');
     var oldCol=fromBody.closest('.lc-col'), from=oldCol&&oldCol.dataset.status;
     if(!to||to===from||!body){return;}
@@ -316,7 +322,73 @@ document.addEventListener("DOMContentLoaded",function(){
       toast(err.message||'تعذر الحفظ',true);
     })
     .then(function(){busy=false;});
-  });
+  }
+  /* MARSOUD-CRM-P32 - touch: long-press a card (about 0.3s), then drag it onto a column */
+  var tc=null, tt=null, tact=false, tghost=null, tsx=0, tsy=0, tox=0, toy=0, tlx=0, tly=0, traf=null, tclick=false, tsnap='';
+  function tclean(){
+    clearTimeout(tt); tt=null;
+    if(tghost){tghost.remove(); tghost=null;}
+    if(tc){tc.classList.remove('p30-drag');}
+    document.body.classList.remove('p30-touching');
+    var b=document.querySelector('.lc-board'); if(b){b.style.scrollSnapType=tsnap;}
+    if(traf){cancelAnimationFrame(traf); traf=null;}
+    tact=false; tc=null; clearOver();
+  }
+  function tloop(){
+    if(!tact){return;}
+    var b=document.querySelector('.lc-board');
+    if(b){
+      var r=b.getBoundingClientRect();
+      if(tlx>r.right-60){b.scrollLeft+=14;} else if(tlx<r.left+60){b.scrollLeft-=14;}
+    }
+    traf=requestAnimationFrame(tloop);
+  }
+  function tbegin(){
+    if(!tc){return;}
+    tact=true; card=tc; fromBody=tc.parentNode; fromNext=tc.nextSibling;
+    tc.classList.add('p30-drag'); document.body.classList.add('p30-touching');
+    var r=tc.getBoundingClientRect(); tox=tsx-r.left; toy=tsy-r.top; tlx=tsx; tly=tsy;
+    tghost=tc.cloneNode(true);
+    tghost.className=tc.className.replace('p30-drag','').trim();
+    tghost.removeAttribute('data-url'); tghost.removeAttribute('draggable');
+    tghost.style.cssText='position:fixed;z-index:90;pointer-events:none;margin:0;width:'+r.width+'px;left:'+r.left+'px;top:'+r.top+'px;opacity:.92;box-shadow:0 10px 25px rgba(0,0,0,.25);transform:rotate(2deg)';
+    document.body.appendChild(tghost);
+    var b=document.querySelector('.lc-board'); if(b){tsnap=b.style.scrollSnapType; b.style.scrollSnapType='none';}
+    if(navigator.vibrate){try{navigator.vibrate(15);}catch(x){}}
+    traf=requestAnimationFrame(tloop);
+  }
+  document.addEventListener('touchstart',function(e){
+    if(busy||card||tc||e.touches.length!==1){return;}
+    var c=e.target.closest&&e.target.closest('.lc[data-url]'); if(!c){return;}
+    if(e.target.closest('select,input,button,textarea,summary,.lc-move')){return;}
+    var t=e.touches[0]; tsx=t.clientX; tsy=t.clientY; tc=c;
+    tt=setTimeout(tbegin,320);
+  },{passive:true});
+  document.addEventListener('touchmove',function(e){
+    if(!tc){return;}
+    var t=e.touches[0];
+    if(!tact){
+      if(Math.abs(t.clientX-tsx)>8||Math.abs(t.clientY-tsy)>8){tclean();}
+      return;
+    }
+    e.preventDefault();
+    tlx=t.clientX; tly=t.clientY;
+    if(tghost){tghost.style.left=(tlx-tox)+'px'; tghost.style.top=(tly-toy)+'px';}
+    var el=document.elementFromPoint(tlx,tly), col=el&&el.closest&&el.closest('.lc-col');
+    clearOver(); if(col){col.classList.add('p30-over');}
+  },{passive:false});
+  document.addEventListener('touchend',function(e){
+    if(!tc){return;}
+    if(!tact){tclean();return;}
+    e.preventDefault();
+    var t=e.changedTouches[0], el=document.elementFromPoint(t.clientX,t.clientY), col=el&&el.closest&&el.closest('.lc-col');
+    tclick=true; setTimeout(function(){tclick=false;},500);
+    if(col){doMove(col);}
+    card=null; tclean();
+  },{passive:false});
+  document.addEventListener('touchcancel',function(){if(tc){card=null; tclean();}});
+  document.addEventListener('contextmenu',function(e){if(tc){e.preventDefault();}});
+  document.addEventListener('click',function(e){if(tclick){e.preventDefault(); e.stopPropagation();}},true);
 })();
 </script>
 <div class="kanban-dots" data-for="leads-kanban"></div>
