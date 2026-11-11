@@ -530,6 +530,168 @@ def _lead_option_ctx(lead):
     }
 
 
+# ─── CRM option lists admin (phase 4) ─────────────────────────────────────
+def _options_redirect(kind=None):
+    return redirect(url_for("leads.options") + (f"#k-{kind}" if kind else ""))
+
+
+@bp.route("/options", methods=["GET"])
+@login_required
+@require_permission("leads.manage")
+def options():
+    from app.services import lead_options as lo
+    cid = g.active_company.id
+    groups = [
+        {"kind": k, "title": lo.KIND_LABELS_AR[k],
+         "items": lo.get_options(cid, k, include_inactive=True)}
+        for k in lo.KINDS
+    ]
+    return render_template("leads/options.html", groups=groups)
+
+
+@bp.route("/options/add", methods=["POST"])
+@login_required
+@require_permission("leads.manage")
+def options_add():
+    from app.services import lead_options as lo
+    from app.models.crm import LeadOption
+    cid = g.active_company.id
+    kind = (request.form.get("kind") or "").strip()
+    label = " ".join((request.form.get("label") or "").split())
+    if kind not in lo.KINDS:
+        abort(400)
+    if not label:
+        flash("اكتب الاسم الأول", "error")
+        return _options_redirect(kind)
+    if len(label) > 120:
+        flash("الاسم طويل (الحد الأقصى 120 حرف)", "error")
+        return _options_redirect(kind)
+    lo.ensure_seeded(cid, kind)
+    existing = LeadOption.query.filter_by(
+        company_id=cid, kind=kind, label=label).first()
+    if existing:
+        if existing.is_active:
+            flash("الاختيار ده موجود بالفعل", "error")
+        else:
+            existing.is_active = True
+            db.session.commit()
+            flash("الاختيار كان مخفي — اتفعّل تاني", "success")
+        return _options_redirect(kind)
+    last = (db.session.query(db.func.max(LeadOption.sort_order))
+            .filter_by(company_id=cid, kind=kind).scalar())
+    db.session.add(LeadOption(company_id=cid, kind=kind, label=label,
+                              sort_order=(last if last is not None else -1) + 1,
+                              is_active=True))
+    db.session.commit()
+    flash("تمت الإضافة", "success")
+    return _options_redirect(kind)
+
+
+@bp.route("/options/<int:opt_id>/toggle", methods=["POST"])
+@login_required
+@require_permission("leads.manage")
+def options_toggle(opt_id):
+    from app.models.crm import LeadOption
+    opt = LeadOption.query.filter_by(
+        id=opt_id, company_id=g.active_company.id).first_or_404()
+    opt.is_active = not opt.is_active
+    db.session.commit()
+    flash("اتفعّل" if opt.is_active else "اتخفى (العملاء القدام محتفظين بيه)", "success")
+    return _options_redirect(opt.kind)
+
+
+@bp.route("/options/<int:opt_id>/rename", methods=["POST"])
+@login_required
+@require_permission("leads.manage")
+def options_rename(opt_id):
+    """Rename an option and carry the new label to existing leads, so filters
+    and reports never see two spellings of the same option."""
+    import json
+    from sqlalchemy.exc import IntegrityError
+    from app.services import lead_options as lo
+    from app.models.crm import LeadOption
+    cid = g.active_company.id
+    opt = LeadOption.query.filter_by(id=opt_id, company_id=cid).first_or_404()
+    old = opt.label
+    new = " ".join((request.form.get("label") or "").split())
+    if not new:
+        flash("اكتب الاسم الأول", "error")
+        return _options_redirect(opt.kind)
+    if len(new) > 120:
+        flash("الاسم طويل (الحد الأقصى 120 حرف)", "error")
+        return _options_redirect(opt.kind)
+    if new == old:
+        return _options_redirect(opt.kind)
+    clash = LeadOption.query.filter(
+        LeadOption.company_id == cid, LeadOption.kind == opt.kind,
+        LeadOption.label == new, LeadOption.id != opt.id).first()
+    if clash:
+        flash("فيه اختيار تاني بنفس الاسم ده", "error")
+        return _options_redirect(opt.kind)
+    updated = 0
+    try:
+        if opt.kind in ("industry", "idea_stage"):
+            updated = (Lead.query
+                       .filter(Lead.company_id == cid,
+                               getattr(Lead, opt.kind) == old)
+                       .update({opt.kind: new}, synchronize_session=False))
+        else:
+            attr = "systems_needed" if opt.kind == "system" else "unqualified_reasons"
+            col = getattr(Lead, attr)
+            needle = json.dumps(old, ensure_ascii=False)
+            esc = needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            rows = (Lead.query
+                    .filter(Lead.company_id == cid, col.isnot(None),
+                            col.like("%" + esc + "%", escape="\\"))
+                    .all())
+            for l in rows:
+                try:
+                    items = json.loads(getattr(l, attr) or "[]")
+                except ValueError:
+                    continue
+                if not isinstance(items, list) or old not in items:
+                    continue
+                out = []
+                for x in items:
+                    y = new if x == old else x
+                    if y not in out:
+                        out.append(y)
+                setattr(l, attr, lo.dumps_list(out))
+                if opt.kind == "system":
+                    l.service_needed = lo.join_labels(out)
+                updated += 1
+        opt.label = new
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        flash("حصلت مشكلة في الحفظ — جرّب تاني", "error")
+        return _options_redirect(opt.kind)
+    flash(f"اتعدّل الاسم" + (f" واتحدّث {updated} عميل" if updated else ""), "success")
+    return _options_redirect(opt.kind)
+
+
+@bp.route("/options/<int:opt_id>/move", methods=["POST"])
+@login_required
+@require_permission("leads.manage")
+def options_move(opt_id):
+    from app.models.crm import LeadOption
+    cid = g.active_company.id
+    opt = LeadOption.query.filter_by(id=opt_id, company_id=cid).first_or_404()
+    direction = request.form.get("dir")
+    if direction not in ("up", "down"):
+        abort(400)
+    items = (LeadOption.query.filter_by(company_id=cid, kind=opt.kind)
+             .order_by(LeadOption.sort_order, LeadOption.id).all())
+    i = next(n for n, o in enumerate(items) if o.id == opt.id)
+    j = i - 1 if direction == "up" else i + 1
+    if 0 <= j < len(items):
+        items[i], items[j] = items[j], items[i]
+    for n, o in enumerate(items):
+        o.sort_order = n
+    db.session.commit()
+    return _options_redirect(opt.kind)
+
+
 @bp.route("/new", methods=["GET", "POST"])
 @login_required
 @require_permission("leads.manage")

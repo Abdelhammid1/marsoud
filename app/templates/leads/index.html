@@ -54,6 +54,11 @@
     <span class="text-slate-600">لا يوجد استجابة</span>
     <span class="font-mono font-bold text-navy-900">{{ no_response_count }}</span>
   </a>
+  {% if has_permission('leads.manage') %}
+  <a href="{{ url_for('leads.options') }}" class="inline-flex items-center gap-2 card p-2 px-4 hover:border-amber-500 text-sm mr-2">
+    <span>⚙️</span><span class="text-slate-600">إدارة الاختيارات</span>
+  </a>
+  {% endif %}
   <a href="?status=UNQUALIFIED" class="inline-flex items-center gap-2 card p-2 px-4 hover:border-amber-500 text-sm mr-2">
     <span>🚫</span>
     <span class="text-slate-600">غير مؤهل</span>

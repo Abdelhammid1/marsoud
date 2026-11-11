@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block page_title %}إدارة اختيارات الـ CRM{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4 gap-2">
+  <div>
+    <h2 class="font-bold text-navy-900">⚙️ إدارة الاختيارات</h2>
+    <p class="text-xs text-slate-500">
+      أضف أنواع أو مجالات جديدة تظهر فورًا في الفورم والفلاتر. الإخفاء مش بيمسح حاجة — العملاء القدام بيحتفظوا بالقيمة اللي اختاروها.
+    </p>
+  </div>
+  <a href="{{ url_for('leads.index') }}" class="btn-secondary text-sm">← العودة للـ Pipeline</a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+{% for grp in groups %}
+  <section class="card p-4" id="k-{{ grp.kind }}">
+    <h3 class="font-bold text-navy-900 mb-3">{{ grp.title }}
+      <span class="text-xs font-mono text-slate-400">({{ grp['items']|selectattr('is_active')|list|length }}/{{ grp['items']|length }})</span>
+    </h3>
+
+    <form method="POST" action="{{ url_for('leads.options_add') }}" class="flex gap-2 mb-3">
+      <input type="hidden" name="kind" value="{{ grp.kind }}">
+      <input type="text" name="label" maxlength="120" required placeholder="إضافة اختيار جديد…" class="input text-sm flex-1">
+      <button type="submit" class="btn-primary text-sm">إضافة</button>
+    </form>
+
+    <ul class="divide-y divide-slate-100">
+      {% for o in grp['items'] %}
+      <li class="flex items-center justify-between gap-2 py-2 {% if not o.is_active %}opacity-60{% endif %}">
+        <span class="text-sm text-slate-800 min-w-0 break-words">
+          {{ o.label }}
+          {% if not o.is_active %}<span class="badge badge-draft text-[10px]">مخفي</span>{% endif %}
+          <details class="block mt-1">
+            <summary class="text-xs text-brand-600 cursor-pointer select-none">✏️ تعديل الاسم</summary>
+            <form method="POST" action="{{ url_for('leads.options_rename', opt_id=o.id) }}" class="flex gap-2 mt-2">
+              <input type="text" name="label" value="{{ o.label }}" maxlength="120" required class="input text-sm flex-1">
+              <button type="submit" class="btn-primary text-xs">حفظ</button>
+            </form>
+            <p class="text-[10px] text-slate-400 mt-1">التعديل بيتطبق كمان على العملاء اللي مختارينه.</p>
+          </details>
+        </span>
+        <span class="flex items-center gap-1 flex-none">
+          <form method="POST" action="{{ url_for('leads.options_move', opt_id=o.id) }}">
+            <input type="hidden" name="dir" value="up">
+            <button type="submit" class="text-xs px-2 py-1 text-slate-500 hover:text-slate-900" title="فوق"{% if loop.first %} disabled{% endif %}>▲</button>
+          </form>
+          <form method="POST" action="{{ url_for('leads.options_move', opt_id=o.id) }}">
+            <input type="hidden" name="dir" value="down">
+            <button type="submit" class="text-xs px-2 py-1 text-slate-500 hover:text-slate-900" title="تحت"{% if loop.last %} disabled{% endif %}>▼</button>
+          </form>
+          <form method="POST" action="{{ url_for('leads.options_toggle', opt_id=o.id) }}">
+            <button type="submit" class="text-xs px-2 py-1 text-brand-600 hover:underline">{{ 'إخفاء' if o.is_active else 'إظهار' }}</button>
+          </form>
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endfor %}
+</div>
+{% endblock %}
