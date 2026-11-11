@@ -22,8 +22,24 @@
 .p11-cur{background:#059669;border-color:#059669;color:#fff;font-weight:700;cursor:default}
 .p11-sep{width:1px;height:1.2rem;background:#cbd5e1;margin:0 .3rem}
 .p11-cl{border-style:dashed;font-size:.74rem}
+/* MARSOUD-CRM-P13 collapsible sections */
+.p13-sec{margin-top:1.25rem;border-top:1px solid #e2e8f0;padding-top:.6rem}
+.p13-sec>summary{cursor:pointer;font-weight:700;list-style:none;display:flex;align-items:center;gap:.5rem;padding:.4rem 0}
+.p13-sec>summary::-webkit-details-marker{display:none}
+.p13-sec>summary::after{content:"▾";margin-inline-start:auto;color:#64748b;transition:transform .2s}
+.p13-sec[open]>summary::after{transform:rotate(180deg)}
+.p13-sec[open]>summary{margin-bottom:.6rem}
+.p13-n{font-weight:400;font-size:.75rem;color:#64748b}
+.p13-add{margin-bottom:.75rem}
+.p13-add>summary{cursor:pointer;list-style:none;border:1px dashed #94a3b8;border-radius:.5rem;padding:.45rem .8rem;font-size:.85rem;text-align:center;color:#475569}
+.p13-add>summary::-webkit-details-marker{display:none}
+.p13-add[open]>summary{margin-bottom:.5rem}
 </style>
 <script>
+document.addEventListener('DOMContentLoaded',function(){
+  function o(){if(location.hash==='#comments'){var d=document.getElementById('comments');if(d){d.open=true;}}}
+  o();window.addEventListener('hashchange',o);
+});
 function p11Pick(name){
   var sel=document.querySelector('select[name=new_status]');
   if(!sel){return;}
@@ -206,8 +222,9 @@ function p11Log(){
     </div>
     {% endif %}
 
-    <hr class="my-5">
-    <h3 class="font-bold text-navy-900 mb-3">📎 الملفات والمرفقات</h3>
+    {# MARSOUD-CRM-P13 #}
+    <details class="p13-sec">
+    <summary>📎 الملفات والمرفقات <span class="p13-n">({{ (1 if lead.quotation_path else 0) + (1 if lead.contract_path else 0) }})</span></summary>
     {% if lead.quotation_path or lead.contract_path %}
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
       {% if lead.quotation_path %}
@@ -241,11 +258,9 @@ function p11Log(){
 
     {# MARSOUD — comments thread on the lead. Anyone with leads.view can
        post; we identify by current_user. #}
-    <hr class="my-5">
-    <h3 id="comments" class="font-bold text-navy-900 mb-3">
-      💬 التعليقات
-      <span class="text-xs text-slate-500 font-normal">({{ lead.comments|length }})</span>
-    </h3>
+    </details>
+    <details class="p13-sec" id="comments">
+    <summary>💬 التعليقات <span class="p13-n">({{ lead.comments|length }})</span></summary>
     <div class="space-y-2 mb-3">
     {% for c in lead.comments %}
       <div class="flex items-start gap-3 py-2 border-b border-slate-100">
@@ -275,8 +290,9 @@ function p11Log(){
       <button type="submit" class="btn-primary text-sm self-start">إرسال</button>
     </form>
 
-    <hr class="my-5">
-    <h3 class="font-bold text-navy-900 mb-3">📜 سجل الحالات</h3>
+    </details>
+    <details class="p13-sec">
+    <summary>📜 سجل الحالات <span class="p13-n">({{ lead.history|length }})</span></summary>
     <div class="space-y-2">
     {% for ev in lead.history %}
       <div class="flex items-start gap-3 py-2 border-b border-slate-100">
@@ -293,6 +309,7 @@ function p11Log(){
       <div class="text-sm text-slate-500">لا يوجد سجل بعد.</div>
     {% endfor %}
     </div>
+    </details>
   </div>
 
   {# MARSOUD-PERMISSION-BOUNCE-02 — status change enforces leads.manage (ceo bounced). #}
@@ -478,6 +495,7 @@ function p11Log(){
   <div class="card p-6">
     <h3 class="font-bold text-navy-900 mb-3">👥 جهات الاتصال</h3>
     {% if has_permission('leads.manage') %}
+    <details class="p13-add"><summary>+ إضافة جهة اتصال</summary>
     <form method="POST" action="{{ url_for('crm.contact_create', lead_id=lead.id) }}"
           class="bg-slate-50 rounded p-3 mb-3 space-y-2">
       <input type="text" name="name" required placeholder="الاسم *"
@@ -493,6 +511,7 @@ function p11Log(){
       </label>
       <button type="submit" class="btn-primary text-sm w-full">+ إضافة</button>
     </form>
+    </details>
     {% endif %}
     {% if contacts %}
     <ul class="space-y-2 text-sm">
