@@ -1685,6 +1685,9 @@ def delete(lead_id):
 @require_permission("leads.manage")
 def status(lead_id):
     lead = _lead_or_403(lead_id)
+    # MARSOUD-CRM-P30 - board drag & drop talks to this route with fetch()
+    _p30_ajax = request.headers.get("X-Requested-With") == "fetch"
+    _p30_err = None
     try:
         change_lead_status(
             lead, request.form.get("new_status"),
@@ -1700,9 +1703,17 @@ def status(lead_id):
             if nm:
                 lead.next_meeting = nm
                 db.session.commit()
-        flash(f"تم تغيير الحالة إلى: {lead.status.label_ar}", "success")
+        if not _p30_ajax:
+            flash(f"تم تغيير الحالة إلى: {lead.status.label_ar}", "success")
     except CRMError as e:
-        flash(str(e), "error")
+        _p30_err = str(e)
+        if not _p30_ajax:
+            flash(str(e), "error")
+    if _p30_ajax:
+        from flask import jsonify as _p30_jsonify
+        if _p30_err:
+            return _p30_jsonify(ok=False, error=_p30_err), 400
+        return _p30_jsonify(ok=True, label=lead.status.label_ar, status=lead.status.name)
     # MARSOUD-CRM-EXPANSION §1 — when the change came from the Kanban
     # board, bounce back to the board instead of the detail page.
     # MARSOUD-CRM-NO-RESPONSE — the parked-folder restore action

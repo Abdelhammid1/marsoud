@@ -244,6 +244,81 @@ document.addEventListener("DOMContentLoaded",function(){
 </div>
 {# Position dots — JS builds one dot per Kanban column at page load
    and highlights the active one during scroll. Hidden ≥md. #}
+{# MARSOUD-CRM-P30 - drag & drop between board columns #}
+<style>
+.lc[draggable="true"]{cursor:grab}
+.lc.p30-drag{opacity:.35}
+.lc-col.p30-over{outline:2px dashed #10b981;outline-offset:-2px;background:#ecfdf5!important}
+.p30-toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:80;background:#1e293b;color:#fff;font-size:13px;padding:9px 16px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.2);max-width:90vw}
+.p30-toast.err{background:#b91c1c}
+</style>
+<script>
+(function(){
+  var card=null, fromBody=null, fromNext=null, busy=false;
+  function toast(msg,err){
+    var t=document.createElement('div'); t.className='p30-toast'+(err?' err':''); t.textContent=msg;
+    document.body.appendChild(t); setTimeout(function(){t.remove();},3500);
+  }
+  function token(){
+    var m=document.querySelector('meta[name="csrf-token"]'); if(m){return m.content;}
+    var i=document.querySelector('input[name="csrf_token"]'); return i?i.value:'';
+  }
+  function recount(col){
+    if(!col){return;}
+    var n=col.querySelectorAll('.lc-colbody > .lc').length;
+    var c=col.querySelector('.lc-head-row .font-mono'); if(c){c.textContent=n;}
+  }
+  function clearOver(){document.querySelectorAll('.lc-col.p30-over').forEach(function(c){c.classList.remove('p30-over');});}
+  document.addEventListener('dragstart',function(e){
+    var c=e.target.closest&&e.target.closest('.lc[data-url]'); if(!c||busy){return;}
+    card=c; fromBody=c.parentNode; fromNext=c.nextSibling;
+    try{e.dataTransfer.setData('text/plain',c.dataset.lid); e.dataTransfer.effectAllowed='move';}catch(x){}
+    setTimeout(function(){c.classList.add('p30-drag');},0);
+  });
+  document.addEventListener('dragend',function(){
+    if(card){card.classList.remove('p30-drag');} card=null; clearOver();
+  });
+  document.addEventListener('dragover',function(e){
+    if(!card){return;}
+    var b=document.querySelector('.lc-board');
+    if(b){
+      var r=b.getBoundingClientRect();
+      if(e.clientX>r.right-60){b.scrollLeft+=22;} else if(e.clientX<r.left+60){b.scrollLeft-=22;}
+    }
+    var col=e.target.closest&&e.target.closest('.lc-col'); if(!col){return;}
+    e.preventDefault(); e.dataTransfer.dropEffect='move';
+    if(!col.classList.contains('p30-over')){clearOver(); col.classList.add('p30-over');}
+  });
+  document.addEventListener('drop',function(e){
+    if(!card){return;}
+    var col=e.target.closest&&e.target.closest('.lc-col'); if(!col){return;}
+    e.preventDefault(); clearOver();
+    var to=col.dataset.status, body=col.querySelector('.lc-colbody');
+    var oldCol=fromBody.closest('.lc-col'), from=oldCol&&oldCol.dataset.status;
+    if(!to||to===from||!body){return;}
+    if(to==='UNQUALIFIED'){toast('«غير مؤهل» محتاجة اختيار الأسباب، افتحي صفحة العميل وغيّري الحالة من هناك',true);return;}
+    var c=card, url=c.dataset.url;
+    busy=true;
+    body.insertBefore(c,body.firstChild); recount(col); recount(oldCol);
+    var fd=new FormData(); fd.append('new_status',to);
+    var h={'X-Requested-With':'fetch'}; var t=token(); if(t){h['X-CSRFToken']=t; fd.append('csrf_token',t);}
+    fetch(url,{method:'POST',headers:h,body:fd,credentials:'same-origin'})
+    .then(function(r){return r.json().catch(function(){return {ok:false,error:'تعذر الحفظ'};});})
+    .then(function(j){
+      if(!j.ok){throw new Error(j.error||'تعذر الحفظ');}
+      c.className=c.className.replace(/\blc-[A-Z_]+\b/g,'').replace(/\s+/g,' ').trim()+' lc-'+to;
+      c.querySelectorAll('.lc-move select option').forEach(function(o){var v=(o.value===to);o.hidden=v;o.disabled=v;});
+      toast('تم النقل إلى: '+(j.label||to));
+    })
+    .catch(function(err){
+      fromBody.insertBefore(c,fromNext&&fromNext.parentNode===fromBody?fromNext:null);
+      recount(col); recount(oldCol);
+      toast(err.message||'تعذر الحفظ',true);
+    })
+    .then(function(){busy=false;});
+  });
+})();
+</script>
 <div class="kanban-dots" data-for="leads-kanban"></div>
 <div class="kanban-scroll lc-board flex gap-3 overflow-x-auto pb-2 snap-x snap-mandatory -mx-3 px-3 lg:mx-0 lg:px-0">
   {% for s in board_statuses %}
@@ -256,7 +331,7 @@ document.addEventListener("DOMContentLoaded",function(){
       {% for l in columns.get(s, []) %}
         {% set _sl = l.systems_list %}
           {% set _tip = [l.industry, l.idea_stage, (l.campaign.name if l.campaign else None), l.source] | select | join(' · ') %}
-          <article class="lc lc-{{ s.name }}" {% if _tip %}title="{{ _tip }}"{% endif %}>
+          <article class="lc lc-{{ s.name }}"{% if has_permission('leads.manage') %} draggable="true" data-lid="{{ l.id }}" data-url="{{ url_for('leads.status', lead_id=l.id) }}"{% endif %} {% if _tip %}title="{{ _tip }}"{% endif %}>
             <div class="lc-head">
               <a href="{{ url_for('leads.detail', lead_id=l.id) }}" class="lc-name">{{ l.client_name }}</a>{% set _t = (temps or {}).get(l.id) %}{% if _t %}<span class="p24-t p24-{{ _t.t }}" title="درجة {{ _t.score }}">{{ _t.icon }} {{ _t.label }}</span>{% endif %}
               {% if l.expected_value %}<span class="lc-value">{{ "{:,.0f}".format(l.expected_value|float) }}</span>{% endif %}
