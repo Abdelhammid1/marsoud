@@ -7,6 +7,59 @@
   {% include "_contact_strip.html" %}
 {% endwith %}
 
+{# MARSOUD-CRM-P11 — next-step bar + stage stepper #}
+<style>
+.p11-bar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .9rem;border:1px solid;border-radius:.6rem;padding:.65rem .9rem;margin-bottom:1rem;font-size:.85rem}
+.p11-bar.red{background:#fff1f2;border-color:#fda4af;color:#9f1239}
+.p11-bar.amber{background:#fffbeb;border-color:#fcd34d;color:#92400e}
+.p11-bar.green{background:#ecfdf5;border-color:#6ee7b7;color:#065f46}
+.p11-bar .p11-h{font-weight:700;font-size:.95rem}
+.p11-bar .p11-m{opacity:.9}
+.p11-bar button{margin-inline-start:auto;border:1px solid currentColor;background:#fff;color:inherit;border-radius:.4rem;padding:.25rem .7rem;font-size:.8rem;cursor:pointer}
+.p11-steps{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;margin-bottom:1rem}
+.p11-st{border:1px solid #cbd5e1;background:#fff;color:#475569;border-radius:999px;padding:.25rem .8rem;font-size:.78rem;cursor:pointer}
+.p11-st:hover{background:#f1f5f9}
+.p11-cur{background:#059669;border-color:#059669;color:#fff;font-weight:700;cursor:default}
+.p11-sep{width:1px;height:1.2rem;background:#cbd5e1;margin:0 .3rem}
+.p11-cl{border-style:dashed;font-size:.74rem}
+</style>
+<script>
+function p11Pick(name){
+  var sel=document.querySelector('select[name=new_status]');
+  if(!sel){return;}
+  sel.value=name;
+  sel.dispatchEvent(new Event('change'));
+  sel.scrollIntoView({behavior:'smooth',block:'center'});
+  sel.focus();
+}
+function p11Log(){
+  var el=document.getElementById('activity-type-select');
+  if(!el){return;}
+  el.scrollIntoView({behavior:'smooth',block:'center'});
+  el.focus();
+}
+</script>
+{% if next_step %}
+{% set _n = next_step %}
+<div class="p11-bar {{ _n.level }}">
+  <span class="p11-h">
+    {% if _n.fu_overdue %}🔴 المتابعة متأخرة{% if _n.fu_days < 0 %} بـ {{ -_n.fu_days }} يوم{% else %} (كانت النهارده){% endif %}
+    {% elif _n.last_days is none %}🟡 لسه مفيش أي تواصل مسجل — ابدأ بمكالمة
+    {% elif _n.last_days >= 7 %}🔴 مفيش تواصل من {{ _n.last_days }} يوم
+    {% elif _n.last_days >= 3 %}🟡 مفيش تواصل من {{ _n.last_days }} يوم
+    {% else %}🟢 آخر تواصل: {% if _n.last_days == 0 %}النهارده{% else %}من {{ _n.last_days }} يوم{% endif %}
+    {% endif %}
+  </span>
+  {% if _n.fu and not _n.fu_overdue %}
+  <span class="p11-m">🔔 المتابعة الجاية: {% if _n.fu_days == 0 %}النهارده{% else %}بعد {{ _n.fu_days }} يوم{% endif %} ({{ _n.fu | company_dt('%Y-%m-%d %H:%M') }})</span>
+  {% elif not _n.fu %}
+  <span class="p11-m">⚠️ مفيش موعد متابعة محدد</span>
+  {% endif %}
+  {% if _n.meeting %}<span class="p11-m">📅 اجتماع: {{ _n.meeting | company_dt('%Y-%m-%d %H:%M') }}</span>{% endif %}
+  {% if has_permission('leads.manage') %}<button type="button" onclick="p11Log()">+ سجّل نشاط</button>{% endif %}
+</div>
+{% endif %}
+
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
   <div class="card p-6 md:col-span-2">
     <div class="flex flex-wrap items-start justify-between gap-2 mb-4">
@@ -32,6 +85,36 @@
         {% endif %}
       </div>
     </div>
+
+    {# MARSOUD-CRM-P11 — stage stepper: click a stage to move the lead #}
+    {% set _closed = ['WON', 'LOST', 'NO_RESPONSE', 'UNQUALIFIED'] %}
+    {% if not lead.is_converted and lead.status.name not in _closed %}
+    {% set _can = can_access_endpoint('leads.status') %}
+    <div class="p11-steps">
+      {% for s in statuses %}{% if s.name not in _closed %}
+        {% if s == lead.status %}
+        <span class="p11-st p11-cur">{{ s.label_ar }}</span>
+        {% elif _can and s.name == 'MEETING_SCHEDULED' %}
+        <button type="button" class="p11-st" onclick="p11Pick('{{ s.name }}')">{{ s.label_ar }}</button>
+        {% elif _can %}
+        <form method="POST" action="{{ url_for('leads.status', lead_id=lead.id) }}" class="inline"
+              onsubmit="return confirm('نقل العميل إلى «{{ s.label_ar|e }}»؟');">
+          <input type="hidden" name="new_status" value="{{ s.name }}">
+          <input type="hidden" name="note" value="">
+          <button type="submit" class="p11-st">{{ s.label_ar }}</button>
+        </form>
+        {% else %}
+        <span class="p11-st">{{ s.label_ar }}</span>
+        {% endif %}
+      {% endif %}{% endfor %}
+      {% if _can %}
+      <span class="p11-sep"></span>
+      {% for s in statuses %}{% if s.name in _closed %}
+      <button type="button" class="p11-st p11-cl" onclick="p11Pick('{{ s.name }}')">{{ s.label_ar }}</button>
+      {% endif %}{% endfor %}
+      {% endif %}
+    </div>
+    {% endif %}
 
     {% set type_label = (lead_types[lead.lead_type].label_ar if lead.lead_type and lead.lead_type in lead_types.__members__ else None) %}
     {% set source_label = (lead_sources[lead.source].label_ar if lead.source and lead.source in lead_sources.__members__ else lead.source) %}

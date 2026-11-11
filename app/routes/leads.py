@@ -783,7 +783,9 @@ def detail(lead_id):
     _sugg = session.get("status_suggestion")
     if _sugg and _sugg.get("lead_id") != lead.id:
         _sugg = None
+    _p11_next = _p11_next_step(lead, activities)
     return render_template("leads/detail.html",
+                           next_step=_p11_next,
                            lead=lead, statuses=LeadStatus,
                            lead_types=LeadType, lead_sources=LeadSource,
                            can_manage_files=can_manage_files,
@@ -791,6 +793,44 @@ def detail(lead_id):
                            activity_types=LeadActivityType,
                            activity_outcomes_json=all_outcomes_json(),
                            status_suggestion=_sugg)
+
+
+# MARSOUD-CRM-P11 — data for the "next step" bar on the lead page.
+def _p11_next_step(lead, activities):
+    from datetime import datetime as _dt
+    if lead.is_converted or lead.status.name in (
+            "WON", "LOST", "NO_RESPONSE", "UNQUALIFIED"):
+        return None
+    now = _dt.utcnow()
+
+    def nv(d):
+        return d.replace(tzinfo=None) if (d is not None and getattr(d, "tzinfo", None)) else d
+
+    last = nv(activities[0].activity_date) if activities else None
+    fu = None
+    for a in activities:
+        if a.follow_up_date:
+            fu = nv(a.follow_up_date)
+            break
+    mt = nv(lead.next_meeting) if lead.next_meeting else None
+    if mt is not None and mt < now:
+        mt = None
+    last_days = max(0, (now.date() - last.date()).days) if last else None
+    fu_days = (fu.date() - now.date()).days if fu else None
+    fu_overdue = bool(fu and fu < now)
+    if fu_overdue:
+        level = "red"
+    elif last is None:
+        level = "amber"
+    elif last_days >= 7:
+        level = "red"
+    elif last_days >= 3:
+        level = "amber"
+    else:
+        level = "green"
+    return {"level": level, "last": last, "last_days": last_days,
+            "fu": fu, "fu_days": fu_days, "fu_overdue": fu_overdue,
+            "meeting": mt}
 
 
 @bp.route("/<int:lead_id>/edit", methods=["GET", "POST"])
