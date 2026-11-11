@@ -34,6 +34,24 @@
 .p13-add>summary{cursor:pointer;list-style:none;border:1px dashed #94a3b8;border-radius:.5rem;padding:.45rem .8rem;font-size:.85rem;text-align:center;color:#475569}
 .p13-add>summary::-webkit-details-marker{display:none}
 .p13-add[open]>summary{margin-bottom:.5rem}
+/* MARSOUD-CRM-P14 mobile polish */
+.p14-det>summary{cursor:pointer;font-weight:700;list-style:none;display:flex;align-items:center;padding:.1rem 0}
+.p14-det>summary::-webkit-details-marker{display:none}
+.p14-det>summary::after{content:"▾";margin-inline-start:auto;color:#64748b;transition:transform .2s}
+.p14-det[open]>summary::after{transform:rotate(180deg)}
+.p14-det[open]>summary{margin-bottom:.75rem}
+@media (max-width:639px){
+  .p14-head>div:first-child{flex:1 1 100%}
+  .p14-head h2{font-size:1.35rem;line-height:1.7rem}
+  .p14-info{grid-template-columns:1fr 1fr!important;gap:.6rem 1rem!important;font-size:.8rem}
+  .p14-dup{display:none}
+  .p14-wide{grid-column:1/-1}
+  .p11-steps{flex-wrap:nowrap;overflow-x:auto;padding-bottom:.35rem;-webkit-overflow-scrolling:touch}
+  .p11-steps>*{flex:none}
+  .p11-steps form{margin:0}
+  .p11-st{white-space:nowrap}
+  .p11-bar button{padding:.35rem .8rem}
+}
 </style>
 <script>
 document.addEventListener('DOMContentLoaded',function(){
@@ -43,6 +61,7 @@ document.addEventListener('DOMContentLoaded',function(){
 function p11Pick(name){
   var sel=document.querySelector('select[name=new_status]');
   if(!sel){return;}
+  var dd=sel.closest('details');if(dd){dd.open=true;}
   sel.value=name;
   sel.dispatchEvent(new Event('change'));
   sel.scrollIntoView({behavior:'smooth',block:'center'});
@@ -78,7 +97,7 @@ function p11Log(){
 
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
   <div class="card p-6 md:col-span-2">
-    <div class="flex flex-wrap items-start justify-between gap-2 mb-4">
+    <div class="p14-head flex flex-wrap items-start justify-between gap-2 mb-4">
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 flex-wrap">
           {% if lead.number %}<span class="text-sm font-mono text-slate-500">{{ lead.number }}</span>{% endif %}
@@ -134,9 +153,9 @@ function p11Log(){
 
     {% set type_label = (lead_types[lead.lead_type].label_ar if lead.lead_type and lead.lead_type in lead_types.__members__ else None) %}
     {% set source_label = (lead_sources[lead.source].label_ar if lead.source and lead.source in lead_sources.__members__ else lead.source) %}
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
-      <div><span class="text-slate-500">الهاتف:</span> <span dir="ltr" class="font-mono">{{ lead.phone }}</span></div>
-      <div><span class="text-slate-500">البريد:</span> <span dir="ltr">{{ lead.email or '—' }}</span></div>
+    <div class="p14-info grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+      <div class="p14-dup"><span class="text-slate-500">الهاتف:</span> <span dir="ltr" class="font-mono">{{ lead.phone }}</span></div>
+      <div class="p14-dup"><span class="text-slate-500">البريد:</span> <span dir="ltr">{{ lead.email or '—' }}</span></div>
       <div><span class="text-slate-500">المسؤول:</span> {{ lead.assigned_to.full_name if lead.assigned_to else '—' }}</div>
       <div><span class="text-slate-500">نوع العميل:</span> {{ type_label or '—' }}</div>
       <div><span class="text-slate-500">المصدر:</span> {{ source_label or '—' }}</div>
@@ -152,8 +171,8 @@ function p11Log(){
     {% set _camp = (lead.campaign.name if lead.campaign is defined and lead.campaign else None) %}
     <div class="mt-5 border border-slate-200 rounded-lg p-4 bg-slate-50/50">
       <div class="text-xs font-semibold text-slate-600 mb-3">📋 بيانات الطلب</div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
-        <div class="sm:col-span-2">
+      <div class="p14-info grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+        <div class="sm:col-span-2 p14-wide">
           <span class="text-slate-500">السيستم المطلوب:</span>
           {% if lead.systems_list %}
             {% for s in lead.systems_list %}<span class="inline-block bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full px-2.5 py-0.5 text-xs mx-0.5">{{ s }}</span>{% endfor %}
@@ -315,7 +334,8 @@ function p11Log(){
   {# MARSOUD-PERMISSION-BOUNCE-02 — status change enforces leads.manage (ceo bounced). #}
   {% if not lead.is_converted and can_access_endpoint('leads.status') %}
   <div class="card p-5">
-    <h3 class="font-bold text-navy-900 mb-3">تغيير الحالة</h3>
+    <details id="p14-status" class="p14-det" open>
+    <summary>تغيير الحالة</summary>
     <form method="POST" action="{{ url_for('leads.status', lead_id=lead.id) }}" class="space-y-3">
       <select name="new_status" required class="select text-sm" onchange="toggleLeadStatusExtras(this.value)">
         <option value="">— اختر —</option>
@@ -341,6 +361,8 @@ function p11Log(){
       </div>
       <button type="submit" class="btn-primary w-full text-sm">حفظ التغيير</button>
     </form>
+    </details>
+    <script>if(window.innerWidth<768){document.getElementById('p14-status').open=false;}</script>
   </div>
   <script>
     function toggleLeadStatusExtras(val) {
