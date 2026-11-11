@@ -726,3 +726,13 @@ class LeadQuotationMeta(db.Model):
     amount = db.Column(db.Numeric(14, 2))  # MARSOUD-CRM-P19
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: __import__("datetime").datetime.utcnow())
     updated_at = db.Column(db.DateTime)
+
+
+# MARSOUD-CRM-P25 — per-company settings for the lead "temperature" (JSON of ints).
+class CrmTempSettings(db.Model):
+    __tablename__ = "crm_temp_settings"
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, unique=True, index=True)
+    config_json = db.Column(db.Text, nullable=False)
+    updated_at = db.Column(db.DateTime, default=lambda: __import__("datetime").datetime.utcnow())
+    updated_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)

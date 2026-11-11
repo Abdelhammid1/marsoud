@@ -294,7 +294,7 @@ function p11Log(){
     {# MARSOUD-CRM-P22 — quick follow-up buttons #}
     {% if p22 and p22.can and can_manage_files %}
     <div class="p21-box" id="fu">
-      <div>⏰ المتابعة الجاية: <b>{{ p22.fu or 'غير محددة' }}</b></div>
+      <div>⏰ المتابعة الجاية: <b>{{ p22.fu or 'غير محددة' }}</b>{% if p22.temp %} · <span style="font-weight:700">{{ p22.temp.icon }} {{ p22.temp.label }}</span>{% endif %}</div>
       <form method="POST" action="{{ url_for('leads.set_followup', lead_id=lead.id) }}">
         <button type="submit" name="days" value="1" class="p22-b">بكرة</button>
         <button type="submit" name="days" value="3" class="p22-b">بعد 3 أيام</button>

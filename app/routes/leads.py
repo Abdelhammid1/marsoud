@@ -286,8 +286,16 @@ def index():
     for l in leads:
         columns[l.status].append(l)
 
+    temps = _p24_temps(leads)  # MARSOUD-CRM-P24
+    if request.args.get("sort") == "hot":
+        _key = lambda l: -(temps.get(l.id) or {}).get("score", -99)
+        pipeline_leads = sorted(pipeline_leads, key=_key)
+        for _s in columns:
+            columns[_s].sort(key=_key)
     return render_template(
         "leads/index.html",
+        temps=temps,
+        p24_cfg_ok=_can_view_all_leads(),
         leads=pipeline_leads,
         statuses=LeadStatus,               # for the filter dropdown
         pipeline_statuses=pipeline_statuses,  # for the Kanban columns
@@ -1204,8 +1212,11 @@ def _p22_today(rep_filter=None):
         buckets[r[0]].append({"lead": l, "reason": r[1], "days": r[2], "can_snooze": bool(al), "wa_text": wa_text})
         if l.assigned_to_id and l.assigned_to is not None:
             reps[l.assigned_to_id] = l.assigned_to.full_name
+    temps = _p24_temps(leads, acts)  # MARSOUD-CRM-P24
     for k in _P22_ORDER:
-        buckets[k].sort(key=lambda it: -it["days"])
+        for _it in buckets[k]:
+            _it["temp"] = temps.get(_it["lead"].id)
+        buckets[k].sort(key=lambda it: (-((it["temp"] or {}).get("score", -99)), -it["days"]))
     return {"buckets": buckets, "order": _P22_ORDER, "titles": _P22_TITLES,
             "total": sum(len(v) for v in buckets.values()), "all_view": all_view,
             "reps": sorted(reps.items(), key=lambda kv: kv[1] or ""), "rep_sel": rep_filter}
@@ -1225,7 +1236,7 @@ def _p22_fu(lead):
     if fu is not None:
         off = _p22_offset(g.active_company)
         txt = (_p22_nv(fu) + off).strftime("%Y-%m-%d %H:%M")
-    return {"can": True, "fu": txt}
+    return {"can": True, "fu": txt, "temp": _p24_temps([lead], {lead.id: rows}).get(lead.id)}
 
 
 @bp.route("/today")
@@ -1336,6 +1347,224 @@ def dup_check():
     m = _p23_find(g.active_company.id, request.args.get("phone"), request.args.get("email"),
                   request.args.get("name"))
     return jsonify({"matches": m})
+
+
+# MARSOUD-CRM-P24 — lead temperature (hot / warm / cold), computed on the fly; weights live in settings (P25).
+_P24_LABEL = {"hot": ("🔥", "ساخن"), "warm": ("🌤", "دافئ"), "cold": ("❄", "بارد")}
+_P24_DEFAULT = {
+    "enabled": 1,
+    "st_NEW_LEAD": 0, "st_CONTACTED": 1, "st_MEETING_SCHEDULED": 3, "st_NEGOTIATION": 4, "st_PROPOSAL_SENT": 4,
+    "d1": 2, "p1": 2, "d2": 6, "p2": 1, "d3": 13, "p3": 0, "old": -2,
+    "grace": 2, "newpen": -1,
+    "fu_future": 1, "fu_overdue": -1,
+    "meeting": 1, "meeting_days": 7,
+    "open_quote": 2, "has_value": 1,
+    "hot": 6, "warm": 3,
+}
+# key -> (min, max)
+_P24_RANGE = {
+    "enabled": (0, 1),
+    "st_NEW_LEAD": (-20, 20), "st_CONTACTED": (-20, 20), "st_MEETING_SCHEDULED": (-20, 20),
+    "st_NEGOTIATION": (-20, 20), "st_PROPOSAL_SENT": (-20, 20),
+    "d1": (0, 365), "p1": (-20, 20), "d2": (0, 365), "p2": (-20, 20), "d3": (0, 365), "p3": (-20, 20), "old": (-20, 20),
+    "grace": (0, 60), "newpen": (-20, 20),
+    "fu_future": (-20, 20), "fu_overdue": (-20, 20),
+    "meeting": (-20, 20), "meeting_days": (0, 60),
+    "open_quote": (-20, 20), "has_value": (-20, 20),
+    "hot": (-40, 60), "warm": (-40, 60),
+}
+_P24_GROUPS = [
+    ("المرحلة", "كم نقطة ياخد العميل حسب المرحلة اللي هو فيها.", [
+        ("st_NEW_LEAD", "عميل جديد"), ("st_CONTACTED", "تم التواصل"), ("st_MEETING_SCHEDULED", "اجتماع"),
+        ("st_NEGOTIATION", "تفاوض"), ("st_PROPOSAL_SENT", "عرض مُرسل")]),
+    ("آخر تواصل", "كل ما التواصل أحدث، العميل أسخن. الشرايح بالأيام، والنقاط بتتحط حسب أول شريحة بتنطبق.", [
+        ("d1", "الشريحة 1: لحد كام يوم"), ("p1", "نقاط الشريحة 1"),
+        ("d2", "الشريحة 2: لحد كام يوم"), ("p2", "نقاط الشريحة 2"),
+        ("d3", "الشريحة 3: لحد كام يوم"), ("p3", "نقاط الشريحة 3"),
+        ("old", "نقاط لو أقدم من كده")]),
+    ("عميل لسه ما اتكلمش معاه", "مهلة بالأيام من تسجيله، وبعدها بيتخصم منه.", [
+        ("grace", "المهلة (أيام)"), ("newpen", "النقاط بعد المهلة")]),
+    ("المتابعة والاجتماع", "", [
+        ("fu_future", "فيه متابعة مجدولة جاية"), ("fu_overdue", "المتابعة متأخرة"),
+        ("meeting", "فيه اجتماع قريب"), ("meeting_days", "يعتبر قريب لو خلال (أيام)")]),
+    ("عرض السعر والقيمة", "", [
+        ("open_quote", "فيه عرض سعر مفتوح (مُرسل أو قيد الدراسة)"), ("has_value", "القيمة المتوقعة مسجّلة")]),
+    ("الحدود", "الدرجة الكلية = مجموع النقاط. ساخن لو وصل للحد الأول، دافئ لو وصل للتاني، وغير كده بارد.", [
+        ("hot", "حد الساخن (درجة)"), ("warm", "حد الدافئ (درجة)")]),
+]
+
+
+def _p24_merge(raw):
+    """Pure: JSON text (or None/garbage) -> full config; unknown keys dropped, bad values -> default."""
+    import json
+    cfg = dict(_P24_DEFAULT)
+    try:
+        data = json.loads(raw) if raw else {}
+    except (ValueError, TypeError):
+        data = {}
+    if isinstance(data, dict):
+        for k, (lo, hi) in _P24_RANGE.items():
+            v = data.get(k)
+            if isinstance(v, int) and not isinstance(v, bool) and lo <= v <= hi:
+                cfg[k] = v
+    return cfg
+
+
+def _p24_parse_form(form):
+    """Pure: request.form-like -> (cfg, errors)."""
+    cfg, errs = {}, []
+    for k, (lo, hi) in _P24_RANGE.items():
+        if k == "enabled":
+            cfg[k] = 1 if form.get("enabled") else 0
+            continue
+        raw = (form.get(k) or "").strip().translate(str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789"))
+        try:
+            v = int(raw)
+        except ValueError:
+            errs.append("قيمة غير صحيحة: " + k)
+            continue
+        if not lo <= v <= hi:
+            errs.append("%s لازم بين %d و %d" % (k, lo, hi))
+            continue
+        cfg[k] = v
+    if not errs:
+        if not (cfg["d1"] < cfg["d2"] < cfg["d3"]):
+            errs.append("شرايح الأيام لازم تكون تصاعدية (1 < 2 < 3)")
+        if cfg["warm"] > cfg["hot"]:
+            errs.append("حد الدافئ لازم يكون أقل من أو يساوي حد الساخن")
+    return cfg, errs
+
+
+def _p24_max(cfg):
+    best_stage = max(cfg["st_" + n] for n in ("NEW_LEAD", "CONTACTED", "MEETING_SCHEDULED", "NEGOTIATION", "PROPOSAL_SENT"))
+    rec = max(cfg["p1"], cfg["p2"], cfg["p3"], cfg["old"], 0)
+    return (best_stage + rec + max(cfg["fu_future"], 0) + max(cfg["meeting"], 0)
+            + max(cfg["open_quote"], 0) + max(cfg["has_value"], 0))
+
+
+def _p24_cfg(cid):
+    from app.models.crm import CrmTempSettings
+    row = CrmTempSettings.query.filter_by(company_id=cid).first()
+    return _p24_merge(row.config_json if row else None)
+
+
+def _p24_score(lead, last, fu, open_quote, now_utc, off, cfg=None):
+    """Pure. -> {'t','icon','label','score'} or None for closed/converted leads."""
+    cfg = cfg or _P24_DEFAULT
+    st = lead.status.name
+    if lead.is_converted or st in _P22_CLOSED:
+        return None
+    today = (now_utc + off).date()
+    s = cfg.get("st_" + st, 1)
+    if last is not None:
+        d = (today - (_p22_nv(last) + off).date()).days
+        if d <= cfg["d1"]:
+            s += cfg["p1"]
+        elif d <= cfg["d2"]:
+            s += cfg["p2"]
+        elif d <= cfg["d3"]:
+            s += cfg["p3"]
+        else:
+            s += cfg["old"]
+    else:
+        cr = (_p22_nv(lead.created_at) + off).date() if lead.created_at else today
+        if (today - cr).days > cfg["grace"]:
+            s += cfg["newpen"]
+    if fu is not None:
+        s += cfg["fu_future"] if (_p22_nv(fu) + off).date() >= today else cfg["fu_overdue"]
+    if lead.next_meeting is not None:
+        ml = _p22_nv(lead.next_meeting) + off
+        if ml >= now_utc + off and (ml.date() - today).days <= cfg["meeting_days"]:
+            s += cfg["meeting"]
+    if open_quote:
+        s += cfg["open_quote"]
+    ev = lead.expected_value
+    if ev is not None and ev > 0:
+        s += cfg["has_value"]
+    t = "hot" if s >= cfg["hot"] else ("warm" if s >= cfg["warm"] else "cold")
+    return {"t": t, "icon": _P24_LABEL[t][0], "label": _P24_LABEL[t][1], "score": s}
+
+
+def _p24_temps(leads, acts=None, cfg=None):
+    """{lead_id: temp dict} for the OPEN leads in `leads`. acts: optional {lead_id: [rows newest first]}."""
+    from datetime import datetime as _dt
+    openl = [l for l in leads if not l.is_converted and l.status.name not in _P22_CLOSED]
+    if not openl:
+        return {}
+    cid = openl[0].company_id
+    cfg = cfg or _p24_cfg(cid)
+    if not cfg["enabled"]:
+        return {}
+    ids = [l.id for l in openl]
+    if acts is None:
+        from app.models import LeadActivity
+        acts = {}
+        for i in range(0, len(ids), 400):
+            for r in (db.session.query(LeadActivity.lead_id, LeadActivity.activity_date, LeadActivity.follow_up_date)
+                      .filter(LeadActivity.company_id == cid, LeadActivity.lead_id.in_(ids[i:i + 400]))
+                      .order_by(LeadActivity.activity_date.desc(), LeadActivity.id.desc()).all()):
+                acts.setdefault(r.lead_id, []).append(r)
+    from app.models.crm import LeadQuotationMeta
+    oq = set()
+    for i in range(0, len(ids), 400):
+        for (lid,) in (db.session.query(LeadQuotationMeta.lead_id)
+                       .filter(LeadQuotationMeta.lead_id.in_(ids[i:i + 400]),
+                               LeadQuotationMeta.status.in_(("SENT", "UNDER_REVIEW"))).all()):
+            oq.add(lid)
+    off = _p22_offset(g.active_company)
+    now = _dt.utcnow()
+    out = {}
+    for l in openl:
+        al = acts.get(l.id, [])
+        last = al[0].activity_date if al else None
+        fu = next((a.follow_up_date for a in al if a.follow_up_date), None)
+        r = _p24_score(l, last, fu, l.id in oq, now, off, cfg)
+        if r:
+            out[l.id] = r
+    return out
+
+
+@bp.route("/temperature-settings", methods=["GET", "POST"])
+@login_required
+@require_permission("leads.manage")
+def temp_settings():
+    from app.models.crm import CrmTempSettings
+    import json
+    from datetime import datetime as _dt
+    if not _can_view_all_leads():
+        flash("إعدادات السخونة للمالك أو المدير أو مدير المبيعات فقط", "error")
+        return redirect(url_for("leads.index"))
+    cid = g.active_company.id
+    if request.method == "POST":
+        row = CrmTempSettings.query.filter_by(company_id=cid).first()
+        if request.form.get("reset"):
+            if row is not None:
+                db.session.delete(row)
+                db.session.commit()
+            flash("تم الرجوع للإعدادات الافتراضية", "success")
+            return redirect(url_for("leads.temp_settings"))
+        cfg, errs = _p24_parse_form(request.form)
+        if errs:
+            for e in errs[:4]:
+                flash(e, "error")
+            return redirect(url_for("leads.temp_settings"))
+        if row is None:
+            row = CrmTempSettings(company_id=cid, config_json="{}")
+            db.session.add(row)
+        row.config_json = json.dumps(cfg)
+        row.updated_at = _dt.utcnow()
+        row.updated_by_id = current_user.id
+        db.session.commit()
+        flash("تم حفظ إعدادات السخونة", "success")
+        return redirect(url_for("leads.temp_settings"))
+    cfg = _p24_cfg(cid)
+    open_leads = (Lead.query.filter_by(company_id=cid).filter(Lead.deleted_at.is_(None)).all())
+    temps = _p24_temps(open_leads, cfg=dict(cfg, enabled=1))
+    dist = {"hot": 0, "warm": 0, "cold": 0}
+    for v in temps.values():
+        dist[v["t"]] += 1
+    return render_template("leads/temp_settings.html", cfg=cfg, default=_P24_DEFAULT, groups=_P24_GROUPS,
+                           dist=dist, total=sum(dist.values()), max_score=_p24_max(cfg))
 
 
 # MARSOUD-CRM-P11 — data for the "next step" bar on the lead page.

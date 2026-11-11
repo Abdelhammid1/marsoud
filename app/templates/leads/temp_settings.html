@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+/* MARSOUD-CRM-P25 */
+.p25-wrap{max-width:760px;margin:0 auto;padding:.5rem}
+.p25-card{border:1px solid #e2e8f0;border-radius:.7rem;padding:.8rem 1rem;margin-bottom:.9rem;background:#fff}
+.p25-card h2{font-size:1rem;font-weight:800;margin:0 0 .2rem}
+.p25-hint{font-size:.8rem;color:#64748b;margin-bottom:.6rem}
+.p25-row{display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.3rem 0;border-top:1px dashed #e2e8f0;font-size:.88rem}
+.p25-row input[type=number]{width:5.5rem;border:1px solid #cbd5e1;border-radius:.4rem;padding:.3rem .5rem;text-align:center}
+.p25-dist{display:flex;gap:.6rem;flex-wrap:wrap;margin:.4rem 0}
+.p25-dist span{border-radius:999px;padding:.25rem .9rem;font-weight:700;font-size:.85rem}
+.p25-actions{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
+</style>
+<div class="p25-wrap">
+  <h1 style="font-size:1.25rem;font-weight:800;margin:0">⚙ إعدادات سخونة العميل</h1>
+  <p class="p25-hint">عدّلي الأوزان وبعدها احفظي، والتوزيع تحت بيتحدّث على عملاءك الحاليين عشان تشوفي أثر التعديل.</p>
+  <div class="p25-card">
+    <h2>التوزيع الحالي ({{ total }} عميل مفتوح)</h2>
+    <div class="p25-dist">
+      <span style="background:#ffe4e6;color:#be123c">🔥 ساخن: {{ dist.hot }}</span>
+      <span style="background:#fef3c7;color:#b45309">🌤 دافئ: {{ dist.warm }}</span>
+      <span style="background:#e0f2fe;color:#0369a1">❄ بارد: {{ dist.cold }}</span>
+    </div>
+    <div class="p25-hint">أعلى درجة ممكنة بالإعدادات الحالية: <b>{{ max_score }}</b></div>
+  </div>
+  <form method="POST" action="{{ url_for('leads.temp_settings') }}">
+    <div class="p25-card">
+      <label style="display:flex;gap:.5rem;align-items:center;font-weight:700"><input type="checkbox" name="enabled" value="1" {% if cfg.enabled %}checked{% endif %}> إظهار شارات السخونة</label>
+      <div class="p25-hint" style="margin:.3rem 0 0">لو اتلغت، الشارات والترتيب بالأسخن بيختفوا من النظام كله.</div>
+    </div>
+    {% for title, hint, fields in groups %}
+    <div class="p25-card">
+      <h2>{{ title }}</h2>
+      {% if hint %}<div class="p25-hint">{{ hint }}</div>{% endif %}
+      {% for key, label in fields %}
+      <div class="p25-row"><label for="f_{{ key }}">{{ label }}</label><input type="number" id="f_{{ key }}" name="{{ key }}" value="{{ cfg[key] }}" step="1"></div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+    <div class="p25-actions">
+      <button type="submit" class="btn-primary">حفظ الإعدادات</button>
+      <button type="submit" name="reset" value="1" style="border:1px solid #cbd5e1;border-radius:.4rem;padding:.4rem .9rem;background:#fff" onclick="return confirm('الرجوع للإعدادات الافتراضية؟');" formnovalidate>رجوع للافتراضي</button>
+      <a href="{{ url_for('leads.index') }}">رجوع للعملاء</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

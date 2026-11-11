@@ -9,6 +9,8 @@
 .p22-chip.today{background:#d1fae5;color:#047857}
 .p22-chip.fresh{background:#fef3c7;color:#b45309}
 .p22-sec{margin-bottom:1.2rem}
+.p24-t{display:inline-block;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 8px}
+.p24-hot{background:#ffe4e6;color:#be123c}.p24-warm{background:#fef3c7;color:#b45309}.p24-cold{background:#e0f2fe;color:#0369a1}
 .p22-sec h2{font-size:1rem;font-weight:700;margin:0 0 .5rem}
 .p22-card{border:1px solid #e2e8f0;border-inline-start:4px solid #94a3b8;border-radius:.6rem;padding:.6rem .8rem;margin-bottom:.5rem;background:#fff}
 .p22-card.overdue{border-inline-start-color:#e11d48}
@@ -47,7 +49,7 @@
     {% set l = it.lead %}
     <div class="p22-card {{ k }}">
       <div class="p22-top">
-        <a class="p22-name" href="{{ url_for('leads.detail', lead_id=l.id) }}">{{ l.client_name }}</a>
+        <a class="p22-name" href="{{ url_for('leads.detail', lead_id=l.id) }}">{{ l.client_name }}</a>{% if it.temp %}<span class="p24-t p24-{{ it.temp.t }}" title="درجة {{ it.temp.score }}">{{ it.temp.icon }} {{ it.temp.label }}</span>{% endif %}
         <span class="p22-sub">{{ l.phone }}{% if l.service_needed %} · {{ l.service_needed }}{% endif %}{% if all_view and l.assigned_to %} · {{ l.assigned_to.full_name }}{% endif %}</span>
       </div>
       <div class="p22-why">{{ it.reason }}</div>

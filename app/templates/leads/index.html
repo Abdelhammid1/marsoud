@@ -8,6 +8,19 @@
    preserved verbatim inside the captured actions block. #}
 {% set _xf = {'q': q, 'status': status_filter, 'rep': rep_filter, 'campaign': campaign_filter, 'from': date_from, 'to': date_to, 'system': request.args.getlist('system'), 'industry': request.args.get('industry', ''), 'idea_stage': request.args.get('idea_stage', ''), 'reason': request.args.getlist('reason')} %}
 {% set _actions %}
+<style>/* MARSOUD-CRM-P24 */
+.p24-t{display:inline-block;font-size:10.5px;font-weight:700;border-radius:999px;padding:1px 7px;margin-inline-start:6px;white-space:nowrap}
+.p24-hot{background:#ffe4e6;color:#be123c}.p24-warm{background:#fef3c7;color:#b45309}.p24-cold{background:#e0f2fe;color:#0369a1}
+.p24-sort{font-size:12px;border:1px solid #cbd5e1;border-radius:6px;padding:4px 10px;background:#fff;margin-inline-end:8px;display:inline-block}
+.p24-sort.on{background:#fff1f2;border-color:#fda4af;color:#be123c;font-weight:700}
+</style>
+{% set _p24a = dict(request.args.to_dict(), sort='hot') %}
+{% if request.args.get('sort') == 'hot' %}{% set _p24b = dict(request.args.to_dict()) %}{% set _p24x = _p24b.pop('sort', None) %}
+<a class="p24-sort on" href="{{ request.path }}?{{ _p24b | urlencode }}">🔥 الأسخن أولًا ✕</a>
+{% else %}
+<a class="p24-sort" href="{{ request.path }}?{{ _p24a | urlencode }}">🔥 الأسخن أولًا</a>
+{% endif %}
+{% if p24_cfg_ok %}<a class="p24-sort" href="{{ url_for('leads.temp_settings') }}">⚙ إعدادات السخونة</a>{% endif %}
     <div class="inline-flex rounded-md border border-slate-200 overflow-hidden text-xs">
       <a href="?{{ request.query_string.decode()|replace('view=list','')|replace('view=board','') }}&view=board"
          class="px-3 py-1.5 {% if view == 'board' %}bg-brand-600 text-white{% else %}bg-white text-slate-600 hover:bg-slate-50{% endif %}">
@@ -243,7 +256,7 @@ document.addEventListener("DOMContentLoaded",function(){
         {% set _sl = l.systems_list %}
         <article class="lc lc-{{ s.name }}">
           <div class="lc-head">
-            <a href="{{ url_for('leads.detail', lead_id=l.id) }}" class="lc-name">{{ l.client_name }}</a>
+            <a href="{{ url_for('leads.detail', lead_id=l.id) }}" class="lc-name">{{ l.client_name }}</a>{% set _t = (temps or {}).get(l.id) %}{% if _t %}<span class="p24-t p24-{{ _t.t }}" title="درجة {{ _t.score }}">{{ _t.icon }} {{ _t.label }}</span>{% endif %}
             {% if l.expected_value %}<span class="lc-value">{{ "{:,.0f}".format(l.expected_value|float) }}</span>{% endif %}
           </div>
           <div class="lc-num">{{ l.number or ('#' ~ l.id) }}</div>
@@ -332,7 +345,7 @@ document.addEventListener("DOMContentLoaded",function(){
     {% for l in leads %}
       <tr>
         <td>
-          <a href="{{ url_for('leads.detail', lead_id=l.id) }}" class="font-semibold hover:text-brand-600">{{ l.client_name }}</a>
+          <a href="{{ url_for('leads.detail', lead_id=l.id) }}" class="font-semibold hover:text-brand-600">{{ l.client_name }}</a>{% set _t = (temps or {}).get(l.id) %}{% if _t %}<span class="p24-t p24-{{ _t.t }}" title="درجة {{ _t.score }}">{{ _t.icon }} {{ _t.label }}</span>{% endif %}
           {% if l.email %}<div class="text-xs text-slate-500" dir="ltr">{{ l.email }}</div>{% endif %}
         </td>
         <td class="text-sm">{{ l.systems_list|join("، ") if l.systems_list else l.service_needed }}</td>
