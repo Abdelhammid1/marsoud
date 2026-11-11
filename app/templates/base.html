@@ -875,9 +875,22 @@ tailwind.config = {
             </span>
             <span class="section-chevron text-[10px] text-slate-500 transition-transform duration-200">▼</span>
           </button>
+          {# MARSOUD-NAV-ACTIVE-FIX — highlight ONLY the link for the current page
+             inside this section (exact endpoint). Sub-pages fall back to the
+             section's single link of that blueprint, or its `.index` link. #}
+          {% set nav = namespace(exact=false, count=0, only=none, idx=none, target=none) %}
+          {% for _e, _l, _i, _k in ns.visible %}
+            {% if request.endpoint and _e == request.endpoint %}{% set nav.exact = true %}{% endif %}
+            {% if request.endpoint and _e.split('.')[0] == request.endpoint.split('.')[0] %}
+              {% set nav.count = nav.count + 1 %}
+              {% set nav.only = _e %}
+              {% if _e.split('.')|length > 1 and _e.split('.')[1] == 'index' %}{% set nav.idx = _e %}{% endif %}
+            {% endif %}
+          {% endfor %}
+          {% set nav.target = nav.only if nav.count == 1 else nav.idx %}
           <div class="section-body {% if not ns.active %}section-collapsed{% endif %}">
           {% for endpoint, label, icon, kwargs in ns.visible %}
-          {% set is_active = request.endpoint and (request.endpoint == endpoint or request.endpoint.split('.')[0] == endpoint.split('.')[0]) %}
+          {% set is_active = request.endpoint and (request.endpoint == endpoint or (not nav.exact and nav.target == endpoint)) %}
           <a href="{{ url_for(endpoint, **kwargs) }}"
              class="nav-link flex items-center gap-3 pr-9 pl-5 py-2 text-sm text-slate-600 hover:bg-emerald-50/40 transition-colors {% if is_active %}active{% endif %}">
             {# MARSOUD-TKT-P0-11-EMOJI-ARIA — sectioned nav row emoji hidden. #}
