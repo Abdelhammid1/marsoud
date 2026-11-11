@@ -581,6 +581,7 @@ tailwind.config = {
           ('projects.index', 'المشاريع', '📂'),
           ('customers.index', 'العملاء', '👥'),
         ] %}
+        {% if current_role == 'sales_manager' %}{% set links = links + [('leads.settings_hub', 'إعدادات علاقات العملاء', '⚙️')] %}{% endif %}{# MARSOUD-CRM-P26 #}
       {% elif current_role == 'project_manager' %}
         {% set links = [
           ('dashboard.index', 'لوحة التحكم', '📊'),
@@ -709,14 +710,15 @@ tailwind.config = {
             ('products.index', 'المنتجات والخدمات', '🛍️'),
             ('products.hierarchy', 'التصنيفات والفئات', '🧬'),
           ]),
-          ('العملاء المحتملين (CRM)', '🤝', [
-            ('leads.index', 'Leads', '🎯'),
+          ('إدارة علاقات العملاء', '🤝', [
+            ('leads.index', 'العملاء المحتملون', '🎯'),
             ('leads.today', 'مهامي اليوم', '✅'),
             ('crm.campaigns_index', 'الحملات', '🎯'),
             ('leads.no_response_index', 'لا يوجد استجابة', '📂'),
             ('crm.activities_index', 'الأنشطة والمتابعات', '📅'),
             ('crm.contacts_index', 'جهات الاتصال', '👥'),
-            ('crm.analytics', 'تحليلات CRM', '📈'),
+            ('crm.analytics', 'تحليلات علاقات العملاء', '📈'),
+            ('leads.settings_hub', 'إعدادات علاقات العملاء', '⚙️'),
           ]),
           ('إدارة العمل', '🗂️', [
             ('tasks.index', 'المهام', '✅'),

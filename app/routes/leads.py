@@ -1524,6 +1524,14 @@ def _p24_temps(leads, acts=None, cfg=None):
     return out
 
 
+# MARSOUD-CRM-P27 — one page that lists every CRM setting (sidebar has a single entry for it).
+@bp.route("/settings")
+@login_required
+@require_permission("leads.manage")
+def settings_hub():
+    return render_template("leads/settings_hub.html", is_manager=_can_view_all_leads())
+
+
 @bp.route("/temperature-settings", methods=["GET", "POST"])
 @login_required
 @require_permission("leads.manage")

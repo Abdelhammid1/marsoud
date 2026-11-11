@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+/* MARSOUD-CRM-P27 */
+.p27-wrap{max-width:760px;margin:0 auto;padding:.5rem}
+.p27-card{display:block;border:1px solid #e2e8f0;border-radius:.7rem;padding:.8rem 1rem;margin-bottom:.7rem;background:#fff;text-decoration:none;color:inherit}
+.p27-card:hover{border-color:#6ee7b7;background:#f8fffb}
+.p27-t{font-weight:800;font-size:1rem;color:#0f172a}
+.p27-d{font-size:.82rem;color:#64748b;margin-top:.15rem}
+</style>
+<div class="p27-wrap">
+  <h1 style="font-size:1.25rem;font-weight:800;margin:0 0 .8rem">⚙️ إعدادات علاقات العملاء</h1>
+  <a class="p27-card" href="{{ url_for('leads.options') }}">
+    <div class="p27-t">🧩 إدارة الاختيارات</div>
+    <div class="p27-d">القوائم اللي بتظهر في نموذج العميل المحتمل: الأنظمة المطلوبة، والقطاع، ومرحلة الفكرة، وأسباب عدم التأهيل. إضافة وتعديل وترتيب وإخفاء.</div>
+  </a>
+  {% if is_manager %}
+  <a class="p27-card" href="{{ url_for('leads.temp_settings') }}">
+    <div class="p27-t">🔥 إعدادات السخونة</div>
+    <div class="p27-d">التحكم في أوزان حساب سخونة العميل (ساخن / دافئ / بارد) وحدودها، وتشغيل أو إيقاف الشارات.</div>
+  </a>
+  {% endif %}
+</div>
+{% endblock %}
