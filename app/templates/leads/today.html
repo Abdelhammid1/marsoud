@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+/* MARSOUD-CRM-P22 */
+.p22-wrap{max-width:900px;margin:0 auto;padding:.5rem}
+.p22-chips{display:flex;flex-wrap:wrap;gap:.4rem;margin:.5rem 0 1rem}
+.p22-chip{border-radius:999px;padding:.2rem .8rem;font-size:.8rem;font-weight:700;background:#f1f5f9}
+.p22-chip.overdue{background:#ffe4e6;color:#be123c}
+.p22-chip.today{background:#d1fae5;color:#047857}
+.p22-chip.fresh{background:#fef3c7;color:#b45309}
+.p22-sec{margin-bottom:1.2rem}
+.p22-sec h2{font-size:1rem;font-weight:700;margin:0 0 .5rem}
+.p22-card{border:1px solid #e2e8f0;border-inline-start:4px solid #94a3b8;border-radius:.6rem;padding:.6rem .8rem;margin-bottom:.5rem;background:#fff}
+.p22-card.overdue{border-inline-start-color:#e11d48}
+.p22-card.today{border-inline-start-color:#059669}
+.p22-card.fresh{border-inline-start-color:#f59e0b}
+.p22-top{display:flex;flex-wrap:wrap;gap:.5rem;align-items:baseline}
+.p22-name{font-weight:700;color:#0f172a;text-decoration:none}
+.p22-sub{font-size:.78rem;color:#64748b}
+.p22-why{font-size:.82rem;margin-top:.2rem}
+.p22-act{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.5rem;align-items:center}
+.p22-act a,.p22-act button{font-size:.8rem;border:1px solid #cbd5e1;border-radius:.4rem;padding:.25rem .65rem;background:#fff;color:#0f172a;text-decoration:none;cursor:pointer}
+.p22-act a.wa{border-color:#6ee7b7;color:#047857;font-weight:600}
+.p22-act form{margin:0;display:inline}
+</style>
+<div class="p22-wrap">
+  <h1 style="font-size:1.25rem;font-weight:800;margin:0">✅ مهامي اليوم</h1>
+  {% if all_view %}
+  <form method="GET" style="margin-top:.5rem">
+    <select name="rep" onchange="this.form.submit()" style="border:1px solid #cbd5e1;border-radius:.4rem;padding:.3rem .6rem">
+      <option value="">كل المناديب</option>
+      {% for rid, rname in reps %}<option value="{{ rid }}" {% if rep_sel == rid %}selected{% endif %}>{{ rname }}</option>{% endfor %}
+    </select>
+  </form>
+  {% endif %}
+  <div class="p22-chips">
+    {% for k in order %}{% if buckets[k] %}<span class="p22-chip {{ k }}">{{ titles[k] }}: {{ buckets[k] | length }}</span>{% endif %}{% endfor %}
+  </div>
+  {% if not total %}
+  <div class="p22-card">مفيش مهام مستعجلة دلوقتي. كل عملائك ليهم خطوة جاية أو اتكلموا حديثًا.</div>
+  {% endif %}
+  {% for k in order %}
+  {% if buckets[k] %}
+  <div class="p22-sec">
+    <h2>{{ titles[k] }} ({{ buckets[k] | length }})</h2>
+    {% for it in buckets[k] %}
+    {% set l = it.lead %}
+    <div class="p22-card {{ k }}">
+      <div class="p22-top">
+        <a class="p22-name" href="{{ url_for('leads.detail', lead_id=l.id) }}">{{ l.client_name }}</a>
+        <span class="p22-sub">{{ l.phone }}{% if l.service_needed %} · {{ l.service_needed }}{% endif %}{% if all_view and l.assigned_to %} · {{ l.assigned_to.full_name }}{% endif %}</span>
+      </div>
+      <div class="p22-why">{{ it.reason }}</div>
+      <div class="p22-act">
+        <a href="tel:{{ l.phone }}">اتصال</a>
+        <a class="wa" target="_blank" rel="noopener" href="https://wa.me/{{ l.phone | wa_digits }}{% if it.wa_text %}?text={{ it.wa_text | urlencode }}{% endif %}">واتساب</a>
+        <a href="{{ url_for('leads.detail', lead_id=l.id) }}">فتح العميل</a>
+        {% if it.can_snooze %}
+        <form method="POST" action="{{ url_for('leads.set_followup', lead_id=l.id) }}">
+          <input type="hidden" name="next" value="today">
+          <button type="submit" name="days" value="1">بكرة</button>
+          <button type="submit" name="days" value="3">3 أيام</button>
+          <button type="submit" name="days" value="7">أسبوع</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endblock %}

@@ -792,6 +792,7 @@ def detail(lead_id):
                            p19=_p19_files(lead),
                            p20=_p20_invoices(lead),
                            p21=_p21_ctx(lead),
+                           p22=_p22_fu(lead),
                            file_kinds=_P19_KINDS,
                            lead=lead, statuses=LeadStatus,
                            lead_types=LeadType, lead_sources=LeadSource,
@@ -1108,6 +1109,168 @@ def unlink_customer(lead_id):
     db.session.commit()
     flash("تم فك الربط", "success")
     return back
+
+
+# MARSOUD-CRM-P22 — "my day" page + quick follow-up buttons.
+_P22_CLOSED = ("WON", "LOST", "NO_RESPONSE", "UNQUALIFIED")
+_P22_ORDER = ("overdue", "today", "fresh", "stale")
+_P22_TITLES = {"overdue": "متابعات متأخرة", "today": "النهارده", "fresh": "عملاء جدد لسه ما اتكلمش معاهم",
+               "stale": "راكدين: مفيش تواصل ولا متابعة مجدولة"}
+
+
+def _p22_offset(company):
+    """company-local minus UTC, as a timedelta (falls back to 0)."""
+    from datetime import datetime as _d, timedelta as _t
+    try:
+        from app.services.time import to_utc_from_company
+        u = to_utc_from_company(_d(2000, 1, 1, 12), company)
+        return _d(2000, 1, 1, 12) - u.replace(tzinfo=None)
+    except Exception:
+        return _t(0)
+
+
+def _p22_nv(d):
+    return d.replace(tzinfo=None) if (d is not None and getattr(d, "tzinfo", None)) else d
+
+
+def _p22_bucket(lead, last, fu, now_utc, off, stale_days=7):
+    """Pure: -> (bucket, reason, days) or None. last/fu are UTC datetimes or None."""
+    if lead.is_converted or lead.status.name in _P22_CLOSED:
+        return None
+    today = (now_utc + off).date()
+    fl = (_p22_nv(fu) + off) if fu is not None else None
+    if fl is not None:
+        if fl.date() < today:
+            d = (today - fl.date()).days
+            return ("overdue", "متابعة متأخرة %d يوم" % d, d)
+        if fl.date() == today:
+            return ("today", "متابعة اليوم الساعة " + fl.strftime("%H:%M"), 0)
+    if lead.next_meeting is not None:
+        ml = _p22_nv(lead.next_meeting) + off
+        if ml.date() == today and ml >= now_utc + off:
+            return ("today", "اجتماع اليوم الساعة " + ml.strftime("%H:%M"), 0)
+    if last is None:
+        d = max(0, (today - (_p22_nv(lead.created_at) + off).date()).days) if lead.created_at else 0
+        return ("fresh", "جديد ولم يتم التواصل بعد", d)
+    ld = (today - (_p22_nv(last) + off).date()).days
+    if fl is None and ld >= stale_days:
+        return ("stale", "آخر تواصل من %d يوم ومفيش متابعة مجدولة" % ld, ld)
+    return None
+
+
+def _p22_today(rep_filter=None):
+    from datetime import datetime as _dt
+    from app.models import LeadActivity
+    cid = g.active_company.id
+    q = Lead.query.filter_by(company_id=cid).filter(Lead.deleted_at.is_(None))
+    all_view = _can_view_all_leads()
+    if not all_view:
+        q = q.filter(Lead.assigned_to_id == current_user.id)
+    elif rep_filter:
+        q = q.filter(Lead.assigned_to_id == rep_filter)
+    leads = [l for l in q.all() if l.status.name not in _P22_CLOSED and not l.is_converted]
+    acts = {}
+    ids = [l.id for l in leads]
+    for i in range(0, len(ids), 400):
+        rows = (LeadActivity.query
+                .filter(LeadActivity.company_id == cid, LeadActivity.lead_id.in_(ids[i:i + 400]))
+                .order_by(LeadActivity.activity_date.desc(), LeadActivity.id.desc()).all())
+        for a in rows:
+            acts.setdefault(a.lead_id, []).append(a)
+    off = _p22_offset(g.active_company)
+    now = _dt.utcnow()
+    buckets = {k: [] for k in _P22_ORDER}
+    reps = {}
+    for l in leads:
+        al = acts.get(l.id, [])
+        last = al[0].activity_date if al else None
+        fu = next((a.follow_up_date for a in al if a.follow_up_date), None)
+        r = _p22_bucket(l, last, fu, now, off)
+        if r is None:
+            continue
+        wa_text = None
+        try:
+            ns = _p11_next_step(l, al)
+            wa_text = _p17_wa_pack(l, ns)[1] if ns is not None else None
+        except Exception:
+            wa_text = None
+        buckets[r[0]].append({"lead": l, "reason": r[1], "days": r[2], "can_snooze": bool(al), "wa_text": wa_text})
+        if l.assigned_to_id and l.assigned_to is not None:
+            reps[l.assigned_to_id] = l.assigned_to.full_name
+    for k in _P22_ORDER:
+        buckets[k].sort(key=lambda it: -it["days"])
+    return {"buckets": buckets, "order": _P22_ORDER, "titles": _P22_TITLES,
+            "total": sum(len(v) for v in buckets.values()), "all_view": all_view,
+            "reps": sorted(reps.items(), key=lambda kv: kv[1] or ""), "rep_sel": rep_filter}
+
+
+def _p22_fu(lead):
+    """For the lead page: can we schedule (an activity exists, lead is open) + current follow-up text."""
+    if lead.is_converted or lead.status.name in _P22_CLOSED:
+        return {"can": False, "fu": None}
+    from app.models import LeadActivity
+    rows = (LeadActivity.query.filter_by(company_id=lead.company_id, lead_id=lead.id)
+            .order_by(LeadActivity.activity_date.desc(), LeadActivity.id.desc()).all())
+    if not rows:
+        return {"can": False, "fu": None}
+    fu = next((a.follow_up_date for a in rows if a.follow_up_date), None)
+    txt = None
+    if fu is not None:
+        off = _p22_offset(g.active_company)
+        txt = (_p22_nv(fu) + off).strftime("%Y-%m-%d %H:%M")
+    return {"can": True, "fu": txt}
+
+
+@bp.route("/today")
+@login_required
+@require_permission("leads.view")
+def today():
+    return render_template("leads/today.html", **_p22_today(request.args.get("rep", type=int)))
+
+
+@bp.route("/<int:lead_id>/followup", methods=["POST"])
+@login_required
+@require_permission("leads.manage")
+def set_followup(lead_id):
+    from datetime import datetime as _dt, timedelta as _td, time as _tm
+    from app.models import LeadActivity
+    from app.services.time import to_utc_from_company
+    lead = _lead_or_403(lead_id)
+    nxt = request.form.get("next")
+
+    def back():
+        if nxt == "today":
+            return redirect(url_for("leads.today"))
+        return redirect(url_for("leads.detail", lead_id=lead.id) + "#fu")
+
+    if not (_can_view_all_leads() or lead.assigned_to_id == current_user.id):
+        flash("غير مسموح بتعديل هذا العميل المحتمل", "error")
+        return back()
+    act = (LeadActivity.query.filter_by(company_id=lead.company_id, lead_id=lead.id)
+           .order_by(LeadActivity.activity_date.desc(), LeadActivity.id.desc()).first())
+    if act is None:
+        flash("سجلي أول نشاط للعميل قبل تحديد موعد المتابعة", "error")
+        return back()
+    today_l = (_dt.utcnow() + _p22_offset(g.active_company)).date()
+    try:
+        days = int(request.form.get("days") or 0)
+    except ValueError:
+        days = 0
+    d = None
+    if days in (1, 3, 7):
+        d = today_l + _td(days=days)
+    else:
+        try:
+            d = _dt.strptime((request.form.get("date") or "").strip(), "%Y-%m-%d").date()
+        except ValueError:
+            d = None
+    if d is None or d < today_l or d > today_l + _td(days=365):
+        flash("اختاري تاريخ صحيح (من اليوم فصاعدًا)", "error")
+        return back()
+    act.follow_up_date = to_utc_from_company(_dt.combine(d, _tm(10, 0)), g.active_company)
+    db.session.commit()
+    flash("تم تحديد المتابعة يوم " + d.strftime("%Y-%m-%d") + " الساعة 10:00", "success")
+    return back()
 
 
 # MARSOUD-CRM-P11 — data for the "next step" bar on the lead page.

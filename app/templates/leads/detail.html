@@ -82,6 +82,8 @@
 .p21-box select,.p21-box input[type=text]{border:1px solid #cbd5e1;border-radius:.4rem;padding:.35rem .6rem;font-size:.85rem;background:#fff;max-width:100%}
 .p21-sug{display:flex;flex-direction:column;gap:.3rem;margin:.4rem 0}
 .p21-sug button{text-align:start;border:1px solid #6ee7b7;background:#ecfdf5;border-radius:.4rem;padding:.35rem .6rem;font-size:.82rem;cursor:pointer}
+/* MARSOUD-CRM-P22 */
+.p22-b{border:1px solid #6ee7b7;background:#ecfdf5;border-radius:.4rem;padding:.3rem .7rem;font-size:.82rem;cursor:pointer}
 /* MARSOUD-CRM-P14 mobile polish */
 .p14-det>summary{cursor:pointer;font-weight:700;list-style:none;display:flex;align-items:center;padding:.1rem 0}
 .p14-det>summary::-webkit-details-marker{display:none}
@@ -286,6 +288,20 @@ function p11Log(){
       {% if can_access_endpoint('leads.convert') %}
       <a href="{{ url_for('leads.convert', lead_id=lead.id) }}" class="btn-primary text-sm">→ تحويل لمشروع</a>
       {% endif %}
+    </div>
+    {% endif %}
+
+    {# MARSOUD-CRM-P22 — quick follow-up buttons #}
+    {% if p22 and p22.can and can_manage_files %}
+    <div class="p21-box" id="fu">
+      <div>⏰ المتابعة الجاية: <b>{{ p22.fu or 'غير محددة' }}</b></div>
+      <form method="POST" action="{{ url_for('leads.set_followup', lead_id=lead.id) }}">
+        <button type="submit" name="days" value="1" class="p22-b">بكرة</button>
+        <button type="submit" name="days" value="3" class="p22-b">بعد 3 أيام</button>
+        <button type="submit" name="days" value="7" class="p22-b">بعد أسبوع</button>
+        <input type="date" name="date">
+        <button type="submit" class="p22-b">تحديد</button>
+      </form>
     </div>
     {% endif %}
 
