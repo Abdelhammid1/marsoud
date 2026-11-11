@@ -41,7 +41,7 @@
       {% if _wa_digits %}
       <a href="https://wa.me/{{ _wa_digits }}{% if wa_text %}?text={{ wa_text | urlencode }}{% endif %}" target="_blank" rel="noopener"
          title="فتح محادثة مع {{ name }}"
-         class="font-semibold text-emerald-700 hover:underline">{% if wa_text %}واتساب برسالة جاهزة ↗{% else %}فتح محادثة ↗{% endif %}</a>
+         class="font-semibold text-emerald-700 hover:underline">{% if wa_text %}واتساب: {{ wa_kind or 'رسالة جاهزة' }} ↗{% else %}فتح محادثة ↗{% endif %}{# MARSOUD-CRM-P17 #}</a>
       {% else %}
       <span class="text-slate-500 italic">غير مسجل</span>
       {% endif %}

@@ -4,7 +4,7 @@
 
 {# MARSOUD-CONTACT-STRIP — top-of-page contact bar #}
 {# MARSOUD-CRM-P15 #}
-{% with name=lead.client_name, phone=lead.phone, email=lead.email, wa_text=wa_text %}
+{% with name=lead.client_name, phone=lead.phone, email=lead.email, wa_text=wa_text, wa_kind=wa_kind %}
   {% include "_contact_strip.html" %}
 {% endwith %}
 

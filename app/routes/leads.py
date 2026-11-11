@@ -784,9 +784,11 @@ def detail(lead_id):
     if _sugg and _sugg.get("lead_id") != lead.id:
         _sugg = None
     _p11_next = _p11_next_step(lead, activities)
+    _p17_wa = _p17_wa_pack(lead, _p11_next)
     return render_template("leads/detail.html",
                            next_step=_p11_next,
-                           wa_text=_p15_wa_text(lead),
+                           wa_text=_p17_wa[1],
+                           wa_kind=_p17_wa[0],
                            lead=lead, statuses=LeadStatus,
                            lead_types=LeadType, lead_sources=LeadSource,
                            can_manage_files=can_manage_files,
@@ -843,6 +845,46 @@ def _p15_wa_text(lead):
         what + "، وحابب أتعرف على احتياجك أكتر عشان أرشحلك أنسب حل.",
         "ينفع نتكلم النهارده مكالمة سريعة؟ قولي الوقت المناسب ليك.",
     ])
+
+
+# MARSOUD-CRM-P17 — pick the WhatsApp message by stage: first contact / after meeting / follow-up.
+def _p17_wa_pack(lead, ns):
+    """Returns (kind_label, text) or (None, None). ns = _p11_next_step() result (None for closed leads)."""
+    from datetime import datetime as _dt
+    if ns is None:
+        return (None, None)
+    first_txt = _p15_wa_text(lead)
+    if first_txt:
+        return ("أول تواصل", first_txt)
+    parts = (lead.client_name or "").split()
+    first = parts[0] if parts else ""
+    rep_parts = ((lead.assigned_to.full_name if lead.assigned_to
+                  else getattr(current_user, "full_name", "")) or "").split()
+    rep = rep_parts[0] if rep_parts else ""
+    systems = [x for x in (lead.systems_list or []) if x]
+    if not systems and lead.service_needed:
+        systems = [lead.service_needed]
+    what = " و".join(systems) if systems else "طلبك"
+    hello = ("أهلاً %s" % first) if first else "أهلاً بحضرتك"
+    me = ("معاك %s من منصتي." % rep) if rep else "معاك فريق منصتي."
+    mt = lead.next_meeting
+    if mt is not None and getattr(mt, "tzinfo", None):
+        mt = mt.replace(tzinfo=None)
+    if lead.status.name == "MEETING_SCHEDULED" and mt is not None and mt < _dt.utcnow():
+        return ("بعد الاجتماع", "\n".join([
+            hello,
+            me,
+            "شكراً لوقتك في الاجتماع، وسعدت بالتعرف على احتياجك في %s." % what,
+            "هبعتلك ملخص اللي اتفقنا عليه عشان كل النقاط تبقى واضحة، ولو في أي سؤال أو تعديل أنا معاك.",
+        ]))
+    if ns.get("last_days") is None or ns["last_days"] >= 3:
+        return ("متابعة", "\n".join([
+            hello,
+            me,
+            "حبيت أطمن عليك وأتابع معاك بخصوص %s." % what,
+            "لو لسه مهتم قولي الوقت المناسب ليك ونكمل، ولو مش مناسب دلوقتي قولي وأتواصل معاك في وقت تاني.",
+        ]))
+    return (None, None)
 
 
 # MARSOUD-CRM-P11 — data for the "next step" bar on the lead page.
