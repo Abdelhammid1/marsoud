@@ -50,6 +50,12 @@
           تسجيل الدخول
         </button>
       </form>
+      {# MARSOUD-P29 - credit under the login form #}
+      {% if brand and brand.show %}
+      <p style="text-align:center;margin-top:18px;font-size:12px;color:#94a3b8">
+        <a href="{{ brand.url }}" target="_blank" rel="noopener noreferrer" style="color:#047857;text-decoration:none;font-weight:600">تطوير منصتي</a>
+      </p>
+      {% endif %}
 
       {# MARSOUD-LOCKOUT-RESET (Abdelhamid 2026-07-22) — self-service reset link. #}
       <div class="mt-4 text-center text-sm">

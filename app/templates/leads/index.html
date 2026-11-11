@@ -29,8 +29,6 @@
 .mobile-pill-strip .text-xs{font-size:11px!important}
 .p26-pills{margin-bottom:10px!important}
 .p26-pills .card{padding:4px 12px!important;font-size:12px!important;border-color:#e8edf3!important;box-shadow:none!important}
-form[method="get"] label{font-size:11px!important;color:#94a3b8!important}
-form[method="get"] input,form[method="get"] select{font-size:12px!important;padding:5px 8px!important;min-height:0!important;border-radius:8px!important}
 </style>
 {% set _p24a = dict(request.args.to_dict(), sort='hot') %}
 <div class="p26-bar">
@@ -61,82 +59,78 @@ form[method="get"] input,form[method="get"] select{font-size:12px!important;padd
 {# Filter form — wrapped in a <details> so mobile users can collapse it
    and get back precious vertical space above the Kanban. Desktop hides
    the summary + always renders open. #}
+<style>/* MARSOUD-CRM-P28 filters */
+.p28-filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.p28-filters .p28-q{flex:1 1 220px;min-width:180px}
+.p28-filters input,.p28-filters select{height:34px;min-height:0;font-size:12.5px;padding:0 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff}
+.p28-filters .p28-s{width:auto;min-width:130px}
+.p28-go{height:34px;padding:0 18px;border-radius:8px;font-size:12.5px}
+.p28-clear{font-size:12px;color:#be123c;text-decoration:none}
+.p28-adv{width:100%}
+.p28-adv>summary{display:inline-flex;align-items:center;list-style:none;cursor:pointer;font-size:12px;color:#475569;border:1px dashed #cbd5e1;border-radius:8px;padding:5px 12px}
+.p28-adv>summary::-webkit-details-marker{display:none}
+.p28-n{background:#059669;color:#fff;border-radius:999px;font-size:10px;padding:0 6px;margin-inline-start:6px}
+.p28-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:8px}
+.p28-grid label{display:block;font-size:11px;color:#94a3b8;margin-bottom:2px}
+.p28-grid input,.p28-grid select{width:100%}
+</style>
 <details class="card mb-4 mobile-collapsible" id="filter-panel">
   <summary>
     <span>🔍 بحث / فلترة</span>
   </summary>
-  <form method="GET" class="flex flex-wrap items-end gap-3">
-    <div class="flex-1 min-w-[200px]">
-      <label class="block text-xs font-semibold text-slate-700 mb-1">بحث</label>
-      <input type="text" name="q" value="{{ q }}" placeholder="اسم / هاتف / خدمة" class="input text-sm">
-    </div>
-    <div>
-      <label class="block text-xs font-semibold text-slate-700 mb-1">الحالة</label>
-      <select name="status" class="select text-sm">
-        <option value="">الكل</option>
+    {# MARSOUD-CRM-P28 — one calm row; the rest lives under "advanced" #}
+    {% set _advn = ([date_from, date_to, request.args.get('industry', ''), request.args.get('idea_stage', '')] + request.args.getlist('system') + request.args.getlist('reason')) | select | list | length %}
+    {% set _any = (q or status_filter or rep_filter or campaign_filter or _advn) %}
+    <form method="GET" class="p28-filters">
+      <input type="hidden" name="view" value="{{ view }}">
+      {% if request.args.get('sort') == 'hot' %}<input type="hidden" name="sort" value="hot">{% endif %}
+      <input type="text" name="q" value="{{ q }}" placeholder="🔍 ابحث: اسم / هاتف / خدمة" class="input p28-q" aria-label="بحث">
+      <select name="status" class="select p28-s" aria-label="الحالة">
+        <option value="">الحالة: الكل</option>
         {% for s in statuses %}<option value="{{ s.name }}" {% if status_filter == s.name %}selected{% endif %}>{{ s.label_ar }}</option>{% endfor %}
       </select>
-    </div>
-    {% if reps %}
-    <div>
-      <label class="block text-xs font-semibold text-slate-700 mb-1">المسؤول</label>
-      <select name="rep" class="select text-sm">
-        <option value="">الكل</option>
+      {% if reps %}
+      <select name="rep" class="select p28-s" aria-label="المسؤول">
+        <option value="">المسؤول: الكل</option>
         {% for r in reps %}<option value="{{ r.id }}" {% if rep_filter == r.id|string %}selected{% endif %}>{{ r.full_name }}</option>{% endfor %}
       </select>
-    </div>
-    {% endif %}
-    {# MARSOUD-LEADS-CAMPAIGN-FILTER (Abdelhamid 2026-07-13) — new
-       Campaign dropdown. Only appears when the company has at least
-       one active campaign, so a company that never uses campaigns
-       doesn't see a dead control. #}
-    {% if campaigns %}
-    <div>
-      <label class="block text-xs font-semibold text-slate-700 mb-1">الحملة</label>
-      <select name="campaign" class="select text-sm">
-        <option value="">الكل</option>
+      {% endif %}
+      {% if campaigns %}
+      <select name="campaign" class="select p28-s" aria-label="الحملة">
+        <option value="">الحملة: الكل</option>
         {% for c in campaigns %}<option value="{{ c.id }}" {% if campaign_filter == c.id|string %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
       </select>
-    </div>
-    {% endif %}
-    <div>
-      <label class="block text-xs font-semibold text-slate-700 mb-1">من تاريخ</label>
-      <input type="date" name="from" value="{{ date_from }}" class="input text-sm">
-    </div>
-    <div>
-      <label class="block text-xs font-semibold text-slate-700 mb-1">إلى تاريخ</label>
-      <input type="date" name="to" value="{{ date_to }}" class="input text-sm">
-    </div>
-    <div>
-        <label class="block text-xs font-semibold text-slate-700 mb-1">السيستم المطلوب</label>
-        <select name="system" class="select text-sm">
-          <option value="">الكل</option>
-          {% for o in lead_opts('system') %}<option value="{{ o }}" {% if o in request.args.getlist('system') %}selected{% endif %}>{{ o }}</option>{% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="block text-xs font-semibold text-slate-700 mb-1">المجال</label>
-        <select name="industry" class="select text-sm">
-          <option value="">الكل</option>
-          {% for o in lead_opts('industry') %}<option value="{{ o }}" {% if request.args.get('industry') == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="block text-xs font-semibold text-slate-700 mb-1">حالة الفكرة</label>
-        <select name="idea_stage" class="select text-sm">
-          <option value="">الكل</option>
-          {% for o in lead_opts('idea_stage') %}<option value="{{ o }}" {% if request.args.get('idea_stage') == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="block text-xs font-semibold text-slate-700 mb-1">سبب غير مؤهل</label>
-        <select name="reason" class="select text-sm">
-          <option value="">الكل</option>
-          {% for o in lead_opts('unqualified_reason') %}<option value="{{ o }}" {% if o in request.args.getlist('reason') %}selected{% endif %}>{{ o }}</option>{% endfor %}
-        </select>
-      </div>
-      <button type="submit" class="btn-primary text-sm">تطبيق</button>
-  </form>
+      {% endif %}
+      <button type="submit" class="btn-primary p28-go">تطبيق</button>
+      {% if _any %}<a href="{{ request.path }}?view={{ view }}" class="p28-clear">مسح الفلاتر</a>{% endif %}
+      <details class="p28-adv" {% if _advn %}open{% endif %}>
+        <summary>⚙ فلاتر متقدمة{% if _advn %}<span class="p28-n">{{ _advn }}</span>{% endif %}</summary>
+        <div class="p28-grid">
+          <div><label>من تاريخ</label><input type="date" name="from" value="{{ date_from }}" class="input"></div>
+          <div><label>إلى تاريخ</label><input type="date" name="to" value="{{ date_to }}" class="input"></div>
+          <div><label>السيستم المطلوب</label>
+            <select name="system" class="select">
+              <option value="">الكل</option>
+              {% for o in lead_opts('system') %}<option value="{{ o }}" {% if o in request.args.getlist('system') %}selected{% endif %}>{{ o }}</option>{% endfor %}
+            </select></div>
+          <div><label>المجال</label>
+            <select name="industry" class="select">
+              <option value="">الكل</option>
+              {% for o in lead_opts('industry') %}<option value="{{ o }}" {% if request.args.get('industry') == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+            </select></div>
+          <div><label>حالة الفكرة</label>
+            <select name="idea_stage" class="select">
+              <option value="">الكل</option>
+              {% for o in lead_opts('idea_stage') %}<option value="{{ o }}" {% if request.args.get('idea_stage') == o %}selected{% endif %}>{{ o }}</option>{% endfor %}
+            </select></div>
+          <div><label>سبب غير مؤهل</label>
+            <select name="reason" class="select">
+              <option value="">الكل</option>
+              {% for o in lead_opts('unqualified_reason') %}<option value="{{ o }}" {% if o in request.args.getlist('reason') %}selected{% endif %}>{{ o }}</option>{% endfor %}
+            </select></div>
+        </div>
+      </details>
+    </form>
 </details>
 
 {% if view == 'board' %}
@@ -217,6 +211,34 @@ document.addEventListener("DOMContentLoaded",function(){
   });
 });
 </script>
+<style>/* MARSOUD-CRM-P28 board */
+.lc{padding:8px 10px;border-radius:9px}
+.lc-name{font-size:13px}
+.lc-svc1{margin-top:3px;font-size:11.5px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lc-foot{margin-top:6px;padding-top:6px;border-top:1px solid #f1f5f9}
+.lc-mtg{margin-top:5px;padding:2px 7px}
+.lc-move{margin-top:2px}
+@media (hover:hover){.lc-move summary{opacity:0;transition:opacity .15s}.lc:hover .lc-move summary,.lc-move[open] summary{opacity:1}}
+@media (min-width:768px){
+  .lc-board{overflow-y:hidden!important;align-items:stretch!important;padding-bottom:0!important}
+  .lc-col{display:flex!important;flex-direction:column;height:100%}
+  .lc-colbody{flex:1 1 auto;max-height:none!important;min-height:0}
+}
+</style>
+<script>
+(function(){
+  function fit(){
+    var b=document.querySelector('.lc-board'); if(!b){return;}
+    if(window.innerWidth<768){b.style.height='';return;}
+    var top=b.getBoundingClientRect().top+window.scrollY;
+    b.style.height=Math.max(320,window.innerHeight-top-12)+'px';
+  }
+  document.addEventListener('DOMContentLoaded',function(){fit();setTimeout(fit,250);});
+  window.addEventListener('load',fit);
+  window.addEventListener('resize',fit);
+  document.addEventListener('toggle',function(){setTimeout(fit,0);},true);
+})();
+</script>
 <div class="mobile-kanban-hint text-center text-xs text-slate-500 mb-2 sm:hidden">
   ← اسحب يمين وشمال بين الأعمدة →
 </div>
@@ -233,70 +255,50 @@ document.addEventListener("DOMContentLoaded",function(){
     <div class="space-y-2 lc-colbody">
       {% for l in columns.get(s, []) %}
         {% set _sl = l.systems_list %}
-        <article class="lc lc-{{ s.name }}">
-          <div class="lc-head">
-            <a href="{{ url_for('leads.detail', lead_id=l.id) }}" class="lc-name">{{ l.client_name }}</a>{% set _t = (temps or {}).get(l.id) %}{% if _t %}<span class="p24-t p24-{{ _t.t }}" title="درجة {{ _t.score }}">{{ _t.icon }} {{ _t.label }}</span>{% endif %}
-            {% if l.expected_value %}<span class="lc-value">{{ "{:,.0f}".format(l.expected_value|float) }}</span>{% endif %}
-          </div>
-          <div class="lc-num">{{ l.number or ('#' ~ l.id) }}</div>
-
-          {% if _sl %}
-          <div class="lc-chips">
-            {% for sname in _sl[:3] %}<span class="lc-chip">{{ sname }}</span>{% endfor %}
-            {% if _sl|length > 3 %}<span class="lc-chip lc-chip-more" title="{{ _sl[3:]|join('، ') }}">+{{ _sl|length - 3 }}</span>{% endif %}
-          </div>
-          {% else %}
-          <div class="lc-svc">{{ l.service_needed or '—' }}</div>
-          {% endif %}
-
-          {% if l.industry or l.idea_stage or l.campaign or l.source %}
-          <div class="lc-meta">
-            {% if l.industry %}<span><span class="k">🏷</span><span>{{ l.industry }}</span></span>{% endif %}
-            {% if l.idea_stage %}<span><span class="k">💡</span><span>{{ l.idea_stage }}</span></span>{% endif %}
-            {% if l.campaign %}<span><span class="k">📣</span><span>{{ l.campaign.name }}</span></span>{% endif %}
-            {% if l.source %}<span><span class="k">🔗</span><span>{{ l.source }}</span></span>{% endif %}
-          </div>
-          {% endif %}
-
-          {% if l.unqualified_reasons_list %}
-          <div class="lc-chips">
-            {% for rname in l.unqualified_reasons_list %}<span class="lc-chip lc-chip-bad">{{ rname }}</span>{% endfor %}
-          </div>
-          {% endif %}
-
-          {% if l.next_meeting %}
-          <div class="lc-mtg">📅 {{ l.next_meeting | company_dt('%Y-%m-%d %H:%M') }}</div>
-          {% endif %}
-
-          <div class="lc-foot">
-            <div class="lc-owner">
-              <span class="lc-av">{{ l.assigned_to.full_name[:1] if l.assigned_to else '?' }}</span>
-              <span class="lc-owner-name">{{ l.assigned_to.full_name if l.assigned_to else 'بدون مسؤول' }}</span>
+          {% set _tip = [l.industry, l.idea_stage, (l.campaign.name if l.campaign else None), l.source] | select | join(' · ') %}
+          <article class="lc lc-{{ s.name }}" {% if _tip %}title="{{ _tip }}"{% endif %}>
+            <div class="lc-head">
+              <a href="{{ url_for('leads.detail', lead_id=l.id) }}" class="lc-name">{{ l.client_name }}</a>{% set _t = (temps or {}).get(l.id) %}{% if _t %}<span class="p24-t p24-{{ _t.t }}" title="درجة {{ _t.score }}">{{ _t.icon }} {{ _t.label }}</span>{% endif %}
+              {% if l.expected_value %}<span class="lc-value">{{ "{:,.0f}".format(l.expected_value|float) }}</span>{% endif %}
             </div>
-            <div class="lc-actions">
-              <span class="lc-date">{{ l.created_at | company_dt('%Y-%m-%d') }}</span>
-              {% if l.phone %}<a href="tel:{{ l.phone }}" class="lc-call" dir="ltr" title="اتصال">📞</a>{% endif %}
+            <div class="lc-num">{{ l.number or ('#' ~ l.id) }}</div>
+            <div class="lc-svc1" title="{{ _sl|join('، ') if _sl else (l.service_needed or '') }}">{{ _sl|join('، ') if _sl else (l.service_needed or '—') }}</div>
+            {% if l.unqualified_reasons_list %}
+            <div class="lc-chips">
+              {% for rname in l.unqualified_reasons_list %}<span class="lc-chip lc-chip-bad">{{ rname }}</span>{% endfor %}
             </div>
-          </div>
-
-          {% if has_permission('leads.manage') %}
-          <details class="lc-move">
-            <summary>↔ نقل لمرحلة تانية</summary>
-            <form method="POST" action="{{ url_for('leads.status', lead_id=l.id) }}">
-              <input type="hidden" name="return_to" value="board">
-              <select name="new_status" required class="select text-xs py-1">
-                <option value="" disabled selected>اختار المرحلة…</option>
-                {% for st in statuses %}
-                  {% if st != l.status and st.name != 'UNQUALIFIED' %}
-                  <option value="{{ st.name }}">{{ st.label_ar }}</option>
-                  {% endif %}
-                {% endfor %}
-              </select>
-              <button type="submit" class="text-xs text-brand-600 hover:underline">حفظ</button>
-            </form>
-          </details>
-          {% endif %}
-        </article>
+            {% endif %}
+            {% if l.next_meeting %}
+            <div class="lc-mtg">📅 {{ l.next_meeting | company_dt('%Y-%m-%d %H:%M') }}</div>
+            {% endif %}
+            <div class="lc-foot">
+              <div class="lc-owner">
+                <span class="lc-av">{{ l.assigned_to.full_name[:1] if l.assigned_to else '?' }}</span>
+                <span class="lc-owner-name">{{ l.assigned_to.full_name if l.assigned_to else 'بدون مسؤول' }}</span>
+              </div>
+              <div class="lc-actions">
+                <span class="lc-date">{{ l.created_at | company_dt('%Y-%m-%d') }}</span>
+                {% if l.phone %}<a href="tel:{{ l.phone }}" class="lc-call" dir="ltr" title="اتصال">📞</a>{% endif %}
+              </div>
+            </div>
+            {% if has_permission('leads.manage') %}
+            <details class="lc-move">
+              <summary>↔ نقل لمرحلة تانية</summary>
+              <form method="POST" action="{{ url_for('leads.status', lead_id=l.id) }}">
+                <input type="hidden" name="return_to" value="board">
+                <select name="new_status" required class="select text-xs py-1">
+                  <option value="" disabled selected>اختار المرحلة…</option>
+                  {% for st in statuses %}
+                    {% if st != l.status and st.name != 'UNQUALIFIED' %}
+                    <option value="{{ st.name }}">{{ st.label_ar }}</option>
+                    {% endif %}
+                  {% endfor %}
+                </select>
+                <button type="submit" class="text-xs text-brand-600 hover:underline">حفظ</button>
+              </form>
+            </details>
+            {% endif %}
+          </article>
         {% else %}
       <div class="text-xs text-slate-500 text-center py-4">فارغ</div>
       {% endfor %}

@@ -975,6 +975,12 @@ tailwind.config = {
        carried a long-standing bug worth recording: `text-white` on the
        name over `bg-white/5` inside a `bg-slate-50` aside rendered it
        white on near-white, i.e. invisible. #}
+    {# MARSOUD-P29 - small credit at the bottom of the sidebar #}
+    {% if brand and brand.show %}
+    <div class="shrink-0 border-t border-slate-200 px-5 py-2 text-center" style="margin-top:auto;font-size:11px;color:#94a3b8">
+      <a href="{{ brand.url }}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none" onmouseover="this.style.color='#047857'" onmouseout="this.style.color='inherit'">تطوير منصتي</a>
+    </div>
+    {% endif %}
   </aside>
 
   <!-- MARSOUD-42 — backdrop shown only on mobile when sidebar is open -->
@@ -1152,7 +1158,7 @@ tailwind.config = {
 
       {% block content %}{% endblock %}
     </div>
-    {% include "_footer.html" ignore missing %}
+    {# MARSOUD-P29 - footer removed from the internal app #}
   </main>
 
   {# MARSOUD-DASH-SHELL (2026-08-04) — the agent slide-over lived here.
