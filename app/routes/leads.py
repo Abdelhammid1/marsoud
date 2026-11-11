@@ -786,6 +786,7 @@ def detail(lead_id):
     _p11_next = _p11_next_step(lead, activities)
     return render_template("leads/detail.html",
                            next_step=_p11_next,
+                           wa_text=_p15_wa_text(lead),
                            lead=lead, statuses=LeadStatus,
                            lead_types=LeadType, lead_sources=LeadSource,
                            can_manage_files=can_manage_files,
@@ -793,6 +794,55 @@ def detail(lead_id):
                            activity_types=LeadActivityType,
                            activity_outcomes_json=all_outcomes_json(),
                            status_suggestion=_sugg)
+
+
+# MARSOUD-CRM-P15 — WhatsApp helpers: normalise phone to wa.me digits + first-contact message.
+@bp.app_template_filter("wa_digits")
+def _p15_wa_digits(raw):
+    import re
+    s = str(raw or "").strip()
+    plus = s.startswith("+")
+    d = re.sub(r"\D", "", s)
+    if not d:
+        return ""
+    if plus:
+        return d
+    if d.startswith("00"):
+        return d[2:]
+    if d.startswith(("20", "966", "971")) and len(d) in (12, 13):
+        return d
+    if d.startswith("0") and len(d) == 11:      # Egypt 01x xxxxxxxx
+        return "20" + d[1:]
+    if d.startswith("05") and len(d) == 10:     # KSA 05x xxxxxxx
+        return "966" + d[1:]
+    if d.startswith("1") and len(d) == 10:      # Egypt without the leading 0
+        return "20" + d
+    if d.startswith("5") and len(d) == 9:       # KSA without the leading 0
+        return "966" + d
+    return d
+
+
+def _p15_wa_text(lead):
+    """Ready-made first-contact WhatsApp text for a lead still in the first stage."""
+    if lead.is_converted or lead.status != list(LeadStatus)[0]:
+        return None
+    parts = (lead.client_name or "").split()
+    first = parts[0] if parts else ""
+    rep_parts = ((lead.assigned_to.full_name if lead.assigned_to
+                  else getattr(current_user, "full_name", "")) or "").split()
+    rep = rep_parts[0] if rep_parts else ""
+    systems = [x for x in (lead.systems_list or []) if x]
+    if not systems and lead.service_needed:
+        systems = [lead.service_needed]
+    what = ("وصلنا طلبك بخصوص " + " و".join(systems)) if systems else "وصلنا طلبك"
+    hello = ("أهلاً %s" % first) if first else "أهلاً بحضرتك"  # MARSOUD-CRM-P16 no emoji (breaks WhatsApp send)
+    me = ("معاك %s من منصتي." % rep) if rep else "معاك فريق منصتي."
+    return "\n".join([
+        hello,
+        me,
+        what + "، وحابب أتعرف على احتياجك أكتر عشان أرشحلك أنسب حل.",
+        "ينفع نتكلم النهارده مكالمة سريعة؟ قولي الوقت المناسب ليك.",
+    ])
 
 
 # MARSOUD-CRM-P11 — data for the "next step" bar on the lead page.

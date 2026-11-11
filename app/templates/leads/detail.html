@@ -3,7 +3,8 @@
 {% block content %}
 
 {# MARSOUD-CONTACT-STRIP — top-of-page contact bar #}
-{% with name=lead.client_name, phone=lead.phone, email=lead.email %}
+{# MARSOUD-CRM-P15 #}
+{% with name=lead.client_name, phone=lead.phone, email=lead.email, wa_text=wa_text %}
   {% include "_contact_strip.html" %}
 {% endwith %}
 
