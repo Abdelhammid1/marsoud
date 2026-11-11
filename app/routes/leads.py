@@ -789,6 +789,8 @@ def detail(lead_id):
                            next_step=_p11_next,
                            wa_text=_p17_wa[1],
                            wa_kind=_p17_wa[0],
+                           p19=_p19_files(lead),
+                           file_kinds=_P19_KINDS,
                            lead=lead, statuses=LeadStatus,
                            lead_types=LeadType, lead_sources=LeadSource,
                            can_manage_files=can_manage_files,
@@ -885,6 +887,107 @@ def _p17_wa_pack(lead, ns):
             "لو لسه مهتم قولي الوقت المناسب ليك ونكمل، ولو مش مناسب دلوقتي قولي وأتواصل معاك في وقت تاني.",
         ]))
     return (None, None)
+
+
+# MARSOUD-CRM-P18 — all quotations uploaded for a lead (history), oldest = عرض 1.
+def _p18_quotes(lead):
+    from app.models.opsflow_extras import Document
+    from app.models.crm import LeadQuotationMeta
+    docs = (Document.query
+            .filter_by(company_id=lead.company_id, source_type="LEAD", source_id=lead.id)
+            .filter(Document.name.like("quotation:%"))
+            .order_by(Document.created_at.asc(), Document.id.asc()).all())
+    metas = {m.document_id: m for m in
+             LeadQuotationMeta.query.filter_by(lead_id=lead.id).all()}
+    out = []
+    for i, d in enumerate(docs, 1):
+        m = metas.get(d.id)
+        nm = d.name.split(":", 1)[1].strip() if ":" in d.name else d.name
+        out.append({"n": i, "doc": d, "name": nm,
+                    "status": (m.status if m else "SENT"),
+                    "note": (m.note if m else None)})
+    return out
+
+
+# MARSOUD-CRM-P19 — lead files centre: one Document per upload, prefix of Document.name = kind.
+_P19_KINDS = {
+    "quotation": {"label": "عروض الأسعار", "icon": "💰", "one": "عرض سعر", "amount": True,
+                  "statuses": [("SENT", "تم الإرسال"), ("UNDER_REVIEW", "قيد الدراسة"),
+                               ("REJECTED", "مرفوض"), ("ACCEPTED", "مقبول")]},
+    "contract": {"label": "العقود", "icon": "📑", "one": "عقد", "amount": True,
+                 "statuses": [("DRAFT", "مسودة"), ("SENT_SIGN", "أُرسل للتوقيع"),
+                              ("SIGNED", "موقّع"), ("CANCELLED", "ملغي")]},
+    "invoice": {"label": "الفواتير", "icon": "🧾", "one": "فاتورة", "amount": True,
+                "statuses": [("ISSUED", "صادرة"), ("PART_PAID", "مدفوعة جزئيًا"),
+                             ("PAID", "مدفوعة"), ("OVERDUE", "متأخرة")]},
+    "study": {"label": "دراسة المشروع", "icon": "📐", "one": "ملف دراسة", "amount": False,
+              "statuses": [("DRAFT", "مسودة"), ("REVIEW", "قيد المراجعة"), ("APPROVED", "معتمدة")]},
+    "minutes": {"label": "محاضر الاجتماعات", "icon": "📝", "one": "محضر", "amount": False, "statuses": []},
+    "client_doc": {"label": "مستندات العميل", "icon": "🪪", "one": "مستند", "amount": False, "statuses": []},
+    "payment": {"label": "إيصالات الدفع", "icon": "💳", "one": "إيصال", "amount": True, "statuses": []},
+    "other": {"label": "ملفات أخرى", "icon": "📎", "one": "ملف", "amount": False, "statuses": []},
+}
+
+
+def _p19_parse_amount(raw):
+    from decimal import Decimal, InvalidOperation
+    s = (raw or "").strip().translate(str.maketrans("٠١٢٣٤٥٦٧٨٩٬٫", "0123456789,.")).replace(",", "")
+    if not s:
+        return None
+    try:
+        v = Decimal(s)
+    except InvalidOperation:
+        return None
+    return v if 0 <= v < Decimal("1000000000000") else None
+
+
+def _p19_add_meta(lead, doc, kind):
+    from app.models.crm import LeadQuotationMeta
+    cfg = _P19_KINDS[kind]
+    codes = [c for c, _ in cfg["statuses"]]
+    st = (request.form.get("status") or "").strip()
+    if st not in codes:
+        st = codes[0] if codes else "NA"
+    db.session.add(LeadQuotationMeta(
+        company_id=lead.company_id, lead_id=lead.id, document_id=doc.id, status=st,
+        note=((request.form.get("note") or "").strip()[:500] or None),
+        amount=(_p19_parse_amount(request.form.get("amount")) if cfg["amount"] else None)))
+
+
+def _p19_files(lead):
+    """{'by_kind': {kind: [item, ...] oldest first}, 'sums': {kind: {'total','paid'}}}"""
+    from decimal import Decimal
+    from app.models.opsflow_extras import Document
+    from app.models.crm import LeadQuotationMeta
+    docs = (Document.query
+            .filter_by(company_id=lead.company_id, source_type="LEAD", source_id=lead.id)
+            .order_by(Document.created_at.asc(), Document.id.asc()).all())
+    metas = {m.document_id: m for m in
+             LeadQuotationMeta.query.filter_by(lead_id=lead.id).all()}
+    by_kind = {k: [] for k in _P19_KINDS}
+    for d in docs:
+        pre, sep, rest = (d.name or "").partition(":")
+        k = pre.strip() if sep and pre.strip() in _P19_KINDS else "other"
+        nm = rest.strip() if sep and pre.strip() in _P19_KINDS else (d.name or "")
+        m = metas.get(d.id)
+        status = m.status if m else ("SENT" if k == "quotation" else "NA")
+        by_kind[k].append({"n": len(by_kind[k]) + 1, "doc": d, "name": nm, "status": status,
+                           "note": (m.note if m else None),
+                           "amount": (m.amount if m else None)})
+    sums = {}
+    for k, cfg in _P19_KINDS.items():
+        if not cfg["amount"]:
+            continue
+        tot = Decimal(0)
+        paid = Decimal(0)
+        for it in by_kind[k]:
+            a = it["amount"] or Decimal(0)
+            if it["status"] not in ("REJECTED", "CANCELLED"):
+                tot += a
+            if it["status"] == "PAID":
+                paid += a
+        sums[k] = {"total": tot, "paid": paid}
+    return {"by_kind": by_kind, "sums": sums}
 
 
 # MARSOUD-CRM-P11 — data for the "next step" bar on the lead page.
@@ -1037,7 +1140,7 @@ def upload(lead_id, kind):
     """FR-04 — upload quotation or contract PDF directly on a lead."""
     from app.services.opsflow_extras import save_document, DocumentError
     from app.models import DocumentSourceType, DocumentVisibility
-    if kind not in ("quotation", "contract"):
+    if kind not in _P19_KINDS:
         flash("نوع الملف غير معروف", "error")
         return redirect(url_for("leads.detail", lead_id=lead_id))
     lead = _lead_or_403(lead_id)
@@ -1054,13 +1157,59 @@ def upload(lead_id, kind):
         )
         if kind == "quotation":
             lead.quotation_path = doc.file_path
-        else:
+        elif kind == "contract":
             lead.contract_path = doc.file_path
+        _p19_add_meta(lead, doc, kind)  # MARSOUD-CRM-P19
         db.session.commit()
-        flash(f"تم رفع {'عرض السعر' if kind == 'quotation' else 'العقد'}", "success")
+        flash("تم رفع الملف في: " + _P19_KINDS[kind]["label"], "success")
     except DocumentError as e:
         flash(str(e), "error")
-    return redirect(url_for("leads.detail", lead_id=lead.id))
+    return redirect(url_for("leads.detail", lead_id=lead.id) + "#files-" + kind)
+
+
+# MARSOUD-CRM-P19 — edit one lead file: status / amount / note (any kind; endpoint name kept)
+@bp.route("/<int:lead_id>/quotations/<int:doc_id>/status", methods=["POST"])
+@login_required
+@require_permission("leads.manage")
+def quotation_status(lead_id, doc_id):
+    from app.models.opsflow_extras import Document
+    from app.models.crm import LeadQuotationMeta
+    from datetime import datetime as _dt
+    lead = _lead_or_403(lead_id)
+    back = redirect(url_for("leads.detail", lead_id=lead.id) + "#files")
+    if not (_can_view_all_leads() or lead.assigned_to_id == current_user.id):
+        flash("غير مسموح بتعديل ملفات هذا العميل", "error")
+        return back
+    doc = Document.query.filter_by(id=doc_id, company_id=lead.company_id,
+                                   source_type="LEAD", source_id=lead.id).first()
+    if doc is None:
+        flash("الملف غير موجود", "error")
+        return back
+    pre, sep, _rest = (doc.name or "").partition(":")
+    kind = pre.strip() if sep and pre.strip() in _P19_KINDS else "other"
+    back = redirect(url_for("leads.detail", lead_id=lead.id) + "#files-" + kind)
+    cfg = _P19_KINDS[kind]
+    meta = LeadQuotationMeta.query.filter_by(document_id=doc.id).first()
+    if meta is None:
+        meta = LeadQuotationMeta(company_id=lead.company_id, lead_id=lead.id,
+                                 document_id=doc.id,
+                                 status=("SENT" if kind == "quotation" else "NA"))
+        db.session.add(meta)
+    if "status" in request.form:
+        st = (request.form.get("status") or "").strip()
+        if st not in [c for c, _ in cfg["statuses"]]:
+            db.session.rollback()
+            flash("حالة غير معروفة", "error")
+            return back
+        meta.status = st
+    if "amount" in request.form and cfg["amount"]:
+        meta.amount = _p19_parse_amount(request.form.get("amount"))
+    if "note" in request.form:
+        meta.note = (request.form.get("note") or "").strip()[:500] or None
+    meta.updated_at = _dt.utcnow()
+    db.session.commit()
+    flash("تم الحفظ", "success")
+    return back
 
 
 # ─── MARSOUD: comments on leads (ticket C / image #47) ───────────────

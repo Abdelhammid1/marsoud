@@ -35,6 +35,43 @@
 .p13-add>summary{cursor:pointer;list-style:none;border:1px dashed #94a3b8;border-radius:.5rem;padding:.45rem .8rem;font-size:.85rem;text-align:center;color:#475569}
 .p13-add>summary::-webkit-details-marker{display:none}
 .p13-add[open]>summary{margin-bottom:.5rem}
+/* MARSOUD-CRM-P18 quotations */
+.p18-list{display:flex;flex-direction:column;gap:.6rem;margin-bottom:.9rem}
+.p18-q{border:1px solid #e2e8f0;border-radius:.6rem;padding:.65rem .85rem;background:#fff;border-inline-start-width:4px}
+.p18-sent{border-inline-start-color:#94a3b8}
+.p18-under_review{border-inline-start-color:#f59e0b}
+.p18-rejected{border-inline-start-color:#e11d48;background:#fff7f8}
+.p18-accepted{border-inline-start-color:#059669;background:#f3fdf8}
+.p18-top{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem}
+.p18-n{font-weight:700}
+.p18-latest{font-size:.68rem;background:#059669;color:#fff;border-radius:999px;padding:.05rem .5rem}
+.p18-st{margin-inline-start:auto;font-size:.75rem;font-weight:700}
+.p18-meta{font-size:.76rem;color:#64748b;margin-top:.2rem;word-break:break-all}
+.p18-note{font-size:.82rem;margin-top:.3rem;white-space:pre-wrap}
+.p18-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem;margin-top:.5rem}
+.p18-actions form{margin:0}
+.p18-actions a{font-size:.82rem;font-weight:600;color:#047857;text-decoration:none;border:1px solid #6ee7b7;border-radius:.4rem;padding:.25rem .7rem}
+.p18-actions select{font-size:.78rem;border:1px solid #cbd5e1;border-radius:.4rem;padding:.2rem .4rem;background:#fff}
+.p18-up{display:flex;flex-direction:column;gap:.5rem;border:1px dashed #94a3b8;border-radius:.6rem;padding:.7rem}
+.p18-up-t{font-weight:700;font-size:.85rem}
+.p18-up input[type=text]{border:1px solid #cbd5e1;border-radius:.4rem;padding:.4rem .6rem;font-size:.85rem}
+/* MARSOUD-CRM-P19 files centre */
+.p19-tabs{display:flex;gap:.4rem;overflow-x:auto;padding-bottom:.4rem;margin-bottom:.75rem;-webkit-overflow-scrolling:touch}
+.p19-tab{flex:none;white-space:nowrap;border:1px solid #cbd5e1;background:#fff;color:#475569;border-radius:999px;padding:.3rem .8rem;font-size:.8rem;cursor:pointer}
+.p19-tab.on{background:#059669;border-color:#059669;color:#fff;font-weight:700}
+.p19-tab.on .p13-n{color:#d1fae5}
+.p19-sum{background:#f1f5f9;border-radius:.5rem;padding:.45rem .7rem;font-size:.82rem;margin-bottom:.6rem}
+.p19-amt{font-weight:700;font-size:.82rem}
+.p19-edit{margin:0}
+.p19-edit[open]{flex:1 1 100%}
+.p19-edit>summary{cursor:pointer;list-style:none;font-size:.78rem;color:#475569;border:1px solid #cbd5e1;border-radius:.4rem;padding:.2rem .6rem}
+.p19-edit>summary::-webkit-details-marker{display:none}
+.p19-edit form{display:flex;flex-direction:column;gap:.4rem;margin-top:.5rem}
+.p19-edit input{border:1px solid #cbd5e1;border-radius:.4rem;padding:.35rem .6rem;font-size:.82rem}
+.p18-accepted,.p18-signed,.p18-paid,.p18-approved{border-inline-start-color:#059669;background:#f3fdf8}
+.p18-under_review,.p18-sent_sign,.p18-part_paid,.p18-review{border-inline-start-color:#f59e0b}
+.p18-rejected,.p18-cancelled,.p18-overdue{border-inline-start-color:#e11d48;background:#fff7f8}
+.p18-up select,.p18-up input[type=text]{border:1px solid #cbd5e1;border-radius:.4rem;padding:.4rem .6rem;font-size:.85rem;background:#fff}
 /* MARSOUD-CRM-P14 mobile polish */
 .p14-det>summary{cursor:pointer;font-weight:700;list-style:none;display:flex;align-items:center;padding:.1rem 0}
 .p14-det>summary::-webkit-details-marker{display:none}
@@ -56,7 +93,7 @@
 </style>
 <script>
 document.addEventListener('DOMContentLoaded',function(){
-  function o(){if(location.hash==='#comments'){var d=document.getElementById('comments');if(d){d.open=true;}}}
+  function o(){var h=location.hash.slice(1);if(h==='comments'||h==='quotes'){var d=document.getElementById(h);if(d){d.open=true;}}}
   o();window.addEventListener('hashchange',o);
 });
 function p11Pick(name){
@@ -242,43 +279,92 @@ function p11Log(){
     </div>
     {% endif %}
 
-    {# MARSOUD-CRM-P13 #}
-    <details class="p13-sec">
-    <summary>📎 الملفات والمرفقات <span class="p13-n">({{ (1 if lead.quotation_path else 0) + (1 if lead.contract_path else 0) }})</span></summary>
-    {% if lead.quotation_path or lead.contract_path %}
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-      {% if lead.quotation_path %}
-      <a href="{{ lead.quotation_path }}" target="_blank" class="bg-slate-50 hover:bg-slate-100 rounded-lg p-3 text-sm">
-        📄 <strong>عرض السعر</strong>
-        <div class="text-xs text-slate-500 mt-1">تحميل ←</div>
-      </a>
+    {# MARSOUD-CRM-P19 — files centre: one section, a tab per kind; every upload is kept as its own card #}
+    {% set _tot = namespace(n=0) %}
+    {% for _k in file_kinds %}{% set _tot.n = _tot.n + (p19.by_kind[_k] | length) %}{% endfor %}
+    <details class="p13-sec" id="files" {% if _tot.n %}open{% endif %}>
+    <summary>📁 الملفات والمستندات <span class="p13-n">({{ _tot.n }})</span></summary>
+    <div class="p19-tabs">
+      {% for k, cfg in file_kinds.items() %}
+      <button type="button" class="p19-tab" data-k="{{ k }}" data-has="{{ 1 if p19.by_kind[k] else 0 }}" onclick="p19Tab('{{ k }}')">{{ cfg.icon }} {{ cfg.label }}{% if p19.by_kind[k] %} <span class="p13-n">({{ p19.by_kind[k] | length }})</span>{% endif %}</button>
+      {% endfor %}
+    </div>
+    {% for k, cfg in file_kinds.items() %}
+    {% set items = p19.by_kind[k] %}
+    {% set _sl = dict(cfg.statuses) %}
+    <div class="p19-pane" data-k="{{ k }}" style="display:none">
+      {% set _s = p19.sums.get(k) %}
+      {% if cfg.amount and _s and _s.total %}
+      <div class="p19-sum">الإجمالي: <b>{{ '{:,.0f}'.format(_s.total | float) }}</b>{% if k == 'invoice' %} · مدفوعة بالكامل: <b>{{ '{:,.0f}'.format(_s.paid | float) }}</b>{% endif %}</div>
       {% endif %}
-      {% if lead.contract_path %}
-      <a href="{{ lead.contract_path }}" target="_blank" class="bg-slate-50 hover:bg-slate-100 rounded-lg p-3 text-sm">
-        📑 <strong>العقد</strong>
-        <div class="text-xs text-slate-500 mt-1">تحميل ←</div>
-      </a>
+      {% if items %}
+      <div class="p18-list">
+        {% for q in items | reverse %}
+        <div class="p18-q p18-{{ q.status | lower }}">
+          <div class="p18-top">
+            <span class="p18-n">{{ cfg.one }} {{ q.n }}</span>
+            {% if loop.first %}<span class="p18-latest">الأحدث</span>{% endif %}
+            {% if q.amount is not none %}<span class="p19-amt">{{ '{:,.0f}'.format(q.amount | float) }}</span>{% endif %}
+            {% if _sl.get(q.status) %}<span class="p18-st">{{ _sl.get(q.status) }}</span>{% endif %}
+          </div>
+          <div class="p18-meta">{{ q.name }} · {{ q.doc.created_at | company_dt('%Y-%m-%d') }}{% if q.doc.uploaded_by %} · {{ q.doc.uploaded_by.full_name }}{% endif %}</div>
+          {% if q.note %}<div class="p18-note">{{ q.note }}</div>{% endif %}
+          <div class="p18-actions">
+            <a href="{{ q.doc.file_path }}" target="_blank" rel="noopener">فتح الملف</a>
+            {% if can_manage_files %}
+            {% if cfg.statuses %}
+            <form method="POST" action="{{ url_for('leads.quotation_status', lead_id=lead.id, doc_id=q.doc.id) }}">
+              <select name="status" onchange="this.form.submit()" title="الحالة">
+                {% if q.status not in _sl %}<option value="" selected disabled>— بدون حالة —</option>{% endif %}
+                {% for c, v in cfg.statuses %}<option value="{{ c }}" {% if c == q.status %}selected{% endif %}>{{ v }}</option>{% endfor %}
+              </select>
+            </form>
+            {% endif %}
+            <details class="p19-edit"><summary>✎ تعديل</summary>
+              <form method="POST" action="{{ url_for('leads.quotation_status', lead_id=lead.id, doc_id=q.doc.id) }}">
+                {% if cfg.amount %}<input type="text" name="amount" inputmode="decimal" value="{{ '%g' % (q.amount | float) if q.amount is not none else '' }}" placeholder="القيمة">{% endif %}
+                <input type="text" name="note" maxlength="500" value="{{ q.note or '' }}" placeholder="ملاحظة">
+                <button type="submit" class="btn-primary text-sm">حفظ</button>
+              </form>
+            </details>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-sm text-slate-500 mb-3">لا توجد ملفات في هذا القسم بعد.</div>
+      {% endif %}
+      {% if can_manage_files %}
+      <form method="POST" action="{{ url_for('leads.upload', lead_id=lead.id, kind=k) }}" enctype="multipart/form-data" class="p18-up">
+        <div class="p18-up-t">+ رفع {{ cfg.one }} جديد</div>
+        <input type="file" name="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.zip,.txt,.csv,.md" required>
+        {% if cfg.statuses %}<select name="status" title="الحالة">{% for c, v in cfg.statuses %}<option value="{{ c }}">{{ v }}</option>{% endfor %}</select>{% endif %}
+        {% if cfg.amount %}<input type="text" name="amount" inputmode="decimal" placeholder="القيمة (اختياري)">{% endif %}
+        <input type="text" name="note" maxlength="500" placeholder="ملاحظة (اختياري)">
+        <button type="submit" class="btn-primary text-sm">رفع</button>
+      </form>
       {% endif %}
     </div>
-    {% endif %}
-    {% if can_manage_files %}
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <form method="POST" action="{{ url_for('leads.upload', lead_id=lead.id, kind='quotation') }}" enctype="multipart/form-data" class="bg-amber-50/40 rounded-lg p-3 border border-amber-100">
-        <div class="text-xs font-semibold text-amber-800 mb-2">رفع عرض السعر (PDF)</div>
-        <input type="file" name="file" accept=".pdf" required class="text-xs mb-2 w-full">
-        <button type="submit" class="btn-secondary text-xs w-full">رفع</button>
-      </form>
-      <form method="POST" action="{{ url_for('leads.upload', lead_id=lead.id, kind='contract') }}" enctype="multipart/form-data" class="bg-slate-50 rounded-lg p-3 border border-slate-200">
-        <div class="text-xs font-semibold text-slate-700 mb-2">رفع العقد (PDF)</div>
-        <input type="file" name="file" accept=".pdf" required class="text-xs mb-2 w-full">
-        <button type="submit" class="btn-secondary text-xs w-full">رفع</button>
-      </form>
-    </div>
-    {% endif %}
-
-    {# MARSOUD — comments thread on the lead. Anyone with leads.view can
-       post; we identify by current_user. #}
+    {% endfor %}
+    <script>
+    function p19Tab(k){
+      document.querySelectorAll('.p19-pane').forEach(function(p){p.style.display=(p.dataset.k===k)?'block':'none';});
+      document.querySelectorAll('.p19-tab').forEach(function(b){b.classList.toggle('on',b.dataset.k===k);});
+    }
+    (function(){
+      var m=(location.hash||'').match(/^#files-(\w+)/);
+      var k=m?m[1]:null;
+      if(!k||!document.querySelector('.p19-tab[data-k="'+k+'"]')){
+        var b=document.querySelector('.p19-tab[data-has="1"]')||document.querySelector('.p19-tab');
+        k=b?b.dataset.k:null;
+      }
+      if(k){p19Tab(k);}
+      if(m||location.hash==='#files'){var d=document.getElementById('files');if(d){d.open=true;}}
+    })();
+    </script>
     </details>
+
     <details class="p13-sec" id="comments">
     <summary>💬 التعليقات <span class="p13-n">({{ lead.comments|length }})</span></summary>
     <div class="space-y-2 mb-3">

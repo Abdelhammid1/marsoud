@@ -712,3 +712,17 @@ class TaskActivityLog(db.Model):
                            order_by="TaskActivityLog.created_at.desc()",
                            cascade="all, delete-orphan"))
     user = db.relationship("User", foreign_keys=[user_id])
+
+
+# MARSOUD-CRM-P18 — status/note per uploaded quotation (the file itself lives in `documents`)
+class LeadQuotationMeta(db.Model):
+    __tablename__ = "lead_quotation_meta"
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"), nullable=False, index=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey("leads.id"), nullable=False, index=True)
+    document_id = db.Column(db.Integer, db.ForeignKey("documents.id"), nullable=False, unique=True)
+    status = db.Column(db.String(20), nullable=False, default="SENT")
+    note = db.Column(db.Text)
+    amount = db.Column(db.Numeric(14, 2))  # MARSOUD-CRM-P19
+    created_at = db.Column(db.DateTime, nullable=False, default=lambda: __import__("datetime").datetime.utcnow())
+    updated_at = db.Column(db.DateTime)
