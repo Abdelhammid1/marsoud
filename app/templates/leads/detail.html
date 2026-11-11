@@ -347,8 +347,12 @@ function p11Log(){
           class="bg-slate-50 rounded p-3 mb-3 space-y-2"
           data-once data-once-label="جاري الحفظ...">
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {# MARSOUD-CRM-P12 — type starts as "غير محدد"; submit is blocked until chosen #}
         <select name="type" required class="select text-sm"
-                id="activity-type-select" onchange="_refreshOutcomes()">
+                id="activity-type-select"
+                oninvalid="this.setCustomValidity('يرجى اختيار نوع النشاط')"
+                onchange="this.setCustomValidity('');_refreshOutcomes()">
+          <option value="" selected>— غير محدد —</option>
           {% for t in activity_types %}
           <option value="{{ t.name }}">{{ t.icon }} {{ t.label_ar }}</option>
           {% endfor %}
@@ -369,12 +373,9 @@ function p11Log(){
           <option value="">— اختر النتيجة —</option>
         </select>
       </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <div>
-          <label class="text-[10px] text-slate-500">وقت النشاط</label>
-          <input type="datetime-local" name="activity_date"
-                  class="input text-sm" title="اتركه فاضي = دلوقتي">
-        </div>
+      {# MARSOUD-CRM-P12 — activity time is automatic (now); empty value keeps the old contract #}
+      <input type="hidden" name="activity_date" value="">
+      <div class="grid grid-cols-1 gap-2">
         <div>
           <label class="text-[10px] text-slate-500">متابعة (وقت الاجتماع الجاي)</label>
           <input type="datetime-local" name="follow_up_date"
