@@ -174,6 +174,39 @@ def change_role(user_id):
     return redirect(url_for("users.index"))
 
 
+# MARSOUD-USERS-P31 - rename a member (full_name lives on the user, so it shows in every company they belong to)
+@bp.route("/<int:user_id>/rename", methods=["POST"])
+@login_required
+@require_permission("users.manage")
+def rename(user_id):
+    member = db.session.execute(
+        user_companies.select().where(
+            (user_companies.c.user_id == user_id) &
+            (user_companies.c.company_id == g.active_company.id)
+        )
+    ).first()
+    target = User.query.get(user_id) if member else None
+    if not target:
+        flash("المستخدم مش عضو في الشركة دي", "error")
+        return redirect(url_for("users.index"))
+    if getattr(target, "is_superadmin", False) and not getattr(current_user, "is_superadmin", False):
+        flash("مينفعش تعديل اسم مدير المنصة من هنا", "error")
+        return redirect(url_for("users.index"))
+    name = " ".join((request.form.get("full_name") or "").split())
+    if len(name) < 2:
+        flash("الاسم لازم يكون حرفين على الأقل", "error")
+    elif len(name) > 150:
+        flash("الاسم طويل (الحد الأقصى 150 حرف)", "error")
+    elif name == target.full_name:
+        flash("الاسم زي ما هو، مفيش تغيير", "error")
+    else:
+        old = target.full_name
+        target.full_name = name
+        db.session.commit()
+        flash(f"تم تغيير الاسم من «{old}» إلى «{name}»", "success")
+    return redirect(url_for("users.index"))
+
+
 @bp.route("/<int:user_id>/send-password-link", methods=["POST"])
 @login_required
 @require_permission("users.manage")

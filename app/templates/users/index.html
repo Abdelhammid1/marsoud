@@ -25,7 +25,18 @@
       <tbody>
         {% for m in members %}
         <tr>
-          <td class="font-semibold">{{ m.user.full_name }}{% if m.user.id == current_user.id %} <span class="text-xs text-slate-500">(أنت)</span>{% endif %}</td>
+          <td class="font-semibold">{{ m.user.full_name }}{% if m.user.id == current_user.id %} <span class="text-xs text-slate-500">(أنت)</span>{% endif %}
+            {# MARSOUD-USERS-P31 #}
+            {% if has_permission('users.manage') %}
+            <details class="font-normal mt-1">
+              <summary class="text-xs text-emerald-700 hover:underline" style="cursor:pointer;list-style:none">تعديل الاسم</summary>
+              <form method="POST" action="{{ url_for('users.rename', user_id=m.user.id) }}" class="flex gap-2 mt-1 items-center">
+                <input type="text" name="full_name" value="{{ m.user.full_name }}" required minlength="2" maxlength="150" class="input text-xs" style="min-width:150px">
+                <button type="submit" class="text-xs text-emerald-700 hover:underline">حفظ</button>
+              </form>
+            </details>
+            {% endif %}
+          </td>
           <td dir="ltr" class="text-sm">{{ m.user.email }}</td>
           <td>
             <span class="badge {% if m.role=='owner' %}badge-paid{% elif m.role=='admin' %}badge-sent{% elif m.role=='accountant' %}badge-partial{% else %}badge-draft{% endif %}">
