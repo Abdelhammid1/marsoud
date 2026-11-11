@@ -177,4 +177,52 @@
     </div>
   </form>
 </div>
+{# MARSOUD-CRM-P23 — duplicate warning (create form only) #}
+{% if lead is none %}
+<script>
+(function(){
+  var ph=document.querySelector('input[name="phone"]');
+  if(!ph||!ph.form){return;}
+  var em=document.querySelector('input[name="email"]'), nm=document.querySelector('input[name="client_name"]');
+  var box=document.createElement('div');
+  box.style.cssText='display:none;margin-top:.4rem;padding:.6rem .8rem;border:1px solid #f59e0b;background:#fffbeb;border-radius:.5rem;font-size:.85rem';
+  ph.insertAdjacentElement('afterend',box);
+  var hid=document.createElement('input'); hid.type='hidden'; hid.name='dup_ok'; hid.value=''; ph.form.appendChild(hid);
+  var strong=false, chk=null, timer=null, seq=0;
+  function el(t,txt,css){var e=document.createElement(t); if(txt){e.textContent=txt;} if(css){e.style.cssText=css;} return e;}
+  function draw(ms){
+    box.innerHTML=''; strong=false; hid.value='';
+    if(!ms.length){box.style.display='none'; return;}
+    box.appendChild(el('div','⚠ فيه بيانات مشابهة موجودة بالفعل:','font-weight:700;margin-bottom:.3rem'));
+    ms.forEach(function(m){
+      if(m.strong){strong=true;}
+      var row=el('div',null,'margin:.25rem 0');
+      var nmEl; if(m.url){nmEl=el('a',m.name,'font-weight:700;color:#047857'); nmEl.href=m.url; nmEl.target='_blank'; nmEl.rel='noopener';} else {nmEl=el('b',m.name);}
+      row.appendChild(nmEl);
+      row.appendChild(el('span',' · '+m.sub+(m.phone?' · '+m.phone:'')+' ('+m.reason+')','color:#64748b'));
+      box.appendChild(row);
+    });
+    if(strong){
+      var lab=el('label',null,'display:flex;gap:.4rem;align-items:center;margin-top:.5rem;font-weight:700');
+      chk=document.createElement('input'); chk.type='checkbox';
+      chk.onchange=function(){hid.value=chk.checked?'1':'';};
+      lab.appendChild(chk); lab.appendChild(document.createTextNode('ده شخص مختلف، أضيفه برضه'));
+      box.appendChild(lab);
+    }
+    box.style.display='block';
+  }
+  function run(){
+    var my=++seq;
+    var q='phone='+encodeURIComponent(ph.value)+'&email='+encodeURIComponent(em?em.value:'')+'&name='+encodeURIComponent(nm?nm.value:'');
+    fetch("{{ url_for('leads.dup_check') }}?"+q,{credentials:'same-origin'}).then(function(r){return r.json();})
+      .then(function(d){ if(my===seq){draw(d.matches||[]);} }).catch(function(){});
+  }
+  function sched(){clearTimeout(timer); timer=setTimeout(run,450);}
+  [ph,em,nm].forEach(function(i){ if(i){i.addEventListener('input',sched);} });
+  ph.form.addEventListener('submit',function(e){
+    if(strong&&!(chk&&chk.checked)){e.preventDefault(); box.scrollIntoView({block:'center'});}
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}

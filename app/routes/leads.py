@@ -701,6 +701,13 @@ def new():
             assigned_id = int(request.form.get("assigned_to_id"))
             if assigned_id not in _company_user_ids():
                 raise CRMError("المسؤول يجب أن يكون من فريق هذه الشركة")
+            # MARSOUD-CRM-P23 — server-side backstop: same phone/email already exists
+            if not request.form.get("dup_ok"):
+                _dups = [d for d in _p23_find(g.active_company.id, request.form.get("phone"),
+                                              request.form.get("email"), None) if d["strong"]]
+                if _dups:
+                    raise CRMError("موجود بالفعل: " + "، ".join(d["name"] for d in _dups[:3])
+                                   + " — لو شخص مختلف علّمي \"أنا متأكدة\" وجرّبي تاني")
             # PER-CO-NUMBERING (Abdelhamid 2026-07-04) — assign a
             # per-company display number ("L-0001") so a fresh company
             # sees "عميل محتمل #L-0001" not #92 leaked from the global
@@ -1271,6 +1278,64 @@ def set_followup(lead_id):
     db.session.commit()
     flash("تم تحديد المتابعة يوم " + d.strftime("%Y-%m-%d") + " الساعة 10:00", "success")
     return back()
+
+
+# MARSOUD-CRM-P23 — duplicate detection when creating a lead (same phone / email / name).
+def _p23_match(cands, phone, email, name):
+    """Pure. cands: dicts with id,name,phone,email. -> list of (cand, reasons, strong)."""
+    ph = _p21_digits(phone)[-9:] if len(_p21_digits(phone)) >= 7 else ""
+    em = (email or "").strip().lower()
+    nm = (name or "").strip().casefold()
+    out = []
+    for c in cands:
+        why = []
+        cph = _p21_digits(c.get("phone"))
+        if ph and len(cph) >= 7 and cph[-9:] == ph:
+            why.append("نفس رقم التليفون")
+        if em and (c.get("email") or "").strip().lower() == em:
+            why.append("نفس الإيميل")
+        strong = bool(why)
+        if nm and (c.get("name") or "").strip().casefold() == nm:
+            why.append("نفس الاسم")
+        if why:
+            out.append((c, why, strong))
+    out.sort(key=lambda t: (not t[2]))
+    return out
+
+
+def _p23_find(cid, phone, email, name, limit=6):
+    from app.models.partner import Customer
+    cands = [{"kind": "lead", "id": r.id, "name": r.client_name, "phone": r.phone, "email": r.email}
+             for r in db.session.query(Lead.id, Lead.client_name, Lead.phone, Lead.email)
+             .filter(Lead.company_id == cid, Lead.deleted_at.is_(None)).all()]
+    cands += [{"kind": "customer", "id": r.id, "name": r.name, "phone": r.phone, "email": r.email}
+              for r in db.session.query(Customer.id, Customer.name, Customer.phone, Customer.email)
+              .filter(Customer.company_id == cid).all()]
+    res = []
+    all_view = _can_view_all_leads()
+    for c, why, strong in _p23_match(cands, phone, email, name)[:limit]:
+        item = {"kind": c["kind"], "name": c["name"], "phone": c["phone"] or "",
+                "reason": " + ".join(why), "strong": strong, "url": None, "sub": ""}
+        if c["kind"] == "lead":
+            l = db.session.get(Lead, c["id"])
+            owner = l.assigned_to.full_name if (l is not None and l.assigned_to) else ""
+            item["sub"] = "عميل محتمل · " + l.status.label_ar + ((" · المندوب: " + owner) if owner else "")
+            if all_view or l.assigned_to_id == current_user.id or l.created_by_id == current_user.id:
+                item["url"] = url_for("leads.detail", lead_id=l.id)
+        else:
+            item["sub"] = "عميل في مرصود"
+        res.append(item)
+    return res
+
+
+@bp.route("/dup-check")
+@login_required
+@require_permission("leads.manage")
+def dup_check():
+    from flask import jsonify
+    m = _p23_find(g.active_company.id, request.args.get("phone"), request.args.get("email"),
+                  request.args.get("name"))
+    return jsonify({"matches": m})
 
 
 # MARSOUD-CRM-P11 — data for the "next step" bar on the lead page.
