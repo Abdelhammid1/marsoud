@@ -2624,6 +2624,15 @@ def _export_stock_movements_pdf_legacy(company, rows, start, end):
 
 
 # ─── MARSOUD: Excel export of all Leads ─────────────────────────────────
+def _lead_crm_extra(L):
+    """CRM fields added in the 2026-11 CRM upgrade (systems / industry / idea
+    stage / unqualified reasons) as export-ready strings."""
+    def _j(items):
+        return "، ".join(items) if items else ""
+    return (_j(L.systems_list), L.industry or "", L.idea_stage or "",
+            _j(L.unqualified_reasons_list))
+
+
 def export_leads_excel(company, leads):
     """Export every field of every lead to a single Excel sheet.
 
@@ -2647,6 +2656,8 @@ def export_leads_excel(company, leads):
         "القيمة المتوقعة", "تاريخ الإنشاء", "اجتماع قادم",
         "ملاحظات اجتماع", "وصف الطلب", "المطلوب من السيلز",
         "ملاحظات عامة", "حالة التحويل", "سبب الخسارة",
+        "الحملة", "السيستم المطلوب", "مجال العميل", "حالة الفكرة",
+        "أسباب غير مؤهل",
     ]
     row = 5
     for col, h in enumerate(headers, 1):
@@ -2657,7 +2668,8 @@ def export_leads_excel(company, leads):
 
     # Column widths (tuned for Arabic content)
     widths = [4, 22, 18, 26, 26, 12, 14, 14, 18, 18,
-              14, 18, 18, 30, 30, 30, 28, 14, 22]
+              14, 18, 18, 30, 30, 30, 28, 14, 22,
+              20, 34, 20, 16, 34]
     for i, w in enumerate(widths, 1):
         ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = w
 
@@ -2686,6 +2698,7 @@ def export_leads_excel(company, leads):
             L.meeting_notes or "", L.request_description or "",
             L.sales_action_required or "", L.notes or "",
             converted, L.lost_reason or "",
+            (L.campaign.name if L.campaign else ""), *_lead_crm_extra(L),
         ]
         for col, val in enumerate(values, 1):
             cell = ws.cell(row=row, column=col, value=val)
@@ -2774,6 +2787,7 @@ def export_leads_by_campaign_excel(company, leads):
         "#", "الاسم", "الهاتف", "البريد", "الخدمة",
         "الحالة", "المسؤول", "القيمة المتوقعة",
         "تاريخ الإنشاء", "اجتماع قادم",
+        "السيستم المطلوب", "مجال العميل", "حالة الفكرة", "أسباب غير مؤهل",
     ]
     for camp_name in sorted(buckets.keys()):
         # Sort inside a campaign by status then created_at desc.
@@ -2800,7 +2814,7 @@ def export_leads_by_campaign_excel(company, leads):
             c.font = Font(bold=True, color="FFFFFF")
             c.fill = PatternFill("solid", fgColor=brand_hex(company))
             c.alignment = Alignment(horizontal="center", wrap_text=True)
-        widths = [4, 22, 18, 26, 22, 14, 18, 14, 18, 18]
+        widths = [4, 22, 18, 26, 22, 14, 18, 14, 18, 18, 34, 20, 16, 34]
         for i, w in enumerate(widths, 1):
             ws.column_dimensions[
                 ws.cell(row=1, column=i).column_letter].width = w
@@ -2818,7 +2832,7 @@ def export_leads_by_campaign_excel(company, leads):
             vals = [
                 i, L.client_name or "", L.phone or "", L.email or "",
                 L.service_needed or "", status_lbl, rep, expected,
-                created_str, meeting_str,
+                created_str, meeting_str, *_lead_crm_extra(L),
             ]
             for col, v in enumerate(vals, 1):
                 cell = ws.cell(row=r, column=col, value=v)
