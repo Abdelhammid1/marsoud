@@ -178,7 +178,7 @@
 {% if can_see_all and scope and scope != 'mine' %}<input type="hidden" name="scope" value="{{ scope }}">{% endif %}
 {% if drill_user %}<input type="hidden" name="user_id" value="{{ drill_user.id }}">{% endif %}
 {% if due %}<input type="hidden" name="due" value="{{ due }}">{% endif %}
-{% if view_mode == 'list' %}<input type="hidden" name="view" value="list">{% endif %}
+{% if view_mode != 'board' %}<input type="hidden" name="view" value="{{ view_mode }}">{% endif %}
   <div class="flex flex-wrap items-center gap-2">
     <input type="search" name="q" value="{{ q_search }}" placeholder="ابحث في عنوان المهمة" class="input text-sm" style="flex:1 1 180px;min-width:150px" aria-label="بحث">
     <select name="project_id" class="select text-sm" style="flex:0 1 190px;min-width:120px" aria-label="المشروع">
@@ -250,7 +250,7 @@
                        sort=sort or None,
                        created_range=arg or None,
                          q=q_search or None, due=due or None,
-                         view='list' if view_mode == 'list' else None) }}">{{ label }}</a>
+                         view=view_mode if view_mode != 'board' else None) }}">{{ label }}</a>
 {%- endmacro %}
 <div class="flex flex-wrap gap-2 mb-3 items-center">
   {# MARSOUD-TASKS-P34 #}
@@ -267,7 +267,7 @@
                          created_range=created_range or None,
                          q=q_search or None,
                          due=None if on else arg,
-                         view='list' if view_mode == 'list' else None) }}">{{ label }} <b>{{ n }}</b></a>
+                         view=view_mode if view_mode != 'board' else None) }}">{{ label }} <b>{{ n }}</b></a>
   {%- endmacro %}
   {# MARSOUD-TASKS-P39 - board / list switch #}
   {% macro view_pill(label, v) -%}
@@ -284,13 +284,13 @@
                          due=due or None,
                          view=v) }}">{{ label }}</a>
   {%- endmacro %}
-  <span class="tk-segs">{{ view_pill('بورد', 'board') }}{{ view_pill('قائمة', 'list') }}</span>
+  <span class="tk-segs">{{ view_pill('بورد', 'board') }}{{ view_pill('قائمة', 'list') }}{{ view_pill('تقويم', 'calendar') }}</span>
   <script>
   (function(){
     try{
       var url=new URL(window.location.href), v=url.searchParams.get('view');
       if(v){localStorage.setItem('marsoud:tasks:view',v);}
-      else if(localStorage.getItem('marsoud:tasks:view')==='list'){url.searchParams.set('view','list'); window.location.replace(url.toString());}
+      else{var sv=localStorage.getItem('marsoud:tasks:view'); if(sv==='list'||sv==='calendar'){url.searchParams.set('view',sv); window.location.replace(url.toString());}}
     }catch(_){}
   })();
   </script>
@@ -321,7 +321,7 @@
    content area (viewport minus the 0.75rem row padding on each side),
    scroll-snap docks EXACTLY one column at a time. Tablet+ (≥sm)
    goes back to a 320px cap so 2 columns fit; lg+ is the desktop grid. #}
-{% if view_mode != 'list' %}
+{% if view_mode == 'board' %}
 {# MARSOUD-TASKS-P33 - drag & drop (mouse) + long-press drag (touch) between status columns #}
 <style>
 .tk-card[data-url]{cursor:grab;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
@@ -769,6 +769,104 @@ window.TK_Q={url:{{ url_for('tasks.quick_add')|tojson }},project:{{ (project_fil
     .catch(function(err){s.value=prev; toast(err.message||'تعذر الحفظ',true);})
     .then(function(){s.disabled=false;});
   });
+})();
+</script>
+{% endif %}
+{% if view_mode == 'calendar' %}
+{# MARSOUD-TASKS-P44 - month calendar of task deadlines #}
+<style>
+.tkc-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.tkc-title{font-weight:700;font-size:15px;color:#0f172a;min-width:110px}
+.tkc-btn{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:3px 12px;font-size:12px;color:#334155;cursor:pointer}
+.tkc-btn:hover{border-color:#10b981;color:#047857}
+.tkc-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.tkc-dow div{text-align:center;font-size:11px;color:#64748b;padding:4px 0}
+.tkc-cell{min-height:96px;border:1px solid #e2e8f0;border-radius:8px;padding:4px;background:#fff;cursor:pointer;overflow:hidden}
+.tkc-cell.out{background:#f8fafc;opacity:.55}
+.tkc-cell.today{border-color:#10b981;box-shadow:inset 0 0 0 1px #10b981}
+.tkc-cell.sel{background:#ecfdf5}
+.tkc-num{font-size:11px;color:#475569;font-weight:700}
+.tkc-chip{display:block;font-size:11px;line-height:1.35;padding:2px 5px;margin-top:3px;border-radius:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none;background:#e2e8f0;color:#1e293b}
+.tkc-chip.s-IN_PROGRESS{background:#dbeafe;color:#1e40af}
+.tkc-chip.s-REVIEW{background:#fef3c7;color:#92400e}
+.tkc-chip.s-BLOCKED{background:#f3e8ff;color:#6b21a8}
+.tkc-chip.s-DONE{background:#d1fae5;color:#065f46;opacity:.75;text-decoration:line-through}
+.tkc-chip.late{background:#fee2e2;color:#991b1b}
+.tkc-more{font-size:10px;color:#059669;background:none;border:0;padding:0;margin-top:2px;cursor:pointer}
+.tkc-n{display:none}
+.tkc-day{margin-top:12px;border-top:1px solid #e2e8f0;padding-top:10px}
+.tkc-day h4{font-size:13px;font-weight:700;margin-bottom:6px;color:#0f172a}
+.tkc-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:#f8fafc;margin-bottom:4px;font-size:13px}
+.tkc-row a{font-weight:600;color:#0f172a;flex:1;min-width:0}
+.tkc-row small{color:#64748b;white-space:nowrap}
+.tkc-row.late{background:#fff1f2}
+@media (max-width:639px){
+  .tkc-cell{min-height:56px;padding:3px}
+  .tkc-chip,.tkc-more{display:none}
+  .tkc-n{display:inline-block;margin-top:4px;font-size:10px;background:#059669;color:#fff;border-radius:99px;padding:0 7px}
+}
+</style>
+<div class="card" id="tkc" style="padding:12px">
+  <div class="tkc-head">
+    <button type="button" class="tkc-btn" id="tkc-prev">السابق</button>
+    <button type="button" class="tkc-btn" id="tkc-next">التالي</button>
+    <button type="button" class="tkc-btn" id="tkc-today">اليوم</button>
+    <b class="tkc-title" id="tkc-title"></b>
+    <span class="text-xs text-slate-500" id="tkc-nodate">{% set _nd = flat_tasks|rejectattr('deadline')|list|length %}{% if _nd %}{{ _nd }} مهمة بدون موعد (غير ظاهرة في التقويم){% endif %}</span>
+  </div>
+  <div class="tkc-grid tkc-dow" id="tkc-dow"></div>
+  <div class="tkc-grid" id="tkc-cells"></div>
+  <div class="tkc-day" id="tkc-day" hidden></div>
+</div>
+<script>
+(function(){
+  var T=[{% for t in flat_tasks %}{% if t.deadline %}{id:{{ t.id }},t:{{ t.title|tojson }},d:"{{ t.deadline.isoformat() }}",s:"{{ t.status.name }}",sl:{{ t.status.label_ar|tojson }},p:{{ t.priority.label_ar|tojson }},o:{{ 'true' if t.is_overdue else 'false' }},u:{{ url_for('tasks.detail', task_id=t.id, return_to=request.full_path)|tojson }}},{% endif %}{% endfor %}];
+  var MON=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+  var DOW=['السبت','الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة'];
+  var by={}; T.forEach(function(t){(by[t.d]=by[t.d]||[]).push(t);});
+  function pad(n){return (n<10?'0':'')+n;}
+  function key(y,m,d){return y+'-'+pad(m+1)+'-'+pad(d);}
+  var now=new Date(), Y=now.getFullYear(), M=now.getMonth(), sel=null;
+  var todayKey=key(now.getFullYear(),now.getMonth(),now.getDate());
+  var title=document.getElementById('tkc-title'), cells=document.getElementById('tkc-cells'),
+      panel=document.getElementById('tkc-day'), dow=document.getElementById('tkc-dow');
+  DOW.forEach(function(n){var d=document.createElement('div'); d.textContent=n; dow.appendChild(d);});
+  function el(tag,cls,txt){var e=document.createElement(tag); if(cls){e.className=cls;} if(txt!==undefined){e.textContent=txt;} return e;}
+  function render(){
+    title.textContent=MON[M]+' '+Y;
+    cells.textContent='';
+    var lead=(new Date(Y,M,1).getDay()+1)%7, dim=new Date(Y,M+1,0).getDate();
+    var total=Math.ceil((lead+dim)/7)*7;
+    for(var i=0;i<total;i++){
+      var dt=new Date(Y,M,1-lead+i), k=key(dt.getFullYear(),dt.getMonth(),dt.getDate()), items=by[k]||[];
+      var c=el('div','tkc-cell'+(dt.getMonth()!==M?' out':'')+(k===todayKey?' today':'')+(k===sel?' sel':'')); c.setAttribute('data-k',k);
+      c.appendChild(el('span','tkc-num',String(dt.getDate())));
+      items.slice(0,3).forEach(function(t){
+        var a=el('a','tkc-chip s-'+t.s+((t.o&&t.s!=='DONE')?' late':''),t.t); a.href=t.u; a.title=t.t+' - '+t.sl; c.appendChild(a);
+      });
+      if(items.length>3){var m=el('button','tkc-more','+'+(items.length-3)+' أخرى'); m.type='button'; c.appendChild(m);}
+      if(items.length){c.appendChild(document.createElement('br')); c.appendChild(el('span','tkc-n',String(items.length)));}
+      cells.appendChild(c);
+    }
+  }
+  function showDay(k){
+    sel=k; render(); panel.textContent=''; panel.hidden=false;
+    var items=by[k]||[], p=k.split('-');
+    panel.appendChild(el('h4','','مهام يوم '+parseInt(p[2],10)+' '+MON[parseInt(p[1],10)-1]+' '+p[0]+' ('+items.length+')'));
+    if(!items.length){panel.appendChild(el('div','text-xs text-slate-500','لا توجد مهام في هذا اليوم'));return;}
+    items.forEach(function(t){
+      var r=el('div','tkc-row'+((t.o&&t.s!=='DONE')?' late':'')); var a=el('a','',t.t); a.href=t.u; r.appendChild(a);
+      r.appendChild(el('small','',t.sl+' · '+t.p)); panel.appendChild(r);
+    });
+  }
+  cells.addEventListener('click',function(e){
+    if(e.target.closest&&e.target.closest('a')){return;}
+    var c=e.target.closest&&e.target.closest('.tkc-cell'); if(c){showDay(c.getAttribute('data-k'));}
+  });
+  document.getElementById('tkc-prev').addEventListener('click',function(){M--; if(M<0){M=11;Y--;} render();});
+  document.getElementById('tkc-next').addEventListener('click',function(){M++; if(M>11){M=0;Y++;} render();});
+  document.getElementById('tkc-today').addEventListener('click',function(){Y=now.getFullYear(); M=now.getMonth(); showDay(todayKey);});
+  render();
 })();
 </script>
 {% endif %}

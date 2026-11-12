@@ -596,7 +596,8 @@ def index():
         date_to=date_to_raw,
         q_search=search_q, due=due_arg, p34_over=p34_over, p34_soon=p34_soon,
         # MARSOUD-TASKS-P39 - board (default) or flat list
-        view_mode=("list" if (request.args.get("view") or "").lower() == "list" else "board"),
+        # MARSOUD-TASKS-P44 - board | list | calendar
+        view_mode=(lambda _v: _v if _v in ("list", "calendar") else "board")((request.args.get("view") or "").lower()),
         flat_tasks=tasks,
         p40=_p40_counts(tasks),
     )
