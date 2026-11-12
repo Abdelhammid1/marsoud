@@ -55,6 +55,75 @@
   </a>
 </div>
 
+{# MARSOUD-CRM-P37 - manager view #}
+{% if p37 %}
+<div class="mb-4">
+  <h3 class="font-bold text-navy-900 mb-2">تحتاج تدخل</h3>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+    {% for key, title in [('overdue', 'متابعات متأخرة'), ('hot_idle', 'عملاء ساخنين من غير متابعة مجدولة'), ('fresh', 'عملاء جدد لم يتم التواصل معهم'), ('unassigned', 'عملاء بدون مسؤول')] %}
+    {% set grp = p37.att[key] %}
+    <div class="card p-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-sm font-semibold text-navy-900">{{ title }}</div>
+        <span class="font-mono text-sm {% if grp.total %}text-rose-600{% else %}text-slate-500{% endif %}">{{ grp.total }}</span>
+      </div>
+      {% for it in grp['items'] %}
+      <a href="{{ url_for('leads.detail', lead_id=it.lead.id) }}" class="flex items-center justify-between gap-2 text-sm py-1 border-b border-slate-100 hover:bg-slate-50">
+        <span class="truncate">{{ it.lead.client_name }}</span>
+        <span class="text-xs text-slate-500 whitespace-nowrap">{{ it.rep }} · {{ it.reason }}</span>
+      </a>
+      {% else %}
+      <div class="text-xs text-slate-500 py-2">تمام، مفيش حاجة هنا.</div>
+      {% endfor %}
+      {% if grp.total > grp['items']|length %}
+      <div class="text-[11px] text-slate-500 pt-2">+ {{ grp.total - grp['items']|length }} كمان</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card p-6 mb-4">
+  <h3 class="font-bold text-navy-900 mb-3">أداء المندوبين</h3>
+  {% if p37.reps %}
+  <div style="overflow-x:auto">
+  <table class="data-table text-xs">
+    <thead>
+      <tr>
+        <th>المسؤول</th>
+        <th class="text-center">مفتوحة</th>
+        <th class="text-center">ساخنة</th>
+        <th class="text-center">متابعات متأخرة</th>
+        <th class="text-center">لم يتم التواصل</th>
+        <th class="text-center">فوز</th>
+        <th class="text-center">خسارة</th>
+        <th class="text-center">تحويل</th>
+        <th class="text-left">قيمة متوقعة</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in p37.reps %}
+      <tr>
+        <td class="font-semibold">{% if r.id %}<a href="{{ url_for('leads.index', rep=r.id) }}" class="hover:underline">{{ r.name }}</a>{% else %}{{ r.name }}{% endif %}</td>
+        <td class="text-center font-mono">{{ r.open }}</td>
+        <td class="text-center font-mono {% if r.hot %}text-rose-600{% endif %}">{{ r.hot }}</td>
+        <td class="text-center font-mono {% if r.overdue %}text-rose-600 font-semibold{% endif %}">{{ r.overdue }}</td>
+        <td class="text-center font-mono {% if r.fresh %}text-amber-700{% endif %}">{{ r.fresh }}</td>
+        <td class="text-center font-mono text-emerald-700">{{ r.won }}</td>
+        <td class="text-center font-mono">{{ r.lost }}</td>
+        <td class="text-center font-mono">{% if r.conv is not none %}{{ "%.0f"|format(r.conv) }}%{% else %}—{% endif %}</td>
+        <td class="text-left font-mono">{{ "{:,.0f}".format(r.value) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <div class="text-center text-slate-500 py-6 text-sm">لا توجد بيانات بعد.</div>
+  {% endif %}
+</div>
+{% endif %}
+
 {# ─── Stage funnel ─── #}
 <div class="card p-6 mb-4">
   <h3 class="font-bold text-navy-900 mb-3">📊 التوزيع على المراحل</h3>

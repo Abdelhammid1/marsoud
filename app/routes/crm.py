@@ -402,6 +402,88 @@ def contact_delete(contact_id):
 
 
 # ─── Analytics (§5d) ────────────────────────────────────────────────────
+# MARSOUD-CRM-P37 - manager view: per-rep numbers + leads that need attention.
+# Reuses the helpers of the leads blueprint (follow-up buckets + lead temperature).
+def _p37_team():
+    from datetime import datetime as _dt
+    from app.models import LeadActivity
+    from app.routes import leads as _L
+    if not _L._can_view_all_leads():
+        return None
+    cid = g.active_company.id
+    all_leads = (Lead.query.filter_by(company_id=cid)
+                 .filter(Lead.deleted_at.is_(None)).all())
+    openl = [l for l in all_leads
+             if l.status.name not in _L._P22_CLOSED and not l.is_converted]
+    acts = {}
+    ids = [l.id for l in openl]
+    for i in range(0, len(ids), 400):
+        rows = (LeadActivity.query
+                .filter(LeadActivity.company_id == cid,
+                        LeadActivity.lead_id.in_(ids[i:i + 400]))
+                .order_by(LeadActivity.activity_date.desc(),
+                          LeadActivity.id.desc()).all())
+        for a in rows:
+            acts.setdefault(a.lead_id, []).append(a)
+    off = _L._p22_offset(g.active_company)
+    now = _dt.utcnow()
+    temps = _L._p24_temps(openl, acts)
+    reps = {}
+
+    def _rep(l):
+        rid = l.assigned_to_id or 0
+        if rid not in reps:
+            reps[rid] = {
+                "id": rid,
+                "name": l.assigned_to.full_name if l.assigned_to else "بدون مسؤول",
+                "open": 0, "hot": 0, "overdue": 0, "fresh": 0,
+                "won": 0, "lost": 0, "value": 0.0,
+            }
+        return reps[rid]
+
+    att = {"overdue": [], "hot_idle": [], "fresh": [], "unassigned": []}
+    for l in openl:
+        r = _rep(l)
+        al = acts.get(l.id, [])
+        last = al[0].activity_date if al else None
+        fu = next((a.follow_up_date for a in al if a.follow_up_date), None)
+        b = _L._p22_bucket(l, last, fu, now, off)
+        t = temps.get(l.id)
+        r["open"] += 1
+        r["value"] += float(l.expected_value or 0)
+        item = {"lead": l, "rep": r["name"], "days": 0, "reason": "",
+                "value": float(l.expected_value or 0)}
+        if b and b[0] == "overdue":
+            r["overdue"] += 1
+            att["overdue"].append(dict(item, reason=b[1], days=b[2]))
+        if b and b[0] == "fresh" and b[2] >= 1:
+            r["fresh"] += 1
+            att["fresh"].append(dict(item, reason="جديد من %d يوم ولم يتم التواصل" % b[2], days=b[2]))
+        if t and t["t"] == "hot":
+            r["hot"] += 1
+            if fu is None:
+                att["hot_idle"].append(dict(item, reason="ساخن ومفيش متابعة مجدولة"))
+        if not l.assigned_to_id:
+            att["unassigned"].append(dict(item, reason="مفيش مسؤول"))
+    for l in all_leads:
+        if l.status == LeadStatus.WON:
+            _rep(l)["won"] += 1
+        elif l.status == LeadStatus.LOST:
+            _rep(l)["lost"] += 1
+    rows = sorted(reps.values(), key=lambda x: (-x["open"], -x["won"], x["name"]))
+    for r in rows:
+        closed = r["won"] + r["lost"]
+        r["conv"] = (r["won"] / closed * 100) if closed else None
+    att["overdue"].sort(key=lambda x: -x["days"])
+    att["fresh"].sort(key=lambda x: -x["days"])
+    att["hot_idle"].sort(key=lambda x: -x["value"])
+    att["unassigned"].sort(key=lambda x: -x["value"])
+    return {
+        "reps": rows,
+        "att": {k: {"total": len(v), "items": v[:8]} for k, v in att.items()},
+    }
+
+
 @bp.route("/analytics/")
 @login_required
 @require_permission("leads.view")
@@ -474,6 +556,7 @@ def analytics():
         campaign_stats=campaign_stats,
         avg_close_days=avg_close_days,
         statuses=LeadStatus,
+        p37=_p37_team(),
     )
 
 
