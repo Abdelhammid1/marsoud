@@ -300,6 +300,13 @@
 .tk-card:not([data-st="DONE"]) .tk-arch{display:none}
 .tk-col.tk-over{outline:2px dashed #10b981;outline-offset:-2px;background:#ecfdf5!important}
 .tk-colbody{min-height:70px}
+/* MARSOUD-TASKS-P35 - calmer cards */
+.tk-meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tk-move{margin-top:4px}
+.tk-move summary{cursor:pointer;font-size:11px;color:#64748b;list-style:none}
+.tk-move summary::-webkit-details-marker{display:none}
+.tk-move[open] summary{color:#059669}
+@media (hover:hover){.tk-move summary{opacity:0;transition:opacity .15s}.tk-card:hover .tk-move summary,.tk-move[open] summary{opacity:1}}
 .tk-toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:80;background:#1e293b;color:#fff;font-size:13px;padding:9px 16px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.2);max-width:90vw}
 .tk-toast.err{background:#b91c1c}
 body.tk-touching{overscroll-behavior:contain}
@@ -515,7 +522,6 @@ body.tk-touching{overscroll-behavior:contain}
         {# MARSOUD-TASK-CONTEXT — carry the origin URL through the
            detail page so Edit / Delete land back on the same list. #}
         <a href="{{ url_for('tasks.detail', task_id=t.id, return_to=request.full_path) }}" class="text-sm font-semibold text-navy-900 hover:text-brand-600 block">{{ t.title }}</a>
-        <div class="text-xs text-slate-500 mt-1">{% if t.project %}{{ t.project.name }}{% else %}<em class="text-slate-500">مهمة مستقلة</em>{% endif %}</div>
         <div class="mt-2 flex items-center justify-between text-xs flex-wrap gap-1">
           <span class="badge {{ t.priority.badge_class }} text-[10px]">{{ t.priority.label_ar }}</span>
           {% if t.deadline %}
@@ -528,31 +534,25 @@ body.tk-touching{overscroll-behavior:contain}
             {% endif %}
           {% endif %}
         </div>
-        <div class="mt-1 text-xs text-slate-500">
-          {% set names = t.all_assignees %}
-          {% if names|length > 1 %}{{ names[0].full_name }} +{{ names|length - 1 }}
-          {% elif names %}{{ names[0].full_name }}
-          {% else %}—{% endif %}
-        </div>
-        {% if t.created_by %}
-        <div class="mt-0.5 text-[10px] text-slate-500">أنشأها: {{ t.created_by.full_name }}</div>
-        {% endif %}
-        {# MARSOUD-TASK-CREATED-AT — friendly relative-date line. #}
-        <div class="mt-0.5 text-[10px] text-slate-500" title="{{ t.created_at | company_dt('%Y-%m-%d %H:%M') }}">
-          📅 {{ t.created_at | relative_date }}
-        </div>
+        {# MARSOUD-TASKS-P35 - one meta line: assignee · project #}
+        {% set names = t.all_assignees %}
+        {% set _who = (names[0].full_name ~ (" +" ~ (names|length - 1) if names|length > 1 else "")) if names else "—" %}
+        {% set _proj = t.project.name if t.project else "مهمة مستقلة" %}
+        <div class="tk-meta mt-1 text-xs text-slate-500" title="{{ _who }} · {{ _proj }}">{{ _who }} · {{ _proj }}</div>
+        <div class="mt-1 text-[10px] text-slate-500" title="{{ t.created_at | company_dt('%Y-%m-%d %H:%M') }}">{% if t.created_by %}أنشأها {{ t.created_by.full_name }} · {% endif %}{{ t.created_at | relative_date }}</div>
         {% if has_permission('tasks.manage') %}
         {# MARSOUD-TASK-CONTEXT — send the full current URL as return_to
            so the status flip lands the user back on the same drill-down
            (employee, project, scope). The legacy `return_to=kanban`
            sentinel is still honoured by the route as "go to /tasks/". #}
-        <form method="POST" action="{{ url_for('tasks.status', task_id=t.id) }}" class="mt-2 flex gap-1">
+        <details class="tk-move"><summary>نقل لحالة تانية</summary>
+        <form method="POST" action="{{ url_for('tasks.status', task_id=t.id) }}" class="mt-1 flex gap-1">
           <input type="hidden" name="return_to" value="{{ request.full_path }}">
           <select name="new_status" class="select text-xs py-1">
             {% for st in kanban %}<option value="{{ st.name }}"{% if st == t.status %} hidden disabled{% endif %}>→ {{ st.label_ar }}</option>{% endfor %}
           </select>
           <button type="submit" class="text-xs text-brand-600 hover:underline">حفظ</button>
-        </form>
+        </form></details>
         {% endif %}
         {# MARSOUD-TASK-ARCHIVE-01 — per-task archive on DONE column. #}
         {% if has_permission('tasks.archive') %}
