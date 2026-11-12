@@ -103,6 +103,52 @@ def _company_projects():
     return Project.query.filter_by(company_id=cid).order_by(Project.name).all()
 
 
+# MARSOUD-TASKS-P40 - per-card counters (comments / subtasks / attachments)
+def _p40_counts(tasks):
+    """{task_id: {"c": comments, "s": subtasks, "sd": done subtasks, "a": attachments}}.
+    Three grouped queries for the whole page. Never raises: on any error the
+    page simply renders without counters."""
+    out = {}
+    try:
+        ids = [t.id for t in tasks if getattr(t, "id", None)]
+        if not ids:
+            return out
+        from sqlalchemy import text, bindparam
+        ses = Task.query.session
+
+        def run(sql, chunk):
+            q = text(sql).bindparams(bindparam("ids", expanding=True))
+            return ses.execute(q, {"ids": chunk}).fetchall()
+
+        def slot(tid):
+            return out.setdefault(int(tid), {"c": 0, "s": 0, "sd": 0, "a": 0})
+
+        for i in range(0, len(ids), 400):
+            ch = ids[i:i + 400]
+            for tid, n, na in run(
+                    "select task_id, count(*), sum(case when attachment_url is not null "
+                    "and attachment_url != '' then 1 else 0 end) "
+                    "from task_comments where task_id in :ids group by task_id", ch):
+                d = slot(tid); d["c"] = int(n or 0); d["a"] += int(na or 0)
+            for pid, n, nd in run(
+                    "select parent_task_id, count(*), sum(case when status = 'DONE' "
+                    "then 1 else 0 end) from tasks where parent_task_id in :ids "
+                    "and archived_at is null group by parent_task_id", ch):
+                d = slot(pid); d["s"] = int(n or 0); d["sd"] = int(nd or 0)
+            for sid, n in run(
+                    "select source_id, count(*) from documents "
+                    "where lower(source_type) = 'task' and source_id in :ids "
+                    "group by source_id", ch):
+                d = slot(sid); d["a"] += int(n or 0)
+    except Exception:
+        try:
+            Task.query.session.rollback()
+        except Exception:
+            pass
+        return {}
+    return out
+
+
 def _task_or_403(task_id):
     t = db.session.get(Task, task_id)
     if not t or t.company_id != g.active_company.id:
@@ -543,6 +589,7 @@ def index():
         # MARSOUD-TASKS-P39 - board (default) or flat list
         view_mode=("list" if (request.args.get("view") or "").lower() == "list" else "board"),
         flat_tasks=tasks,
+        p40=_p40_counts(tasks),
     )
 
 

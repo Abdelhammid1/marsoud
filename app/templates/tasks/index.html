@@ -339,6 +339,9 @@
 .tk-list tr.tk-done{opacity:.6}
 /* MARSOUD-TASKS-P35 - calmer cards */
 .tk-meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* MARSOUD-TASKS-P40 */
+.tk-badges{display:flex;flex-wrap:wrap;gap:.2rem .7rem;margin-top:.25rem;font-size:10px;color:#64748b}
+.tk-badges .ok{color:#059669}
 .tk-move{margin-top:4px}
 .tk-move summary{cursor:pointer;font-size:11px;color:#64748b;list-style:none}
 .tk-move summary::-webkit-details-marker{display:none}
@@ -640,7 +643,14 @@ window.TK_Q={url:{{ url_for('tasks.quick_add')|tojson }},project:{{ (project_fil
         {% set _who = (names[0].full_name ~ (" +" ~ (names|length - 1) if names|length > 1 else "")) if names else "—" %}
         {% set _proj = t.project.name if t.project else "مهمة مستقلة" %}
         <div class="tk-meta mt-1 text-xs text-slate-500" title="{{ _who }} · {{ _proj }}">{{ _who }} · {{ _proj }}</div>
-        <div class="mt-1 text-[10px] text-slate-500" title="{{ t.created_at | company_dt('%Y-%m-%d %H:%M') }}">{% if t.created_by %}أنشأها {{ t.created_by.full_name }} · {% endif %}{{ t.created_at | relative_date }}</div>
+        {# MARSOUD-TASKS-P40 - counters, shown only when non-zero #}
+          {% set _c = p40.get(t.id) if p40 else None %}
+          {% if _c and (_c.c or _c.s or _c.a) %}<div class="tk-badges">
+            {% if _c.c %}<span>تعليقات {{ _c.c }}</span>{% endif %}
+            {% if _c.s %}<span{% if _c.sd == _c.s %} class="ok"{% endif %}>مهام فرعية {{ _c.sd }}/{{ _c.s }}</span>{% endif %}
+            {% if _c.a %}<span>مرفقات {{ _c.a }}</span>{% endif %}
+          </div>{% endif %}
+          <div class="mt-1 text-[10px] text-slate-500" title="{{ t.created_at | company_dt('%Y-%m-%d %H:%M') }}">{% if t.created_by %}أنشأها {{ t.created_by.full_name }} · {% endif %}{{ t.created_at | relative_date }}</div>
         {% if has_permission('tasks.manage') %}
         {# MARSOUD-TASK-CONTEXT — send the full current URL as return_to
            so the status flip lands the user back on the same drill-down
