@@ -497,6 +497,69 @@ body.tk-touching{overscroll-behavior:contain}
   setOn(tabs[0].dataset.go);
 })();
 </script>
+{# MARSOUD-TASKS-P38 - quick add: "+" in a column header opens a one-line title form #}
+{% if has_permission('tasks.manage') %}
+<style>
+.tk-add{border:1px solid #cbd5e1;border-radius:6px;width:22px;height:22px;line-height:18px;font-size:15px;color:#059669;background:#fff;cursor:pointer}
+.tk-add:hover{background:#ecfdf5;border-color:#6ee7b7}
+.tk-quick{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+</style>
+<script>
+window.TK_Q={url:{{ url_for('tasks.quick_add')|tojson }},project:{{ (project_filter or '')|tojson }},assignee:{{ (assignee_filter or (drill_user.id|string if drill_user else ''))|tojson }}};
+(function(){
+  var CFG=window.TK_Q;
+  function toast(msg,err){
+    var t=document.createElement('div'); t.className='tk-toast'+(err?' err':''); t.textContent=msg;
+    document.body.appendChild(t); setTimeout(function(){t.remove();},3500);
+  }
+  function token(){
+    var m=document.querySelector('meta[name="csrf-token"]'); if(m){return m.content;}
+    var i=document.querySelector('input[name="csrf_token"]'); return i?i.value:'';
+  }
+  function refresh(){
+    return fetch(location.href,{credentials:'same-origin'}).then(function(r){return r.text();}).then(function(html){
+      var doc=new DOMParser().parseFromString(html,'text/html');
+      var nb=doc.querySelector('.tk-board'), ob=document.querySelector('.tk-board');
+      if(!nb||!ob){location.reload(); return;}
+      ob.innerHTML=nb.innerHTML;
+      doc.querySelectorAll('.tk-tabcount').forEach(function(n){
+        var m=document.querySelector('.tk-tabcount[data-for="'+n.dataset.for+'"]'); if(m){m.textContent=n.textContent;}
+      });
+    });
+  }
+  function send(f,status,inp){
+    var title=inp.value.trim(); if(!title){inp.focus(); return;}
+    if(f.dataset.busy){return;} f.dataset.busy='1';
+    var fd=new FormData(); fd.append('title',title); fd.append('status',status);
+    if(CFG.project){fd.append('project_id',CFG.project);}
+    if(CFG.assignee){fd.append('assignee',CFG.assignee);}
+    var h={}; var t=token(); if(t){h['X-CSRFToken']=t; fd.append('csrf_token',t);}
+    fetch(CFG.url,{method:'POST',headers:h,body:fd,credentials:'same-origin'})
+    .then(function(r){return r.json().catch(function(){return {ok:false,error:'تعذر الحفظ'};});})
+    .then(function(j){
+      if(!j.ok){throw new Error(j.error||'تعذر الحفظ');}
+      return refresh().then(function(){
+        toast(j.warn||'تمت إضافة المهمة');
+        var again=document.querySelector('.tk-col[data-status="'+status+'"] .tk-add'); if(again){again.click();}
+      });
+    })
+    .catch(function(err){delete f.dataset.busy; toast(err.message||'تعذر الحفظ',true);});
+  }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest&&e.target.closest('.tk-add'); if(!b){return;}
+    var col=b.closest('.tk-col'); if(!col){return;}
+    var open=col.querySelector('.tk-quick'); if(open){open.querySelector('input').focus(); return;}
+    var f=document.createElement('form'); f.className='tk-quick';
+    f.innerHTML='<input type="text" maxlength="200" placeholder="عنوان المهمة" class="input text-sm" style="flex:1;min-width:0"><button type="submit" class="btn-primary text-xs">إضافة</button><button type="button" class="text-xs text-slate-500">إلغاء</button>';
+    var body=col.querySelector('.tk-colbody'); body.parentNode.insertBefore(f,body);
+    var inp=f.querySelector('input'); inp.focus();
+    f.addEventListener('submit',function(ev){ev.preventDefault(); send(f,col.dataset.status,inp);});
+    f.querySelector('button[type="button"]').addEventListener('click',function(){f.remove();});
+    inp.addEventListener('keydown',function(ev){if(ev.key==='Escape'){f.remove();}});
+  });
+})();
+</script>
+{% endif %}
 <div class="mobile-kanban-hint text-center text-xs text-slate-500 mb-2 sm:hidden">
   ← اسحب يمين وشمال بين الأعمدة →
 </div>
@@ -513,7 +576,8 @@ body.tk-touching{overscroll-behavior:contain}
           <button type="submit" class="text-[10px] text-slate-500 hover:text-emerald-700 hover:underline" title="أرشفة كل المكتملة">🗂 أرشفة الكل</button>
         </form>
         {% endif %}
-        <span class="tk-count text-xs font-mono text-slate-500">{{ columns.get(s, [])|length }}</span>
+        {% if has_permission('tasks.manage') %}<button type="button" class="tk-add" title="مهمة جديدة في هذا العمود" aria-label="إضافة مهمة">+</button>{% endif %}
+          <span class="tk-count text-xs font-mono text-slate-500">{{ columns.get(s, [])|length }}</span>
       </div>
     </div>
     <div class="space-y-2 tk-colbody">

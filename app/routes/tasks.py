@@ -543,6 +543,61 @@ def index():
     )
 
 
+# MARSOUD-TASKS-P38 - quick add from the Kanban board (title only; same steps as new())
+@bp.route("/quick", methods=["POST"])
+@login_required
+@require_permission("tasks.manage")
+def quick_add():
+    cid = g.active_company.id
+    try:
+        title = " ".join((request.form.get("title") or "").split())[:200]
+        if not title:
+            raise CRMError("اكتب عنوان المهمة")
+        try:
+            st = TaskStatus[(request.form.get("status") or "TODO").upper()]
+        except KeyError:
+            raise CRMError("حالة غير صالحة")
+        project = None
+        pid = request.form.get("project_id", type=int)
+        if pid:
+            project = db.session.get(Project, pid)
+            if not project or project.company_id != cid:
+                raise CRMError("المشروع غير موجود")
+        assignee_id = request.form.get("assignee", type=int) or current_user.id
+        if assignee_id != current_user.id:
+            if assignee_id not in {u.id for u in _company_users() if u}:
+                raise CRMError("المكلَّف غير صالح")
+        t = Task(
+            company_id=cid, title=title, project_id=pid,
+            assigned_to_id=assignee_id, created_by_id=current_user.id,
+            priority=TaskPriority.MEDIUM, status=TaskStatus.TODO,
+        )
+        db.session.add(t)
+        db.session.flush()
+        set_assignees(t, [assignee_id], actor_id=current_user.id)
+        log_activity(t, "CREATED",
+                     after={"title": t.title, "ids": [assignee_id]},
+                     user_id=current_user.id)
+        if project:
+            project.recompute_progress()
+        db.session.commit()
+    except (CRMError, TaskError, ValueError, TypeError, KeyError) as e:
+        db.session.rollback()
+        return jsonify(ok=False, error=str(e)), 400
+    warn = None
+    if st != TaskStatus.TODO:
+        try:
+            log_activity(t, "STATUS_CHANGED",
+                         before={"status": TaskStatus.TODO.value},
+                         after={"status": st.value},
+                         user_id=current_user.id)
+            set_task_status(t, st.name, by_user_id=current_user.id)
+        except CRMError as e:
+            db.session.rollback()
+            warn = "اتسجلت في «للقيام» لأن: " + str(e)
+    return jsonify(ok=True, id=t.id, status=t.status.name, warn=warn)
+
+
 @bp.route("/new", methods=["GET", "POST"])
 @login_required
 @require_permission("tasks.manage")
