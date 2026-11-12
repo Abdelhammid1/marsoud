@@ -979,6 +979,9 @@ def edit(task_id):
 @require_permission("tasks.view")
 def status(task_id):
     t = _task_or_403(task_id)
+    # MARSOUD-TASKS-P33 - board drag & drop talks to this route with fetch()
+    _p33_ajax = request.headers.get("X-Requested-With") == "fetch"
+    _p33_err = None
     try:
         new_status = request.form.get("new_status")
         try:
@@ -991,9 +994,18 @@ def status(task_id):
                          after={"status": new_enum.value},
                          user_id=current_user.id)
         set_task_status(t, new_status, by_user_id=current_user.id)
-        flash(f"تم تحديث الحالة إلى: {t.status.label_ar}", "success")
+        if not _p33_ajax:
+            flash(f"تم تحديث الحالة إلى: {t.status.label_ar}", "success")
     except CRMError as e:
-        flash(str(e), "error")
+        _p33_err = str(e)
+        if not _p33_ajax:
+            flash(str(e), "error")
+    if _p33_ajax:
+        from flask import jsonify as _p33_jsonify
+        if _p33_err:
+            db.session.rollback()
+            return _p33_jsonify(ok=False, error=_p33_err), 400
+        return _p33_jsonify(ok=True, label=t.status.label_ar, status=t.status.name)
     # MARSOUD-TASK-CONTEXT — the legacy `return_to=kanban` sentinel
     # kept meaning "go back to /tasks/". _safe_next() now also
     # accepts a full URL path so the Kanban card status form can

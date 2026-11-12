@@ -17,7 +17,7 @@
        class="btn-primary text-sm">+ مهمة جديدة</a>
     {% endif %}
 {% endset %}
-{{ ui.page_header("لوحة المهام", subtitle="سحب وإفلات بصري؟ غير مفعّل بعد — استخدم أزرار الحالة على كل مهمة.", actions=_actions) }}
+{{ ui.page_header("لوحة المهام", subtitle="اسحب المهمة لعمود تاني لتغيير حالتها (على الموبايل: اضغط مطولًا ثم اسحب)، أو استخدم زرار الحالة على المهمة.", actions=_actions) }}
 
 {# MARSOUD-TASK-SCOPE-01 — 4 tabs over the Kanban board for owner/manager
    (anyone with tasks.view_all). Regular employees get no tabs and always
@@ -269,12 +269,167 @@
    content area (viewport minus the 0.75rem row padding on each side),
    scroll-snap docks EXACTLY one column at a time. Tablet+ (≥sm)
    goes back to a 320px cap so 2 columns fit; lg+ is the desktop grid. #}
+{# MARSOUD-TASKS-P33 - drag & drop (mouse) + long-press drag (touch) between status columns #}
+<style>
+.tk-card[data-url]{cursor:grab;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.tk-card.tk-drag{opacity:.35}
+.tk-card:not([data-st="DONE"]) .tk-arch{display:none}
+.tk-col.tk-over{outline:2px dashed #10b981;outline-offset:-2px;background:#ecfdf5!important}
+.tk-colbody{min-height:70px}
+.tk-toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:80;background:#1e293b;color:#fff;font-size:13px;padding:9px 16px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.2);max-width:90vw}
+.tk-toast.err{background:#b91c1c}
+body.tk-touching{overscroll-behavior:contain}
+</style>
+<script>
+(function(){
+  var card=null, fromBody=null, fromNext=null, busy=false;
+  function toast(msg,err){
+    var t=document.createElement('div'); t.className='tk-toast'+(err?' err':''); t.textContent=msg;
+    document.body.appendChild(t); setTimeout(function(){t.remove();},3500);
+  }
+  function token(){
+    var m=document.querySelector('meta[name="csrf-token"]'); if(m){return m.content;}
+    var i=document.querySelector('input[name="csrf_token"]'); return i?i.value:'';
+  }
+  function recount(col){
+    if(!col){return;}
+    var body=col.querySelector('.tk-colbody'); if(!body){return;}
+    var n=body.querySelectorAll(':scope > .tk-card').length;
+    var c=col.querySelector('.tk-count'); if(c){c.textContent=n;}
+    var ph=body.querySelector(':scope > .tk-empty');
+    if(n===0&&!ph){var d=document.createElement('div'); d.className='tk-empty text-xs text-slate-500 text-center py-4'; d.textContent='لا مهام'; body.appendChild(d);}
+    if(n>0&&ph){ph.remove();}
+  }
+  function clearOver(){document.querySelectorAll('.tk-col.tk-over').forEach(function(c){c.classList.remove('tk-over');});}
+  function doMove(col){
+    var to=col.dataset.status, body=col.querySelector('.tk-colbody');
+    var oldCol=fromBody.closest('.tk-col'), from=oldCol&&oldCol.dataset.status;
+    if(!to||to===from||!body){return;}
+    var c=card, url=c.dataset.url;
+    busy=true;
+    var ph=body.querySelector(':scope > .tk-empty'); if(ph){ph.remove();}
+    body.insertBefore(c,body.firstChild); recount(col); recount(oldCol);
+    var fd=new FormData(); fd.append('new_status',to);
+    var h={'X-Requested-With':'fetch'}; var t=token(); if(t){h['X-CSRFToken']=t; fd.append('csrf_token',t);}
+    fetch(url,{method:'POST',headers:h,body:fd,credentials:'same-origin'})
+    .then(function(r){return r.json().catch(function(){return {ok:false,error:'تعذر الحفظ'};});})
+    .then(function(j){
+      if(!j.ok){throw new Error(j.error||'تعذر الحفظ');}
+      c.dataset.st=to;
+      c.querySelectorAll('select[name="new_status"] option').forEach(function(o){var v=(o.value===to);o.hidden=v;o.disabled=v;});
+      var sel=c.querySelector('select[name="new_status"]'); if(sel&&sel.value===to){sel.selectedIndex=-1;}
+      toast('تم النقل إلى: '+(j.label||to));
+    })
+    .catch(function(err){
+      fromBody.insertBefore(c,fromNext&&fromNext.parentNode===fromBody?fromNext:null);
+      recount(col); recount(oldCol);
+      toast(err.message||'تعذر الحفظ',true);
+    })
+    .then(function(){busy=false;});
+  }
+  /* ---- mouse / desktop ---- */
+  document.addEventListener('dragstart',function(e){
+    var c=e.target.closest&&e.target.closest('.tk-card[data-url]'); if(!c||busy){return;}
+    card=c; fromBody=c.parentNode; fromNext=c.nextSibling;
+    try{e.dataTransfer.setData('text/plain',c.dataset.tid); e.dataTransfer.effectAllowed='move';}catch(x){}
+    setTimeout(function(){c.classList.add('tk-drag');},0);
+  });
+  document.addEventListener('dragend',function(){
+    if(card){card.classList.remove('tk-drag');} card=null; clearOver();
+  });
+  document.addEventListener('dragover',function(e){
+    if(!card){return;}
+    var b=document.querySelector('.tk-board');
+    if(b){
+      var r=b.getBoundingClientRect();
+      if(e.clientX>r.right-60){b.scrollLeft+=22;} else if(e.clientX<r.left+60){b.scrollLeft-=22;}
+    }
+    var col=e.target.closest&&e.target.closest('.tk-col'); if(!col){return;}
+    e.preventDefault(); e.dataTransfer.dropEffect='move';
+    if(!col.classList.contains('tk-over')){clearOver(); col.classList.add('tk-over');}
+  });
+  document.addEventListener('drop',function(e){
+    if(!card){return;}
+    var col=e.target.closest&&e.target.closest('.tk-col'); if(!col){return;}
+    e.preventDefault(); clearOver();
+    doMove(col);
+  });
+  /* ---- touch: long-press a card (about 0.3s), then drag ---- */
+  var tc=null, tt=null, tact=false, tghost=null, tsx=0, tsy=0, tox=0, toy=0, tlx=0, tly=0, traf=null, tclick=false, tsnap='';
+  function tclean(){
+    clearTimeout(tt); tt=null;
+    if(tghost){tghost.remove(); tghost=null;}
+    if(tc){tc.classList.remove('tk-drag');}
+    document.body.classList.remove('tk-touching');
+    var b=document.querySelector('.tk-board'); if(b){b.style.scrollSnapType=tsnap;}
+    if(traf){cancelAnimationFrame(traf); traf=null;}
+    tact=false; tc=null; clearOver();
+  }
+  function tloop(){
+    if(!tact){return;}
+    var b=document.querySelector('.tk-board');
+    if(b){
+      var r=b.getBoundingClientRect();
+      if(tlx>r.right-60){b.scrollLeft+=14;} else if(tlx<r.left+60){b.scrollLeft-=14;}
+    }
+    var vh=window.innerHeight||document.documentElement.clientHeight;
+    if(tly>vh-70){window.scrollBy(0,14);} else if(tly<70){window.scrollBy(0,-14);}
+    traf=requestAnimationFrame(tloop);
+  }
+  function tbegin(){
+    if(!tc){return;}
+    tact=true; card=tc; fromBody=tc.parentNode; fromNext=tc.nextSibling;
+    tc.classList.add('tk-drag'); document.body.classList.add('tk-touching');
+    var r=tc.getBoundingClientRect(); tox=tsx-r.left; toy=tsy-r.top; tlx=tsx; tly=tsy;
+    tghost=tc.cloneNode(true);
+    tghost.className=tc.className.replace('tk-drag','').trim();
+    tghost.removeAttribute('data-url'); tghost.removeAttribute('draggable');
+    tghost.style.cssText='position:fixed;z-index:90;pointer-events:none;margin:0;width:'+r.width+'px;left:'+r.left+'px;top:'+r.top+'px;opacity:.92;box-shadow:0 10px 25px rgba(0,0,0,.25);transform:rotate(2deg)';
+    document.body.appendChild(tghost);
+    var b=document.querySelector('.tk-board'); if(b){tsnap=b.style.scrollSnapType; b.style.scrollSnapType='none';}
+    if(navigator.vibrate){try{navigator.vibrate(15);}catch(x){}}
+    traf=requestAnimationFrame(tloop);
+  }
+  document.addEventListener('touchstart',function(e){
+    if(busy||card||tc||e.touches.length!==1){return;}
+    var c=e.target.closest&&e.target.closest('.tk-card[data-url]'); if(!c){return;}
+    if(e.target.closest('select,input,button,textarea,form')){return;}
+    var t=e.touches[0]; tsx=t.clientX; tsy=t.clientY; tc=c;
+    tt=setTimeout(tbegin,320);
+  },{passive:true});
+  document.addEventListener('touchmove',function(e){
+    if(!tc){return;}
+    var t=e.touches[0];
+    if(!tact){
+      if(Math.abs(t.clientX-tsx)>8||Math.abs(t.clientY-tsy)>8){tclean();}
+      return;
+    }
+    e.preventDefault();
+    tlx=t.clientX; tly=t.clientY;
+    if(tghost){tghost.style.left=(tlx-tox)+'px'; tghost.style.top=(tly-toy)+'px';}
+    var el=document.elementFromPoint(tlx,tly), col=el&&el.closest&&el.closest('.tk-col');
+    clearOver(); if(col){col.classList.add('tk-over');}
+  },{passive:false});
+  document.addEventListener('touchend',function(e){
+    if(!tc){return;}
+    if(!tact){tclean();return;}
+    e.preventDefault();
+    var t=e.changedTouches[0], el=document.elementFromPoint(t.clientX,t.clientY), col=el&&el.closest&&el.closest('.tk-col');
+    tclick=true; setTimeout(function(){tclick=false;},500);
+    if(col){doMove(col);}
+    card=null; tclean();
+  },{passive:false});
+  document.addEventListener('touchcancel',function(){if(tc){card=null; tclean();}});
+  document.addEventListener('contextmenu',function(e){if(tc){e.preventDefault();}});
+  document.addEventListener('click',function(e){if(tclick){e.preventDefault(); e.stopPropagation();}},true);
+})();
+</script>
 <div class="mobile-kanban-hint text-center text-xs text-slate-500 mb-2 sm:hidden">
   ← اسحب يمين وشمال بين الأعمدة →
 </div>
-<div class="flex lg:grid lg:grid-cols-5 gap-3 overflow-x-auto lg:overflow-visible pb-2 snap-x snap-mandatory lg:snap-none -mx-3 px-3 lg:mx-0 lg:px-0">
+<div class="tk-board flex lg:grid lg:grid-cols-5 gap-3 overflow-x-auto lg:overflow-visible pb-2 snap-x snap-mandatory lg:snap-none -mx-3 px-3 lg:mx-0 lg:px-0">
   {% for s in kanban %}
-  <div class="bg-slate-50 rounded-lg p-3 flex-shrink-0 w-[calc(100vw-1.5rem)] sm:w-[320px] lg:w-auto snap-start snap-always">
+  <div data-status="{{ s.name }}" class="tk-col bg-slate-50 rounded-lg p-3 flex-shrink-0 w-[calc(100vw-1.5rem)] sm:w-[320px] lg:w-auto snap-start snap-always">
     <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200 gap-2">
       <span class="badge {{ s.badge_class }} text-xs">{{ s.label_ar }}</span>
       <div class="flex items-center gap-2">
@@ -285,12 +440,12 @@
           <button type="submit" class="text-[10px] text-slate-500 hover:text-emerald-700 hover:underline" title="أرشفة كل المكتملة">🗂 أرشفة الكل</button>
         </form>
         {% endif %}
-        <span class="text-xs font-mono text-slate-500">{{ columns.get(s, [])|length }}</span>
+        <span class="tk-count text-xs font-mono text-slate-500">{{ columns.get(s, [])|length }}</span>
       </div>
     </div>
-    <div class="space-y-2">
+    <div class="space-y-2 tk-colbody">
       {% for t in columns.get(s, []) %}
-      <div class="bg-white rounded-md border border-slate-200 p-3 hover:shadow-soft transition">
+      <div data-st="{{ s.name }}" class="tk-card bg-white rounded-md border border-slate-200 p-3 hover:shadow-soft transition"{% if has_permission('tasks.manage') %} draggable="true" data-tid="{{ t.id }}" data-url="{{ url_for('tasks.status', task_id=t.id) }}"{% endif %}>
         {# MARSOUD-TASK-CONTEXT — carry the origin URL through the
            detail page so Edit / Delete land back on the same list. #}
         <a href="{{ url_for('tasks.detail', task_id=t.id, return_to=request.full_path) }}" class="text-sm font-semibold text-navy-900 hover:text-brand-600 block">{{ t.title }}</a>
@@ -328,21 +483,21 @@
         <form method="POST" action="{{ url_for('tasks.status', task_id=t.id) }}" class="mt-2 flex gap-1">
           <input type="hidden" name="return_to" value="{{ request.full_path }}">
           <select name="new_status" class="select text-xs py-1">
-            {% for st in kanban %}{% if st != t.status %}<option value="{{ st.name }}">→ {{ st.label_ar }}</option>{% endif %}{% endfor %}
+            {% for st in kanban %}<option value="{{ st.name }}"{% if st == t.status %} hidden disabled{% endif %}>→ {{ st.label_ar }}</option>{% endfor %}
           </select>
           <button type="submit" class="text-xs text-brand-600 hover:underline">حفظ</button>
         </form>
         {% endif %}
         {# MARSOUD-TASK-ARCHIVE-01 — per-task archive on DONE column. #}
-        {% if s.name == 'DONE' and has_permission('tasks.archive') %}
+        {% if has_permission('tasks.archive') %}
         <form method="POST" action="{{ url_for('tasks.archive', task_id=t.id) }}"
-              class="mt-1 inline">
+              class="mt-1 inline tk-arch">
           <button type="submit" class="text-[10px] text-slate-500 hover:text-slate-700 hover:underline" title="أرشفة هذه المهمة">🗂 أرشفة</button>
         </form>
         {% endif %}
       </div>
       {% else %}
-      <div class="text-xs text-slate-500 text-center py-4">لا مهام</div>
+      <div class="tk-empty text-xs text-slate-500 text-center py-4">لا مهام</div>
       {% endfor %}
     </div>
   </div>
