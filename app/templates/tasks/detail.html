@@ -1,6 +1,31 @@
 {% extends "base.html" %}
 {% block page_title %}{{ task.title }}{% endblock %}
 {% block content %}
+{# MARSOUD-TASKS-P42 - calmer, more visual task page #}
+<style>
+.p42-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.5rem;margin-bottom:1rem}
+.p42-stat{background:#f8fafc;border:1px solid #e2e8f0;border-radius:.6rem;padding:.55rem .7rem;display:flex;flex-direction:column;gap:.15rem;min-width:0}
+.p42-lbl{font-size:10px;color:#64748b}
+.p42-v{font-size:.9rem;color:#0f172a;font-weight:700}
+.p42-v small{font-weight:400;color:#64748b;font-size:10px}
+.p42-v.late{color:#e11d48}.p42-v.soon{color:#d97706}.p42-v.ok{color:#059669}
+.p42-sub{font-size:10px;color:#64748b;font-family:monospace}
+.p42-avs{display:flex;padding-inline-end:6px}
+.p42-av{width:26px;height:26px;border-radius:50%;background:#d1fae5;color:#047857;font-weight:700;font-size:11px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #fff;margin-inline-end:-6px}
+.p42-av.more{background:#e2e8f0;color:#475569}
+.p42-av.sm{width:20px;height:20px;font-size:10px;border:0;margin:0}
+.p42-bar{height:6px;border-radius:99px;background:#e2e8f0;overflow:hidden;margin-top:.25rem}
+.p42-bar i{display:block;height:100%;background:#10b981;border-radius:99px}
+.p42-bar.wide{margin:0 0 .6rem}
+.p42-steps{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:1rem}
+.p42-step{border:1px solid #cbd5e1;background:#fff;color:#334155;border-radius:99px;padding:.3rem .8rem;font-size:.75rem;cursor:pointer}
+.p42-step:hover{border-color:#10b981;color:#047857}
+.p42-step.on{background:#10b981;border-color:#10b981;color:#fff;cursor:default}
+.p42-cmt{border-inline-start:3px solid #d1fae5}
+.p42-who{display:flex;align-items:center;gap:.4rem}
+.p42-file{display:flex;align-items:center;min-width:0}
+.p42-thumb{width:36px;height:36px;object-fit:cover;border-radius:.35rem;margin-inline-end:.5rem;flex:none}
+</style>
 {# MARSOUD-PARENT-CHILD-TASK-HIERARCHY (2026-08-09) — breadcrumb
    from root ancestor down to this task. Rendered only when the
    task actually has a parent (breadcrumb length > 1 — the
@@ -76,6 +101,49 @@
         {% endif %}
       </div>
     </div>
+
+    {# MARSOUD-TASKS-P42 - summary strip + status stepper #}
+    {% set _days = p42_days if p42_days is defined else none %}
+    {% set _is_done = task.status.name == 'DONE' %}
+    {% set _sub_total = subtasks|length %}
+    {% set _sub_done = subtasks|selectattr('status.name', 'equalto', 'DONE')|list|length %}
+    {% set _assg = task.all_assignees|list %}
+    <div class="p42-strip">
+      <div class="p42-stat">
+        <span class="p42-lbl">الموعد</span>
+        {% if _is_done %}<b class="p42-v ok">مكتملة{% if task.completed_at %} <small>{{ task.completed_at | company_dt('%Y-%m-%d') }}</small>{% endif %}</b>
+        {% elif _days is none %}<b class="p42-v">بدون موعد</b>
+        {% elif _days < 0 %}<b class="p42-v late">متأخرة {{ -_days }} يوم</b>
+        {% elif _days == 0 %}<b class="p42-v soon">اليوم</b>
+        {% elif _days == 1 %}<b class="p42-v soon">غدًا</b>
+        {% else %}<b class="p42-v">بعد {{ _days }} يوم</b>{% endif %}
+        {% if task.deadline %}<span class="p42-sub">{{ task.deadline.isoformat() }}</span>{% endif %}
+      </div>
+      <div class="p42-stat">
+        <span class="p42-lbl">المكلّفون</span>
+        {% if _assg %}
+        <div class="p42-avs">{% for u in _assg[:4] %}<span class="p42-av" title="{{ u.full_name }}">{{ u.full_name[:1] }}</span>{% endfor %}{% if _assg|length > 4 %}<span class="p42-av more">+{{ _assg|length - 4 }}</span>{% endif %}</div>
+        {% else %}<b class="p42-v">—</b>{% endif %}
+      </div>
+      {% if _sub_total %}
+      <a class="p42-stat" href="#subtasks" style="text-decoration:none">
+        <span class="p42-lbl">المهام الفرعية</span>
+        <b class="p42-v">{{ _sub_done }} من {{ _sub_total }}</b>
+        <div class="p42-bar"><i style="width:{{ (_sub_done * 100 / _sub_total)|round|int }}%"></i></div>
+      </a>
+      {% endif %}
+      <a class="p42-stat" href="#comments" style="text-decoration:none">
+        <span class="p42-lbl">النشاط</span>
+        <b class="p42-v">{{ task.comments|length }} تعليق · {{ docs|list|length }} مرفق</b>
+      </a>
+    </div>
+    {% if can_edit %}
+    <form method="POST" action="{{ url_for('tasks.inline_edit', task_id=task.id) }}" class="p42-steps" aria-label="تغيير الحالة">
+      <input type="hidden" name="priority" value="{{ task.priority.name }}">
+      <input type="hidden" name="deadline" value="{{ task.deadline.isoformat() if task.deadline else '' }}">
+      {% for s in statuses %}<button type="submit" name="status" value="{{ s.name }}" class="p42-step{% if s == task.status %} on{% endif %}"{% if s == task.status %} disabled aria-current="true"{% endif %}>{{ s.label_ar }}</button>{% endfor %}
+    </form>
+    {% endif %}
 
     <!-- ─── Inline-editable metadata grid ──────────────────────────── -->
     {% if can_edit %}
@@ -193,6 +261,7 @@
         {% endif %}
       </div>
       {% if subtasks %}
+      <div class="p42-bar wide" title="{{ _sub_done }} من {{ _sub_total }}"><i style="width:{{ (_sub_done * 100 / _sub_total)|round|int }}%"></i></div>
       <div class="overflow-x-auto">
       <table class="data-table text-sm w-full">
         <thead><tr>
@@ -229,11 +298,12 @@
       <span class="text-xs text-slate-500 font-normal">({{ task.comments|length }})</span></h3>
     <div class="space-y-2 mb-3">
       {% for c in task.comments %}
-      <div class="bg-slate-50 rounded-lg p-3">
+      <div class="bg-slate-50 rounded-lg p-3 p42-cmt">
         <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
           {# MARSOUD-CLICKABLE-ASSIGNEE — comment author's name links
              to their tasks board. #}
-          <div class="font-semibold">
+          <div class="font-semibold p42-who">
+          {% if c.user %}<span class="p42-av sm">{{ c.user.full_name[:1] }}</span>{% endif %}
           {% if c.user %}
           <a href="{{ url_for('tasks.index', scope='employees', user_id=c.user.id) }}"
              class="text-brand-600 hover:underline"
@@ -273,7 +343,16 @@
     <div class="space-y-2 mb-3">
     {% for d in docs %}
       <div class="flex items-center justify-between bg-slate-50 rounded-lg p-3">
-        <a href="{{ d.file_path }}" target="_blank" class="text-sm font-semibold text-navy-900 hover:text-emerald-600">📄 {{ d.name }}</a>
+        <div class="p42-file">
+          {% if d.mimetype and d.mimetype.startswith('image/') %}<img class="p42-thumb" loading="lazy" src="{{ d.file_path }}" alt="">{% endif %}
+          <div class="min-w-0">
+            <a href="{{ d.file_path }}" target="_blank" class="text-sm font-semibold text-navy-900 hover:text-emerald-600 break-words">{{ d.name }}</a>
+            <div class="text-[10px] text-slate-500">
+              {% if d.size_bytes %}{% set _kb = d.size_bytes / 1024 %}{% if _kb >= 1024 %}{{ (_kb / 1024)|round(1) }} م.ب{% else %}{{ _kb|round|int }} ك.ب{% endif %}{% endif %}
+              {% if d.created_at %} · {{ d.created_at | company_dt('%Y-%m-%d') }}{% endif %}
+            </div>
+          </div>
+        </div>
         {% if has_permission('tasks.manage') %}
         <form method="POST" action="{{ url_for('documents.delete', doc_id=d.id) }}" onsubmit="return confirm('حذف الملف؟')">
           <button type="submit" class="text-xs text-rose-600 hover:underline">حذف</button>

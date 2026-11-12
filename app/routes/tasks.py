@@ -103,6 +103,15 @@ def _company_projects():
     return Project.query.filter_by(company_id=cid).order_by(Project.name).all()
 
 
+# MARSOUD-TASKS-P42 - days until the deadline for the detail page (None = no deadline)
+def _p42_days(t):
+    try:
+        from datetime import date as _d
+        return (t.deadline - _d.today()).days if t.deadline else None
+    except Exception:
+        return None
+
+
 # MARSOUD-TASKS-P40 - per-card counters (comments / subtasks / attachments)
 def _p40_counts(tasks):
     """{task_id: {"c": comments, "s": subtasks, "sd": done subtasks, "a": attachments}}.
@@ -891,6 +900,7 @@ def detail(task_id):
         parent=t.parent,
         subtasks=list(t.subtasks),
         breadcrumb=breadcrumb(t),
+        p42_days=_p42_days(t),
     )
 
 
