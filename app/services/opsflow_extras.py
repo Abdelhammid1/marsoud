@@ -430,31 +430,31 @@ def auto_request_feedback_on_delivery(project):
 
 # ─── Deadline reminders (called from /cron/tick) ────────────────────────
 def remind_task_deadlines_24h():
-    """Find tasks with deadline in (today, today+1] that aren't done/blocked
-    and haven't been reminded already today. Notifies the assignee.
+    """MARSOUD-TASKS-P41 - task deadline reminders.
 
-    MARSOUD-TZ-01 — 'today' is per-company because a Cairo customer's
-    "today" and the server's "today" can differ by up to 3 hours near
-    UTC midnight. Fetching wider (any deadline within 48h of UTC now)
-    then filtering in Python per company keeps the query cheap AND
-    correct regardless of where the company is on the globe."""
+    * soon:    deadline is today or tomorrow (company-local) -> one reminder
+    * overdue: deadline passed within the last 3 days        -> one reminder
+    Both go to EVERY assignee (task_assignees), plus the legacy
+    assigned_to_id if it is not already among them. One notification per
+    (user, task, kind-of-reminder), never repeated. DONE / REVIEW / BLOCKED
+    and archived tasks are skipped.
+
+    MARSOUD-TZ-01 - 'today' is per-company; the query is widened by a few
+    days and filtered in Python per company."""
     from app.services.time import today_in_company_tz
     from datetime import date as _d
     today_utc = _d.today()
-    horizon = today_utc + timedelta(days=2)   # widen so no tz boundary bites
-    # MARSOUD-TASK-REVIEW-NOT-INCOMPLETE (2026-08-06) — REVIEW joined
-    # DONE + BLOCKED in the exclusion list. The assignee already
-    # handed the task off for review; pinging them 24h before the
-    # deadline is pure noise when the ball is in the creator's court.
+    lo = today_utc - timedelta(days=4)
+    horizon = today_utc + timedelta(days=2)
     raw_candidates = Task.query.filter(
         Task.deadline.isnot(None),
-        Task.deadline >= today_utc, Task.deadline <= horizon,
+        Task.deadline >= lo, Task.deadline <= horizon,
+        Task.archived_at.is_(None),
         Task.status.notin_([TaskStatus.DONE, TaskStatus.REVIEW,
                             TaskStatus.BLOCKED]),
     ).all()
-    # Filter per-company using its own today.
     company_today = {}
-    candidates = []
+    soon, late = [], []
     for t in raw_candidates:
         if t.company_id not in company_today:
             from app.models import Company as _C
@@ -463,27 +463,53 @@ def remind_task_deadlines_24h():
                 today_in_company_tz(_c) if _c else today_utc
             )
         today = company_today[t.company_id]
-        horiz = today + timedelta(days=1)
-        if today < t.deadline <= horiz:
-            candidates.append(t)
-    sent = 0
-    for t in candidates:
-        # Dedup: did we already send a 24h reminder for this task today?
-        already = Notification.query.filter_by(
-            user_id=t.assigned_to_id,
-            kind=NotificationKind.TASK_DEADLINE_24H.value,
-        ).filter(
-            Notification.body.like(f"%task#{t.id}%")
-            if hasattr(Notification.body, "like") else True
+        if today <= t.deadline <= today + timedelta(days=1):
+            soon.append(t)
+        elif today - timedelta(days=3) <= t.deadline < today:
+            late.append(t)
+
+    def _recipients(t):
+        ids = []
+        try:
+            ids = [u.id for u in (t.all_assignees or []) if u is not None]
+        except Exception:
+            ids = []
+        if t.assigned_to_id and t.assigned_to_id not in ids:
+            ids.append(t.assigned_to_id)
+        return ids
+
+    def _already(uid, t, word):
+        return Notification.query.filter(
+            Notification.user_id == uid,
+            Notification.kind == NotificationKind.TASK_DEADLINE_24H.value,
+            Notification.body.like(f"%task#{t.id} {word}%"),
         ).count()
-        if already:
-            continue
-        notify(
-            t.assigned_to_id, company_id=t.company_id,
-            kind=NotificationKind.TASK_DEADLINE_24H,
-            title=f"⏰ Deadline قريب: {t.title}",
-            body=f"المهمة task#{t.id} تنتهي يوم {t.deadline.isoformat()}.",
-            link_url=f"/tasks/{t.id}",
-        )
-        sent += 1
-    return {"checked": len(candidates), "reminders_sent": sent}
+
+    sent = 0
+    sent_late = 0
+    for t in soon:
+        for uid in _recipients(t):
+            if _already(uid, t, "تنتهي"):
+                continue
+            notify(
+                uid, company_id=t.company_id,
+                kind=NotificationKind.TASK_DEADLINE_24H,
+                title=f"⏰ Deadline قريب: {t.title}",
+                body=f"المهمة task#{t.id} تنتهي يوم {t.deadline.isoformat()}.",
+                link_url=f"/tasks/{t.id}",
+            )
+            sent += 1
+    for t in late:
+        for uid in _recipients(t):
+            if _already(uid, t, "متأخرة"):
+                continue
+            notify(
+                uid, company_id=t.company_id,
+                kind=NotificationKind.TASK_DEADLINE_24H,
+                title=f"مهمة متأخرة: {t.title}",
+                body=f"المهمة task#{t.id} متأخرة، موعدها كان {t.deadline.isoformat()}.",
+                link_url=f"/tasks/{t.id}",
+            )
+            sent_late += 1
+    return {"checked": len(soon) + len(late), "reminders_sent": sent,
+            "overdue_reminders_sent": sent_late}
