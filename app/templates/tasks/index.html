@@ -171,63 +171,69 @@
 </div>
 {% else %}
 
-<form method="GET" class="flex flex-wrap items-end gap-3 mb-4 card p-4" id="task-filters-form">
+{# MARSOUD-TASKS-P34 - one calm row; the rest under "advanced" #}
+{% set _adv = (priority_filter or sort or created_range) %}
+{% set _anyf = (q_search or project_filter or assignee_filter or priority_filter or sort or created_range or due) %}
+<form method="GET" class="mb-3 card p-3" id="task-filters-form">
 {% if can_see_all and scope and scope != 'mine' %}<input type="hidden" name="scope" value="{{ scope }}">{% endif %}
 {% if drill_user %}<input type="hidden" name="user_id" value="{{ drill_user.id }}">{% endif %}
-  <div>
-    <label class="block text-xs font-semibold text-slate-700 mb-1">المشروع</label>
-    <select name="project_id" class="select text-sm">
-      <option value="">الكل</option>
+{% if due %}<input type="hidden" name="due" value="{{ due }}">{% endif %}
+  <div class="flex flex-wrap items-center gap-2">
+    <input type="search" name="q" value="{{ q_search }}" placeholder="ابحث في عنوان المهمة" class="input text-sm" style="flex:1 1 180px;min-width:150px" aria-label="بحث">
+    <select name="project_id" class="select text-sm" style="flex:0 1 190px;min-width:120px" aria-label="المشروع">
+      <option value="">كل المشاريع</option>
       {% for p in projects %}<option value="{{ p.id }}" {% if project_filter == p.id|string %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
     </select>
-  </div>
-  <div>
-    <label class="block text-xs font-semibold text-slate-700 mb-1">الأولوية</label>
-    <select name="priority" class="select text-sm">
-      <option value="">الكل</option>
-      {% for p in priorities %}<option value="{{ p.name }}" {% if priority_filter == p.name %}selected{% endif %}>{{ p.label_ar }}</option>{% endfor %}
-    </select>
-  </div>
-  <div>
-    <label class="block text-xs font-semibold text-slate-700 mb-1">المُعيَّن إليه</label>
-    <select name="assignee" class="select text-sm">
-      <option value="">الكل</option>
+    <select name="assignee" class="select text-sm" style="flex:0 1 170px;min-width:120px" aria-label="المُعيَّن إليه">
+      <option value="">كل الأشخاص</option>
       {% for u in users %}{% if u %}<option value="{{ u.id }}" {% if assignee_filter == u.id|string %}selected{% endif %}>{{ u.full_name }}</option>{% endif %}{% endfor %}
     </select>
+    <button type="submit" class="btn-primary text-sm">تطبيق</button>
+    {% if _anyf %}<a href="{{ url_for('tasks.index', scope=scope if can_see_all and scope != 'mine' else None, user_id=drill_user.id if drill_user else None) }}" class="text-xs text-slate-500 hover:underline">مسح الفلاتر</a>{% endif %}
   </div>
-  {# MARSOUD-TASK-CREATED-AT — sort + range filter. #}
-  <div>
-    <label class="block text-xs font-semibold text-slate-700 mb-1">الترتيب</label>
-    <select name="sort" class="select text-sm">
-      <option value="" {% if not sort %}selected{% endif %}>افتراضي</option>
-      <option value="newest" {% if sort == 'newest' %}selected{% endif %}>الأحدث أولاً</option>
-      <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>الأقدم أولاً</option>
-    </select>
-  </div>
-  <div>
-    <label class="block text-xs font-semibold text-slate-700 mb-1">تاريخ الإنشاء</label>
-    <select name="created_range" id="created-range-select" class="select text-sm">
-      <option value="" {% if not created_range %}selected{% endif %}>الكل</option>
-      <option value="today"      {% if created_range == 'today' %}selected{% endif %}>اليوم</option>
-      <option value="yesterday"  {% if created_range == 'yesterday' %}selected{% endif %}>أمس</option>
-      <option value="last7"      {% if created_range == 'last7' %}selected{% endif %}>آخر 7 أيام</option>
-      <option value="last30"     {% if created_range == 'last30' %}selected{% endif %}>آخر 30 يوم</option>
-      <option value="this_month" {% if created_range == 'this_month' %}selected{% endif %}>هذا الشهر</option>
-      <option value="last_month" {% if created_range == 'last_month' %}selected{% endif %}>الشهر الماضي</option>
-      <option value="custom"     {% if created_range == 'custom' %}selected{% endif %}>نطاق مخصص</option>
-    </select>
-  </div>
-  <div id="custom-range-fields" style="display:{% if created_range == 'custom' %}flex{% else %}none{% endif %}" class="items-end gap-2">
-    <div>
-      <label class="block text-xs font-semibold text-slate-700 mb-1">من</label>
-      <input type="date" name="from" value="{{ date_from }}" class="input text-sm">
+  <details class="mt-2" {% if _adv %}open{% endif %}>
+    <summary class="text-xs text-slate-500" style="cursor:pointer">فلاتر متقدمة</summary>
+    <div class="flex flex-wrap items-end gap-3 mt-2">
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">الأولوية</label>
+        <select name="priority" class="select text-sm">
+          <option value="">الكل</option>
+          {% for p in priorities %}<option value="{{ p.name }}" {% if priority_filter == p.name %}selected{% endif %}>{{ p.label_ar }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">الترتيب</label>
+        <select name="sort" class="select text-sm">
+          <option value="" {% if not sort %}selected{% endif %}>افتراضي</option>
+          <option value="newest" {% if sort == 'newest' %}selected{% endif %}>الأحدث أولاً</option>
+          <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>الأقدم أولاً</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-500 mb-1">تاريخ الإنشاء</label>
+        <select name="created_range" id="created-range-select" class="select text-sm">
+          <option value="" {% if not created_range %}selected{% endif %}>الكل</option>
+          <option value="today"      {% if created_range == 'today' %}selected{% endif %}>اليوم</option>
+          <option value="yesterday"  {% if created_range == 'yesterday' %}selected{% endif %}>أمس</option>
+          <option value="last7"      {% if created_range == 'last7' %}selected{% endif %}>آخر 7 أيام</option>
+          <option value="last30"     {% if created_range == 'last30' %}selected{% endif %}>آخر 30 يوم</option>
+          <option value="this_month" {% if created_range == 'this_month' %}selected{% endif %}>هذا الشهر</option>
+          <option value="last_month" {% if created_range == 'last_month' %}selected{% endif %}>الشهر الماضي</option>
+          <option value="custom"     {% if created_range == 'custom' %}selected{% endif %}>نطاق مخصص</option>
+        </select>
+      </div>
+      <div id="custom-range-fields" style="display:{% if created_range == 'custom' %}flex{% else %}none{% endif %}" class="items-end gap-2">
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">من</label>
+          <input type="date" name="from" value="{{ date_from }}" class="input text-sm">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">إلى</label>
+          <input type="date" name="to" value="{{ date_to }}" class="input text-sm">
+        </div>
+      </div>
     </div>
-    <div>
-      <label class="block text-xs font-semibold text-slate-700 mb-1">إلى</label>
-      <input type="date" name="to" value="{{ date_to }}" class="input text-sm">
-    </div>
-  </div>
-  <button type="submit" class="btn-primary text-sm">تطبيق</button>
+  </details>
 </form>
 
 {# MARSOUD-TASK-CREATED-AT — quick-filter pill row above the Kanban. #}
@@ -241,10 +247,28 @@
                        priority=priority_filter or None,
                        assignee=assignee_filter or None,
                        sort=sort or None,
-                       created_range=arg or None) }}">{{ label }}</a>
+                       created_range=arg or None,
+                         q=q_search or None, due=due or None) }}">{{ label }}</a>
 {%- endmacro %}
 <div class="flex flex-wrap gap-2 mb-3 items-center">
-  <span class="text-xs text-slate-500">اختصار:</span>
+  {# MARSOUD-TASKS-P34 #}
+  {% macro due_pill(label, arg, n) -%}
+    {%- set on = (due == arg) -%}
+    <a class="tk-chip{% if on %} on{% endif %}{% if arg == 'overdue' and n %} bad{% endif %}"
+       href="{{ url_for('tasks.index',
+                         scope=scope if can_see_all and scope != 'mine' else None,
+                         user_id=drill_user.id if drill_user else None,
+                         project_id=project_filter or None,
+                         priority=priority_filter or None,
+                         assignee=assignee_filter or None,
+                         sort=sort or None,
+                         created_range=created_range or None,
+                         q=q_search or None,
+                         due=None if on else arg) }}">{{ label }} <b>{{ n }}</b></a>
+  {%- endmacro %}
+  {{ due_pill('متأخرة', 'overdue', p34_over) }}
+  {{ due_pill('موعدها قريب', 'soon', p34_soon) }}
+  <span class="text-xs text-slate-500">إنشاء:</span>
   {{ quick_pill('اليوم', 'today') }}
   {{ quick_pill('أمس', 'yesterday') }}
   {{ quick_pill('آخر 7 أيام', 'last7') }}
@@ -296,6 +320,7 @@ body.tk-touching{overscroll-behavior:contain}
     var body=col.querySelector('.tk-colbody'); if(!body){return;}
     var n=body.querySelectorAll(':scope > .tk-card').length;
     var c=col.querySelector('.tk-count'); if(c){c.textContent=n;}
+    var tcn=document.querySelector('.tk-tabcount[data-for="'+col.dataset.status+'"]'); if(tcn){tcn.textContent=n;}
     var ph=body.querySelector(':scope > .tk-empty');
     if(n===0&&!ph){var d=document.createElement('div'); d.className='tk-empty text-xs text-slate-500 text-center py-4'; d.textContent='لا مهام'; body.appendChild(d);}
     if(n>0&&ph){ph.remove();}
@@ -424,6 +449,47 @@ body.tk-touching{overscroll-behavior:contain}
   document.addEventListener('click',function(e){if(tclick){e.preventDefault(); e.stopPropagation();}},true);
 })();
 </script>
+{# MARSOUD-TASKS-P34 - mobile: jump between status columns #}
+<style>
+.tk-chip{display:inline-block;padding:3px 11px;border:1px solid #e2e8f0;border-radius:999px;font-size:12px;background:#fff;color:#475569}
+.tk-chip b{font-family:monospace;margin-inline-start:3px}
+.tk-chip.bad{border-color:#fda4af;color:#be123c;background:#fff1f2}
+.tk-chip.on{background:#059669;border-color:#059669;color:#fff}
+.tk-tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:8px;padding:2px 0}
+.tk-tab{flex:0 0 auto;border:1px solid #e2e8f0;border-radius:999px;padding:5px 12px;font-size:12px;background:#fff;color:#475569}
+.tk-tab.on{background:#059669;border-color:#059669;color:#fff}
+.tk-tabcount{font-family:monospace;opacity:.8;margin-inline-start:4px}
+@media (min-width:640px){.tk-tabs{display:none}}
+</style>
+<div class="tk-tabs">
+  {% for s in kanban %}<button type="button" class="tk-tab" data-go="{{ s.name }}">{{ s.label_ar }}<span class="tk-tabcount" data-for="{{ s.name }}">{{ columns.get(s, [])|length }}</span></button>{% endfor %}
+</div>
+<script>
+(function(){
+  var board=document.querySelector('.tk-board'), tabs=document.querySelectorAll('.tk-tab');
+  if(!board||!tabs.length){return;}
+  function setOn(st){tabs.forEach(function(t){t.classList.toggle('on',t.dataset.go===st);});}
+  tabs.forEach(function(t){
+    t.addEventListener('click',function(){
+      var col=board.querySelector('.tk-col[data-status="'+t.dataset.go+'"]');
+      if(col){col.scrollIntoView({behavior:'smooth',inline:'start',block:'nearest'}); setOn(t.dataset.go);}
+    });
+  });
+  var tm;
+  board.addEventListener('scroll',function(){
+    clearTimeout(tm);
+    tm=setTimeout(function(){
+      var br=board.getBoundingClientRect(), mid=br.left+br.width/2, best=null, bd=1e9;
+      board.querySelectorAll('.tk-col').forEach(function(c){
+        var r=c.getBoundingClientRect(), d=Math.abs(r.left+r.width/2-mid);
+        if(d<bd){bd=d; best=c;}
+      });
+      if(best){setOn(best.dataset.status);}
+    },80);
+  },{passive:true});
+  setOn(tabs[0].dataset.go);
+})();
+</script>
 <div class="mobile-kanban-hint text-center text-xs text-slate-500 mb-2 sm:hidden">
   ← اسحب يمين وشمال بين الأعمدة →
 </div>
@@ -445,7 +511,7 @@ body.tk-touching{overscroll-behavior:contain}
     </div>
     <div class="space-y-2 tk-colbody">
       {% for t in columns.get(s, []) %}
-      <div data-st="{{ s.name }}" class="tk-card bg-white rounded-md border border-slate-200 p-3 hover:shadow-soft transition"{% if has_permission('tasks.manage') %} draggable="true" data-tid="{{ t.id }}" data-url="{{ url_for('tasks.status', task_id=t.id) }}"{% endif %}>
+      <div data-st="{{ s.name }}" class="tk-card bg-white rounded-md border border-slate-200 p-3 hover:shadow-soft transition"{% if t.is_overdue %} style="border-inline-start:4px solid #fb7185"{% endif %}{% if has_permission('tasks.manage') %} draggable="true" data-tid="{{ t.id }}" data-url="{{ url_for('tasks.status', task_id=t.id) }}"{% endif %}>
         {# MARSOUD-TASK-CONTEXT — carry the origin URL through the
            detail page so Edit / Delete land back on the same list. #}
         <a href="{{ url_for('tasks.detail', task_id=t.id, return_to=request.full_path) }}" class="text-sm font-semibold text-navy-900 hover:text-brand-600 block">{{ t.title }}</a>

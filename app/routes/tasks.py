@@ -464,6 +464,12 @@ def index():
     if range_hi is not None:
         q = q.filter(Task.created_at < range_hi)
 
+    # MARSOUD-TASKS-P34 - search in the task title
+    search_q = (request.args.get("q") or "").strip()[:80]
+    if search_q:
+        _like = "%" + search_q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        q = q.filter(Task.title.ilike(_like, escape="\\"))
+
     if employee_cards is None:
         if sort_arg == "newest":
             tasks = q.order_by(Task.created_at.desc()).all()
@@ -474,6 +480,16 @@ def index():
                                 Task.created_at.desc()).all()
     else:
         tasks = []
+    # MARSOUD-TASKS-P34 - overdue / due-soon chips (same definitions as the card badges)
+    p34_over = sum(1 for _t in tasks if _t.is_overdue)
+    p34_soon = sum(1 for _t in tasks if _t.deadline_soon and not _t.is_overdue)
+    due_arg = (request.args.get("due") or "").strip().lower()
+    if due_arg == "overdue":
+        tasks = [_t for _t in tasks if _t.is_overdue]
+    elif due_arg == "soon":
+        tasks = [_t for _t in tasks if _t.deadline_soon and not _t.is_overdue]
+    else:
+        due_arg = ""
     columns = {s: [] for s in KANBAN_ORDER}
     for t in tasks:
         columns.setdefault(t.status, []).append(t)
@@ -523,6 +539,7 @@ def index():
         created_range=created_range,
         date_from=date_from_raw,
         date_to=date_to_raw,
+        q_search=search_q, due=due_arg, p34_over=p34_over, p34_soon=p34_soon,
     )
 
 
