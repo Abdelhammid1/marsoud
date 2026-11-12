@@ -42,3 +42,6 @@ instance/
 instance/
 migrations/versions/__pycache__/
 releases/
+
+# MARSOUD-/root/p36s_00 - editor images uploaded at runtime (backed up by backup.sh)
+app/static/uploads/
