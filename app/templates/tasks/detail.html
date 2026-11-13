@@ -55,8 +55,9 @@
 {% endif %}
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
   <div class="card p-6 md:col-span-2">
-    <div class="flex flex-wrap items-start justify-between gap-2 mb-4">
-      <div class="flex-1 min-w-0">
+    {# MARSOUD-TASKS-P60 - title gets its own full-width row; actions wrap below #}
+    <div class="flex flex-col gap-3 mb-4">
+      <div class="w-full min-w-0">
         <h2 class="text-2xl font-bold text-navy-900 break-words">{{ task.title }}</h2>
         <div class="text-sm text-slate-500 mt-1">
           {# MARSOUD-PERMISSION-BOUNCE-02 — projects.detail enforces
@@ -82,7 +83,7 @@
         </div>
         {% endif %}
       </div>
-      <div class="flex items-center gap-2 flex-wrap">
+      <div class="flex items-center gap-2 flex-wrap pt-3 border-t border-slate-100">
         <span class="badge {{ task.priority.badge_class }}">{{ task.priority.label_ar }}</span>
         <span class="badge {{ task.status.badge_class }} text-base px-3 py-1.5">{{ task.status.label_ar }}</span>
         {% if task.is_overdue %}<span class="badge badge-overdue">⚠ متأخرة</span>
@@ -104,6 +105,8 @@
         {% if has_permission('tasks.manage') %}
         <a href="{{ url_for('tasks.edit', task_id=task.id, return_to=_rt) if _rt else url_for('tasks.edit', task_id=task.id) }}"
            class="btn-secondary text-sm">✎ تعديل كامل</a>
+        {# MARSOUD-TASKS-P59 - start a new task pre-filled from this one #}
+        <a href="{{ url_for('tasks.new', copy_from=task.id) }}" class="btn-secondary text-sm" title="نسخ بيانات المهمة في مهمة جديدة">نسخ كمهمة جديدة</a>
         {% endif %}
         {# MARSOUD-PERM-FIX (PM scope) — delete is owner/admin only via the
            dedicated tasks.delete permission, so a project manager who can

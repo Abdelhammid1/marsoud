@@ -11,6 +11,7 @@
    progressive enhancement: with JS off the form still posts normally. #}
 <style>
 .tf{max-width:56rem}
+.tf-copy{border:1px solid rgba(16,185,129,.45);background:rgba(16,185,129,.09);color:#047857;border-radius:12px;padding:.7rem 1rem;margin-bottom:1rem;font-size:.85rem;font-weight:600;line-height:1.7}
 .tf-hero{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:1rem}
 .tf-hero h1{font-size:1.25rem;font-weight:800;margin:0}
 .tf-ready{display:flex;flex-wrap:wrap;gap:.4rem}
@@ -83,8 +84,10 @@
 .tf-bar .tf-act{display:flex;gap:.5rem;flex-wrap:wrap}
 </style>
 
-{% set _return_to = request.args.get('return_to') or request.referrer or '' %}
-<div class="tf" id="tf-root" data-me="{{ current_user.id }}" data-again-url="{{ url_for('tasks.new') }}">
+{# MARSOUD-TASKS-P59 - `prefill` is set only by /tasks/new?copy_from=ID #}
+{% set pf = prefill if (prefill is defined and prefill) else none %}
+{% set _return_to = '' if pf else (request.args.get('return_to') or request.referrer or '') %}
+<div class="tf" id="tf-root" data-me="{{ current_user.id }}" data-again-url="{{ url_for('tasks.new') }}"{% if pf %} data-copy="{{ pf.id }}"{% endif %}>
   <div class="tf-hero">
     <h1>{% if task %}تعديل المهمة{% else %}مهمة جديدة{% endif %}</h1>
     <div class="tf-ready" id="tf-ready" aria-live="polite">
@@ -95,6 +98,9 @@
     </div>
   </div>
 
+  {% if pf %}
+  <div class="tf-copy" id="tf-copy">{# MARSOUD-TASKS-P60 #}نسخة من المهمة رقم {{ pf.id }} — المرفقات والتعليقات والمهام الفرعية لا تُنسخ.</div>
+  {% endif %}
   <form method="POST" enctype="multipart/form-data" id="tf-form"
         data-once data-once-label="جاري الإنشاء...">
     {% if _return_to %}<input type="hidden" name="return_to" value="{{ _return_to }}">{% endif %}
@@ -109,13 +115,13 @@
         </div>
         <input type="text" name="title" id="tf-title" required maxlength="200" autofocus
                placeholder="مثال: مراجعة عقد العميل وإرسال الملاحظات"
-               value="{{ task.title if task else '' }}" class="input tf-title">
+               value="{{ task.title if task else (pf.title if pf else '') }}" class="input tf-title">
       </div>
       <div>
         <label class="tf-lbl">الوصف <em>(اختياري)</em></label>
         {{ rte.editor(
              name="description",
-             value=(task.description if task else ""),
+             value=(task.description if task else (pf.description if pf else "")),
              placeholder="اكتب وصف المهمة…",
              height="12rem") }}
       </div>
@@ -151,7 +157,7 @@
             {% for p in priorities %}
             <label data-p="{{ p.name }}">
               <input type="radio" name="priority" value="{{ p.name }}" required
-                     {% if (task and task.priority == p) or (not task and p.name == 'MEDIUM') %}checked{% endif %}>
+                     {% if (task and task.priority == p) or (not task and ((pf and pf.priority == p.name) or (not pf and p.name == 'MEDIUM'))) %}checked{% endif %}>
               <span>{{ p.label_ar }}</span>
             </label>
             {% endfor %}
@@ -192,7 +198,7 @@
           <label class="tf-lbl" for="task-milestone-select">المرحلة</label>
           <select name="milestone_id" id="task-milestone-select" class="select">
             <option value="">— بدون —</option>
-            {% for m in milestones %}<option value="{{ m.id }}" {% if task and task.milestone_id == m.id %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
+            {% for m in milestones %}<option value="{{ m.id }}" {% if (task and task.milestone_id == m.id) or (pf and pf.milestone_id == m.id) %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
           </select>
         </div>
       </div>
@@ -215,7 +221,7 @@
       <div class="tf-sec-h"><div class="tf-num">4</div><div><h2>إضافات</h2> <small>اختياري</small></div></div>
       <div style="margin-bottom:1rem">
         <label class="tf-lbl" for="tf-notes">ملاحظات</label>
-        <textarea name="notes" id="tf-notes" rows="2" class="textarea">{{ task.notes if task else '' }}</textarea>
+        <textarea name="notes" id="tf-notes" rows="2" class="textarea">{{ task.notes if task else (pf.notes if pf else '') }}</textarea>
       </div>
 
       {% if not task %}
@@ -264,7 +270,7 @@
     </section>
 
     {# ---------- action bar ---------- #}
-    {% set _cancel = _return_to if _return_to else url_for('tasks.index') %}
+    {% set _cancel = _return_to if _return_to else (url_for('tasks.detail', task_id=pf.id) if pf else url_for('tasks.index')) %}
     <div class="tf-bar">
       <span class="tf-hint" style="margin:0"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> للحفظ السريع</span>
       <div class="tf-act">
@@ -290,6 +296,7 @@
     tcount.className = 'tf-count' + (n >= 170 ? ' warn' : '');
   }
   title.addEventListener('input', upTitle); upTitle();
+  if (root.getAttribute('data-copy')) { title.focus(); title.select(); }
 
   /* ---- assignees ---- */
   var boxes = $$('input[name="assignee_ids"]', form);
