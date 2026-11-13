@@ -182,6 +182,10 @@
 .ops-zero .oz-label{font-size:.75rem;color:#64748b;font-weight:600;margin-inline-end:.25rem}
 .ops-zero a{display:inline-flex;align-items:center;gap:.4rem;padding:.28rem .75rem;border:1px solid #e2e8f0;background:#fff;border-radius:999px;font-size:.78rem;color:#475569;text-decoration:none;line-height:1.5}
 .ops-zero a:hover{border-color:#10b981;color:#047857}
+/* MARSOUD-DASH-P65 */
+.ok-strip{display:flex;flex-wrap:wrap;gap:.5rem;margin:0 0 .9rem}
+.ok-strip span{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .8rem;border-radius:999px;background:rgba(16,185,129,.09);border:1px solid rgba(16,185,129,.35);color:#047857;font-size:.8rem;font-weight:600}
+.action-grid.p65-solo{grid-template-columns:1fr !important}
 .ops-zero a b{font-weight:700;color:#334155}
 </style>
 
@@ -217,11 +221,11 @@
       <div class="kpi-head">
         <div class="kpi-ico i-green">💰</div>
         <div class="kpi-trend {% if k.change_pct > 0 %}trend-up{% elif k.change_pct < 0 %}trend-down{% else %}trend-flat{% endif %}">
-          {% if k.change_pct > 0 %}↑{% elif k.change_pct < 0 %}↓{% else %}—{% endif %} {{ k.change_pct }}%
+          {% if k.change_pct > 0 %}↑{% elif k.change_pct < 0 %}↓{% else %}—{% endif %} <bdi dir="ltr">{{ k.change_pct }}%</bdi>
         </div>
       </div>
       <div class="kpi-label">السيولة المتاحة</div>
-      <div class="kpi-val"><span class="cur">{{ cur|currency_ar }}</span>{{ "{:,.0f}".format(k.value) }}</div>
+      <div class="kpi-val"><span class="cur">{{ cur|currency_ar }}</span><bdi dir="ltr">{{ "{:,.0f}".format(k.value) }}</bdi></div>
       <div class="spark-wrap"><canvas class="spark" data-spark="{{ k.spark|join(',') }}" data-color="#159b54"></canvas></div>
     </a>
 
@@ -229,12 +233,12 @@
     <a class="kpi" href="{{ url_for('reports.income') }}" title="صافي الربح هذا الشهر">
       <div class="kpi-head">
         <div class="kpi-ico i-blue">📈</div>
-        <div class="kpi-trend {% if k.change_pct > 0 %}trend-up{% elif k.change_pct < 0 %}trend-down{% else %}trend-flat{% endif %}">
-          {% if k.change_pct > 0 %}↑{% elif k.change_pct < 0 %}↓{% else %}—{% endif %} {{ k.change_pct }}%
+        <div class="kpi-trend {% if k.value < 0 %}trend-down{% elif k.change_pct > 0 %}trend-up{% elif k.change_pct < 0 %}trend-down{% else %}trend-flat{% endif %}"{% if k.value < 0 %} title="التغيّر عن الفترة السابقة: {{ k.change_pct }}%"{% endif %}>
+          {% if k.value < 0 %}⚠ خسارة{% else %}{% if k.change_pct > 0 %}↑{% elif k.change_pct < 0 %}↓{% else %}—{% endif %} <bdi dir="ltr">{{ k.change_pct }}%</bdi>{% endif %}
         </div>
       </div>
       <div class="kpi-label">صافي الربح ({{ metrics.period_label or 'الشهر' }})</div>
-      <div class="kpi-val"><span class="cur">{{ cur|currency_ar }}</span>{{ "{:,.0f}".format(k.value) }}</div>
+      <div class="kpi-val"><span class="cur">{{ cur|currency_ar }}</span><bdi dir="ltr">{{ "{:,.0f}".format(k.value) }}</bdi></div>
       <div class="spark-wrap"><canvas class="spark" data-spark="{{ k.spark|join(',') }}" data-color="#2d6fb3"></canvas></div>
     </a>
 
@@ -247,7 +251,7 @@
         </div>
       </div>
       <div class="kpi-label">مستحق لك (عملاء)</div>
-      <div class="kpi-val"><span class="cur">{{ cur|currency_ar }}</span>{{ "{:,.0f}".format(k.value) }}</div>
+      <div class="kpi-val"><span class="cur">{{ cur|currency_ar }}</span><bdi dir="ltr">{{ "{:,.0f}".format(k.value) }}</bdi></div>
       <div class="spark-wrap"><canvas class="spark" data-spark="{{ k.spark|join(',') }}" data-color="#c47d10"></canvas></div>
     </a>
 
@@ -260,7 +264,7 @@
         </div>
       </div>
       <div class="kpi-label">مستحق عليك (موردين)</div>
-      <div class="kpi-val"><span class="cur">{{ cur|currency_ar }}</span>{{ "{:,.0f}".format(k.value) }}</div>
+      <div class="kpi-val"><span class="cur">{{ cur|currency_ar }}</span><bdi dir="ltr">{{ "{:,.0f}".format(k.value) }}</bdi></div>
       <div class="spark-wrap"><canvas class="spark" data-spark="{{ k.spark|join(',') }}" data-color="#dc4640"></canvas></div>
     </a>
   </div>
@@ -284,7 +288,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!v) return false;
       var t = (v.textContent || '').trim();
       if (!/^[0\u0660][0.,\u0660]*$/.test(t)) return false;
-      return !c.querySelector('.tag-red, .tag-amber, .tag-orange');
+      return !c.querySelector('.tag-red');
     });
     if (zero.length < 2 || zero.length === cards.length) return;
     var box = document.createElement('div');
@@ -306,6 +310,36 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     ops.parentNode.insertBefore(box, ops.nextSibling);
   } catch (e) { if (window.console) console.warn('dash-p64', e); }
+});
+</script>
+{# MARSOUD-DASH-P65 #}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  try {
+    Array.prototype.forEach.call(document.querySelectorAll('.op-val'), function (v) {
+      var t = (v.textContent || '').trim();
+      if (/^[+\-][\d,.]+$|^[\d,.]+[+\-]$/.test(t) && !v.querySelector('bdi')) {
+        var b = document.createElement('bdi'); b.setAttribute('dir', 'ltr'); b.textContent = t;
+        v.textContent = ''; v.appendChild(b);
+      }
+    });
+    var grid = document.querySelector('.action-grid');
+    if (!grid) return;
+    var panels = Array.prototype.slice.call(grid.querySelectorAll(':scope > .d-panel'));
+    var empty = panels.filter(function (p) { return !p.querySelector('.d-row'); });
+    if (!empty.length || empty.length === panels.length) return;
+    var strip = document.createElement('div');
+    strip.className = 'ok-strip';
+    empty.forEach(function (p) {
+      var tt = p.querySelector('.panel-title');
+      var s = document.createElement('span');
+      s.textContent = '\u2713 ' + (tt ? tt.textContent.trim() : '') + ': لا يوجد';
+      strip.appendChild(s);
+      p.style.display = 'none';
+    });
+    grid.parentNode.insertBefore(strip, grid);
+    if (panels.length - empty.length === 1) grid.classList.add('p65-solo');
+  } catch (e) { if (window.console) console.warn('dash-p65', e); }
 });
 </script>
   <div class="section-label">⚡ نظرة على العمليات</div>
