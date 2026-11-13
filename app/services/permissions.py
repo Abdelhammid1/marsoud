@@ -656,3 +656,77 @@ def parse_password_reset_token(token, max_age_seconds=3600):
             token, max_age=max_age_seconds)
     except Exception:
         return None
+
+
+# MARSOUD-PERF-P53 (2026-11-13) - per-request memo for the permission helpers.
+# Profiling showed ~430 SQL statements per /tasks/ page, ~190 of them the same
+# user_companies lookups and ~100 the same permission lookups. Results are now
+# remembered on flask.g for the lifetime of ONE request only (never across
+# requests), and the memo is dropped the moment the request itself writes to
+# a table that can change a permission answer.
+import functools as _p53_ft
+import re as _p53_re
+from flask import has_request_context as _p53_hrc, g as _p53_g
+from sqlalchemy import event as _p53_event
+from sqlalchemy.engine import Engine as _p53_Engine
+
+
+def _p53_cache():
+    try:
+        if not _p53_hrc():
+            return None
+        c = _p53_g.get("_p53_perm_cache")
+        if c is None:
+            c = {}
+            _p53_g._p53_perm_cache = c
+        return c
+    except Exception:
+        return None
+
+
+def _p53_memo(name, fn, keyfn):
+    @_p53_ft.wraps(fn)
+    def wrapper(*a, **k):
+        c = _p53_cache()
+        if c is None:
+            return fn(*a, **k)
+        try:
+            key = (name,) + tuple(keyfn(*a, **k))
+        except Exception:
+            return fn(*a, **k)
+        if key in c:
+            return c[key]
+        val = fn(*a, **k)
+        c[key] = val
+        return val
+    wrapper._p53_orig = fn
+    return wrapper
+
+
+def _p53_key_has_permission(action, user=None, company=None):
+    user = user or current_user
+    company = company or g.get("active_company")
+    return (action, getattr(user, "id", None), getattr(company, "id", None),
+            bool(getattr(user, "is_authenticated", False)))
+
+
+_is_company_member = _p53_memo("member", _is_company_member, lambda u, c: (u, c))
+get_user_role = _p53_memo("role", get_user_role, lambda u, c: (u, c))
+get_user_role_id = _p53_memo("role_id", get_user_role_id, lambda u, c: (u, c))
+_db_has_permission = _p53_memo("dbperm", _db_has_permission, lambda a, u, c: (a, u, c))
+has_permission = _p53_memo("perm", has_permission, _p53_key_has_permission)
+
+_P53_TABLES = _p53_re.compile(
+    r"\b(user_companies|role_permissions|roles|permissions|plans?|companies|"
+    r"company_\w+|subscriptions?)\b", _p53_re.I)
+
+
+@_p53_event.listens_for(_p53_Engine, "before_cursor_execute")
+def _p53_invalidate(conn, cursor, statement, parameters, context, executemany):
+    try:
+        if (statement[:8].lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE"))
+                and _p53_hrc() and _p53_g.get("_p53_perm_cache")
+                and _P53_TABLES.search(statement)):
+            _p53_g._p53_perm_cache = {}
+    except Exception:
+        pass
