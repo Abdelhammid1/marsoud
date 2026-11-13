@@ -27,11 +27,11 @@ _cache = {"loaded_at": 0.0, "flags": {}}   # module_key -> (enabled, reason)
 
 def _load_cache_if_stale():
     now = time.time()
-    if now - _cache["loaded_at"] < _CACHE_TTL_SECONDS and _cache["flags"]:
+    if now - _cache["loaded_at"] < _CACHE_TTL_SECONDS:  # MARSOUD-PERF-P54: an empty flag table is a valid cached answer
         return
     with _cache_lock:
         # Re-check after acquiring lock.
-        if now - _cache["loaded_at"] < _CACHE_TTL_SECONDS and _cache["flags"]:
+        if now - _cache["loaded_at"] < _CACHE_TTL_SECONDS:  # MARSOUD-PERF-P54: an empty flag table is a valid cached answer
             return
         try:
             from app.models import FeatureFlag
