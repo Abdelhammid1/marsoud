@@ -177,6 +177,12 @@
     #dash-root .action-grid,#dash-root .lower-grid{grid-template-columns:1fr}
     #dash-root .kpis,#dash-root .ops{grid-template-columns:1fr}
   }
+/* MARSOUD-DASH-P64 - compact strip for operations cards whose value is zero */
+.ops-zero{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.25rem 0 1.25rem}
+.ops-zero .oz-label{font-size:.75rem;color:#64748b;font-weight:600;margin-inline-end:.25rem}
+.ops-zero a{display:inline-flex;align-items:center;gap:.4rem;padding:.28rem .75rem;border:1px solid #e2e8f0;background:#fff;border-radius:999px;font-size:.78rem;color:#475569;text-decoration:none;line-height:1.5}
+.ops-zero a:hover{border-color:#10b981;color:#047857}
+.ops-zero a b{font-weight:700;color:#334155}
 </style>
 
 <div id="dash-root">
@@ -266,6 +272,42 @@
      see tiles that would just redirect with a "no permission" flash. #}
   {% if has_permission('inventory.view') or has_permission('tasks.view')
         or has_permission('leads.view') or has_permission('customers.view') %}
+  {# MARSOUD-DASH-P64 #}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  try {
+    var ops = document.querySelector('.ops');
+    if (!ops) return;
+    var cards = Array.prototype.slice.call(ops.querySelectorAll(':scope > a.op'));
+    var zero = cards.filter(function (c) {
+      var v = c.querySelector('.op-val');
+      if (!v) return false;
+      var t = (v.textContent || '').trim();
+      if (!/^[0\u0660][0.,\u0660]*$/.test(t)) return false;
+      return !c.querySelector('.tag-red, .tag-amber, .tag-orange');
+    });
+    if (zero.length < 2 || zero.length === cards.length) return;
+    var box = document.createElement('div');
+    box.className = 'ops-zero';
+    var lab = document.createElement('span');
+    lab.className = 'oz-label';
+    lab.textContent = 'بدون نشاط حاليًا:';
+    box.appendChild(lab);
+    zero.forEach(function (c) {
+      var ico = c.querySelector('.op-ico'), l = c.querySelector('.op-label');
+      var a = document.createElement('a');
+      a.href = c.getAttribute('href') || '#';
+      if (c.title) a.title = c.title;
+      a.innerHTML = '<span></span><span></span><b>0</b>';
+      a.children[0].textContent = ico ? ico.textContent.trim() : '';
+      a.children[1].textContent = l ? l.textContent.trim() : '';
+      box.appendChild(a);
+      c.style.display = 'none';
+    });
+    ops.parentNode.insertBefore(box, ops.nextSibling);
+  } catch (e) { if (window.console) console.warn('dash-p64', e); }
+});
+</script>
   <div class="section-label">⚡ نظرة على العمليات</div>
   <div class="ops">
     {% if has_permission('inventory.view') %}
@@ -286,7 +328,7 @@
     <a class="op" href="{{ url_for('treasury.index') }}" title="الخزينة">
       <div class="op-ico i-teal">🏦</div>
       <div>
-        <div class="op-val font-mono">{{ metrics.ops.treasury_combined or 0|money }}</div>
+        <div class="op-val font-mono">{{ (metrics.ops.treasury_combined or 0)|money }}</div>
         <div class="op-label">إجمالي الخزينة (نقدية + بنوك)</div>
         <div class="op-extra tag-green">{{ metrics.ops.treasury_account_count or 0 }} حساب</div>
       </div>
