@@ -12,6 +12,8 @@
 <style>
 .tf{max-width:56rem}
 .tf-copy{border:1px solid rgba(16,185,129,.45);background:rgba(16,185,129,.09);color:#047857;border-radius:12px;padding:.7rem 1rem;margin-bottom:1rem;font-size:.85rem;font-weight:600;line-height:1.7}
+.tf-tpl{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem;margin-bottom:1rem;font-size:.85rem;font-weight:600}
+.tf-tpl select{max-width:22rem;min-width:12rem}
 .tf-hero{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:1rem}
 .tf-hero h1{font-size:1.25rem;font-weight:800;margin:0}
 .tf-ready{display:flex;flex-wrap:wrap;gap:.4rem}
@@ -87,7 +89,7 @@
 {# MARSOUD-TASKS-P59 - `prefill` is set only by /tasks/new?copy_from=ID #}
 {% set pf = prefill if (prefill is defined and prefill) else none %}
 {% set _return_to = '' if pf else (request.args.get('return_to') or request.referrer or '') %}
-<div class="tf" id="tf-root" data-me="{{ current_user.id }}" data-again-url="{{ url_for('tasks.new') }}"{% if pf %} data-copy="{{ pf.id }}"{% endif %}>
+<div class="tf" id="tf-root" data-me="{{ current_user.id }}" data-again-url="{{ url_for('tasks.new') }}"{% if pf %} data-copy="{{ pf.id or 'tpl' }}"{% endif %}>
   <div class="tf-hero">
     <h1>{% if task %}تعديل المهمة{% else %}مهمة جديدة{% endif %}</h1>
     <div class="tf-ready" id="tf-ready" aria-live="polite">
@@ -99,7 +101,18 @@
   </div>
 
   {% if pf %}
-  <div class="tf-copy" id="tf-copy">{# MARSOUD-TASKS-P60 #}نسخة من المهمة رقم {{ pf.id }} — المرفقات والتعليقات والمهام الفرعية لا تُنسخ.</div>
+  <div class="tf-copy" id="tf-copy">{# MARSOUD-TASKS-P61 #}{% if pf.kind == 'template' %}من قالب «{{ pf.name }}» — حدد الموعد وراجع البيانات ثم أنشئ المهمة.
+    <form method="POST" action="{{ url_for('tasks.template_delete', tid=pf.tid) }}" onsubmit="return confirm('حذف هذا القالب نهائيًا؟');" style="display:inline;margin-inline-start:.75rem"><button type="submit" class="btn-secondary text-sm">🗑 حذف القالب</button></form>
+    {% else %}نسخة من المهمة رقم {{ pf.id }} — المرفقات والتعليقات والمهام الفرعية لا تُنسخ.{% endif %}</div>
+  {% endif %}
+  {% if not task and task_templates %}
+  <div class="tf-tpl">
+    <label for="tf-tpl-sel">📋 ابدأ من قالب</label>
+    <select id="tf-tpl-sel" class="input" onchange="if(this.value){location.href='{{ url_for('tasks.new') }}?template='+encodeURIComponent(this.value)}">
+      <option value="">— اختر قالب —</option>
+      {% for tp in task_templates %}<option value="{{ tp.id }}" {% if pf and pf.tid == tp.id %}selected{% endif %}>{{ tp.name }}</option>{% endfor %}
+    </select>
+  </div>
   {% endif %}
   <form method="POST" enctype="multipart/form-data" id="tf-form"
         data-once data-once-label="جاري الإنشاء...">
@@ -270,7 +283,7 @@
     </section>
 
     {# ---------- action bar ---------- #}
-    {% set _cancel = _return_to if _return_to else (url_for('tasks.detail', task_id=pf.id) if pf else url_for('tasks.index')) %}
+    {% set _cancel = _return_to if _return_to else (url_for('tasks.detail', task_id=pf.id) if (pf and pf.id) else url_for('tasks.index')) %}
     <div class="tf-bar">
       <span class="tf-hint" style="margin:0"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> للحفظ السريع</span>
       <div class="tf-act">

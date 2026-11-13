@@ -896,8 +896,44 @@ def new():
             _p59_src = None
             _p59_prefill = None
             _p59_assignees = []
+    # MARSOUD-TASKS-P61 - saved templates: list for the picker + /tasks/new?template=<id> prefill
+    _p61_list = []
+    _p61_project = None
+    _p61_parent = None
+    try:
+        import json as _p61_json
+        from sqlalchemy import text as _p61_text
+        _p61_list = [{"id": _x[0], "name": _x[1]} for _x in db.session.execute(
+            _p61_text("SELECT id, name FROM task_templates WHERE company_id = :c ORDER BY name"),
+            {"c": cid}).fetchall()]
+        _p61_raw = (request.args.get("template") or "").strip()
+        if request.method == "GET" and _p61_raw.isdigit() and _p59_prefill is None:
+            _p61_row = db.session.execute(
+                _p61_text("SELECT id, name, payload_json FROM task_templates WHERE id = :i AND company_id = :c"),
+                {"i": int(_p61_raw), "c": cid}).first()
+            if _p61_row is not None:
+                _pl = _p61_json.loads(_p61_row[2])
+                _p61_uids = set(u.id for u in users)
+                _p61_pids = set(p.id for p in projects)
+                _p59_prefill = {
+                    "id": None, "kind": "template", "tid": _p61_row[0], "name": _p61_row[1],
+                    "title": _pl.get("title") or "",
+                    "description": _pl.get("description") or "",
+                    "priority": _pl.get("priority") or "MEDIUM",
+                    "notes": _pl.get("notes") or "",
+                    "milestone_id": _pl.get("milestone_id"),
+                }
+                _p59_assignees = [i for i in (_pl.get("assignee_ids") or []) if i in _p61_uids]
+                if _pl.get("project_id") in _p61_pids:
+                    _p61_project = _pl.get("project_id")
+                _p61_parent = _pl.get("parent_task_id")
+    except Exception:
+        db.session.rollback()
+        _p61_list = []
     selected_project = request.args.get("project_id") or (
         str(_p59_src.project_id) if _p59_src is not None and _p59_src.project_id else None)
+    if selected_project is None and _p61_project:
+        selected_project = str(_p61_project)
     # Map every project → its milestones so the form's milestone <select>
     # can swap options the instant the user picks a project. Without this
     # the dropdown only shows "— بدون —" because at GET time we don't
@@ -945,8 +981,10 @@ def new():
     selected_parent_id = int(raw_parent) if raw_parent.isdigit() else None
     if selected_parent_id is None and _p59_src is not None:
         selected_parent_id = _p59_src.parent_task_id
+    if selected_parent_id is None and _p61_parent:
+        selected_parent_id = _p61_parent
     return render_template("tasks/form.html",
-                           task=None, prefill=_p59_prefill, projects=projects, users=users,
+                           task=None, prefill=_p59_prefill, task_templates=_p61_list, projects=projects, users=users,
                            priorities=TaskPriority,
                            milestones=initial_milestones,
                            milestones_by_project=milestones_by_project,
@@ -1479,3 +1517,60 @@ def stats():
         role=role, today=date.today(),
         range_arg=range_arg,
     )
+
+
+# ─── MARSOUD-TASKS-P61: saved task templates ──────────────────────────────
+@bp.route("/<int:task_id>/save-template", methods=["POST"])
+@login_required
+@require_permission("tasks.manage")
+def save_template(task_id):
+    import json as _json
+    from sqlalchemy import text as _text
+    t = _task_or_403(task_id)
+    cid = g.active_company.id
+    name = ((request.form.get("name") or "").strip() or (t.title or "قالب"))[:120]
+    payload = {
+        "title": t.title or "",
+        "description": t.description or "",
+        "priority": t.priority.name if t.priority else "MEDIUM",
+        "notes": t.notes or "",
+        "project_id": t.project_id,
+        "milestone_id": t.milestone_id,
+        "parent_task_id": t.parent_task_id,
+        "assignee_ids": list(assignee_ids_for(t)),
+    }
+    try:
+        n = db.session.execute(_text("SELECT COUNT(*) FROM task_templates WHERE company_id = :c"),
+                               {"c": cid}).scalar() or 0
+        if n >= 200:
+            flash("وصلت للحد الأقصى من القوالب (200). احذف قالب قديم الأول.", "warning")
+            return redirect(url_for("tasks.detail", task_id=task_id))
+        db.session.execute(
+            _text("INSERT INTO task_templates (company_id, name, payload_json, created_by_id, created_at) "
+                  "VALUES (:c, :n, :p, :u, :t)"),
+            {"c": cid, "n": name, "p": _json.dumps(payload, ensure_ascii=False),
+             "u": current_user.id, "t": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")})
+        db.session.commit()
+        flash("تم حفظ القالب «%s». هتلاقيه في قائمة «ابدأ من قالب» عند إنشاء مهمة جديدة." % name, "success")
+    except Exception:
+        db.session.rollback()
+        from flask import current_app
+        current_app.logger.exception("save_template failed for task %s", task_id)
+        flash("تعذّر حفظ القالب", "error")
+    return redirect(url_for("tasks.detail", task_id=task_id))
+
+
+@bp.route("/templates/<int:tid>/delete", methods=["POST"])
+@login_required
+@require_permission("tasks.manage")
+def template_delete(tid):
+    from sqlalchemy import text as _text
+    try:
+        db.session.execute(_text("DELETE FROM task_templates WHERE id = :i AND company_id = :c"),
+                           {"i": tid, "c": g.active_company.id})
+        db.session.commit()
+        flash("تم حذف القالب", "success")
+    except Exception:
+        db.session.rollback()
+        flash("تعذّر حذف القالب", "error")
+    return redirect(url_for("tasks.new"))
