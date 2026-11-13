@@ -288,6 +288,46 @@
   #dash-root .p71-sum{grid-template-columns:1fr}
   #dash-root .p71-chip b{font-size:16px}
 }
+/* MARSOUD-DASH-P72 - team performance cards v2 */
+#dash-root .team-grid{gap:16px;align-items:stretch}
+#dash-root .tcard{position:relative;overflow:hidden;padding:0;border-radius:18px}
+#dash-root .tcard::before{content:"";position:absolute;inset-inline:0;top:0;height:3px;background:var(--d-line-strong);opacity:.8}
+#dash-root .tcard:has(.tcard-ico.i-green)::before{background:linear-gradient(to left,var(--d-green),transparent)}
+#dash-root .tcard:has(.tcard-ico.i-blue)::before{background:linear-gradient(to left,var(--d-blue),transparent)}
+#dash-root .tcard:has(.tcard-ico.i-violet)::before{background:linear-gradient(to left,var(--d-violet),transparent)}
+#dash-root .tcard:has(.tcard-ico.i-amber)::before{background:linear-gradient(to left,var(--d-amber),transparent)}
+#dash-root .tcard:has(.tcard-ico.i-red)::before{background:linear-gradient(to left,var(--d-red),transparent)}
+#dash-root .tcard:has(.tcard-ico.i-teal)::before{background:linear-gradient(to left,var(--d-teal),transparent)}
+#dash-root .tcard-head{display:flex;align-items:center;gap:12px;padding:18px 18px 14px;border-bottom:1px solid var(--d-line);background:linear-gradient(180deg,rgba(100,116,139,.06),transparent)}
+#dash-root .tcard-ico{width:44px;height:44px;border-radius:14px;font-size:21px;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(15,23,42,.04)}
+#dash-root .tcard-title{font-size:14.5px;font-weight:800;line-height:1.3;color:var(--d-ink)}
+#dash-root .tcard-sub{font-size:11.5px;color:var(--d-ink-3);margin-top:2px;font-weight:500}
+#dash-root .trow{display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid var(--d-line);transition:background .15s}
+#dash-root .trow:last-child{border-bottom:0}
+#dash-root .trow:hover{background:rgba(100,116,139,.06)}
+#dash-root .tcard-head + .trow{background:linear-gradient(90deg,transparent,rgba(234,179,8,.08))}
+#dash-root .rank{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;font-weight:800;background:var(--d-bg);color:var(--d-ink-3)}
+#dash-root .rank.r1{background:#fef3c7;color:#b45309;box-shadow:0 0 0 2px rgba(245,158,11,.35)}
+#dash-root .rank.r2{background:#e2e8f0;color:#475569;box-shadow:0 0 0 2px rgba(148,163,184,.4)}
+#dash-root .rank.r3{background:#fde4cf;color:#9a4a14;box-shadow:0 0 0 2px rgba(217,119,6,.28)}
+#dash-root .emp-ava{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px;font-weight:800;box-shadow:0 0 0 2px var(--d-surface),0 0 0 3.5px var(--d-line-strong)}
+#dash-root .emp-info{flex:1;min-width:0}
+#dash-root .emp-name{font-size:13.5px;font-weight:700;color:var(--d-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#dash-root .emp-role{display:inline-block;margin-top:3px;padding:1px 8px;border-radius:999px;background:var(--d-bg);font-size:10.5px;font-weight:600;color:var(--d-ink-3);direction:ltr}
+#dash-root .emp-metric{text-align:center;min-width:52px;flex-shrink:0}
+#dash-root .emp-num{font-size:21px;font-weight:800;line-height:1;letter-spacing:-.5px;color:var(--d-ink)}
+#dash-root .emp-unit{font-size:10.5px;font-weight:600;color:var(--d-ink-3);margin-top:3px}
+#dash-root .tcard:has(.tcard-ico.i-green) .emp-num{color:var(--d-green)}
+#dash-root .tcard:has(.tcard-ico.i-blue) .emp-num{color:var(--d-blue)}
+#dash-root .tcard:has(.tcard-ico.i-violet) .emp-num{color:var(--d-violet)}
+#dash-root .tcard:has(.tcard-ico.i-amber) .emp-num{color:var(--d-amber)}
+#dash-root .tcard:has(.tcard-ico.i-red) .emp-num{color:var(--d-red)}
+#dash-root .tcard > div[style*="text-align:center"]{display:flex;flex-direction:column;align-items:center;gap:8px;margin:16px 18px 18px;padding:26px 12px !important;border:1.5px dashed var(--d-line-strong);border-radius:14px;font-size:12.5px !important;font-weight:600;color:var(--d-ink-3) !important}
+#dash-root .tcard > div[style*="text-align:center"]::before{content:"🗂️";font-size:26px;line-height:1;opacity:.8}
+@media(max-width:640px){
+  #dash-root .trow{padding:10px 14px}
+  #dash-root .tcard-head{padding:16px 14px 12px}
+}
 /* MARSOUD-DASH-P70 - operations cards v2 (4 per row) */
 #dash-root .ops{grid-template-columns:repeat(4,1fr);gap:16px}
 #dash-root .op{position:relative;overflow:hidden;align-items:center;gap:14px;padding:18px 18px 16px}
