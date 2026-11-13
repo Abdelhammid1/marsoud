@@ -6,7 +6,67 @@
    template loads the same file so table-rendering + XSS-escape
    behavior stays consistent across both agents. #}
 <script src="{{ url_for('static', filename='js/agent-common.js') }}"></script>
-<div class="grid grid-cols-3 gap-4 h-[calc(100vh-9rem)]">
+<style>
+/* MARSOUD-AGENT-UX-P75 - smart accountant chat redesign (front-end only) */
+#ag-root{gap:16px}
+#ag-root>.card{border-radius:20px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px rgba(15,23,42,.05)}
+#ag-root>.card:first-child>.flex.items-center.justify-between.mb-4{padding-bottom:14px;margin-bottom:0 !important}
+#ag-root .w-12.h-12.rounded-full{position:relative;width:46px;height:46px;box-shadow:0 0 0 3px rgba(16,185,129,.18),0 4px 12px rgba(5,150,105,.3)}
+#ag-root .w-12.h-12.rounded-full::after{content:"";position:absolute;bottom:0;inset-inline-start:0;width:12px;height:12px;border-radius:50%;background:#22c55e;border:2px solid #fff}
+#ag-root h2.font-bold{font-size:16.5px;letter-spacing:-.2px}
+#ag-root button[onclick="clearChat()"]{font-size:12.5px;font-weight:600;padding:6px 14px;border:1px solid #e2e8f0;border-radius:999px;background:#fff;color:#64748b;transition:.15s}
+#ag-root button[onclick="clearChat()"]:hover{border-color:#fecaca;background:#fef2f2;color:#dc2626}
+#chat-messages{background:linear-gradient(180deg,#f8fafc,#f1f5f9);padding:22px 26px !important;scroll-behavior:smooth;display:flex;flex-direction:column;gap:14px}
+#chat-messages>*{margin:0 !important}
+#chat-messages>.flex.justify-start,#chat-messages>.flex.justify-end{align-items:flex-start}
+#chat-messages>.flex.justify-start::before{content:"🤖";flex:0 0 auto;width:30px;height:30px;margin-inline-end:10px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;background:linear-gradient(135deg,#10b981,#047857);box-shadow:0 2px 6px rgba(5,150,105,.3)}
+#chat-messages .rounded-2xl{font-size:14px;line-height:1.75;box-shadow:0 1px 2px rgba(15,23,42,.06);padding:11px 16px !important}
+#chat-messages .bg-navy-900{background:linear-gradient(135deg,#0f172a,#1e293b)}
+#chat-messages .rounded-2xl.bg-white{position:relative;border-color:#e2e8f0}
+#chat-messages>.text-xs.text-slate-500{align-self:flex-start;margin-inline-start:40px !important;padding:3px 12px !important;border:1px solid #e2e8f0;border-radius:999px;background:#fff;font-weight:600}
+#chat-messages .ag-copy{position:absolute;top:-11px;inset-inline-end:10px;padding:2px 10px;border:1px solid #e2e8f0;border-radius:999px;background:#fff;color:#64748b;font-size:11px;font-weight:600;cursor:pointer;opacity:0;transition:.15s}
+#chat-messages .rounded-2xl:hover .ag-copy,#chat-messages .ag-copy:focus{opacity:1}
+#chat-messages .ag-copy:hover{color:#047857;border-color:#a7f3d0}
+#chat-messages>.text-center{padding:14px 8px 4px !important;color:#64748b}
+#chat-messages>.text-center .flex-wrap{display:none}
+#chat-messages>.text-center .text-5xl{font-size:38px;margin-bottom:6px !important}
+#chat-messages>.text-center .font-semibold{font-size:18px;color:#0f172a}
+.ag-sug{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;max-width:700px;margin:14px auto 0;text-align:right}
+.ag-sg{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:10px 12px 12px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.ag-sg h4{margin:0 0 8px;font-size:12.5px;font-weight:800;color:#334155}
+.ag-card{display:block;width:100%;text-align:right;padding:7px 10px;margin-top:4px;border:1px solid transparent;border-radius:10px;background:#f8fafc;font-size:12.5px;font-weight:600;color:#0f172a;cursor:pointer;transition:.15s}
+.ag-card:hover{background:#ecfdf5;border-color:#a7f3d0;color:#047857;transform:translateX(-2px)}
+.ag-composer{display:flex;align-items:flex-end;gap:10px;padding:8px 10px 8px 8px;border:1.5px solid #e2e8f0;border-radius:18px;background:#fff;transition:.15s}
+.ag-composer:focus-within{border-color:#10b981;box-shadow:0 0 0 4px rgba(16,185,129,.12)}
+.ag-input{flex:1;min-height:40px;max-height:140px;resize:none;border:0;outline:0;background:transparent;padding:9px 10px;font:inherit;font-size:14px;line-height:1.6;color:#0f172a}
+.ag-input::placeholder{color:#94a3b8}
+.ag-send{display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 18px;border-radius:13px;font-weight:700}
+.ag-send:disabled{opacity:.55;cursor:wait}
+.ag-send svg{width:16px;height:16px;transform:scaleX(-1)}
+.ag-hint{margin-top:6px;text-align:center;font-size:11px;color:#94a3b8}
+#conversations-list .ag-grp{margin:12px 4px 4px;font-size:11px;font-weight:800;color:#94a3b8;letter-spacing:.3px}
+#conversations-list .conv-row{position:relative;padding:9px 12px !important;border:1px solid transparent;border-radius:12px !important;transition:.15s;align-items:flex-start}
+#conversations-list .conv-row:hover{background:#f1f5f9}
+#conversations-list .conv-row.bg-emerald-50{background:#ecfdf5 !important;border-color:#a7f3d0 !important;box-shadow:inset -3px 0 0 #10b981}
+#conversations-list .conv-row .truncate{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.5;font-size:13px}
+#conversations-list .conv-row button{opacity:0;padding:2px 6px;border-radius:8px;transition:.15s}
+#conversations-list .conv-row:hover button,#conversations-list .conv-row:focus-within button{opacity:1}
+#conversations-list .conv-row button:hover{background:#fee2e2}
+.ag-search{width:100%;margin-bottom:8px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:12px;font-size:12.5px;background:#f8fafc;outline:0}
+.ag-search:focus{border-color:#10b981;background:#fff}
+@media(hover:none){
+  #conversations-list .conv-row button{opacity:.7}
+  #chat-messages .ag-copy{opacity:.9}
+}
+@media(max-width:900px){
+  #ag-root{grid-template-columns:1fr !important;height:auto !important}
+  #ag-root>.card:first-child{grid-column:auto !important;height:calc(100vh - 8rem);min-height:520px}
+  #ag-root>.card:last-child{max-height:300px}
+  .ag-sug{grid-template-columns:1fr}
+  #chat-messages{padding:16px !important}
+}
+</style>
+<div id="ag-root" class="grid grid-cols-3 gap-4 h-[calc(100vh-9rem)]">
   <div class="card p-6 col-span-2 flex flex-col">
     <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-3">
@@ -42,10 +102,11 @@
       {% endif %}
     </div>
 
-    <form onsubmit="sendMessage(event)" class="flex gap-2">
-      <input id="msg-input" type="text" placeholder="اكتب طلبك… مثلاً: سجل فاتورة 5000 ريال للعميل أحمد بضريبة 15%" required autocomplete="off" class="input">
-      <button type="submit" id="send-btn" class="btn-primary">إرسال</button>
+    <form onsubmit="sendMessage(event)" class="ag-composer">
+      <textarea id="msg-input" rows="1" placeholder="اكتب طلبك… مثلاً: سجل فاتورة 5000 ريال للعميل أحمد بضريبة 15%" required autocomplete="off" class="ag-input"></textarea>
+      <button type="submit" id="send-btn" class="btn-primary ag-send"><span>إرسال</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg></button>
     </form>
+    <div class="ag-hint">Enter للإرسال · Shift + Enter لسطر جديد</div>
   </div>
 
   {# MARSOUD-AGENT-MEMORY-05 (2026-08-06) — conversations sidebar.
@@ -618,5 +679,145 @@ async function deleteConversation(ev, cid) {
 // MARSOUD-INSIGHTS-CONVERSATIONS-01 — the <script src=...> at the
 // top of this template loads window.escapeHtml + window.renderMarkdownTables.
 document.getElementById('chat-messages').scrollTop = 99999;
+</script>
+<script>
+/* MARSOUD-AGENT-UX-P75 - composer, suggestion cards, copy buttons, sidebar grouping */
+(function () {
+  var box = document.getElementById('chat-messages');
+  var list = document.getElementById('conversations-list');
+  var form = document.querySelector('form[onsubmit^="sendMessage"]');
+  var input = document.getElementById('msg-input');
+  var sendBtn = document.getElementById('send-btn');
+  if (!box || !form || !input || !sendBtn) return;
+
+  function submitForm() { if (form.requestSubmit) form.requestSubmit(); else sendBtn.click(); }
+  function grow() { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; }
+
+  input.addEventListener('input', grow);
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      if (!sendBtn.disabled && input.value.trim()) submitForm();
+    }
+  });
+  form.addEventListener('submit', function () { setTimeout(function () { grow(); input.focus(); }, 0); });
+  if (window.innerWidth < 640) input.placeholder = 'اكتب طلبك هنا…';
+  input.focus();
+
+  var cb = document.querySelector('button[onclick="clearChat()"]');
+  if (cb) cb.textContent = '🗄 أرشفة المحادثة';
+
+  var SUG = [
+    { t: '📊 تقارير', items: [
+      ['قائمة الدخل لهذا الشهر', 'شغّل تقرير قائمة الدخل لهذا الشهر', 1],
+      ['الميزانية العمومية', 'اعرض الميزانية العمومية', 1],
+      ['أعمار مديونيات العملاء', 'اعرض أعمار مديونيات العملاء', 1]] },
+    { t: '✍️ تسجيل', items: [
+      ['فاتورة جديدة', 'سجّل فاتورة للعميل ____ بمبلغ ____ بضريبة 15%', 0],
+      ['قيد مصروف', 'سجّل قيد مصروف ____ بمبلغ ____', 0],
+      ['دفعة على فاتورة', 'سجّل دفعة بمبلغ ____ على الفاتورة رقم ____', 0]] },
+    { t: '🔎 استعلام', items: [
+      ['شجرة الحسابات', 'اعرض شجرة الحسابات', 1],
+      ['الأصناف المنخفضة في المخزون', 'استعرض الأصناف المنخفضة في المخزون', 1],
+      ['كشف حساب عميل', 'اعرض كشف حساب العميل ____', 0]] },
+    { t: '💡 تعلّم', items: [
+      ['الفرق بين Asset و Expense', 'اشرح لي الفرق بين Asset و Expense', 1],
+      ['القيد المزدوج ببساطة', 'اشرح لي مفهوم القيد المزدوج ببساطة', 1]] }
+  ];
+
+  function decorate() {
+    var w = box.querySelector(':scope > .text-center');
+    if (w && !w.querySelector('.ag-sug')) {
+      var wrap = document.createElement('div'); wrap.className = 'ag-sug';
+      SUG.forEach(function (g) {
+        var s = document.createElement('div'); s.className = 'ag-sg';
+        var h = document.createElement('h4'); h.textContent = g.t; s.appendChild(h);
+        g.items.forEach(function (it) {
+          var b = document.createElement('button'); b.type = 'button'; b.className = 'ag-card';
+          b.textContent = it[0]; b.dataset.msg = it[1]; b.dataset.send = String(it[2]);
+          s.appendChild(b);
+        });
+        wrap.appendChild(s);
+      });
+      w.appendChild(wrap);
+    }
+    box.querySelectorAll(':scope > .flex.justify-start > .rounded-2xl').forEach(function (b) {
+      if (b.querySelector('.ag-copy') || b.querySelector('.animate-pulse')) return;
+      var c = document.createElement('button'); c.type = 'button'; c.className = 'ag-copy';
+      c.textContent = '⧉ نسخ'; c.title = 'نسخ الرد';
+      b.appendChild(c);
+    });
+  }
+  decorate();
+  new MutationObserver(decorate).observe(box, { childList: true });
+
+  function fallbackCopy(t) {
+    var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    ta.remove();
+  }
+
+  box.addEventListener('click', function (e) {
+    var t = e.target;
+    var card = t.closest && t.closest('.ag-card');
+    if (card) {
+      input.value = card.dataset.msg; grow(); input.focus();
+      if (card.dataset.send === '1') submitForm();
+      else { var i = input.value.indexOf('____'); if (i >= 0) input.setSelectionRange(i, i + 4); }
+      return;
+    }
+    var cp = t.closest && t.closest('.ag-copy');
+    if (!cp) return;
+    var clone = cp.parentElement.cloneNode(true);
+    clone.querySelectorAll('.ag-copy').forEach(function (x) { x.remove(); });
+    clone.querySelectorAll('table').forEach(function (tb) {
+      var rows = [].map.call(tb.querySelectorAll('tr'), function (tr) {
+        return [].map.call(tr.children, function (c) { return c.textContent.trim(); }).join('\t');
+      });
+      var p = document.createElement('pre'); p.textContent = '\n' + rows.join('\n') + '\n'; tb.replaceWith(p);
+    });
+    var txt = (clone.textContent || '').trim();
+    function done() { cp.textContent = '✓ تم النسخ'; setTimeout(function () { cp.textContent = '⧉ نسخ'; }, 1500); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(done, function () { fallbackCopy(txt); done(); });
+    } else { fallbackCopy(txt); done(); }
+  });
+
+  if (list && list.dataset.agDone !== '1') {
+    list.dataset.agDone = '1';
+    var rows = [].slice.call(list.querySelectorAll('.conv-row'));
+    if (rows.length) {
+      var t0 = new Date(); t0 = new Date(t0.getFullYear(), t0.getMonth(), t0.getDate());
+      var last = null;
+      rows.forEach(function (r) {
+        var m = (r.textContent || '').match(/(\d{4})-(\d{2})-(\d{2})/);
+        var label = 'بدون تاريخ';
+        if (m) {
+          var d = new Date(+m[1], +m[2] - 1, +m[3]);
+          var diff = Math.round((t0 - d) / 86400000);
+          label = diff <= 0 ? 'اليوم' : diff === 1 ? 'أمس' : diff < 7 ? 'آخر 7 أيام' : diff < 31 ? 'آخر 30 يوم' : 'أقدم';
+        }
+        if (label !== last) {
+          var h = document.createElement('div'); h.className = 'ag-grp'; h.textContent = label;
+          list.insertBefore(h, r); last = label;
+        }
+      });
+      if (rows.length > 5) {
+        var s = document.createElement('input'); s.type = 'search'; s.className = 'ag-search'; s.placeholder = 'ابحث في المحادثات…';
+        list.parentElement.insertBefore(s, list);
+        s.addEventListener('input', function () {
+          var q = s.value.trim().toLowerCase();
+          rows.forEach(function (r) { r.style.display = (!q || r.textContent.toLowerCase().indexOf(q) >= 0) ? '' : 'none'; });
+          [].forEach.call(list.querySelectorAll('.ag-grp'), function (h) {
+            var n = h.nextElementSibling, any = false;
+            while (n && !n.classList.contains('ag-grp')) { if (n.style.display !== 'none') any = true; n = n.nextElementSibling; }
+            h.style.display = any ? '' : 'none';
+          });
+        });
+      }
+    }
+  }
+})();
 </script>
 {% endblock %}
