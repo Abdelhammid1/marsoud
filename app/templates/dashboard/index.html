@@ -260,6 +260,34 @@
 #dash-root .p68-pos-v{font-size:26px;font-weight:800;letter-spacing:-.8px;color:var(--d-green-deep);white-space:nowrap}
 #dash-root .p68-pos.neg .p68-pos-v{color:var(--d-red)}
 #dash-root .p68-pos-v small{font-size:12.5px;font-weight:600;color:var(--d-ink-3);margin-inline-end:6px;letter-spacing:0}
+/* MARSOUD-DASH-P71 - financial trend section v2 */
+#dash-root .lower-grid{gap:16px;align-items:stretch}
+#dash-root .chart-wrap{height:270px}
+#dash-root .p71-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:2px 0 14px}
+#dash-root .p71-chip{border-radius:14px;padding:10px 14px;background:var(--d-bg);border:1px solid var(--d-line)}
+#dash-root .p71-lbl{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--d-ink-3)}
+#dash-root .p71-lbl i{display:inline-block;width:8px;height:8px;border-radius:50%;}
+#dash-root .p71-chip b{display:block;margin-top:4px;font-size:18px;font-weight:800;letter-spacing:-.4px;line-height:1.15;color:var(--d-ink);unicode-bidi:plaintext;text-align:right}
+#dash-root .p71-chip.pos{background:linear-gradient(135deg,rgba(16,185,129,.10),transparent 70%);border-color:rgba(16,185,129,.25)}
+#dash-root .p71-chip.pos b{color:var(--d-green)}
+#dash-root .p71-chip.neg{background:linear-gradient(135deg,rgba(220,38,38,.09),transparent 70%);border-color:rgba(220,38,38,.25)}
+#dash-root .p71-chip.neg b{color:var(--d-red)}
+#dash-root .p71-exp{display:flex;flex-direction:column;align-items:center;gap:16px}
+#dash-root .p71-donut{position:relative;width:148px;height:148px;border-radius:50%;flex-shrink:0}
+#dash-root .p71-donut::after{content:"";position:absolute;inset:24px;border-radius:50%;background:var(--d-surface)}
+#dash-root .p71-donut-c{position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+#dash-root .p71-donut-c b{font-size:15px;font-weight:800;line-height:1.1;color:var(--d-ink)}
+#dash-root .p71-donut-c small{font-size:10.5px;font-weight:600;color:var(--d-ink-3);margin-top:2px}
+#dash-root .p71-list{width:100%;}
+#dash-root .p71-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;padding:34px 16px;min-height:220px;border:1.5px dashed var(--d-line-strong);border-radius:14px;background:linear-gradient(135deg,rgba(16,185,129,.05),transparent 60%)}
+#dash-root .p71-empty-ico{font-size:34px;line-height:1}
+#dash-root .p71-empty-t{font-size:13.5px;font-weight:700;color:var(--d-ink-2)}
+#dash-root .p71-empty-s{font-size:12px;color:var(--d-ink-3)}
+#dash-root .p71-empty-s b{color:var(--d-ink-2);unicode-bidi:plaintext}
+@media(max-width:640px){
+  #dash-root .p71-sum{grid-template-columns:1fr}
+  #dash-root .p71-chip b{font-size:16px}
+}
 /* MARSOUD-DASH-P70 - operations cards v2 (4 per row) */
 #dash-root .ops{grid-template-columns:repeat(4,1fr);gap:16px}
 #dash-root .op{position:relative;overflow:hidden;align-items:center;gap:14px;padding:18px 18px 16px}
@@ -1032,7 +1060,16 @@ document.addEventListener('DOMContentLoaded', function () {
         <div class="legend">
           <span><span class="swatch" style="background:#159b54"></span> إيراد</span>
           <span><span class="swatch" style="background:#dc4640"></span> مصروف</span>
+          <span><span class="swatch" style="background:#2d6fb3"></span> الصافي</span>
         </div>
+      </div>
+      {% set _p71_rev = (metrics.trend_6m.revenue or [])|sum %}
+      {% set _p71_exp = (metrics.trend_6m.expenses or [])|sum %}
+      {% set _p71_net = _p71_rev - _p71_exp %}
+      <div class="p71-sum">
+        <div class="p71-chip"><span class="p71-lbl"><i style="background:#159b54"></i>إجمالي الإيراد</span><b>{{ "{:,.0f}".format(_p71_rev) }}</b></div>
+        <div class="p71-chip"><span class="p71-lbl"><i style="background:#dc4640"></i>إجمالي المصروف</span><b>{{ "{:,.0f}".format(_p71_exp) }}</b></div>
+        <div class="p71-chip {% if _p71_net < 0 %}neg{% else %}pos{% endif %}"><span class="p71-lbl"><i style="background:#2d6fb3"></i>الصافي</span><b>{{ "{:+,.0f}".format(_p71_net) }}</b></div>
       </div>
       <div class="chart-wrap"><canvas id="dashTrend" aria-label="إيرادات ومصروفات شهرية"></canvas></div>
     </div>
@@ -1044,6 +1081,20 @@ document.addEventListener('DOMContentLoaded', function () {
         </div>
       </div>
       {% if metrics.expense_breakdown %}
+        {% set _p71_tot = metrics.expense_breakdown|sum(attribute='amount') %}
+        {% set ns = namespace(acc=0, parts=[]) %}
+        {% for e in metrics.expense_breakdown %}
+          {% set _p71_a = ns.acc %}
+          {% set _p71_b = ns.acc + e.pct %}
+          {% set _p71_x = ns.parts.append(e.color ~ ' ' ~ _p71_a ~ '% ' ~ _p71_b ~ '%') %}
+          {% set ns.acc = _p71_b %}
+        {% endfor %}
+        {% if ns.acc < 100 %}{% set _p71_x = ns.parts.append('#e5e9f0 ' ~ ns.acc ~ '% 100%') %}{% endif %}
+        <div class="p71-exp">
+          <div class="p71-donut" style="background:conic-gradient({{ ns.parts|join(',') }})">
+            <div class="p71-donut-c"><b dir="ltr">{{ "{:,.0f}".format(_p71_tot) }}</b><small>إجمالي المصروف</small></div>
+          </div>
+          <div class="p71-list">
         {% for e in metrics.expense_breakdown %}
         <div class="bd-item">
           <div class="bd-top">
@@ -1053,8 +1104,14 @@ document.addEventListener('DOMContentLoaded', function () {
           <div class="bar"><i style="width:{{ e.pct }}%;background:{{ e.color }}"></i></div>
         </div>
         {% endfor %}
+          </div>
+        </div>
       {% else %}
-        <div style="padding:24px;text-align:center;color:var(--d-ink-3);font-size:13px">لا توجد مصروفات مسجّلة في هذه الفترة</div>
+        <div class="p71-empty">
+          <div class="p71-empty-ico">🧾</div>
+          <div class="p71-empty-t">لا توجد مصروفات مسجّلة في هذه الفترة</div>
+          <div class="p71-empty-s">إجمالي مصروف آخر 6 شهور: <b dir="ltr">{{ "{:,.0f}".format(_p71_exp) }}</b></div>
+        </div>
       {% endif %}
     </div>
   </div>
@@ -1272,6 +1329,71 @@ document.addEventListener('DOMContentLoaded', function () {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% if can_finance %}
+<script>
+/* MARSOUD-DASH-P71 */
+window.addEventListener('load', function () {
+  try {
+    if (typeof Chart === 'undefined') return;
+    var cv = document.getElementById('dashTrend');
+    if (!cv) return;
+    var old = Chart.getChart(cv);
+    if (old) old.destroy();
+    var labels = {{ metrics.trend_6m.labels|tojson }};
+    var rev = {{ metrics.trend_6m.revenue|tojson }}.map(Number);
+    var exp = {{ metrics.trend_6m.expenses|tojson }}.map(Number);
+    var net = rev.map(function (v, i) { return v - exp[i]; });
+    var G = '#159b54', R = '#dc4640', B = '#2d6fb3';
+    var fam = getComputedStyle(document.body).fontFamily;
+    function fmt(v) { return Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 }); }
+    function short(v) {
+      var a = Math.abs(v), s = v < 0 ? '-' : '';
+      if (a >= 1e6) return s + (a / 1e6).toFixed(a % 1e6 ? 1 : 0) + 'M';
+      if (a >= 1e3) return s + Math.round(a / 1e3) + 'k';
+      return String(v);
+    }
+    new Chart(cv, {
+      data: {
+        labels: labels,
+        datasets: [
+          { type: 'bar', label: 'إيراد', data: rev, backgroundColor: G, borderRadius: 7, borderSkipped: false, maxBarThickness: 18, order: 2 },
+          { type: 'bar', label: 'مصروف', data: exp, backgroundColor: R, borderRadius: 7, borderSkipped: false, maxBarThickness: 18, order: 2 },
+          { type: 'line', label: 'الصافي', data: net, borderColor: B, backgroundColor: B, borderWidth: 2.5, borderDash: [6, 5], tension: 0.35, pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: '#fff', pointBorderColor: B, pointBorderWidth: 2, order: 1 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        font: { family: fam },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            rtl: true,
+            titleFont: { family: fam, weight: '700' },
+            bodyFont: { family: fam },
+            footerFont: { family: fam },
+            padding: 10,
+            cornerRadius: 10,
+            callbacks: {
+              label: function (c) { return ' ' + c.dataset.label + ': ' + fmt(c.parsed.y); },
+              footer: function (items) {
+                var i = items[0].dataIndex;
+                return rev[i] < 0 ? '⚠ إيراد سالب (مرتجعات أو عكس قيود)' : '';
+              }
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, border: { display: false }, ticks: { font: { family: fam, size: 12 }, color: '#64748b' } },
+          y: { border: { display: false }, grid: { color: 'rgba(100,116,139,.14)' }, ticks: { font: { family: fam, size: 11 }, color: '#94a3b8', maxTicksLimit: 6, callback: function (v) { return short(v); } } }
+        }
+      }
+    });
+  } catch (e) { if (window.console) console.error('P71 chart', e); }
+});
+</script>
+{% endif %}
 <script>
   (function(){
     if (typeof Chart === 'undefined') return;
