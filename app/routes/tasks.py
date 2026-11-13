@@ -658,6 +658,60 @@ def quick_add():
     return jsonify(ok=True, id=t.id, status=t.status.name, warn=warn)
 
 
+# MARSOUD-TASKS-P45 - add a subtask straight from the parent's page
+@bp.route("/<int:task_id>/subtask", methods=["POST"])
+@login_required
+@require_permission("tasks.manage")
+def subtask_add(task_id):
+    parent = _task_or_403(task_id)
+    role = _role()
+    can_edit = _has_full_task_visibility() or current_user.id in assignee_ids_for(parent) \
+        or (role == "project_manager" and parent.project_id in set(_pm_project_ids()))
+    if not can_edit:
+        return jsonify(ok=False, error="ليس لديك صلاحية على هذه المهمة"), 403
+    try:
+        title = " ".join((request.form.get("title") or "").split())[:200]
+        if not title:
+            raise CRMError("اكتب عنوان المهمة الفرعية")
+        deadline = _parse_date(request.form.get("deadline"))
+        ids = [u.id for u in parent.all_assignees if u is not None] or [current_user.id]
+        t = Task(
+            company_id=parent.company_id, title=title,
+            project_id=parent.project_id, milestone_id=parent.milestone_id,
+            assigned_to_id=ids[0], created_by_id=current_user.id,
+            priority=TaskPriority.MEDIUM, status=TaskStatus.TODO,
+            deadline=deadline,
+        )
+        from app.services.task_hierarchy import validate_parent, TaskHierarchyError
+        try:
+            p = validate_parent(t, parent.id)
+        except TaskHierarchyError as e:
+            raise CRMError(str(e))
+        t.parent_task_id = p.id if p else None
+        db.session.add(t)
+        db.session.flush()
+        set_assignees(t, ids, actor_id=current_user.id)
+        log_activity(t, "CREATED",
+                     after={"title": t.title, "ids": ids, "parent": parent.id},
+                     user_id=current_user.id)
+        if parent.project:
+            parent.project.recompute_progress()
+        db.session.commit()
+    except (CRMError, TaskError, ValueError, TypeError, KeyError) as e:
+        db.session.rollback()
+        return jsonify(ok=False, error=str(e)), 400
+    return jsonify(
+        ok=True, id=t.id, title=t.title,
+        url=url_for("tasks.detail", task_id=t.id),
+        status_url=url_for("tasks.status", task_id=t.id),
+        status=t.status.name, label=t.status.label_ar,
+        status_badge=t.status.badge_class,
+        priority_label=t.priority.label_ar,
+        priority_badge=t.priority.badge_class,
+        deadline=t.deadline.isoformat() if t.deadline else "",
+    )
+
+
 @bp.route("/new", methods=["GET", "POST"])
 @login_required
 @require_permission("tasks.manage")

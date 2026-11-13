@@ -30,6 +30,9 @@
 .p43-chk input{width:16px;height:16px;cursor:pointer;accent-color:#059669}
 .p43-toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:80;background:#1e293b;color:#fff;font-size:13px;padding:9px 16px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.2);max-width:90vw}
 .p43-toast.err{background:#b91c1c}
+/* MARSOUD-TASKS-P45 */
+.p45-add{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.6rem}
+.p45-add input[type=text]{flex:1;min-width:160px}
 .p42-thumb{width:36px;height:36px;object-fit:cover;border-radius:.35rem;margin-inline-end:.5rem;flex:none}
 </style>
 {# MARSOUD-PARENT-CHILD-TASK-HIERARCHY (2026-08-09) — breadcrumb
@@ -274,6 +277,14 @@
         </a>
         {% endif %}
       </div>
+      {# MARSOUD-TASKS-P45 - quick add a subtask: type a title, press Enter #}
+      {% if can_edit and has_permission('tasks.manage') %}
+      <form class="p45-add" id="p45-form" data-url="{{ url_for('tasks.subtask_add', task_id=task.id) }}" autocomplete="off">
+        <input type="text" name="title" maxlength="200" class="input text-sm" placeholder="أضف مهمة فرعية واضغط Enter" aria-label="عنوان المهمة الفرعية">
+        <input type="date" name="deadline" class="input text-sm" title="الموعد (اختياري)" aria-label="الموعد">
+        <button type="submit" class="btn-secondary text-sm">إضافة</button>
+      </form>
+      {% endif %}
       {% if subtasks %}
       <div class="p42-bar wide" title="{{ _sub_done }} من {{ _sub_total }}"><i style="width:{{ (_sub_done * 100 / _sub_total)|round|int }}%"></i></div>
       <div class="overflow-x-auto">
@@ -519,6 +530,57 @@
       }
     });
   }
+})();
+</script>
+{# MARSOUD-TASKS-P45 #}
+<script>
+(function(){
+  var f=document.getElementById('p45-form'); if(!f){return;}
+  function toast(msg,err){
+    var t=document.createElement('div'); t.className='p43-toast'+(err?' err':''); t.textContent=msg;
+    document.body.appendChild(t); setTimeout(function(){t.remove();},3200);
+  }
+  function token(){
+    var m=document.querySelector('meta[name="csrf-token"]'); if(m){return m.content;}
+    var i=document.querySelector('input[name="csrf_token"]'); return i?i.value:'';
+  }
+  function el(tag,cls,txt){var e=document.createElement(tag); if(cls){e.className=cls;} if(txt!==undefined){e.textContent=txt;} return e;}
+  function recount(tbl){
+    var total=tbl.querySelectorAll('tbody tr.p43-row').length, done=tbl.querySelectorAll('tbody tr.p43-row.done').length;
+    var pct=total?Math.round(done*100/total):0;
+    var b=document.querySelector('a.p42-stat[href="#subtasks"] b.p42-v'); if(b){b.textContent=done+' من '+total;}
+    var i1=document.querySelector('a.p42-stat[href="#subtasks"] .p42-bar i'); if(i1){i1.style.width=pct+'%';}
+    var w=document.querySelector('.p42-bar.wide'); if(w){w.title=done+' من '+total; var i2=w.querySelector('i'); if(i2){i2.style.width=pct+'%';}}
+    var h=document.querySelector('#subtasks h3 span'); if(h){h.textContent='('+total+')';}
+  }
+  function addRow(tbl,j){
+    var tr=el('tr','p43-row'); tr.setAttribute('data-st',j.status);
+    var c=el('td','p43-chk'); var cb=el('input','p43-sub-chk'); cb.type='checkbox'; cb.setAttribute('data-url',j.status_url); cb.setAttribute('aria-label','إنجاز المهمة الفرعية'); c.appendChild(cb); tr.appendChild(c);
+    var t=el('td'); var a=el('a','font-semibold text-navy-900 hover:text-emerald-700',j.title); a.href=j.url; t.appendChild(a); tr.appendChild(t);
+    var s=el('td'); s.appendChild(el('span','badge p43-badge '+(j.status_badge||''),j.label)); tr.appendChild(s);
+    var p=el('td'); p.appendChild(el('span','badge '+(j.priority_badge||''),j.priority_label)); tr.appendChild(p);
+    tr.appendChild(el('td','font-mono text-xs',j.deadline||'—'));
+    tbl.tBodies[0].appendChild(tr);
+  }
+  f.addEventListener('submit',function(e){
+    e.preventDefault();
+    var inp=f.querySelector('input[name="title"]'), title=(inp.value||'').trim();
+    if(!title){inp.focus(); return;}
+    var fd=new FormData(f); var h={'X-Requested-With':'fetch'}; var t=token(); if(t){h['X-CSRFToken']=t; fd.append('csrf_token',t);}
+    var btn=f.querySelector('button[type="submit"]'); btn.disabled=true;
+    fetch(f.dataset.url,{method:'POST',headers:h,body:fd,credentials:'same-origin'})
+    .then(function(r){return r.json().catch(function(){return {ok:false,error:'تعذر الحفظ'};});})
+    .then(function(j){
+      if(!j.ok){throw new Error(j.error||'تعذر الحفظ');}
+      var tbl=document.getElementById('p43-subs');
+      if(!tbl){window.location.hash='subtasks'; window.location.reload(); return;}
+      addRow(tbl,j); recount(tbl);
+      inp.value=''; var d=f.querySelector('input[name="deadline"]'); if(d){d.value='';}
+      inp.focus(); toast('تمت إضافة المهمة الفرعية');
+    })
+    .catch(function(err){toast(err.message||'تعذر الحفظ',true);})
+    .then(function(){btn.disabled=false;});
+  });
 })();
 </script>
 {% endblock %}
