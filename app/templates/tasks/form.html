@@ -34,6 +34,15 @@
 .tf-title{font-size:1.05rem;font-weight:700;padding:.7rem .85rem}
 .tf-grid2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
 .tf-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
+/* MARSOUD-TASK-P74 - rich editor: RTL-safe header/size/font pickers */
+.ql-toolbar.ql-snow .ql-picker.ql-header,.ql-toolbar.ql-snow .ql-picker.ql-size,.ql-toolbar.ql-snow .ql-picker.ql-font{width:auto;min-width:108px}
+.ql-toolbar.ql-snow .ql-picker.ql-header .ql-picker-label,.ql-toolbar.ql-snow .ql-picker.ql-size .ql-picker-label,.ql-toolbar.ql-snow .ql-picker.ql-font .ql-picker-label{display:flex;align-items:center;padding:0 10px 0 26px !important;border-radius:8px;direction:rtl;text-align:right;white-space:nowrap}
+.ql-toolbar.ql-snow .ql-picker.ql-header .ql-picker-label::before,.ql-toolbar.ql-snow .ql-picker.ql-size .ql-picker-label::before,.ql-toolbar.ql-snow .ql-picker.ql-font .ql-picker-label::before{line-height:24px;font-size:13px;font-weight:600}
+.ql-toolbar.ql-snow .ql-picker.ql-header .ql-picker-label svg,.ql-toolbar.ql-snow .ql-picker.ql-size .ql-picker-label svg,.ql-toolbar.ql-snow .ql-picker.ql-font .ql-picker-label svg{right:auto !important;left:4px !important}
+.ql-toolbar.ql-snow .ql-picker.ql-header .ql-picker-label:hover,.ql-toolbar.ql-snow .ql-picker.ql-header.ql-expanded .ql-picker-label{background:rgba(100,116,139,.1)}
+.ql-toolbar.ql-snow .ql-picker.ql-header .ql-picker-options,.ql-toolbar.ql-snow .ql-picker.ql-size .ql-picker-options,.ql-toolbar.ql-snow .ql-picker.ql-font .ql-picker-options{direction:rtl;text-align:right;border-radius:10px;padding:6px;min-width:150px}
+.ql-toolbar.ql-snow .ql-picker-options .ql-picker-item{padding:3px 8px;border-radius:6px;padding-inline-end:8px}
+.ql-toolbar.ql-snow .ql-picker-options .ql-picker-item:hover{background:rgba(16,185,129,.12)}
 /* MARSOUD-TASK-P73 quick-create modal + schedule extras */
 .p73-ov{position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:16px}
 .p73-box{width:100%;max-width:460px;max-height:92vh;overflow:auto;background:#fff;border-radius:18px;box-shadow:0 20px 60px rgba(15,23,42,.35);padding:20px}
