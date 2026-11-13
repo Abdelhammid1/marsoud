@@ -186,6 +186,9 @@
 .ok-strip{display:flex;flex-wrap:wrap;gap:.5rem;margin:0 0 .9rem}
 .ok-strip span{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .8rem;border-radius:999px;background:rgba(16,185,129,.09);border:1px solid rgba(16,185,129,.35);color:#047857;font-size:.8rem;font-weight:600}
 .action-grid.p65-solo{grid-template-columns:1fr !important}
+/* MARSOUD-DASH-P66 - quick actions: top 8 + toggle */
+.q-more{display:inline-flex;align-items:center;gap:.4rem;margin:.6rem 0 1.25rem;padding:.35rem .9rem;border:1px dashed #cbd5e1;background:#fff;border-radius:999px;font-size:.78rem;font-weight:600;color:#475569;cursor:pointer}
+.q-more:hover{border-color:#10b981;color:#047857}
 .ops-zero a b{font-weight:700;color:#334155}
 </style>
 
@@ -340,6 +343,49 @@ document.addEventListener('DOMContentLoaded', function () {
     grid.parentNode.insertBefore(strip, grid);
     if (panels.length - empty.length === 1) grid.classList.add('p65-solo');
   } catch (e) { if (window.console) console.warn('dash-p65', e); }
+});
+</script>
+{# MARSOUD-DASH-P66 #}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  try {
+    var quick = document.querySelector('.quick');
+    if (!quick) return;
+    var tiles = Array.prototype.slice.call(quick.querySelectorAll(':scope > a.q'));
+    var LIMIT = 8;
+    if (tiles.length <= LIMIT) return;
+    var PRIO = ['فاتورة جديدة', 'فاتورة مورد', 'مهمة جديدة', 'عميل محتمل', 'التقارير', 'المساعد', 'تشغيل رواتب', 'افتح POS'];
+    function label(t) { var l = t.querySelector('.q-label'); return l ? l.textContent.trim() : ''; }
+    var ranked = [];
+    PRIO.forEach(function (p) { tiles.forEach(function (t) { if (label(t) === p && ranked.indexOf(t) < 0) ranked.push(t); }); });
+    tiles.forEach(function (t) { if (ranked.indexOf(t) < 0) ranked.push(t); });
+    ranked.forEach(function (t, i) { t.style.order = String(i); });
+    var extra = ranked.slice(LIMIT);
+    var open = false;
+    try { open = window.localStorage.getItem('dash.quick.open') === '1'; } catch (e) {}
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'q-more';
+    function paint() {
+      extra.forEach(function (t) { t.style.display = open ? '' : 'none'; });
+      btn.textContent = open ? 'إخفاء الباقي' : 'عرض باقي الإجراءات (' + extra.length + ')';
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    btn.addEventListener('click', function () {
+      open = !open; paint();
+      try { window.localStorage.setItem('dash.quick.open', open ? '1' : '0'); } catch (e) {}
+    });
+    quick.parentNode.insertBefore(btn, quick.nextSibling);
+    paint();
+    // move the whole block (label + grid + toggle) to the top of the dashboard
+    var label0 = quick.previousElementSibling;
+    var first = document.querySelector('#dash-root .section-label');
+    if (first && label0 && label0.classList.contains('section-label') && first !== label0) {
+      var par = first.parentNode;
+      par.insertBefore(label0, first);
+      par.insertBefore(quick, first);
+      par.insertBefore(btn, first);
+    }
+  } catch (e) { if (window.console) console.warn('dash-p66', e); }
 });
 </script>
   <div class="section-label">⚡ نظرة على العمليات</div>
