@@ -3,217 +3,452 @@
 {% block page_title %}{% if task %}تعديل مهمة{% else %}مهمة جديدة{% endif %}{% endblock %}
 {% block content %}
 {{ rte.assets() }}
-<div class="card p-6 max-w-3xl">
-  {# MARSOUD — multi-file upload at task creation. The form submits as
-     multipart so the route can read request.files.getlist('attachments').
+{# MARSOUD-TASKFORM-P49 (2026-11-13) — visual redesign of the create/edit task
+   form. Every field name / id the route and the other scripts rely on is
+   unchanged (title, description, parent_task_id, project_id, assignee_ids,
+   priority, milestone_id, deadline, notes, schedule_mode, schedule_start_date,
+   schedule_end_date, attachments, return_to). All new behaviour is JS
+   progressive enhancement: with JS off the form still posts normally. #}
+<style>
+.tf{max-width:56rem}
+.tf-hero{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:1rem}
+.tf-hero h1{font-size:1.25rem;font-weight:800;margin:0}
+.tf-ready{display:flex;flex-wrap:wrap;gap:.4rem}
+.tf-ready span{font-size:.72rem;font-weight:600;padding:.2rem .6rem;border-radius:999px;background:rgba(100,116,139,.12);color:#64748b;transition:all .15s}
+.tf-ready span.on{background:rgba(16,185,129,.16);color:#047857}
+.tf-ready span.on:before{content:"\2713\00a0"}
+.tf-sec{border:1px solid rgba(148,163,184,.35);border-radius:14px;padding:1.1rem 1.25rem;margin-bottom:1rem}
+.tf-sec-h{display:flex;align-items:center;gap:.6rem;margin-bottom:.9rem}
+.tf-num{width:1.6rem;height:1.6rem;border-radius:50%;background:#10b981;color:#fff;font-size:.8rem;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none}
+.tf-sec-h h2{font-size:.95rem;font-weight:800;margin:0}
+.tf-sec-h small{color:#64748b;font-size:.75rem}
+.tf-lbl{display:block;font-size:.85rem;font-weight:700;margin-bottom:.4rem}
+.tf-lbl em{font-style:normal;font-weight:500;color:#94a3b8;font-size:.75rem}
+.tf-hint{font-size:.72rem;color:#64748b;margin-top:.3rem}
+.tf-row{display:flex;justify-content:space-between;align-items:center;gap:.5rem}
+.tf-count{font-size:.72rem;color:#94a3b8;font-variant-numeric:tabular-nums}
+.tf-count.warn{color:#d97706}
+.tf-title{font-size:1.05rem;font-weight:700;padding:.7rem .85rem}
+.tf-grid2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.tf-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
+@media(max-width:700px){.tf-grid2,.tf-grid3{grid-template-columns:1fr}}
+.tf-seg{display:flex;flex-wrap:wrap;gap:.4rem}
+.tf-seg label{cursor:pointer;margin:0}
+.tf-seg input{position:absolute;opacity:0;pointer-events:none}
+.tf-seg span{display:inline-block;padding:.45rem .9rem;border-radius:10px;border:1.5px solid rgba(148,163,184,.5);font-size:.85rem;font-weight:700;transition:all .12s;user-select:none}
+.tf-seg label:hover span{border-color:#94a3b8}
+.tf-seg input:focus-visible+span{outline:2px solid #10b981;outline-offset:2px}
+.tf-seg input:checked+span{background:#10b981;border-color:#10b981;color:#fff}
+.tf-seg [data-p="LOW"] input:checked+span{background:#64748b;border-color:#64748b}
+.tf-seg [data-p="MEDIUM"] input:checked+span{background:#d97706;border-color:#d97706}
+.tf-seg [data-p="HIGH"] input:checked+span{background:#ea580c;border-color:#ea580c}
+.tf-seg [data-p="URGENT"] input:checked+span,.tf-seg [data-p="CRITICAL"] input:checked+span{background:#dc2626;border-color:#dc2626}
+.tf-quick{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.45rem}
+.tf-quick button{font-size:.75rem;font-weight:700;padding:.25rem .65rem;border-radius:999px;border:1px solid rgba(148,163,184,.5);background:transparent;cursor:pointer;color:inherit}
+.tf-quick button:hover{border-color:#10b981;color:#047857;background:rgba(16,185,129,.08)}
+.tf-quick button.clr{color:#94a3b8}
+.tf-dl-note{font-size:.75rem;margin-top:.35rem;min-height:1rem;color:#047857;font-weight:600}
+.tf-dl-note.bad{color:#dc2626}
+.tf-asg-tools{display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap}
+.tf-asg-tools input[type=search]{flex:1;min-width:8rem}
+.tf-btn-sm{font-size:.75rem;font-weight:700;padding:.35rem .7rem;border-radius:8px;border:1px solid rgba(148,163,184,.5);background:transparent;cursor:pointer;color:inherit;white-space:nowrap}
+.tf-btn-sm:hover{border-color:#10b981;color:#047857}
+.tf-chips{display:flex;flex-wrap:wrap;gap:.4rem;max-height:11rem;overflow:auto;padding:.1rem}
+.tf-chip{position:relative;margin:0;cursor:pointer}
+.tf-chip input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.tf-chip>span{display:inline-flex;align-items:center;gap:.4rem;padding:.25rem .7rem .25rem .35rem;border-radius:999px;border:1.5px solid rgba(148,163,184,.5);font-size:.82rem;transition:all .12s;user-select:none}
+.tf-chip i{font-style:normal;width:1.45rem;height:1.45rem;border-radius:50%;background:rgba(100,116,139,.18);color:#475569;font-size:.7rem;font-weight:800;display:flex;align-items:center;justify-content:center}
+.tf-chip:hover>span{border-color:#94a3b8}
+.tf-chip input:focus-visible+span{outline:2px solid #10b981;outline-offset:2px}
+.tf-chip input:checked+span{background:rgba(16,185,129,.14);border-color:#10b981;font-weight:700}
+.tf-chip input:checked+span i{background:#10b981;color:#fff}
+.tf-chip.hide{display:none}
+.tf-asg-sum{font-size:.75rem;color:#64748b;margin-top:.4rem}
+.tf-asg-sum.bad{color:#dc2626;font-weight:700}
+.tf-drop{border:2px dashed rgba(148,163,184,.6);border-radius:12px;padding:1rem;text-align:center;cursor:pointer;transition:all .12s;font-size:.85rem;color:#64748b}
+.tf-drop:hover,.tf-drop.over{border-color:#10b981;background:rgba(16,185,129,.07);color:#047857}
+.tf-drop input{display:none}
+.tf-files{list-style:none;margin:.6rem 0 0;padding:0;display:flex;flex-direction:column;gap:.3rem}
+.tf-files li{display:flex;align-items:center;gap:.6rem;padding:.35rem .6rem;border-radius:8px;background:rgba(100,116,139,.09);font-size:.8rem}
+.tf-files li b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.tf-files li small{color:#64748b;direction:ltr}
+.tf-files li button{border:0;background:transparent;cursor:pointer;color:#dc2626;font-weight:800;font-size:1rem;line-height:1}
+.tf-files li.big{background:rgba(220,38,38,.1)}
+.tf-sched summary{cursor:pointer;font-weight:800;font-size:.9rem;list-style:none}
+.tf-sched summary::-webkit-details-marker{display:none}
+.tf-sched summary:before{content:"\25C0";display:inline-block;margin-inline-end:.5rem;font-size:.7rem;transition:transform .15s}
+.tf-sched[open] summary:before{transform:rotate(-90deg)}
+.tf-bar{position:sticky;bottom:0;z-index:20;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.6rem;padding:.75rem 1rem;margin-top:1rem;border-radius:14px;border:1px solid rgba(148,163,184,.4);background:rgba(255,255,255,.92);backdrop-filter:blur(6px)}
+.tf-bar kbd{font-size:.7rem;padding:.1rem .4rem;border:1px solid #cbd5e1;border-radius:5px;color:#64748b}
+.tf-bar .tf-act{display:flex;gap:.5rem;flex-wrap:wrap}
+</style>
 
-     MARSOUD-TASK-CONTEXT — carry the origin URL forward via a hidden
-     `return_to` field so /new and /edit land back on whatever list the
-     user came from (employee drill-down, project detail, etc). Read
-     from ?return_to=... first; fall back to the referrer. #}
-  {% set _return_to = request.args.get('return_to') or request.referrer or '' %}
-  {# MARSOUD-FORM-ONCE (Abdelhamid 2026-07-13) — same duplicate-submit
-     guard the comment button uses. First click disables the button
-     and swaps the label to "جاري الإنشاء..." so a fast double-click
-     can't create two tasks. #}
-  <form method="POST" class="space-y-4" enctype="multipart/form-data"
+{% set _return_to = request.args.get('return_to') or request.referrer or '' %}
+<div class="tf" id="tf-root" data-me="{{ current_user.id }}" data-again-url="{{ url_for('tasks.new') }}">
+  <div class="tf-hero">
+    <h1>{% if task %}تعديل المهمة{% else %}مهمة جديدة{% endif %}</h1>
+    <div class="tf-ready" id="tf-ready" aria-live="polite">
+      <span data-k="title">عنوان</span>
+      <span data-k="asg">مكلَّف</span>
+      <span data-k="dl">موعد</span>
+      <span data-k="proj">مشروع</span>
+    </div>
+  </div>
+
+  <form method="POST" enctype="multipart/form-data" id="tf-form"
         data-once data-once-label="جاري الإنشاء...">
     {% if _return_to %}<input type="hidden" name="return_to" value="{{ _return_to }}">{% endif %}
-    <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">العنوان</label>
-      <input type="text" name="title" required value="{{ task.title if task else '' }}" class="input">
-    </div>
-    <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">الوصف</label>
-      {# MARSOUD-RICH-TEXT-EDITOR-01 (2026-09-17) — was a plain
-         <textarea>. Rich-text editor now handles bold/italic/lists/
-         headings/links/code/checklist + RTL default. Existing plain-
-         text descriptions still render via the `rich_text` filter's
-         legacy-text branch. #}
-      {{ rte.editor(
-           name="description",
-           value=(task.description if task else ""),
-           placeholder="اكتب وصف المهمة…",
-           height="12rem") }}
-    </div>
-    {# MARSOUD-PARENT-CHILD-TASK-HIERARCHY (2026-08-09) — optional
-       parent picker. `parent_choices` is filtered by
-       services/task_hierarchy.py::available_parents_for so the
-       user never sees a task from another company OR a task
-       that would create a cycle (self + descendants excluded on
-       edit). On create the caller may pre-select a parent via
-       ?parent_task_id=<id> (used by the "+ مهمة فرعية" link on
-       the parent's detail page). #}
-    {% if parent_choices is defined %}
-    <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">
-        مهمة أب (اختياري)
-      </label>
-      <select name="parent_task_id" id="task-parent-select" class="select">
-        <option value="">— بدون (مهمة أساسية) —</option>
-        {% for p in parent_choices %}
-        <option value="{{ p.id }}"
-                {% if selected_parent_id and selected_parent_id == p.id %}selected{% endif %}>
-          {{ p.title }}
-        </option>
-        {% endfor %}
-      </select>
-      <p class="text-[11px] text-slate-500 mt-1">
-        لو حددت مهمة أب، دي هتبقى مهمة فرعية بتاعتها. يمكن تعديل ده لاحقاً.
-      </p>
-    </div>
-    {% endif %}
-    <div class="grid grid-cols-2 gap-4">
-      <div>
-        {# MARSOUD-TASK-EDIT-PROJECT-STAGE (2026-08-06) — the select
-           used to be `{% if task %}disabled{% endif %}` in edit mode
-           with a sibling hidden input that re-submitted the current
-           value. That combo locked a task's project to whatever it
-           was created with — a task made without a project could
-           never gain one. Both are gone: the field is now editable
-           whenever the user has `tasks.manage`, and the route
-           validates the value the same way new() does. #}
-        <label class="block text-sm font-semibold text-slate-700 mb-2">المشروع (اختياري)</label>
-        <select name="project_id" id="task-project-select" class="select">
-          <option value="">— بدون مشروع (مهمة مستقلة) —</option>
-          {% for p in projects %}
-          <option value="{{ p.id }}" {% if (task and task.project_id == p.id) or (selected_project and selected_project == p.id|string) %}selected{% endif %}>{{ p.name }}</option>
-          {% endfor %}
-        </select>
-        <p class="text-xs text-slate-500 mt-1">يمكنك إنشاء مهمة بدون مشروع لمتابعة شخصية أو عمل لا يتبع لخطة محددة.</p>
+
+    {# ---------- 1) basics ---------- #}
+    <section class="tf-sec">
+      <div class="tf-sec-h"><div class="tf-num">1</div><div><h2>إيه المطلوب؟</h2></div></div>
+      <div style="margin-bottom:1rem">
+        <div class="tf-row">
+          <label class="tf-lbl" for="tf-title">العنوان</label>
+          <span class="tf-count" id="tf-title-count">0 / 200</span>
+        </div>
+        <input type="text" name="title" id="tf-title" required maxlength="200" autofocus
+               placeholder="مثال: مراجعة عقد العميل وإرسال الملاحظات"
+               value="{{ task.title if task else '' }}" class="input tf-title">
       </div>
       <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">المكلَّفون (يمكن اختيار أكثر من واحد)</label>
-        <div class="bg-slate-50 rounded p-2 max-h-40 overflow-auto space-y-1 border border-slate-200">
+        <label class="tf-lbl">الوصف <em>(اختياري)</em></label>
+        {{ rte.editor(
+             name="description",
+             value=(task.description if task else ""),
+             placeholder="اكتب وصف المهمة…",
+             height="12rem") }}
+      </div>
+    </section>
+
+    {# ---------- 2) people & dates ---------- #}
+    <section class="tf-sec">
+      <div class="tf-sec-h"><div class="tf-num">2</div><div><h2>مين وإمتى؟</h2></div></div>
+
+      <div style="margin-bottom:1rem">
+        <label class="tf-lbl">المكلَّفون <em>(اختار واحد على الأقل)</em></label>
+        <div class="tf-asg-tools">
+          {% if users|length > 8 %}<input type="search" id="tf-asg-q" class="input" placeholder="ابحث بالاسم…" autocomplete="off">{% endif %}
+          <button type="button" class="tf-btn-sm" id="tf-me">أنا</button>
+          <button type="button" class="tf-btn-sm" id="tf-asg-clear">مسح الكل</button>
+        </div>
+        <div class="tf-chips" id="tf-chips">
           {% for u in users %}{% if u %}
-          <label class="flex items-center gap-2 text-sm">
+          <label class="tf-chip" data-name="{{ u.full_name }}">
             <input type="checkbox" name="assignee_ids" value="{{ u.id }}"
                    {% if u.id in selected_assignee_ids %}checked{% elif not task and not selected_assignee_ids and u.id == current_user.id %}checked{% endif %}>
-            {{ u.full_name }}
+            <span><i>{{ (u.full_name or '?')[:1] }}</i>{{ u.full_name }}</span>
           </label>
           {% endif %}{% endfor %}
         </div>
+        <div class="tf-asg-sum" id="tf-asg-sum"></div>
       </div>
-    </div>
-    <div class="grid grid-cols-3 gap-4">
-      <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">الأولوية</label>
-        <select name="priority" required class="select">
-          {% for p in priorities %}<option value="{{ p.name }}" {% if task and task.priority == p %}selected{% endif %}>{{ p.label_ar }}</option>{% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">المرحلة (اختياري)</label>
-        <select name="milestone_id" id="task-milestone-select" class="select">
-          <option value="">— بدون —</option>
-          {% for m in milestones %}<option value="{{ m.id }}" {% if task and task.milestone_id == m.id %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
-        </select>
-      </div>
-      <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">Deadline</label>
-        <input type="date" name="deadline" value="{{ task.deadline.isoformat() if task and task.deadline else '' }}" class="input">
-      </div>
-    </div>
-    <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">ملاحظات</label>
-      <textarea name="notes" rows="2" class="textarea">{{ task.notes if task else '' }}</textarea>
-    </div>
 
-    {# MARSOUD-TASK-SCHEDULE (Abdelhamid 2026-07-11) — schedule/recurrence
-       block. Only shown on CREATE (schedule editing lives in a separate
-       page in a future ticket). Three modes:
-         · NONE     — normal task, created immediately (default)
-         · ONCE     — task appears on the chosen future date
-         · DAILY    — task recreated every day between start and end date
-       JS below hides/shows the date inputs based on the radio choice. #}
-    {% if not task %}
-    <div class="rounded-lg border border-slate-200 bg-slate-50 p-4"
-         id="schedule-block">
-      <label class="block text-sm font-semibold text-slate-700 mb-3">
-        🗓️ جدولة أو تكرار (اختياري)
-      </label>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-        <label class="flex items-center gap-2 text-sm cursor-pointer">
-          <input type="radio" name="schedule_mode" value="NONE" checked
-                 onchange="_toggleScheduleFields(this.value)">
-          <span>الآن (بدون جدولة)</span>
-        </label>
-        <label class="flex items-center gap-2 text-sm cursor-pointer">
-          <input type="radio" name="schedule_mode" value="ONCE"
-                 onchange="_toggleScheduleFields(this.value)">
-          <span>جدولة لتاريخ لاحق</span>
-        </label>
-        <label class="flex items-center gap-2 text-sm cursor-pointer">
-          <input type="radio" name="schedule_mode" value="DAILY"
-                 onchange="_toggleScheduleFields(this.value)">
-          <span>تكرار يومي حتى تاريخ</span>
-        </label>
-      </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-3"
-           id="schedule-fields" style="display:none">
+      <div class="tf-grid2">
         <div>
-          <label class="block text-xs text-slate-600 mb-1">تاريخ البدء</label>
-          <input type="date" name="schedule_start_date" class="input">
+          <label class="tf-lbl">الأولوية</label>
+          <div class="tf-seg" id="tf-prio">
+            {% for p in priorities %}
+            <label data-p="{{ p.name }}">
+              <input type="radio" name="priority" value="{{ p.name }}" required
+                     {% if (task and task.priority == p) or (not task and p.name == 'MEDIUM') %}checked{% endif %}>
+              <span>{{ p.label_ar }}</span>
+            </label>
+            {% endfor %}
+          </div>
         </div>
-        <div id="schedule-end-wrap" style="display:none">
-          <label class="block text-xs text-slate-600 mb-1">
-            تاريخ الانتهاء (شامل)
-          </label>
-          <input type="date" name="schedule_end_date" class="input">
+        <div>
+          <label class="tf-lbl" for="tf-deadline">الموعد النهائي <em>(Deadline)</em></label>
+          <input type="date" name="deadline" id="tf-deadline"
+                 value="{{ task.deadline.isoformat() if task and task.deadline else '' }}" class="input">
+          <div class="tf-quick" id="tf-quick">
+            <button type="button" data-add="0">النهارده</button>
+            <button type="button" data-add="1">بكرة</button>
+            <button type="button" data-thu="1">آخر الأسبوع</button>
+            <button type="button" data-add="7">بعد أسبوع</button>
+            <button type="button" data-add="30">بعد شهر</button>
+            <button type="button" class="clr" data-clear="1">مسح</button>
+          </div>
+          <div class="tf-dl-note" id="tf-dl-note"></div>
         </div>
       </div>
-      <p class="text-xs text-slate-500 mt-2">
-        عند الجدولة، لا تُنشأ المهمة الآن — تُنشأ آليًا في التاريخ المحدد
-        (وكل يوم داخل الفترة إذا اخترت التكرار اليومي).
-      </p>
-    </div>
-    <script>
-    function _toggleScheduleFields(mode) {
-      const wrap = document.getElementById("schedule-fields");
-      const endWrap = document.getElementById("schedule-end-wrap");
-      if (mode === "NONE") {
-        wrap.style.display = "none";
-        endWrap.style.display = "none";
-      } else {
-        wrap.style.display = "grid";
-        endWrap.style.display = (mode === "DAILY") ? "block" : "none";
+    </section>
+
+    {# ---------- 3) links ---------- #}
+    <section class="tf-sec">
+      <div class="tf-sec-h"><div class="tf-num">3</div><div><h2>تابعة لإيه؟</h2> <small>كله اختياري</small></div></div>
+      <div class="tf-grid2">
+        <div>
+          <label class="tf-lbl" for="task-project-select">المشروع</label>
+          <select name="project_id" id="task-project-select" class="select">
+            <option value="">— بدون مشروع (مهمة مستقلة) —</option>
+            {% for p in projects %}
+            <option value="{{ p.id }}" {% if (task and task.project_id == p.id) or (selected_project and selected_project == p.id|string) %}selected{% endif %}>{{ p.name }}</option>
+            {% endfor %}
+          </select>
+          <p class="tf-hint">ممكن تعمل مهمة بدون مشروع للمتابعة الشخصية.</p>
+        </div>
+        <div>
+          <label class="tf-lbl" for="task-milestone-select">المرحلة</label>
+          <select name="milestone_id" id="task-milestone-select" class="select">
+            <option value="">— بدون —</option>
+            {% for m in milestones %}<option value="{{ m.id }}" {% if task and task.milestone_id == m.id %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      {% if parent_choices is defined %}
+      <div style="margin-top:1rem">
+        <label class="tf-lbl" for="task-parent-select">مهمة أب</label>
+        <select name="parent_task_id" id="task-parent-select" class="select">
+          <option value="">— بدون (مهمة أساسية) —</option>
+          {% for p in parent_choices %}
+          <option value="{{ p.id }}" {% if selected_parent_id and selected_parent_id == p.id %}selected{% endif %}>{{ p.title }}</option>
+          {% endfor %}
+        </select>
+        <p class="tf-hint">لو حددت مهمة أب، دي هتبقى مهمة فرعية بتاعتها. يمكن تعديل ده لاحقاً.</p>
+      </div>
+      {% endif %}
+    </section>
+
+    {# ---------- 4) extras ---------- #}
+    <section class="tf-sec">
+      <div class="tf-sec-h"><div class="tf-num">4</div><div><h2>إضافات</h2> <small>اختياري</small></div></div>
+      <div style="margin-bottom:1rem">
+        <label class="tf-lbl" for="tf-notes">ملاحظات</label>
+        <textarea name="notes" id="tf-notes" rows="2" class="textarea">{{ task.notes if task else '' }}</textarea>
+      </div>
+
+      {% if not task %}
+      <div style="margin-bottom:1rem">
+        <label class="tf-lbl">المرفقات</label>
+        <label class="tf-drop" id="tf-drop">
+          <input type="file" name="attachments" id="tf-files-in" multiple
+                 accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.heic,.heif,.doc,.docx,.xls,.xlsx,.zip,.md,.txt,.csv,.json">
+          اسحب الملفات هنا أو اضغط للاختيار<br>
+          <span class="tf-hint">PDF / صور / Word / Excel / ZIP / Markdown + TXT / CSV / JSON — حد أقصى 50 ميجا لكل ملف.</span>
+        </label>
+        <ul class="tf-files" id="tf-files"></ul>
+      </div>
+
+      {# MARSOUD-TASK-SCHEDULE — same three modes; collapsed by default. #}
+      <details class="tf-sched" id="schedule-block">
+        <summary>جدولة أو تكرار <em style="font-weight:500;color:#94a3b8;font-size:.75rem">(اختياري)</em></summary>
+        <div style="margin-top:.8rem">
+          <div class="tf-seg" style="margin-bottom:.8rem">
+            <label><input type="radio" name="schedule_mode" value="NONE" checked onchange="_toggleScheduleFields(this.value)"><span>الآن (بدون جدولة)</span></label>
+            <label><input type="radio" name="schedule_mode" value="ONCE" onchange="_toggleScheduleFields(this.value)"><span>جدولة لتاريخ لاحق</span></label>
+            <label><input type="radio" name="schedule_mode" value="DAILY" onchange="_toggleScheduleFields(this.value)"><span>تكرار يومي حتى تاريخ</span></label>
+          </div>
+          <div class="tf-grid2" id="schedule-fields" style="display:none">
+            <div>
+              <label class="tf-lbl" for="tf-sd">تاريخ البدء</label>
+              <input type="date" name="schedule_start_date" id="tf-sd" class="input">
+            </div>
+            <div id="schedule-end-wrap" style="display:none">
+              <label class="tf-lbl" for="tf-ed">تاريخ الانتهاء (شامل)</label>
+              <input type="date" name="schedule_end_date" id="tf-ed" class="input">
+            </div>
+          </div>
+          <p class="tf-hint">عند الجدولة، المهمة مش بتتعمل دلوقتي — بتتعمل تلقائي في التاريخ المحدد (وكل يوم داخل الفترة لو اخترت التكرار اليومي).</p>
+        </div>
+      </details>
+      <script>
+      function _toggleScheduleFields(mode) {
+        const wrap = document.getElementById("schedule-fields");
+        const endWrap = document.getElementById("schedule-end-wrap");
+        if (mode === "NONE") { wrap.style.display = "none"; endWrap.style.display = "none"; }
+        else { wrap.style.display = "grid"; endWrap.style.display = (mode === "DAILY") ? "block" : "none"; }
       }
-    }
-    </script>
-    {% endif %}
+      </script>
+      {% endif %}
+    </section>
 
-    {# MARSOUD — multi-attachment input. Hidden on edit because the
-       detail page already has a per-attachment uploader; we only want
-       this on the create form. #}
-    {% if not task %}
-    <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">
-        📎 المرفقات (اختياري — يمكن اختيار أكثر من ملف)
-      </label>
-      <input type="file" name="attachments" multiple
-             accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.heic,.heif,.doc,.docx,.xls,.xlsx,.zip,.md,.txt,.csv,.json"
-             class="block w-full text-sm text-slate-700 file:me-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
-      <p class="text-xs text-slate-500 mt-1">
-        PDF / صور / Word / Excel / ZIP / Markdown + TXT / CSV / JSON — حد أقصى 50 ميجا لكل ملف.
-      </p>
-    </div>
-    {% endif %}
-
-    <div class="flex justify-end gap-2">
-      {# MARSOUD-TASK-CONTEXT — Cancel returns to the origin list too,
-         not just the default /tasks/. #}
-      <a href="{{ _return_to if _return_to else url_for('tasks.index') }}"
-         class="btn-secondary">إلغاء</a>
-      <button type="submit" class="btn-primary">{% if task %}حفظ التعديلات{% else %}إنشاء{% endif %}</button>
+    {# ---------- action bar ---------- #}
+    {% set _cancel = _return_to if _return_to else url_for('tasks.index') %}
+    <div class="tf-bar">
+      <span class="tf-hint" style="margin:0"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> للحفظ السريع</span>
+      <div class="tf-act">
+        <a href="{{ _cancel }}" class="btn-secondary" id="tf-cancel">إلغاء</a>
+        {% if not task %}<button type="submit" class="btn-secondary" id="tf-again">إنشاء وإضافة مهمة تانية</button>{% endif %}
+        <button type="submit" class="btn-primary" id="tf-save">{% if task %}حفظ التعديلات{% else %}إنشاء{% endif %}</button>
+      </div>
     </div>
   </form>
 </div>
 
-{# When the user changes the project select, swap the milestone options
-   to match. The map is server-rendered (one fetch, no AJAX). Both
-   new() and edit() now pass the map (edit() gained it in
-   MARSOUD-TASK-EDIT-PROJECT-STAGE, 2026-08-06); if a future caller
-   doesn't, the {% if %} still no-ops safely. #}
+<script>
+(function(){
+  var form = document.getElementById('tf-form'); if (!form) return;
+  var root = document.getElementById('tf-root');
+  var $ = function(s, r){ return (r||document).querySelector(s); };
+  var $$ = function(s, r){ return Array.prototype.slice.call((r||document).querySelectorAll(s)); };
+
+  /* ---- title counter ---- */
+  var title = $('#tf-title'), tcount = $('#tf-title-count');
+  function upTitle(){
+    var n = title.value.length; tcount.textContent = n + ' / 200';
+    tcount.className = 'tf-count' + (n >= 170 ? ' warn' : '');
+  }
+  title.addEventListener('input', upTitle); upTitle();
+
+  /* ---- assignees ---- */
+  var boxes = $$('input[name="assignee_ids"]', form);
+  var sum = $('#tf-asg-sum');
+  function upAsg(){
+    var on = boxes.filter(function(b){ return b.checked; }).length;
+    if (boxes.length) boxes[0].setCustomValidity(on ? '' : 'اختار مكلَّف واحد على الأقل');
+    sum.className = 'tf-asg-sum' + (on ? '' : ' bad');
+    sum.textContent = on ? ('تم اختيار ' + on + (on === 1 ? ' شخص' : ' أشخاص')) : 'لازم تختار مكلَّف واحد على الأقل';
+    ready();
+  }
+  boxes.forEach(function(b){ b.addEventListener('change', upAsg); });
+  var meBtn = $('#tf-me');
+  meBtn.addEventListener('click', function(){
+    var me = root.getAttribute('data-me');
+    boxes.forEach(function(b){ b.checked = (b.value === me); });
+    upAsg(); dirty = true;
+  });
+  $('#tf-asg-clear').addEventListener('click', function(){
+    boxes.forEach(function(b){ b.checked = false; }); upAsg(); dirty = true;
+  });
+  var q = $('#tf-asg-q');
+  if (q) q.addEventListener('input', function(){
+    var v = q.value.trim().toLowerCase();
+    $$('.tf-chip').forEach(function(c){
+      var n = (c.getAttribute('data-name') || '').toLowerCase();
+      c.classList.toggle('hide', !!v && n.indexOf(v) === -1);
+    });
+  });
+
+  /* ---- deadline quick picks ---- */
+  var dl = $('#tf-deadline'), note = $('#tf-dl-note');
+  var DOW = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+  function iso(d){ var m = d.getMonth()+1, x = d.getDate();
+    return d.getFullYear() + '-' + (m<10?'0':'') + m + '-' + (x<10?'0':'') + x; }
+  function today(){ var d = new Date(); d.setHours(0,0,0,0); return d; }
+  function upDl(){
+    note.className = 'tf-dl-note';
+    if (!dl.value) { note.textContent = ''; ready(); return; }
+    var p = dl.value.split('-'); var d = new Date(+p[0], +p[1]-1, +p[2]);
+    var diff = Math.round((d - today()) / 86400000);
+    var txt = DOW[d.getDay()] + ' ' + dl.value;
+    if (diff < 0) { note.className += ' bad'; txt += ' — تاريخ فات من ' + (-diff) + ' يوم'; }
+    else if (diff === 0) txt += ' — النهارده';
+    else if (diff === 1) txt += ' — بكرة';
+    else txt += ' — بعد ' + diff + ' يوم';
+    note.textContent = txt; ready();
+  }
+  $('#tf-quick').addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    var d = today();
+    if (b.hasAttribute('data-clear')) { dl.value = ''; }
+    else if (b.hasAttribute('data-thu')) {
+      d.setDate(d.getDate() + ((4 - d.getDay() + 7) % 7)); dl.value = iso(d);
+    } else { d.setDate(d.getDate() + parseInt(b.getAttribute('data-add'), 10)); dl.value = iso(d); }
+    dirty = true; upDl();
+  });
+  dl.addEventListener('change', upDl);
+
+  /* ---- readiness chips ---- */
+  var projSel = $('#task-project-select');
+  function ready(){
+    var st = {
+      title: title.value.trim().length > 0,
+      asg: boxes.some(function(b){ return b.checked; }),
+      dl: !!dl.value,
+      proj: !!projSel.value
+    };
+    $$('#tf-ready span').forEach(function(s){ s.classList.toggle('on', !!st[s.getAttribute('data-k')]); });
+  }
+  title.addEventListener('input', ready); projSel.addEventListener('change', ready);
+
+  /* ---- schedule: open the block automatically if a mode is chosen ---- */
+  var sched = $('#schedule-block');
+  if (sched) $$('input[name="schedule_mode"]', sched).forEach(function(r){
+    r.addEventListener('change', function(){
+      if (r.checked && r.value !== 'NONE') {
+        dl.disabled = false;
+        $('#tf-sd').required = true;
+        $('#tf-ed').required = (r.value === 'DAILY');
+      } else { $('#tf-sd').required = false; $('#tf-ed').required = false; }
+    });
+  });
+
+  /* ---- attachments list + drag & drop ---- */
+  var fin = $('#tf-files-in'), flist = $('#tf-files'), drop = $('#tf-drop');
+  var MAX = 50 * 1024 * 1024;
+  function human(n){ return n > 1048576 ? (n/1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n/1024)) + ' KB'; }
+  var files = [];
+  function sync(){
+    try {
+      var dt = new DataTransfer();
+      files.forEach(function(f){ dt.items.add(f); });
+      fin.files = dt.files;
+    } catch(_) {}
+  }
+  function render(){
+    flist.innerHTML = '';
+    files.forEach(function(f, i){
+      var li = document.createElement('li'); if (f.size > MAX) li.className = 'big';
+      var nm = document.createElement('b'); nm.textContent = f.name;
+      var sz = document.createElement('small'); sz.textContent = human(f.size) + (f.size > MAX ? ' (أكبر من 50 ميجا)' : '');
+      var x = document.createElement('button'); x.type = 'button'; x.textContent = '×'; x.setAttribute('aria-label', 'حذف');
+      x.addEventListener('click', function(){ files.splice(i, 1); sync(); render(); });
+      li.appendChild(nm); li.appendChild(sz); li.appendChild(x); flist.appendChild(li);
+    });
+  }
+  function addFiles(list){
+    Array.prototype.forEach.call(list, function(f){
+      if (!files.some(function(g){ return g.name === f.name && g.size === f.size; })) files.push(f);
+    });
+    sync(); render(); dirty = true;
+  }
+  if (fin) {
+    fin.addEventListener('change', function(){ addFiles(fin.files); });
+    ['dragenter','dragover'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('over'); }); });
+    ['dragleave','drop'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('over'); }); });
+    drop.addEventListener('drop', function(e){ if (e.dataTransfer && e.dataTransfer.files) addFiles(e.dataTransfer.files); });
+  }
+
+  /* ---- "create and add another": come back to /tasks/new ---- */
+  var again = $('#tf-again');
+  var rt0 = form.querySelector('input[name="return_to"]');
+  var origRT = rt0 ? rt0.value : '';
+  if (again) again.addEventListener('click', function(){
+    var h = form.querySelector('input[name="return_to"]');
+    if (!h) { h = document.createElement('input'); h.type = 'hidden'; h.name = 'return_to'; form.appendChild(h); }
+    h.value = root.getAttribute('data-again-url');
+  });
+  var save = $('#tf-save');
+  if (save && again) save.addEventListener('click', function(){
+    /* restore the original origin if the user first clicked "again" then changed their mind */
+    var h = form.querySelector('input[name="return_to"]');
+    if (h && h.value === root.getAttribute('data-again-url')) {
+      if (origRT) h.value = origRT; else h.parentNode.removeChild(h);
+    }
+  });
+
+  /* ---- Ctrl/Cmd+Enter = save ---- */
+  document.addEventListener('keydown', function(e){
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      if (form.requestSubmit) form.requestSubmit(save); else if (save) save.click();
+    }
+  });
+
+  /* ---- leave-page guard ---- */
+  var dirty = false, submitting = false;
+  form.addEventListener('input', function(){ dirty = true; });
+  form.addEventListener('submit', function(){ submitting = true; });
+  window.addEventListener('beforeunload', function(e){
+    if (dirty && !submitting) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  upAsg(); upDl(); ready(); dirty = false;
+})();
+</script>
+
+{# When the project select changes, swap the milestone options (unchanged). #}
 {% if milestones_by_project is defined and milestones_by_project %}
 <script id="task-milestones-data" type="application/json">{{ milestones_by_project|tojson }}</script>
 <script>
@@ -239,13 +474,7 @@
 </script>
 {% endif %}
 
-{# MARSOUD-TASK-PARENT-BY-PROJECT-01 (2026-09-17) — parent-task
-   picker follows the project selection. The map ships every
-   bucket (project_id → sorted list of tasks, plus a "none" bucket
-   for orphan tasks); the change listener swaps the visible
-   options + auto-deselects any parent that no longer belongs to
-   the picked project. Sorting comes from the server (created_at
-   DESC) so newest tasks show first — no client-side sort needed. #}
+{# MARSOUD-TASK-PARENT-BY-PROJECT-01 — parent picker follows the project (unchanged). #}
 {% if parents_by_project is defined and parents_by_project %}
 <script id="task-parents-data" type="application/json">{{ parents_by_project|tojson }}</script>
 <script>
@@ -260,8 +489,6 @@
     const pid = projSel.value;
     const key = pid ? String(pid) : 'none';
     const list = Array.isArray(map[key]) ? map[key] : [];
-    // Remember whatever the user had picked so we can restore it
-    // only when it's still valid under the new project.
     const previouslySelected = parentSel.value;
     parentSel.innerHTML = '<option value="">— بدون (مهمة أساسية) —</option>';
     let stillValid = false;
@@ -269,18 +496,10 @@
       const opt = document.createElement('option');
       opt.value = t.id;
       opt.textContent = t.title;
-      if (String(t.id) === previouslySelected) {
-        opt.selected = true;
-        stillValid = true;
-      }
+      if (String(t.id) === previouslySelected) { opt.selected = true; stillValid = true; }
       parentSel.appendChild(opt);
     });
-    // If the previously-selected parent isn't inside the new
-    // project's bucket, drop it — matches the AC "Parent Task
-    // غير التابعة للـProject الجديد يتم إلغاء اختيارها".
-    if (!stillValid) {
-      parentSel.value = '';
-    }
+    if (!stillValid) { parentSel.value = ''; }
   }
   projSel.addEventListener('change', refreshParents);
 })();
