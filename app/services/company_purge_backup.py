@@ -26,7 +26,7 @@ self-describing (company id/name, timestamp, per-table
 row counts) so Abdelhamid can eyeball it later without
 loading anything.
 
-File layout: `app/static/backups/company_purges/<cid>_<yyyymmdd_HHMMSS>.json`.
+File layout: `instance/private_backups/company_purges/<cid>_<yyyymmdd_HHMMSS>.json`.
 The directory is created lazily on first use, with a
 sibling `.gitignore` (contents `*`) so accidental commits
 of production backup dumps are impossible.
@@ -42,13 +42,13 @@ from flask import current_app
 from app import db
 
 
-BACKUP_SUBDIR = ("static", "backups", "company_purges")
+BACKUP_SUBDIR = ("private_backups", "company_purges")
 
 
 def _backup_dir() -> Path:
     """Return the on-disk backup directory, creating it +
     the `.gitignore` sentinel on first use."""
-    d = Path(current_app.root_path)
+    d = Path(current_app.instance_path)
     for part in BACKUP_SUBDIR:
         d = d / part
     d.mkdir(parents=True, exist_ok=True)

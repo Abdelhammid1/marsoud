@@ -255,7 +255,7 @@ def company_restore(company_id):
 #    soft-deleted company with a bulk hard-delete toolbar.
 #  · POST /companies/bulk-hard-delete — permanent wipe. A
 #    JSON snapshot of every row referencing the company is
-#    dumped to app/static/backups/company_purges/ BEFORE
+#    dumped to instance/private_backups/company_purges/ BEFORE
 #    the cascade runs, so a mistaken purge is still
 #    recoverable from disk.
 @bp.route("/companies/bulk-soft-delete", methods=["POST"])
