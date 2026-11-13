@@ -54,6 +54,21 @@ def _run(name, fn):
         return {"error": str(e)[:200]}
 
 
+@bp.route("/schedules", methods=["POST", "GET"])
+def schedules_tick():
+    """MARSOUD-TASK-P73 — lightweight tick for scheduled tasks only, so a
+    task scheduled for 14:30 fires at ~14:30 instead of waiting for the
+    09:00 full tick. Same token auth as /tick."""
+    if not _authorized():
+        return jsonify({"error": "unauthorized"}), 401
+    try:
+        from app.services.task_schedules import materialize_due_schedules
+        return jsonify(materialize_due_schedules())
+    except Exception as e:
+        logging.getLogger("ledgeros.cron").exception("schedules tick failed: %s", e)
+        return jsonify({"error": str(e)[:200]}), 500
+
+
 @bp.route("/tick", methods=["POST", "GET"])
 def tick():
     if not _authorized():

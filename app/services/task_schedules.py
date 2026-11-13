@@ -33,9 +33,29 @@ class ScheduleError(Exception):
     pass
 
 
+def _p73_company_now(s):
+    """MARSOUD-TASK-P73 — current datetime in the schedule's company timezone."""
+    try:
+        from zoneinfo import ZoneInfo
+        tz = getattr(getattr(s, "company", None), "timezone", None) or "Asia/Riyadh"
+        return datetime.now(ZoneInfo(tz))
+    except Exception:
+        return datetime.now()
+
+
+def _p73_is_excluded(s, today):
+    wd = getattr(s, "exclude_weekdays", None) or ""
+    if wd and str(today.weekday()) in [x.strip() for x in wd.split(",") if x.strip()]:
+        return True
+    ex = getattr(s, "exclude_dates", None) or ""
+    return bool(ex) and today.isoformat() in [x.strip() for x in ex.split(",")]
+
+
 def create_schedule(*, company_id, created_by_id, title, description,
                        priority, project_id, milestone_id, notes,
-                       assignee_ids, recurrence, start_date, end_date):
+                       assignee_ids, recurrence, start_date, end_date,
+                       run_time=None, exclude_weekdays=None,
+                       exclude_dates=None):
     """Insert a TaskSchedule row. Callers should have validated the
     business inputs already (title present, assignees non-empty)
     because this function only enforces the invariants the model
@@ -56,6 +76,24 @@ def create_schedule(*, company_id, created_by_id, title, description,
         # data confusing the materializer.
         end_date = None
 
+    # MARSOUD-TASK-P73 — run time + exclusions (DAILY only).
+    if run_time:
+        import re as _re
+        if not _re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", str(run_time)):
+            raise ScheduleError("صيغة الساعة غير صحيحة")
+    else:
+        run_time = None
+    if recurrence == RECURRENCE_DAILY:
+        _wd = sorted({int(x) for x in (exclude_weekdays or []) if 0 <= int(x) <= 6})
+        if len(_wd) >= 7:
+            raise ScheduleError("مينفعش تستثني كل أيام الأسبوع")
+        _ex = sorted(set(exclude_dates or []))
+        exclude_weekdays = ",".join(str(x) for x in _wd) or None
+        exclude_dates = ",".join(d.isoformat() for d in _ex) or None
+    else:
+        exclude_weekdays = None
+        exclude_dates = None
+
     # Priority: allow either raw enum name or a lower-case value.
     try:
         pri = TaskPriority[priority].name if priority else "MEDIUM"
@@ -70,6 +108,8 @@ def create_schedule(*, company_id, created_by_id, title, description,
         created_by_id=created_by_id,
         recurrence=recurrence,
         start_date=start_date, end_date=end_date,
+        run_time=run_time, exclude_weekdays=exclude_weekdays,
+        exclude_dates=exclude_dates,
         active=True,
     )
     db.session.add(s); db.session.flush()
@@ -163,9 +203,15 @@ def _fire_schedule_if_due(s, today):
         s.active = False
         db.session.commit()
         return "deactivated"
+    if s.recurrence == RECURRENCE_DAILY and _p73_is_excluded(s, today):
+        return "skipped"   # MARSOUD-TASK-P73 excluded weekday/date
     if (s.last_generated_date is not None
             and s.last_generated_date >= today):
         return "already"
+    _rt = getattr(s, "run_time", None)
+    if _rt and (s.recurrence == RECURRENCE_DAILY or s.start_date >= today):
+        if _p73_company_now(s).strftime("%H:%M") < _rt:
+            return "waiting"   # MARSOUD-TASK-P73 not yet time
 
     _spawn_task_from_schedule(s)
     s.last_generated_date = today

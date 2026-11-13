@@ -87,6 +87,11 @@ class TaskSchedule(db.Model):
     # ─── Bookkeeping ──────────────────────────────────────────────
     active = db.Column(db.Boolean, default=True, nullable=False, index=True)
     last_generated_date = db.Column(db.Date, nullable=True)
+    # MARSOUD-TASK-P73 — optional HH:MM run time (company timezone) and
+    # exclusions for DAILY schedules: weekdays '5,6' (Mon=0) + ISO dates.
+    run_time = db.Column(db.String(5), nullable=True)
+    exclude_weekdays = db.Column(db.String(20), nullable=True)
+    exclude_dates = db.Column(db.Text, nullable=True)
     generated_count = db.Column(db.Integer, default=0, nullable=False)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

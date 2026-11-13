@@ -762,6 +762,17 @@ def new():
                     raise CRMError("تاريخ البدء مطلوب للجدولة")
                 if mode == "DAILY" and not end_d:
                     raise CRMError("تاريخ الانتهاء مطلوب للتكرار اليومي")
+                # MARSOUD-TASK-P73 — optional run time + exclusions
+                _p73_time = (request.form.get("schedule_time") or "").strip() or None
+                _p73_wd = []
+                for _x in request.form.getlist("schedule_exclude_weekdays"):
+                    if _x.isdigit() and 0 <= int(_x) <= 6 and int(_x) not in _p73_wd:
+                        _p73_wd.append(int(_x))
+                _p73_ex = []
+                for _x in (request.form.get("schedule_exclude_dates") or "").split(","):
+                    _d = _parse_date(_x.strip()) if _x.strip() else None
+                    if _d and _d not in _p73_ex:
+                        _p73_ex.append(_d)
                 from app.services.task_schedules import (
                     create_schedule, ScheduleError,
                 )
@@ -780,16 +791,23 @@ def new():
                         recurrence=mode,
                         start_date=start_d,
                         end_date=end_d,
+                        run_time=_p73_time,
+                        exclude_weekdays=_p73_wd if mode == "DAILY" else None,
+                        exclude_dates=_p73_ex if mode == "DAILY" else None,
                     )
                 except ScheduleError as e:
                     raise CRMError(str(e))
                 if mode == "ONCE":
                     flash(f"تمت جدولة المهمة «{s.title}» "
-                          f"لتاريخ {start_d.isoformat()}", "success")
+                          f"لتاريخ {start_d.isoformat()}"
+                          + (f" الساعة {_p73_time}" if _p73_time else ""), "success")
                 else:
                     flash(f"تم إنشاء تكرار يومي للمهمة «{s.title}» "
                           f"من {start_d.isoformat()} إلى "
-                          f"{end_d.isoformat()}", "success")
+                          f"{end_d.isoformat()}"
+                          + (f" الساعة {_p73_time}" if _p73_time else "")
+                          + (f" (مستثنى: {len(_p73_wd)} أيام أسبوع و{len(_p73_ex)} تواريخ)"
+                             if (_p73_wd or _p73_ex) else ""), "success")
                 return redirect(_safe_next(url_for("tasks.index")))
 
             t = Task(
@@ -1574,3 +1592,122 @@ def template_delete(tid):
         db.session.rollback()
         flash("تعذّر حذف القالب", "error")
     return redirect(url_for("tasks.new"))
+
+
+# ═══ MARSOUD-TASK-P73 — quick create project / milestone from the task form ═══
+from flask import jsonify as _p73_jsonify
+
+
+def _p73_user_name(u):
+    return (getattr(u, "name", None) or getattr(u, "full_name", None)
+            or getattr(u, "email", None) or ("#%s" % getattr(u, "id", "?")))
+
+
+def _p73_managers():
+    from app.routes.projects import _project_managers
+    out = []
+    try:
+        raw = _project_managers() or []
+    except Exception:
+        raw = []
+    for x in raw:
+        u = x[0] if isinstance(x, (tuple, list)) else x
+        if getattr(u, "id", None):
+            out.append({"id": u.id, "name": _p73_user_name(u)})
+    if not out:
+        out = [{"id": current_user.id, "name": _p73_user_name(current_user)}]
+    return out
+
+
+@bp.route("/quick/options")
+@login_required
+@require_permission("projects.create")
+def quick_options():
+    from app.models.partner import Customer
+    from app.models.crm import Project
+    cid = g.active_company.id
+    customers = [{"id": c.id, "name": c.name}
+                 for c in Customer.query.filter_by(company_id=cid)
+                 .order_by(Customer.name).all()]
+    pms = _p73_managers()
+    ids = [m["id"] for m in pms]
+    types = [r[0] for r in db.session.query(Project.type)
+             .filter(Project.company_id == cid, Project.type.isnot(None))
+             .distinct().limit(20).all() if r[0]]
+    return _p73_jsonify({
+        "ok": True, "customers": customers, "managers": pms,
+        "manager_id": current_user.id if current_user.id in ids else ids[0],
+        "types": types,
+    })
+
+
+@bp.route("/quick/project", methods=["POST"])
+@login_required
+@require_permission("projects.create")
+def quick_project():
+    from app.models.partner import Customer
+    from app.models.crm import Project, ProjectStatus, ProjectStatusEvent
+    cid = g.active_company.id
+    try:
+        name = (request.form.get("name") or "").strip()
+        ptype = (request.form.get("type") or "").strip()
+        if not name or not ptype:
+            raise CRMError("اسم المشروع والنوع مطلوبان")
+        customer_id = int(request.form.get("customer_id") or 0)
+        cust = db.session.get(Customer, customer_id)
+        if not cust or cust.company_id != cid:
+            raise CRMError("العميل غير موجود في هذه الشركة")
+        manager_id = int(request.form.get("manager_id") or 0)
+        ok_ids = [m["id"] for m in _p73_managers()]
+        if manager_id not in ok_ids:
+            raise CRMError("مدير المشروع غير صالح")
+        sd = _parse_date(request.form.get("start_date"))
+        ed = _parse_date(request.form.get("end_date"))
+        if not sd or not ed:
+            raise CRMError("تواريخ البداية والنهاية مطلوبة")
+        if ed <= sd:
+            raise CRMError("تاريخ النهاية يجب أن يكون بعد البداية")
+        from app.services.numbering import next_number
+        p = Project(
+            company_id=cid, number=next_number(cid, "PROJECT"),
+            name=name, customer_id=customer_id, type=ptype,
+            manager_id=manager_id, start_date=sd, end_date=ed,
+            status=ProjectStatus.PLANNING,
+        )
+        db.session.add(p)
+        db.session.flush()
+        db.session.add(ProjectStatusEvent(
+            project_id=p.id, from_status=None,
+            to_status=ProjectStatus.PLANNING,
+            changed_by_id=current_user.id, note="إنشاء المشروع",
+        ))
+        db.session.commit()
+        return _p73_jsonify({"ok": True, "id": p.id, "name": p.name})
+    except (CRMError, ValueError, TypeError) as e:
+        db.session.rollback()
+        return _p73_jsonify({"ok": False, "error": str(e) or "بيانات غير صحيحة"}), 400
+
+
+@bp.route("/quick/milestone", methods=["POST"])
+@login_required
+@require_permission("projects.manage")
+def quick_milestone():
+    from app.routes.projects import _project_or_403, _user_can_edit_project
+    try:
+        pid = int(request.form.get("project_id") or 0)
+    except (TypeError, ValueError):
+        pid = 0
+    p = _project_or_403(pid)
+    if not _user_can_edit_project(p):
+        return _p73_jsonify({"ok": False, "error": "مش مسموح لك تعدّل المشروع ده"}), 403
+    name = (request.form.get("name") or "").strip()
+    if not name:
+        return _p73_jsonify({"ok": False, "error": "اسم المرحلة مطلوب"}), 400
+    next_order = (db.session.query(db.func.coalesce(db.func.max(Milestone.order), 0))
+                  .filter_by(project_id=p.id).scalar() or 0) + 1
+    m = Milestone(project_id=p.id, name=name,
+                  target_date=_parse_date(request.form.get("target_date")),
+                  order=next_order)
+    db.session.add(m)
+    db.session.commit()
+    return _p73_jsonify({"ok": True, "id": m.id, "name": m.name, "project_id": p.id})

@@ -34,6 +34,30 @@
 .tf-title{font-size:1.05rem;font-weight:700;padding:.7rem .85rem}
 .tf-grid2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
 .tf-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
+/* MARSOUD-TASK-P73 quick-create modal + schedule extras */
+.p73-ov{position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:16px}
+.p73-box{width:100%;max-width:460px;max-height:92vh;overflow:auto;background:#fff;border-radius:18px;box-shadow:0 20px 60px rgba(15,23,42,.35);padding:20px}
+.p73-h{font-size:16px;font-weight:800;margin-bottom:14px;color:#0f172a}
+.p73-b{display:grid;gap:12px}
+.p73-b label{display:block;font-size:12.5px;font-weight:700;color:#334155;margin-bottom:4px}
+.p73-b input,.p73-b select{width:100%;}
+.p73-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.p73-err{margin-top:12px;padding:8px 12px;border-radius:10px;background:#fef2f2;color:#b91c1c;font-size:12.5px;font-weight:600}
+.p73-f{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.p73-toast{position:fixed;bottom:22px;inset-inline-start:22px;z-index:10000;background:#0f172a;color:#fff;padding:10px 16px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 10px 30px rgba(15,23,42,.3)}
+.p73-sx{margin-top:.9rem;padding-top:.9rem;border-top:1px dashed #cbd5e1}
+.p73-time{max-width:180px}
+.p73-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.p73-chips label{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid #cbd5e1;border-radius:999px;background:#fff;font-size:12.5px;font-weight:600;cursor:pointer;user-select:none}
+.p73-chips label:has(input:checked){background:#fee2e2;border-color:#f87171;color:#b91c1c}
+.p73-chips label input{accent-color:#dc2626}
+.p73-dchip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;font-size:12px;font-weight:700}
+.p73-dchip button{border:0;background:transparent;color:inherit;cursor:pointer;font-size:14px;line-height:1;padding:0}
+.p73-drow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.p73-sum{margin-top:8px;padding:8px 12px;border-radius:10px;background:#ecfdf5;color:#047857;font-size:12.5px;font-weight:700}
+@media(max-width:560px){
+  .p73-2{grid-template-columns:1fr}
+}
 @media(max-width:700px){.tf-grid2,.tf-grid3{grid-template-columns:1fr}}
 .tf-seg{display:flex;flex-wrap:wrap;gap:.4rem}
 .tf-seg label{cursor:pointer;margin:0}
@@ -270,6 +294,32 @@
           </div>
           <p class="tf-hint">عند الجدولة، المهمة مش بتتعمل دلوقتي — بتتعمل تلقائي في التاريخ المحدد (وكل يوم داخل الفترة لو اخترت التكرار اليومي).</p>
         </div>
+        <div id="p73-sx" class="p73-sx" style="display:none">
+          <div>
+            <label class="tf-lbl" for="p73-time">الساعة (اختياري)</label>
+            <input type="time" name="schedule_time" id="p73-time" class="input p73-time">
+            <p class="tf-hint">بتوقيت الشركة. لو سيبتيها فاضية المهمة بتتعمل أول اليوم.</p>
+          </div>
+          <div id="p73-ex" style="display:none;margin-top:.8rem">
+            <label class="tf-lbl">استثناء أيام (اختياري)</label>
+            <div class="p73-chips" id="p73-wd">
+              <label><input type="checkbox" name="schedule_exclude_weekdays" value="5">السبت</label>
+              <label><input type="checkbox" name="schedule_exclude_weekdays" value="6">الأحد</label>
+              <label><input type="checkbox" name="schedule_exclude_weekdays" value="0">الإثنين</label>
+              <label><input type="checkbox" name="schedule_exclude_weekdays" value="1">الثلاثاء</label>
+              <label><input type="checkbox" name="schedule_exclude_weekdays" value="2">الأربعاء</label>
+              <label><input type="checkbox" name="schedule_exclude_weekdays" value="3">الخميس</label>
+              <label><input type="checkbox" name="schedule_exclude_weekdays" value="4">الجمعة</label>
+            </div>
+            <div class="p73-drow">
+              <input type="date" id="p73-dpick" class="input" style="max-width:190px">
+              <button type="button" class="btn-secondary" id="p73-dadd">➕ استثناء تاريخ معيّن</button>
+            </div>
+            <div class="p73-chips" id="p73-dlist"></div>
+            <input type="hidden" name="schedule_exclude_dates" id="p73-dval" value="">
+            <div class="p73-sum" id="p73-sum" style="display:none"></div>
+          </div>
+        </div>
       </details>
       <script>
       function _toggleScheduleFields(mode) {
@@ -469,6 +519,159 @@
 </script>
 
 {# When the project select changes, swap the milestone options (unchanged). #}
+<script>
+/* MARSOUD-TASK-P73 quick create (project / milestone) + schedule extras */
+(function () {
+  var projSel = document.getElementById('task-project-select');
+  var msSel = document.getElementById('task-milestone-select');
+  if (!projSel || !msSel) return;
+  var URLS = { opts: "{{ url_for('tasks.quick_options') }}", proj: "{{ url_for('tasks.quick_project') }}", ms: "{{ url_for('tasks.quick_milestone') }}" };
+  var NEWV = '__new__', created = {}, lastP = projSel.value, lastM = msSel.value, cache = null;
+
+  function el(tag, cls, txt) { var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+  function opt(v, t) { var o = document.createElement('option'); o.value = v; o.textContent = t; return o; }
+  function today(off) { var d = new Date(); d.setDate(d.getDate() + (off || 0)); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function toast(msg) { var t = el('div', 'p73-toast', msg); document.body.appendChild(t); setTimeout(function () { t.remove(); }, 3200); }
+
+  function ensureNew() {
+    if (!projSel.querySelector('option[value="' + NEWV + '"]')) projSel.appendChild(opt(NEWV, '➕ مشروع جديد…'));
+    var old = msSel.querySelector('option[value="' + NEWV + '"]'); if (old) old.remove();
+    (created[projSel.value] || []).forEach(function (c) { if (!msSel.querySelector('option[value="' + c.id + '"]')) msSel.appendChild(opt(c.id, c.name)); });
+    msSel.appendChild(opt(NEWV, '➕ مرحلة جديدة…'));
+  }
+
+  function field(label, node) { var d = el('div'); d.appendChild(el('label', null, label)); d.appendChild(node); return d; }
+  function input(type, name, val) { var i = el('input', 'input'); i.type = type; i.name = name; if (val) i.value = val; return i; }
+
+  function modal(title, nodes, onSave) {
+    var ov = el('div', 'p73-ov'), box = el('div', 'p73-box'), body = el('div', 'p73-b'), err = el('div', 'p73-err');
+    box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
+    err.style.display = 'none';
+    box.appendChild(el('div', 'p73-h', title));
+    nodes.forEach(function (n) { body.appendChild(n); });
+    box.appendChild(body); box.appendChild(err);
+    var f = el('div', 'p73-f'), cancel = el('button', 'btn-secondary', 'إلغاء'), ok = el('button', 'btn-primary', 'حفظ');
+    cancel.type = 'button'; ok.type = 'button'; f.appendChild(cancel); f.appendChild(ok); box.appendChild(f); ov.appendChild(box);
+    document.body.appendChild(ov);
+    function close() { ov.remove(); document.removeEventListener('keydown', onKey); }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    document.addEventListener('keydown', onKey);
+    cancel.addEventListener('click', close);
+    ov.addEventListener('mousedown', function (e) { if (e.target === ov) close(); });
+    function showErr(m) { err.textContent = m; err.style.display = 'block'; }
+    ok.addEventListener('click', function () {
+      ok.disabled = true; err.style.display = 'none';
+      onSave(showErr, close).then(function () { ok.disabled = false; }, function () { ok.disabled = false; });
+    });
+    body.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); ok.click(); } });
+    var first = body.querySelector('input,select'); if (first) first.focus();
+    return { close: close };
+  }
+
+  function post(url, fd) {
+    return fetch(url, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'تعذّر الحفظ (' + r.status + ')' }; }); });
+  }
+
+  function openMilestone() {
+    var pid = projSel.value;
+    if (!pid || pid === NEWV) { toast('اختاري المشروع الأول عشان تضيفي له مرحلة'); return; }
+    var name = input('text', 'name'), date = input('date', 'target_date');
+    modal('➕ مرحلة جديدة', [field('اسم المرحلة', name), field('تاريخ مستهدف (اختياري)', date)], function (showErr, close) {
+      var fd = new FormData(); fd.append('project_id', pid); fd.append('name', name.value); fd.append('target_date', date.value);
+      return post(URLS.ms, fd).then(function (j) {
+        if (!j.ok) { showErr(j.error || 'تعذّر الحفظ'); return; }
+        (created[pid] = created[pid] || []).push({ id: j.id, name: j.name });
+        ensureNew(); msSel.value = String(j.id); lastM = msSel.value; close(); toast('تم إنشاء المرحلة: ' + j.name);
+      });
+    });
+  }
+
+  function loadOpts() {
+    if (cache) return Promise.resolve(cache);
+    return fetch(URLS.opts, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (j) { cache = j; return j; });
+  }
+
+  function openProject() {
+    loadOpts().then(function (o) {
+      if (!o.ok) { toast(o.error || 'مش مسموح لك بإنشاء مشروع'); return; }
+      if (!o.customers.length) { toast('مفيش عملاء — أضيفي عميل الأول من صفحة العملاء'); return; }
+      var name = input('text', 'name'), type = input('text', 'type', o.types[0] || ''), cust = el('select', 'select'), mgr = el('select', 'select');
+      type.setAttribute('list', 'p73-types'); var dl = el('datalist'); dl.id = 'p73-types';
+      o.types.forEach(function (t) { var x = el('option'); x.value = t; dl.appendChild(x); });
+      o.customers.forEach(function (c) { cust.appendChild(opt(c.id, c.name)); });
+      o.managers.forEach(function (m) { mgr.appendChild(opt(m.id, m.name)); });
+      if (o.manager_id) mgr.value = String(o.manager_id);
+      var sd = input('date', 'start_date', today(0)), ed = input('date', 'end_date', today(30));
+      var row = el('div', 'p73-2'); row.appendChild(field('تاريخ البداية', sd)); row.appendChild(field('تاريخ النهاية', ed));
+      var typeWrap = field('نوع المشروع', type); typeWrap.appendChild(dl);
+      modal('➕ مشروع جديد', [field('اسم المشروع', name), field('العميل', cust), typeWrap, field('مدير المشروع', mgr), row], function (showErr, close) {
+        var fd = new FormData(); fd.append('name', name.value); fd.append('customer_id', cust.value); fd.append('type', type.value);
+        fd.append('manager_id', mgr.value); fd.append('start_date', sd.value); fd.append('end_date', ed.value);
+        return post(URLS.proj, fd).then(function (j) {
+          if (!j.ok) { showErr(j.error || 'تعذّر الحفظ'); return; }
+          projSel.insertBefore(opt(j.id, j.name), projSel.querySelector('option[value="' + NEWV + '"]'));
+          projSel.value = String(j.id); lastP = projSel.value;
+          projSel.dispatchEvent(new Event('change', { bubbles: true }));
+          close(); toast('تم إنشاء المشروع: ' + j.name);
+        });
+      });
+    }, function () { toast('تعذّر تحميل بيانات المشروع'); });
+  }
+
+  projSel.addEventListener('change', function () {
+    if (projSel.value === NEWV) {
+      projSel.value = lastP; var keep = lastM;
+      setTimeout(function () { ensureNew(); msSel.value = keep; }, 0);
+      openProject(); return;
+    }
+    lastP = projSel.value;
+    setTimeout(function () { ensureNew(); lastM = msSel.value; }, 0);
+  });
+  msSel.addEventListener('change', function () {
+    if (msSel.value === NEWV) { msSel.value = lastM; openMilestone(); return; }
+    lastM = msSel.value;
+  });
+  ensureNew(); setTimeout(ensureNew, 0); window.addEventListener('load', function () { ensureNew(); lastM = msSel.value; });
+})();
+
+(function () {
+  var sx = document.getElementById('p73-sx');
+  if (!sx) return;
+  var ex = document.getElementById('p73-ex'), dpick = document.getElementById('p73-dpick'), dadd = document.getElementById('p73-dadd');
+  var dlist = document.getElementById('p73-dlist'), dval = document.getElementById('p73-dval'), sum = document.getElementById('p73-sum');
+  var sd = document.getElementById('tf-sd'), ed = document.getElementById('tf-ed'), dates = [];
+  function mode() { var r = document.querySelector('input[name="schedule_mode"]:checked'); return r ? r.value : 'NONE'; }
+  function wdSet() { var s = {}; document.querySelectorAll('#p73-wd input:checked').forEach(function (c) { s[c.value] = 1; }); return s; }
+  function summary() {
+    if (mode() !== 'DAILY' || !sd || !ed || !sd.value || !ed.value || ed.value < sd.value) { sum.style.display = 'none'; return; }
+    var a = new Date(sd.value + 'T00:00:00'), b = new Date(ed.value + 'T00:00:00'), w = wdSet(), total = 0, run = 0, n = 0;
+    for (var d = new Date(a); d <= b && n < 3700; d.setDate(d.getDate() + 1), n++) {
+      total++;
+      var iso = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+      var py = (d.getDay() + 6) % 7;
+      if (!w[py] && dates.indexOf(iso) < 0) run++;
+    }
+    sum.textContent = 'هتتعمل المهمة ' + run + ' مرة من أصل ' + total + ' يوم' + (total - run ? ' (مستثنى ' + (total - run) + ')' : '');
+    sum.style.display = 'block';
+  }
+  function render() {
+    dlist.textContent = '';
+    dates.forEach(function (d) {
+      var c = document.createElement('span'); c.className = 'p73-dchip'; c.appendChild(document.createTextNode(d));
+      var x = document.createElement('button'); x.type = 'button'; x.textContent = '×'; x.setAttribute('aria-label', 'حذف'); x.dataset.d = d; c.appendChild(x); dlist.appendChild(c);
+    });
+    dval.value = dates.join(','); summary();
+  }
+  function upd() { var m = mode(); sx.style.display = m === 'NONE' ? 'none' : 'block'; ex.style.display = m === 'DAILY' ? 'block' : 'none'; summary(); }
+  dadd.addEventListener('click', function () { var v = dpick.value; if (v && dates.indexOf(v) < 0) { dates.push(v); dates.sort(); render(); } dpick.value = ''; });
+  dlist.addEventListener('click', function (e) { var d = e.target && e.target.dataset && e.target.dataset.d; if (d) { dates = dates.filter(function (x) { return x !== d; }); render(); } });
+  document.querySelectorAll('input[name="schedule_mode"]').forEach(function (r) { r.addEventListener('change', upd); });
+  document.querySelectorAll('#p73-wd input').forEach(function (c) { c.addEventListener('change', summary); });
+  [sd, ed].forEach(function (i) { if (i) i.addEventListener('change', summary); });
+  upd();
+})();
+</script>
 {% if milestones_by_project is defined and milestones_by_project %}
 <script id="task-milestones-data" type="application/json">{{ milestones_by_project|tojson }}</script>
 <script>
