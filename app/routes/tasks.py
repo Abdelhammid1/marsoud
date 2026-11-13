@@ -872,7 +872,32 @@ def new():
         except (CRMError, TaskError, ValueError, TypeError, KeyError) as e:
             db.session.rollback()
             flash(str(e), "error")
-    selected_project = request.args.get("project_id")
+    # MARSOUD-TASKS-P59 - /tasks/new?copy_from=<id> pre-fills the form from an existing
+    # task the user is allowed to see (title, description, priority, notes, project,
+    # milestone, assignees, parent). Deadline is left empty on purpose. Attachments,
+    # comments and subtasks are NOT copied.
+    _p59_src = None
+    _p59_prefill = None
+    _p59_assignees = []
+    _p59_raw = (request.args.get("copy_from") or "").strip()
+    if request.method == "GET" and _p59_raw.isdigit():
+        try:
+            _p59_src = _task_or_403(int(_p59_raw))
+            _p59_prefill = {
+                "id": _p59_src.id,
+                "title": _p59_src.title or "",
+                "description": _p59_src.description or "",
+                "priority": _p59_src.priority.name if _p59_src.priority else "MEDIUM",
+                "notes": _p59_src.notes or "",
+                "milestone_id": _p59_src.milestone_id,
+            }
+            _p59_assignees = list(assignee_ids_for(_p59_src))
+        except Exception:
+            _p59_src = None
+            _p59_prefill = None
+            _p59_assignees = []
+    selected_project = request.args.get("project_id") or (
+        str(_p59_src.project_id) if _p59_src is not None and _p59_src.project_id else None)
     # Map every project → its milestones so the form's milestone <select>
     # can swap options the instant the user picks a project. Without this
     # the dropdown only shows "— بدون —" because at GET time we don't
@@ -918,13 +943,15 @@ def new():
     ]
     raw_parent = (request.args.get("parent_task_id") or "").strip()
     selected_parent_id = int(raw_parent) if raw_parent.isdigit() else None
+    if selected_parent_id is None and _p59_src is not None:
+        selected_parent_id = _p59_src.parent_task_id
     return render_template("tasks/form.html",
-                           task=None, projects=projects, users=users,
+                           task=None, prefill=_p59_prefill, projects=projects, users=users,
                            priorities=TaskPriority,
                            milestones=initial_milestones,
                            milestones_by_project=milestones_by_project,
                            selected_project=selected_project,
-                           selected_assignee_ids=[],
+                           selected_assignee_ids=_p59_assignees,
                            parent_choices=parent_choices,
                            parents_by_project=parents_by_project,
                            selected_parent_id=selected_parent_id)
