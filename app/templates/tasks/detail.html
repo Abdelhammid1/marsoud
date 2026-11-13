@@ -24,6 +24,12 @@
 .p42-cmt{border-inline-start:3px solid #d1fae5}
 .p42-who{display:flex;align-items:center;gap:.4rem}
 .p42-file{display:flex;align-items:center;min-width:0}
+/* MARSOUD-TASKS-P43 */
+.p43-row.done a{text-decoration:line-through;color:#94a3b8}
+.p43-chk{width:28px}
+.p43-chk input{width:16px;height:16px;cursor:pointer;accent-color:#059669}
+.p43-toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:80;background:#1e293b;color:#fff;font-size:13px;padding:9px 16px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.2);max-width:90vw}
+.p43-toast.err{background:#b91c1c}
 .p42-thumb{width:36px;height:36px;object-fit:cover;border-radius:.35rem;margin-inline-end:.5rem;flex:none}
 </style>
 {# MARSOUD-PARENT-CHILD-TASK-HIERARCHY (2026-08-09) — breadcrumb
@@ -84,6 +90,14 @@
            form). Keeps the user inside whatever drill-down they
            reached this task from. #}
         {% set _rt = request.args.get('return_to') or '' %}
+        {# MARSOUD-TASKS-P43 - plain-text summary for WhatsApp / email #}
+        <button type="button" class="btn-secondary text-sm" id="p43-copy"
+                data-title="{{ task.title }}"
+                data-project="{{ task.project.name if task.project else 'مهمة مستقلة' }}"
+                data-status="{{ task.status.label_ar }}"
+                data-priority="{{ task.priority.label_ar }}"
+                data-due="{{ task.deadline.isoformat() if task.deadline else '' }}"
+                data-who="{{ task.all_assignees|map(attribute='full_name')|join('، ') }}">نسخ ملخص</button>
         {% if has_permission('tasks.manage') %}
         <a href="{{ url_for('tasks.edit', task_id=task.id, return_to=_rt) if _rt else url_for('tasks.edit', task_id=task.id) }}"
            class="btn-secondary text-sm">✎ تعديل كامل</a>
@@ -263,8 +277,9 @@
       {% if subtasks %}
       <div class="p42-bar wide" title="{{ _sub_done }} من {{ _sub_total }}"><i style="width:{{ (_sub_done * 100 / _sub_total)|round|int }}%"></i></div>
       <div class="overflow-x-auto">
-      <table class="data-table text-sm w-full">
+      <table class="data-table text-sm w-full" id="p43-subs">
         <thead><tr>
+          <th class="text-right p43-chk"></th>
           <th class="text-right">العنوان</th>
           <th class="text-right">الحالة</th>
           <th class="text-right">الأولوية</th>
@@ -272,14 +287,16 @@
         </tr></thead>
         <tbody>
           {% for st in subtasks %}
-          <tr>
+          {# MARSOUD-TASKS-P43 - tick a subtask done without leaving the page #}
+          <tr class="p43-row{% if st.status.name == 'DONE' %} done{% endif %}" data-st="{{ st.status.name }}">
+            <td class="p43-chk">{% if has_permission('tasks.manage') %}<input type="checkbox" class="p43-sub-chk" data-url="{{ url_for('tasks.status', task_id=st.id) }}" {% if st.status.name == 'DONE' %}checked{% endif %} aria-label="إنجاز المهمة الفرعية">{% endif %}</td>
             <td>
               <a href="{{ url_for('tasks.detail', task_id=st.id) }}"
                  class="font-semibold text-navy-900 hover:text-emerald-700">
                 {{ st.title }}
               </a>
             </td>
-            <td><span class="badge {{ st.status.badge_class }}">{{ st.status.label_ar }}</span></td>
+            <td><span class="badge p43-badge {{ st.status.badge_class }}">{{ st.status.label_ar }}</span></td>
             <td><span class="badge {{ st.priority.badge_class }}">{{ st.priority.label_ar }}</span></td>
             <td class="font-mono text-xs">{{ st.deadline.isoformat() if st.deadline else '—' }}</td>
           </tr>
@@ -334,7 +351,7 @@
       <textarea name="content" rows="2" required data-mention
                 placeholder="أضف تعليقاً… استخدم @ لعمل mention لزميل"
                 class="input text-sm flex-1"></textarea>
-      <button type="submit" class="btn-primary text-sm self-end">إرسال</button>
+      <button type="submit" class="btn-primary text-sm self-end" title="Ctrl + Enter">إرسال</button>
     </form>
 
     <!-- ─── Attachments ────────────────────────────────────────────── -->
@@ -427,4 +444,81 @@
     </div>
   </div>
 </div>
+{# MARSOUD-TASKS-P43 #}
+<script>
+(function(){
+  var BC={ {% for s in statuses %}"{{ s.name }}":"{{ s.badge_class }}"{% if not loop.last %},{% endif %}{% endfor %} };
+  function toast(msg,err){
+    var t=document.createElement('div'); t.className='p43-toast'+(err?' err':''); t.textContent=msg;
+    document.body.appendChild(t); setTimeout(function(){t.remove();},3200);
+  }
+  function token(){
+    var m=document.querySelector('meta[name="csrf-token"]'); if(m){return m.content;}
+    var i=document.querySelector('input[name="csrf_token"]'); return i?i.value:'';
+  }
+  /* --- subtasks: tick = DONE, untick = TODO --- */
+  var tbl=document.getElementById('p43-subs');
+  function recount(){
+    if(!tbl){return;}
+    var total=tbl.querySelectorAll('tbody tr.p43-row').length;
+    var done=tbl.querySelectorAll('tbody tr.p43-row.done').length;
+    var pct=total?Math.round(done*100/total):0;
+    var b=document.querySelector('a.p42-stat[href="#subtasks"] b.p42-v'); if(b){b.textContent=done+' من '+total;}
+    var i1=document.querySelector('a.p42-stat[href="#subtasks"] .p42-bar i'); if(i1){i1.style.width=pct+'%';}
+    var w=document.querySelector('.p42-bar.wide'); if(w){w.title=done+' من '+total; var i2=w.querySelector('i'); if(i2){i2.style.width=pct+'%';}}
+  }
+  if(tbl){
+    tbl.addEventListener('change',function(e){
+      var c=e.target; if(!c.classList||!c.classList.contains('p43-sub-chk')){return;}
+      var tr=c.closest('tr'), to=c.checked?'DONE':'TODO';
+      var fd=new FormData(); fd.append('new_status',to);
+      var h={'X-Requested-With':'fetch'}; var t=token(); if(t){h['X-CSRFToken']=t; fd.append('csrf_token',t);}
+      c.disabled=true;
+      fetch(c.dataset.url,{method:'POST',headers:h,body:fd,credentials:'same-origin'})
+      .then(function(r){return r.json().catch(function(){return {ok:false,error:'تعذر الحفظ'};});})
+      .then(function(j){
+        if(!j.ok){throw new Error(j.error||'تعذر الحفظ');}
+        tr.dataset.st=to; tr.classList.toggle('done',to==='DONE');
+        var bd=tr.querySelector('.p43-badge'); if(bd){bd.textContent=j.label||to; bd.className='badge p43-badge '+(BC[to]||'');}
+        recount(); toast('تم تحديث المهمة الفرعية');
+      })
+      .catch(function(err){c.checked=!c.checked; toast(err.message||'تعذر الحفظ',true);})
+      .then(function(){c.disabled=false;});
+    });
+  }
+  /* --- copy a plain-text summary (no emojis: safe for WhatsApp) --- */
+  var cp=document.getElementById('p43-copy');
+  if(cp){
+    cp.addEventListener('click',function(){
+      var d=cp.dataset, L=[];
+      L.push('المهمة: '+d.title);
+      L.push('المشروع: '+d.project);
+      L.push('الحالة: '+d.status);
+      L.push('الأولوية: '+d.priority);
+      L.push('الموعد: '+(d.due||'بدون موعد'));
+      L.push('المكلفون: '+(d.who||'-'));
+      L.push('الرابط: '+window.location.origin+window.location.pathname);
+      var text=L.join('\n'), old=cp.textContent;
+      function ok(){cp.textContent='تم النسخ'; setTimeout(function(){cp.textContent=old;},1800);}
+      function fallback(){
+        var ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+        document.body.appendChild(ta); ta.select();
+        try{document.execCommand('copy'); ok();}catch(_){toast('تعذر النسخ',true);}
+        ta.remove();
+      }
+      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(ok,fallback);}else{fallback();}
+    });
+  }
+  /* --- Ctrl/Cmd + Enter sends the comment --- */
+  var ta=document.querySelector('form[data-once] textarea[name="content"]');
+  if(ta){
+    ta.addEventListener('keydown',function(e){
+      if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){
+        e.preventDefault(); var f=ta.form; if(!f||!ta.value.trim()){return;}
+        if(f.requestSubmit){f.requestSubmit();}else{f.submit();}
+      }
+    });
+  }
+})();
+</script>
 {% endblock %}
