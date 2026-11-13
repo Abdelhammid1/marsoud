@@ -55,6 +55,15 @@
 {% endif %}
 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
   <div class="card p-6 md:col-span-2">
+    {# MARSOUD-TASKS-P62 - compact action toolbar #}
+    <style>
+    .td-act{gap:.4rem}
+    .td-act .badge{font-size:.75rem;padding:.22rem .65rem}
+    .td-act .btn-secondary{padding:.26rem .75rem;font-size:.75rem;line-height:1.5;border-radius:999px;font-weight:600;display:inline-flex;align-items:center;gap:.25rem;white-space:nowrap;box-shadow:none}
+    .td-act form{display:inline-flex;margin:0}
+    .td-act form[action*="/delete"]{margin-inline-start:auto}
+    .td-act form[action*="/delete"] .btn-secondary{padding:.26rem .6rem}
+    </style>
     {# MARSOUD-TASKS-P60 - title gets its own full-width row; actions wrap below #}
     <div class="flex flex-col gap-3 mb-4">
       <div class="w-full min-w-0">
@@ -83,9 +92,9 @@
         </div>
         {% endif %}
       </div>
-      <div class="flex items-center gap-2 flex-wrap pt-3 border-t border-slate-100">
+      <div class="td-act flex items-center gap-2 flex-wrap pt-3 border-t border-slate-100">
         <span class="badge {{ task.priority.badge_class }}">{{ task.priority.label_ar }}</span>
-        <span class="badge {{ task.status.badge_class }} text-base px-3 py-1.5">{{ task.status.label_ar }}</span>
+        <span class="badge {{ task.status.badge_class }} ">{{ task.status.label_ar }}</span>
         {% if task.is_overdue %}<span class="badge badge-overdue">⚠ متأخرة</span>
         {% elif task.deadline_soon %}<span class="badge badge-partial">⏰ خلال 24 ساعة</span>{% endif %}
         {# MARSOUD-TASK-CONTEXT — pass the origin list URL forward on
@@ -107,6 +116,8 @@
            class="btn-secondary text-sm">✎ تعديل كامل</a>
         {# MARSOUD-TASKS-P59 - start a new task pre-filled from this one #}
         <a href="{{ url_for('tasks.new', copy_from=task.id) }}" class="btn-secondary text-sm" title="نسخ بيانات المهمة في مهمة جديدة">نسخ كمهمة جديدة</a>
+        {# MARSOUD-TASKS-P61 - save this task as a reusable template #}
+        <form method="POST" action="{{ url_for('tasks.save_template', task_id=task.id) }}" class="inline"><button type="submit" class="btn-secondary text-sm" title="احفظ بيانات المهمة كقالب تبدأ منه مهام جديدة">حفظ كقالب</button></form>
         {% endif %}
         {# MARSOUD-PERM-FIX (PM scope) — delete is owner/admin only via the
            dedicated tasks.delete permission, so a project manager who can
@@ -116,7 +127,7 @@
               onsubmit="return confirm('حذف المهمة نهائياً مع كل مرفقاتها وتعليقاتها وسجل نشاطها؟ لا يمكن التراجع.');"
               class="inline">
           {% if _rt %}<input type="hidden" name="return_to" value="{{ _rt }}">{% endif %}
-          <button type="submit" class="btn-secondary text-sm text-rose-600 border-rose-200 hover:bg-rose-50">🗑 حذف المهمة</button>
+          <button type="submit" title="حذف المهمة" class="btn-secondary text-sm text-rose-600 border-rose-200 hover:bg-rose-50">🗑 حذف</button>
         </form>
         {% endif %}
       </div>
