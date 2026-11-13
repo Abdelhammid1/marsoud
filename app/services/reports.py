@@ -1752,3 +1752,108 @@ def dashboard_metrics(company_id, period="month"):
         "team_most_tasks": team_most_tasks,
         "team_most_leads": team_most_leads,
     }
+
+
+# MARSOUD-PERF-P57 (2026-11-13) - the dashboard asked the database for every
+# account's balance separately (about 4,000 identical SUM queries on /home, ~1.7 s
+# of Python/ORM overhead for ~40 ms of real database time). Now, inside ONE request,
+# the first _account_balance() call for a (company, date-range) loads every
+# account's debit/credit sums with a single GROUP BY query and later calls are
+# answered from that. The same moment also loads each account's `children`
+# collection in one query instead of one lazy query per account.
+# Safety: the memo lives only on flask.g (one request); it is dropped on any
+# INSERT/UPDATE/DELETE on journal_lines/journal_entries/accounts and on ROLLBACK,
+# and it is bypassed while the session has unflushed changes, so a balance read
+# after pending postings still includes them exactly like before.
+import re as _p57_re
+from flask import has_request_context as _p57_hrc, g as _p57_g
+from sqlalchemy import event as _p57_event
+from sqlalchemy.engine import Engine as _p57_Engine
+from sqlalchemy.orm.attributes import set_committed_value as _p57_scv
+
+_p57_orig_account_balance = _account_balance
+
+
+def _p57_store():
+    if not _p57_hrc():
+        return None
+    s = _p57_g.get("_p57_bal")
+    if s is None:
+        s = {}
+        _p57_g._p57_bal = s
+    return s
+
+
+def _p57_load(company_id, start_date, end_date):
+    q = (db.session.query(
+            JournalLine.account_id,
+            func.coalesce(func.sum(JournalLine.debit_base), 0),
+            func.coalesce(func.sum(JournalLine.credit_base), 0))
+         .select_from(JournalLine).join(JournalEntry)
+         .join(Account, Account.id == JournalLine.account_id)
+         .filter(Account.company_id == company_id,
+                 JournalEntry.is_active.is_(True)))
+    if start_date:
+        q = q.filter(JournalEntry.date >= start_date)
+    if end_date:
+        q = q.filter(JournalEntry.date <= end_date)
+    q = q.group_by(JournalLine.account_id)
+    return {aid: (float(d or 0), float(c or 0)) for aid, d, c in q.all()}
+
+
+def _p57_prefetch_children(company_id):
+    accs = Account.query.filter_by(company_id=company_id).order_by(Account.id).all()
+    by_parent = {}
+    for a in accs:
+        if a.parent_id is not None:
+            by_parent.setdefault(a.parent_id, []).append(a)
+    for a in accs:
+        if "children" not in a.__dict__:
+            _p57_scv(a, "children", by_parent.get(a.id, []))
+
+
+def _p57_account_balance(account_id, start_date=None, end_date=None):
+    try:
+        store = _p57_store()
+        if store is None or db.session.new or db.session.dirty or db.session.deleted:
+            return _p57_orig_account_balance(account_id, start_date, end_date)
+        acc = db.session.get(Account, account_id)
+        if acc is None:
+            return _p57_orig_account_balance(account_id, start_date, end_date)
+        key = (acc.company_id, start_date, end_date)
+        m = store.get(key)
+        if m is None:
+            m = _p57_load(acc.company_id, start_date, end_date)
+            store[key] = m
+            if ("kids", acc.company_id) not in store:
+                store[("kids", acc.company_id)] = True
+                _p57_prefetch_children(acc.company_id)
+        return m.get(account_id, (0.0, 0.0))
+    except Exception:
+        return _p57_orig_account_balance(account_id, start_date, end_date)
+
+
+_p57_account_balance._p57_orig = _p57_orig_account_balance
+_account_balance = _p57_account_balance
+
+_P57_TABLES = _p57_re.compile(r"\b(journal_lines|journal_entries|accounts)\b", _p57_re.I)
+
+
+@_p57_event.listens_for(_p57_Engine, "before_cursor_execute")
+def _p57_invalidate(conn, cursor, statement, parameters, context, executemany):
+    try:
+        if (statement[:8].lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE"))
+                and _p57_hrc() and _p57_g.get("_p57_bal")
+                and _P57_TABLES.search(statement)):
+            _p57_g._p57_bal = {}
+    except Exception:
+        pass
+
+
+@_p57_event.listens_for(_p57_Engine, "rollback")
+def _p57_on_rollback(conn):
+    try:
+        if _p57_hrc() and _p57_g.get("_p57_bal"):
+            _p57_g._p57_bal = {}
+    except Exception:
+        pass
