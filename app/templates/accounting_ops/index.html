@@ -2,52 +2,147 @@
 {% block page_title %}العمليات المحاسبية{% endblock %}
 {% block content %}
 
-{# MARSOUD-ACCOUNTING-OPS — every card is generated from the OPERATIONS
-   registry, so a new operation appears here automatically.
-
-   MARSOUD-OPS-FOUNDATION §6 — and it appears under its own family. The
-   route hands over `groups` already filtered to what this user may run,
-   with empty families dropped, so this file never asks about permissions
-   or knows which groups exist.
-
+{# MARSOUD-OPS-PAGE-P83 — cards still come from the OPERATIONS registry (a new
+   operation appears here by itself). The route hands over `groups` as
+   (key, label, ops), already filtered to what this user may run.
+   Added: live search, family chips, a "حساس" badge, empty states.
    NB: Jinja comments do not nest and cannot sit inside an expression. #}
 
-<div class="mb-5">
-  <h2 class="font-bold text-navy-900 text-lg">🧮 العمليات المحاسبية</h2>
-  <p class="text-sm text-slate-500 mt-1">
-    اختر العملية وأدخل بياناتها فقط — النظام يجهّز القيد المحاسبي الصحيح تلقائيًا.
-  </p>
+<style>
+  .ops-head{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;}
+  .ops-title{font-weight:700;font-size:1.125rem;color:#0A2540;margin:0;}
+  .ops-sub{font-size:.8125rem;color:#64748b;margin:.25rem 0 0;}
+  .ops-search{position:relative;flex:1 1 240px;max-width:420px;}
+  .ops-search input{padding-inline-start:2.25rem;}
+  .ops-search .ops-ico{position:absolute;inset-inline-start:.75rem;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none;font-size:.9rem;}
+  .ops-chips{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1.25rem;}
+  .ops-chip{border:1px solid #E2E8F0;background:#fff;color:#475569;border-radius:999px;padding:.35rem .85rem;font-size:.8125rem;font-weight:600;cursor:pointer;font-family:inherit;}
+  .ops-chip:hover{border-color:#10b981;color:#047857;}
+  .ops-chip[aria-pressed="true"]{background:#047857;border-color:#047857;color:#fff;}
+  .ops-chip .n{opacity:.75;font-weight:500;margin-inline-start:.25rem;}
+  .ops-sec{margin-bottom:1.5rem;}
+  .ops-sec-h{display:flex;align-items:center;gap:.5rem;font-size:.875rem;font-weight:700;color:#475569;padding-bottom:.5rem;margin:0 0 .75rem;border-bottom:1px solid #E2E8F0;}
+  .ops-sec-h .n{font-weight:500;font-size:.75rem;color:#64748b;}
+  .ops-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:1rem;}
+  .ops-card{display:flex;flex-direction:column;padding:1.1rem 1.15rem;text-decoration:none;color:inherit;border:1px solid #E2E8F0;transition:border-color .15s,box-shadow .15s,transform .15s;}
+  .ops-card:hover,.ops-card:focus-visible{border-color:#10b981;box-shadow:0 6px 18px rgba(15,23,42,.08);transform:translateY(-1px);outline:none;}
+  .ops-card:focus-visible{box-shadow:0 0 0 3px rgba(16,185,129,.35);}
+  .ops-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:.6rem;}
+  .ops-ic{width:2.5rem;height:2.5rem;border-radius:12px;background:#ECFDF5;display:flex;align-items:center;justify-content:center;font-size:1.35rem;}
+  .ops-card--danger .ops-ic{background:#FEF2F2;}
+  .ops-card--danger:hover{border-color:#f87171;}
+  .ops-badge{font-size:.6875rem;font-weight:700;color:#b91c1c;background:#FEF2F2;border:1px solid #FECACA;border-radius:999px;padding:.1rem .55rem;}
+  .ops-name{font-weight:700;color:#0A2540;margin:0 0 .25rem;font-size:.95rem;}
+  .ops-desc{font-size:.75rem;color:#64748b;line-height:1.6;margin:0;}
+  .ops-eff{font-size:.6875rem;color:#475569;background:#F8FAFC;border-radius:8px;padding:.4rem .55rem;margin:.65rem 0 0;line-height:1.55;}
+  .ops-go{margin-top:auto;padding-top:.8rem;font-size:.75rem;font-weight:700;color:#047857;}
+  .ops-empty{display:none;text-align:center;color:#64748b;padding:2rem 1rem;}
+  .ops-foot{margin-top:1.25rem;border-radius:10px;background:#F8FAFC;border:1px solid #E2E8F0;padding:.75rem;font-size:.75rem;color:#475569;line-height:1.7;}
+  @media (max-width:767px){ .ops-card{padding:1rem !important;} .ops-grid{grid-template-columns:1fr;} }
+</style>
+
+<div class="ops-head">
+  <div>
+    <h2 class="ops-title">🧮 العمليات المحاسبية</h2>
+    <p class="ops-sub">اختر العملية وأدخل بياناتها فقط — النظام يجهّز القيد المحاسبي الصحيح تلقائيًا.</p>
+  </div>
+  {% if operations %}
+  <div class="ops-search">
+    <span class="ops-ico" aria-hidden="true">🔎</span>
+    <input id="ops-q" type="search" class="input" autocomplete="off"
+           placeholder="ابحث عن عملية… (مثال: قرض، سداد، تسوية)" aria-label="بحث في العمليات">
+  </div>
+  {% endif %}
 </div>
 
-{% for group_label, group_ops in groups %}
-<div class="mb-6">
-  <h3 class="text-sm font-bold text-slate-600 mb-3 pb-2 border-b border-slate-200">
-    {{ group_label }}
-    <span class="text-xs font-normal text-slate-500">({{ group_ops|length }})</span>
-  </h3>
+{% if groups %}
+<div class="ops-chips" id="ops-chips" role="group" aria-label="تصفية حسب النوع">
+  <button type="button" class="ops-chip" data-group="all" aria-pressed="true">الكل<span class="n">{{ operations|length }}</span></button>
+  {% for key, label, ops in groups %}
+  <button type="button" class="ops-chip" data-group="{{ key }}" aria-pressed="false">{{ label }}<span class="n">{{ ops|length }}</span></button>
+  {% endfor %}
+</div>
+{% endif %}
 
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    {% for op in group_ops %}
+{% for key, label, ops in groups %}
+<section class="ops-sec" data-sec="{{ key }}">
+  <h3 class="ops-sec-h">{{ label }} <span class="n" data-sec-n>({{ ops|length }})</span></h3>
+  <div class="ops-grid">
+    {% for op in ops %}
     <a href="{{ url_for('accounting_ops.run', op_key=op.key) }}"
-       class="card p-6 block hover:border-brand-400 hover:shadow-md transition border-2 border-transparent">
-      <div class="text-3xl mb-3">{{ op.icon }}</div>
-      <h3 class="font-bold text-navy-900 mb-1">{{ op.title }}</h3>
-      <p class="text-xs text-slate-500 leading-relaxed">{{ op.description }}</p>
-      {% if op.effect %}
-      <p class="text-xs text-slate-500 mt-3">{{ op.effect }}</p>
-      {% endif %}
-      <span class="inline-block mt-4 text-xs font-semibold text-brand-600">تنفيذ ←</span>
+       class="card ops-card{% if op.key in danger_keys %} ops-card--danger{% endif %}"
+       data-group="{{ key }}" data-search="{{ op.title }} {{ op.description }} {{ op.key }}">
+      <div class="ops-card-top">
+        <span class="ops-ic" aria-hidden="true">{{ op.icon }}</span>
+        {% if op.key in danger_keys %}<span class="ops-badge">حساسة</span>{% endif %}
+      </div>
+      <h3 class="ops-name">{{ op.title }}</h3>
+      <p class="ops-desc">{{ op.description }}</p>
+      {% if op.effect %}<p class="ops-eff">{{ op.effect }}</p>{% endif %}
+      <span class="ops-go">تنفيذ ←</span>
     </a>
     {% endfor %}
   </div>
-</div>
+</section>
 {% else %}
 <div class="card p-6 text-center text-slate-500">لا توجد عمليات متاحة لك.</div>
 {% endfor %}
 
-<div class="mt-5 rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600">
+<div class="ops-empty" id="ops-empty">
+  <div style="font-size:1.75rem" aria-hidden="true">🔍</div>
+  <p style="margin:.5rem 0 0">مفيش عملية بالاسم ده. جرّب كلمة تانية أو اضغط «الكل».</p>
+</div>
+
+<div class="ops-foot">
   العمليات اللي ليها شاشة خاصة بيها — الفواتير، المشتريات، الرواتب، الأصول الثابتة،
   المخزون، المرتجعات — بتتسجل من الموديول بتاعها، مش من هنا.
 </div>
+
+<script>
+(function () {
+  var q = document.getElementById('ops-q');
+  if (!q) return;
+  var cards = [].slice.call(document.querySelectorAll('.ops-card'));
+  var secs = [].slice.call(document.querySelectorAll('.ops-sec'));
+  var chips = [].slice.call(document.querySelectorAll('.ops-chip'));
+  var empty = document.getElementById('ops-empty');
+  var group = 'all';
+  function norm(s) {
+    return (s || '').toLowerCase()
+      .replace(/[ً-ْـ]/g, '')
+      .replace(/[أإآ]/g, 'ا')
+      .replace(/ة/g, 'ه')
+      .replace(/ى/g, 'ي');
+  }
+  cards.forEach(function (c) { c._s = norm(c.getAttribute('data-search')); });
+  function apply() {
+    var t = norm(q.value.trim()), shown = 0;
+    cards.forEach(function (c) {
+      var ok = (group === 'all' || c.getAttribute('data-group') === group) && (!t || c._s.indexOf(t) !== -1);
+      c.hidden = !ok; if (ok) shown++;
+    });
+    secs.forEach(function (s) {
+      var n = s.querySelectorAll('.ops-card:not([hidden])').length;
+      s.hidden = n === 0;
+      var el = s.querySelector('[data-sec-n]'); if (el) el.textContent = '(' + n + ')';
+    });
+    empty.style.display = shown === 0 ? 'block' : 'none';
+  }
+  q.addEventListener('input', apply);
+  q.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      var first = document.querySelector('.ops-card:not([hidden])');
+      if (first) { e.preventDefault(); window.location.href = first.href; }
+    }
+  });
+  chips.forEach(function (b) {
+    b.addEventListener('click', function () {
+      group = b.getAttribute('data-group');
+      chips.forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+      apply();
+    });
+  });
+})();
+</script>
 
 {% endblock %}

@@ -2,93 +2,152 @@
 {% block page_title %}{{ op.title }}{% endblock %}
 {% block content %}
 
-{# MARSOUD-ACCOUNTING-OPS — one form for every wizard. Inputs are rendered
-   from op.fields by `kind`, so an operation reusing the existing kinds
-   needs no change here. The user never picks a debit or credit account. #}
+{# MARSOUD-OPS-PAGE-P83 — one form for every wizard, still rendered from
+   op.fields by `kind` (a new operation using existing kinds needs no change
+   here). The user never picks a debit or credit account.
+   P83: submitted values survive a failed POST (`form`), a one-shot token
+   blocks double posting, the submit button locks while sending, and the
+   sensitive operations ask for an explicit tick first.
+   NB: Jinja comments do not nest and cannot sit inside an expression. #}
 
-<div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-  <div>
-    <h2 class="font-bold text-navy-900 text-lg">{{ op.icon }} {{ op.title }}</h2>
-    <p class="text-xs text-slate-500 mt-1">{{ op.description }}</p>
-  </div>
+<style>
+  .opr-head{display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem;}
+  .opr-title{font-weight:700;font-size:1.125rem;color:#0A2540;margin:0;}
+  .opr-wrap{display:grid;grid-template-columns:minmax(0,1fr) 19rem;gap:1rem;align-items:start;}
+  .opr-form{padding:1.25rem;}
+  .opr-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem 1rem;}
+  .opr-full{grid-column:1 / -1;}
+  .opr-lbl{display:block;font-size:.8125rem;font-weight:600;color:#334155;margin-bottom:.4rem;}
+  .opr-req{color:#dc2626;margin-inline-start:.2rem;}
+  .opr-help{font-size:.75rem;color:#64748b;margin:.3rem 0 0;line-height:1.5;}
+  .opr-warn{font-size:.75rem;color:#be123c;margin:.3rem 0 0;line-height:1.5;background:#FFF1F2;border:1px solid #FECDD3;border-radius:8px;padding:.4rem .55rem;}
+  .opr-side{padding:1rem 1.1rem;position:sticky;top:1rem;}
+  .opr-side h3{margin:0 0 .5rem;font-size:.875rem;font-weight:700;color:#0A2540;}
+  .opr-side p{margin:0 0 .6rem;font-size:.75rem;color:#475569;line-height:1.7;}
+  .opr-eff{background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:.6rem .7rem;}
+  .opr-ic{width:2.75rem;height:2.75rem;border-radius:12px;background:#ECFDF5;display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin-bottom:.6rem;}
+  .opr-danger{border:1px solid #FECACA;background:#FEF2F2;border-radius:12px;padding:.75rem .85rem;margin-top:1rem;font-size:.8125rem;color:#7f1d1d;line-height:1.7;}
+  .opr-danger label{display:flex;gap:.5rem;align-items:flex-start;margin-top:.5rem;font-weight:600;cursor:pointer;}
+  .opr-danger input{margin-top:.3rem;}
+  .opr-actions{display:flex;justify-content:flex-end;gap:.5rem;margin-top:1.25rem;padding-top:1rem;border-top:1px solid #F1F5F9;}
+  .opr-actions button[disabled]{opacity:.55;cursor:not-allowed;}
+  @media (max-width:900px){ .opr-wrap{grid-template-columns:1fr;} .opr-side{position:static;} }
+  @media (max-width:560px){ .opr-grid{grid-template-columns:1fr;} .opr-form{padding:1rem !important;} .opr-actions{position:sticky;bottom:0;background:#fff;margin-inline:-1rem;padding:.75rem 1rem;} }
+</style>
+
+<div class="opr-head">
+  <h2 class="opr-title">{{ op.icon }} {{ op.title }}</h2>
   <a href="{{ url_for('accounting_ops.index') }}" class="btn-secondary text-sm">↔ عملية أخرى</a>
 </div>
 
-<div class="card p-6 max-w-2xl">
-  <form method="POST" class="space-y-4">
-    {% for f in op.fields %}
-    <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">{{ f.label }}</label>
+<div class="opr-wrap">
+  <div class="card opr-form">
+    <form method="POST" id="opr-form" autocomplete="off">
+      <input type="hidden" name="_ops_token" value="{{ ops_token }}">
+      <div class="opr-grid">
+        {% for f in op.fields %}
+        {% set full = (f.kind in select_kinds) or f.kind == 'textarea' %}
+        {% set cur = form.get(f.name, '') %}
+        <div class="{% if full %}opr-full{% endif %}">
+          <label class="opr-lbl" for="f-{{ f.name }}">{{ f.label }}{% if f.required %}<span class="opr-req" aria-hidden="true">*</span>{% endif %}</label>
 
-      {% if f.kind == 'amount' %}
-        <input type="number" name="{{ f.name }}" step="0.01" min="0.01"
-               {% if f.required %}required{% endif %}
-               class="input font-mono">
+          {% if f.kind == 'amount' %}
+            <input id="f-{{ f.name }}" type="number" name="{{ f.name }}" step="0.01" min="0.01" inputmode="decimal"
+                   value="{{ cur }}" {% if f.required %}required{% endif %}
+                   class="input font-mono">
 
-      {% elif f.kind == 'date' %}
-        <input type="date" name="{{ f.name }}" value="{{ today }}"
-               {% if f.required %}required{% endif %} class="input">
+          {% elif f.kind == 'date' %}
+            <input id="f-{{ f.name }}" type="date" name="{{ f.name }}"
+                   {% if f.name == 'date' %}value="{{ cur or today }}"{% if not cur %} data-auto-today="1"{% endif %}{% else %}value="{{ cur }}"{% endif %}
+                   {% if f.required %}required{% endif %} class="input">
 
-      {% elif f.kind in select_kinds %}
-        {# MARSOUD-OPS-FOUNDATION — ONE branch for every picker. The route
-           hands each field a uniform [(group_label, [(value, label)…])…]
-           list, so adding a new picker kind is a registry + resolver
-           change with no template edit at all. That is the whole point of
-           the shared form.
+          {% elif f.kind in select_kinds %}
+            {# ONE branch for every picker. The route hands each field a uniform
+               [(group_label, [(value, label)…])…] list, so a new picker kind is
+               a registry + resolver change with no template edit at all.
+               Postable accounts only, and the party picker yields the party's
+               sub-account — both enforced server-side, not here. #}
+            {% set groups = choices.get(f.name) or [] %}
+            <select id="f-{{ f.name }}" name="{{ f.name }}" class="select"
+                    {% if f.required %}required{% endif %}>
+              <option value="">— اختر —</option>
+              {% for group_label, options in groups %}
+              <optgroup label="{{ group_label }}">
+                {% for value, option_label in options %}
+                <option value="{{ value }}"{% if cur and cur == (value|string) %} selected{% endif %}>{{ option_label }}</option>
+                {% endfor %}
+              </optgroup>
+              {% endfor %}
+            </select>
+            {% if not groups %}
+            <p class="opr-warn">{{ empty_messages.get(f.kind, 'لا توجد خيارات متاحة — راجع الإعدادات.') }}</p>
+            {% endif %}
 
-           Postable accounts only, and the party picker yields the party's
-           sub-account — both enforced server-side in ledger.postable_under
-           and accounting_ops.resolve_party, not here. #}
-        {% set groups = choices.get(f.name) or [] %}
-        <select name="{{ f.name }}" class="select"
-                {% if f.required %}required{% endif %}>
-          <option value="">— اختر —</option>
-          {% for group_label, options in groups %}
-          <optgroup label="{{ group_label }}">
-            {% for value, option_label in options %}
-            <option value="{{ value }}">{{ option_label }}</option>
-            {% endfor %}
-          </optgroup>
-          {% endfor %}
-        </select>
-        {% if not groups %}
-        <p class="text-xs text-rose-600 mt-1">
-          {{ empty_messages.get(f.kind, 'لا توجد خيارات متاحة — راجع الإعدادات.') }}
-        </p>
-        {% endif %}
+          {% elif f.kind == 'textarea' %}
+            <textarea id="f-{{ f.name }}" name="{{ f.name }}" rows="3" class="textarea"
+                      {% if f.required %}required{% endif %}>{{ cur }}</textarea>
 
-      {% elif f.kind == 'textarea' %}
-        <textarea name="{{ f.name }}" rows="2" class="textarea"></textarea>
+          {% else %}
+            <input id="f-{{ f.name }}" type="text" name="{{ f.name }}" value="{{ cur }}"
+                   {% if f.required %}required{% endif %} class="input">
+          {% endif %}
 
-      {% else %}
-        <input type="text" name="{{ f.name }}"
-               {% if f.required %}required{% endif %} class="input">
+          {% if f.help_text %}<p class="opr-help">{{ f.help_text }}</p>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+
+      {% if is_danger %}
+      <div class="opr-danger">
+        <b>⚠️ عملية حساسة</b> — بتأثر على الدفاتر مباشرة، ومش بتتعكس بضغطة واحدة (التصحيح بيكون بقيد عكسي).
+        <label><input type="checkbox" id="opr-ack"> أنا راجعت البيانات وفاهم الأثر المحاسبي</label>
+      </div>
       {% endif %}
 
-      {% if f.help_text %}
-      <p class="text-xs text-slate-500 mt-1">{{ f.help_text }}</p>
-      {% endif %}
-    </div>
-    {% endfor %}
+      <div class="opr-actions">
+        <a href="{{ url_for('accounting_ops.index') }}" class="btn-secondary">إلغاء</a>
+        <button type="submit" class="btn-primary" id="opr-submit">تنفيذ العملية</button>
+      </div>
+    </form>
+  </div>
 
+  <aside class="card opr-side" aria-label="ملخص العملية">
+    <div class="opr-ic" aria-hidden="true">{{ op.icon }}</div>
+    <h3>إيه اللي هيحصل؟</h3>
+    <p>{{ op.description }}</p>
     {% if op.effect %}
-    <div class="bg-slate-50 border border-slate-200 rounded-lg p-3 text-xs text-slate-600">
-      <p><b>الأثر المحاسبي:</b> {{ op.effect }}</p>
-      <p class="mt-1">القيد بيتعمل تلقائيًا ومتوازن — مش محتاج تختار حسابات مدينة أو دائنة.</p>
+    <div class="opr-eff">
+      <p style="margin:0"><b>الأثر المحاسبي:</b> {{ op.effect }}</p>
     </div>
     {% endif %}
-
-    <div class="flex justify-end gap-2">
-      <a href="{{ url_for('accounting_ops.index') }}" class="btn-secondary">إلغاء</a>
-      <button type="submit" class="btn-primary">تنفيذ العملية</button>
-    </div>
-  </form>
+    <p style="margin-top:.7rem">القيد بيتعمل تلقائيًا ومتوازن — مش محتاج تختار حسابات مدينة أو دائنة، وبعد التنفيذ بتتحوّل لصفحة القيد.</p>
+  </aside>
 </div>
 
 <script>
-// Default the date field to today without hardcoding it server-side.
-document.querySelectorAll('input[type="date"]').forEach(function (el) {
-  if (!el.value) el.value = new Date().toISOString().split('T')[0];
-});
+(function () {
+  var form = document.getElementById('opr-form');
+  var btn = document.getElementById('opr-submit');
+  var ack = document.getElementById('opr-ack');
+  var sent = false;
+  // Default "date" to the user's LOCAL today (server value is only a fallback).
+  document.querySelectorAll('input[data-auto-today]').forEach(function (el) {
+    var d = new Date();
+    el.value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  });
+  function sync() { if (ack) btn.disabled = !ack.checked; }
+  if (ack) { ack.addEventListener('change', sync); sync(); }
+  form.addEventListener('submit', function (e) {
+    if (sent) { e.preventDefault(); return; }
+    if (!form.checkValidity()) { e.preventDefault(); form.reportValidity(); return; }
+    sent = true; btn.disabled = true; btn.textContent = 'جاري التنفيذ…';
+  });
+  // Back/forward cache: make the button usable again if the page is restored.
+  window.addEventListener('pageshow', function (ev) {
+    if (ev.persisted) { sent = false; btn.textContent = 'تنفيذ العملية'; sync(); if (!ack) btn.disabled = false; }
+  });
+  var first = form.querySelector('input:not([type=hidden]):not([type=checkbox]),select');
+  if (first && window.innerWidth > 900 && !first.value) first.focus();
+})();
 </script>
 {% endblock %}
