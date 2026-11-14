@@ -144,10 +144,14 @@
         out.push('<pre class="ag-code">' + esc(buf.join('\n')) + '</pre>');
         continue;
       }
-      if (isRow(ln) && i + 1 < n && isSep(lines[i + 1])) {
+      // MARSOUD-AGENT-TABLE-P79: a table is a header row + separator row, OR two or more
+      // consecutive pipe rows even when the model forgot the separator line.
+      var sepNext = isRow(ln) && i + 1 < n && isSep(lines[i + 1]);
+      var bareTbl = isRow(ln) && !isSep(ln) && !sepNext && i + 1 < n && isRow(lines[i + 1]) && !isSep(lines[i + 1]) && cells(ln).length >= 2;
+      if (sepNext || bareTbl) {
         flush();
         var hdr = cells(ln), rows = [];
-        i += 2;
+        i += sepNext ? 2 : 1;
         while (i < n && isRow(lines[i])) { if (!isSep(lines[i])) rows.push(cells(lines[i])); i++; }
         out.push(renderTable(hdr, rows));
         continue;
