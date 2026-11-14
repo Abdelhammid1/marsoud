@@ -708,9 +708,48 @@ function escapeAttr(s) { return escapeHtml(s); }
     }));
   } else {
     addItem();
-    const today = new Date(); document.getElementById('issue_date').value = today.toISOString().split('T')[0];
-    const due = new Date(today); due.setDate(due.getDate() + 30);
-    document.getElementById('due_date').value = due.toISOString().split('T')[0];
+    // MARSOUD-DUE-DATE-P86
+    function dueKit(defaultOffset) {
+      var iss = document.getElementById('issue_date'), due = document.getElementById('due_date');
+      if (!iss || !due || due.getAttribute('data-due-kit')) return;
+      due.setAttribute('data-due-kit', '1');
+      function iso(d) { var m = d.getMonth() + 1, x = d.getDate(); return d.getFullYear() + '-' + (m < 10 ? '0' : '') + m + '-' + (x < 10 ? '0' : '') + x; }
+      function parse(s) { var p = (s || '').split('-'); return p.length === 3 ? new Date(+p[0], +p[1] - 1, +p[2]) : null; }
+      function add(s, n) { var d = parse(s) || new Date(); d.setDate(d.getDate() + n); return iso(d); }
+      function diff(a, b) { var x = parse(a), y = parse(b); return (x && y) ? Math.round((y - x) / 86400000) : null; }
+      var today = iso(new Date());
+      iss.value = today;
+      due.value = add(today, defaultOffset);
+      var offset = defaultOffset;
+      var box = document.createElement('div');
+      box.style.cssText = 'display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.4rem;align-items:center';
+      var warn = document.createElement('div');
+      warn.style.cssText = 'font-size:.75rem;color:#b45309;margin-top:.3rem;display:none';
+      warn.textContent = 'تاريخ الاستحقاق قبل تاريخ الفاتورة';
+      var btns = [];
+      [[0, 'اليوم'], [7, '7 أيام'], [15, '15 يوم'], [30, '30 يوم'], [60, '60 يوم']].forEach(function (o) {
+        var b = document.createElement('button');
+        b.type = 'button'; b.textContent = o[1]; b._o = o[0];
+        b.style.cssText = 'border:1px solid #E2E8F0;background:#fff;border-radius:999px;padding:.15rem .6rem;font-size:.75rem;cursor:pointer;color:#475569';
+        b.addEventListener('click', function () { offset = o[0]; due.value = add(iss.value || today, offset); paint(); });
+        btns.push(b); box.appendChild(b);
+      });
+      function paint() {
+        var d = diff(iss.value, due.value);
+        btns.forEach(function (b) {
+          var on = (d === b._o);
+          b.style.background = on ? '#047857' : '#fff';
+          b.style.color = on ? '#fff' : '#475569';
+          b.style.borderColor = on ? '#047857' : '#E2E8F0';
+        });
+        warn.style.display = (d !== null && d < 0) ? 'block' : 'none';
+      }
+      due.addEventListener('input', function () { var d = diff(iss.value, due.value); if (d !== null) offset = d; paint(); });
+      iss.addEventListener('input', function () { if (iss.value) due.value = add(iss.value, offset); paint(); });
+      due.parentNode.appendChild(box); due.parentNode.appendChild(warn);
+      paint();
+    }
+    dueKit(0);
   }
 })();
 
