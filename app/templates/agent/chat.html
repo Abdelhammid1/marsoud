@@ -65,25 +65,120 @@
   .ag-sug{grid-template-columns:1fr}
   #chat-messages{padding:16px !important}
 }
+/* MARSOUD-AGENT-UX-P76 - Raseed: new-chat screen, collapsed history, archive panel, rich replies */
+#ag-root .ag-logo{font-size:25px;font-weight:800;line-height:1;background:linear-gradient(135deg,#10b981,#047857)}
+#ag-root>.card:first-child>.flex.items-center.justify-between.mb-4 h2.font-bold{font-size:18px}
+#chat-messages>.flex.justify-start::before{content:"ر";font-weight:800;font-size:16px;color:#fff}
+.ag-hbtns{display:flex;align-items:center;gap:8px}
+.ag-hnew{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border:0;border-radius:999px;background:linear-gradient(135deg,#10b981,#047857);color:#fff;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(5,150,105,.28);transition:.15s}
+.ag-hnew:hover{transform:translateY(-1px);box-shadow:0 8px 16px rgba(5,150,105,.32)}
+.ag-dis{opacity:.45}
+.ag-hnew,#ag-root button[onclick="clearChat()"]{white-space:nowrap}
+#ag-side{gap:10px}
+.ag-newbig{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:13px 16px;border:0;border-radius:16px;background:linear-gradient(135deg,#10b981,#047857);color:#fff;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 8px 18px rgba(5,150,105,.28);transition:.15s}
+.ag-newbig:hover{transform:translateY(-1px);box-shadow:0 12px 24px rgba(5,150,105,.34)}
+.ag-plus{width:24px;height:24px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:18px;line-height:1}
+.ag-tog{display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc;font-size:13px;font-weight:700;color:#334155;cursor:pointer;transition:.15s}
+.ag-tog:hover{background:#f1f5f9;border-color:#cbd5e1}
+.ag-tog .ag-count{margin-inline-start:auto;min-width:22px;text-align:center;padding:1px 8px;border-radius:999px;background:#e2e8f0;font-size:11px}
+.ag-chev{display:inline-block;font-size:15px;line-height:1;transition:transform .2s}
+.ag-open .ag-chev{transform:rotate(180deg)}
+#ag-side:not(.ag-open) #conversations-list,#ag-side:not(.ag-open) .ag-search{display:none}
+#ag-side.ag-open .ag-about{display:none}
+#ag-side.ag-open #conversations-list{flex:1 1 0;min-height:0}
+.ag-about{padding:14px;border:1px dashed #cbd5e1;border-radius:16px;background:#f8fafc;color:#475569;font-size:12.5px;line-height:1.9}
+.ag-about b{display:block;margin-bottom:4px;color:#0f172a;font-size:13px}
+.ag-about div{display:flex;gap:8px}
+.ag-archbtn{order:99;margin-top:auto;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:10px 14px;border:1px solid #e2e8f0;border-radius:14px;background:#fff;font-size:13px;font-weight:700;color:#64748b;cursor:pointer;transition:.15s}
+.ag-archbtn:hover{border-color:#a7f3d0;background:#ecfdf5;color:#047857}
+.ag-hero{display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:4px}
+.ag-orb{width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,#10b981,#047857);color:#fff;font-size:34px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(5,150,105,.35);transform:rotate(-6deg)}
+.ag-ht{margin-top:10px;font-size:22px;font-weight:800;color:#0f172a}
+.ag-hs{max-width:460px;font-size:13.5px;line-height:1.8;color:#64748b}
+.ag-rich{white-space:normal;color:#0f172a;line-height:1.85;font-size:14px}
+.ag-rich>:first-child{margin-top:0}
+.ag-rich>:last-child{margin-bottom:0}
+.ag-p{margin:0 0 10px}
+.ag-rich strong{font-weight:800}
+.ag-rich a{color:#047857;text-decoration:underline}
+.ag-rich code{direction:ltr;unicode-bidi:embed;padding:1px 6px;border:1px solid #e2e8f0;border-radius:6px;background:#f1f5f9;font-size:12.5px}
+.ag-h{display:flex;align-items:center;gap:8px;margin:14px 0 8px;font-size:15px;font-weight:800;color:#065f46}
+.ag-h::before{content:"";width:4px;height:16px;border-radius:4px;background:linear-gradient(180deg,#10b981,#047857)}
+.ag-ol,.ag-ul{list-style:none;margin:6px 0 12px;padding:0;display:flex;flex-direction:column;gap:8px}
+.ag-ol{counter-reset:ag-n}
+.ag-ol>li,.ag-ul>li{display:flex;gap:10px;align-items:flex-start}
+.ag-ol>li{counter-increment:ag-n}
+.ag-ol>li::before{content:counter(ag-n);flex:0 0 auto;width:24px;height:24px;margin-top:2px;border-radius:50%;background:linear-gradient(135deg,#10b981,#047857);color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.ag-ul>li::before{content:"";flex:0 0 auto;width:7px;height:7px;margin-top:12px;border-radius:50%;background:#10b981}
+.ag-li{flex:1;min-width:0}
+.ag-sub{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}
+.ag-sub>li{display:flex;gap:8px;font-size:13px;color:#475569}
+.ag-sub>li::before{content:"–";color:#94a3b8}
+.ag-tw{margin:10px 0 14px;overflow-x:auto;border:1px solid #e2e8f0;border-radius:14px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.ag-t{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+.ag-t th{padding:10px 14px;border-bottom:1px solid #a7f3d0;background:linear-gradient(180deg,#ecfdf5,#d1fae5);color:#065f46;font-size:12px;font-weight:800;text-align:right;white-space:nowrap}
+.ag-t td{padding:9px 14px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+.ag-t tbody tr:nth-child(even) td{background:#f8fafc}
+.ag-t tbody tr:hover td{background:#f0fdf4}
+.ag-t tbody tr:last-child td{border-bottom:0}
+.ag-t th.num,.ag-t td.num{text-align:left}
+.ag-t td.num{direction:ltr;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ag-t td.neg{color:#dc2626}
+.ag-t tr.tot td{border-top:2px solid #a7f3d0;background:#ecfdf5 !important;color:#065f46;font-weight:800}
+.ag-call{margin:8px 0;padding:9px 12px;border:1px solid;border-radius:12px;font-size:13.5px;line-height:1.8}
+.ag-call-ok{background:#ecfdf5;border-color:#a7f3d0;color:#065f46}
+.ag-call-warn{background:#fffbeb;border-color:#fde68a;color:#92400e}
+.ag-call-err{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+.ag-call-info{background:#eff6ff;border-color:#bfdbfe;color:#1e40af}
+.ag-note{margin:8px 0;padding:8px 12px;border-inline-start:3px solid #10b981;border-radius:8px;background:#f8fafc;color:#475569}
+.ag-hr{height:1px;margin:14px 0;border:0;background:linear-gradient(90deg,transparent,#e2e8f0,transparent)}
+.ag-code{direction:ltr;text-align:left;margin:8px 0;padding:12px 14px;overflow-x:auto;border-radius:12px;background:#0f172a;color:#e2e8f0;font-size:12.5px;line-height:1.7;white-space:pre}
+#chat-messages .rounded-2xl.ag-wide{max-width:96% !important}
+.ag-modal{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(15,23,42,.45);backdrop-filter:blur(2px)}
+.ag-modal.show{display:flex}
+.ag-mp{display:flex;flex-direction:column;width:min(480px,100%);max-height:80vh;overflow:hidden;border-radius:20px;background:#fff;box-shadow:0 24px 60px rgba(15,23,42,.3)}
+.ag-mh{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #f1f5f9;font-weight:800;color:#0f172a}
+.ag-mx{width:30px;height:30px;border:0;border-radius:50%;background:#f1f5f9;color:#64748b;font-size:18px;line-height:1;cursor:pointer}
+.ag-mx:hover{background:#e2e8f0}
+.ag-mb{display:flex;flex-direction:column;gap:8px;min-height:120px;padding:12px 14px;overflow-y:auto}
+.ag-mmsg{padding:30px 10px;text-align:center;color:#94a3b8;font-size:13.5px}
+.ag-ai{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;border:1px solid #e2e8f0;border-radius:14px;cursor:pointer;transition:.15s}
+.ag-ai:hover{border-color:#a7f3d0;background:#ecfdf5}
+.ag-ai.busy{opacity:.5;pointer-events:none}
+.ag-ait{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ag-ait b{overflow:hidden;color:#0f172a;font-size:13.5px;text-overflow:ellipsis;white-space:nowrap}
+.ag-ait span{color:#94a3b8;font-size:11.5px}
+.ag-rs{flex:0 0 auto;padding:4px 12px;border-radius:999px;background:#d1fae5;color:#047857;font-size:12px;font-weight:800}
+.ag-mf{padding:10px 20px 14px;border-top:1px solid #f1f5f9;color:#94a3b8;font-size:11.5px;line-height:1.7}
+.ag-toast{position:fixed;bottom:26px;left:50%;z-index:80;max-width:90vw;padding:10px 18px;border-radius:999px;background:#0f172a;color:#fff;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transform:translate(-50%,10px);transition:.2s}
+.ag-toast.show{opacity:1;transform:translate(-50%,0)}
+@media(max-width:900px){
+  .ag-hbtns{gap:6px}
+  .ag-hnew{padding:6px 12px}
+  #ag-root>.card:last-child{max-height:none}
+}
 </style>
 <div id="ag-root" class="grid grid-cols-3 gap-4 h-[calc(100vh-9rem)]">
   <div class="card p-6 col-span-2 flex flex-col">
     <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-3">
-        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-2xl">🤖</div>
+        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-2xl ag-logo">ر</div>
         <div>
-          <h2 class="font-bold text-navy-900">محاسب نزاهة</h2>
-          <p class="text-xs text-slate-500">مدعوم بـ Claude — يستطيع تسجيل القيود والفواتير والتقارير</p>
+          <h2 class="font-bold text-navy-900">رصيد</h2>
+          <p class="text-xs text-slate-500">مساعدك المحاسبي في مرصود</p>
         </div>
       </div>
-      <button onclick="clearChat()" class="text-sm text-slate-500 hover:text-red-600">مسح المحادثة</button>
+      <div class="ag-hbtns">
+        <button type="button" class="ag-hnew" onclick="newConversation()">✚ محادثة جديدة</button>
+        <button type="button" onclick="clearChat()" class="text-sm text-slate-500 hover:text-red-600" title="نقل هذه المحادثة إلى الأرشيف">🗄 أرشفة</button>
+      </div>
     </div>
 
     <div id="chat-messages" class="flex-1 overflow-y-auto space-y-3 mb-4 bg-slate-50 -mx-6 px-6 py-4 border-y border-slate-100">
       {% if not history %}
       <div class="text-center text-slate-500 py-8">
         <div class="text-5xl mb-3">👋</div>
-        <p class="font-semibold">مرحباً! أنا محاسب نزاهة</p>
+        <p class="font-semibold">أهلاً، أنا رصيد</p>
         <p class="text-sm mt-2">اطلب مني تسجيل فاتورة، قيد، أو شغّل تقرير. مثلاً:</p>
         <div class="mt-4 flex flex-wrap gap-2 justify-center">
           <button onclick="setMsg('اعرض شجرة الحسابات')" class="text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-full hover:border-brand-500">اعرض شجرة الحسابات</button>
@@ -112,16 +207,15 @@
   {# MARSOUD-AGENT-MEMORY-05 (2026-08-06) — conversations sidebar.
      Replaces the abilities panel; that content was static marketing
      copy and this space is now load-bearing UX for the ticket. #}
-  <div class="card p-4 flex flex-col overflow-hidden">
-    <div class="flex items-center justify-between mb-3">
-      <h3 class="font-bold text-navy-900">💬 محادثاتي</h3>
-      <button onclick="newConversation()"
-              class="text-xs px-3 py-1.5 rounded bg-emerald-600 text-white hover:bg-emerald-700">
-        + محادثة جديدة
-      </button>
-    </div>
+  <div id="ag-side" class="card p-4 flex flex-col overflow-hidden">
+    <button type="button" class="ag-newbig" onclick="newConversation()"><span class="ag-plus">+</span><span>محادثة جديدة</span></button>
+    {% if conversations %}
+    <button type="button" id="ag-tog" class="ag-tog" aria-expanded="false" onclick="agToggleList()"><span>🕘 المحادثات السابقة</span><span class="ag-count">{{ conversations|length }}</span><span class="ag-chev">⌄</span></button>
+    {% endif %}
+    <div class="ag-about"><b>رصيد يقدر:</b><div><span>✍️</span><span>ينشئ الفواتير والقيود والمصروفات من كلامك</span></div><div><span>💡</span><span>يشرح أي مفهوم محاسبي بمثال بسيط</span></div><div><span>✅</span><span>بيطلب تأكيدك قبل أي تسجيل</span></div></div>
+    <button type="button" id="ag-arch" class="ag-archbtn" onclick="agOpenArchive()">🗄 المحادثات المؤرشفة</button>
     <div id="conversations-list" class="flex-1 overflow-y-auto space-y-1 text-sm"
-         data-active-id="{{ active_conversation_id }}">
+         data-active-id="{{ active_conversation_id or '' }}">
       {% for c in conversations %}
       <div class="conv-row flex items-center justify-between rounded px-2 py-2 hover:bg-slate-100 cursor-pointer
                   {% if c.id == active_conversation_id %}bg-emerald-50 border border-emerald-200{% endif %}"
@@ -681,6 +775,372 @@ async function deleteConversation(ev, cid) {
 document.getElementById('chat-messages').scrollTop = 99999;
 </script>
 <script>
+/* MARSOUD-AGENT-UX-P76 - Raseed: rich replies, new-chat screen, archive panel, collapsed history */
+(function () {
+  var box = document.getElementById('chat-messages');
+  var list = document.getElementById('conversations-list');
+  var side = document.getElementById('ag-side');
+  var input = document.getElementById('msg-input');
+  if (!box || !list) return;
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function fmtDate(d) {
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+  function parseIso(iso) {
+    if (!iso) return null;
+    var s = String(iso);
+    if (!/[zZ]$|[+-]\d\d:?\d\d$/.test(s)) s += 'Z';
+    var d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  /* ---------- reply formatter: markdown in, styled HTML out ---------- */
+  function inline(s) {
+    var t = esc(s);
+    t = t.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+    t = t.replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>');
+    t = t.replace(/__([^_\n]+?)__/g, '<strong>$1</strong>');
+    t = t.replace(/(^|[\s(،:])\*([^*\s][^*\n]*?)\*(?=$|[\s).،:!?؟])/g, '$1<em>$2</em>');
+    t = t.replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    t = t.replace(/\*\*|__/g, '');
+    t = t.replace(/(\d)\*(?=\d)/g, '$1\u0001').replace(/\*/g, '').replace(/\u0001/g, '*');
+    return t;
+  }
+  var AR = '٠١٢٣٤٥٦٧٨٩';
+  function toLatin(s) { return String(s).replace(/[٠-٩]/g, function (c) { return String(AR.indexOf(c)); }); }
+  var NUM = /^[(\-+−–]?\s*[\d٠-٩][\d٠-٩,٬.٫\s]*\)?\s*(%|٪|ر\.?\s?س\.?|ريال|ج\.?\s?م\.?|جنيه|SAR|EGP|SR|AED|USD|\$)?\s*$/;
+  function isNum(c) { return NUM.test(String(c).replace(/\*\*/g, '').trim()); }
+  function isNeg(c) { return /^\s*[(\-−–]/.test(String(c).replace(/\*\*/g, '')); }
+  var TOT = /^(\*\*|__)?\s*(الإجمالي|الاجمالي|إجمالي|اجمالي|المجموع|مجموع|الصافي|صافي|total)/i;
+
+  function isRow(l) { return /^\s*\|.*\S/.test(l); }
+  function cells(l) {
+    var t = l.trim();
+    if (t.charAt(0) === '|') t = t.slice(1);
+    if (t.charAt(t.length - 1) === '|') t = t.slice(0, -1);
+    return t.split('|').map(function (c) { return c.trim(); });
+  }
+  function isSep(l) {
+    if (!isRow(l)) return false;
+    var c = cells(l);
+    return c.length > 0 && c.every(function (x) { return /^:?-{2,}:?$/.test(x); });
+  }
+  var LI_UL = /^(\s*)([-*•●▪◦–—])\s+(.+)$/;
+  var LI_OL = /^(\s*)(\d{1,3}|[٠-٩]{1,3})[.)]\s+(.+)$/;
+  function listItem(l) {
+    var m = l.match(LI_OL);
+    if (m) return { t: 'ol', lv: m[1].replace(/\t/g, '  ').length >= 2 ? 1 : 0, n: parseInt(toLatin(m[2]), 10), x: m[3] };
+    m = l.match(LI_UL);
+    if (m) return { t: 'ul', lv: m[1].replace(/\t/g, '  ').length >= 2 ? 1 : 0, n: 0, x: m[3] };
+    return null;
+  }
+  function renderTable(hdr, rows) {
+    var nc = hdr.length;
+    rows.forEach(function (r) { if (r.length > nc) nc = r.length; });
+    var numCol = [];
+    for (var j = 0; j < nc; j++) {
+      var any = false, all = true;
+      rows.forEach(function (r) {
+        var c = r[j] == null ? '' : r[j];
+        if (c === '' || c === '—' || c === '-') return;
+        if (isNum(c)) any = true; else all = false;
+      });
+      numCol[j] = any && all;
+    }
+    var h = '<div class="ag-tw"><table class="ag-t"><thead><tr>';
+    for (var a = 0; a < nc; a++) h += '<th' + (numCol[a] ? ' class="num"' : '') + '>' + inline(hdr[a] || '') + '</th>';
+    h += '</tr></thead><tbody>';
+    rows.forEach(function (r) {
+      var tot = TOT.test(r[0] || '');
+      h += '<tr' + (tot ? ' class="tot"' : '') + '>';
+      for (var b = 0; b < nc; b++) {
+        var c = r[b] == null ? '' : r[b];
+        var cl = [];
+        if (numCol[b]) cl.push('num');
+        if (numCol[b] && c && isNum(c) && isNeg(c)) cl.push('neg');
+        h += '<td' + (cl.length ? ' class="' + cl.join(' ') + '"' : '') + '>' + inline(c) + '</td>';
+      }
+      h += '</tr>';
+    });
+    return h + '</tbody></table></div>';
+  }
+  function renderList(items) {
+    var out = '', cur = null;
+    function close() {
+      if (!cur) return;
+      var tag = cur.t === 'ol' ? 'ol' : 'ul';
+      out += '<' + tag + ' class="ag-' + tag + '"' + (cur.t === 'ol' && cur.n > 1 ? ' style="counter-reset:ag-n ' + (cur.n - 1) + '"' : '') + '>';
+      cur.lis.forEach(function (li) {
+        out += '<li><div class="ag-li">' + inline(li.x);
+        if (li.subs.length) {
+          out += '<ul class="ag-sub">' + li.subs.map(function (s) { return '<li><span>' + inline(s) + '</span></li>'; }).join('') + '</ul>';
+        }
+        out += '</div></li>';
+      });
+      out += '</' + tag + '>';
+      cur = null;
+    }
+    items.forEach(function (it) {
+      if (it.lv === 1 && cur && cur.lis.length) { cur.lis[cur.lis.length - 1].subs.push(it.x); return; }
+      if (cur && cur.t !== it.t) close();
+      if (!cur) cur = { t: it.t, n: it.n, lis: [] };
+      cur.lis.push({ x: it.x, subs: [] });
+    });
+    close();
+    return out;
+  }
+  var CALL = /^(✅|⚠️?|❌|ℹ️?|💡|📌|🔴|🟢|🟡)/;
+  function callKind(t) {
+    if (/^(✅|🟢)/.test(t)) return 'ok';
+    if (/^(⚠|🟡)/.test(t)) return 'warn';
+    if (/^(❌|🔴)/.test(t)) return 'err';
+    return 'info';
+  }
+
+  function agFmt(text) {
+    var lines = String(text == null ? '' : text).replace(/\r\n?/g, '\n').split('\n');
+    var out = [], para = [], i = 0, n = lines.length;
+    function flush() {
+      if (para.length) { out.push('<p class="ag-p">' + para.map(inline).join('<br>') + '</p>'); para = []; }
+    }
+    while (i < n) {
+      var ln = lines[i], tr = ln.trim();
+      if (!tr) { flush(); i++; continue; }
+      if (/^```/.test(tr)) {
+        flush();
+        var buf = []; i++;
+        while (i < n && !/^```/.test(lines[i].trim())) { buf.push(lines[i]); i++; }
+        i++;
+        out.push('<pre class="ag-code">' + esc(buf.join('\n')) + '</pre>');
+        continue;
+      }
+      if (isRow(ln) && i + 1 < n && isSep(lines[i + 1])) {
+        flush();
+        var hdr = cells(ln), rows = [];
+        i += 2;
+        while (i < n && isRow(lines[i])) { if (!isSep(lines[i])) rows.push(cells(lines[i])); i++; }
+        out.push(renderTable(hdr, rows));
+        continue;
+      }
+      var hm = tr.match(/^#{1,6}\s+(.+?)\s*#*$/);
+      var bm = tr.match(/^(\*\*|__)(.{1,80}?)\1\s*:?$/);
+      if (hm || bm) {
+        flush();
+        out.push('<div class="ag-h">' + inline(hm ? hm[1] : bm[2]) + '</div>');
+        i++; continue;
+      }
+      if (/^([-*_])(\s*\1){2,}$/.test(tr)) { flush(); out.push('<hr class="ag-hr">'); i++; continue; }
+      if (/^>/.test(tr)) {
+        flush();
+        var q = [];
+        while (i < n && /^\s*>/.test(lines[i])) { q.push(lines[i].replace(/^\s*>\s?/, '')); i++; }
+        out.push('<div class="ag-note">' + q.map(inline).join('<br>') + '</div>');
+        continue;
+      }
+      if (listItem(ln)) {
+        flush();
+        var items = [];
+        while (i < n) {
+          var it = listItem(lines[i]);
+          if (it) { items.push(it); i++; continue; }
+          if (!lines[i].trim()) {
+            var k = i + 1;
+            while (k < n && !lines[k].trim()) k++;
+            if (k < n && listItem(lines[k])) { i = k; continue; }
+            break;
+          }
+          if (/^\s{2,}\S/.test(lines[i]) && items.length && !isRow(lines[i])) {
+            items[items.length - 1].x += ' ' + lines[i].trim(); i++; continue;
+          }
+          break;
+        }
+        out.push(renderList(items));
+        continue;
+      }
+      if (CALL.test(tr)) {
+        flush();
+        out.push('<div class="ag-call ag-call-' + callKind(tr) + '">' + inline(tr) + '</div>');
+        i++; continue;
+      }
+      para.push(tr);
+      i++;
+    }
+    flush();
+    return '<div class="ag-rich">' + out.join('') + '</div>';
+  }
+  window.agFmt = agFmt;
+  window.renderMarkdownTables = function (t) { return agFmt(t); };
+
+  window.agFormatBubble = function (b) {
+    if (b.dataset.agf === '1' || b.querySelector('.ag-rich')) return;
+    if (b.querySelector(':scope > *:not(.ag-copy)')) return;
+    var cp = b.querySelector('.ag-copy');
+    if (cp) cp.remove();
+    var raw = b.textContent || '';
+    if (!raw.trim()) { if (cp) b.appendChild(cp); return; }
+    b.innerHTML = agFmt(raw);
+    b.classList.remove('whitespace-pre-wrap');
+    b.dataset.agf = '1';
+    if (b.querySelector('.ag-tw')) b.classList.add('ag-wide');
+    if (cp) b.appendChild(cp);
+  };
+  window.agLoadingText = function (b) {
+    var sp = b.querySelector('.animate-pulse');
+    if (sp && /محاسب/.test(sp.textContent)) sp.textContent = '✦ رصيد بيجهّز الرد…';
+  };
+
+  /* ---------- small toast ---------- */
+  var toastT = null;
+  function toast(msg) {
+    var t = document.getElementById('ag-toast');
+    if (!t) { t = document.createElement('div'); t.id = 'ag-toast'; t.className = 'ag-toast'; document.body.appendChild(t); }
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(function () { t.classList.remove('show'); }, 2600);
+  }
+
+  /* ---------- active conversation state ---------- */
+  function activeId() { return list.dataset.activeId || ''; }
+  function clearActiveRows() {
+    [].forEach.call(document.querySelectorAll('.conv-row'), function (r) {
+      r.classList.remove('bg-emerald-50', 'border', 'border-emerald-200');
+    });
+  }
+  function countRows() { return list.querySelectorAll('.conv-row').length; }
+  function ensureToggle() {
+    var tog = document.getElementById('ag-tog');
+    if (!tog && side) {
+      tog = document.createElement('button');
+      tog.type = 'button'; tog.id = 'ag-tog'; tog.className = 'ag-tog';
+      tog.setAttribute('aria-expanded', 'false');
+      tog.setAttribute('onclick', 'agToggleList()');
+      tog.innerHTML = '<span>🕘 المحادثات السابقة</span><span class="ag-count">0</span><span class="ag-chev">⌄</span>';
+      var anchor = side.querySelector('.ag-newbig');
+      if (anchor && anchor.nextSibling) side.insertBefore(tog, anchor.nextSibling); else side.appendChild(tog);
+    }
+    return tog;
+  }
+  function updateCount() {
+    var tog = ensureToggle();
+    if (tog) { var c = tog.querySelector('.ag-count'); if (c) c.textContent = String(countRows()); }
+  }
+  function syncActive() {
+    var id = activeId();
+    var hb = document.querySelector('button[onclick="clearChat()"]');
+    if (hb) hb.classList.toggle('ag-dis', !id);
+    if (!id) return;
+    var row = list.querySelector('.conv-row[data-id="' + Number(id) + '"]');
+    if (row) return;
+    var ub = box.querySelector(':scope > .flex.justify-end > div');
+    var title = ub ? (ub.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 60) : 'محادثة جديدة';
+    var nid = Number(id);
+    if (!nid) return;
+    var empty = list.querySelector(':scope > .text-center');
+    if (empty) empty.remove();
+    var el = document.createElement('div');
+    el.className = 'conv-row flex items-center justify-between rounded px-2 py-2 hover:bg-slate-100 cursor-pointer bg-emerald-50 border border-emerald-200';
+    el.setAttribute('data-id', String(nid));
+    el.setAttribute('onclick', 'loadConversation(' + nid + ')');
+    el.innerHTML = '<div class="flex-1 min-w-0"><div class="font-medium text-navy-900 truncate">' + esc(title || 'محادثة جديدة') +
+      '</div><div class="text-xs text-slate-500">' + fmtDate(new Date()) + '</div></div>' +
+      '<button onclick="deleteConversation(event, ' + nid + ')" class="text-xs text-slate-500 hover:text-rose-600 opacity-0 group-hover:opacity-100" title="أرشفة">🗄</button>';
+    var first = list.firstElementChild;
+    if (first && first.classList.contains('ag-grp') && first.textContent === 'اليوم') {
+      list.insertBefore(el, first.nextSibling);
+    } else {
+      var g = document.createElement('div'); g.className = 'ag-grp'; g.textContent = 'اليوم';
+      list.insertBefore(g, list.firstChild);
+      list.insertBefore(el, g.nextSibling);
+    }
+    updateCount();
+  }
+  new MutationObserver(syncActive).observe(list, { attributes: true, attributeFilter: ['data-active-id'] });
+  syncActive();
+
+  /* ---------- new conversation: blank screen, no DB row until first message ---------- */
+  window.newConversation = function () {
+    list.dataset.activeId = '';
+    clearActiveRows();
+    box.innerHTML = '<div class="text-center"></div>';
+    if (input) { input.value = ''; input.style.height = 'auto'; input.focus(); }
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+    box.scrollTop = 0;
+  };
+  window.clearChat = async function () {
+    var id = activeId();
+    if (!id) { toast('ابدأ محادثة الأول وبعدها تقدر تؤرشفها'); return; }
+    if (!confirm('أرشفة هذه المحادثة؟ هتلاقيها في «المحادثات المؤرشفة» وتقدر ترجّعها (وتُحذف نهائياً بعد مدة الاحتفاظ).')) return;
+    try { await fetch('/agent/conversations/' + Number(id), { method: 'DELETE' }); } catch (e) {}
+    location.href = location.pathname;
+  };
+
+  /* ---------- previous conversations: collapsed until opened ---------- */
+  window.agToggleList = function () {
+    if (!side) return;
+    var open = side.classList.toggle('ag-open');
+    var tog = document.getElementById('ag-tog');
+    if (tog) tog.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+
+  /* ---------- archived conversations panel ---------- */
+  function modal() {
+    var m = document.getElementById('ag-modal');
+    if (m) return m;
+    m = document.createElement('div');
+    m.id = 'ag-modal'; m.className = 'ag-modal';
+    m.innerHTML = '<div class="ag-mp" role="dialog" aria-modal="true" aria-label="المحادثات المؤرشفة">' +
+      '<div class="ag-mh"><span>🗄 المحادثات المؤرشفة</span><button type="button" class="ag-mx" aria-label="إغلاق">×</button></div>' +
+      '<div class="ag-mb" id="ag-mb"></div>' +
+      '<div class="ag-mf">المحادثات المؤرشفة بتتحذف نهائياً بعد مدة الاحتفاظ، استرجع اللي محتاجه قبلها.</div></div>';
+    document.body.appendChild(m);
+    m.addEventListener('click', function (e) {
+      if (e.target === m || (e.target.closest && e.target.closest('.ag-mx'))) closeModal();
+      var it = e.target.closest && e.target.closest('.ag-ai');
+      if (it) restore(it.getAttribute('data-id'), it);
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+    return m;
+  }
+  function closeModal() { var m = document.getElementById('ag-modal'); if (m) m.classList.remove('show'); }
+  async function restore(id, el) {
+    if (!id) return;
+    if (el) el.classList.add('busy');
+    try {
+      var r = await fetch('/agent/conversations/' + Number(id) + '/restore', { method: 'POST' });
+      var d = await r.json();
+      if (!d.ok) throw new Error('x');
+      location.href = location.pathname + '?c=' + Number(id);
+    } catch (e) {
+      if (el) el.classList.remove('busy');
+      toast('تعذّرت الاستعادة، حاول مرة أخرى');
+    }
+  }
+  window.agOpenArchive = async function () {
+    var m = modal(), mb = document.getElementById('ag-mb');
+    m.classList.add('show');
+    mb.innerHTML = '<div class="ag-mmsg">جاري التحميل…</div>';
+    try {
+      var r = await fetch('/agent/conversations/archived');
+      var d = await r.json();
+      var cs = d.conversations || [];
+      if (!cs.length) { mb.innerHTML = '<div class="ag-mmsg">مفيش محادثات مؤرشفة حالياً.</div>'; return; }
+      mb.innerHTML = cs.map(function (c) {
+        var dt = parseIso(c.last_message_at || c.created_at);
+        return '<div class="ag-ai" data-id="' + Number(c.id) + '" tabindex="0"><div class="ag-ait"><b>' + esc(c.title || 'محادثة بدون عنوان') +
+          '</b><span>' + (dt ? fmtDate(dt) : '') + '</span></div><span class="ag-rs">↩ استعادة</span></div>';
+      }).join('');
+    } catch (e) {
+      mb.innerHTML = '<div class="ag-mmsg">تعذّر تحميل المحادثات المؤرشفة.</div>';
+    }
+  };
+})();
+</script>
+<script>
 /* MARSOUD-AGENT-UX-P75 - composer, suggestion cards, copy buttons, sidebar grouping */
 (function () {
   var box = document.getElementById('chat-messages');
@@ -704,30 +1164,27 @@ document.getElementById('chat-messages').scrollTop = 99999;
   if (window.innerWidth < 640) input.placeholder = 'اكتب طلبك هنا…';
   input.focus();
 
-  var cb = document.querySelector('button[onclick="clearChat()"]');
-  if (cb) cb.textContent = '🗄 أرشفة المحادثة';
 
+  var HERO = '<div class="ag-hero"><div class="ag-orb">ر</div><div class="ag-ht">أهلاً، أنا رصيد</div><div class="ag-hs">مساعدك المحاسبي في مرصود. اطلب مني إنشاء فاتورة أو قيد أو مصروف، أو اسألني عن أي مفهوم محاسبي وأشرحه لك ببساطة.</div></div>';
   var SUG = [
-    { t: '📊 تقارير', items: [
-      ['قائمة الدخل لهذا الشهر', 'شغّل تقرير قائمة الدخل لهذا الشهر', 1],
-      ['الميزانية العمومية', 'اعرض الميزانية العمومية', 1],
-      ['أعمار مديونيات العملاء', 'اعرض أعمار مديونيات العملاء', 1]] },
-    { t: '✍️ تسجيل', items: [
+    { t: '✍️ أنشئ بسرعة', items: [
       ['فاتورة جديدة', 'سجّل فاتورة للعميل ____ بمبلغ ____ بضريبة 15%', 0],
-      ['قيد مصروف', 'سجّل قيد مصروف ____ بمبلغ ____', 0],
+      ['قيد يومية', 'أنشئ قيد يومية: مدين ____ ودائن ____ بمبلغ ____', 0],
+      ['مصروف جديد', 'سجّل مصروف ____ بمبلغ ____ مدفوع نقداً', 0],
+      ['عميل جديد', 'أضف عميل جديد باسم ____ ورقم جوال ____', 0],
       ['دفعة على فاتورة', 'سجّل دفعة بمبلغ ____ على الفاتورة رقم ____', 0]] },
-    { t: '🔎 استعلام', items: [
-      ['شجرة الحسابات', 'اعرض شجرة الحسابات', 1],
-      ['الأصناف المنخفضة في المخزون', 'استعرض الأصناف المنخفضة في المخزون', 1],
-      ['كشف حساب عميل', 'اعرض كشف حساب العميل ____', 0]] },
-    { t: '💡 تعلّم', items: [
+    { t: '💡 افهم المحاسبة', items: [
+      ['القيد المزدوج ببساطة', 'اشرح لي مفهوم القيد المزدوج ببساطة', 1],
       ['الفرق بين Asset و Expense', 'اشرح لي الفرق بين Asset و Expense', 1],
-      ['القيد المزدوج ببساطة', 'اشرح لي مفهوم القيد المزدوج ببساطة', 1]] }
+      ['الإهلاك وإزاي بيتسجل', 'اشرح لي يعني إيه الإهلاك وإزاي بيتسجل محاسبياً', 1],
+      ['الفرق بين الإيراد والربح', 'اشرح لي الفرق بين الإيراد والربح', 1],
+      ['ضريبة القيمة المضافة', 'اشرح لي ضريبة القيمة المضافة وإزاي بتتسجل محاسبياً', 1]] }
   ];
 
   function decorate() {
     var w = box.querySelector(':scope > .text-center');
     if (w && !w.querySelector('.ag-sug')) {
+      w.innerHTML = HERO;
       var wrap = document.createElement('div'); wrap.className = 'ag-sug';
       SUG.forEach(function (g) {
         var s = document.createElement('div'); s.className = 'ag-sg';
@@ -742,7 +1199,9 @@ document.getElementById('chat-messages').scrollTop = 99999;
       w.appendChild(wrap);
     }
     box.querySelectorAll(':scope > .flex.justify-start > .rounded-2xl').forEach(function (b) {
-      if (b.querySelector('.ag-copy') || b.querySelector('.animate-pulse')) return;
+      if (b.querySelector('.animate-pulse')) { if (window.agLoadingText) window.agLoadingText(b); return; }
+      if (window.agFormatBubble) window.agFormatBubble(b);
+      if (b.querySelector('.ag-copy')) return;
       var c = document.createElement('button'); c.type = 'button'; c.className = 'ag-copy';
       c.textContent = '⧉ نسخ'; c.title = 'نسخ الرد';
       b.appendChild(c);

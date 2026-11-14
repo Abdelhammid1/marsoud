@@ -66,19 +66,34 @@ def _backfill_orphan_insights_messages(user_id, company_id):
 def index():
     """Accountant chat page. Loads the user's most recent open
     conversation as the initial view; the sidebar lists the rest."""
-    from app.services.agent_conversations import (
-        get_or_create_current_conversation, list_conversations_for,
-    )
-    conv = get_or_create_current_conversation(
-        current_user.id, g.active_company.id, "accountant")
-    history = _load_conversation_history(conv.id, limit=40)
-    conversations = list_conversations_for(
-        current_user.id, g.active_company.id, "accountant")
+    # MARSOUD-AGENT-UX-P76: default view is a blank new-conversation
+    # screen (no DB row is created until the first message). A
+    # specific conversation opens only via ?c=<id> (restore flow).
+    from app.services.agent_conversations import list_conversations_for
+    conv_id = None
+    history = []
+    cid = request.args.get("c", type=int)
+    if cid:
+        c = db.session.get(AgentConversation, cid)
+        if (c and c.user_id == current_user.id
+                and c.company_id == g.active_company.id
+                and c.agent_type == "accountant"
+                and not c.is_archived):
+            conv_id = c.id
+            history = _load_conversation_history(c.id, limit=40)
+    conversations = list(list_conversations_for(
+        current_user.id, g.active_company.id, "accountant"))
+    ids = [c.id for c in conversations]
+    if ids:
+        has = {r[0] for r in db.session.query(
+            AgentMessage.conversation_id).filter(
+            AgentMessage.conversation_id.in_(ids)).distinct()}
+        conversations = [c for c in conversations if c.id in has]
     return render_template(
         "agent/chat.html",
         history=history,
         conversations=conversations,
-        active_conversation_id=conv.id,
+        active_conversation_id=conv_id,
     )
 
 
@@ -111,7 +126,12 @@ def chat():
                 or conv.is_archived):
             return jsonify({"error": "المحادثة غير موجودة"}), 404
     if conv is None:
-        conv = get_or_create_current_conversation(
+        # MARSOUD-AGENT-UX-P76: no conversation_id means a fresh chat
+        # started from the new-conversation screen.
+        from app.services.agent_conversations import (
+            create_conversation as _p76_create_conversation,
+        )
+        conv = _p76_create_conversation(
             current_user.id, g.active_company.id, "accountant")
 
     # Persist user message with conversation_id.
@@ -203,6 +223,47 @@ def conversations_list():
             for c in convs
         ],
     })
+
+
+# MARSOUD-AGENT-UX-P76: archived conversations list + restore.
+@bp.route("/conversations/archived", methods=["GET"])
+@login_required
+@require_permission("agent.use")
+def conversations_archived():
+    if not g.active_company:
+        return jsonify({"error": "لا توجد شركة نشطة"}), 400
+    q = AgentConversation.query.filter_by(
+        user_id=current_user.id, company_id=g.active_company.id,
+        agent_type="accountant", is_archived=True,
+    ).order_by(AgentConversation.last_message_at.desc()).limit(100)
+    rows = list(q)
+    ids = [c.id for c in rows]
+    has = set()
+    if ids:
+        has = {r[0] for r in db.session.query(
+            AgentMessage.conversation_id).filter(
+            AgentMessage.conversation_id.in_(ids)).distinct()}
+    return jsonify({
+        "conversations": [
+            {"id": c.id,
+             "title": c.title or "محادثة بدون عنوان",
+             "last_message_at": c.last_message_at.isoformat()
+             if c.last_message_at else None,
+             "created_at": c.created_at.isoformat()
+             if c.created_at else None}
+            for c in rows if c.id in has
+        ],
+    })
+
+
+@bp.route("/conversations/<int:conv_id>/restore", methods=["POST"])
+@login_required
+@require_permission("agent.use")
+def conversations_restore(conv_id):
+    conv = _resolve_own_conversation(conv_id, "accountant")
+    conv.is_archived = False
+    db.session.commit()
+    return jsonify({"ok": True, "id": conv.id})
 
 
 @bp.route("/conversations/new", methods=["POST"])
