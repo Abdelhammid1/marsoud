@@ -2,6 +2,17 @@
 {% import '_macros.html' as ui %}
 {% block page_title %}العملاء المحتملون{% endblock %}
 {% block content %}
+{# MARSOUD-CRM-HUB-P96 — اختصارات لباقي صفحات الـ CRM بعد ما السايد بار اتقلّل #}
+<style>
+  .ch-chips{display:flex;flex-wrap:wrap;gap:.4rem;margin:0 0 .7rem;}
+  .ch-chip{display:inline-flex;align-items:center;gap:.3rem;font-size:12px;font-weight:500;line-height:1.2;padding:5px 11px;border:1px solid #e2e8f0;border-radius:999px;background:#fff;color:#475569;text-decoration:none;}
+  .ch-chip:hover{background:#f8fafc;border-color:#10b981;color:#047857;}
+</style>
+<div class="ch-chips" data-ch-chips>
+  {% for ep, label, icon in [('leads.settings_hub', 'مركز علاقات العملاء', '🤝'), ('crm.campaigns_index', 'الحملات', '📣'), ('crm.contacts_index', 'جهات الاتصال', '👥'), ('crm.analytics', 'التحليلات', '📈'), ('leads.no_response_index', 'لا يوجد استجابة', '📂')] %}
+  {% if can_access_endpoint(ep) %}<a class="ch-chip" href="{{ url_for(ep) }}">{{ icon }} {{ label }}</a>{% endif %}
+  {% endfor %}
+</div>
 {# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — page_header with subtitle.
    Rich actions: MARSOUD-CRM-EXPANSION §1 view-toggle + two exports +
    MARSOUD-LEAD-EXPORT-BY-CAMPAIGN campaign export + create gate — all

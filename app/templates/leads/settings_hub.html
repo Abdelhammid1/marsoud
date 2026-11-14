@@ -1,24 +1,124 @@
 {% extends "base.html" %}
+{% block page_title %}مركز علاقات العملاء{% endblock %}
 {% block content %}
+{# MARSOUD-CRM-HUB-P96 — مركز علاقات العملاء: كل صفحات الـ CRM في أقسام + بحث بالكلمات المفتاحية.
+   كل بطاقة بتظهر بنفس شرط السايد بار (can_access_endpoint). بطاقة السخونة للمدير بس زي ما كانت. #}
+{% set CH = [
+  ('العملاء المحتملون', [
+    ('leads.index', 'العملاء المحتملون', 'قائمة وبورد العملاء المحتملين بالفلاتر والبحث والتصدير', '🎯', 'عميل محتمل عملاء ليد leads بورد كانبان قائمه فلتر مرحله حاله بحث', False),
+    ('leads.new', 'إضافة عميل محتمل', 'تسجيل عميل محتمل جديد', '➕', 'اضافه جديد انشاء تسجيل عميل محتمل ليد', False),
+    ('leads.today', 'مهامي اليوم', 'متابعات ومواعيد النهارده', '✅', 'مهام اليوم متابعه متابعات النهارده مواعيد تذكير', False),
+    ('leads.no_response_index', 'لا يوجد استجابة', 'العملاء اللي مردوش وعايزين متابعة تانية', '📂', 'لا يوجد استجابه مردش مفيش رد متابعه ثانيه غير مؤهل', False),
+  ]),
+  ('المتابعة والتواصل', [
+    ('crm.activities_index', 'الأنشطة والمتابعات', 'سجل المكالمات والزيارات والمتابعات مع العملاء', '📅', 'نشاط انشطه متابعات مكالمه اتصال زياره اجتماع سجل', False),
+    ('crm.contacts_index', 'جهات الاتصال', 'أشخاص التواصل في شركات العملاء المحتملين', '👥', 'جهات اتصال جهه اتصال شخص رقم تليفون موبايل واتساب ايميل', False),
+    ('crm.campaigns_index', 'الحملات', 'الحملات التسويقية ومصادر العملاء وإضافة حملة جديدة', '📣', 'حمله حملات اعلان اعلانات مصدر مصادر تسويق ميتا فيسبوك جوجل', False),
+  ]),
+  ('التحليلات والتقارير', [
+    ('crm.analytics', 'تحليلات علاقات العملاء', 'أداء المبيعات والحملات ومعدلات التحويل', '📈', 'تحليلات تحليل احصائيات تقارير اداء تحويل مبيعات نسبه', False),
+    ('leads.export_excel', 'تصدير العملاء المحتملين', 'تنزيل ملف Excel بالعملاء المحتملين', '⬇️', 'تصدير excel اكسل تنزيل ملف', False),
+  ]),
+  ('الإعدادات', [
+    ('leads.options', 'إدارة الاختيارات', 'القوائم اللي بتظهر في نموذج العميل المحتمل: الأنظمة المطلوبة، والقطاع، ومرحلة الفكرة، وأسباب عدم التأهيل', '🧩', 'اختيارات قوائم انظمه قطاع مرحله فكره سبب عدم تاهيل غير مؤهل اعدادات', False),
+    ('leads.temp_settings', 'إعدادات السخونة', 'أوزان حساب سخونة العميل (ساخن / دافئ / بارد) وحدودها وتشغيل الشارات', '🔥', 'سخونه ساخن دافئ بارد درجه حراره اوزان شارات تقييم اعدادات', True),
+  ]),
+] %}
 <style>
-/* MARSOUD-CRM-P27 */
-.p27-wrap{max-width:760px;margin:0 auto;padding:.5rem}
-.p27-card{display:block;border:1px solid #e2e8f0;border-radius:.7rem;padding:.8rem 1rem;margin-bottom:.7rem;background:#fff;text-decoration:none;color:inherit}
-.p27-card:hover{border-color:#6ee7b7;background:#f8fffb}
-.p27-t{font-weight:800;font-size:1rem;color:#0f172a}
-.p27-d{font-size:.82rem;color:#64748b;margin-top:.15rem}
+  .ch-wrap{max-width:1040px;margin:0 auto;padding:.25rem 0 1rem;}
+  .ch-h1{font-size:1.25rem;font-weight:800;margin:0 0 .8rem;}
+  .ch-search{position:relative;max-width:560px;margin:0 0 .9rem;}
+  .ch-search input{width:100%;padding-inline-start:2.2rem;}
+  .ch-search .ch-ico{position:absolute;inset-inline-start:.75rem;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none;}
+  .ch-hint{font-size:.75rem;color:#64748b;margin-top:.25rem;}
+  .ch-sec{margin:0 0 .9rem;}
+  .ch-sec h3{font-size:.8125rem;font-weight:700;color:#475569;margin:0 0 .45rem;}
+  .ch-grid{display:grid;grid-template-columns:repeat(1,minmax(0,1fr));gap:.6rem;}
+  @media (min-width:640px){ .ch-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
+  @media (min-width:1024px){ .ch-grid{grid-template-columns:repeat(3,minmax(0,1fr));} }
+  .ch-card{display:flex;gap:.65rem;align-items:flex-start;padding:.7rem .85rem;background:#fff;border:1px solid #E2E8F0;border-radius:12px;text-decoration:none;color:inherit;transition:border-color .12s, box-shadow .12s;}
+  .ch-card:hover,.ch-card:focus-visible{border-color:#10b981;box-shadow:0 1px 6px rgba(16,185,129,.18);outline:none;}
+  .ch-card.ch-best{border-color:#047857;box-shadow:0 0 0 2px rgba(4,120,87,.25);}
+  .ch-card .ch-i{font-size:1.25rem;line-height:1.4;}
+  .ch-card .ch-t{font-weight:700;color:#0f172a;font-size:.9rem;}
+  .ch-card .ch-d{font-size:.75rem;color:#64748b;margin-top:.1rem;line-height:1.5;}
+  #ch-empty{display:none;text-align:center;color:#64748b;padding:1rem;font-size:.875rem;}
+  @media print{ .ch-wrap{display:none !important;} }
 </style>
-<div class="p27-wrap">
-  <h1 style="font-size:1.25rem;font-weight:800;margin:0 0 .8rem">⚙️ إعدادات علاقات العملاء</h1>
-  <a class="p27-card" href="{{ url_for('leads.options') }}">
-    <div class="p27-t">🧩 إدارة الاختيارات</div>
-    <div class="p27-d">القوائم اللي بتظهر في نموذج العميل المحتمل: الأنظمة المطلوبة، والقطاع، ومرحلة الفكرة، وأسباب عدم التأهيل. إضافة وتعديل وترتيب وإخفاء.</div>
-  </a>
-  {% if is_manager %}
-  <a class="p27-card" href="{{ url_for('leads.temp_settings') }}">
-    <div class="p27-t">🔥 إعدادات السخونة</div>
-    <div class="p27-d">التحكم في أوزان حساب سخونة العميل (ساخن / دافئ / بارد) وحدودها، وتشغيل أو إيقاف الشارات.</div>
-  </a>
-  {% endif %}
+<div class="ch-wrap" id="ch-root">
+  <h1 class="ch-h1">🤝 مركز علاقات العملاء</h1>
+  <div class="ch-search">
+    <span class="ch-ico">🔎</span>
+    <input id="ch-q" type="search" class="input text-sm" placeholder="دوّر: حملة، متابعة، سخونة، تصدير، جهة اتصال…" aria-label="بحث في صفحات علاقات العملاء" autocomplete="off">
+    <div class="ch-hint">اكتب كلمة وهتلاقي الصفحة المناسبة. Enter يفتح أول نتيجة.</div>
+  </div>
+  {% for sec_title, cards in CH %}
+  <div class="ch-sec" data-ch-sec>
+    <h3>{{ sec_title }}</h3>
+    <div class="ch-grid">
+      {% for ep, title, desc, icon, kw, mgr in cards %}
+      {% if can_access_endpoint(ep) and (not mgr or is_manager) %}
+      <a class="ch-card" data-ch-card data-t="{{ title }}" data-d="{{ desc }}" data-k="{{ kw }}" href="{{ url_for(ep) }}">
+        <span class="ch-i">{{ icon }}</span>
+        <span><div class="ch-t">{{ title }}</div><div class="ch-d">{{ desc }}</div></span>
+      </a>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+  <div id="ch-empty">مفيش صفحة مطابقة. جرّب كلمة تانية (مثلًا: حملة، متابعة، سخونة، تصدير).</div>
 </div>
+<script>
+(function () {
+  var q = document.getElementById('ch-q'); if (!q) return;
+  function norm(s) {
+    return (s || '').toLowerCase().replace(/[ً-ْـ]/g, '')
+      .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
+  }
+  var cards = [].slice.call(document.querySelectorAll('[data-ch-card]'));
+  var secs = [].slice.call(document.querySelectorAll('[data-ch-sec]'));
+  var empty = document.getElementById('ch-empty');
+  cards.forEach(function (c) {
+    c._t = norm(c.getAttribute('data-t')); c._d = norm(c.getAttribute('data-d')); c._k = norm(c.getAttribute('data-k'));
+  });
+  function score(c, toks) {
+    var s = 0;
+    for (var i = 0; i < toks.length; i++) {
+      var t = toks[i], hit = 0;
+      if (c._t.indexOf(t) !== -1) hit = 3; else if (c._k.indexOf(t) !== -1) hit = 2; else if (c._d.indexOf(t) !== -1) hit = 1;
+      if (!hit) return 0;
+      s += hit;
+    }
+    s *= 100;
+    var tt = c._t.replace(/^\u0627\u0644/, '');
+    if (toks[0] && tt.indexOf(toks[0]) === 0) s += 50;
+    return s - Math.min(c._t.length, 40);
+  }
+  var best = null;
+  function run() {
+    var raw = norm(q.value.trim());
+    var toks = raw.split(/\s+/).filter(Boolean).map(function (w) { if (w.length > 3) w = w.replace(/^\u0627\u0644/, ''); if (w.length > 3) w = w.replace(/\u0647$/, ''); return w; });
+    var on = toks.length > 0, shown = 0, top = 0; best = null;
+    cards.forEach(function (c) {
+      c.classList.remove('ch-best');
+      var sc = on ? score(c, toks) : 1;
+      c.style.display = sc ? '' : 'none';
+      if (sc) { shown++; if (on && sc > top) { top = sc; best = c; } }
+    });
+    secs.forEach(function (s) {
+      var any = [].slice.call(s.querySelectorAll('[data-ch-card]')).some(function (c) { return c.style.display !== 'none'; });
+      s.style.display = any ? '' : 'none';
+    });
+    [].slice.call(document.querySelectorAll('[data-ch-hide]')).forEach(function (h) { h.style.display = on ? 'none' : ''; });
+    empty.style.display = (on && !shown) ? 'block' : 'none';
+    if (best) best.classList.add('ch-best');
+  }
+  q.addEventListener('input', run);
+  q.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { if (best) { e.preventDefault(); best.click(); } }
+    else if (e.key === 'Escape') { q.value = ''; run(); }
+  });
+})();
+</script>
 {% endblock %}
