@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% import '_macros.html' as ui %}
-{% block page_title %}المخزون{% endblock %}
+{% block page_title %}مركز المخزون{% endblock %}
 {% block content %}
 
 {# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — 3 hand-rolled `.card p-5`
@@ -14,7 +14,129 @@
   {{ ui.stat_tile("أصناف تحت حد الطلب", low_stock|length, hint=("⚠ يحتاج إعادة طلب" if low_stock else "المخزون كافٍ"), tone=("danger" if low_stock else "")) }}
 </div>
 
-<div class="card p-6 mb-4">
+{# MARSOUD-INV-HUB-P95 — مركز المخزون: كل صفحات المخزون في أقسام + بحث بالكلمات المفتاحية.
+   كل بطاقة بتظهر بنفس شرط السايد بار (can_access_endpoint). #}
+{% set IH = [
+  ('المنتجات والأصناف', [
+    ('products.index', 'المنتجات والخدمات', 'قائمة كل المنتجات والخدمات والأصناف بأسعارها، وإضافة منتج جديد منها', '🛍️', 'منتج منتجات صنف اصناف خدمه خدمات سعر اسعار sku كود اضافه جديد انشاء تسجيل'),
+    ('products.hierarchy', 'التصنيفات والفئات', 'تنظيم المنتجات في مجموعات وفئات', '🧬', 'تصنيف تصنيفات فئه فئات مجموعه مجموعات قسم اقسام شجره'),
+    ('inventory.barcodes_picker', 'طباعة الباركود', 'اختيار أصناف وطباعة ملصقات الباركود', '🏷️', 'باركود ملصق ملصقات استيكر طباعه barcode'),
+  ]),
+  ('المخازن والحركة', [
+    ('inventory.warehouses', 'المخازن', 'إضافة المخازن وتفعيلها أو إيقافها', '🏬', 'مخزن مخازن مستودع مستودعات فرع اضافه تفعيل ايقاف'),
+    ('inventory.movements', 'حركة الأصناف', 'سجل كل الدخول والخروج لكل صنف', '🔄', 'حركه حركات سجل دخول خروج وارد صادر كارت صنف تتبع'),
+    ('inventory.transfers', 'تحويل بين المخازن', 'عمل تحويلات كميات من مخزن لمخزن آخر ومتابعتها', '🚚', 'تحويل تحويلات نقل مخزن لمخزن شحن'),
+  ]),
+  ('الجرد والتسويات', [
+    ('inventory_counts.index', 'جرد المخزون', 'جلسات الجرد الفعلي ومطابقتها بأرصدة النظام', '📋', 'جرد عد فعلي مطابقه جلسه جرد جديد'),
+    ('inventory.adjust', 'تسوية جرد', 'تعديل رصيد صنف بعد الجرد أو بسبب تلف أو فقد', '⚖️', 'تسويه تعديل رصيد تلف هالك فقد عجز زياده فروق'),
+    ('inventory.opening_balance', 'رصيد افتتاحي مخزون', 'تسجيل البضاعة الموجودة قبل بدء استخدام النظام (مرة واحدة)', '📂', 'رصيد افتتاحي بدايه اول المده بضاعه موجوده'),
+  ]),
+  ('التقارير والمتابعة', [
+    ('inventory.inventory_balance', 'رصيد المخزون', 'رصيد كل صنف في كل مخزن وقيمته، مع تصدير', '📑', 'رصيد ارصده كميات قيمه تقرير excel pdf تصدير'),
+    ('#inv-low', 'أصناف تحت حد الطلب', 'الأصناف اللي محتاجة إعادة طلب', '⚠️', 'نواقص ناقص حد الطلب اعاده طلب نفاد خلص قرب تنبيه'),
+    ('#inv-recent', 'آخر الحركات', 'آخر حركات دخول وخروج على المخزون', '🕘', 'اخر حركات حديثه'),
+    ('vendor_bills.new', 'استلام من مورد', 'تسجيل بضاعة واردة عن طريق فاتورة مشتريات', '📥', 'استلام مورد توريد شراء فاتوره مشتريات بضاعه واردة'),
+  ]),
+] %}
+<style>
+  .ih-wrap{margin:0 0 1rem;}
+  .ih-search{position:relative;max-width:560px;margin:0 0 .9rem;}
+  .ih-search input{width:100%;padding-inline-start:2.2rem;}
+  .ih-search .ih-ico{position:absolute;inset-inline-start:.75rem;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none;}
+  .ih-hint{font-size:.75rem;color:#64748b;margin-top:.25rem;}
+  .ih-sec{margin:0 0 .9rem;}
+  .ih-sec h3{font-size:.8125rem;font-weight:700;color:#475569;margin:0 0 .45rem;}
+  .ih-grid{display:grid;grid-template-columns:repeat(1,minmax(0,1fr));gap:.6rem;}
+  @media (min-width:640px){ .ih-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
+  @media (min-width:1024px){ .ih-grid{grid-template-columns:repeat(3,minmax(0,1fr));} }
+  .ih-card{display:flex;gap:.65rem;align-items:flex-start;padding:.7rem .85rem;background:#fff;border:1px solid #E2E8F0;border-radius:12px;text-decoration:none;color:inherit;transition:border-color .12s, box-shadow .12s;}
+  .ih-card:hover,.ih-card:focus-visible{border-color:#10b981;box-shadow:0 1px 6px rgba(16,185,129,.18);outline:none;}
+  .ih-card.ih-best{border-color:#047857;box-shadow:0 0 0 2px rgba(4,120,87,.25);}
+  .ih-card .ih-i{font-size:1.25rem;line-height:1.4;}
+  .ih-card .ih-t{font-weight:700;color:#0f172a;font-size:.9rem;}
+  .ih-card .ih-d{font-size:.75rem;color:#64748b;margin-top:.1rem;line-height:1.5;}
+  #ih-empty{display:none;text-align:center;color:#64748b;padding:1rem;font-size:.875rem;}
+  @media print{ .ih-wrap{display:none !important;} }
+</style>
+<div class="ih-wrap" id="ih-root">
+  <div class="ih-search">
+    <span class="ih-ico">🔎</span>
+    <input id="ih-q" type="search" class="input text-sm" placeholder="دوّر في المخزون: جرد، تحويل، باركود، تسوية، رصيد…" aria-label="بحث في صفحات المخزون" autocomplete="off">
+    <div class="ih-hint">اكتب كلمة وهتلاقي الصفحة المناسبة. Enter يفتح أول نتيجة.</div>
+  </div>
+  {% for sec_title, cards in IH %}
+  <div class="ih-sec" data-ih-sec>
+    <h3>{{ sec_title }}</h3>
+    <div class="ih-grid">
+      {% for ep, title, desc, icon, kw in cards %}
+      {% if ep.startswith('#') or can_access_endpoint(ep) %}
+      <a class="ih-card" data-ih-card data-t="{{ title }}" data-d="{{ desc }}" data-k="{{ kw }}" href="{{ ep if ep.startswith('#') else url_for(ep) }}">
+        <span class="ih-i">{{ icon }}</span>
+        <span><div class="ih-t">{{ title }}</div><div class="ih-d">{{ desc }}</div></span>
+      </a>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+  <div id="ih-empty">مفيش صفحة مطابقة. جرّب كلمة تانية (مثلًا: جرد، تحويل، باركود، رصيد).</div>
+</div>
+<script>
+(function () {
+  var q = document.getElementById('ih-q'); if (!q) return;
+  function norm(s) {
+    return (s || '').toLowerCase().replace(/[ً-ْـ]/g, '')
+      .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
+  }
+  var cards = [].slice.call(document.querySelectorAll('[data-ih-card]'));
+  var secs = [].slice.call(document.querySelectorAll('[data-ih-sec]'));
+  var empty = document.getElementById('ih-empty');
+  cards.forEach(function (c) {
+    c._t = norm(c.getAttribute('data-t')); c._d = norm(c.getAttribute('data-d')); c._k = norm(c.getAttribute('data-k'));
+  });
+  function score(c, toks) {
+    var s = 0;
+    for (var i = 0; i < toks.length; i++) {
+      var t = toks[i], hit = 0;
+      if (c._t.indexOf(t) !== -1) hit = 3; else if (c._k.indexOf(t) !== -1) hit = 2; else if (c._d.indexOf(t) !== -1) hit = 1;
+      if (!hit) return 0;
+      s += hit;
+    }
+    s *= 100;
+    var tt = c._t.replace(/^\u0627\u0644/, '');
+    if (toks[0] && tt.indexOf(toks[0]) === 0) s += 50;
+    return s - Math.min(c._t.length, 40);
+  }
+  var best = null;
+  function run() {
+    var raw = norm(q.value.trim());
+    var toks = raw.split(/\s+/).filter(Boolean).map(function (w) { return w.length > 3 ? w.replace(/^ال/, '') : w; });
+    var on = toks.length > 0, shown = 0, top = 0; best = null;
+    cards.forEach(function (c) {
+      c.classList.remove('ih-best');
+      var sc = on ? score(c, toks) : 1;
+      c.style.display = sc ? '' : 'none';
+      if (sc) { shown++; if (on && sc > top) { top = sc; best = c; } }
+    });
+    secs.forEach(function (s) {
+      var any = [].slice.call(s.querySelectorAll('[data-ih-card]')).some(function (c) { return c.style.display !== 'none'; });
+      s.style.display = any ? '' : 'none';
+    });
+    [].slice.call(document.querySelectorAll('[data-ih-hide]')).forEach(function (h) { h.style.display = on ? 'none' : ''; });
+    empty.style.display = (on && !shown) ? 'block' : 'none';
+    if (best) best.classList.add('ih-best');
+  }
+  q.addEventListener('input', run);
+  q.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { if (best) { e.preventDefault(); best.click(); } }
+    else if (e.key === 'Escape') { q.value = ''; run(); }
+  });
+})();
+</script>
+{# /MARSOUD-INV-HUB-P95 #}
+
+<div class="card p-6 mb-4" id="inv-low" data-ih-hide>
   <div class="flex flex-wrap items-center justify-between mb-3 gap-2">
     <h3 class="font-bold text-navy-900">⚠ تحت حد الطلب</h3>
     <div class="flex gap-2">
@@ -73,7 +195,7 @@
   {% endif %}
 </div>
 
-<div class="card p-6">
+<div class="card p-6" id="inv-recent" data-ih-hide>
   <div class="flex items-center justify-between mb-3">
     <h3 class="font-bold text-navy-900">📋 آخر الحركات</h3>
     <a href="{{ url_for('inventory.movements') }}" class="text-emerald-600 hover:underline text-sm">عرض كل السجل ←</a>
