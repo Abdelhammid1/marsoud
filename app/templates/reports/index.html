@@ -1,94 +1,195 @@
 {% extends "base.html" %}
 {% block page_title %}التقارير المالية{% endblock %}
 {% block content %}
-<div class="mb-5">
-  <h2 class="font-bold text-navy-900 mb-1">القوائم الأساسية</h2>
-  <p class="text-sm text-slate-500">تتطابق دائماً مع الميزانية وقائمة الدخل</p>
-</div>
-<div class="grid grid-cols-3 gap-4 mb-6">
-  {% set core = [
-    ('balance', 'الميزانية العمومية', 'Balance Sheet', 'Assets = Liabilities + Equity', '⚖️'),
-    ('income', 'قائمة الدخل', 'Income Statement', 'Revenue − Expenses', '📈'),
-    ('cashflow', 'التدفقات النقدية', 'Cash Flow Statement', 'Operating + Investing + Financing', '💵'),
-    ('trial_balance', 'ميزان المراجعة', 'Trial Balance', 'Σ Debits = Σ Credits', '⚖️'),
+
+{# MARSOUD-REPORTS-HUB-P84 — the reports landing page. Same three families
+   and the same endpoints as before; added: live search, per-family counts,
+   a responsive grid (it was a fixed 3 columns, unusable on a phone) and
+   cards gated by the SAME permission the report's route enforces, so no
+   card bounces the user to the dashboard any more.
+   NB: Jinja comments do not nest and cannot sit inside an expression. #}
+
+{% set core_all = [
+  ('balance', 'الميزانية العمومية', 'Balance Sheet', 'Assets = Liabilities + Equity', '⚖️'),
+  ('income', 'قائمة الدخل', 'Income Statement', 'Revenue − Expenses', '📈'),
+  ('cashflow', 'التدفقات النقدية', 'Cash Flow Statement', 'Operating + Investing + Financing', '💵'),
+  ('trial_balance', 'ميزان المراجعة', 'Trial Balance', 'Σ Debits = Σ Credits', '📋'),
+] %}
+{# MARSOUD-COMPANY-BRANCHES-01 — consolidated tiles only when the current
+   company actually has branches under it. #}
+{% if active_company_has_branches %}
+  {% set core_all = core_all + [
+    ('consolidated_income', 'قائمة الدخل المجمّعة', 'Consolidated P&L', 'مجموع كل الفروع في تقرير واحد', '🏢'),
+    ('consolidated_balance', 'الميزانية المجمّعة', 'Consolidated Balance Sheet', 'أصول/خصوم/حقوق مجمّعة عبر الفروع', '🏛️'),
   ] %}
-  {# MARSOUD-COMPANY-BRANCHES-01 — consolidated tiles only when the
-     current company actually has branches under it. #}
-  {% if active_company_has_branches %}
-    {% set core = core + [
-      ('consolidated_income', 'قائمة الدخل المجمّعة', 'Consolidated P&L', 'مجموع كل الفروع في تقرير واحد', '🏢'),
-      ('consolidated_balance', 'الميزانية المجمّعة', 'Consolidated Balance Sheet', 'أصول/خصوم/حقوق مجمّعة عبر الفروع', '🏛️'),
-    ] %}
-  {% endif %}
-  {% for endpoint, title_ar, title_en, formula, icon in core %}
-  <a href="{{ url_for('reports.' + endpoint) }}" class="card p-6 hover:shadow-soft hover:-translate-y-0.5 transition-all border-2 border-transparent hover:border-brand-500">
-    <div class="text-4xl mb-3">{{ icon }}</div>
-    <h3 class="font-bold text-navy-900">{{ title_ar }}</h3>
-    <p class="text-sm text-slate-500 mb-2">{{ title_en }}</p>
-    <p class="text-xs text-brand-600 font-mono">{{ formula }}</p>
-  </a>
-  {% endfor %}
+{% endif %}
+{% set detailed_all = [
+  ('income_summary_view', 'ملخص الإيرادات', 'Income Summary', 'تفصيل كل حساب إيراد منفصل', '📊'),
+  ('expenses_summary_view', 'ملخص المصروفات', 'Expenses Summary', 'تفصيل + drill-down على القيود', '🔍'),
+  ('pl_compared', 'الأرباح والخسائر (مقارن)', 'P&L vs Prior Year', 'مقارنة مع نفس الفترة من السنة السابقة', '📉'),
+  ('cost_centers_report', 'أرباح/خسائر مراكز التكلفة', 'P&L by Cost Center', 'تجميع الحركة حسب مركز التكلفة + جزء غير مُصنّف', '🎯'),
+] %}
+{% set modules_all = [
+  ('ar_aging', 'أعمار الديون — العملاء', 'AR Aging', 'فواتير غير مسددة مقسمة 30/60/90+', '⏳'),
+  ('ap_aging', 'أعمار الديون — الموردين', 'AP Aging', 'مستحقات للموردين مقسمة', '📥'),
+  ('open_custody', 'العهد النقدية المفتوحة', 'Open Custody', 'كل عهدة نقدية لم تُسوَّ بعد + عدد الأيام + المتأخر', '🤝'),
+  ('vat', 'تقرير الضرائب', 'VAT Report', 'محصلة − مدفوعة = المستحق للحكومة', '🏛️'),
+  ('payroll', 'تقرير الرواتب', 'Payroll Report', 'كل موظف بالتفصيل + إجماليات', '💼'),
+  ('fixed_assets', 'تقرير الأصول الثابتة', 'Fixed Assets', 'تكلفة + إهلاك + قيمة دفترية', '🏗️'),
+  ('sales_commissions', 'عمولات المندوبين', 'Sales Commissions', 'مستحق + مدفوع + ترحيلات لكل مندوب', '🏆'),
+  ('vendor_sub_categories', 'مصروفات الموردين حسب التصنيف', 'Vendor Sub-Categories', 'إجمالي المصروف على كل مورد مقسّم على تصنيفاته الفرعية', '🏷'),
+  ('metric_logs', 'قيود المتريك للموظفين', 'Metric Logs per Employee', 'كل ما اتسجّل في المتريكات لكل موظف — مجموع + متوسط + آخر قيمة', '📊'),
+  ('profitability', 'تقرير الربحية', 'Profitability Report', 'ربحية المنتجات والعملاء — إيراد − تكلفة البضاعة المباعة', '💰'),
+  ('cashier_sales', 'مبيعات الكاشيرز', 'Cashier Sales Report', 'مبيعات كل كاشير + الوردية — من نقطة البيع', '🧑‍💻'),
+] %}
+{# Each key is the permission that report's route (or the old card gate)
+   already enforces: showing a card the route would refuse only bounces the
+   user to the dashboard. #}
+{% set report_perm = {
+  'trial_balance': 'reports.view',
+  'sales_commissions': 'reports.view',
+  'vendor_sub_categories': 'vendor_bills.create',
+  'metric_logs': 'users.manage',
+  'open_custody': 'custody.manage',
+} %}
+{# Extra words people actually type, so «ضريبة» finds تقرير الضرائب and
+   «سيولة» finds التدفقات النقدية. Search-only; never shown. #}
+{% set report_kw = {
+  'balance': 'ميزانية المركز المالي اصول التزامات',
+  'income': 'ارباح خسائر دخل ايرادات مصروفات',
+  'cashflow': 'سيولة نقدية خزينة',
+  'trial_balance': 'ميزان مراجعه ارصدة حسابات',
+  'vat': 'ضريبة ضرائب القيمة المضافة tax',
+  'payroll': 'مرتبات رواتب موظفين',
+  'ar_aging': 'عملاء مديونيات متاخرات ذمم مدينة',
+  'ap_aging': 'موردين مستحقات ذمم دائنة',
+  'fixed_assets': 'اصول ثابتة اهلاك',
+  'open_custody': 'عهدة عهد سلفة',
+  'cashier_sales': 'كاشير مبيعات نقطة بيع pos',
+  'profitability': 'ربحية هامش ربح تكلفة',
+} %}
+{% set ns = namespace(core=[], detailed=[], modules=[]) %}
+{% for it in core_all %}{% set need = report_perm.get(it[0]) %}{% if not need or has_permission(need) %}{% set ns.core = ns.core + [it] %}{% endif %}{% endfor %}
+{% for it in detailed_all %}{% set need = report_perm.get(it[0]) %}{% if not need or has_permission(need) %}{% set ns.detailed = ns.detailed + [it] %}{% endif %}{% endfor %}
+{% for it in modules_all %}{% set need = report_perm.get(it[0]) %}{% if not need or has_permission(need) %}{% set ns.modules = ns.modules + [it] %}{% endif %}{% endfor %}
+{% set total = ns.core|length + ns.detailed|length + ns.modules|length %}
+
+{% macro rcard(it, mono) %}
+<a href="{{ url_for('reports.' + it[0]) }}" class="card rpt-card"
+   data-search="{{ it[1] }} {{ it[2] }} {{ it[3] }} {{ report_kw.get(it[0], '') }}">
+  <span class="rpt-ic" aria-hidden="true">{{ it[4] }}</span>
+  <span class="rpt-body">
+    <span class="rpt-name">{{ it[1] }}</span>
+    <span class="rpt-en">{{ it[2] }}</span>
+    <span class="rpt-desc{% if mono %} rpt-mono{% endif %}">{{ it[3] }}</span>
+  </span>
+</a>
+{% endmacro %}
+
+<style>
+  .rpt-head{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem;}
+  .rpt-search{position:relative;flex:1 1 260px;max-width:440px;}
+  .rpt-search input{padding-inline-start:2.25rem;}
+  .rpt-search .rpt-s-ico{position:absolute;inset-inline-start:.75rem;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none;font-size:.9rem;}
+  .rpt-count{font-size:.8125rem;color:#64748b;}
+  .rpt-sec{margin-bottom:1.75rem;}
+  .rpt-sec-h{display:flex;align-items:baseline;gap:.5rem;margin:0 0 .25rem;font-weight:700;color:#0A2540;font-size:1rem;}
+  .rpt-sec-h .n{font-weight:500;font-size:.75rem;color:#64748b;}
+  .rpt-sec-sub{font-size:.8125rem;color:#64748b;margin:0 0 .85rem;}
+  .rpt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:.9rem;}
+  .rpt-card{display:flex;gap:.85rem;align-items:flex-start;padding:1rem 1.1rem;text-decoration:none;color:inherit;border:1px solid #E2E8F0;transition:border-color .15s,box-shadow .15s,transform .15s;}
+  .rpt-card:hover,.rpt-card:focus-visible{border-color:#10b981;box-shadow:0 6px 18px rgba(15,23,42,.08);transform:translateY(-1px);outline:none;}
+  .rpt-card:focus-visible{box-shadow:0 0 0 3px rgba(16,185,129,.35);}
+  .rpt-ic{flex:none;width:2.6rem;height:2.6rem;border-radius:12px;background:#ECFDF5;display:flex;align-items:center;justify-content:center;font-size:1.4rem;}
+  .rpt-body{display:flex;flex-direction:column;min-width:0;}
+  .rpt-name{font-weight:700;color:#0A2540;font-size:.95rem;line-height:1.4;}
+  .rpt-en{font-size:.75rem;color:#64748b;margin-bottom:.35rem;unicode-bidi:plaintext;text-align:right;}
+  .rpt-desc{font-size:.75rem;color:#475569;line-height:1.6;}
+  .rpt-mono{font-family:ui-monospace,Menlo,monospace;color:#047857;unicode-bidi:plaintext;text-align:right;}
+  .rpt-empty{display:none;text-align:center;color:#64748b;padding:2rem 1rem;}
+  @media (max-width:767px){ .rpt-card{padding:.9rem !important;} .rpt-grid{grid-template-columns:1fr;} }
+</style>
+
+<div class="rpt-head">
+  <div>
+    <h2 class="font-bold text-navy-900 mb-1" style="font-size:1.125rem;margin:0 0 .25rem">📑 التقارير المالية</h2>
+    <span class="rpt-count" id="rpt-count" data-total="{{ total }}">{{ total }} تقرير</span>
+  </div>
+  <div class="rpt-search">
+    <span class="rpt-s-ico" aria-hidden="true">🔎</span>
+    <input id="rpt-q" type="search" class="input" autocomplete="off"
+           placeholder="ابحث عن تقرير… (مثال: ميزانية، ضرائب، رواتب)" aria-label="بحث في التقارير">
+  </div>
 </div>
 
-<div class="mb-5">
-  <h2 class="font-bold text-navy-900 mb-1">التقارير التفصيلية</h2>
-  <p class="text-sm text-slate-500">تفصيل الإيرادات والمصروفات + مقارنة بالفترة السابقة</p>
-</div>
-<div class="grid grid-cols-3 gap-4 mb-6">
-  {% set detailed = [
-    ('income_summary_view', 'ملخص الإيرادات', 'Income Summary', 'تفصيل كل حساب إيراد منفصل', '📊'),
-    ('expenses_summary_view', 'ملخص المصروفات', 'Expenses Summary', 'تفصيل + drill-down على القيود', '🔍'),
-    ('pl_compared', 'الأرباح والخسائر (مقارن)', 'P&L vs Prior Year', 'مقارنة مع نفس الفترة من السنة السابقة', '📉'),
-    ('cost_centers_report', 'أرباح/خسائر مراكز التكلفة', 'P&L by Cost Center', 'تجميع الحركة حسب مركز التكلفة + جزء غير مُصنّف', '🎯'),
-  ] %}
-  {% for endpoint, title_ar, title_en, desc, icon in detailed %}
-  <a href="{{ url_for('reports.' + endpoint) }}" class="card p-6 hover:shadow-soft hover:-translate-y-0.5 transition-all border-2 border-transparent hover:border-brand-500">
-    <div class="text-4xl mb-3">{{ icon }}</div>
-    <h3 class="font-bold text-navy-900">{{ title_ar }}</h3>
-    <p class="text-sm text-slate-500 mb-2">{{ title_en }}</p>
-    <p class="text-xs text-slate-600">{{ desc }}</p>
-  </a>
-  {% endfor %}
+{% if ns.core %}
+<section class="rpt-sec">
+  <h3 class="rpt-sec-h">القوائم الأساسية <span class="n" data-n>({{ ns.core|length }})</span></h3>
+  <p class="rpt-sec-sub">تتطابق دائماً مع الميزانية وقائمة الدخل</p>
+  <div class="rpt-grid">{% for it in ns.core %}{{ rcard(it, true) }}{% endfor %}</div>
+</section>
+{% endif %}
+
+{% if ns.detailed %}
+<section class="rpt-sec">
+  <h3 class="rpt-sec-h">التقارير التفصيلية <span class="n" data-n>({{ ns.detailed|length }})</span></h3>
+  <p class="rpt-sec-sub">تفصيل الإيرادات والمصروفات + مقارنة بالفترة السابقة</p>
+  <div class="rpt-grid">{% for it in ns.detailed %}{{ rcard(it, false) }}{% endfor %}</div>
+</section>
+{% endif %}
+
+{% if ns.modules %}
+<section class="rpt-sec">
+  <h3 class="rpt-sec-h">تقارير الموديولات <span class="n" data-n>({{ ns.modules|length }})</span></h3>
+  <p class="rpt-sec-sub">عملاء، موردين، ضرائب، رواتب، أصول ثابتة</p>
+  <div class="rpt-grid">{% for it in ns.modules %}{{ rcard(it, false) }}{% endfor %}</div>
+</section>
+{% endif %}
+
+{% if total == 0 %}
+<div class="card p-6 text-center text-slate-500">لا توجد تقارير متاحة لك.</div>
+{% endif %}
+
+<div class="rpt-empty" id="rpt-empty">
+  <div style="font-size:1.75rem" aria-hidden="true">🔍</div>
+  <p style="margin:.5rem 0 0">مفيش تقرير بالاسم ده. جرّب كلمة تانية.</p>
 </div>
 
-<div class="mb-5">
-  <h2 class="font-bold text-navy-900 mb-1">تقارير الموديوالت</h2>
-  <p class="text-sm text-slate-500">عملاء، موردين، ضرائب، رواتب، أصول ثابتة</p>
-</div>
-<div class="grid grid-cols-3 gap-4">
-  {% set modules = [
-    ('ar_aging', 'أعمار الديون — العملاء', 'AR Aging', 'فواتير غير مسددة مقسمة 30/60/90+', '⏳'),
-    ('ap_aging', 'أعمار الديون — الموردين', 'AP Aging', 'مستحقات للموردين مقسمة', '📥'),
-    ('open_custody', 'العهد النقدية المفتوحة', 'Open Custody', 'كل عهدة نقدية لم تُسوَّ بعد + عدد الأيام + المتأخر', ' 💵'),
-    ('vat', 'تقرير الضرائب', 'VAT Report', 'محصلة − مدفوعة = المستحق للحكومة', '🏛️'),
-    ('payroll', 'تقرير الرواتب', 'Payroll Report', 'كل موظف بالتفصيل + إجماليات', '💼'),
-    ('fixed_assets', 'تقرير الأصول الثابتة', 'Fixed Assets', 'تكلفة + إهلاك + قيمة دفترية', '🏗️'),
-    ('sales_commissions', 'عمولات المندوبين', 'Sales Commissions', 'مستحق + مدفوع + ترحيلات لكل مندوب', '💼'),
-    ('vendor_sub_categories', 'مصروفات الموردين حسب التصنيف', 'Vendor Sub-Categories', 'إجمالي المصروف على كل مورد مقسّم على تصنيفاته الفرعية', '🏷'),
-    ('metric_logs', 'قيود المتريك للموظفين', 'Metric Logs per Employee', 'كل ما اتسجّل في المتريكات لكل موظف — مجموع + متوسط + آخر قيمة', '📊'),
-    ('profitability', 'تقرير الربحية', 'Profitability Report', 'ربحية المنتجات والعملاء — إيراد − تكلفة البضاعة المباعة', '💰'),
-    ('cashier_sales', 'مبيعات الكاشيرز', 'Cashier Sales Report', 'مبيعات كل كاشير + الوردية — من نقطة البيع', '🧑‍💻'),
-  ] %}
-  {# MARSOUD-PERMISSION-BOUNCE — most reports ride on the financial-role
-     gate, but these two carry their own @require_permission. The cards
-     were rendered unconditionally, so an accountant or ceo clicking them
-     got «ليس لديك صلاحية لهذا الإجراء» and was bounced to the dashboard.
-     A card is only shown when its own permission allows it. #}
-  {% set report_perm = {
-    'vendor_sub_categories': 'vendor_bills.create',
-    'metric_logs': 'users.manage',
-    'open_custody': 'custody.manage',
-  } %}
-  {% for endpoint, title_ar, title_en, desc, icon in modules %}
-  {% set _need = report_perm.get(endpoint) %}
-  {% if not _need or has_permission(_need) %}
-  <a href="{{ url_for('reports.' + endpoint) }}" class="card p-6 hover:shadow-soft hover:-translate-y-0.5 transition-all border-2 border-transparent hover:border-brand-500">
-    <div class="text-4xl mb-3">{{ icon }}</div>
-    <h3 class="font-bold text-navy-900">{{ title_ar }}</h3>
-    <p class="text-sm text-slate-500 mb-2">{{ title_en }}</p>
-    <p class="text-xs text-slate-600">{{ desc }}</p>
-  </a>
-  {% endif %}
-  {% endfor %}
-</div>
+<script>
+(function () {
+  var q = document.getElementById('rpt-q');
+  var cards = [].slice.call(document.querySelectorAll('.rpt-card'));
+  var secs = [].slice.call(document.querySelectorAll('.rpt-sec'));
+  var cnt = document.getElementById('rpt-count');
+  var empty = document.getElementById('rpt-empty');
+  function norm(s) {
+    return (s || '').toLowerCase()
+      .replace(/[ً-ْـ]/g, '')
+      .replace(/[أإآ]/g, 'ا')
+      .replace(/ة/g, 'ه')
+      .replace(/ى/g, 'ي');
+  }
+  cards.forEach(function (c) { c._s = norm(c.getAttribute('data-search')); });
+  function apply() {
+    var t = norm(q.value.trim()), shown = 0;
+    cards.forEach(function (c) { var ok = !t || c._s.indexOf(t) !== -1; c.hidden = !ok; if (ok) shown++; });
+    secs.forEach(function (s) {
+      var n = s.querySelectorAll('.rpt-card:not([hidden])').length;
+      s.hidden = n === 0;
+      var el = s.querySelector('[data-n]'); if (el) el.textContent = '(' + n + ')';
+    });
+    var total = cnt.getAttribute('data-total');
+    cnt.textContent = t ? ('عرض ' + shown + ' من ' + total + ' تقرير') : (total + ' تقرير');
+    empty.style.display = (cards.length && shown === 0) ? 'block' : 'none';
+  }
+  q.addEventListener('input', apply);
+  q.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      var first = document.querySelector('.rpt-card:not([hidden])');
+      if (first) { e.preventDefault(); window.location.href = first.href; }
+    }
+  });
+})();
+</script>
+
 {% endblock %}
