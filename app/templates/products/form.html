@@ -1,292 +1,421 @@
 {% extends "base.html" %}
 {% block page_title %}منتج/خدمة جديد{% endblock %}
 {% block content %}
-<div class="card p-6 max-w-2xl">
-  <form method="POST" class="space-y-4">
+{# MARSOUD-PRODUCT-FORM-P88 — create-product screen, rebuilt in sections.
+   Same posted field names as before (the route is untouched). New:
+   - re-render after a server error keeps what was typed (it used to wipe
+     the whole form, e.g. on a duplicate barcode)
+   - double-click guard (an opening balance posts a journal entry)
+   - Enter inside the barcode field no longer submits (USB scanners send it)
+   - live summary: per-piece cost/price, margin, opening stock value
+   - services/bundles hide the goods-only fields (dual-UoM, inventory) #}
+{% set f = request.form %}
+{% set ptype = f.get('product_type') or 'goods' %}
+{% set sel_cat = (f.get('category_id') or 0)|int %}
+{% set pack_prefill = ({
+     'pieces': (f.get('pieces_per_pack') or 1),
+     'pack_purchase_price': (f.get('pack_purchase_price') or ''),
+     'pack_sale_price': (f.get('pack_sale_price') or ''),
+     'pack_unit_name': (f.get('pack_unit_name') or 'كرتونة')
+   } if request.method == 'POST' else none) %}
 
-    {# MARSOUD-50.1 — type toggle.
-       "بضاعة" → is_tracked=True, auto-creates a ProductVariant on save
-       "خدمة"  → is_tracked=False, no variant, no stock side                  #}
-    <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">النوع</label>
-      <div class="grid grid-cols-3 gap-3">
-        <label class="cursor-pointer">
-          <input type="radio" name="product_type" value="goods" checked class="peer sr-only"
-                 onchange="toggleProductType('goods')">
-          <div class="border-2 border-slate-200 rounded-xl p-4 text-center peer-checked:border-emerald-500 peer-checked:bg-emerald-50 hover:border-emerald-300 transition">
-            <div class="text-2xl mb-1">📦</div>
-            <div class="font-bold text-navy-900">بضاعة (مخزون)</div>
-            <div class="text-xs text-slate-500 mt-1">رصيد افتتاحي + تتبع الكميات</div>
-          </div>
-        </label>
-        <label class="cursor-pointer">
-          <input type="radio" name="product_type" value="service" class="peer sr-only"
-                 onchange="toggleProductType('service')">
-          <div class="border-2 border-slate-200 rounded-xl p-4 text-center peer-checked:border-emerald-500 peer-checked:bg-emerald-50 hover:border-emerald-300 transition">
-            <div class="text-2xl mb-1">💼</div>
-            <div class="font-bold text-navy-900">خدمة</div>
-            <div class="text-xs text-slate-500 mt-1">بدون مخزون، تتباع مباشرةً</div>
-          </div>
-        </label>
-        {# MARSOUD-PRODUCT-BUNDLES-01 — bundles: sale-time expansion #}
-        <label class="cursor-pointer">
-          <input type="radio" name="product_type" value="bundle" class="peer sr-only"
-                 onchange="toggleProductType('bundle')">
-          <div class="border-2 border-slate-200 rounded-xl p-4 text-center peer-checked:border-brand-500 peer-checked:bg-brand-50 hover:border-brand-300 transition">
-            <div class="text-2xl mb-1">🎁</div>
-            <div class="font-bold text-navy-900">باقة (Bundle)</div>
-            <div class="text-xs text-slate-500 mt-1">أصناف مجمّعة بسعر واحد</div>
-          </div>
-        </label>
+<style>
+  .pf-wrap{display:grid;grid-template-columns:minmax(0,1fr);gap:1rem;align-items:start;max-width:1100px;}
+  @media (min-width:1024px){ .pf-wrap{grid-template-columns:minmax(0,1fr) 300px;} }
+  .pf-main{display:flex;flex-direction:column;gap:1rem;min-width:0;}
+  .pf-sec{padding:1.25rem;}
+  .pf-sec > h3{font-weight:700;color:#0A2540;font-size:.95rem;margin:0 0 .9rem;display:flex;align-items:center;gap:.5rem;}
+  .pf-n{display:inline-flex;align-items:center;justify-content:center;width:1.4rem;height:1.4rem;border-radius:999px;background:#047857;color:#fff;font-size:.75rem;}
+  .pf-types{display:grid;grid-template-columns:repeat(auto-fit,minmax(9.5rem,1fr));gap:.75rem;}
+  .pf-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:1rem;margin-bottom:1rem;}
+  .pf-row:last-child{margin-bottom:0;}
+  .pf-l{display:block;font-size:.85rem;font-weight:600;color:#334155;margin-bottom:.4rem;}
+  .pf-h{font-size:.75rem;color:#64748b;margin-top:.3rem;line-height:1.5;}
+  .pf-aside{position:sticky;top:1rem;padding:1.1rem;}
+  @media (max-width:1023px){ .pf-aside{position:static;order:2;} }
+  .pf-aside h3{font-weight:700;color:#0A2540;font-size:.95rem;margin:0 0 .7rem;}
+  .pf-kv{display:flex;justify-content:space-between;gap:.75rem;padding:.4rem 0;border-bottom:1px solid #F1F5F9;font-size:.82rem;}
+  .pf-kv:last-of-type{border-bottom:0;}
+  .pf-kv span:first-child{color:#64748b;} .pf-kv span:last-child{font-family:ui-monospace,monospace;font-weight:600;color:#0A2540;text-align:left;overflow-wrap:anywhere;}
+  .pf-name-prev{font-weight:700;color:#0A2540;margin-bottom:.15rem;overflow-wrap:anywhere;}
+  .pf-sub{font-size:.75rem;color:#64748b;margin-bottom:.6rem;}
+  .pf-note{display:none;margin-top:.6rem;font-size:.78rem;color:#92400E;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:.4rem .6rem;}
+  .pf-actions{position:sticky;bottom:0;z-index:5;display:flex;gap:.5rem;justify-content:flex-end;flex-wrap:wrap;background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:.7rem 1rem;box-shadow:0 -4px 12px rgba(15,23,42,.06);}
+  details.pf-adv > summary{cursor:pointer;font-weight:700;color:#0A2540;font-size:.95rem;list-style:none;display:flex;align-items:center;gap:.5rem;}
+  details.pf-adv > summary::-webkit-details-marker{display:none;}
+  details.pf-adv[open] > summary{margin-bottom:.9rem;}
+  .pf-comp-empty{display:none;font-size:.8rem;color:#92400E;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:.5rem .7rem;margin-bottom:.6rem;}
+</style>
+
+<form method="POST" id="pf-form" class="pf-wrap" autocomplete="off">
+<div class="pf-main">
+
+  {# ─── 1. type ──────────────────────────────────────────────────── #}
+  <div class="card pf-sec">
+    <h3><span class="pf-n">1</span> نوع الصنف</h3>
+    {# MARSOUD-50.1 — "بضاعة" → is_tracked=True, auto-creates a variant on save;
+       "خدمة" → is_tracked=False, no variant, no stock side. #}
+    <div class="pf-types">
+      <label class="cursor-pointer">
+        <input type="radio" name="product_type" value="goods" {% if ptype == 'goods' %}checked{% endif %} class="peer sr-only"
+               onchange="toggleProductType('goods')">
+        <div class="border-2 border-slate-200 rounded-xl p-4 text-center peer-checked:border-emerald-500 peer-checked:bg-emerald-50 hover:border-emerald-300 transition">
+          <div class="text-2xl mb-1">📦</div>
+          <div class="font-bold text-navy-900">بضاعة (مخزون)</div>
+          <div class="text-xs text-slate-500 mt-1">رصيد افتتاحي + تتبع الكميات</div>
+        </div>
+      </label>
+      <label class="cursor-pointer">
+        <input type="radio" name="product_type" value="service" {% if ptype == 'service' %}checked{% endif %} class="peer sr-only"
+               onchange="toggleProductType('service')">
+        <div class="border-2 border-slate-200 rounded-xl p-4 text-center peer-checked:border-emerald-500 peer-checked:bg-emerald-50 hover:border-emerald-300 transition">
+          <div class="text-2xl mb-1">💼</div>
+          <div class="font-bold text-navy-900">خدمة</div>
+          <div class="text-xs text-slate-500 mt-1">بدون مخزون، تتباع مباشرةً</div>
+        </div>
+      </label>
+      {# MARSOUD-PRODUCT-BUNDLES-01 — bundles: sale-time expansion #}
+      <label class="cursor-pointer">
+        <input type="radio" name="product_type" value="bundle" {% if ptype == 'bundle' %}checked{% endif %} class="peer sr-only"
+               onchange="toggleProductType('bundle')">
+        <div class="border-2 border-slate-200 rounded-xl p-4 text-center peer-checked:border-brand-500 peer-checked:bg-brand-50 hover:border-brand-300 transition">
+          <div class="text-2xl mb-1">🎁</div>
+          <div class="font-bold text-navy-900">باقة (Bundle)</div>
+          <div class="text-xs text-slate-500 mt-1">أصناف مجمّعة بسعر واحد</div>
+        </div>
+      </label>
+    </div>
+  </div>
+
+  {# ─── 2. basics ────────────────────────────────────────────────── #}
+  <div class="card pf-sec">
+    <h3><span class="pf-n">2</span> البيانات الأساسية</h3>
+    <div class="pf-row">
+      <div style="grid-column:1/-1">
+        <label class="pf-l" for="pf-name">الاسم <span class="text-rose-500">*</span></label>
+        <input type="text" name="name" id="pf-name" required class="input" value="{{ f.get('name', '') }}" autofocus>
       </div>
     </div>
-
-    {# ─── Bundle components table (only visible when type=bundle) ── #}
-    <div id="bundle-section" class="hidden card p-4 bg-brand-50/40 border border-brand-200">
-      <div class="flex items-center justify-between mb-3">
-        <h3 class="font-bold text-navy-900">🎁 مكونات الباقة</h3>
-        <button type="button" onclick="addBundleRow()" class="btn-secondary text-sm">+ إضافة مكوّن</button>
-      </div>
-      <div class="text-xs text-slate-600 mb-3">
-        كل مكوّن لازم يكون منتج له مخزون فعلي (بضاعة). سعر الباقة الكلي بيتوزع تلقائيًا على المكونات وقت البيع.
-      </div>
-      <table class="data-table" id="bundle-table">
-        <thead>
-          <tr>
-            <th>الصنف</th>
-            <th class="text-right" style="width:140px">الكمية في الباقة</th>
-            <th style="width:30px"></th>
-          </tr>
-        </thead>
-        <tbody id="bundle-body"></tbody>
-      </table>
-    </div>
-    <script>
-      // Preload variant list for the bundle picker. Filter server-side
-      // to real-goods variants only; the service still refuses services
-      // + bundles on save.
-      const bundleVariantsData = [
-        {% for v in bundle_variants or [] %}
-        {id: {{ v.id }}, sku: "{{ (v.sku or '')|e }}", name: "{{ v.display_name|e }}"}
-        {% if not loop.last %},{% endif %}
-        {% endfor %}
-      ];
-      function addBundleRow(preset){
-        const tbody = document.getElementById('bundle-body');
-        const tr = document.createElement('tr');
-        const vid = preset ? preset.variant_id : '';
-        const q = preset ? preset.qty : '';
-        tr.innerHTML = `
-          <td><select name="component_variant_id[]" class="select text-sm" required>
-            <option value="">— اختر الصنف —</option>
-            ${bundleVariantsData.map(v => `<option value="${v.id}" ${v.id == vid ? 'selected' : ''}>${v.sku ? '['+v.sku+'] ' : ''}${v.name}</option>`).join('')}
-          </select></td>
-          <td><input type="number" step="0.001" min="0.001" name="component_qty[]" value="${q || 1}" class="input text-right" required></td>
-          <td><button type="button" class="text-red-600" onclick="this.closest('tr').remove()">✕</button></td>`;
-        tbody.appendChild(tr);
-      }
-    </script>
-
-    {# ─── Common fields ───────────────────────────────────────────── #}
-    <div class="grid grid-cols-2 gap-4">
+    <div class="pf-row">
       <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">الاسم</label>
-        <input type="text" name="name" required class="input">
+        <label class="pf-l" for="pf-sku">SKU (اختياري)</label>
+        <input type="text" name="sku" id="pf-sku" class="input font-mono" placeholder="مثال: PRD-001" value="{{ f.get('sku', '') }}">
+        <p class="pf-h" id="sku-hint-goods">لو سيبته فاضي هنولّد لك SKU تلقائي.</p>
       </div>
-      <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">SKU (اختياري)</label>
-        <input type="text" name="sku" class="input font-mono"
-               placeholder="مثال: PRD-001">
-        <p class="text-xs text-slate-500 mt-1" id="sku-hint-goods">لو سيبته فاضي هنولّد لك SKU تلقائي.</p>
+      <div id="barcode-wrap">
+        <label class="pf-l" for="pf-barcode">باركود (اختياري)</label>
+        <input type="text" name="barcode" id="pf-barcode" class="input font-mono" placeholder="امسح الباركود أو اكتبه" value="{{ f.get('barcode', '') }}" inputmode="numeric">
+        <p class="pf-h">بعد المسح اضغط Tab للانتقال — Enter مش بيحفظ الفورم.</p>
       </div>
     </div>
-    <div>
-      <label class="block text-sm font-semibold text-slate-700 mb-2">الوصف</label>
-      <textarea name="description" rows="2" class="textarea"></textarea>
+    <div class="pf-row">
+      <div style="grid-column:1/-1">
+        <label class="pf-l" for="pf-desc">الوصف (اختياري)</label>
+        <textarea name="description" id="pf-desc" rows="2" class="textarea">{{ f.get('description', '') }}</textarea>
+      </div>
     </div>
-
     {# MARSOUD-PRODUCT-HIERARCHY-01 — group + category (dependent). #}
-    <div class="grid grid-cols-2 gap-4">
+    <div class="pf-row">
       <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">المجموعة <span class="text-rose-500">*</span></label>
+        <label class="pf-l" for="group-select">المجموعة <span class="text-rose-500">*</span></label>
         <select id="group-select" class="select" required>
           <option value="">— اختر —</option>
           {% for g in groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
         </select>
       </div>
       <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">الفئة <span class="text-rose-500">*</span></label>
+        <label class="pf-l" for="category-select">الفئة <span class="text-rose-500">*</span></label>
         <select id="category-select" name="category_id" class="select" required>
           <option value="">— اختر المجموعة أولاً —</option>
         </select>
-        <div class="text-xs text-slate-500 mt-1">
+        <div class="pf-h">
           <a href="{{ url_for('products.hierarchy') }}" class="text-brand-600 hover:underline">إدارة المجموعات والفئات ↗</a>
         </div>
       </div>
     </div>
-    <script>
-      (function() {
-        // Pre-hydrate categories by group_id so switching the group
-        // updates the category options without another round-trip.
-        var byGroup = {};
-        {% for c in categories %}
-        (byGroup[{{ c.group_id }}] = byGroup[{{ c.group_id }}] || []).push({id: {{ c.id }}, name: {{ c.name|tojson }}});
-        {% endfor %}
-        var g = document.getElementById('group-select');
-        var c = document.getElementById('category-select');
-        function refill() {
-          var gid = g.value;
-          var opts = ['<option value="">— اختر —</option>'];
-          (byGroup[gid] || []).forEach(function(o) {
-            opts.push('<option value="' + o.id + '">' + o.name + '</option>');
-          });
-          c.innerHTML = opts.join('');
-        }
-        g.addEventListener('change', refill);
-      })();
-    </script>
-    {# MARSOUD-PACK-ONLY-PRICING — "السعر الافتراضي" (per piece) is gone.
-       Pricing is entered by the box; the per-piece numbers are derived.
-       Lives outside #goods-section because a service is priced here too
-       (the block hides its own box fields for services). #}
-    {% with is_goods = True %}
+  </div>
+
+  {# ─── 3. pricing ───────────────────────────────────────────────── #}
+  <div class="card pf-sec">
+    <h3><span class="pf-n">3</span> التسعير</h3>
+    {# MARSOUD-PACK-ONLY-PRICING — pricing is entered by the box; the
+       per-piece numbers are derived. Outside the goods section because a
+       service is priced here too (the block hides its own box fields). #}
+    {% with is_goods = True, pack = pack_prefill, no_title = True %}
       {% include "products/_pricing_block.html" %}
     {% endwith %}
+  </div>
 
-    <div class="grid grid-cols-2 gap-4">
+  {# ─── 4. inventory (goods only) ────────────────────────────────── #}
+  <div class="card pf-sec" id="goods-section">
+    <h3><span class="pf-n">4</span> المخزون</h3>
+    <p class="pf-h" style="margin:-.4rem 0 .9rem">
+      لو سيبت الكمية صفر، البضاعة هتتعمل من غير مخزون لحد ما تستلم من مورد.
+    </p>
+    <div class="pf-row">
       <div>
-        <label class="block text-sm font-semibold text-slate-700 mb-2">الضريبة الافتراضية % (اختياري)</label>
-        <input type="number" name="default_tax_rate" step="0.01" class="input font-mono" placeholder="يستخدم الشركة الافتراضية">
+        <label class="pf-l" for="pf-wh">المخزن</label>
+        <select name="warehouse_id" id="pf-wh" class="select">
+          {% for w in warehouses %}
+          <option value="{{ w.id }}" {% if (f.get('warehouse_id') and f.get('warehouse_id')|int == w.id) or (not f.get('warehouse_id') and w.is_default) %}selected{% endif %}>
+            {{ w.name }}{% if w.is_default %} (افتراضي){% endif %}
+          </option>
+          {% endfor %}
+        </select>
       </div>
-    </div>
-
-    {# ─── Goods-only inventory section ────────────────────────────── #}
-    <div id="goods-section" class="border-t border-slate-200 pt-4 space-y-4">
-      <h3 class="font-bold text-navy-900 text-sm">قسم المخزون</h3>
-      <p class="text-xs text-slate-500 -mt-3">
-        كل بضاعة لازم يبقى لها variant واحد على الأقل + رصيد. لو سيبت الكمية صفر،
-        البضاعة هتتعمل ولكن مفيهاش مخزون لحد ما تستلم من مورد.
-      </p>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-2">باركود (اختياري)</label>
-          <input type="text" name="barcode" class="input font-mono"
-                 placeholder="USB scanner / كود EAN">
-        </div>
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-2">المخزن</label>
-          <select name="warehouse_id" class="select">
-            {% for w in warehouses %}
-            <option value="{{ w.id }}" {% if w.is_default %}selected{% endif %}>
-              {{ w.name }}{% if w.is_default %} (افتراضي){% endif %}
-            </option>
-            {% endfor %}
+      <div>
+        <label class="pf-l" for="opening-qty">الرصيد الافتتاحي (الكمية)</label>
+        <div class="flex gap-2">
+          <input type="number" name="opening_qty" step="0.01" min="0" value="{{ f.get('opening_qty') or 0 }}"
+                 id="opening-qty" class="input font-mono flex-1" inputmode="decimal">
+          <select name="opening_qty_unit" id="opening-qty-unit" class="select text-sm" style="width:7rem">
+            <option value="base" {% if f.get('opening_qty_unit') != 'pack' %}selected{% endif %}>قطعة</option>
+            <option value="pack" {% if f.get('opening_qty_unit') == 'pack' %}selected{% endif %}>علبة</option>
           </select>
         </div>
-      </div>
-      {# MARSOUD-PACK-ONLY-PRICING — the old "الشراء بالعلبة (اختياري)"
-         box and the per-piece "تكلفة الوحدة" input both lived here.
-         Pricing is now mandatory and lives in the shared block above;
-         the cost is derived from the box purchase price. #}
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label class="block text-sm font-semibold text-slate-700 mb-2">الرصيد الافتتاحي (الكمية)</label>
-          <div class="flex gap-2">
-            <input type="number" name="opening_qty" step="0.01" min="0" value="0"
-                   id="opening-qty" class="input font-mono flex-1">
-            <select name="opening_qty_unit" id="opening-qty-unit"
-                    class="select text-sm" style="width:7rem">
-              <option value="base" selected>قطعة</option>
-              <option value="pack">علبة</option>
-            </select>
-          </div>
-          <p class="text-xs text-slate-500 mt-1" id="opening-qty-hint">اللي عندك من البضاعة دلوقتي.</p>
-        </div>
+        <p class="pf-h" id="opening-qty-hint">اللي عندك من البضاعة دلوقتي.</p>
       </div>
     </div>
+  </div>
 
-    {# MARSOUD-DUAL-UOM-WEIGHT-01 UI (Abdelhamid 2026-07-24) —
-       opt-in flag for products where the weight AND piece count
-       both matter simultaneously (gold, silver, meat, produce
-       sold by weight but also counted per piece). #}
-    <div id="dual-uom-section" class="border-t pt-4">
-      <label class="flex items-start gap-3 cursor-pointer">
+  {# ─── 4b. bundle components ────────────────────────────────────── #}
+  <div id="bundle-section" class="card pf-sec hidden" style="display:none">
+    <h3><span class="pf-n">4</span> مكونات الباقة</h3>
+    <p class="pf-h" style="margin:-.4rem 0 .8rem">
+      كل مكوّن لازم يكون بضاعة ليها مخزون فعلي. سعر الباقة الكلي بيتوزع تلقائيًا على المكونات وقت البيع.
+    </p>
+    <div class="pf-comp-empty" id="bundle-empty">مفيش بضاعة متاحة تتضاف كمكوّن — أضف بضاعة الأول.</div>
+    <table class="data-table" id="bundle-table">
+      <thead>
+        <tr>
+          <th>الصنف</th>
+          <th class="text-right" style="width:140px">الكمية في الباقة</th>
+          <th style="width:30px"></th>
+        </tr>
+      </thead>
+      <tbody id="bundle-body"></tbody>
+    </table>
+    <div style="margin-top:.7rem"><button type="button" onclick="addBundleRow()" class="btn-secondary text-sm">+ إضافة مكوّن</button></div>
+  </div>
+
+  {# ─── 5. extra ─────────────────────────────────────────────────── #}
+  <details class="card pf-sec pf-adv" {% if f.get('default_tax_rate') or f.get('tracks_piece_count') %}open{% endif %}>
+    <summary><span class="pf-n">5</span> خيارات إضافية</summary>
+    <div class="pf-row">
+      <div>
+        <label class="pf-l" for="pf-tax">الضريبة الافتراضية % (اختياري)</label>
+        <input type="number" name="default_tax_rate" id="pf-tax" step="0.01" class="input font-mono"
+               placeholder="يستخدم نسبة الشركة الافتراضية" value="{{ f.get('default_tax_rate', '') }}" inputmode="decimal">
+      </div>
+    </div>
+    {# MARSOUD-DUAL-UOM-WEIGHT-01 UI — opt-in flag for goods where weight AND
+       piece count both matter (gold, silver, meat). #}
+    <div id="dual-uom-section" class="pf-row">
+      <label class="flex items-start gap-3 cursor-pointer" style="grid-column:1/-1">
         <input type="checkbox" name="tracks_piece_count" id="tracks-piece-count"
-                class="w-4 h-4 mt-0.5 rounded text-emerald-600">
+               {% if f.get('tracks_piece_count') %}checked{% endif %}
+               class="w-4 h-4 mt-0.5 rounded text-emerald-600">
         <div>
-          <div class="font-semibold text-navy-900 text-sm">
-            ⚖️ تتبع مزدوج (وزن + عدد قطعة)
-          </div>
+          <div class="font-semibold text-navy-900 text-sm">⚖️ تتبع مزدوج (وزن + عدد قطعة)</div>
           <div class="text-xs text-slate-500 mt-1">
-            للمنتجات اللي بتتباع بالجرام أو بالقطعة في نفس الوقت
-            (زي الذهب / الفضة). كل بيع بيخصم من الوزن والعدد سوا،
-            بدون تأثير على حساب متوسط التكلفة.
+            للمنتجات اللي بتتباع بالجرام أو بالقطعة في نفس الوقت (زي الذهب / الفضة).
+            كل بيع بيخصم من الوزن والعدد سوا، بدون تأثير على حساب متوسط التكلفة.
           </div>
         </div>
       </label>
     </div>
+  </details>
 
-    <div class="flex justify-end gap-2 pt-2">
-      <a href="{{ url_for('products.index') }}" class="btn-secondary">إلغاء</a>
-      <button type="submit" class="btn-primary">إضافة</button>
-    </div>
-  </form>
+  <div class="pf-actions">
+    <a href="{{ url_for('products.index') }}" class="btn-secondary">إلغاء</a>
+    <button type="submit" class="btn-primary" id="pf-submit">إضافة بضاعة</button>
+  </div>
 </div>
 
+{# ─── live summary ─────────────────────────────────────────────── #}
+<aside class="card pf-aside" aria-live="polite">
+  <h3>ملخص</h3>
+  <div class="pf-name-prev" id="sum-name">—</div>
+  <div class="pf-sub" id="sum-meta">—</div>
+  <div class="pf-kv" id="sum-row-buy"><span>تكلفة القطعة</span><span id="sum-buy">—</span></div>
+  <div class="pf-kv"><span id="sum-sell-l">سعر بيع القطعة</span><span id="sum-sell">—</span></div>
+  <div class="pf-kv" id="sum-row-margin"><span>هامش الربح</span><span id="sum-margin">—</span></div>
+  <div class="pf-kv" id="sum-row-open"><span>قيمة الرصيد الافتتاحي</span><span id="sum-open">—</span></div>
+  <div class="pf-kv" id="sum-row-comp"><span>عدد المكونات</span><span id="sum-comp">0</span></div>
+  <div class="pf-note" id="sum-note"></div>
+</aside>
+</form>
+
 <script>
-function toggleProductType(t) {
-  const goods = (t === 'goods');
-  const bundle = (t === 'bundle');
-  document.getElementById('goods-section').style.display = goods ? '' : 'none';
-  document.getElementById('sku-hint-goods').style.display = goods ? '' : 'none';
-  // MARSOUD-PRODUCT-BUNDLES-01 — components table only when bundle.
-  const bundleSection = document.getElementById('bundle-section');
-  if (bundleSection) {
-    bundleSection.style.display = bundle ? '' : 'none';
-    bundleSection.classList.toggle('hidden', !bundle);
-    // Seed the first row on first show so the operator sees the shape.
-    if (bundle && document.getElementById('bundle-body').children.length === 0) {
-      addBundleRow();
-    }
-  }
-  // MARSOUD-PACK-ONLY-PRICING — the pricing block lives outside the
-  // goods section (a service is priced too) and hides its own box
-  // fields instead.
-  if (window._applyPricingMode) window._applyPricingMode(goods);
+var TYPE_LABEL = {goods: 'بضاعة', service: 'خدمة', bundle: 'باقة'};
+var SUBMIT_LABEL = {goods: 'إضافة بضاعة', service: 'إضافة خدمة', bundle: 'إضافة باقة'};
+// Preload variant list for the bundle picker. Filter server-side to
+// real-goods variants only; the service still refuses services + bundles.
+const bundleVariantsData = [
+  {% for v in bundle_variants or [] %}
+  {id: {{ v.id }}, sku: {{ (v.sku or '')|tojson }}, name: {{ v.display_name|tojson }}}{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+// Rows posted before a server-side error, so the table is rebuilt.
+const bundlePreset = [
+  {% set _cv = f.getlist('component_variant_id[]') %}{% set _cq = f.getlist('component_qty[]') %}
+  {% for x in _cv %}{variant_id: {{ x|tojson }}, qty: {{ (_cq[loop.index0] if loop.index0 < _cq|length else 1)|tojson }}}{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+function addBundleRow(preset) {
+  const tbody = document.getElementById('bundle-body');
+  const tr = document.createElement('tr');
+  const vid = preset ? preset.variant_id : '';
+  const q = preset ? preset.qty : '';
+  tr.innerHTML = `
+    <td><select name="component_variant_id[]" class="select text-sm" required>
+      <option value="">— اختر الصنف —</option>
+      ${bundleVariantsData.map(v => `<option value="${v.id}" ${String(v.id) === String(vid) ? 'selected' : ''}>${v.sku ? '[' + esc(v.sku) + '] ' : ''}${esc(v.name)}</option>`).join('')}
+    </select></td>
+    <td><input type="number" step="0.001" min="0.001" name="component_qty[]" value="${esc(q || 1)}" class="input text-right" required></td>
+    <td><button type="button" class="text-red-600" aria-label="حذف المكوّن" onclick="this.closest('tr').remove(); updateSummary()">✕</button></td>`;
+  tbody.appendChild(tr);
+  updateSummary();
 }
-// Initialize from the checked radio (works on form re-render after error too)
-(function() {
-  const checked = document.querySelector('input[name="product_type"]:checked');
-  toggleProductType(checked ? checked.value : 'goods');
-})();
 
-// MARSOUD-PACK-ONLY-PRICING — the per-piece cost derivation moved into
-// the shared pricing block (it now only DISPLAYS the result; there is
-// no unit_cost input left to write into, and no manual-override latch,
-// which was the whole bug). What stays here is the opening-balance
-// hint, which needs the pieces field from that block.
-(function() {
-  const piecesEl = document.getElementById('pack-pieces');
-  const qtyEl    = document.getElementById('opening-qty');
-  const unitEl   = document.getElementById('opening-qty-unit');
-  const hintEl   = document.getElementById('opening-qty-hint');
-  if (!piecesEl || !qtyEl || !unitEl || !hintEl) return;
-
-  function recomputeOpeningHint() {
-    const raw = parseFloat(qtyEl.value) || 0;
-    const isPack = unitEl.value === 'pack';
-    const pieces = parseFloat(piecesEl.value) || 0;
-    if (isPack && pieces > 0 && raw > 0) {
-      hintEl.textContent = '→ ' + (raw * pieces) + ' قطعة إجمالي';
-    } else if (isPack && raw > 0) {
-      hintEl.textContent = '⚠ املأ "عدد القطع في العلبة" أولًا لحساب الرصيد';
-    } else {
-      hintEl.textContent = 'اللي عندك من البضاعة دلوقتي.';
-    }
+(function () {
+  // group → category (dependent), pre-hydrated so switching needs no round-trip.
+  var byGroup = {}, groupOf = {};
+  {% for c in categories %}
+  (byGroup[{{ c.group_id }}] = byGroup[{{ c.group_id }}] || []).push({id: {{ c.id }}, name: {{ c.name|tojson }}});
+  groupOf[{{ c.id }}] = {{ c.group_id }};
+  {% endfor %}
+  var g = document.getElementById('group-select');
+  var c = document.getElementById('category-select');
+  var selCat = {{ sel_cat if sel_cat else 'null' }};
+  function refill(pick) {
+    var opts = ['<option value="">— اختر —</option>'];
+    (byGroup[g.value] || []).forEach(function (o) {
+      opts.push('<option value="' + o.id + '"' + (o.id === pick ? ' selected' : '') + '>' + esc(o.name) + '</option>');
+    });
+    c.innerHTML = opts.join('');
+    // a group with a single category: no need to make the user pick it
+    if (!pick && (byGroup[g.value] || []).length === 1) c.value = String(byGroup[g.value][0].id);
+    updateSummary();
   }
-  [piecesEl, qtyEl, unitEl].forEach(el =>
-    el.addEventListener('input', recomputeOpeningHint));
-  unitEl.addEventListener('change', recomputeOpeningHint);
+  g.addEventListener('change', function () { refill(null); });
+  c.addEventListener('change', updateSummary);
+  if (selCat && groupOf[selCat]) { g.value = String(groupOf[selCat]); refill(selCat); }
+  else if (g.options.length === 2) { g.selectedIndex = 1; refill(null); }   // only one group exists
 })();
+
+function currentType() {
+  var el = document.querySelector('input[name="product_type"]:checked');
+  return el ? el.value : 'goods';
+}
+function show(id, on) { var e = document.getElementById(id); if (e) e.style.display = on ? '' : 'none'; }
+
+function toggleProductType(t) {
+  var goods = (t === 'goods'), bundle = (t === 'bundle');
+  show('goods-section', goods);
+  show('sku-hint-goods', goods);
+  show('barcode-wrap', goods || bundle);
+  show('dual-uom-section', goods);
+  var bs = document.getElementById('bundle-section');
+  if (bs) {
+    bs.style.display = bundle ? '' : 'none';
+    bs.classList.toggle('hidden', !bundle);
+    if (bundle && document.getElementById('bundle-body').children.length === 0) {
+      if (bundlePreset.length) bundlePreset.forEach(addBundleRow); else addBundleRow();
+    }
+    show('bundle-empty', false);
+    var be = document.getElementById('bundle-empty');
+    if (be) be.style.display = (bundle && bundleVariantsData.length === 0) ? 'block' : 'none';
+  }
+  // MARSOUD-PACK-ONLY-PRICING — the pricing block lives outside the goods
+  // section (a service is priced too) and hides its own box fields.
+  if (window._applyPricingMode) window._applyPricingMode(goods);
+  var lbl = document.getElementById('pack-sale-label'), hint = document.getElementById('pack-sale-hint');
+  if (bundle && lbl && hint) { lbl.textContent = 'سعر الباقة'; hint.textContent = 'سعر الباقة كاملة للعميل — بيتوزع على المكونات وقت البيع'; }
+  document.getElementById('pf-submit').textContent = SUBMIT_LABEL[t] || 'إضافة';
+  var sl = document.getElementById('sum-sell-l'); if (sl) sl.textContent = goods ? 'سعر بيع القطعة' : (bundle ? 'سعر الباقة' : 'سعر الخدمة');
+  updateSummary();
+}
+
+function num(id) { var e = document.getElementById(id); var v = e ? parseFloat(e.value) : NaN; return isNaN(v) ? 0 : v; }
+function money(n) { return (Math.round(n * 100) / 100).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+
+function updateSummary() {
+  var t = currentType(), goods = (t === 'goods'), bundle = (t === 'bundle');
+  var pieces = Math.max(1, num('pack-pieces') || 1), buy = num('pack-price'), sell = num('pack-sale');
+  var name = (document.getElementById('pf-name').value || '').trim();
+  var cat = document.getElementById('category-select'), grp = document.getElementById('group-select');
+  var catTxt = (cat.selectedIndex > 0 && grp.selectedIndex > 0)
+    ? grp.options[grp.selectedIndex].text.trim() + ' › ' + cat.options[cat.selectedIndex].text.trim() : 'لم يتم اختيار الفئة';
+  document.getElementById('sum-name').textContent = name || 'اسم الصنف';
+  document.getElementById('sum-meta').textContent = TYPE_LABEL[t] + ' — ' + catTxt;
+  document.getElementById('sum-buy').textContent = buy > 0 ? money(buy / pieces) : '—';
+  document.getElementById('sum-sell').textContent = sell > 0 ? money(goods ? sell / pieces : sell) : '—';
+  document.getElementById('sum-margin').textContent = (buy > 0 && sell > 0) ? money((sell - buy) / sell * 100) + '%' : '—';
+  show('sum-row-buy', goods); show('sum-row-margin', goods); show('sum-row-open', goods); show('sum-row-comp', bundle);
+  var oq = num('opening-qty'), unit = document.getElementById('opening-qty-unit').value;
+  var base = unit === 'pack' ? oq * pieces : oq;
+  document.getElementById('sum-open').textContent = (goods && base > 0 && buy > 0) ? money(base * (buy / pieces)) : '—';
+  document.getElementById('sum-comp').textContent = String(document.querySelectorAll('#bundle-body tr').length);
+  // gentle warnings — the server still has the final say
+  var notes = [];
+  if (goods && base > 0 && !(buy > 0)) notes.push('الرصيد الافتتاحي محتاج «سعر شراء العلبة» عشان يتسجّل بتكلفة.');
+  if (goods && buy > 0 && sell > 0 && sell < buy) notes.push('سعر البيع أقل من سعر الشراء.');
+  if (!(sell > 0) && t !== 'bundle') notes.push('لسه ماحطّيتش سعر بيع.');
+  var n = document.getElementById('sum-note');
+  n.textContent = notes.join(' '); n.style.display = notes.length ? 'block' : 'none';
+}
+
+// opening-balance hint + disable the "pack" unit while a box holds 1 piece
+(function () {
+  var piecesEl = document.getElementById('pack-pieces'), qtyEl = document.getElementById('opening-qty'),
+      unitEl = document.getElementById('opening-qty-unit'), hintEl = document.getElementById('opening-qty-hint');
+  if (!piecesEl || !qtyEl || !unitEl || !hintEl) return;
+  function recompute() {
+    var raw = parseFloat(qtyEl.value) || 0, pieces = parseFloat(piecesEl.value) || 0;
+    var packOpt = unitEl.querySelector('option[value="pack"]');
+    if (packOpt) {
+      packOpt.disabled = !(pieces > 1);
+      if (!(pieces > 1) && unitEl.value === 'pack') unitEl.value = 'base';
+    }
+    var isPack = unitEl.value === 'pack';
+    if (isPack && pieces > 0 && raw > 0) hintEl.textContent = '→ ' + (raw * pieces) + ' قطعة إجمالي';
+    else if (isPack && raw > 0) hintEl.textContent = '⚠ املأ "عدد القطع في العلبة" أولًا لحساب الرصيد';
+    else hintEl.textContent = 'اللي عندك من البضاعة دلوقتي.';
+    updateSummary();
+  }
+  [piecesEl, qtyEl].forEach(function (el) { el.addEventListener('input', recompute); });
+  unitEl.addEventListener('change', recompute);
+  document.addEventListener('pricing:changed', recompute);
+  recompute();
+})();
+
+['pf-name', 'pack-price', 'pack-sale'].forEach(function (id) {
+  var e = document.getElementById(id); if (e) e.addEventListener('input', updateSummary);
+});
+
+// Barcode scanners end with Enter — that must not submit a half-filled form.
+['pf-barcode', 'pf-sku'].forEach(function (id) {
+  var e = document.getElementById(id);
+  if (e) e.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') ev.preventDefault(); });
+});
+
+// One submit only: a second click would create a duplicate product (and a
+// second opening-balance journal entry).
+(function () {
+  var form = document.getElementById('pf-form'), btn = document.getElementById('pf-submit');
+  form.addEventListener('submit', function (ev) {
+    if (form.getAttribute('data-sent')) { ev.preventDefault(); return; }
+    form.setAttribute('data-sent', '1');
+    btn.disabled = true; btn.textContent = 'جارٍ الحفظ…';
+  });
+  window.addEventListener('pageshow', function (ev) {
+    if (ev.persisted) { form.removeAttribute('data-sent'); btn.disabled = false; toggleProductType(currentType()); }
+  });
+})();
+
+// Initialize from the checked radio (works on form re-render after an error too)
+toggleProductType(currentType());
 </script>
 {% endblock %}

@@ -1,4 +1,4 @@
-{# MARSOUD-PACK-ONLY-PRICING — the ONE pricing block, shared by the
+{# MARSOUD-PRODUCT-FORM-P88 — the ONE pricing block, shared by the
    create and edit screens so they can't drift apart.
 
    There is deliberately no per-piece input here. The user types box
@@ -6,10 +6,15 @@
    computed result. This exists because a box price typed into a piece
    field sold an item at 2100 instead of 0.42.
 
+   P88: responsive grid (auto-fit, no fixed 3 columns), pack-name field
+   hidden while pieces = 1, margin + "sale below cost" warning, and a
+   `pricing:changed` event so the create screen's summary stays live.
+
    Caller passes:
      pack      dict from product_pricing.pack_values_for() (edit), or
                omitted on create
-     is_goods  whether to show the box/purchase side at all #}
+     is_goods  whether to show the box/purchase side at all
+     no_title  optional; the create screen already has a section heading #}
 
 {% set pk = pack if pack is defined and pack else none %}
 {% set _pieces = (pk.pieces if pk else 1) %}
@@ -17,56 +22,61 @@
 {% set _sale = (pk.pack_sale_price if pk else '') %}
 {% set _packname = (pk.pack_unit_name if pk else 'كرتونة') %}
 
-<div class="rounded-lg border-2 border-dashed border-emerald-200 bg-emerald-50/50 p-4 space-y-3"
-     id="pricing-block">
-  <h3 class="font-bold text-emerald-800 text-sm">💰 التسعير</h3>
+<style>
+  .pb-box{border:2px dashed #A7F3D0;background:rgba(236,253,245,.55);border-radius:12px;padding:1rem;}
+  .pb-title{font-weight:700;color:#065F46;font-size:.9rem;margin:0 0 .75rem;}
+  .pb-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(9.5rem,1fr));gap:.75rem;margin-bottom:.75rem;}
+  .pb-grid.pb-single{grid-template-columns:minmax(0,1fr);}
+  .pb-grid label.pb-l{display:block;font-size:.75rem;font-weight:600;margin-bottom:.25rem;color:#334155;}
+  .pb-grid .pb-h{font-size:.72rem;color:#64748b;margin-top:.25rem;line-height:1.5;}
+  .pb-result{background:#fff;border:1px solid #A7F3D0;border-radius:8px;padding:.5rem .75rem;}
+  .pb-result .pb-r-l{font-size:.75rem;color:#64748b;}
+  .pb-result .pb-r-v{font-size:.875rem;font-weight:700;color:#065F46;font-family:ui-monospace,monospace;overflow-wrap:anywhere;}
+  .pb-warn{display:none;margin-top:.5rem;font-size:.78rem;color:#92400E;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:.4rem .6rem;}
+</style>
 
-  <div class="grid grid-cols-3 gap-3" id="pack-goods-fields">
+<div class="pb-box" id="pricing-block">
+  {% if not (no_title is defined and no_title) %}<h3 class="pb-title">💰 التسعير</h3>{% endif %}
+
+  <div class="pb-grid" id="pack-goods-fields">
     <div>
-      <label class="block text-xs font-semibold mb-1">عدد القطع في العلبة</label>
+      <label class="pb-l" for="pack-pieces">عدد القطع في العلبة</label>
       <input type="number" name="pieces_per_pack" step="1" min="1"
              value="{{ _pieces }}" id="pack-pieces"
-             class="input font-mono text-sm">
-      <p class="text-xs text-slate-500 mt-1">
-        لو المنتج بيتباع قطعة قطعة من غير تعبئة، سيبها 1
-      </p>
+             class="input font-mono text-sm" inputmode="numeric">
+      <p class="pb-h">لو المنتج بيتباع قطعة قطعة من غير تعبئة، سيبها 1</p>
     </div>
     <div>
-      <label class="block text-xs font-semibold mb-1">سعر شراء العلبة</label>
+      <label class="pb-l" for="pack-price">سعر شراء العلبة</label>
       <input type="number" name="pack_purchase_price" step="0.01" min="0"
              value="{{ _purchase }}" id="pack-price"
-             class="input font-mono text-sm" placeholder="60">
-      <p class="text-xs text-slate-500 mt-1">
-        السعر اللي بتدفعه للمورد مقابل العلبة كاملة (مش القطعة)
-      </p>
+             class="input font-mono text-sm" placeholder="60" inputmode="decimal">
+      <p class="pb-h">اللي بتدفعه للمورد مقابل العلبة كاملة (مش القطعة)</p>
     </div>
     <div id="pack-sale-wrap">
-      <label class="block text-xs font-semibold mb-1" id="pack-sale-label">سعر بيع العلبة</label>
+      <label class="pb-l" id="pack-sale-label" for="pack-sale">سعر بيع العلبة</label>
       <input type="number" name="pack_sale_price" step="0.01" min="0"
              value="{{ _sale }}" id="pack-sale"
-             class="input font-mono text-sm" placeholder="72">
-      <p class="text-xs text-slate-500 mt-1" id="pack-sale-hint">
-        السعر اللي بتبيع بيه العلبة كاملة للعميل (مش القطعة)
-      </p>
+             class="input font-mono text-sm" placeholder="72" inputmode="decimal">
+      <p class="pb-h" id="pack-sale-hint">السعر اللي بتبيع بيه العلبة كاملة للعميل (مش القطعة)</p>
     </div>
   </div>
 
-  <div id="pack-name-wrap" class="grid grid-cols-3 gap-3">
+  <div id="pack-name-wrap" class="pb-grid">
     <div>
-      <label class="block text-xs font-semibold mb-1">اسم العلبة</label>
-      <input type="text" name="pack_unit_name" value="{{ _packname }}"
+      <label class="pb-l" for="pack-unit-name">اسم العلبة</label>
+      <input type="text" name="pack_unit_name" value="{{ _packname }}" id="pack-unit-name"
              class="input text-sm" placeholder="كرتونة">
-      <p class="text-xs text-slate-500 mt-1">
-        الاسم اللي هيظهر في نقطة البيع والفواتير — يتجاهل لو عدد القطع 1
-      </p>
+      <p class="pb-h">الاسم اللي هيظهر في نقطة البيع والفواتير</p>
     </div>
   </div>
 
   {# Live result — read-only, never an input. #}
-  <div class="rounded-md bg-white border border-emerald-200 px-3 py-2">
-    <span class="text-xs text-slate-500">النتيجة المحسوبة:</span>
-    <span class="text-sm font-bold text-emerald-800 font-mono" id="pack-derived">—</span>
+  <div class="pb-result">
+    <span class="pb-r-l">النتيجة المحسوبة:</span>
+    <span class="pb-r-v" id="pack-derived">—</span>
   </div>
+  <div class="pb-warn" id="pack-warn">⚠ سعر البيع أقل من سعر الشراء — هتبيع بخسارة.</div>
 </div>
 
 <script>
@@ -75,6 +85,7 @@
   var buyEl = document.getElementById('pack-price');
   var sellEl = document.getElementById('pack-sale');
   var out = document.getElementById('pack-derived');
+  var warn = document.getElementById('pack-warn');
   if (!piecesEl || !buyEl || !sellEl || !out) return;
 
   function fmt(n) { return (Math.round(n * 10000) / 10000).toFixed(2); }
@@ -84,16 +95,25 @@
     if (!(pieces >= 1)) pieces = 1;
     var buy = parseFloat(buyEl.value || 0);
     var sell = parseFloat(sellEl.value || 0);
+    var isGoods = window._pricingIsGoods !== false;
     var parts = [];
     // A service has no purchase side, so only report what applies.
-    if (window._pricingIsGoods !== false && buy > 0) {
+    if (isGoods && buy > 0) {
       parts.push('تكلفة القطعة = ' + fmt(buy / pieces));
     }
     if (sell > 0) {
       parts.push('سعر بيع القطعة = ' + fmt(sell / pieces));
     }
+    if (isGoods && buy > 0 && sell > 0) {
+      parts.push('هامش الربح = ' + fmt((sell - buy) / sell * 100) + '%');
+    }
     out.textContent = parts.length ? parts.join('  —  ')
                                    : 'املأ الحقول عشان تشوف سعر وتكلفة القطعة';
+    if (warn) warn.style.display = (isGoods && buy > 0 && sell > 0 && sell < buy) ? 'block' : 'none';
+    // The pack name only matters when a box holds more than one piece.
+    var nameWrap = document.getElementById('pack-name-wrap');
+    if (nameWrap) nameWrap.style.display = (isGoods && pieces > 1) ? '' : 'none';
+    document.dispatchEvent(new Event('pricing:changed'));
   }
 
   // Show/hide the box side. A service has no box and nothing to buy —
@@ -101,12 +121,9 @@
   window._applyPricingMode = function (isGoods) {
     window._pricingIsGoods = isGoods;
     var grid = document.getElementById('pack-goods-fields');
-    var nameWrap = document.getElementById('pack-name-wrap');
     piecesEl.parentElement.style.display = isGoods ? '' : 'none';
     buyEl.parentElement.style.display = isGoods ? '' : 'none';
-    if (nameWrap) nameWrap.style.display = isGoods ? '' : 'none';
-    if (grid) grid.className = isGoods ? 'grid grid-cols-3 gap-3'
-                                       : 'grid grid-cols-1 gap-3';
+    if (grid) grid.classList.toggle('pb-single', !isGoods);
     document.getElementById('pack-sale-label').textContent =
       isGoods ? 'سعر بيع العلبة' : 'سعر البيع';
     document.getElementById('pack-sale-hint').textContent =
