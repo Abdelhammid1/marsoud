@@ -2,7 +2,8 @@
 {% block page_title %}تقاريري اليومية{% endblock %}
 {% block content %}
 {# MARSOUD-DAILY-REPORTS-P91 — redesigned /my/daily-reports. Same route and
-   variables (emp, reports). Reuses the scoped .cu kit from P90. #}
+   variables (emp, reports). Reuses the scoped .cu kit from P90.
+   MARSOUD-DAILY-REPORTS-BULK-P92 — bulk "send selected / send all drafts". #}
 {% set days_ar = ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'] %}
 {% set k = namespace(draft=0, sent=0, first_draft=None) %}
 {% for r in reports %}
@@ -21,6 +22,12 @@
 .cu-dr-main{flex:1;min-width:0}
 .cu-dr-prev{font-size:12px;color:var(--mut);margin-top:4px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .cu-item.draft{border-color:#fde68a;background:#fffdf5}
+.cu-bulk{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--amb-bg);border:1px solid #fde68a;border-radius:12px;padding:10px 14px;margin-bottom:10px}
+.cu-bulk label{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#92400e;cursor:pointer}
+.cu-bulk .sp{flex:1}
+.cu-bulk .cu-btn{padding:8px 14px;font-size:13px}
+.cu-chk{display:flex;align-items:center;padding-top:6px}
+.cu-chk input{width:18px;height:18px;accent-color:#059669;cursor:pointer}
 </style>
 <div class="cu">
   <div class="cu-top">
@@ -58,11 +65,22 @@
       </div>
       <input type="search" id="dr-q" class="cu-in" style="max-width:240px" placeholder="🔍 ابحث بالتاريخ أو العنوان">
     </div>
+    <form method="POST" id="dr-bulk" action="{{ url_for('portal_emp.daily_reports_bulk_submit') }}">
+    {% if k.draft %}
+    <div class="cu-bulk" id="dr-bulk-bar">
+      <label><input type="checkbox" id="dr-all"> تحديد كل المسودات الظاهرة</label>
+      <span class="cu-b p" id="dr-sel">مُحدد: 0</span>
+      <span class="sp"></span>
+      <button type="submit" class="cu-btn" id="dr-send" disabled>📤 إرسال المحدد للمالك</button>
+      <button type="button" class="cu-btn sec" id="dr-send-all">📤 إرسال كل المسودات ({{ k.draft }})</button>
+    </div>
+    {% endif %}
     <div class="cu-list" id="dr-list">
       {% for r in reports %}
       {% set d = r.status.value == 'DRAFT' %}
       <div class="cu-item {{ 'draft' if d else '' }}" data-st="{{ 'draft' if d else 'sent' }}" data-q="{{ r.report_date.isoformat() }} {{ r.title }}">
         <div class="cu-dr-row">
+          {% if d %}<label class="cu-chk" title="تحديد للإرسال"><input type="checkbox" name="report_ids" value="{{ r.id }}" class="dr-chk"></label>{% endif %}
           <div class="cu-dr-date"><b>{{ '%02d'|format(r.report_date.day) }}</b><span>{{ r.report_date.year }}-{{ '%02d'|format(r.report_date.month) }}</span></div>
           <div class="cu-dr-main">
             <div class="cu-item-h">
@@ -79,6 +97,7 @@
       </div>
       {% endfor %}
     </div>
+    </form>
     <div class="cu-empty" id="dr-list-empty" style="display:none">مفيش تقارير بالشكل ده.</div>
     {% else %}
     <div class="cu-empty">لا توجد تقارير بعد. التقرير بيتولّد تلقائي كل يوم وبيظهر هنا.</div>
@@ -87,7 +106,37 @@
 </div>
 <script>
 (function () {
+  function bulk() {
+    var form = document.getElementById('dr-bulk'); if (!form) { return; }
+    var chks = Array.prototype.slice.call(form.querySelectorAll('.dr-chk'));
+    var all = document.getElementById('dr-all'), sel = document.getElementById('dr-sel');
+    var send = document.getElementById('dr-send'), sendAll = document.getElementById('dr-send-all');
+    if (!chks.length || !send) { return; }
+    var sent = false;
+    function visible(c) { var card = c.closest('[data-st]'); return !card || card.style.display !== 'none'; }
+    function count() { return chks.filter(function (c) { return c.checked; }).length; }
+    function upd() {
+      var n = count(); sel.textContent = 'مُحدد: ' + n; send.disabled = n === 0;
+      var vis = chks.filter(visible);
+      all.checked = vis.length > 0 && vis.every(function (c) { return c.checked; });
+    }
+    chks.forEach(function (c) { c.addEventListener('change', upd); });
+    all.addEventListener('change', function () {
+      chks.filter(visible).forEach(function (c) { c.checked = all.checked; }); upd();
+    });
+    function go() {
+      var n = count(); if (!n || sent) { return; }
+      var msg = 'هتبعت ' + n + (n === 1 ? ' تقرير' : ' تقارير') + ' للمالك دلوقتي. بعد الإرسال مش هتقدر تعدّلهم. متأكد؟';
+      if (!window.confirm(msg)) { return; }
+      sent = true; form.submit();
+    }
+    form.addEventListener('submit', function (e) { e.preventDefault(); go(); });
+    sendAll.addEventListener('click', function () { chks.forEach(function (c) { c.checked = true; }); upd(); go(); });
+    window.addEventListener('pageshow', function (e) { if (e.persisted) { sent = false; } });
+    upd();
+  }
   function init() {
+    bulk();
     var q = document.getElementById('dr-q'), list = document.getElementById('dr-list'), empty = document.getElementById('dr-list-empty');
     if (!q || !list) { return; }
     function norm(t) { return String(t || '').toLowerCase().replace(/[ً-ْـ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').trim(); }

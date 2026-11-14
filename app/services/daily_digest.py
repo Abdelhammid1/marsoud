@@ -529,6 +529,82 @@ def submit_report(report_id, employee_user_id):
     return r
 
 
+# MARSOUD-DAILY-REPORTS-BULK-P92 — send many DRAFT reports in one go.
+def submit_reports_bulk(employee_id, company_id, report_ids, employee_user_id,
+                        today=None):
+    """Employee-triggered bulk DRAFT → SUBMITTED for the employee's OWN
+    reports. Reuses `submit_report` per row (one commit per report so one
+    bad row never loses the rest). When more than one report is sent, the
+    per-report notifications are collapsed into ONE notification per
+    recipient instead of flooding the owner. Drafts dated today (or later)
+    are skipped — the day isn't finished yet.
+    Returns {"sent", "skipped_today", "skipped_other", "failed"}."""
+    from app.models import Notification, NotificationKind
+    today = today or date.today()
+    res = {"sent": 0, "skipped_today": 0, "skipped_other": 0, "failed": 0}
+    ids, seen = [], set()
+    for x in report_ids or []:
+        try:
+            x = int(x)
+        except (TypeError, ValueError):
+            continue
+        if x not in seen:
+            seen.add(x)
+            ids.append(x)
+    todo = []
+    for rid in ids:
+        r = db.session.get(EmployeeDailyReport, rid)
+        if (not r or r.employee_id != employee_id
+                or r.company_id != company_id
+                or r.status != DailyReportStatus.DRAFT):
+            res["skipped_other"] += 1
+        elif r.report_date >= today:
+            res["skipped_today"] += 1
+        else:
+            todo.append(rid)
+    aggregate = len(todo) > 1
+    recipients, last = set(), None
+    for rid in todo:
+        try:
+            r = db.session.get(EmployeeDailyReport, rid)
+            try:
+                build_digest(r.company_id, r.employee_id, r.report_date)
+                db.session.flush()
+            except Exception:
+                pass
+            submit_report(rid, employee_user_id)
+            if aggregate:
+                link = f"/reports/employees/{employee_id}/{rid}"
+                for n in Notification.query.filter_by(
+                        company_id=company_id, link_url=link,
+                        kind=NotificationKind.EMPLOYEE_REPORT_SUBMITTED,
+                ).all():
+                    recipients.add(n.user_id)
+                    db.session.delete(n)
+            db.session.commit()
+            res["sent"] += 1
+            last = rid
+        except Exception:
+            db.session.rollback()
+            res["failed"] += 1
+    if aggregate and last and recipients:
+        try:
+            emp = db.session.get(Employee, employee_id)
+            name = emp.name if emp else ""
+            for uid in recipients:
+                db.session.add(Notification(
+                    company_id=company_id, user_id=uid,
+                    kind=NotificationKind.EMPLOYEE_REPORT_SUBMITTED,
+                    title=f"{res['sent']} تقارير جديدة من {name}",
+                    body=f"{name} أرسل {res['sent']} تقارير يومية دفعة واحدة.",
+                    link_url=f"/reports/employees/{employee_id}/{last}",
+                ))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+    return res
+
+
 def can_view_reports_for(user, employee_id, company_id):
     """Owners see everyone. Anyone else must have an explicit
     `employee_report_access` row for that employee. Returns bool."""

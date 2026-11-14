@@ -856,6 +856,35 @@ def daily_report_detail(report_id):
                              emp=emp, report=r)
 
 
+# MARSOUD-DAILY-REPORTS-BULK-P92 — send selected / all DRAFT reports.
+@portal_emp_bp.route("/daily-reports/bulk-submit", methods=["POST"])
+@login_required
+def daily_reports_bulk_submit():
+    emp = _my_employee()
+    if not emp:
+        abort(403)
+    from app.services.daily_digest import submit_reports_bulk
+    ids = []
+    for v in request.form.getlist("report_ids"):
+        try:
+            ids.append(int(v))
+        except (TypeError, ValueError):
+            pass
+    if not ids:
+        flash("اختار تقرير واحد على الأقل.", "error")
+        return redirect(url_for("portal_emp.daily_reports_list"))
+    res = submit_reports_bulk(emp.id, emp.company_id, ids, current_user.id)
+    if res["sent"]:
+        flash("تم إرسال %d تقرير للمالك." % res["sent"], "success")
+    if res["skipped_today"]:
+        flash("%d تقرير بتاريخ النهارده اتسابوا (اليوم لسه ما خلصش) — ابعتيهم بكره أو من صفحة التقرير." % res["skipped_today"], "error")
+    if res["failed"]:
+        flash("%d تقرير فشل إرساله — جرّب تاني." % res["failed"], "error")
+    if res["skipped_other"] and not res["sent"]:
+        flash("التقارير المختارة اتبعتت قبل كده أو مش بتاعتك.", "error")
+    return redirect(url_for("portal_emp.daily_reports_list"))
+
+
 # ─── MARSOUD-ATTENDANCE-CHECKIN (tickets 2 + 3, 2026-08-05) ─────────────
 def _coord(name):
     """A browser coordinate, or None. A refused location permission must
