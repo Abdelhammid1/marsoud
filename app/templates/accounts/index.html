@@ -1,18 +1,109 @@
+{# MARSOUD-ACCOUNTS-TREE-P82 #}
 {% extends "base.html" %}
 {% block page_title %}شجرة الحسابات{% endblock %}
 {% block content %}
-<div class="card p-6">
-  <div class="flex items-center justify-between mb-5">
-    <div>
-      <h2 class="font-bold text-navy-900">شجرة الحسابات</h2>
-      <p class="text-sm text-slate-500 mt-1">إجمالي {{ accounts|length }} حساب</p>
-    </div>
-    {% if has_permission('accounts.manage') %}
-    <a href="{{ url_for('accounts.new') }}" class="btn-primary">+ حساب جديد</a>
-    {% endif %}
-  </div>
+<style>
+  .ct-head-bar { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; margin-bottom:1rem; }
+  .ct-sub { margin:0; font-size:.875rem; color:#64748b; }
+  .ct-tools { padding:1rem 1.25rem; margin-bottom:1rem; }
+  .ct-tools-row { display:flex; align-items:flex-end; gap:.75rem; flex-wrap:wrap; }
+  .ct-search { flex:1 1 18rem; min-width:0; }
+  .ct-search > span { display:block; font-size:.75rem; font-weight:600; color:#334155; margin-bottom:.25rem; }
+  .ct-btns { display:flex; gap:.5rem; flex-wrap:wrap; }
+  .ct-btn { font-size:.8125rem; padding:.5rem .875rem; border:1px solid #e2e8f0; border-radius:10px; background:#fff; color:#0f172a; cursor:pointer; font-weight:600; }
+  .ct-btn:hover { border-color:#10b981; color:#047857; }
+  .ct-btn:focus-visible, .ct-chip:focus-visible, .ct-tog:focus-visible { outline:3px solid #10b981; outline-offset:2px; }
+  .ct-chips { display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.75rem; }
+  .ct-chip { display:inline-flex; align-items:center; gap:.375rem; padding:.375rem .75rem; border:1px solid #e2e8f0; border-radius:999px; background:#fff; font-size:.8125rem; color:#334155; cursor:pointer; }
+  .ct-chip b { font-weight:700; }
+  .ct-chip .n { background:#f1f5f9; color:#475569; border-radius:999px; padding:0 .5rem; font-size:.6875rem; line-height:1.25rem; }
+  .ct-chip[aria-pressed="true"] { background:#047857; border-color:#047857; color:#fff; }
+  .ct-chip[aria-pressed="true"] .n { background:rgba(255,255,255,.22); color:#fff; }
+  .ct-opts { display:flex; align-items:center; gap:1rem; flex-wrap:wrap; margin-top:.75rem; font-size:.8125rem; color:#475569; }
+  .ct-check { display:inline-flex; align-items:center; gap:.375rem; cursor:pointer; }
+  .ct-count { margin-inline-start:auto; font-size:.8125rem; color:#475569; }
+  .ct-tablecard { padding:1rem 1.25rem; }
+  tr.ct-row[hidden] { display:none; }
+  tr.ct-off td { opacity:.55; }
+  tr.ct-head td { background:#f8fafc; }
+  tr.ct-head .ct-link { font-weight:700; color:#0f172a; }
+  tr.ct-hit .ct-link { background:#fef9c3; border-radius:4px; padding:0 .25rem; }
+  .ct-code { white-space:nowrap; }
+  .ct-name-in { display:flex; align-items:center; gap:.375rem; min-width:0; }
+  .ct-tog { width:1.5rem; height:1.5rem; border:0; background:#ecfdf5; color:#047857; border-radius:6px; cursor:pointer; font-size:.75rem; line-height:1.5rem; padding:0; flex:0 0 auto; }
+  .ct-tog:hover { background:#d1fae5; }
+  .ct-tog[aria-expanded="false"] span { display:inline-block; transform:rotate(90deg); }
+  .ct-tog[aria-disabled="true"] { opacity:.4; cursor:default; }
+  .ct-tog-sp { width:1.5rem; flex:0 0 auto; }
+  .ct-link { color:#0f172a; text-decoration:none; }
+  .ct-link:hover { color:#047857; text-decoration:underline; }
+  .ct-flag { display:inline-block; padding:.0625rem .5rem; border-radius:999px; font-size:.625rem; font-weight:700; white-space:nowrap; }
+  .ct-flag-head { background:#e2e8f0; color:#334155; }
+  .ct-flag-off { background:#fee2e2; color:#b91c1c; }
+  .ct-tag { display:inline-block; padding:.125rem .625rem; border-radius:999px; font-size:.6875rem; font-weight:600; white-space:nowrap; }
+  .ct-t-ASSET { background:#dbeafe; color:#1d4ed8; }
+  .ct-t-LIABILITY { background:#fef3c7; color:#92400e; }
+  .ct-t-EQUITY { background:#f3e8ff; color:#7e22ce; }
+  .ct-t-REVENUE { background:#d1fae5; color:#047857; }
+  .ct-t-EXPENSE { background:#fee2e2; color:#b91c1c; }
+  .ct-bal a { color:#0f172a; text-decoration:none; }
+  .ct-bal a:hover { text-decoration:underline; }
+  .ct-neg a { color:#b91c1c; }
+  .ct-zero a { color:#94a3b8; }
+  .ct-act { white-space:nowrap; }
+  .ct-act form { display:inline; margin:0; }
+  .ct-act a, .ct-act button { font-size:.75rem; margin-inline-start:.75rem; background:none; border:0; padding:0; cursor:pointer; text-decoration:none; }
+  .ct-act .k { color:#047857; }
+  .ct-act .e { color:#2563eb; }
+  .ct-act .d { color:#dc2626; }
+  .ct-act a:hover, .ct-act button:hover { text-decoration:underline; }
+  .ct-empty { text-align:center; padding:2.5rem 1rem; color:#64748b; }
+  .ct-empty strong { display:block; color:#0f172a; margin-bottom:.25rem; font-size:1rem; }
+  .ct-empty[hidden] { display:none; }
+  @media (max-width: 767px) {
+    .ct-search { flex:1 1 100%; }
+    .ct-btns { width:100%; }
+    .ct-btns .ct-btn { flex:1 1 auto; }
+    .ct-chips { flex-wrap:nowrap; overflow-x:auto; padding-bottom:.25rem; }
+    .ct-chip { flex:0 0 auto; }
+    .ct-count { margin-inline-start:0; width:100%; }
+    .ct-tablecard { padding:.75rem; }
+  }
+</style>
 
-  <table class="data-table">
+<div class="ct-head-bar">
+  <p class="ct-sub">{{ accounts|length }} حساب — {{ n_headers }} رئيسي{% if n_inactive %} — {{ n_inactive }} معطّل{% endif %}</p>
+  {% if has_permission('accounts.manage') %}
+  <a href="{{ url_for('accounts.new') }}" class="btn-primary" style="font-size:.875rem;padding:.5rem 1rem;"><span aria-hidden="true">+</span> حساب جديد</a>
+  {% endif %}
+</div>
+
+{% if rows %}
+<div class="card ct-tools" id="ct-root" data-company="{{ company_id }}">
+  <div class="ct-tools-row">
+    <label class="ct-search">
+      <span>بحث بالكود أو الاسم</span>
+      <input type="search" id="ct-q" class="input text-sm" placeholder="مثال: 1110 أو الخزينة" autocomplete="off">
+    </label>
+    <div class="ct-btns">
+      <button type="button" class="ct-btn" id="ct-expand">فتح الكل</button>
+      <button type="button" class="ct-btn" id="ct-collapse">طي الكل</button>
+    </div>
+  </div>
+  <div class="ct-chips" role="group" aria-label="فلتر التصنيف">
+    <button type="button" class="ct-chip" data-type="" aria-pressed="true"><b>الكل</b> <span class="n">{{ accounts|length }}</span></button>
+    {% for t, label in type_ar.items() %}{% if type_counts.get(t) %}
+    <button type="button" class="ct-chip" data-type="{{ t }}" aria-pressed="false"><b>{{ label }}</b> <span class="n">{{ type_counts.get(t) }}</span></button>
+    {% endif %}{% endfor %}
+  </div>
+  <div class="ct-opts">
+    {% if n_inactive %}<label class="ct-check"><input type="checkbox" id="ct-inactive" checked> إظهار الحسابات المعطّلة ({{ n_inactive }})</label>{% endif %}
+    <span class="ct-count" id="ct-count" aria-live="polite"></span>
+  </div>
+</div>
+
+<div class="card ct-tablecard">
+  <table class="data-table" id="ct-table">
     <thead>
       <tr>
         <th>الكود</th>
@@ -24,39 +115,161 @@
       </tr>
     </thead>
     <tbody>
-      {% macro render_account(acc, depth) %}
-        <tr {% if not acc.is_active %}class="opacity-50"{% endif %}>
-          <td class="font-mono text-xs">{{ acc.code }}</td>
-          <td style="padding-right: {{ 1 + depth * 1.5 }}rem">
-            {% if depth > 0 %}<span class="text-slate-300">└</span> {% endif %}
-            <a href="{{ url_for('accounts.ledger', account_id=acc.id) }}"
-               class="hover:text-emerald-600 hover:underline" title="عرض كشف الحركة">{{ acc.name_ar or acc.name }}</a>
-          </td>
-          <td>
-            {% set type_colors = {'ASSET':'bg-blue-50 text-blue-700','LIABILITY':'bg-amber-50 text-amber-700','EQUITY':'bg-purple-50 text-purple-700','REVENUE':'bg-emerald-50 text-emerald-700','EXPENSE':'bg-red-50 text-red-700'} %}
-            <span class="badge {{ type_colors.get(acc.type.value, 'bg-slate-100') }}">{{ acc.type.value }}</span>
-          </td>
-          <td class="text-xs">{{ acc.normal_side.value }}</td>
-          <td class="text-right font-mono font-semibold">
-            <a href="{{ url_for('accounts.ledger', account_id=acc.id) }}"
-               class="hover:underline" title="عرض كشف الحركة">{{ acc.balance|money }}</a>
-          </td>
-          <td class="text-right">
-            <a href="{{ url_for('accounts.ledger', account_id=acc.id) }}" class="text-xs text-emerald-700 hover:underline ml-3">📋 كشف</a>
-            <a href="{{ url_for('accounts.edit', account_id=acc.id) }}" class="text-xs text-brand-600 hover:underline ml-3">تعديل</a>
-            <form method="POST" action="{{ url_for('accounts.delete', account_id=acc.id) }}" class="inline" onsubmit="return confirm('تعطيل/حذف الحساب؟')">
-              <button type="submit" class="text-xs text-red-600 hover:underline">حذف</button>
-            </form>
-          </td>
-        </tr>
-        {% for child in children_map.get(acc.id, []) %}
-          {{ render_account(child, depth + 1) }}
-        {% endfor %}
-      {% endmacro %}
-      {% for root in roots %}
-        {{ render_account(root, 0) }}
+      {% for r in rows %}
+      {% set acc = r.acc %}
+      {% set bal = balances[acc.id] %}
+      {% set is_header = r.kids or not acc.is_postable %}
+      {% set nm = acc.name_ar or acc.name %}
+      <tr class="ct-row{% if not acc.is_active %} ct-off{% endif %}{% if is_header %} ct-head{% endif %}"
+          data-id="{{ acc.id }}" data-parent="{{ acc.parent_id or '' }}" data-kids="{{ r.kids }}"
+          data-type="{{ acc.type.value }}" data-active="{{ 1 if acc.is_active else 0 }}"
+          data-q="{{ acc.code }} {{ acc.name_ar or '' }} {{ acc.name }}">
+        <td class="font-mono text-xs ct-code">{{ acc.code }}</td>
+        <td>
+          <div class="ct-name-in" style="padding-inline-start: {{ r.depth * 1.5 }}rem">
+            {% if r.kids %}<button type="button" class="ct-tog" data-tog aria-expanded="true" aria-label="طي {{ nm }}"><span aria-hidden="true">▾</span></button>{% else %}<span class="ct-tog-sp"></span>{% endif %}
+            <a href="{{ url_for('accounts.ledger', account_id=acc.id) }}" class="ct-link" title="عرض كشف الحركة">{{ nm }}</a>
+            {% if is_header %}<span class="ct-flag ct-flag-head">رئيسي</span>{% endif %}
+            {% if not acc.is_active %}<span class="ct-flag ct-flag-off">معطّل</span>{% endif %}
+          </div>
+        </td>
+        <td><span class="ct-tag ct-t-{{ acc.type.value }}">{{ type_ar.get(acc.type.value, acc.type.value) }}</span></td>
+        <td class="text-xs">{{ side_ar.get(acc.normal_side.value, acc.normal_side.value) }}</td>
+        <td class="text-right font-mono font-semibold ct-bal{% if bal < -0.005 %} ct-neg{% elif bal|abs < 0.005 %} ct-zero{% endif %}">
+          <a href="{{ url_for('accounts.ledger', account_id=acc.id) }}" title="عرض كشف الحركة">{{ bal|money }}</a>
+        </td>
+        <td class="text-right ct-act">
+          <a href="{{ url_for('accounts.ledger', account_id=acc.id) }}" class="k"><span aria-hidden="true">📋</span> كشف</a>
+          {% if has_permission('accounts.manage') %}
+          <a href="{{ url_for('accounts.edit', account_id=acc.id) }}" class="e">تعديل</a>
+          <form method="POST" action="{{ url_for('accounts.delete', account_id=acc.id) }}" class="inline" onsubmit="return confirm('تعطيل/حذف الحساب؟')">
+            <button type="submit" class="d">حذف</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>
+  <div class="ct-empty" id="ct-empty" hidden>
+    <strong>لا توجد حسابات مطابقة</strong>
+    غيّري كلمة البحث أو التصنيف.
+  </div>
 </div>
+{% else %}
+<div class="card ct-tablecard">
+  <div class="ct-empty">
+    <strong>لا توجد حسابات بعد</strong>
+    {% if has_permission('accounts.manage') %}ابدئي بإضافة أول حساب من زر «حساب جديد».{% endif %}
+  </div>
+</div>
+{% endif %}
+
+<script>
+(function () {
+  var root = document.getElementById('ct-root');
+  if (!root) { return; }
+  var tbody = document.querySelector('#ct-table tbody');
+  var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr.ct-row'));
+  var byId = {};
+  rows.forEach(function (r) { byId[r.dataset.id] = r; });
+  var qBox = document.getElementById('ct-q');
+  var countEl = document.getElementById('ct-count');
+  var emptyEl = document.getElementById('ct-empty');
+  var inactiveBox = document.getElementById('ct-inactive');
+  var chips = Array.prototype.slice.call(root.querySelectorAll('.ct-chip'));
+  var KEY = 'ms_coa_collapsed_' + (root.dataset.company || '0');
+  var collapsed = {};
+  var typeFilter = '';
+
+  function norm(s) {
+    return String(s || '').toLowerCase()
+      .replace(/[ً-ٰٟـ]/g, '')
+      .replace(/[أإآ]/g, 'ا')
+      .replace(/ى/g, 'ي')
+      .replace(/ة/g, 'ه');
+  }
+  rows.forEach(function (r) { r.dataset.n = norm(r.dataset.q); });
+
+  try {
+    var saved = JSON.parse(localStorage.getItem(KEY) || '[]');
+    saved.forEach(function (id) { if (byId[id]) { collapsed[id] = true; } });
+  } catch (e) { collapsed = {}; }
+  function persist() {
+    try { localStorage.setItem(KEY, JSON.stringify(Object.keys(collapsed))); } catch (e) { /* storage unavailable */ }
+  }
+
+  function parentOf(r) { return byId[r.dataset.parent] || null; }
+
+  function apply() {
+    var q = norm(qBox.value.trim());
+    var showInactive = inactiveBox ? inactiveBox.checked : true;
+    var filtering = q !== '' || typeFilter !== '';
+    var visible = {};
+    var hit = {};
+    if (filtering) {
+      rows.forEach(function (r) {
+        var ok = (!typeFilter || r.dataset.type === typeFilter) &&
+                 (q === '' || r.dataset.n.indexOf(q) !== -1) &&
+                 (showInactive || r.dataset.active === '1');
+        if (!ok) { return; }
+        hit[r.dataset.id] = true;
+        var cur = r;
+        while (cur && !visible[cur.dataset.id]) {
+          visible[cur.dataset.id] = true;
+          cur = parentOf(cur);
+        }
+      });
+    } else {
+      rows.forEach(function (r) {
+        var p = parentOf(r);
+        var parentOk = !p || (visible[p.dataset.id] && !collapsed[p.dataset.id]);
+        visible[r.dataset.id] = parentOk && (showInactive || r.dataset.active === '1');
+      });
+    }
+    var shown = 0;
+    rows.forEach(function (r) {
+      var v = !!visible[r.dataset.id];
+      r.hidden = !v;
+      if (v) { shown += 1; }
+      r.classList.toggle('ct-hit', filtering && q !== '' && !!hit[r.dataset.id]);
+      var t = r.querySelector('[data-tog]');
+      if (t) {
+        var open = filtering ? true : !collapsed[r.dataset.id];
+        t.setAttribute('aria-expanded', open ? 'true' : 'false');
+        t.setAttribute('aria-disabled', filtering ? 'true' : 'false');
+      }
+    });
+    countEl.textContent = 'عرض ' + shown + ' من ' + rows.length + ' حساب';
+    if (emptyEl) { emptyEl.hidden = shown !== 0; }
+  }
+
+  tbody.addEventListener('click', function (ev) {
+    var t = ev.target.closest ? ev.target.closest('[data-tog]') : null;
+    if (!t || t.getAttribute('aria-disabled') === 'true') { return; }
+    var id = t.closest('tr').dataset.id;
+    if (collapsed[id]) { delete collapsed[id]; } else { collapsed[id] = true; }
+    persist();
+    apply();
+  });
+  document.getElementById('ct-expand').addEventListener('click', function () {
+    collapsed = {}; persist(); apply();
+  });
+  document.getElementById('ct-collapse').addEventListener('click', function () {
+    collapsed = {};
+    rows.forEach(function (r) { if (r.dataset.kids !== '0') { collapsed[r.dataset.id] = true; } });
+    persist(); apply();
+  });
+  qBox.addEventListener('input', apply);
+  if (inactiveBox) { inactiveBox.addEventListener('change', apply); }
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () {
+      typeFilter = c.dataset.type;
+      chips.forEach(function (o) { o.setAttribute('aria-pressed', o === c ? 'true' : 'false'); });
+      apply();
+    });
+  });
+  apply();
+})();
+</script>
 {% endblock %}

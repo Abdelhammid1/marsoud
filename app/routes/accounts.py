@@ -66,20 +66,104 @@ def _suggest_next_code(company_id, type_str=None, parent_id=None):
 bp = Blueprint("accounts", __name__)
 
 
+# MARSOUD-ACCOUNTS-TREE-P82 — tree helpers. Balances now come from ONE aggregate
+# query + an in-memory roll-up (was: a query per account and again per ancestor).
+# The roll-up mirrors Account.balance exactly: a header (not postable, or with
+# children) sums its children (flipping sign when sides differ); a leaf is
+# debit-credit or credit-debit by its own normal side, active entries only.
+TYPE_AR = {
+    "ASSET": "أصول", "LIABILITY": "التزامات", "EQUITY": "حقوق الملكية",
+    "REVENUE": "إيرادات", "EXPENSE": "مصروفات",
+}
+SIDE_AR = {"DEBIT": "مدين", "CREDIT": "دائن"}
+
+
+def _tree_balances(accounts, children_map):
+    from sqlalchemy import func
+    ids = [a.id for a in accounts]
+    sums = {}
+    if ids:
+        for aid, d, c in db.session.query(
+            JournalLine.account_id,
+            func.coalesce(func.sum(JournalLine.debit_base), 0),
+            func.coalesce(func.sum(JournalLine.credit_base), 0),
+        ).join(JournalEntry, JournalLine.entry_id == JournalEntry.id).filter(
+            JournalLine.account_id.in_(ids),
+            JournalEntry.is_active.is_(True),
+        ).group_by(JournalLine.account_id).all():
+            sums[aid] = (float(d or 0), float(c or 0))
+
+    memo = {}
+    visiting = set()
+
+    def bal(acc):
+        if acc.id in memo:
+            return memo[acc.id]
+        if acc.id in visiting:  # defensive: a parent cycle must not hang the page
+            return 0.0
+        visiting.add(acc.id)
+        kids = children_map.get(acc.id, [])
+        if (not getattr(acc, "is_postable", True)) or kids:
+            total = 0.0
+            for ch in kids:
+                b = bal(ch)
+                total += b if ch.normal_side == acc.normal_side else -b
+        else:
+            d, c = sums.get(acc.id, (0.0, 0.0))
+            total = (d - c) if acc.normal_side == NormalSide.DEBIT else (c - d)
+        visiting.discard(acc.id)
+        memo[acc.id] = total
+        return total
+
+    for a in accounts:
+        bal(a)
+    return memo
+
+
+def _tree_rows(accounts, children_map):
+    """Depth-first rows in code order. Accounts whose parent is missing are
+    still listed (as roots) so nothing silently disappears from the page."""
+    rows, seen = [], set()
+
+    def walk(acc, depth):
+        if acc.id in seen:
+            return
+        seen.add(acc.id)
+        kids = children_map.get(acc.id, [])
+        rows.append({"acc": acc, "depth": depth, "kids": len(kids)})
+        for k in kids:
+            walk(k, depth + 1)
+
+    for r in children_map.get(None, []):
+        walk(r, 0)
+    for a in accounts:
+        walk(a, 0)
+    return rows
+
+
 @bp.route("/")
 @login_required
 def index():
     if not g.active_company:
         return redirect(url_for("companies.new"))
     accounts = Account.query.filter_by(company_id=g.active_company.id).order_by(Account.code).all()
-    # build tree
-    by_id = {a.id: a for a in accounts}
-    tree = []
     children_map = {}
     for a in accounts:
         children_map.setdefault(a.parent_id, []).append(a)
-    roots = children_map.get(None, [])
-    return render_template("accounts/index.html", accounts=accounts, roots=roots, children_map=children_map)
+    balances = _tree_balances(accounts, children_map)
+    rows = _tree_rows(accounts, children_map)
+    type_counts = {}
+    for a in accounts:
+        type_counts[a.type.value] = type_counts.get(a.type.value, 0) + 1
+    n_headers = sum(1 for r in rows if r["kids"] or not getattr(r["acc"], "is_postable", True))
+    n_inactive = sum(1 for a in accounts if not a.is_active)
+    return render_template(
+        "accounts/index.html",
+        accounts=accounts, rows=rows, balances=balances,
+        type_ar=TYPE_AR, side_ar=SIDE_AR, type_counts=type_counts,
+        n_headers=n_headers, n_inactive=n_inactive,
+        company_id=g.active_company.id,
+    )
 
 
 @bp.route("/suggest-code")
