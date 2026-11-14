@@ -1,499 +1,799 @@
 {% extends "base.html" %}
 {% block page_title %}حسابي{% endblock %}
 {% block content %}
+{# MARSOUD-ACCOUNT-P89 — redesigned employee account page (/my/account).
+   Same route, same variables, same form actions/field names as before.
+   Layout: hero + tabs (overview / data / attendance / leaves / advances /
+   payslips / security). Every old anchor (#mydata #leaves #attendance
+   #advances #payslips #account-edit #password) still opens its tab.
+   Without JS all sections simply show one after another. #}
 
-{# MARSOUD-57.1 — Unified employee account page.
-   Replaces the scattered /my portal with one page that has 3 sections:
-     1. بياناتي     — read-only profile + salary + payslips + leaves
-     2. تعديل حسابي  — avatar + simple preferences
-     3. تغيير كلمة السر #}
+{% set cur = employee.company.base_currency|currency_ar %}
+{% set months_ar = ['', 'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'] %}
+{% set lv = namespace(total=0, pend=0, appr=0, rej=0) %}
+{% for b in balances %}{% set lv.total = lv.total + (b.remaining_days or 0)|float %}{% endfor %}
+{% for r in requests %}
+  {% if r.status == statuses.PENDING %}{% set lv.pend = lv.pend + 1 %}
+  {% elif r.status == statuses.APPROVED %}{% set lv.appr = lv.appr + 1 %}
+  {% elif r.status == statuses.REJECTED %}{% set lv.rej = lv.rej + 1 %}{% endif %}
+{% endfor %}
+{% set av = namespace(pend=0, appr=0, rej=0) %}
+{% for r in advance_requests %}
+  {% if r.status == advance_statuses.PENDING %}{% set av.pend = av.pend + 1 %}
+  {% elif r.status == advance_statuses.APPROVED %}{% set av.appr = av.appr + 1 %}
+  {% elif r.status == advance_statuses.REJECTED %}{% set av.rej = av.rej + 1 %}{% endif %}
+{% endfor %}
+{% set pending_total = lv.pend + av.pend %}
+{% set has_in = today_checkin and today_checkin.check_in_time %}
+{% set has_out = today_checkin and today_checkin.check_out_time %}
+{% set years = [] %}
+{% for line, run in payslips %}{% if run.period_year not in years %}{% set _y = years.append(run.period_year) %}{% endif %}{% endfor %}
 
-<div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
-  {# ─── Identity card ───────────────────────────────────────────── #}
-  <div class="card p-6 lg:col-span-1 text-center">
-    <div class="w-20 h-20 mx-auto rounded-full bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-3xl">
-      {{ employee.name[:1] }}
-    </div>
-    <h2 class="text-lg font-bold text-navy-900 mt-3">{{ employee.name }}</h2>
-    <p class="text-xs text-slate-500">{{ employee.job_title or '—' }}</p>
-    <div class="mt-3 inline-block text-xs px-3 py-1 rounded-full bg-emerald-50 text-emerald-700">
-      الرقم الوظيفي: <span class="font-mono">{{ employee.employee_number or '—' }}</span>
+<style>
+.ac{--em:#059669;--em-d:#047857;--em-bg:#ecfdf5;--ink:#0f172a;--mut:#64748b;--line:#e2e8f0;--soft:#f8fafc;--amb:#b45309;--amb-bg:#fffbeb;--rose:#be123c;--rose-bg:#fff1f2;--sky:#0369a1;--sky-bg:#f0f9ff;max-width:1100px;margin:0 auto;color:var(--ink)}
+.ac *{box-sizing:border-box}
+.ac-hero{background:linear-gradient(135deg,#064e3b 0%,#059669 100%);color:#fff;border-radius:18px;padding:22px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.ac-avatar{width:76px;height:76px;border-radius:50%;background:rgba(255,255,255,.18);border:2px solid rgba(255,255,255,.55);display:flex;align-items:center;justify-content:center;font-size:32px;font-weight:700;flex:none}
+.ac-hero-main{flex:1;min-width:220px}
+.ac-greet{font-size:13px;opacity:.85}
+.ac-name{font-size:22px;font-weight:800;line-height:1.3;margin:2px 0}
+.ac-role{font-size:13px;opacity:.9}
+.ac-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.ac-chip{background:rgba(255,255,255,.16);border-radius:999px;padding:3px 11px;font-size:12px;white-space:nowrap}
+.ac-hero-act{display:flex;flex-direction:column;gap:8px;align-items:stretch}
+.ac-ghost{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:10px;padding:8px 14px;font-size:13px;cursor:pointer;font-family:inherit}
+.ac-ghost:hover{background:rgba(255,255,255,.25)}
+.ac-tabs{display:flex;gap:6px;overflow-x:auto;padding:4px 2px 10px;margin-bottom:6px;-ms-overflow-style:none;scrollbar-width:none}
+.ac-tabs::-webkit-scrollbar{display:none}
+.ac-tab{flex:none;display:flex;align-items:center;gap:6px;padding:9px 15px;border-radius:999px;background:#fff;border:1px solid var(--line);color:#334155;font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap}
+.ac-tab:hover{background:var(--soft)}
+.ac-tab.is-on{background:var(--em);border-color:var(--em);color:#fff}
+.ac-tab-n{background:var(--amb);color:#fff;border-radius:999px;font-size:11px;min-width:18px;height:18px;line-height:18px;text-align:center;padding:0 5px}
+.ac-js .ac-panel{display:none}
+.ac-js .ac-panel.is-on{display:block}
+.ac-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+.ac-h{font-size:16px;font-weight:800;margin:0 0 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ac-h small{font-weight:400;color:var(--mut);font-size:12px}
+.ac-sub{font-size:13px;color:var(--mut);margin:0 0 12px}
+.ac-grid{display:grid;gap:12px}
+.ac-g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.ac-g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.ac-g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.ac-kpi{background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:14px}
+.ac-kpi-l{font-size:12px;color:var(--mut)}
+.ac-kpi-v{font-size:22px;font-weight:800;margin-top:4px;font-family:ui-monospace,Menlo,Consolas,monospace;direction:ltr;text-align:start}
+.ac-kpi-s{font-size:11px;color:var(--mut);margin-top:2px}
+.ac-kpi.em{background:var(--em-bg);border-color:#a7f3d0}
+.ac-kpi.am{background:var(--amb-bg);border-color:#fde68a}
+.ac-kpi.sk{background:var(--sky-bg);border-color:#bae6fd}
+.ac-today{display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.ac-today-st{display:flex;align-items:center;gap:12px}
+.ac-dot{width:14px;height:14px;border-radius:50%;background:#cbd5e1;flex:none}
+.ac-dot.in{background:#f59e0b;box-shadow:0 0 0 5px #fef3c7}
+.ac-dot.done{background:var(--em);box-shadow:0 0 0 5px #d1fae5}
+.ac-today-t{font-weight:800;font-size:16px}
+.ac-today-s{font-size:13px;color:var(--mut)}
+.ac-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:var(--em);color:#fff;border:0;border-radius:10px;padding:10px 18px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:none}
+.ac-btn:hover{background:var(--em-d)}
+.ac-btn[disabled]{opacity:.5;cursor:not-allowed}
+.ac-btn.sec{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.ac-btn.sec:hover{background:var(--soft)}
+.ac-btn.block{width:100%}
+.ac-links{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.ac-link{display:flex;flex-direction:column;gap:4px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fff;text-decoration:none;color:var(--ink)}
+.ac-link:hover{border-color:var(--em);background:var(--em-bg)}
+.ac-link-i{font-size:22px}
+.ac-link-t{font-weight:700;font-size:14px}
+.ac-link-s{font-size:12px;color:var(--mut)}
+.ac-alert{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;background:var(--amb-bg);border:1px solid #fde68a;color:#92400e;border-radius:12px;padding:10px 14px;font-size:13px;margin-bottom:14px}
+.ac-f{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ac-f-l{font-size:12px;color:var(--mut)}
+.ac-f-v{font-weight:700;font-size:14px;word-break:break-word}
+.ac-f-v.mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+.ac-copy{background:none;border:0;cursor:pointer;color:var(--mut);font-size:13px;padding:0 4px;font-family:inherit}
+.ac-copy:hover{color:var(--em)}
+.ac-sec-t{font-size:12px;font-weight:700;color:var(--em-d);margin:16px 0 8px;padding-bottom:6px;border-bottom:1px dashed var(--line)}
+.ac-sec-t:first-of-type{margin-top:0}
+.ac-lt{border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--soft)}
+.ac-lt.low{background:var(--amb-bg);border-color:#fde68a}
+.ac-lt.zero{background:var(--rose-bg);border-color:#fecdd3}
+.ac-lt-n{font-size:12px;color:var(--mut)}
+.ac-lt-v{font-size:22px;font-weight:800;font-family:ui-monospace,Menlo,Consolas,monospace;direction:ltr;text-align:start}
+.ac-lt-v small{font-size:12px;font-weight:400;color:var(--mut);font-family:inherit}
+.ac-det{border:1px solid #fde68a;background:var(--amb-bg);border-radius:14px;padding:4px 14px;margin-top:14px}
+.ac-det>summary{cursor:pointer;font-weight:700;color:#92400e;padding:10px 0;font-size:14px}
+.ac-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:6px 0 14px}
+.ac-form .full{grid-column:1/-1}
+.ac-lbl{display:block;font-size:12px;font-weight:700;color:#334155;margin-bottom:4px}
+.ac-in{width:100%;border:1px solid #cbd5e1;border-radius:10px;padding:9px 11px;font-size:14px;font-family:inherit;background:#fff;color:var(--ink)}
+.ac-in:focus{outline:2px solid #6ee7b7;border-color:var(--em)}
+.ac-hint{font-size:12px;color:var(--mut);margin-top:4px}
+.ac-hint.ok{color:var(--em-d)}
+.ac-hint.bad{color:var(--rose)}
+.ac-days{display:inline-block;background:var(--em-bg);color:var(--em-d);border-radius:999px;padding:2px 10px;font-weight:700;font-size:12px}
+.ac-filt{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
+.ac-fb{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;color:#475569;font-family:inherit}
+.ac-fb.is-on{background:var(--ink);border-color:var(--ink);color:#fff}
+.ac-list{display:flex;flex-direction:column;gap:8px}
+.ac-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fff;flex-wrap:wrap}
+.ac-row-t{font-weight:700;font-size:14px}
+.ac-row-s{font-size:12px;color:var(--mut);margin-top:2px}
+.ac-row-m{font-family:ui-monospace,Menlo,Consolas,monospace;direction:ltr;font-weight:700}
+.ac-b{display:inline-block;border-radius:999px;padding:2px 10px;font-size:12px;font-weight:700;white-space:nowrap}
+.ac-b.p{background:var(--amb-bg);color:var(--amb)}
+.ac-alert .ac-b.p{background:#fef3c7;text-decoration:none}
+.ac-b.a{background:var(--em-bg);color:var(--em-d)}
+.ac-b.r{background:var(--rose-bg);color:var(--rose)}
+.ac-b.o{background:#f1f5f9;color:#475569}
+.ac-empty{text-align:center;color:var(--mut);font-size:14px;padding:22px 10px;border:1px dashed var(--line);border-radius:12px}
+.ac-bar{height:10px;border-radius:999px;background:#e2e8f0;overflow:hidden;margin:10px 0 4px}
+.ac-bar>i{display:block;height:100%;background:linear-gradient(90deg,#34d399,#059669);border-radius:999px}
+.ac-ps{border:1px solid var(--line);border-radius:14px;background:#fff;margin-bottom:8px;overflow:hidden}
+.ac-ps>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;cursor:pointer;list-style:none;flex-wrap:wrap}
+.ac-ps>summary::-webkit-details-marker{display:none}
+.ac-ps-p{font-weight:800}
+.ac-ps-n{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:800;color:var(--em-d);direction:ltr}
+.ac-ps-b{border-top:1px solid var(--line);padding:12px 14px;background:var(--soft);display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:end}
+.ac-ps-b .ac-btn{padding:8px 12px;font-size:13px}
+.pos{color:var(--em-d)}
+.neg{color:var(--rose)}
+.ac-hide .ac-amt{filter:blur(7px);user-select:none}
+.ac-pw{position:relative}
+.ac-pw .ac-in{padding-inline-end:44px}
+.ac-eye{position:absolute;inset-inline-end:6px;top:50%;transform:translateY(-50%);background:none;border:0;cursor:pointer;font-size:16px;padding:4px 8px}
+.ac-meter{display:flex;gap:4px;margin-top:8px}
+.ac-meter i{flex:1;height:6px;border-radius:99px;background:#e2e8f0}
+.ac-meter[data-s="1"] i:nth-child(1){background:#ef4444}
+.ac-meter[data-s="2"] i:nth-child(-n+2){background:#f59e0b}
+.ac-meter[data-s="3"] i:nth-child(-n+3){background:#84cc16}
+.ac-meter[data-s="4"] i{background:#059669}
+.ac-toast{position:fixed;bottom:22px;inset-inline-start:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;padding:9px 18px;border-radius:999px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:9999}
+.ac-toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (max-width:820px){
+ .ac-g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .ac-g3{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .ac-links{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .ac-ps-b{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:520px){
+ .ac-hero{padding:16px;gap:12px}
+ .ac-avatar{width:60px;height:60px;font-size:26px}
+ .ac-name{font-size:18px}
+ .ac-hero-act{flex-direction:row;width:100%}
+ .ac-hero-act .ac-ghost{flex:1}
+ .ac-form{grid-template-columns:minmax(0,1fr)}
+ .ac-card{padding:14px}
+ .ac-kpi-v{font-size:19px}
+ .ac-today .ac-btn{width:100%}
+}
+@media print{.ac-tabs,.ac-hero-act,.ac-btn,.ac-det{display:none!important}.ac-js .ac-panel{display:block!important}}
+</style>
+
+<div class="ac" id="ac-root">
+<script>document.getElementById('ac-root').className+=' ac-js';</script>
+
+{# ─── Hero ─────────────────────────────────────────────────────── #}
+<div class="ac-hero">
+  <div class="ac-avatar">{{ employee.name[:1] }}</div>
+  <div class="ac-hero-main">
+    <div class="ac-greet"><span id="ac-greet">أهلًا</span> 👋</div>
+    <div class="ac-name">{{ employee.name }}</div>
+    <div class="ac-role">{{ employee.job_title or '—' }}{% if employee.department %} · {{ employee.department.name }}{% endif %}</div>
+    <div class="ac-chips">
+      <span class="ac-chip">الرقم الوظيفي: <span dir="ltr">{{ employee.employee_number or '—' }}</span></span>
+      <span class="ac-chip">مدة الخدمة: {{ tenure_label }}</span>
+      {% if employee.contract_type %}<span class="ac-chip">{{ employee.contract_type.value }}</span>{% endif %}
     </div>
   </div>
-
-  {# ─── Quick tabs nav ──────────────────────────────────────────── #}
-  <div class="card p-3 lg:col-span-3">
-    <nav class="flex flex-wrap gap-2 text-sm">
-      <a href="#mydata" class="flex-1 text-center px-4 py-3 rounded-lg bg-emerald-50 text-emerald-800 font-semibold hover:bg-emerald-100 transition">
-        📋 بياناتي
-      </a>
-      <a href="{{ url_for('portal_emp.attendance') }}" class="flex-1 text-center px-4 py-3 rounded-lg bg-slate-50 text-slate-700 font-semibold hover:bg-slate-100 transition">
-        🕐 الحضور
-      </a>
-      <a href="#advances" class="flex-1 text-center px-4 py-3 rounded-lg bg-slate-50 text-slate-700 font-semibold hover:bg-slate-100 transition">
-        💵 السلف
-      </a>
-      <a href="#account-edit" class="flex-1 text-center px-4 py-3 rounded-lg bg-slate-50 text-slate-700 font-semibold hover:bg-slate-100 transition">
-        ✎ تعديل حسابي
-      </a>
-      <a href="#password" class="flex-1 text-center px-4 py-3 rounded-lg bg-slate-50 text-slate-700 font-semibold hover:bg-slate-100 transition">
-        🔒 تغيير كلمة السر
-      </a>
-      {# MARSOUD-PORTAL-MY-ACTIVITY-01 (2026-08-06) — the tab is a link
-         to its own page, not an in-page anchor, so /my/account stays
-         fast and the activity log gets its own screen. #}
-      <a href="{{ url_for('portal_emp.activity') }}" class="flex-1 text-center px-4 py-3 rounded-lg bg-slate-50 text-slate-700 font-semibold hover:bg-slate-100 transition">
-        📜 سجل نشاطي
-      </a>
-      {# MARSOUD-CUSTODY-NAV-01 (2026-08-09) — same link-to-own-page
-         pattern as attendance + activity above (NOT in-page anchors).
-         Reaches the custody screens for any user with an Employee
-         record; the 👤 dropdown in base.html has the same two links
-         for consistency. #}
-      <a href="{{ url_for('portal_emp.custody_list') }}" class="flex-1 text-center px-4 py-3 rounded-lg bg-slate-50 text-slate-700 font-semibold hover:bg-slate-100 transition">
-        💵 عهدتي النقدية
-      </a>
-      <a href="{{ url_for('portal_emp.items_list') }}" class="flex-1 text-center px-4 py-3 rounded-lg bg-slate-50 text-slate-700 font-semibold hover:bg-slate-100 transition">
-        📦 عهدي العينية
-      </a>
-    </nav>
+  <div class="ac-hero-act">
+    <button type="button" class="ac-ghost" id="ac-hide-btn" aria-pressed="false">👁 إخفاء المبالغ</button>
+    <button type="button" class="ac-ghost" data-go="security">🔒 كلمة السر</button>
   </div>
 </div>
 
-{# ════ SECTION 1 — بياناتي (read-only profile) ═══════════════════════ #}
-<div class="card p-6 mb-4" id="mydata">
-  <h3 class="font-bold text-navy-900 mb-4 flex items-center gap-2">
-    📋 بياناتي
-    <span class="text-xs text-slate-500 font-normal">(تعديل الاسم/الجوال/الإيميل من إدارة الموارد البشرية)</span>
-  </h3>
+{# ─── Tabs ─────────────────────────────────────────────────────── #}
+<nav class="ac-tabs" role="tablist" aria-label="أقسام حسابي">
+  <a class="ac-tab is-on" href="#overview" data-tab="overview">🏠 نظرة عامة{% if pending_total %} <span class="ac-tab-n">{{ pending_total }}</span>{% endif %}</a>
+  <a class="ac-tab" href="#mydata" data-tab="mydata">📋 بياناتي</a>
+  <a class="ac-tab" href="#attendance" data-tab="attendance">🕐 الحضور</a>
+  <a class="ac-tab" href="#leaves" data-tab="leaves">🌴 الإجازات</a>
+  <a class="ac-tab" href="#advances" data-tab="advances">💵 السلف</a>
+  <a class="ac-tab" href="#payslips" data-tab="payslips">💰 الرواتب</a>
+  <a class="ac-tab" href="#security" data-tab="security">🔒 الأمان</a>
+</nav>
 
-  <div class="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4 text-sm">
-    <div>
-      <div class="text-xs text-slate-500">الاسم الكامل</div>
-      <div class="font-semibold text-navy-900">{{ employee.name }}</div>
+{# ════ نظرة عامة ═══════════════════════════════════════════════════ #}
+<section class="ac-panel is-on" id="overview">
+  <div class="ac-card">
+    <div class="ac-today">
+      <div class="ac-today-st">
+        <span class="ac-dot {{ 'done' if has_in and has_out else 'in' if has_in else '' }}"></span>
+        <div>
+          {% if has_in and has_out %}
+            <div class="ac-today-t">اكتمل تسجيل اليوم ✓</div>
+            <div class="ac-today-s">حضور <span dir="ltr">{{ today_checkin.check_in_time.strftime('%H:%M') }}</span> — انصراف <span dir="ltr">{{ today_checkin.check_out_time.strftime('%H:%M') }}</span></div>
+          {% elif has_in %}
+            <div class="ac-today-t">أنت حاضر منذ <span dir="ltr">{{ today_checkin.check_in_time.strftime('%H:%M') }}</span></div>
+            <div class="ac-today-s">لا تنسَ تسجيل الانصراف قبل ما تمشي</div>
+          {% else %}
+            <div class="ac-today-t">لسه ما سجلتش حضور النهارده</div>
+            <div class="ac-today-s">سجّل حضورك من تبويب الحضور</div>
+          {% endif %}
+        </div>
+      </div>
+      {% if not (has_in and has_out) %}
+      <button type="button" class="ac-btn" data-go="attendance">{{ '🏁 تسجيل انصراف' if has_in else '▶ تسجيل حضور' }}</button>
+      {% endif %}
     </div>
-    <div>
-      <div class="text-xs text-slate-500">رقم الجوال</div>
-      <div class="font-mono">{{ employee.phone or '—' }}</div>
+  </div>
+
+  {% if pending_total %}
+  <div class="ac-alert"><span>⏳ عندك {{ pending_total }} {{ 'طلب' if pending_total == 1 else 'طلبات' }} قيد المراجعة</span>
+    {% if lv.pend %}<a class="ac-b p" href="#leaves" data-go="leaves">إجازات ({{ lv.pend }})</a>{% endif %}
+    {% if av.pend %}<a class="ac-b p" href="#advances" data-go="advances">سلف ({{ av.pend }})</a>{% endif %}
+  </div>
+  {% endif %}
+
+  <div class="ac-grid ac-g4" style="margin-bottom:14px">
+    <div class="ac-kpi em">
+      <div class="ac-kpi-l">🌴 رصيد الإجازات</div>
+      <div class="ac-kpi-v">{{ "%.1f"|format(lv.total) }}</div>
+      <div class="ac-kpi-s">يوم متبقي هذه السنة</div>
     </div>
-    <div>
-      <div class="text-xs text-slate-500">البريد الإلكتروني</div>
-      <div dir="ltr" class="font-mono text-sm break-all">{{ employee.email or '—' }}</div>
+    <div class="ac-kpi am">
+      <div class="ac-kpi-l">💵 رصيد السلفة</div>
+      {% if advance %}
+      <div class="ac-kpi-v ac-amt">{{ advance.remaining|money }}</div>
+      <div class="ac-kpi-s">{{ cur }} متبقي · القسط القادم <span class="ac-amt">{{ advance.next_installment|money }}</span></div>
+      {% else %}
+      <div class="ac-kpi-v">—</div>
+      <div class="ac-kpi-s">لا توجد سلفة حالية</div>
+      {% endif %}
     </div>
-    <div>
-      <div class="text-xs text-slate-500">القسم</div>
-      <div class="font-semibold">{{ employee.department.name if employee.department else '—' }}</div>
+    <div class="ac-kpi sk">
+      <div class="ac-kpi-l">💰 آخر صافي راتب</div>
+      {% if payslips %}
+        {% set l0 = payslips[0][0] %}{% set r0 = payslips[0][1] %}
+        <div class="ac-kpi-v ac-amt">{{ (l0.net or 0)|float|money }}</div>
+        <div class="ac-kpi-s">{{ months_ar[r0.period_month] }} {{ r0.period_year }} · {{ cur }}</div>
+      {% else %}
+        <div class="ac-kpi-v">—</div>
+        <div class="ac-kpi-s">لا توجد قسائم بعد</div>
+      {% endif %}
     </div>
-    <div>
-      <div class="text-xs text-slate-500">المسمى الوظيفي</div>
-      <div class="font-semibold">{{ employee.job_title or '—' }}</div>
+    <div class="ac-kpi">
+      <div class="ac-kpi-l">⏱ مدة الخدمة</div>
+      <div class="ac-kpi-v" style="font-size:16px;font-family:inherit;direction:rtl">{{ tenure_label }}</div>
+      <div class="ac-kpi-s">{% if employee.start_date %}منذ {{ employee.start_date.isoformat() }}{% else %}—{% endif %}</div>
     </div>
-    <div>
-      <div class="text-xs text-slate-500">نوع العقد</div>
-      <div class="font-semibold">{{ employee.contract_type.value if employee.contract_type else '—' }}</div>
+  </div>
+
+  <div class="ac-links">
+    <a class="ac-link" href="{{ url_for('portal_emp.attendance') }}"><span class="ac-link-i">🗓</span><span class="ac-link-t">سجل الحضور</span><span class="ac-link-s">حضورك الشهري بالتفصيل</span></a>
+    <a class="ac-link" href="{{ url_for('portal_emp.activity') }}"><span class="ac-link-i">📜</span><span class="ac-link-t">سجل نشاطي</span><span class="ac-link-s">آخر ما عملته على النظام</span></a>
+    <a class="ac-link" href="{{ url_for('portal_emp.custody_list') }}"><span class="ac-link-i">💼</span><span class="ac-link-t">عهدتي النقدية</span><span class="ac-link-s">العهد والمصروفات</span></a>
+    <a class="ac-link" href="{{ url_for('portal_emp.items_list') }}"><span class="ac-link-i">📦</span><span class="ac-link-t">عهدي العينية</span><span class="ac-link-s">الأصول والأدوات عندك</span></a>
+  </div>
+</section>
+
+{# ════ بياناتي ═════════════════════════════════════════════════════ #}
+<section class="ac-panel" id="mydata">
+  <div class="ac-card">
+    <h3 class="ac-h">📋 بياناتي <small>(تعديل الاسم/الجوال/الإيميل من إدارة الموارد البشرية)</small></h3>
+
+    <div class="ac-sec-t">البيانات الشخصية</div>
+    <div class="ac-grid ac-g3">
+      <div class="ac-f"><span class="ac-f-l">الاسم الكامل</span><span class="ac-f-v">{{ employee.name }}</span></div>
+      <div class="ac-f"><span class="ac-f-l">رقم الجوال</span><span class="ac-f-v mono"><span dir="ltr">{{ employee.phone or '—' }}</span>{% if employee.phone %}<button type="button" class="ac-copy" data-copy="{{ employee.phone }}" title="نسخ">📋</button>{% endif %}</span></div>
+      <div class="ac-f"><span class="ac-f-l">البريد الإلكتروني</span><span class="ac-f-v mono"><span dir="ltr">{{ employee.email or '—' }}</span>{% if employee.email %}<button type="button" class="ac-copy" data-copy="{{ employee.email }}" title="نسخ">📋</button>{% endif %}</span></div>
     </div>
-    <div>
-      <div class="text-xs text-slate-500">تاريخ التعيين</div>
-      <div class="font-mono">{{ employee.start_date.isoformat() if employee.start_date else '—' }}</div>
+
+    <div class="ac-sec-t">بيانات الوظيفة</div>
+    <div class="ac-grid ac-g3">
+      <div class="ac-f"><span class="ac-f-l">الرقم الوظيفي</span><span class="ac-f-v mono"><span dir="ltr">{{ employee.employee_number or '—' }}</span>{% if employee.employee_number %}<button type="button" class="ac-copy" data-copy="{{ employee.employee_number }}" title="نسخ">📋</button>{% endif %}</span></div>
+      <div class="ac-f"><span class="ac-f-l">القسم</span><span class="ac-f-v">{{ employee.department.name if employee.department else '—' }}</span></div>
+      <div class="ac-f"><span class="ac-f-l">المسمى الوظيفي</span><span class="ac-f-v">{{ employee.job_title or '—' }}</span></div>
+      <div class="ac-f"><span class="ac-f-l">نوع العقد</span><span class="ac-f-v">{{ employee.contract_type.value if employee.contract_type else '—' }}</span></div>
+      <div class="ac-f"><span class="ac-f-l">تاريخ التعيين</span><span class="ac-f-v mono"><span dir="ltr">{{ employee.start_date.isoformat() if employee.start_date else '—' }}</span></span></div>
+      <div class="ac-f"><span class="ac-f-l">مدة الخدمة</span><span class="ac-f-v pos">{{ tenure_label }}</span></div>
     </div>
-    <div>
-      <div class="text-xs text-slate-500">مدة الخدمة</div>
-      <div class="font-semibold text-emerald-700">{{ tenure_label }}</div>
+
+    <div class="ac-sec-t">البيانات المالية</div>
+    <div class="ac-grid ac-g3">
+      <div class="ac-f"><span class="ac-f-l">الراتب الأساسي</span><span class="ac-f-v mono ac-amt">{{ employee.basic_salary|money }} {{ cur }}</span></div>
+      <div class="ac-f"><span class="ac-f-l">البدلات</span><span class="ac-f-v mono ac-amt">{{ employee.allowances|money }} {{ cur }}</span></div>
+      {% if employee.bank_account_last4 %}
+      <div class="ac-f"><span class="ac-f-l">آخر 4 أرقام للحساب البنكي</span><span class="ac-f-v mono ac-amt"><span dir="ltr">**** {{ employee.bank_account_last4 }}</span></span></div>
+      {% endif %}
     </div>
-    <div>
-      <div class="text-xs text-slate-500">الراتب الأساسي</div>
-      <div class="font-mono font-semibold">{{ employee.basic_salary|money }} {{ employee.company.base_currency|currency_ar }}</div>
+  </div>
+</section>
+
+{# ════ الحضور ══════════════════════════════════════════════════════ #}
+{# MARSOUD-ATTENDANCE-CHECKIN — the employee records their own attendance.
+   The math challenge is required before either action is accepted; the
+   server verifies and consumes it, so this markup is a convenience, not
+   the protection. #}
+<section class="ac-panel" id="attendance">
+  <div class="ac-card">
+    <h3 class="ac-h">🕐 الحضور والانصراف</h3>
+    <div class="ac-grid ac-g2" style="margin-bottom:14px">
+      <div class="ac-kpi"><div class="ac-kpi-l">حضور اليوم</div>
+        <div class="ac-kpi-v">{{ today_checkin.check_in_time.strftime('%H:%M') if has_in else '—' }}</div></div>
+      <div class="ac-kpi"><div class="ac-kpi-l">انصراف اليوم</div>
+        <div class="ac-kpi-v">{{ today_checkin.check_out_time.strftime('%H:%M') if has_out else '—' }}</div></div>
     </div>
-    <div>
-      <div class="text-xs text-slate-500">البدلات</div>
-      <div class="font-mono">{{ employee.allowances|money }} {{ employee.company.base_currency|currency_ar }}</div>
-    </div>
-    {% if employee.bank_account_last4 %}
-    <div>
-      <div class="text-xs text-slate-500">آخر 4 أرقام للحساب البنكي</div>
-      <div class="font-mono">**** {{ employee.bank_account_last4 }}</div>
-    </div>
+
+    {% if has_in and has_out %}
+      <div class="ac-empty" style="border-style:solid;background:var(--em-bg);color:var(--em-d)">
+        ✓ اكتمل تسجيل اليوم
+        {% if today_checkin.worked_hours %}— <span dir="ltr" style="font-weight:700">{{ today_checkin.worked_hours|money }}</span> ساعة عمل{% endif %}
+      </div>
+    {% else %}
+      <form method="POST" id="attendance-form"
+            action="{{ url_for('portal_emp.attendance_checkin') if not has_in else url_for('portal_emp.attendance_checkout') }}">
+        <input type="hidden" name="check_lat" id="check_lat">
+        <input type="hidden" name="check_lng" id="check_lng">
+        <div class="ac-det" style="margin-top:0;padding:12px 14px;background:var(--amb-bg)">
+          <label class="ac-lbl" style="color:#92400e;font-size:13px" for="math_answer">للتأكد أنك لست روبوتًا: كم يساوي <span dir="ltr" style="font-size:16px;font-family:ui-monospace,monospace">{{ math_question }}</span>؟</label>
+          <input type="number" name="math_answer" id="math_answer" required autocomplete="off" inputmode="numeric" class="ac-in" style="max-width:140px" dir="ltr">
+        </div>
+        <button class="ac-btn block" style="margin-top:12px" id="attendance-btn">{{ '🏁 تسجيل انصراف' if has_in else '▶ تسجيل حضور' }}</button>
+        <p class="ac-hint" id="geo-note">سيُطلب إذن الموقع. الرفض لا يمنع التسجيل.</p>
+      </form>
     {% endif %}
   </div>
-</div>
 
-{# ─── Leave balances + request form ───────────────────────────── #}
-<div class="card p-6 mb-4" id="leaves">
-  <div class="flex items-start justify-between mb-3 flex-wrap gap-2">
-    <h3 class="font-bold text-navy-900">🌴 رصيد الإجازات</h3>
-    <div class="text-xs text-slate-500">السنة الحالية: {{ leave_types|length }} نوع متاح</div>
-  </div>
-
-  {% if leave_types %}
-  <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-    {% for lt in leave_types %}
-    {% set bal = bal_by_type.get(lt.id) %}
-    <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
-      <div class="text-xs text-slate-500">{{ lt.name }}</div>
-      <div class="text-lg font-bold text-navy-900 font-mono mt-1">
-        {{ "%.1f"|format(bal.remaining_days if bal else 0) }} <span class="text-xs text-slate-500">يوم</span>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-
-  <details class="bg-amber-50/40 border border-amber-200 rounded-lg p-3">
-    <summary class="cursor-pointer text-sm font-semibold text-amber-800">+ طلب إجازة جديد</summary>
-    <form method="POST" action="{{ url_for('portal_emp.leave_new') }}" class="grid grid-cols-2 gap-3 mt-3 text-sm">
-      <label class="col-span-2">
-        <span class="text-xs font-semibold text-slate-700">نوع الإجازة</span>
-        <select name="leave_type_id" required class="select text-sm mt-1">
-          <option value="">— اختر —</option>
-          {% for lt in leave_types %}<option value="{{ lt.id }}">{{ lt.name }}</option>{% endfor %}
-        </select>
-      </label>
-      <label>
-        <span class="text-xs font-semibold text-slate-700">من تاريخ</span>
-        <input type="date" name="start_date" required class="input text-sm mt-1">
-      </label>
-      <label>
-        <span class="text-xs font-semibold text-slate-700">إلى تاريخ</span>
-        <input type="date" name="end_date" required class="input text-sm mt-1">
-      </label>
-      <label class="col-span-2">
-        <span class="text-xs font-semibold text-slate-700">السبب (اختياري)</span>
-        <textarea name="reason" rows="2" class="textarea text-sm mt-1"></textarea>
-      </label>
-      <div class="col-span-2 flex justify-end">
-        <button type="submit" class="btn-primary text-sm">إرسال الطلب</button>
-      </div>
+  {# MARSOUD-VIOLATION-POLICY — permission request lives with attendance. #}
+  <div class="ac-card">
+    <h3 class="ac-h">🚪 طلب استئذان</h3>
+    <form method="POST" action="{{ url_for('portal_emp.permission_new') }}" class="ac-form" data-once>
+      <div class="full"><label class="ac-lbl">اليوم</label><input type="date" name="request_date" class="ac-in" dir="ltr" required></div>
+      <div><label class="ac-lbl">من</label><input type="time" name="start_time" id="pm-from" class="ac-in" dir="ltr"></div>
+      <div><label class="ac-lbl">إلى</label><input type="time" name="end_time" id="pm-to" class="ac-in" dir="ltr"></div>
+      <div class="full"><label class="ac-lbl">عدد الساعات</label><input type="number" step="0.25" min="0.25" name="hours_count" id="pm-hours" class="ac-in" dir="ltr" required>
+        <div class="ac-hint">بتتحسب تلقائي من «من» و«إلى» — وتقدر تعدّلها.</div></div>
+      <div class="full"><label class="ac-lbl">السبب</label><textarea name="reason" class="ac-in" rows="2"></textarea></div>
+      <div class="full"><button class="ac-btn">إرسال الطلب</button></div>
     </form>
-  </details>
-  {% else %}
-  <p class="text-sm text-slate-500">لا توجد أنواع إجازة معرّفة.</p>
-  {% endif %}
+  </div>
+</section>
 
-  {% if requests %}
-  <hr class="my-4">
-  <h4 class="font-bold text-navy-900 text-sm mb-2">طلباتي السابقة</h4>
-  <table class="data-table text-xs">
-    <thead><tr><th>النوع</th><th>من</th><th>إلى</th><th>أيام</th><th>الحالة</th></tr></thead>
-    <tbody>
+{# ════ الإجازات ════════════════════════════════════════════════════ #}
+<section class="ac-panel" id="leaves">
+  <div class="ac-card">
+    <h3 class="ac-h">🌴 رصيد الإجازات <small>السنة الحالية: {{ leave_types|length }} نوع متاح</small></h3>
+
+    {% if leave_types %}
+    <div class="ac-grid ac-g3">
+      {% for lt in leave_types %}
+      {% set bal = bal_by_type.get(lt.id) %}
+      {% set rem = (bal.remaining_days if bal else 0)|float %}
+      <div class="ac-lt {{ 'zero' if rem <= 0 else 'low' if rem <= 2 else '' }}">
+        <div class="ac-lt-n">{{ lt.name }}</div>
+        <div class="ac-lt-v">{{ "%.1f"|format(rem) }} <small>يوم</small></div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <details class="ac-det" id="leave-det">
+      <summary>+ طلب إجازة جديد</summary>
+      <form method="POST" action="{{ url_for('portal_emp.leave_new') }}" class="ac-form" data-once id="leave-form">
+        <div class="full"><label class="ac-lbl">نوع الإجازة</label>
+          <select name="leave_type_id" required class="ac-in">
+            <option value="">— اختر —</option>
+            {% for lt in leave_types %}<option value="{{ lt.id }}">{{ lt.name }}</option>{% endfor %}
+          </select></div>
+        <div><label class="ac-lbl">من تاريخ</label><input type="date" name="start_date" id="lv-from" required class="ac-in" dir="ltr"></div>
+        <div><label class="ac-lbl">إلى تاريخ</label><input type="date" name="end_date" id="lv-to" required class="ac-in" dir="ltr"></div>
+        <div class="full"><span class="ac-hint" id="lv-info">اختر التواريخ ويظهر لك عدد الأيام.</span></div>
+        <div class="full"><label class="ac-lbl">السبب (اختياري)</label><textarea name="reason" rows="2" class="ac-in"></textarea></div>
+        <div class="full"><button type="submit" class="ac-btn">إرسال الطلب</button></div>
+      </form>
+    </details>
+    {% else %}
+    <div class="ac-empty">لا توجد أنواع إجازة معرّفة.</div>
+    {% endif %}
+  </div>
+
+  <div class="ac-card">
+    <h3 class="ac-h">طلباتي السابقة</h3>
+    {% if requests %}
+    <div class="ac-filt" data-filter="leave-list">
+      <button type="button" class="ac-fb is-on" data-f="all">الكل ({{ requests|length }})</button>
+      <button type="button" class="ac-fb" data-f="p">قيد المراجعة ({{ lv.pend }})</button>
+      <button type="button" class="ac-fb" data-f="a">معتمدة ({{ lv.appr }})</button>
+      <button type="button" class="ac-fb" data-f="r">مرفوضة ({{ lv.rej }})</button>
+    </div>
+    <div class="ac-list" id="leave-list">
       {% for r in requests %}
-      <tr>
-        <td>{{ r.leave_type.name if r.leave_type else '—' }}</td>
-        <td class="font-mono">{{ r.start_date.isoformat() }}</td>
-        <td class="font-mono">{{ r.end_date.isoformat() }}</td>
-        <td class="font-mono">{{ r.days_count }}</td>
-        <td>
-          {% if r.status == statuses.PENDING %}<span class="badge badge-sent">قيد المراجعة</span>
-          {% elif r.status == statuses.APPROVED %}<span class="badge badge-paid">معتمدة</span>
-          {% elif r.status == statuses.REJECTED %}<span class="badge badge-cancelled">مرفوضة</span>
-          {% else %}{{ r.status.value }}{% endif %}
-        </td>
-      </tr>
+      {% set st = 'p' if r.status == statuses.PENDING else 'a' if r.status == statuses.APPROVED else 'r' if r.status == statuses.REJECTED else 'o' %}
+      <div class="ac-row" data-st="{{ st }}">
+        <div>
+          <div class="ac-row-t">{{ r.leave_type.name if r.leave_type else '—' }}</div>
+          <div class="ac-row-s"><span dir="ltr">{{ r.start_date.isoformat() }} → {{ r.end_date.isoformat() }}</span> · {{ r.days_count }} يوم</div>
+        </div>
+        {% if st == 'p' %}<span class="ac-b p">قيد المراجعة</span>
+        {% elif st == 'a' %}<span class="ac-b a">معتمدة</span>
+        {% elif st == 'r' %}<span class="ac-b r">مرفوضة</span>
+        {% else %}<span class="ac-b o">{{ r.status.value }}</span>{% endif %}
+      </div>
       {% endfor %}
-    </tbody>
-  </table>
-  {% endif %}
-</div>
-
-{# ─── Advance balance + request form ──────────────────────────── #}
-{# MARSOUD-ATTENDANCE-CHECKIN (tickets 2 + 3, 2026-08-05) — the employee
-   records their own attendance. The math challenge is required by the
-   ticket before either action is accepted; the server verifies it and
-   consumes it, so this markup is a convenience, not the protection.
-   NB: Jinja comments do not nest and cannot sit inside an expression. #}
-<div class="card p-6 mb-4" id="attendance">
-  <h3 class="font-bold text-navy-900 mb-3">🕐 الحضور والانصراف</h3>
-
-  <div class="grid grid-cols-2 gap-3 mb-4">
-    <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
-      <div class="text-xs text-slate-500">حضور اليوم</div>
-      <div class="text-lg font-bold font-mono text-navy-900 mt-1" dir="ltr">
-        {{ today_checkin.check_in_time.strftime('%H:%M') if today_checkin and today_checkin.check_in_time else '—' }}
-      </div>
     </div>
-    <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
-      <div class="text-xs text-slate-500">انصراف اليوم</div>
-      <div class="text-lg font-bold font-mono text-navy-900 mt-1" dir="ltr">
-        {{ today_checkin.check_out_time.strftime('%H:%M') if today_checkin and today_checkin.check_out_time else '—' }}
-      </div>
+    <div class="ac-empty" id="leave-list-empty" style="display:none">لا توجد طلبات في هذا التصنيف.</div>
+    {% else %}
+    <div class="ac-empty">لسه ما قدمتش أي طلب إجازة.</div>
+    {% endif %}
+  </div>
+</section>
+
+{# ════ السلف ═══════════════════════════════════════════════════════ #}
+<section class="ac-panel" id="advances">
+  <div class="ac-card">
+    <h3 class="ac-h">💵 السلف</h3>
+
+    {% if advance %}
+    {% set a_amt = advance.amount|float %}
+    {% set a_paid = advance.paid_amount|float %}
+    {% set a_pct = ((a_paid / a_amt) * 100) if a_amt > 0 else 0 %}
+    {% set a_pct = [a_pct, 100]|min|round(0)|int %}
+    <div class="ac-grid ac-g4">
+      <div class="ac-kpi am"><div class="ac-kpi-l">الرصيد المتبقي</div><div class="ac-kpi-v ac-amt">{{ advance.remaining|money }}</div></div>
+      <div class="ac-kpi"><div class="ac-kpi-l">القسط الشهر القادم</div><div class="ac-kpi-v ac-amt">{{ advance.next_installment|money }}</div></div>
+      <div class="ac-kpi"><div class="ac-kpi-l">إجمالي السلفة</div><div class="ac-kpi-v ac-amt">{{ advance.amount|money }}</div></div>
+      <div class="ac-kpi em"><div class="ac-kpi-l">المسدد حتى الآن</div><div class="ac-kpi-v ac-amt">{{ advance.paid_amount|money }}</div></div>
     </div>
+    <div class="ac-bar" role="progressbar" aria-valuenow="{{ a_pct }}" aria-valuemin="0" aria-valuemax="100"><i style="width:{{ a_pct }}%"></i></div>
+    <div class="ac-hint">تم سداد {{ a_pct }}% — صُرفت يوم <span dir="ltr">{{ advance.disbursed_on.isoformat() }}</span> ومقسّطة على {{ advance.months }} {{ 'شهر' if advance.months == 1 else 'شهور' }}. لا يمكن طلب سلفة جديدة قبل سداد الحالية.</div>
+
+    {# MARSOUD-ADVANCE-INSTALMENTS — every instalment has a row so the
+       employee sees which month each one came out of. #}
+    {% if advance_repayments %}
+    <div class="ac-sec-t" style="margin-top:18px">الأقساط المخصومة</div>
+    <div class="ac-list">
+      {% for r in advance_repayments %}
+      <div class="ac-row">
+        <div>
+          <div class="ac-row-t" dir="ltr" style="text-align:start">{{ r.period_year }}-{{ "%02d"|format(r.period_month) }}</div>
+          <div class="ac-row-s">كشف الرواتب: {{ r.payroll_run.number if r.payroll_run else '—' }}</div>
+        </div>
+        <div class="ac-row-m ac-amt {{ 'neg' if r.amount|float >= 0.005 else '' }}">
+          {{ r.amount|money }}{% if r.amount|float < 0.005 %} <span class="ac-b o">لم يُخصم</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% else %}
+    <p class="ac-sub">مفيش سلفة حالية. تقدر تقدّم طلب جديد:</p>
+    <details class="ac-det" style="margin-top:0">
+      <summary>+ طلب سلفة جديدة</summary>
+      <form method="POST" action="{{ url_for('portal_emp.advance_new') }}" class="ac-form" data-once>
+        <div class="full"><label class="ac-lbl">المبلغ ({{ cur }})</label><input type="number" name="amount" step="0.01" min="0.01" required class="ac-in" dir="ltr" inputmode="decimal"></div>
+        <div class="full"><label class="ac-lbl">السبب (اختياري)</label><textarea name="reason" rows="2" class="ac-in"></textarea></div>
+        <div class="full"><button type="submit" class="ac-btn">إرسال الطلب</button></div>
+      </form>
+    </details>
+    <p class="ac-hint">يصل الطلب لصاحب الشركة/المحاسب للموافقة. بعد الاعتماد يُخصم القسط تلقائيًا من راتبك كل شهر.</p>
+    {% endif %}
   </div>
 
-  {% set has_in = today_checkin and today_checkin.check_in_time %}
-  {% set has_out = today_checkin and today_checkin.check_out_time %}
-
-  {% if has_in and has_out %}
-    <p class="text-sm text-slate-500">
-      اكتمل تسجيل اليوم
-      {% if today_checkin.worked_hours %}
-        — <span class="font-mono">{{ today_checkin.worked_hours|money }}</span> ساعة
-      {% endif %}
-    </p>
-  {% else %}
-    <form method="POST" id="attendance-form"
-          action="{{ url_for('portal_emp.attendance_checkin') if not has_in else url_for('portal_emp.attendance_checkout') }}">
-      <input type="hidden" name="check_lat" id="check_lat">
-      <input type="hidden" name="check_lng" id="check_lng">
-
-      <div class="bg-amber-50/50 border border-amber-200 rounded-lg p-3 mb-3">
-        <label class="block text-sm font-semibold text-amber-900 mb-1">
-          للتأكد أنك لست روبوتًا: كم يساوي
-          <span class="font-mono text-base" dir="ltr">{{ math_question }}</span>؟
-        </label>
-        <input type="number" name="math_answer" required autocomplete="off"
-               class="border rounded px-2 py-1 text-sm w-28" dir="ltr">
-      </div>
-
-      <button class="btn-primary text-sm w-full">
-        {{ 'تسجيل انصراف' if has_in else 'تسجيل حضور' }}
-      </button>
-      <p class="text-xs text-slate-500 mt-2" id="geo-note">
-        سيُطلب إذن الموقع. الرفض لا يمنع التسجيل.
-      </p>
-    </form>
-
-    <script>
-    (function () {
-      var form = document.getElementById('attendance-form');
-      if (!form || !navigator.geolocation) { return; }
-      var sent = false;
-      form.addEventListener('submit', function (e) {
-        if (sent) { return; }
-        e.preventDefault();
-        sent = true;
-        var done = function () { form.submit(); };
-        navigator.geolocation.getCurrentPosition(
-          function (pos) {
-            document.getElementById('check_lat').value = pos.coords.latitude;
-            document.getElementById('check_lng').value = pos.coords.longitude;
-            done();
-          },
-          done,                       // refused or failed: submit anyway
-          { timeout: 5000, maximumAge: 60000 }
-        );
-      });
-    })();
-    </script>
-  {% endif %}
-
-  {# MARSOUD-VIOLATION-POLICY (2026-08-05) — ticket 6. A collapsible
-     inline form so the whole flow lives with the attendance card, and
-     the browser preserves the fragment (#attendance) after submit. #}
-  <details class="mt-4 border-t border-slate-200 pt-3">
-    <summary class="text-sm font-semibold text-navy-900 cursor-pointer">
-      🕐 طلب استئذان
-    </summary>
-    <form method="POST" action="{{ url_for('portal_emp.permission_new') }}"
-          class="grid grid-cols-2 gap-3 mt-3 text-sm">
-      <div class="col-span-2">
-        <label class="block text-xs font-semibold text-slate-600 mb-1">اليوم</label>
-        <input type="date" name="request_date" class="input" dir="ltr" required>
-      </div>
-      <div>
-        <label class="block text-xs font-semibold text-slate-600 mb-1">من</label>
-        <input type="time" name="start_time" class="input" dir="ltr">
-      </div>
-      <div>
-        <label class="block text-xs font-semibold text-slate-600 mb-1">إلى</label>
-        <input type="time" name="end_time" class="input" dir="ltr">
-      </div>
-      <div class="col-span-2">
-        <label class="block text-xs font-semibold text-slate-600 mb-1">عدد الساعات</label>
-        <input type="number" step="0.25" min="0.25" name="hours_count"
-               class="input" dir="ltr" required>
-      </div>
-      <div class="col-span-2">
-        <label class="block text-xs font-semibold text-slate-600 mb-1">السبب</label>
-        <textarea name="reason" class="input" rows="2"></textarea>
-      </div>
-      <div class="col-span-2">
-        <button class="btn-primary text-sm">إرسال</button>
-      </div>
-    </form>
-  </details>
-</div>
-
-<div class="card p-6 mb-4" id="advances">
-  <div class="flex items-start justify-between mb-3 flex-wrap gap-2">
-    <h3 class="font-bold text-navy-900">💵 السلف</h3>
-  </div>
-
-  {% if advance %}
-  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-    <div class="bg-amber-50 rounded-lg p-3 border border-amber-200">
-      <div class="text-xs text-amber-700">الرصيد المتبقي</div>
-      <div class="text-lg font-bold text-navy-900 font-mono mt-1">{{ advance.remaining|money }}</div>
+  <div class="ac-card">
+    <h3 class="ac-h">طلباتي السابقة</h3>
+    {% if advance_requests %}
+    <div class="ac-filt" data-filter="adv-list">
+      <button type="button" class="ac-fb is-on" data-f="all">الكل ({{ advance_requests|length }})</button>
+      <button type="button" class="ac-fb" data-f="p">قيد المراجعة ({{ av.pend }})</button>
+      <button type="button" class="ac-fb" data-f="a">معتمدة ({{ av.appr }})</button>
+      <button type="button" class="ac-fb" data-f="r">مرفوضة ({{ av.rej }})</button>
     </div>
-    <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
-      <div class="text-xs text-slate-500">القسط الشهر القادم</div>
-      <div class="text-lg font-bold text-navy-900 font-mono mt-1">{{ advance.next_installment|money }}</div>
-    </div>
-    <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
-      <div class="text-xs text-slate-500">إجمالي السلفة</div>
-      <div class="text-lg font-bold text-navy-900 font-mono mt-1">{{ advance.amount|money }}</div>
-    </div>
-    <div class="bg-slate-50 rounded-lg p-3 border border-slate-200">
-      <div class="text-xs text-slate-500">المسدد حتى الآن</div>
-      <div class="text-lg font-bold text-navy-900 font-mono mt-1">{{ advance.paid_amount|money }}</div>
-    </div>
-  </div>
-  <p class="text-xs text-slate-500 mb-2">
-    صُرفت يوم <span class="font-mono">{{ advance.disbursed_on.isoformat() }}</span>
-    — مقسّطة على {{ advance.months }} {{ 'شهر' if advance.months == 1 else 'شهور' }}.
-    لا يمكن طلب سلفة جديدة قبل سداد الحالية.
-  </p>
-
-  {# MARSOUD-ADVANCE-INSTALMENTS (2026-08-05) — «المسدد حتى الآن» above
-     was a subtraction with nothing behind it. Every instalment now has
-     a row, so the employee can see which month each one came out of
-     instead of having to trust one number. #}
-  {% if advance_repayments %}
-  <div class="mt-3">
-    <div class="text-xs font-semibold text-slate-600 mb-2">الأقساط المخصومة</div>
-    <table class="w-full text-xs">
-      <thead>
-        <tr class="text-slate-500 border-b border-slate-200">
-          <th class="text-right py-1">الشهر</th>
-          <th class="text-right py-1">المبلغ</th>
-          <th class="text-right py-1">كشف الرواتب</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in advance_repayments %}
-        <tr class="border-b border-slate-100">
-          <td class="py-1 font-mono">{{ r.period_year }}-{{ "%02d"|format(r.period_month) }}</td>
-          <td class="py-1 font-mono {{ 'text-slate-500' if r.amount|float < 0.005 else 'text-navy-900 font-bold' }}">
-            {{ r.amount|money }}
-            {% if r.amount|float < 0.005 %}<span class="text-[10px]">(لم يُخصم)</span>{% endif %}
-          </td>
-          <td class="py-1 text-slate-500">
-            {{ r.payroll_run.number if r.payroll_run else '—' }}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% endif %}
-  {% else %}
-  <details class="bg-amber-50/40 border border-amber-200 rounded-lg p-3">
-    <summary class="cursor-pointer text-sm font-semibold text-amber-800">+ طلب سلفة جديدة</summary>
-    <form method="POST" action="{{ url_for('portal_emp.advance_new') }}" class="grid grid-cols-2 gap-3 mt-3 text-sm">
-      <label>
-        <span class="text-xs font-semibold text-slate-700">المبلغ</span>
-        <input type="number" name="amount" step="0.01" min="0.01" required class="input text-sm mt-1 font-mono">
-      </label>
-      <label class="col-span-2">
-        <span class="text-xs font-semibold text-slate-700">السبب (اختياري)</span>
-        <textarea name="reason" rows="2" class="textarea text-sm mt-1"></textarea>
-      </label>
-      <div class="col-span-2 flex justify-end">
-        <button type="submit" class="btn-primary text-sm">إرسال الطلب</button>
-      </div>
-    </form>
-  </details>
-  <p class="text-xs text-slate-500 mt-2">يصل الطلب لصاحب الشركة/المحاسب للموافقة. بعد الاعتماد يُخصم القسط تلقائياً من راتبك كل شهر.</p>
-  {% endif %}
-
-  {% if advance_requests %}
-  <hr class="my-4">
-  <h4 class="font-bold text-navy-900 text-sm mb-2">طلباتي السابقة</h4>
-  <table class="data-table text-xs">
-    <thead><tr><th>المبلغ</th><th>السبب</th><th>التاريخ</th><th>الحالة</th></tr></thead>
-    <tbody>
+    <div class="ac-list" id="adv-list">
       {% for r in advance_requests %}
-      <tr>
-        <td class="font-mono">{{ r.amount|money }}</td>
-        <td>{{ r.reason or '—' }}</td>
-        <td class="font-mono">{{ r.created_at | company_dt('%Y-%m-%d') if r.created_at else '—' }}</td>
-        <td>
-          {% if r.status == advance_statuses.PENDING %}<span class="badge badge-sent">قيد المراجعة</span>
-          {% elif r.status == advance_statuses.APPROVED %}<span class="badge badge-paid">معتمدة</span>
-          {% elif r.status == advance_statuses.REJECTED %}<span class="badge badge-cancelled">مرفوضة</span>
-          {% else %}{{ r.status.value }}{% endif %}
-          {% if r.review_note %}<div class="text-slate-500">{{ r.review_note }}</div>{% endif %}
-        </td>
-      </tr>
+      {% set st = 'p' if r.status == advance_statuses.PENDING else 'a' if r.status == advance_statuses.APPROVED else 'r' if r.status == advance_statuses.REJECTED else 'o' %}
+      <div class="ac-row" data-st="{{ st }}">
+        <div>
+          <div class="ac-row-t"><span class="ac-amt" dir="ltr">{{ r.amount|money }}</span> {{ cur }}</div>
+          <div class="ac-row-s">{{ r.reason or '—' }} · <span dir="ltr">{{ r.created_at | company_dt('%Y-%m-%d') if r.created_at else '—' }}</span></div>
+          {% if r.review_note %}<div class="ac-row-s">ملاحظة المراجع: {{ r.review_note }}</div>{% endif %}
+        </div>
+        {% if st == 'p' %}<span class="ac-b p">قيد المراجعة</span>
+        {% elif st == 'a' %}<span class="ac-b a">معتمدة</span>
+        {% elif st == 'r' %}<span class="ac-b r">مرفوضة</span>
+        {% else %}<span class="ac-b o">{{ r.status.value }}</span>{% endif %}
+      </div>
       {% endfor %}
-    </tbody>
-  </table>
-  {% endif %}
-</div>
-
-{# ─── Payslips ────────────────────────────────────────────────── #}
-<div class="card p-6 mb-4" id="payslips">
-  <h3 class="font-bold text-navy-900 mb-3">💰 قسائم الرواتب</h3>
-  {% if payslips %}
-  <div class="overflow-x-auto">
-    <table class="data-table text-sm">
-      <thead>
-        <tr>
-          <th>الفترة</th>
-          <th class="text-end">الأساسي</th>
-          <th class="text-end">البدلات</th>
-          <th class="text-end">الإضافات</th>
-          <th class="text-end">الخصومات</th>
-          <th class="text-end">الصافي</th>
-          <th>PDF</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for line, run in payslips %}
-        {% set add = (line.bonus or 0)|float + (line.overtime or 0)|float %}
-        {% set ded = (line.deductions or 0)|float + (line.absence_deduction or 0)|float + (line.late_deduction or 0)|float + (line.advance_deduction or 0)|float %}
-        <tr>
-          <td class="font-mono">{{ run.period_year }}-{{ '%02d'|format(run.period_month) }}</td>
-          <td class="text-end font-mono">{{ line.basic|float if line.basic else 0|money }}</td>
-          <td class="text-end font-mono">{{ line.allowances|float if line.allowances else 0|money }}</td>
-          <td class="text-end font-mono text-emerald-700">+{{ add|money }}</td>
-          <td class="text-end font-mono text-rose-700">-{{ ded|money }}</td>
-          <td class="text-end font-mono font-bold">{{ line.net|float if line.net else 0|money }}</td>
-          <td>
-            <a href="{{ url_for('portal_emp.payslip_pdf', line_id=line.id) }}" target="_blank" class="text-emerald-700 hover:underline text-xs">📄 تحميل</a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-  <p class="text-sm text-slate-500">لا توجد قسائم بعد.</p>
-  {% endif %}
-</div>
-
-{# ════ SECTION 2 — تعديل حسابي ═══════════════════════════════════════ #}
-<div class="card p-6 mb-4" id="account-edit">
-  <h3 class="font-bold text-navy-900 mb-3">✎ تعديل حسابي</h3>
-  <p class="text-sm text-slate-500 mb-3">
-    التحكم في الحساب الشخصي. لتعديل الاسم أو رقم الجوال أو البريد، راجع إدارة الموارد البشرية.
-  </p>
-  <div class="bg-slate-50 rounded-lg p-4 text-sm text-slate-600">
-    💡 الصورة الشخصية وتفضيلات اللغة والإشعارات هتتفعّل في تحديثات قادمة.
-  </div>
-</div>
-
-{# ════ SECTION 3 — تغيير كلمة السر ═══════════════════════════════════ #}
-<div class="card p-6 mb-4" id="password">
-  <h3 class="font-bold text-navy-900 mb-3">🔒 تغيير كلمة السر</h3>
-  <p class="text-sm text-slate-500 mb-4">
-    لتغيير كلمة السر، أدخل كلمة السر القديمة أولاً، ثم الجديدة مرتين للتأكيد.
-    كلمة السر لازم تكون 6 أحرف على الأقل.
-  </p>
-  <form method="POST" action="{{ url_for('portal_emp.change_password') }}" class="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-xl">
-    <label class="col-span-2">
-      <span class="text-xs font-semibold text-slate-700">كلمة السر القديمة</span>
-      <input type="password" name="old_password" required autocomplete="current-password" class="input text-sm mt-1">
-    </label>
-    <label>
-      <span class="text-xs font-semibold text-slate-700">كلمة السر الجديدة</span>
-      <input type="password" name="new_password" required minlength="6" autocomplete="new-password" class="input text-sm mt-1">
-    </label>
-    <label>
-      <span class="text-xs font-semibold text-slate-700">تأكيد كلمة السر الجديدة</span>
-      <input type="password" name="confirm_password" required minlength="6" autocomplete="new-password" class="input text-sm mt-1">
-    </label>
-    <div class="col-span-2 flex justify-end">
-      <button type="submit" class="btn-primary text-sm">💾 تغيير كلمة السر</button>
     </div>
-  </form>
+    <div class="ac-empty" id="adv-list-empty" style="display:none">لا توجد طلبات في هذا التصنيف.</div>
+    {% else %}
+    <div class="ac-empty">لسه ما قدمتش أي طلب سلفة.</div>
+    {% endif %}
+  </div>
+</section>
+
+{# ════ الرواتب ═════════════════════════════════════════════════════ #}
+<section class="ac-panel" id="payslips">
+  <div class="ac-card">
+    <h3 class="ac-h">💰 قسائم الرواتب</h3>
+    {% if payslips %}
+    <div class="ac-filt" data-yearfilter="ps-list">
+      <button type="button" class="ac-fb is-on" data-y="all">كل السنين</button>
+      {% for y in years %}<button type="button" class="ac-fb" data-y="{{ y }}">{{ y }}</button>{% endfor %}
+    </div>
+    <div class="ac-hint" style="margin:0 0 10px">إجمالي الصافي للقسائم المعروضة (<span id="ps-count">{{ payslips|length }}</span>): <b class="ac-amt" id="ps-total" dir="ltr">—</b> {{ cur }}</div>
+
+    <div id="ps-list">
+      {% for line, run in payslips %}
+      {% set add = (line.bonus or 0)|float + (line.overtime or 0)|float %}
+      {% set ded = (line.deductions or 0)|float + (line.absence_deduction or 0)|float + (line.late_deduction or 0)|float + (line.advance_deduction or 0)|float %}
+      <details class="ac-ps" data-year="{{ run.period_year }}" data-net="{{ (line.net or 0)|float }}">
+        <summary>
+          <span class="ac-ps-p">{{ months_ar[run.period_month] }} {{ run.period_year }}</span>
+          <span class="ac-ps-n ac-amt">{{ (line.net or 0)|float|money }} {{ cur }}</span>
+        </summary>
+        <div class="ac-ps-b">
+          <div class="ac-f"><span class="ac-f-l">الأساسي</span><span class="ac-f-v mono ac-amt">{{ (line.basic or 0)|float|money }}</span></div>
+          <div class="ac-f"><span class="ac-f-l">البدلات</span><span class="ac-f-v mono ac-amt">{{ (line.allowances or 0)|float|money }}</span></div>
+          <div class="ac-f"><span class="ac-f-l">الإضافات</span><span class="ac-f-v mono pos ac-amt">+{{ add|money }}</span></div>
+          <div class="ac-f"><span class="ac-f-l">الخصومات</span><span class="ac-f-v mono neg ac-amt">-{{ ded|money }}</span></div>
+          <div class="ac-f" style="grid-column:1/-1"><a class="ac-btn" href="{{ url_for('portal_emp.payslip_pdf', line_id=line.id) }}" target="_blank" rel="noopener">📄 تحميل القسيمة PDF</a></div>
+        </div>
+      </details>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="ac-empty">لا توجد قسائم بعد. هتظهر هنا أول ما يتم اعتماد كشف الرواتب.</div>
+    {% endif %}
+  </div>
+</section>
+
+{# ════ الأمان (تعديل حسابي + كلمة السر) ══════════════════════════════ #}
+<section class="ac-panel" id="security">
+  <div class="ac-card" id="account-edit">
+    <h3 class="ac-h">✎ معلومات الدخول</h3>
+    <div class="ac-grid ac-g3">
+      <div class="ac-f"><span class="ac-f-l">اسم المستخدم / الإيميل</span><span class="ac-f-v mono"><span dir="ltr">{{ current_user.email }}</span></span></div>
+      <div class="ac-f"><span class="ac-f-l">آخر دخول</span><span class="ac-f-v mono"><span dir="ltr">{{ current_user.last_login_at|company_dt('%Y-%m-%d %H:%M') if current_user.last_login_at else '—' }}</span></span></div>
+      <div class="ac-f"><span class="ac-f-l">الشركة</span><span class="ac-f-v">{{ employee.company.name if employee.company else '—' }}</span></div>
+    </div>
+    <p class="ac-hint" style="margin-top:12px">لتعديل الاسم أو رقم الجوال أو البريد، راجع إدارة الموارد البشرية.</p>
+  </div>
+
+  <div class="ac-card" id="password">
+    <h3 class="ac-h">🔒 تغيير كلمة السر</h3>
+    <p class="ac-sub">أدخل كلمة السر القديمة أولًا، ثم الجديدة مرتين للتأكيد. كلمة السر لازم تكون 6 أحرف على الأقل — والأفضل 8+ بحروف وأرقام.</p>
+    <form method="POST" action="{{ url_for('portal_emp.change_password') }}" class="ac-form" style="max-width:560px" data-once id="pw-form">
+      <div class="full"><label class="ac-lbl">كلمة السر القديمة</label>
+        <div class="ac-pw"><input type="password" name="old_password" id="pw-old" required autocomplete="current-password" class="ac-in" dir="ltr"><button type="button" class="ac-eye" data-eye="pw-old" aria-label="إظهار">👁</button></div></div>
+      <div><label class="ac-lbl">كلمة السر الجديدة</label>
+        <div class="ac-pw"><input type="password" name="new_password" id="pw-new" required minlength="6" autocomplete="new-password" class="ac-in" dir="ltr"><button type="button" class="ac-eye" data-eye="pw-new" aria-label="إظهار">👁</button></div>
+        <div class="ac-meter" id="pw-meter" data-s="0"><i></i><i></i><i></i><i></i></div>
+        <div class="ac-hint" id="pw-strength">—</div></div>
+      <div><label class="ac-lbl">تأكيد كلمة السر الجديدة</label>
+        <div class="ac-pw"><input type="password" name="confirm_password" id="pw-conf" required minlength="6" autocomplete="new-password" class="ac-in" dir="ltr"><button type="button" class="ac-eye" data-eye="pw-conf" aria-label="إظهار">👁</button></div>
+        <div class="ac-hint" id="pw-match">&nbsp;</div></div>
+      <div class="full"><button type="submit" class="ac-btn" id="pw-submit">💾 تغيير كلمة السر</button></div>
+    </form>
+  </div>
+</section>
+
+<div class="ac-toast" id="ac-toast" role="status"></div>
 </div>
 
+<script>
+(function () {
+  var root = document.getElementById('ac-root');
+  function $(s, c) { return (c || document).querySelector(s); }
+  function $$(s, c) { return Array.prototype.slice.call((c || document).querySelectorAll(s)); }
+  var toastT;
+  function toast(msg) {
+    var t = $('#ac-toast'); t.textContent = msg; t.className = 'ac-toast on';
+    clearTimeout(toastT); toastT = setTimeout(function () { t.className = 'ac-toast'; }, 1800);
+  }
+
+  /* greeting */
+  var h = new Date().getHours();
+  $('#ac-greet').textContent = h < 5 ? 'سهران؟' : h < 12 ? 'صباح الخير' : h < 18 ? 'مساء الخير' : 'مساء النور';
+
+  /* tabs */
+  var panels = $$('.ac-panel'), tabs = $$('.ac-tab');
+  function show(id, scroll) {
+    var el = document.getElementById(id);
+    if (!el) { el = document.getElementById('overview'); id = 'overview'; }
+    var p = el.closest ? el.closest('.ac-panel') : el;
+    if (!p) { p = document.getElementById('overview'); }
+    panels.forEach(function (x) { x.classList.toggle('is-on', x === p); });
+    tabs.forEach(function (t) {
+      var on = t.getAttribute('data-tab') === p.id;
+      t.classList.toggle('is-on', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (on && t.scrollIntoView && scroll !== false) {
+        try { t.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) {}
+      }
+    });
+    if (el !== p && scroll !== false && el.scrollIntoView) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    else if (scroll !== false && window.scrollY > 260) { root.scrollIntoView({ block: 'start' }); }
+  }
+  function go(id) {
+    show(id);
+    try { history.replaceState(null, '', '#' + id); } catch (e) { location.hash = id; }
+  }
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function (e) { e.preventDefault(); go(t.getAttribute('data-tab')); });
+  });
+  $$('[data-go]').forEach(function (b) {
+    b.addEventListener('click', function (e) { e.preventDefault(); go(b.getAttribute('data-go')); });
+  });
+  window.addEventListener('hashchange', function () { show((location.hash || '#overview').slice(1)); });
+  show((location.hash || '#overview').slice(1), !!location.hash);
+
+  /* hide amounts (privacy) */
+  var hb = $('#ac-hide-btn');
+  function setHide(on) {
+    root.classList.toggle('ac-hide', on);
+    hb.setAttribute('aria-pressed', on ? 'true' : 'false');
+    hb.textContent = on ? '👁 إظهار المبالغ' : '👁 إخفاء المبالغ';
+    try { localStorage.setItem('ac.hide', on ? '1' : '0'); } catch (e) {}
+  }
+  var saved = null; try { saved = localStorage.getItem('ac.hide'); } catch (e) {}
+  if (saved === '1') { setHide(true); }
+  hb.addEventListener('click', function () { setHide(!root.classList.contains('ac-hide')); });
+
+  /* copy buttons */
+  $$('[data-copy]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var v = b.getAttribute('data-copy');
+      function ok() { toast('تم النسخ ✓'); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(v).then(ok, function () { toast(v); });
+      } else {
+        var ta = document.createElement('textarea'); ta.value = v; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); ok(); } catch (e) { toast(v); }
+        document.body.removeChild(ta);
+      }
+    });
+  });
+
+  /* status filters on request lists */
+  $$('[data-filter]').forEach(function (bar) {
+    var list = document.getElementById(bar.getAttribute('data-filter'));
+    var empty = document.getElementById(bar.getAttribute('data-filter') + '-empty');
+    $$('.ac-fb', bar).forEach(function (b) {
+      b.addEventListener('click', function () {
+        $$('.ac-fb', bar).forEach(function (x) { x.classList.toggle('is-on', x === b); });
+        var f = b.getAttribute('data-f'), n = 0;
+        $$('.ac-row', list).forEach(function (r) {
+          var vis = f === 'all' || r.getAttribute('data-st') === f;
+          r.style.display = vis ? '' : 'none'; if (vis) { n++; }
+        });
+        if (empty) { empty.style.display = n ? 'none' : ''; }
+      });
+    });
+  });
+
+  /* payslips: year filter + total */
+  var psList = document.getElementById('ps-list');
+  function fmt(n) { return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function psTotal() {
+    if (!psList) { return; }
+    var t = 0, c = 0;
+    $$('.ac-ps', psList).forEach(function (d) {
+      if (d.style.display !== 'none') { t += parseFloat(d.getAttribute('data-net')) || 0; c++; }
+    });
+    $('#ps-total').textContent = fmt(t); $('#ps-count').textContent = c;
+  }
+  $$('[data-yearfilter]').forEach(function (bar) {
+    $$('.ac-fb', bar).forEach(function (b) {
+      b.addEventListener('click', function () {
+        $$('.ac-fb', bar).forEach(function (x) { x.classList.toggle('is-on', x === b); });
+        var y = b.getAttribute('data-y');
+        $$('.ac-ps', psList).forEach(function (d) {
+          d.style.display = (y === 'all' || d.getAttribute('data-year') === y) ? '' : 'none';
+        });
+        psTotal();
+      });
+    });
+  });
+  psTotal();
+
+  /* leave form: live day count */
+  var lf = $('#lv-from'), lt = $('#lv-to'), li = $('#lv-info');
+  function pd(s) { var p = s.split('-'); return Date.UTC(+p[0], +p[1] - 1, +p[2]); }
+  function lvCalc() {
+    if (!lf || !lt) { return; }
+    if (lf.value && (!lt.value || lt.value < lf.value) && !lt.getAttribute('data-touched')) { lt.value = lf.value; }
+    if (lf.value) { lt.min = lf.value; }
+    if (lf.value && lt.value) {
+      if (lt.value < lf.value) { li.className = 'ac-hint bad'; li.textContent = 'تاريخ النهاية قبل تاريخ البداية.'; return; }
+      var d = Math.round((pd(lt.value) - pd(lf.value)) / 86400000) + 1;
+      li.className = 'ac-hint ok';
+      li.innerHTML = 'المدة: <span class="ac-days">' + d + ' ' + (d === 1 ? 'يوم' : 'أيام') + '</span> تقويمية (الحساب النهائي بيتم عند الاعتماد)';
+    } else { li.className = 'ac-hint'; li.textContent = 'اختر التواريخ ويظهر لك عدد الأيام.'; }
+  }
+  if (lf && lt) {
+    lf.addEventListener('change', lvCalc);
+    lt.addEventListener('change', function () { lt.setAttribute('data-touched', '1'); lvCalc(); });
+  }
+
+  /* permission form: auto hours */
+  var pf = $('#pm-from'), pt = $('#pm-to'), ph = $('#pm-hours');
+  function pmCalc() {
+    if (!pf || !pt || !ph || ph.getAttribute('data-touched')) { return; }
+    if (!pf.value || !pt.value) { return; }
+    var a = pf.value.split(':'), b = pt.value.split(':');
+    var m = (+b[0] * 60 + +b[1]) - (+a[0] * 60 + +a[1]);
+    if (m > 0) { ph.value = (Math.round(m / 15) * 0.25).toFixed(2); }
+  }
+  if (pf && pt && ph) {
+    pf.addEventListener('change', pmCalc); pt.addEventListener('change', pmCalc);
+    ph.addEventListener('input', function () { ph.setAttribute('data-touched', '1'); });
+  }
+
+  /* attendance: ask for location, then submit (refusal never blocks) */
+  var af = document.getElementById('attendance-form');
+  if (af) {
+    var sent = false;
+    af.addEventListener('submit', function (e) {
+      if (sent) { e.preventDefault(); return; }
+      sent = true;
+      var btn = document.getElementById('attendance-btn'); if (btn) { btn.disabled = true; }
+      if (!navigator.geolocation) { return; }
+      e.preventDefault();
+      var done = function () { af.submit(); };
+      navigator.geolocation.getCurrentPosition(
+        function (pos) {
+          document.getElementById('check_lat').value = pos.coords.latitude;
+          document.getElementById('check_lng').value = pos.coords.longitude;
+          done();
+        },
+        done,
+        { timeout: 5000, maximumAge: 60000 }
+      );
+    });
+  }
+
+  /* double-submit guard on the other forms */
+  $$('form[data-once]').forEach(function (f) {
+    f.addEventListener('submit', function (e) {
+      var b = f.querySelector('button[type=submit], button:not([type])');
+      if (b) { setTimeout(function () { if (!e.defaultPrevented) { b.disabled = true; } }, 0); }
+    });
+  });
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) { $$('.ac-btn[disabled]').forEach(function (b) { b.disabled = false; }); }
+  });
+
+  /* password: show/hide, strength, match */
+  $$('.ac-eye').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var i = document.getElementById(b.getAttribute('data-eye'));
+      i.type = i.type === 'password' ? 'text' : 'password';
+    });
+  });
+  var pn = $('#pw-new'), pc = $('#pw-conf'), pm = $('#pw-match'), ps = $('#pw-strength'), pmeter = $('#pw-meter');
+  function pwCheck() {
+    if (!pn) { return; }
+    var v = pn.value, s = 0;
+    if (v.length >= 6) { s++; }
+    if (v.length >= 10) { s++; }
+    if (/[a-z]/.test(v) && /[A-Z]/.test(v)) { s++; }
+    if (/\d/.test(v) && /[^A-Za-z0-9]/.test(v)) { s++; } else if (/\d/.test(v) && v.length >= 8) { s = Math.max(s, 3); }
+    if (!v) { s = 0; }
+    if (v && v.length < 6) { s = 1; }
+    pmeter.setAttribute('data-s', s);
+    ps.textContent = !v ? '—' : v.length < 6 ? 'قصيرة جدًا (6 أحرف على الأقل)' : ['', 'ضعيفة', 'متوسطة', 'جيدة', 'قوية'][s];
+    if (pc.value) {
+      var ok = pc.value === v;
+      pm.className = 'ac-hint ' + (ok ? 'ok' : 'bad');
+      pm.textContent = ok ? '✓ متطابقة' : 'غير متطابقة';
+    } else { pm.className = 'ac-hint'; pm.innerHTML = '&nbsp;'; }
+  }
+  if (pn && pc) { pn.addEventListener('input', pwCheck); pc.addEventListener('input', pwCheck); }
+  var pwf = document.getElementById('pw-form');
+  if (pwf) {
+    pwf.addEventListener('submit', function (e) {
+      if (pn.value !== pc.value) { e.preventDefault(); pwCheck(); pc.focus(); toast('كلمتا السر غير متطابقتين'); }
+    });
+  }
+})();
+</script>
 {% endblock %}
