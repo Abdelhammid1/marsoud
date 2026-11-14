@@ -1,210 +1,582 @@
 {% extends "base.html" %}
 {% block page_title %}المحلل الذكي{% endblock %}
 {% block content %}
-{# MARSOUD-INSIGHTS-AGENT-01 (Batch 9 Ticket 6, 2026-08-01) —
-   read-only analyst chat. Visually distinct from the accountant
-   (amber accent + 🔍 icon) so users don't mistake the two.
-   MARSOUD-INSIGHTS-CONVERSATIONS-01 (2026-08-08) — multi-
-   conversation sidebar ported over from the accountant; palette
-   swap emerald → amber is the only visual difference. Shared JS
-   helpers (escapeHtml + renderMarkdownTables) come from the
-   agent-common.js script tag below. #}
+{# MARSOUD-INSIGHTS-UX-P78 - analyst chat redesign: new-chat default screen, archive panel,
+   collapsed history, report-style rendering. Read-only analyst; palette stays amber so it is
+   never confused with the accountant. Shared helpers come from the two script tags below. #}
 <script src="{{ url_for('static', filename='js/agent-common.js') }}"></script>
-<div class="grid grid-cols-3 gap-4 h-[calc(100vh-9rem)]">
-  <div class="card p-6 col-span-2 flex flex-col border-amber-200">
-    <div class="flex items-center justify-between mb-4">
-      <div class="flex items-center gap-3">
-        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-2xl">🔍</div>
+<script src="{{ url_for('static', filename='js/agent-rich.js') }}?v=78"></script>
+<style>
+/* MARSOUD-INSIGHTS-UX-P78 - analyst redesign */
+#ig-root{--c1:#f59e0b;--c2:#b45309;--ci:#78350f;--cs:#fffbeb;--cs2:#fef3c7;--cl:#fde68a;display:grid;grid-template-columns:2fr 1fr;gap:16px;height:calc(100vh - 9rem)}
+#ig-root>.card{display:flex;flex-direction:column;overflow:hidden;border-radius:20px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px rgba(15,23,42,.05)}
+#ig-main{padding:22px 24px 18px}
+#ig-side{padding:16px;gap:10px}
+.ig-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:14px}
+.ig-id{display:flex;align-items:center;gap:12px;min-width:0}
+.ig-logo{position:relative;flex:0 0 auto;width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#fbbf24,#ea580c);color:#fff;font-size:22px;box-shadow:0 0 0 3px rgba(245,158,11,.2),0 4px 12px rgba(217,119,6,.3)}
+.ig-t{margin:0;font-size:18px;font-weight:800;color:#0f172a}
+.ig-sub{margin:2px 0 0;font-size:12px;color:#64748b}
+.ig-hb{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.ig-new{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border:0;border-radius:999px;background:linear-gradient(135deg,#f59e0b,#b45309);color:#fff;font-size:13px;font-weight:800;white-space:nowrap;cursor:pointer;box-shadow:0 4px 12px rgba(180,83,9,.28);transition:.15s}
+.ig-new:hover{transform:translateY(-1px);box-shadow:0 8px 16px rgba(180,83,9,.32)}
+.ig-arch{padding:6px 14px;border:1px solid #e2e8f0;border-radius:999px;background:#fff;color:#64748b;font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer;transition:.15s}
+.ig-arch:hover{border-color:#fecaca;background:#fef2f2;color:#dc2626}
+.ig-dis{opacity:.45}
+#chat-messages{flex:1;display:flex;flex-direction:column;gap:14px;overflow-y:auto;margin:0 -24px 14px;padding:22px 26px;border-top:1px solid var(--cl);border-bottom:1px solid var(--cl);background:linear-gradient(180deg,#fffdf6,#fef9ec);scroll-behavior:smooth}
+.ig-row{display:flex;align-items:flex-start;gap:10px}
+.ig-u{justify-content:flex-end}
+.ig-a{justify-content:flex-start}
+.ig-av{flex:0 0 auto;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;background:linear-gradient(135deg,#fbbf24,#ea580c);box-shadow:0 2px 6px rgba(217,119,6,.3)}
+.ig-bu{max-width:80%;padding:11px 16px;border-radius:4px 18px 18px 18px;background:linear-gradient(135deg,#0f172a,#1e293b);color:#fff;font-size:14px;line-height:1.75;white-space:pre-wrap;box-shadow:0 1px 2px rgba(15,23,42,.1)}
+.ig-wrap{position:relative;display:flex;flex-direction:column;gap:6px;max-width:88%;min-width:0}
+.ig-wrap.ig-wide{max-width:97%}
+.ig-ba{position:relative;padding:13px 18px;border:1px solid var(--cl);border-radius:18px 4px 18px 18px;background:#fff;font-size:14px;line-height:1.8;box-shadow:0 1px 2px rgba(15,23,42,.06),0 6px 18px rgba(180,83,9,.05)}
+.ig-tools{position:absolute;top:-12px;inset-inline-end:10px;display:flex;gap:6px;opacity:0;transition:.15s}
+.ig-ba:hover .ig-tools,.ig-tools:focus-within{opacity:1}
+.ig-tb{padding:2px 10px;border:1px solid #e2e8f0;border-radius:999px;background:#fff;color:#64748b;font-size:11px;font-weight:600;cursor:pointer}
+.ig-tb:hover{border-color:var(--cl);color:var(--c2)}
+.ig-src{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:0 4px;font-size:11.5px;color:#94a3b8}
+.ig-chip{padding:2px 10px;border:1px solid var(--cl);border-radius:999px;background:var(--cs);color:var(--ci);font-weight:700}
+.ig-err{align-self:flex-start;max-width:90%;padding:10px 14px;border:1px solid #fecaca;border-radius:12px;background:#fef2f2;color:#991b1b;font-size:13.5px}
+.ig-load{display:inline-flex;align-items:center;gap:10px;padding:12px 18px;border:1px solid var(--cl);border-radius:18px 4px 18px 18px;background:#fff;color:#92400e;font-size:13.5px;font-weight:600}
+.ig-dots{display:inline-flex;gap:4px}
+.ig-dots i{width:7px;height:7px;border-radius:50%;background:var(--c1);animation:igb 1s infinite ease-in-out}
+.ig-dots i:nth-child(2){animation-delay:.15s}
+.ig-dots i:nth-child(3){animation-delay:.3s}
+@keyframes igb{0%,80%,100%{opacity:.25;transform:scale(.7)}40%{opacity:1;transform:scale(1)}}
+.ig-state{padding:60px 10px;text-align:center;color:#94a3b8;font-size:14px}
+.ig-hero{display:flex;flex-direction:column;align-items:center;gap:4px;padding-top:4px;text-align:center}
+.ig-orb{width:64px;height:64px;border-radius:20px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#fbbf24,#ea580c);color:#fff;font-size:30px;box-shadow:0 10px 24px rgba(217,119,6,.35);transform:rotate(-6deg)}
+.ig-ht{margin-top:10px;font-size:22px;font-weight:800;color:#0f172a}
+.ig-hs{max-width:520px;font-size:13.5px;line-height:1.8;color:#64748b}
+.ig-sug{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;width:100%;max-width:760px;margin-top:16px;text-align:right}
+.ig-sg{padding:10px 12px 12px;border:1px solid #e2e8f0;border-radius:16px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.ig-sg h4{margin:0 0 8px;font-size:12.5px;font-weight:800;color:#334155}
+.ig-card{display:block;width:100%;margin-top:4px;padding:7px 10px;border:1px solid transparent;border-radius:10px;background:#f8fafc;color:#0f172a;font-size:12.5px;font-weight:600;text-align:right;cursor:pointer;transition:.15s}
+.ig-card:hover{border-color:var(--cl);background:var(--cs);color:var(--c2);transform:translateX(-2px)}
+.ig-composer{display:flex;align-items:flex-end;gap:10px;padding:8px 10px 8px 8px;border:1.5px solid #e2e8f0;border-radius:18px;background:#fff;transition:.15s}
+.ig-composer:focus-within{border-color:var(--c1);box-shadow:0 0 0 4px rgba(245,158,11,.14)}
+.ig-input{flex:1;min-height:40px;max-height:140px;resize:none;border:0;outline:0;background:transparent;padding:9px 10px;font:inherit;font-size:14px;line-height:1.6;color:#0f172a}
+.ig-input::placeholder{color:#94a3b8}
+.ig-send{display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 18px;border:0;border-radius:13px;background:linear-gradient(135deg,#f59e0b,#b45309);color:#fff;font-weight:800;cursor:pointer}
+.ig-send:disabled{opacity:.55;cursor:wait}
+.ig-send svg{width:16px;height:16px;transform:scaleX(-1)}
+.ig-hint{margin-top:6px;text-align:center;font-size:11px;color:#94a3b8}
+.ig-newbig{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:13px 16px;border:0;border-radius:16px;background:linear-gradient(135deg,#f59e0b,#b45309);color:#fff;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 8px 18px rgba(180,83,9,.28);transition:.15s}
+.ig-newbig:hover{transform:translateY(-1px);box-shadow:0 12px 24px rgba(180,83,9,.34)}
+.ig-plus{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.24);font-size:18px;line-height:1}
+.ig-tog{display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;border:1px solid #e2e8f0;border-radius:14px;background:#f8fafc;color:#334155;font-size:13px;font-weight:700;cursor:pointer;transition:.15s}
+.ig-tog:hover{border-color:#cbd5e1;background:#f1f5f9}
+.ig-count{margin-inline-start:auto;min-width:22px;padding:1px 8px;border-radius:999px;background:#e2e8f0;font-size:11px;text-align:center}
+.ig-chev{display:inline-block;font-size:15px;line-height:1;transition:transform .2s}
+.ig-open .ig-chev{transform:rotate(180deg)}
+#ig-side:not(.ig-open) #conversations-list,#ig-side:not(.ig-open) .ig-search{display:none}
+#ig-side.ig-open .ig-about{display:none}
+#ig-side.ig-open #conversations-list{flex:1 1 0;min-height:0}
+#conversations-list{overflow-y:auto;font-size:13px}
+#conversations-list .ig-grp{margin:12px 4px 4px;font-size:11px;font-weight:800;color:#94a3b8}
+#conversations-list .conv-row{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;padding:9px 12px;border:1px solid transparent;border-radius:12px;cursor:pointer;transition:.15s}
+#conversations-list .conv-row:hover{background:#f1f5f9}
+#conversations-list .conv-row.on{border-color:var(--cl);background:var(--cs);box-shadow:inset -3px 0 0 var(--c1)}
+#conversations-list .conv-t{display:-webkit-box;overflow:hidden;font-size:13px;font-weight:600;line-height:1.5;color:#0f172a;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+#conversations-list .conv-d{font-size:11px;color:#94a3b8}
+#conversations-list .conv-x{padding:2px 6px;border:0;border-radius:8px;background:transparent;opacity:0;cursor:pointer;transition:.15s}
+#conversations-list .conv-row:hover .conv-x{opacity:1}
+#conversations-list .conv-x:hover{background:#fee2e2}
+.ig-empty{padding:18px 6px;text-align:center;font-size:12px;color:#94a3b8}
+.ig-search{width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc;font-size:12.5px;outline:0}
+.ig-search:focus{border-color:var(--c1);background:#fff}
+.ig-about{padding:14px;border:1px dashed #fcd34d;border-radius:16px;background:var(--cs);color:#475569;font-size:12.5px;line-height:1.9}
+.ig-about b{display:block;margin-bottom:4px;color:#0f172a;font-size:13px}
+.ig-about div{display:flex;gap:8px}
+.ig-ro{margin-top:8px;padding-top:8px;border-top:1px solid var(--cl);color:#78350f}
+.ig-ro a{color:var(--c2);font-weight:700;text-decoration:underline}
+.ig-archbtn{order:99;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:auto;padding:10px 14px;border:1px solid #e2e8f0;border-radius:14px;background:#fff;color:#64748b;font-size:13px;font-weight:700;cursor:pointer;transition:.15s}
+.ig-archbtn:hover{border-color:var(--cl);background:var(--cs);color:var(--c2)}
+.ag-rich{white-space:normal;color:#0f172a;font-size:14px;line-height:1.85}
+.ag-rich>:first-child{margin-top:0}
+.ag-rich>:last-child{margin-bottom:0}
+.ag-p{margin:0 0 10px}
+.ag-rich strong{font-weight:800}
+.ag-rich a{color:var(--c2);text-decoration:underline}
+.ag-rich code{direction:ltr;unicode-bidi:embed;padding:1px 6px;border:1px solid #e2e8f0;border-radius:6px;background:#f1f5f9;font-size:12.5px}
+.ag-h{display:flex;align-items:center;gap:8px;margin:16px 0 8px;font-size:15px;font-weight:800;color:var(--ci)}
+.ag-h::before{content:"";width:4px;height:16px;border-radius:4px;background:linear-gradient(180deg,var(--c1),var(--c2))}
+.ag-sum,.ag-act{display:flex;align-items:flex-start;gap:10px;margin:0 0 12px;padding:12px 14px;border:1px solid;border-radius:14px}
+.ag-sum>div,.ag-act>div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ag-sum b,.ag-act b{font-size:12px;font-weight:800;letter-spacing:.2px}
+.ag-sum span:not(.ag-si),.ag-act span:not(.ag-si){font-size:14px;font-weight:600;line-height:1.75}
+.ag-si{flex:0 0 auto;font-size:18px;line-height:1.5}
+.ag-sum{background:linear-gradient(135deg,#fffbeb,#fef3c7);border-color:#fcd34d;color:#78350f}
+.ag-act{margin:14px 0 0;background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-color:#6ee7b7;color:#065f46}
+.ag-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:8px 0 14px}
+.ag-kpi{padding:11px 14px;border:1px solid var(--cl);border-radius:14px;background:linear-gradient(180deg,#fff,var(--cs));box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.ag-kl{font-size:11.5px;font-weight:700;line-height:1.5;color:#64748b}
+.ag-kv{margin-top:2px;font-size:19px;font-weight:800;line-height:1.4;color:#0f172a;font-variant-numeric:tabular-nums}
+.ag-kneg .ag-kv{color:#dc2626}
+.ag-d{display:inline-block;padding:0 7px;border-radius:999px;font-size:.88em;font-weight:800;direction:ltr;unicode-bidi:isolate}
+.ag-up{background:#dcfce7;color:#15803d}
+.ag-dn{background:#fee2e2;color:#b91c1c}
+.ag-ol,.ag-ul{display:flex;flex-direction:column;gap:8px;margin:6px 0 12px;padding:0;list-style:none}
+.ag-ol{counter-reset:ag-n}
+.ag-ol>li,.ag-ul>li{display:flex;align-items:flex-start;gap:10px}
+.ag-ol>li{counter-increment:ag-n}
+.ag-ol>li::before{content:counter(ag-n);flex:0 0 auto;width:24px;height:24px;margin-top:2px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,var(--c1),var(--c2));color:#fff;font-size:12px;font-weight:800}
+.ag-ul>li::before{content:"";flex:0 0 auto;width:7px;height:7px;margin-top:12px;border-radius:50%;background:var(--c1)}
+.ag-li{flex:1;min-width:0}
+.ag-sub{display:flex;flex-direction:column;gap:4px;margin:6px 0 0;padding:0;list-style:none}
+.ag-sub>li{display:flex;gap:8px;font-size:13px;color:#475569}
+.ag-sub>li::before{content:"–";color:#94a3b8}
+.ag-tw{margin:10px 0 14px;overflow-x:auto;border:1px solid var(--cl);border-radius:14px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.ag-t{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+.ag-t th{padding:10px 14px;border-bottom:1px solid var(--cl);background:linear-gradient(180deg,#fffbeb,#fef3c7);color:var(--ci);font-size:12px;font-weight:800;text-align:right;white-space:nowrap}
+.ag-t td{padding:9px 14px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+.ag-t tbody tr:nth-child(even) td{background:#fafaf9}
+.ag-t tbody tr:hover td{background:#fffbeb}
+.ag-t tbody tr:last-child td{border-bottom:0}
+.ag-t th.num,.ag-t td.num{text-align:left}
+.ag-t td.num{direction:ltr;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ag-t td.neg{color:#dc2626}
+.ag-t tr.tot td{border-top:2px solid var(--cl);background:var(--cs2) !important;color:var(--ci);font-weight:800}
+.ag-call{margin:8px 0;padding:9px 12px;border:1px solid;border-radius:12px;font-size:13.5px;line-height:1.8}
+.ag-call-ok{background:#ecfdf5;border-color:#a7f3d0;color:#065f46}
+.ag-call-warn{background:#fffbeb;border-color:#fde68a;color:#92400e}
+.ag-call-err{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+.ag-call-info{background:#eff6ff;border-color:#bfdbfe;color:#1e40af}
+.ag-note{margin:8px 0;padding:8px 12px;border-inline-start:3px solid var(--c1);border-radius:8px;background:#f8fafc;color:#475569}
+.ag-hr{height:1px;margin:14px 0;border:0;background:linear-gradient(90deg,transparent,#e2e8f0,transparent)}
+.ag-code{direction:ltr;text-align:left;margin:8px 0;padding:12px 14px;overflow-x:auto;border-radius:12px;background:#0f172a;color:#e2e8f0;font-size:12.5px;line-height:1.7;white-space:pre}
+.ig-modal{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(15,23,42,.45);backdrop-filter:blur(2px)}
+.ig-modal.show{display:flex}
+.ig-mp{display:flex;flex-direction:column;width:min(480px,100%);max-height:80vh;overflow:hidden;border-radius:20px;background:#fff;box-shadow:0 24px 60px rgba(15,23,42,.3)}
+.ig-mh{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #f1f5f9;font-weight:800;color:#0f172a}
+.ig-mx{width:30px;height:30px;border:0;border-radius:50%;background:#f1f5f9;color:#64748b;font-size:18px;line-height:1;cursor:pointer}
+.ig-mb{display:flex;flex-direction:column;gap:8px;min-height:120px;padding:12px 14px;overflow-y:auto}
+.ig-mm{padding:30px 10px;text-align:center;color:#94a3b8;font-size:13.5px}
+.ig-ai{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;border:1px solid #e2e8f0;border-radius:14px;cursor:pointer;transition:.15s}
+.ig-ai:hover{border-color:var(--cl);background:var(--cs)}
+.ig-ai.busy{opacity:.5;pointer-events:none}
+.ig-ait{display:flex;flex-direction:column;gap:2px;min-width:0}
+.ig-ait b{overflow:hidden;color:#0f172a;font-size:13.5px;text-overflow:ellipsis;white-space:nowrap}
+.ig-ait span{color:#94a3b8;font-size:11.5px}
+.ig-rs{flex:0 0 auto;padding:4px 12px;border-radius:999px;background:var(--cs2);color:var(--c2);font-size:12px;font-weight:800}
+.ig-mf{padding:10px 20px 14px;border-top:1px solid #f1f5f9;color:#94a3b8;font-size:11.5px;line-height:1.7}
+.ig-toast{position:fixed;bottom:26px;left:50%;z-index:80;max-width:90vw;padding:10px 18px;border-radius:999px;background:#0f172a;color:#fff;font-size:13px;font-weight:600;opacity:0;pointer-events:none;transform:translate(-50%,10px);transition:.2s}
+.ig-toast.show{opacity:1;transform:translate(-50%,0)}
+@media(max-width:900px){
+  #ig-root{grid-template-columns:1fr;height:auto}
+  #ig-main{height:calc(100vh - 8rem);min-height:520px}
+  #chat-messages{padding:16px}
+  .ig-wrap,.ig-wrap.ig-wide{max-width:100%}
+  .ig-sub{display:none}
+  .ig-t{font-size:16px}
+}
+@media(hover:none){
+  .ig-tools{opacity:.9}
+  #conversations-list .conv-x{opacity:.7}
+}
+@media print{
+  body.ig-pm *{visibility:hidden}
+  body.ig-pm .ig-printing,body.ig-pm .ig-printing *{visibility:visible}
+  body.ig-pm .ig-printing{position:absolute;inset:0 0 auto 0;max-width:100%;border:0;box-shadow:none}
+  body.ig-pm .ig-tools{display:none}
+}
+</style>
+
+<div id="ig-root">
+  <div id="ig-main" class="card">
+    <div class="ig-head">
+      <div class="ig-id">
+        <div class="ig-logo">🔍</div>
         <div>
-          <h2 class="font-bold text-navy-900">المحلل الذكي</h2>
-          <p class="text-xs text-slate-500">قراءة وتحليل بيانات شركتك — للاطلاع فقط، مش بيعدّل أو ينفّذ أي عملية.</p>
+          <h2 class="ig-t">المحلل الذكي</h2>
+          <p class="ig-sub">يقرأ بياناتك ويطلّعها في تقارير جاهزة — للاطلاع فقط، لا يعدّل ولا ينفّذ</p>
         </div>
       </div>
-      {# 'مسح المحادثة' now archives the current conversation
-         (see /agent/insights/clear) instead of nuking every insights
-         message the user ever wrote. Same semantic as accountant's
-         clear after MARSOUD-AGENT-MEMORY-05. #}
-      <button onclick="clearChat()" class="text-sm text-slate-500 hover:text-red-600">أرشفة وابدأ جديدة</button>
+      <div class="ig-hb">
+        <button type="button" class="ig-new" onclick="newConversation()">✚ محادثة جديدة</button>
+        <button type="button" id="ig-archcur" class="ig-arch ig-dis" onclick="clearChat()" title="نقل هذه المحادثة إلى الأرشيف">🗄 أرشفة</button>
+      </div>
     </div>
 
-    <div id="chat-messages" class="flex-1 overflow-y-auto space-y-3 mb-4 bg-amber-50/40 -mx-6 px-6 py-4 border-y border-amber-100">
-      {% if not history %}
-      <div class="text-center text-slate-500 py-8">
-        <div class="text-5xl mb-3">📊</div>
-        <p class="font-semibold text-slate-700">مرحباً! أنا المحلل الذكي — بقرا الأرقام وبلخّصهالك</p>
-        <p class="text-sm mt-2">جرّب واحد من الأسئلة دي:</p>
-        <div class="mt-4 flex flex-wrap gap-2 justify-center">
-          <button onclick="setMsg('إيه ملخص النهارده؟')" class="text-xs px-3 py-1.5 bg-white border border-amber-200 rounded-full hover:border-amber-500">إيه ملخص النهارده؟</button>
-          <button onclick="setMsg('مين أكتر موظف بينجز في آخر 30 يوم؟')" class="text-xs px-3 py-1.5 bg-white border border-amber-200 rounded-full hover:border-amber-500">مين أكتر موظف بينجز؟</button>
-          <button onclick="setMsg('فيه إيه متأخر عندي دلوقتي؟')" class="text-xs px-3 py-1.5 bg-white border border-amber-200 rounded-full hover:border-amber-500">إيه المتأخر عندي؟</button>
-          <button onclick="setMsg('إيه أكتر جزء شغال في النظام الفترة دي؟')" class="text-xs px-3 py-1.5 bg-white border border-amber-200 rounded-full hover:border-amber-500">أكتر حاجة شغالة</button>
-        </div>
-      </div>
+    <div id="chat-messages">
+      {% if active_conversation_id %}
+      <div class="ig-state">جاري تحميل المحادثة…</div>
       {% else %}
-        {% for m in history %}
-          {% if m.role == 'user' %}
-          <div class="flex justify-end"><div class="bg-navy-900 text-white rounded-2xl rounded-tl-sm px-4 py-2 max-w-[80%] text-sm">{{ m.content }}</div></div>
-          {% else %}
-          <div class="flex justify-start"><div class="bg-white border border-amber-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap">{{ m.content }}</div></div>
-          {% endif %}
-        {% endfor %}
+      <div class="ig-hero-slot"></div>
       {% endif %}
     </div>
 
-    <form onsubmit="sendMessage(event)" class="flex gap-2">
-      <input id="msg-input" type="text" placeholder="اسأل عن أرقامك… مثلاً: إيه ملخص النهارده؟" required autocomplete="off" class="input">
-      <button type="submit" id="send-btn" class="btn-primary bg-amber-600 hover:bg-amber-700">إرسال</button>
+    <form id="ig-form" onsubmit="sendMessage(event)" class="ig-composer">
+      <textarea id="msg-input" rows="1" placeholder="اسأل عن أرقامك… مثلاً: إيه ملخص النهارده؟" required autocomplete="off" class="ig-input"></textarea>
+      <button type="submit" id="send-btn" class="ig-send"><span>إرسال</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7z"/></svg></button>
     </form>
+    <div class="ig-hint">Enter للإرسال · Shift + Enter لسطر جديد</div>
   </div>
 
-  {# MARSOUD-INSIGHTS-CONVERSATIONS-01 (2026-08-08) — sidebar
-     ported verbatim from chat.html; palette classes are the only
-     changes (emerald → amber). Same server-side hydration via
-     {% for c in conversations %}. #}
-  <div class="card p-4 flex flex-col overflow-hidden border-amber-100">
-    <div class="flex items-center justify-between mb-3">
-      <h3 class="font-bold text-navy-900">💬 محادثاتي</h3>
-      <button onclick="newConversation()"
-              class="text-xs px-3 py-1.5 rounded bg-amber-600 text-white hover:bg-amber-700">
-        + محادثة جديدة
-      </button>
-    </div>
-    <div id="conversations-list" class="flex-1 overflow-y-auto space-y-1 text-sm"
-         data-active-id="{{ active_conversation_id }}">
+  <div id="ig-side" class="card">
+    <button type="button" class="ig-newbig" onclick="newConversation()"><span class="ig-plus">+</span><span>محادثة جديدة</span></button>
+    {% if conversations %}
+    <button type="button" id="ig-tog" class="ig-tog" aria-expanded="false" onclick="agToggleList()"><span>🕘 المحادثات السابقة</span><span class="ig-count">{{ conversations|length }}</span><span class="ig-chev">⌄</span></button>
+    {% endif %}
+    <input type="search" class="ig-search" id="ig-search" placeholder="ابحث في المحادثات…" style="display:none">
+    <div id="conversations-list" data-active-id="{{ active_conversation_id or '' }}">
       {% for c in conversations %}
-      <div class="conv-row flex items-center justify-between rounded px-2 py-2 hover:bg-slate-100 cursor-pointer
-                  {% if c.id == active_conversation_id %}bg-amber-50 border border-amber-200{% endif %}"
-           data-id="{{ c.id }}"
-           onclick="loadConversation({{ c.id }})">
-        <div class="flex-1 min-w-0">
-          <div class="font-medium text-navy-900 truncate">
-            {{ c.title or 'محادثة جديدة' }}
-          </div>
-          <div class="text-xs text-slate-500">
-            {{ c.last_message_at | company_dt('%Y-%m-%d %H:%M') if c.last_message_at else '' }}
-          </div>
+      <div class="conv-row{% if c.id == active_conversation_id %} on{% endif %}" data-id="{{ c.id }}" onclick="loadConversation({{ c.id }})">
+        <div style="min-width:0;flex:1">
+          <div class="conv-t">{{ c.title or 'محادثة جديدة' }}</div>
+          <div class="conv-d">{{ c.last_message_at | company_dt('%Y-%m-%d %H:%M') if c.last_message_at else '' }}</div>
         </div>
-        <button onclick="deleteConversation(event, {{ c.id }})"
-                class="text-xs text-slate-500 hover:text-rose-600"
-                title="حذف من القائمة">🗑</button>
-      </div>
-      {% else %}
-      <div class="text-xs text-slate-500 text-center py-6">
-        لا توجد محادثات بعد. ابدأ الكتابة يمين.
+        <button type="button" class="conv-x" onclick="deleteConversation(event, {{ c.id }})" title="أرشفة">🗄</button>
       </div>
       {% endfor %}
     </div>
-    <div class="mt-3 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-700">
-      <b class="text-slate-900">للقراءة فقط.</b> المحلل ما بيعدّل ولا يعمل قيد ولا يمسح حاجة. لأي عملية استخدم <a href="{{ url_for('agent.index') }}" class="text-brand-600 hover:underline">المحاسب الذكي</a>.
+    <div class="ig-about">
+      <b>المحلل يقدر:</b>
+      <div><span>📋</span><span>يلخّص يومك وشغلك المتأخر</span></div>
+      <div><span>👥</span><span>يحلّل أداء الموظفين والأقسام</span></div>
+      <div><span>📈</span><span>يقارن الفترات ويكشف الاتجاهات</span></div>
+      <div class="ig-ro"><span>🔒</span><span>للقراءة فقط. لأي عملية استخدم <a href="{{ url_for('agent.index') }}">المحاسب الذكي</a>.</span></div>
     </div>
+    <button type="button" id="ig-arch" class="ig-archbtn" onclick="agOpenArchive()">🗄 المحادثات المؤرشفة</button>
   </div>
 </div>
 
 <script>
-function setMsg(t) { document.getElementById('msg-input').value = t; }
-async function sendMessage(e) {
-  e.preventDefault();
-  const input = document.getElementById('msg-input');
-  const text = input.value.trim();
-  if (!text) return;
-  const box = document.getElementById('chat-messages');
-  if (box.querySelector('.text-center')) box.innerHTML = '';
-  box.innerHTML += `<div class="flex justify-end"><div class="bg-navy-900 text-white rounded-2xl rounded-tl-sm px-4 py-2 max-w-[80%] text-sm">${escapeHtml(text)}</div></div>`;
-  input.value = '';
-  const loading = document.createElement('div');
-  loading.className = 'flex justify-start';
-  loading.innerHTML = '<div class="bg-white border border-amber-200 rounded-2xl rounded-tr-sm px-4 py-2 text-sm text-slate-500"><span class="animate-pulse">بيحلل…</span></div>';
-  box.appendChild(loading);
-  box.scrollTop = box.scrollHeight;
-  document.getElementById('send-btn').disabled = true;
+/* MARSOUD-INSIGHTS-UX-P78 - page logic */
+(function () {
+  'use strict';
+  var BASE = '/agent/insights';
+  function $(id) { return document.getElementById(id); }
+  var box = $('chat-messages'), list = $('conversations-list'), side = $('ig-side');
+  var input = $('msg-input'), sendBtn = $('send-btn'), form = $('ig-form');
+  var busy = false;
 
-  // MARSOUD-INSIGHTS-CONVERSATIONS-01 — pass the active conversation
-  // id so the server pins each user message to the correct thread.
-  // First turn of a fresh chat leaves it null and the server
-  // get-or-create's; from then on the client tracks the id via
-  // data-active-id on #conversations-list.
-  const activeId = document.getElementById('conversations-list').dataset.activeId || null;
+  function esc(s) { return window.escapeHtml ? window.escapeHtml(s) : String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function fmtDate(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
+  function parseIso(iso) {
+    if (!iso) return null;
+    var s = String(iso);
+    if (!/[zZ]$|[+-]\d\d:?\d\d$/.test(s)) s += 'Z';
+    var d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  var toastT = null;
+  function toast(msg) {
+    var t = $('ig-toast');
+    if (!t) { t = document.createElement('div'); t.id = 'ig-toast'; t.className = 'ig-toast'; document.body.appendChild(t); }
+    t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(function () { t.classList.remove('show'); }, 2600);
+  }
+  function activeId() { return list.dataset.activeId || ''; }
+  function toBottom() { box.scrollTop = box.scrollHeight; }
+  function grow() { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 140) + 'px'; }
 
-  try {
-    const res = await fetch('/agent/insights/chat', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message: text, conversation_id: activeId}),
+  /* ---------- suggestions / hero ---------- */
+  var SUG = [
+    { t: '📋 ملخصات سريعة', items: [
+      ['ملخص النهارده', 'إيه ملخص النهارده؟', 1],
+      ['إيه المتأخر عندي', 'فيه إيه متأخر عندي دلوقتي؟', 1],
+      ['أكتر جزء شغال في النظام', 'إيه أكتر جزء شغال في النظام الفترة دي؟', 1]] },
+    { t: '👥 أداء الفريق', items: [
+      ['أكتر موظف بينجز', 'مين أكتر موظف بينجز في آخر 30 يوم؟', 1],
+      ['مقارنة الفريق بالشهر الماضي', 'قارن أداء الفريق الشهر ده بالشهر اللي فات', 1],
+      ['تحليل موظف بالاسم', 'حلّل أداء الموظف ____ في آخر 30 يوم', 0],
+      ['تحليل قسم', 'حلّل أداء قسم ____', 0]] },
+    { t: '🤝 العملاء والمشاريع', items: [
+      ['حالة المشاريع', 'كام مشروع شغال وإيه المتأخر منهم؟', 1],
+      ['العملاء المحتملين', 'إيه وضع العملاء المحتملين الفترة دي؟', 1]] }
+  ];
+  function heroHtml() {
+    var h = '<div class="ig-hero"><div class="ig-orb">🔍</div><div class="ig-ht">المحلل الذكي</div>' +
+      '<div class="ig-hs">اسألني عن أرقام شركتك وأطلّعلك تقرير جاهز: ملخصات، أداء الفريق، مقارنات، ومتأخرات.</div><div class="ig-sug">';
+    SUG.forEach(function (g) {
+      h += '<div class="ig-sg"><h4>' + g.t + '</h4>';
+      g.items.forEach(function (it) {
+        h += '<button type="button" class="ig-card" data-msg="' + esc(it[1]) + '" data-send="' + it[2] + '">' + esc(it[0]) + '</button>';
+      });
+      h += '</div>';
     });
-    const data = await res.json();
-    loading.remove();
-    if (data.error) {
-      box.innerHTML += `<div class="text-xs text-red-600 px-2">${escapeHtml(data.error)}</div>`;
-    } else {
-      // Server always echoes conversation_id — keep the client in sync
-      // (first turn of a fresh chat lands with a server-assigned id).
-      if (data.conversation_id) {
-        document.getElementById('conversations-list')
-                .dataset.activeId = data.conversation_id;
-      }
-      box.innerHTML += `<div class="flex justify-start"><div class="bg-white border border-amber-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">${renderMarkdownTables(data.reply)}</div></div>`;
-      if (data.tools && data.tools.length) {
-        const usedTools = data.tools.map(t => t.tool).join(', ');
-        box.innerHTML += `<div class="text-xs text-slate-500 px-2">🔧 استخدم: ${escapeHtml(usedTools)}</div>`;
-      }
+    return h + '</div></div>';
+  }
+  function showHero() { box.innerHTML = '<div class="ig-hero-slot">' + heroHtml() + '</div>'; box.scrollTop = 0; }
+  function clearHero() {
+    var s = box.querySelector('.ig-hero-slot, .ig-state');
+    if (s) box.innerHTML = '';
+  }
+
+  /* ---------- message builders ---------- */
+  function addUser(text) {
+    var r = document.createElement('div'); r.className = 'ig-row ig-u';
+    r.innerHTML = '<div class="ig-bu">' + esc(text) + '</div>';
+    box.appendChild(r); toBottom();
+  }
+  function srcLabel(name) {
+    var n = String(name || '');
+    if (/^hr_/.test(n)) return 'الموارد البشرية';
+    if (/^crm_/.test(n)) return 'العملاء والمشاريع';
+    if (/^tasks_/.test(n)) return 'المهام';
+    if (/^analyze_/.test(n)) return 'تحليل مركّب';
+    return 'بيانات النظام';
+  }
+  function addAssistant(text, tools) {
+    var html = window.agFmt ? window.agFmt(text) : '<p class="ag-p">' + esc(text) + '</p>';
+    var r = document.createElement('div'); r.className = 'ig-row ig-a';
+    var wide = /class="ag-tw"|class="ag-kpis"/.test(html) ? ' ig-wide' : '';
+    var src = '';
+    if (tools && tools.length) {
+      var seen = {}, chips = '';
+      tools.forEach(function (t) {
+        var l = srcLabel(t && t.tool);
+        if (seen[l]) return; seen[l] = 1;
+        chips += '<span class="ig-chip" title="' + esc(tools.filter(function (x) { return srcLabel(x && x.tool) === l; }).map(function (x) { return x.tool; }).join('، ')) + '">' + l + '</span>';
+      });
+      src = '<div class="ig-src"><span>📎 مصادر التحليل:</span>' + chips + '</div>';
     }
-  } catch (err) {
-    loading.remove();
-    box.innerHTML += `<div class="text-xs text-red-600 px-2">خطأ في الاتصال</div>`;
+    r.innerHTML = '<span class="ig-av">🔍</span><div class="ig-wrap' + wide + '"><div class="ig-ba">' +
+      '<div class="ig-tools"><button type="button" class="ig-tb" data-act="copy">⧉ نسخ</button><button type="button" class="ig-tb" data-act="print">🖨 طباعة</button></div>' +
+      html + '</div>' + src + '</div>';
+    box.appendChild(r); toBottom();
   }
-  document.getElementById('send-btn').disabled = false;
-  box.scrollTop = box.scrollHeight;
-}
-
-async function clearChat() {
-  if (!confirm('أرشفة المحادثة الحالية وفتح واحدة جديدة؟')) return;
-  await fetch('/agent/insights/clear', {method: 'POST'});
-  location.reload();
-}
-
-// MARSOUD-INSIGHTS-CONVERSATIONS-01 — sidebar handlers, mirror of
-// accountant's chat.html functions with the /agent/insights/... URLs.
-async function newConversation() {
-  const res = await fetch('/agent/insights/conversations/new', {method: 'POST'});
-  const data = await res.json();
-  if (!data.id) return;
-  const box = document.getElementById('chat-messages');
-  box.innerHTML = '<div class="text-center text-slate-500 py-8"><div class="text-3xl mb-2">🆕</div><p class="text-sm">محادثة جديدة — اطرح سؤالك</p></div>';
-  document.getElementById('conversations-list').dataset.activeId = data.id;
-  location.reload();
-}
-
-async function loadConversation(cid) {
-  const res = await fetch(`/agent/insights/conversations/${cid}/messages`);
-  const data = await res.json();
-  if (data.messages === undefined) return;
-  const box = document.getElementById('chat-messages');
-  box.innerHTML = '';
-  if (data.messages.length === 0) {
-    box.innerHTML = '<div class="text-center text-slate-500 py-8"><div class="text-3xl mb-2">💬</div><p class="text-sm">المحادثة فاضية</p></div>';
+  function addError(msg) {
+    var e = document.createElement('div'); e.className = 'ig-err'; e.textContent = '⚠️ ' + msg;
+    box.appendChild(e); toBottom();
   }
-  data.messages.forEach(m => {
-    if (m.role === 'user') {
-      box.innerHTML += `<div class="flex justify-end"><div class="bg-navy-900 text-white rounded-2xl rounded-tl-sm px-4 py-2 max-w-[80%] text-sm">${escapeHtml(m.content)}</div></div>`;
-    } else {
-      box.innerHTML += `<div class="flex justify-start"><div class="bg-white border border-amber-200 rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">${renderMarkdownTables(m.content)}</div></div>`;
+  function addLoading() {
+    var r = document.createElement('div'); r.className = 'ig-row ig-a';
+    r.innerHTML = '<span class="ig-av">🔍</span><div class="ig-load"><span class="ig-dots"><i></i><i></i><i></i></span><span>بيحلّل بياناتك…</span></div>';
+    box.appendChild(r); toBottom();
+    return r;
+  }
+  function setBusy(b) { busy = b; sendBtn.disabled = b; }
+
+  /* ---------- sending ---------- */
+  window.sendMessage = async function (e) {
+    if (e) e.preventDefault();
+    var text = input.value.trim();
+    if (!text || busy) return;
+    clearHero(); addUser(text);
+    input.value = ''; grow();
+    var loading = addLoading(); setBusy(true);
+    try {
+      var res = await fetch(BASE + '/chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, conversation_id: activeId() ? Number(activeId()) : null })
+      });
+      var data = await res.json();
+      loading.remove();
+      if (data.error) addError(data.error);
+      else {
+        if (data.conversation_id) setActive(data.conversation_id, text);
+        addAssistant(data.reply, data.tools);
+      }
+    } catch (err) {
+      loading.remove(); addError('خطأ في الاتصال، حاول مرة أخرى.');
+    }
+    setBusy(false); input.focus();
+  };
+  input.addEventListener('input', grow);
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      if (!busy && input.value.trim()) { if (form.requestSubmit) form.requestSubmit(); else sendBtn.click(); }
     }
   });
-  document.getElementById('conversations-list').dataset.activeId = cid;
-  box.scrollTop = box.scrollHeight;
-  document.querySelectorAll('.conv-row').forEach(r => {
-    r.classList.toggle('bg-amber-50', Number(r.dataset.id) === Number(cid));
-    r.classList.toggle('border', Number(r.dataset.id) === Number(cid));
-    r.classList.toggle('border-amber-200', Number(r.dataset.id) === Number(cid));
+  if (window.innerWidth < 640) input.placeholder = 'اسأل عن أرقامك…';
+
+  /* ---------- active conversation + sidebar rows ---------- */
+  function countRows() { return list.querySelectorAll('.conv-row').length; }
+  function ensureToggle() {
+    var tog = $('ig-tog');
+    if (!tog) {
+      tog = document.createElement('button');
+      tog.type = 'button'; tog.id = 'ig-tog'; tog.className = 'ig-tog';
+      tog.setAttribute('aria-expanded', 'false'); tog.setAttribute('onclick', 'agToggleList()');
+      tog.innerHTML = '<span>🕘 المحادثات السابقة</span><span class="ig-count">0</span><span class="ig-chev">⌄</span>';
+      var a = side.querySelector('.ig-newbig');
+      side.insertBefore(tog, a.nextSibling);
+    }
+    return tog;
+  }
+  function updateCount() { var c = ensureToggle().querySelector('.ig-count'); if (c) c.textContent = String(countRows()); }
+  function markRows(id) {
+    [].forEach.call(list.querySelectorAll('.conv-row'), function (r) { r.classList.toggle('on', !!id && Number(r.dataset.id) === Number(id)); });
+  }
+  function setActive(id, firstText) {
+    list.dataset.activeId = id ? String(id) : '';
+    $('ig-archcur').classList.toggle('ig-dis', !id);
+    markRows(id);
+    if (!id) return;
+    if (list.querySelector('.conv-row[data-id="' + Number(id) + '"]')) return;
+    var title = (firstText || 'محادثة جديدة').trim().replace(/\s+/g, ' ').slice(0, 60);
+    var el = document.createElement('div');
+    el.className = 'conv-row on'; el.setAttribute('data-id', String(Number(id)));
+    el.setAttribute('onclick', 'loadConversation(' + Number(id) + ')');
+    el.innerHTML = '<div style="min-width:0;flex:1"><div class="conv-t">' + esc(title) + '</div><div class="conv-d">' + fmtDate(new Date()) +
+      '</div></div><button type="button" class="conv-x" onclick="deleteConversation(event, ' + Number(id) + ')" title="أرشفة">🗄</button>';
+    var first = list.firstElementChild;
+    if (first && first.classList.contains('ig-grp') && first.textContent === 'اليوم') list.insertBefore(el, first.nextSibling);
+    else { var g = document.createElement('div'); g.className = 'ig-grp'; g.textContent = 'اليوم'; list.insertBefore(g, list.firstChild); list.insertBefore(el, g.nextSibling); }
+    updateCount();
+  }
+
+  window.newConversation = function () {
+    setActive('');
+    showHero();
+    input.value = ''; grow(); input.focus();
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+  };
+  window.clearChat = async function () {
+    var id = activeId();
+    if (!id) { toast('ابدأ محادثة الأول وبعدها تقدر تؤرشفها'); return; }
+    if (!confirm('أرشفة هذه المحادثة؟ هتلاقيها في «المحادثات المؤرشفة» وتقدر ترجّعها (وتُحذف نهائياً بعد مدة الاحتفاظ).')) return;
+    try { await fetch(BASE + '/conversations/' + Number(id), { method: 'DELETE' }); } catch (e) {}
+    location.href = location.pathname;
+  };
+  window.deleteConversation = async function (ev, cid) {
+    ev.stopPropagation();
+    if (!confirm('أرشفة هذه المحادثة؟')) return;
+    try { await fetch(BASE + '/conversations/' + Number(cid), { method: 'DELETE' }); } catch (e) {}
+    location.href = location.pathname;
+  };
+  window.loadConversation = async function (cid) {
+    box.innerHTML = '<div class="ig-state">جاري تحميل المحادثة…</div>';
+    try {
+      var res = await fetch(BASE + '/conversations/' + Number(cid) + '/messages');
+      var data = await res.json();
+      if (data.messages === undefined) { box.innerHTML = '<div class="ig-state">تعذّر تحميل المحادثة.</div>'; return; }
+      box.innerHTML = '';
+      if (!data.messages.length) box.innerHTML = '<div class="ig-state">المحادثة فاضية.</div>';
+      data.messages.forEach(function (m) {
+        if (m.role === 'user') addUser(m.content); else addAssistant(m.content, m.tool_trace);
+      });
+      setActive(cid);
+      box.scrollTop = box.scrollHeight;
+    } catch (e) { box.innerHTML = '<div class="ig-state">تعذّر تحميل المحادثة.</div>'; }
+  };
+  window.agToggleList = function () {
+    var open = side.classList.toggle('ig-open');
+    var tog = $('ig-tog'); if (tog) tog.setAttribute('aria-expanded', open ? 'true' : 'false');
+    var s = $('ig-search'); if (s) s.style.display = (open && countRows() > 5) ? '' : 'none';
+  };
+
+  /* ---------- grouping + search of the sidebar list ---------- */
+  (function groupRows() {
+    var rows = [].slice.call(list.querySelectorAll('.conv-row'));
+    var t0 = new Date(); t0 = new Date(t0.getFullYear(), t0.getMonth(), t0.getDate());
+    var last = null;
+    rows.forEach(function (r) {
+      var m = (r.textContent || '').match(/(\d{4})-(\d{2})-(\d{2})/);
+      var label = 'بدون تاريخ';
+      if (m) {
+        var d = new Date(+m[1], +m[2] - 1, +m[3]);
+        var diff = Math.round((t0 - d) / 86400000);
+        label = diff <= 0 ? 'اليوم' : diff === 1 ? 'أمس' : diff < 7 ? 'آخر 7 أيام' : diff < 31 ? 'آخر 30 يوم' : 'أقدم';
+      }
+      if (label !== last) { var h = document.createElement('div'); h.className = 'ig-grp'; h.textContent = label; list.insertBefore(h, r); last = label; }
+    });
+    var s = $('ig-search');
+    s.addEventListener('input', function () {
+      var q = s.value.trim().toLowerCase();
+      [].forEach.call(list.querySelectorAll('.conv-row'), function (r) { r.style.display = (!q || r.textContent.toLowerCase().indexOf(q) >= 0) ? '' : 'none'; });
+      [].forEach.call(list.querySelectorAll('.ig-grp'), function (h) {
+        var n = h.nextElementSibling, any = false;
+        while (n && !n.classList.contains('ig-grp')) { if (n.style.display !== 'none') any = true; n = n.nextElementSibling; }
+        h.style.display = any ? '' : 'none';
+      });
+    });
+  })();
+
+  /* ---------- clicks inside the chat: suggestions, copy, print ---------- */
+  function fallbackCopy(t) {
+    var ta = document.createElement('textarea'); ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    ta.remove();
+  }
+  box.addEventListener('click', function (e) {
+    var t = e.target;
+    var card = t.closest && t.closest('.ig-card');
+    if (card) {
+      input.value = card.dataset.msg; grow(); input.focus();
+      if (card.dataset.send === '1') { if (form.requestSubmit) form.requestSubmit(); else sendBtn.click(); }
+      else { var i = input.value.indexOf('____'); if (i >= 0) input.setSelectionRange(i, i + 4); }
+      return;
+    }
+    var b = t.closest && t.closest('.ig-tb');
+    if (!b) return;
+    var bub = b.closest('.ig-ba');
+    if (b.dataset.act === 'print') {
+      bub.classList.add('ig-printing'); document.body.classList.add('ig-pm');
+      var done = function () { bub.classList.remove('ig-printing'); document.body.classList.remove('ig-pm'); window.removeEventListener('afterprint', done); };
+      window.addEventListener('afterprint', done);
+      window.print();
+      return;
+    }
+    var clone = bub.cloneNode(true);
+    [].forEach.call(clone.querySelectorAll('.ig-tools'), function (x) { x.remove(); });
+    [].forEach.call(clone.querySelectorAll('table'), function (tb) {
+      var rows = [].map.call(tb.querySelectorAll('tr'), function (tr) { return [].map.call(tr.children, function (c) { return c.textContent.trim(); }).join('\t'); });
+      var p = document.createElement('pre'); p.textContent = '\n' + rows.join('\n') + '\n'; tb.replaceWith(p);
+    });
+    [].forEach.call(clone.querySelectorAll('.ag-kpi'), function (k) { k.appendChild(document.createTextNode('\n')); });
+    var txt = (clone.innerText || clone.textContent || '').trim();
+    var ok = function () { b.textContent = '✓ تم النسخ'; setTimeout(function () { b.textContent = '⧉ نسخ'; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok, function () { fallbackCopy(txt); ok(); });
+    else { fallbackCopy(txt); ok(); }
   });
-}
 
-async function deleteConversation(ev, cid) {
-  ev.stopPropagation();
-  if (!confirm('حذف هذه المحادثة من القائمة؟')) return;
-  await fetch(`/agent/insights/conversations/${cid}`, {method: 'DELETE'});
-  location.reload();
-}
+  /* ---------- archived conversations panel ---------- */
+  function modal() {
+    var m = $('ig-modal');
+    if (m) return m;
+    m = document.createElement('div'); m.id = 'ig-modal'; m.className = 'ig-modal';
+    m.innerHTML = '<div class="ig-mp" role="dialog" aria-modal="true" aria-label="المحادثات المؤرشفة">' +
+      '<div class="ig-mh"><span>🗄 المحادثات المؤرشفة</span><button type="button" class="ig-mx" aria-label="إغلاق">×</button></div>' +
+      '<div class="ig-mb" id="ig-mb"></div>' +
+      '<div class="ig-mf">المحادثات المؤرشفة بتتحذف نهائياً بعد مدة الاحتفاظ، استرجع اللي محتاجه قبلها.</div></div>';
+    document.body.appendChild(m);
+    m.addEventListener('click', function (e) {
+      if (e.target === m || (e.target.closest && e.target.closest('.ig-mx'))) m.classList.remove('show');
+      var it = e.target.closest && e.target.closest('.ig-ai');
+      if (it) restore(it.getAttribute('data-id'), it);
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') m.classList.remove('show'); });
+    return m;
+  }
+  async function restore(id, el) {
+    if (!id) return;
+    el.classList.add('busy');
+    try {
+      var r = await fetch(BASE + '/conversations/' + Number(id) + '/restore', { method: 'POST' });
+      var d = await r.json();
+      if (!d.ok) throw new Error('x');
+      location.href = location.pathname + '?c=' + Number(id);
+    } catch (e) { el.classList.remove('busy'); toast('تعذّرت الاستعادة، حاول مرة أخرى'); }
+  }
+  window.agOpenArchive = async function () {
+    var m = modal(), mb = $('ig-mb');
+    m.classList.add('show');
+    mb.innerHTML = '<div class="ig-mm">جاري التحميل…</div>';
+    try {
+      var r = await fetch(BASE + '/conversations/archived');
+      var d = await r.json();
+      var cs = d.conversations || [];
+      if (!cs.length) { mb.innerHTML = '<div class="ig-mm">مفيش محادثات مؤرشفة حالياً.</div>'; return; }
+      mb.innerHTML = cs.map(function (c) {
+        var dt = parseIso(c.last_message_at || c.created_at);
+        return '<div class="ig-ai" data-id="' + Number(c.id) + '" tabindex="0"><div class="ig-ait"><b>' + esc(c.title || 'محادثة بدون عنوان') +
+          '</b><span>' + (dt ? fmtDate(dt) : '') + '</span></div><span class="ig-rs">↩ استعادة</span></div>';
+      }).join('');
+    } catch (e) { mb.innerHTML = '<div class="ig-mm">تعذّر تحميل المحادثات المؤرشفة.</div>'; }
+  };
 
-document.getElementById('chat-messages').scrollTop = 99999;
+  /* ---------- boot ---------- */
+  var aid = activeId();
+  if (aid) { setActive(aid); window.loadConversation(aid); }
+  else { showHero(); input.focus(); }
+})();
 </script>
 {% endblock %}

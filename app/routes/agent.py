@@ -383,16 +383,31 @@ def insights_index():
     # conversation so users don't lose their history. Idempotent.
     _backfill_orphan_insights_messages(
         current_user.id, g.active_company.id)
-    conv = get_or_create_current_conversation(
-        current_user.id, g.active_company.id, "insights")
-    history = _load_conversation_history(conv.id, limit=40)
-    conversations = list_conversations_for(
-        current_user.id, g.active_company.id, "insights")
+    # MARSOUD-INSIGHTS-UX-P78: default view is a blank new-conversation
+    # screen (no DB row until the first message). A conversation opens
+    # only via ?c=<id> (restore flow); the page loads its messages by AJAX.
+    conv_id = None
+    cid = request.args.get("c", type=int)
+    if cid:
+        c = db.session.get(AgentConversation, cid)
+        if (c and c.user_id == current_user.id
+                and c.company_id == g.active_company.id
+                and c.agent_type == "insights"
+                and not c.is_archived):
+            conv_id = c.id
+    conversations = list(list_conversations_for(
+        current_user.id, g.active_company.id, "insights"))
+    ids = [c.id for c in conversations]
+    if ids:
+        has = {r[0] for r in db.session.query(
+            AgentMessage.conversation_id).filter(
+            AgentMessage.conversation_id.in_(ids)).distinct()}
+        conversations = [c for c in conversations if c.id in has]
     return render_template(
         "agent/insights.html",
-        history=history,
+        history=[],
         conversations=conversations,
-        active_conversation_id=conv.id,
+        active_conversation_id=conv_id,
     )
 
 
@@ -423,7 +438,11 @@ def insights_chat():
                 or conv.is_archived):
             return jsonify({"error": "المحادثة غير موجودة"}), 404
     if conv is None:
-        conv = get_or_create_current_conversation(
+        # MARSOUD-INSIGHTS-UX-P78: no conversation_id means a fresh chat.
+        from app.services.agent_conversations import (
+            create_conversation as _p78_create_conversation,
+        )
+        conv = _p78_create_conversation(
             current_user.id, g.active_company.id, "insights")
 
     db.session.add(AgentMessage(
@@ -535,6 +554,47 @@ def insights_conversations_list():
             for c in convs
         ],
     })
+
+
+# MARSOUD-INSIGHTS-UX-P78: archived insights conversations + restore.
+@bp.route("/insights/conversations/archived", methods=["GET"])
+@login_required
+@require_permission("insights.use")
+def insights_conversations_archived():
+    if not g.active_company:
+        return jsonify({"error": "لا توجد شركة نشطة"}), 400
+    q = AgentConversation.query.filter_by(
+        user_id=current_user.id, company_id=g.active_company.id,
+        agent_type="insights", is_archived=True,
+    ).order_by(AgentConversation.last_message_at.desc()).limit(100)
+    rows = list(q)
+    ids = [c.id for c in rows]
+    has = set()
+    if ids:
+        has = {r[0] for r in db.session.query(
+            AgentMessage.conversation_id).filter(
+            AgentMessage.conversation_id.in_(ids)).distinct()}
+    return jsonify({
+        "conversations": [
+            {"id": c.id,
+             "title": c.title or "محادثة بدون عنوان",
+             "last_message_at": c.last_message_at.isoformat()
+             if c.last_message_at else None,
+             "created_at": c.created_at.isoformat()
+             if c.created_at else None}
+            for c in rows if c.id in has
+        ],
+    })
+
+
+@bp.route("/insights/conversations/<int:conv_id>/restore", methods=["POST"])
+@login_required
+@require_permission("insights.use")
+def insights_conversations_restore(conv_id):
+    conv = _resolve_own_conversation(conv_id, "insights")
+    conv.is_archived = False
+    db.session.commit()
+    return jsonify({"ok": True, "id": conv.id})
 
 
 @bp.route("/insights/conversations/new", methods=["POST"])
