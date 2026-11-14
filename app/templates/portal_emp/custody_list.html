@@ -1,133 +1,170 @@
 {% extends "base.html" %}
 {% block page_title %}عهدتي النقدية{% endblock %}
 {% block content %}
-<h2 class="font-bold text-navy-900 mb-4">عهدتي النقدية</h2>
+{# MARSOUD-CUSTODY-PORTAL-P90 — redesigned /my/custody. Same route, same
+   variables (custodies, requests, employee), same form action + field
+   names (amount, needed_by_date, purpose). #}
+{% set cur = employee.company.base_currency|currency_ar %}
+{% set k = namespace(open=0, issued=0, pending=0, over=0, pend_req=0) %}
+{% for c in custodies %}
+  {% if c.is_open %}
+    {% set k.open = k.open + 1 %}
+    {% set k.issued = k.issued + (c.amount_issued or 0)|float %}
+    {% set k.pending = k.pending + (c.amount_pending or 0)|float %}
+    {% if c.is_overdue %}{% set k.over = k.over + 1 %}{% endif %}
+  {% endif %}
+{% endfor %}
+{% for r in requests %}{% if r.status.value == 'PENDING' %}{% set k.pend_req = k.pend_req + 1 %}{% endif %}{% endfor %}
 
-{# ─── New-request form ───────────────────────────────────────── #}
-<div class="card p-6 mb-6">
-  <h3 class="font-semibold text-navy-900 mb-3">طلب عهدة جديدة</h3>
-  <form method="POST" action="{{ url_for('portal_emp.custody_request_new') }}"
-        class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end"
-        data-once data-once-label="جاري الإرسال...">
+{% include "portal_emp/_cu_kit.html" %}
+<div class="cu">
+  <div class="cu-top">
     <div>
-      <label class="block text-xs font-semibold text-slate-700 mb-1">المبلغ</label>
-      <input type="number" name="amount" step="0.01" min="0.01" required class="input text-sm">
+      <h2 class="cu-title">💼 عهدتي النقدية</h2>
+      <div class="cu-sub">العهد اللي اتصرفتلك، وإيصالات التسوية، وطلباتك</div>
     </div>
-    <div>
-      <label class="block text-xs font-semibold text-slate-700 mb-1">موعد الحاجة (اختياري)</label>
-      <input type="date" name="needed_by_date" class="input text-sm">
-    </div>
-    <div class="md:col-span-2">
-      <label class="block text-xs font-semibold text-slate-700 mb-1">الغرض</label>
-      <input type="text" name="purpose" required class="input text-sm"
-             placeholder="مثلاً: مصاريف انتقال + إقامة لمشروع الفرع">
-    </div>
-    <button type="submit" class="btn-primary text-sm md:col-span-4">إرسال الطلب للاعتماد</button>
-  </form>
-</div>
+    <a class="cu-btn sec" href="{{ url_for('portal_emp.account') }}">← حسابي</a>
+  </div>
 
-{# ─── Requests history ───────────────────────────────────────── #}
-<div class="card p-6 mb-6">
-  <h3 class="font-semibold text-navy-900 mb-3">طلباتي</h3>
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>#</th><th>الغرض</th>
-        <th class="text-left">المبلغ</th>
-        <th>الحالة</th><th>الملاحظة</th><th>التاريخ</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for r in requests %}
-      <tr>
-        <td class="text-xs">#{{ r.id }}</td>
-        <td class="text-xs">{{ (r.purpose or '—')[:60] }}</td>
-        <td class="text-left font-mono">
-          {{ r.amount|money }}
-          {# MARSOUD-CUSTODY-REQUEST-APPROVE-01 (2026-08-10) —
-             the employee sees what they asked for AND what was
-             actually approved when the accountant overrode.
-             Same info the accountant sees on the requests
-             page — transparency both directions. #}
-          {% if r.custody and r.custody.amount_issued != r.amount %}
-          <div class="text-xs text-emerald-700 mt-1">
-            اعتُمد: {{ r.custody.amount_issued|money }}
+  <div class="cu-grid cu-g4" style="margin-bottom:14px">
+    <div class="cu-kpi em"><div class="cu-kpi-l">عهد مفتوحة</div><div class="cu-kpi-v">{{ k.open }}</div><div class="cu-kpi-s">مصروفة أو قيد التسوية</div></div>
+    <div class="cu-kpi sk"><div class="cu-kpi-l">إجمالي المصروف عليك</div><div class="cu-kpi-v">{{ k.issued|money }}</div><div class="cu-kpi-s">{{ cur }} (العهد المفتوحة)</div></div>
+    <div class="cu-kpi am"><div class="cu-kpi-l">لسه معلّق</div><div class="cu-kpi-v">{{ k.pending|money }}</div><div class="cu-kpi-s">{{ cur }} محتاج تسوية</div></div>
+    <div class="cu-kpi {{ 'rs' if k.over else '' }}"><div class="cu-kpi-l">طلبات قيد المراجعة</div><div class="cu-kpi-v">{{ k.pend_req }}</div><div class="cu-kpi-s">{% if k.over %}⚠ {{ k.over }} عهدة متأخرة التسوية{% else %}مفيش تأخير ✓{% endif %}</div></div>
+  </div>
+
+  {% if k.over %}
+  <div class="cu-alert bad">⚠ عندك {{ k.over }} {{ 'عهدة' if k.over == 1 else 'عهد' }} عدّى موعد تسويتها — ابعت الإيصالات للمحاسب في أقرب وقت.</div>
+  {% endif %}
+
+  {# ─── New request ───────────────────────────────────────────── #}
+  <details class="cu-det" {{ 'open' if not custodies and not requests else '' }}>
+    <summary>+ طلب عهدة جديدة</summary>
+    {% if k.open or k.pend_req %}
+    <div class="cu-alert" style="margin-top:0">ℹ النظام مش بيقبل طلب جديد وإنت عندك {{ 'عهدة مفتوحة' if k.open else 'طلب قيد المراجعة' }} — سوّي العهدة أو استنى الرد الأول.</div>
+    {% endif %}
+    <form method="POST" action="{{ url_for('portal_emp.custody_request_new') }}" class="cu-form"
+          data-once data-once-label="جاري الإرسال...">
+      <div>
+        <label class="cu-lbl" for="cu-amount">المبلغ ({{ cur }})</label>
+        <input type="number" name="amount" id="cu-amount" step="0.01" min="0.01" required class="cu-in" dir="ltr" inputmode="decimal">
+        <div class="cu-chips">
+          {% for a in [500, 1000, 2000, 5000] %}<button type="button" class="cu-chip" data-fill="cu-amount" data-value="{{ a }}">{{ a }}</button>{% endfor %}
+        </div>
+      </div>
+      <div>
+        <label class="cu-lbl" for="cu-date">موعد الحاجة (اختياري)</label>
+        <input type="date" name="needed_by_date" id="cu-date" class="cu-in" dir="ltr">
+        <div class="cu-chips">
+          <button type="button" class="cu-chip" data-days="1" data-for="cu-date">بكرة</button>
+          <button type="button" class="cu-chip" data-days="3" data-for="cu-date">بعد 3 أيام</button>
+          <button type="button" class="cu-chip" data-days="7" data-for="cu-date">بعد أسبوع</button>
+        </div>
+      </div>
+      <div class="full">
+        <label class="cu-lbl" for="cu-purpose">الغرض</label>
+        <input type="text" name="purpose" id="cu-purpose" required class="cu-in" placeholder="مثلاً: مصاريف انتقال + إقامة لمشروع الفرع">
+        <div class="cu-chips">
+          {% for t in ['مصاريف انتقال', 'مشتريات للمكتب', 'ضيافة', 'مصاريف سفر', 'صيانة'] %}<button type="button" class="cu-chip" data-fill="cu-purpose" data-value="{{ t }}">{{ t }}</button>{% endfor %}
+        </div>
+      </div>
+      <div class="full"><button type="submit" class="cu-btn block">إرسال الطلب للاعتماد</button></div>
+    </form>
+  </details>
+
+  {# ─── Custodies ─────────────────────────────────────────────── #}
+  <div class="cu-card">
+    <h3 class="cu-h">عهدي المفتوحة والسابقة <small>آخر 50</small></h3>
+    {% if custodies %}
+    <div class="cu-filt" data-cu-filter="cu-list">
+      <button type="button" class="cu-fb is-on" data-f="all">الكل ({{ custodies|length }})</button>
+      <button type="button" class="cu-fb" data-f="open">مفتوحة ({{ k.open }})</button>
+      <button type="button" class="cu-fb" data-f="closed">مُقفلة</button>
+      <button type="button" class="cu-fb" data-f="cancel">ملغاة</button>
+    </div>
+    <div class="cu-list" id="cu-list">
+      {% for c in custodies %}
+      {% set s = c.status.value %}
+      {% set grp = 'open' if c.is_open else 'closed' if s == 'SETTLED' else 'cancel' %}
+      {% set iss = (c.amount_issued or 0)|float %}
+      {% set pct = ([(((c.amount_settled or 0)|float + (c.amount_returned or 0)|float) / iss * 100), 100]|min|round(0)|int) if iss > 0 else 0 %}
+      <div class="cu-item {{ 'over' if c.is_overdue else '' }}" data-st="{{ grp }}">
+        <div class="cu-item-h">
+          <div>
+            <div class="cu-item-t">{{ (c.purpose or '—')[:70] }}</div>
+            <div class="cu-item-s">عهدة #{{ c.id }} · صُرفت <span dir="ltr">{{ c.issued_on.isoformat() }}</span></div>
           </div>
-          {% endif %}
-          {# Read-only view of the transfer receipt the
-             accountant attached. Portal is view-only by design
-             (confine_client_to_portal gate). #}
-          {% set req_docs = documents_for('CASH_CUSTODY_REQUEST', r.id) %}
-          {% for d in req_docs %}
-          <a href="{{ d.file_path }}" target="_blank"
-             class="block text-xs text-brand-600 hover:underline mt-1">
-            📎 {{ d.name }}
-          </a>
-          {% endfor %}
-        </td>
-        <td>
-          {# MARSOUD-CUSTODY-DELETE-CONSISTENCY (2026-08-12) —
-             render effective_status so the employee sees "ملغاة
-             (بعد الاعتماد)" instead of a stale "معتمدة" when
-             the accountant cancelled the linked custody. Matches
-             the accountant's requests screen — AC #5. #}
-          {% set eff = r.effective_status %}
-          <span class="badge {{ eff[2] }}">{{ eff[1] }}</span>
-        </td>
-        <td class="text-xs text-slate-500">{{ r.review_note or '—' }}</td>
-        <td class="text-xs text-slate-500">
-          {{ r.created_at | company_dt('%Y-%m-%d') if r.created_at else '' }}
-        </td>
-      </tr>
+          <div>
+            {% if s == 'ISSUED' %}<span class="cu-b s">مصروفة</span>
+            {% elif s == 'PARTIALLY_SETTLED' %}<span class="cu-b p">قيد التسوية</span>
+            {% elif s == 'SETTLED' %}<span class="cu-b a">مُقفلة</span>
+            {% else %}<span class="cu-b o">ملغاة</span>{% endif %}
+            {% if c.is_overdue %}<span class="cu-b r">متأخر</span>{% endif %}
+          </div>
+        </div>
+        <div class="cu-nums">
+          <div class="cu-num">مصروف<b>{{ c.amount_issued|money }}</b></div>
+          <div class="cu-num">مُنفَق<b>{{ c.amount_settled|money }}</b></div>
+          <div class="cu-num">متبقّي<b>{{ c.amount_pending|money }}</b></div>
+        </div>
+        {% if s != 'CANCELLED' %}<div class="cu-bar" role="progressbar" aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100"><i style="width:{{ pct }}%"></i></div>{% endif %}
+        <div class="cu-foot">
+          <span>{% if c.settlement_due_date %}موعد التسوية: <span dir="ltr">{{ c.settlement_due_date.isoformat() }}</span>{% else %}موعد التسوية: —{% endif %}</span>
+          <a class="cu-link" href="{{ url_for('portal_emp.custody_detail', custody_id=c.id) }}">التفاصيل والإيصالات ←</a>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="cu-empty" id="cu-list-empty" style="display:none">مفيش عهد في التصنيف ده.</div>
     {% else %}
-      <tr><td colspan="6" class="text-center text-slate-500 py-4">لا يوجد طلبات.</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
+    <div class="cu-empty">لا يوجد عهد بعد. لما تطلب عهدة وتتعتمد هتظهر هنا.</div>
+    {% endif %}
+  </div>
 
-{# ─── Custodies ──────────────────────────────────────────────── #}
-<div class="card p-6">
-  <h3 class="font-semibold text-navy-900 mb-3">عهدي المفتوحة والسابقة</h3>
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>#</th><th>الغرض</th>
-        <th class="text-left">مصروف</th><th class="text-left">مُنفَق</th>
-        <th class="text-left">متبقّي</th>
-        <th>موعد التسوية</th><th>الحالة</th><th></th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for c in custodies %}
-      <tr>
-        <td class="text-xs">#{{ c.id }}</td>
-        <td class="text-xs">{{ (c.purpose or '—')[:50] }}</td>
-        <td class="text-left font-mono">{{ c.amount_issued|money }}</td>
-        <td class="text-left font-mono text-slate-500">{{ c.amount_settled|money }}</td>
-        <td class="text-left font-mono font-bold">{{ c.amount_pending|money }}</td>
-        <td class="font-mono text-xs">
-          {% if c.settlement_due_date %}
-            {{ c.settlement_due_date.isoformat() }}
-            {% if c.is_overdue %}<span class="badge badge-overdue mr-1">متأخر</span>{% endif %}
-          {% else %}<span class="text-slate-500">—</span>{% endif %}
-        </td>
-        <td>
-          {% set s = c.status.value %}
-          {% if s == 'ISSUED' %}<span class="badge badge-sent">مصروفة</span>
-          {% elif s == 'PARTIALLY_SETTLED' %}<span class="badge badge-partial">قيد التسوية</span>
-          {% elif s == 'SETTLED' %}<span class="badge badge-paid">مُقفلة</span>
-          {% else %}<span class="badge badge-cancelled">ملغاة</span>{% endif %}
-        </td>
-        <td>
-          <a href="{{ url_for('portal_emp.custody_detail', custody_id=c.id) }}"
-             class="text-brand-600 text-xs hover:underline">تفاصيل</a>
-        </td>
-      </tr>
+  {# ─── Requests ──────────────────────────────────────────────── #}
+  <div class="cu-card">
+    <h3 class="cu-h">طلباتي <small>آخر 30</small></h3>
+    {% if requests %}
+    <div class="cu-filt" data-cu-filter="rq-list">
+      <button type="button" class="cu-fb is-on" data-f="all">الكل ({{ requests|length }})</button>
+      <button type="button" class="cu-fb" data-f="p">قيد المراجعة ({{ k.pend_req }})</button>
+      <button type="button" class="cu-fb" data-f="a">معتمدة</button>
+      <button type="button" class="cu-fb" data-f="r">مرفوضة / ملغاة</button>
+    </div>
+    <div class="cu-list" id="rq-list">
+      {% for r in requests %}
+      {# MARSOUD-CUSTODY-DELETE-CONSISTENCY — effective_status keeps the
+         employee's screen in step with the accountant's (an approved
+         request whose custody was cancelled shows as cancelled). #}
+      {% set eff = r.effective_status %}
+      {% set rs = r.status.value %}
+      {% set cancelled = rs == 'APPROVED' and r.custody and r.custody.status.value == 'CANCELLED' %}
+      {% set grp = 'p' if rs == 'PENDING' else 'r' if (rs == 'REJECTED' or cancelled) else 'a' %}
+      <div class="cu-item" data-st="{{ grp }}">
+        <div class="cu-item-h">
+          <div>
+            <div class="cu-item-t"><span dir="ltr">{{ r.amount|money }}</span> {{ cur }}</div>
+            <div class="cu-item-s">طلب #{{ r.id }} · {{ (r.purpose or '—')[:60] }}</div>
+          </div>
+          <span class="cu-b {{ 'p' if grp == 'p' else 'a' if grp == 'a' else 'r' }}">{{ eff[1] }}</span>
+        </div>
+        {# MARSOUD-CUSTODY-REQUEST-APPROVE-01 — show what was actually
+           approved when the accountant overrode the amount. #}
+        {% if r.custody and r.custody.amount_issued != r.amount %}
+        <div class="cu-hint" style="color:var(--em-d)">المبلغ اللي اتعتمد: <b dir="ltr">{{ r.custody.amount_issued|money }}</b> {{ cur }}</div>
+        {% endif %}
+        {% set req_docs = documents_for('CASH_CUSTODY_REQUEST', r.id) %}
+        {% for d in req_docs %}<a class="cu-doc" href="{{ d.file_path }}" target="_blank" rel="noopener">📎 {{ d.name }}</a>{% endfor %}
+        {% if r.review_note %}<div class="cu-hint">ملاحظة المراجع: {{ r.review_note }}</div>{% endif %}
+        <div class="cu-foot"><span dir="ltr">{{ r.created_at | company_dt('%Y-%m-%d') if r.created_at else '' }}</span>
+          {% if r.needed_by_date %}<span>مطلوبة بتاريخ <span dir="ltr">{{ r.needed_by_date.isoformat() }}</span></span>{% endif %}</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="cu-empty" id="rq-list-empty" style="display:none">مفيش طلبات في التصنيف ده.</div>
     {% else %}
-      <tr><td colspan="8" class="text-center text-slate-500 py-4">لا يوجد عهد بعد.</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
+    <div class="cu-empty">لا يوجد طلبات.</div>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

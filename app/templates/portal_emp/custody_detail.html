@@ -1,105 +1,95 @@
 {% extends "base.html" %}
 {% block page_title %}عهدة #{{ custody.id }}{% endblock %}
 {% block content %}
-<div class="flex items-center justify-between mb-4">
-  <h2 class="font-bold text-navy-900">عهدة #{{ custody.id }}</h2>
-  <a href="{{ url_for('portal_emp.custody_list') }}" class="btn-secondary text-sm">← كل عهدي</a>
-</div>
-
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-  <div class="card p-4">
-    <div class="text-xs text-slate-500">مصروف عليك</div>
-    <div class="text-2xl font-bold text-navy-900 font-mono">{{ custody.amount_issued|money }}</div>
-    <div class="text-xs text-slate-500 mt-1">{{ custody.issued_on.isoformat() }}</div>
-  </div>
-  <div class="card p-4">
-    <div class="text-xs text-slate-500">مُنفَق بإيصالات</div>
-    <div class="text-2xl font-bold text-sky-700 font-mono">{{ custody.amount_settled|money }}</div>
-  </div>
-  <div class="card p-4">
-    <div class="text-xs text-slate-500">لسه معلَّق</div>
-    <div class="text-2xl font-bold {% if custody.amount_pending %}text-amber-700{% else %}text-emerald-700{% endif %} font-mono">
-      {{ custody.amount_pending|money }}
+{# MARSOUD-CUSTODY-PORTAL-P90 — redesigned /my/custody/<id>. Read-only:
+   receipts are attached by the accountant (portal is view-only). #}
+{% set cur = employee.company.base_currency|currency_ar %}
+{% set s = custody.status.value %}
+{% set iss = (custody.amount_issued or 0)|float %}
+{% set done = (custody.amount_settled or 0)|float + (custody.amount_returned or 0)|float %}
+{% set pct = ([(done / iss * 100), 100]|min|round(0)|int) if iss > 0 else 0 %}
+{% include "portal_emp/_cu_kit.html" %}
+<div class="cu">
+  <div class="cu-top">
+    <div>
+      <h2 class="cu-title">عهدة #{{ custody.id }}</h2>
+      <div class="cu-sub">{{ (custody.purpose or '—')[:90] }}</div>
     </div>
-    <div class="text-xs text-slate-500 mt-1">
-      {% set s = custody.status.value %}
-      {% if s == 'ISSUED' %}<span class="badge badge-sent">مصروفة</span>
-      {% elif s == 'PARTIALLY_SETTLED' %}<span class="badge badge-partial">قيد التسوية</span>
-      {% elif s == 'SETTLED' %}<span class="badge badge-paid">مُقفلة</span>
-      {% else %}<span class="badge badge-cancelled">ملغاة</span>{% endif %}
-      {% if custody.is_overdue %}<span class="badge badge-overdue mr-1">متأخر</span>{% endif %}
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="cu-btn sec" onclick="window.print()">🖨 طباعة</button>
+      <a href="{{ url_for('portal_emp.custody_list') }}" class="cu-btn sec">← كل عهدي</a>
     </div>
   </div>
-</div>
 
-<div class="card p-6 mb-6">
-  <h3 class="font-semibold text-navy-900 mb-2">تفاصيل</h3>
-  <dl class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-    <div><dt class="text-slate-500 inline">الغرض:</dt> <dd class="inline">{{ custody.purpose or '—' }}</dd></div>
-    <div><dt class="text-slate-500 inline">طريقة الصرف:</dt>
-      <dd class="inline">{{ custody.payment_method.name_ar if custody.payment_method else 'نقدي' }}</dd></div>
-    {% if custody.settlement_due_date %}
-    <div><dt class="text-slate-500 inline">موعد التسوية:</dt>
-      <dd class="inline font-mono">{{ custody.settlement_due_date.isoformat() }}</dd></div>
-    {% endif %}
-    {% if custody.note %}
-    <div class="col-span-2"><dt class="text-slate-500 inline">ملاحظات:</dt>
-      <dd class="inline">{{ custody.note }}</dd></div>
-    {% endif %}
-  </dl>
-</div>
+  {% if custody.is_overdue %}
+  <div class="cu-alert bad">⚠ عدّى موعد تسوية العهدة (<span dir="ltr">{{ custody.settlement_due_date.isoformat() }}</span>) — ابعت الإيصالات للمحاسب.</div>
+  {% endif %}
 
-<div class="card p-6">
-  <h3 class="font-semibold text-navy-900 mb-3">بنود التسوية</h3>
-  <p class="text-xs text-slate-500 mb-4">
-    الإيصالات دي بيضيفها المحاسب مع كل مصروف بيتحسب على العهدة.
-    لو عندك إيصال جديد، ابعته للمحاسب.
-  </p>
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>#</th><th>الحساب</th>
-        <th class="text-left">المبلغ</th>
-        <th>الوصف</th><th>التاريخ</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for l in custody.settlement_lines %}
-      <tr>
-        <td>{{ loop.index }}</td>
-        <td>
-          {% if l.expense_account %}
-            <span class="font-mono text-xs">{{ l.expense_account.code }}</span>
-            {{ l.expense_account.name_ar or l.expense_account.name }}
-          {% else %}<span class="text-slate-500">—</span>{% endif %}
-        </td>
-        <td class="text-left font-mono">{{ l.amount|money }}</td>
-        <td class="text-xs text-slate-600">
-          {{ l.receipt_note or '—' }}
-          {# MARSOUD-CUSTODY-ATTACH-01 (2026-08-10) — read-only
-             view of receipts the accountant attached to this
-             line. No upload here — the portal is view-only by
-             design (see portal_emp confine gate in __init__.py).
-             The employee needs to SEE what proof the accountant
-             recorded against their custody. #}
+  <div class="cu-card">
+    <div class="cu-item-h" style="margin-bottom:10px">
+      <h3 class="cu-h" style="margin:0">الحالة</h3>
+      <div>
+        {% if s == 'ISSUED' %}<span class="cu-b s">مصروفة</span>
+        {% elif s == 'PARTIALLY_SETTLED' %}<span class="cu-b p">قيد التسوية</span>
+        {% elif s == 'SETTLED' %}<span class="cu-b a">مُقفلة</span>
+        {% else %}<span class="cu-b o">ملغاة</span>{% endif %}
+        {% if custody.is_overdue %}<span class="cu-b r">متأخر</span>{% endif %}
+      </div>
+    </div>
+    <div class="cu-grid cu-g3">
+      <div class="cu-kpi sk"><div class="cu-kpi-l">مصروف عليك</div><div class="cu-kpi-v">{{ custody.amount_issued|money }}</div><div class="cu-kpi-s">{{ cur }} · <span dir="ltr">{{ custody.issued_on.isoformat() }}</span></div></div>
+      <div class="cu-kpi em"><div class="cu-kpi-l">مُنفَق بإيصالات</div><div class="cu-kpi-v">{{ custody.amount_settled|money }}</div><div class="cu-kpi-s">{{ cur }}</div></div>
+      <div class="cu-kpi {{ 'am' if custody.amount_pending else 'em' }}"><div class="cu-kpi-l">لسه معلَّق</div><div class="cu-kpi-v">{{ custody.amount_pending|money }}</div><div class="cu-kpi-s">{{ cur }}</div></div>
+    </div>
+    {% if s != 'CANCELLED' %}
+    <div class="cu-bar" role="progressbar" aria-valuenow="{{ pct }}" aria-valuemin="0" aria-valuemax="100"><i style="width:{{ pct }}%"></i></div>
+    <div class="cu-hint">تمت تسوية {{ pct }}% من العهدة</div>
+    {% endif %}
+  </div>
+
+  <div class="cu-card">
+    <h3 class="cu-h">تفاصيل</h3>
+    <div class="cu-grid cu-g3">
+      <div class="cu-f"><span class="cu-f-l">الغرض</span><span class="cu-f-v">{{ custody.purpose or '—' }}</span></div>
+      <div class="cu-f"><span class="cu-f-l">طريقة الصرف</span><span class="cu-f-v">{{ custody.payment_method.name_ar if custody.payment_method else 'نقدي' }}</span></div>
+      <div class="cu-f"><span class="cu-f-l">تاريخ الصرف</span><span class="cu-f-v mono" dir="ltr" style="text-align:start">{{ custody.issued_on.isoformat() }}</span></div>
+      {% if custody.settlement_due_date %}
+      <div class="cu-f"><span class="cu-f-l">موعد التسوية</span><span class="cu-f-v mono" dir="ltr" style="text-align:start">{{ custody.settlement_due_date.isoformat() }}</span></div>
+      {% endif %}
+      {% if custody.amount_returned and custody.amount_returned|float > 0 %}
+      <div class="cu-f"><span class="cu-f-l">مُرجَع للخزينة</span><span class="cu-f-v mono" dir="ltr" style="text-align:start">{{ custody.amount_returned|money }}</span></div>
+      {% endif %}
+      {% if custody.note %}
+      <div class="cu-f" style="grid-column:1/-1"><span class="cu-f-l">ملاحظات</span><span class="cu-f-v">{{ custody.note }}</span></div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="cu-card">
+    <h3 class="cu-h">بنود التسوية <small>{{ custody.settlement_lines|length }} بند</small></h3>
+    <p class="cu-hint" style="margin:0 0 10px">الإيصالات دي بيضيفها المحاسب مع كل مصروف بيتحسب على العهدة. لو عندك إيصال جديد، ابعته للمحاسب.</p>
+    {% if custody.settlement_lines %}
+    <div class="cu-list">
+      {% for l in custody.settlement_lines %}
+      <div class="cu-line">
+        <div>
+          <div class="cu-item-t" style="font-size:14px">
+            {% if l.expense_account %}<span style="font-family:ui-monospace,monospace;font-size:12px;color:var(--mut)">{{ l.expense_account.code }}</span> {{ l.expense_account.name_ar or l.expense_account.name }}{% else %}—{% endif %}
+          </div>
+          <div class="cu-item-s">{{ l.receipt_note or '—' }}</div>
+          {# MARSOUD-CUSTODY-ATTACH-01 — read-only view of receipts the
+             accountant attached to this line. #}
           {% set line_docs = documents_for('CASH_CUSTODY_SETTLEMENT', l.id) %}
-          {% for d in line_docs %}
-          <a href="{{ d.file_path }}" target="_blank"
-             class="block text-brand-600 hover:underline mt-1">
-            📄 {{ d.name }}
-          </a>
-          {% endfor %}
-        </td>
-        <td class="text-xs text-slate-500">
-          {{ l.created_at | company_dt('%Y-%m-%d') if l.created_at else '' }}
-        </td>
-      </tr>
+          {% for d in line_docs %}<a class="cu-doc" href="{{ d.file_path }}" target="_blank" rel="noopener">📄 {{ d.name }}</a>{% endfor %}
+          <div class="cu-item-s" dir="ltr" style="text-align:start">{{ l.created_at | company_dt('%Y-%m-%d') if l.created_at else '' }}</div>
+        </div>
+        <div class="cu-line-m">{{ l.amount|money }}</div>
+      </div>
+      {% endfor %}
+    </div>
     {% else %}
-      <tr><td colspan="5" class="text-center text-slate-500 py-4">
-        لسه المحاسب ما ضافش أي بنود تسوية.
-      </td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
+    <div class="cu-empty">لسه المحاسب ما ضافش أي بنود تسوية.</div>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

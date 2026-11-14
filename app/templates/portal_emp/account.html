@@ -347,7 +347,7 @@
   {# MARSOUD-VIOLATION-POLICY — permission request lives with attendance. #}
   <div class="ac-card">
     <h3 class="ac-h">🚪 طلب استئذان</h3>
-    <form method="POST" action="{{ url_for('portal_emp.permission_new') }}" class="ac-form" data-once>
+    <form method="POST" action="{{ url_for('portal_emp.permission_new') }}" class="ac-form" data-ac-once>
       <div class="full"><label class="ac-lbl">اليوم</label><input type="date" name="request_date" class="ac-in" dir="ltr" required></div>
       <div><label class="ac-lbl">من</label><input type="time" name="start_time" id="pm-from" class="ac-in" dir="ltr"></div>
       <div><label class="ac-lbl">إلى</label><input type="time" name="end_time" id="pm-to" class="ac-in" dir="ltr"></div>
@@ -378,7 +378,7 @@
 
     <details class="ac-det" id="leave-det">
       <summary>+ طلب إجازة جديد</summary>
-      <form method="POST" action="{{ url_for('portal_emp.leave_new') }}" class="ac-form" data-once id="leave-form">
+      <form method="POST" action="{{ url_for('portal_emp.leave_new') }}" class="ac-form" data-ac-once id="leave-form">
         <div class="full"><label class="ac-lbl">نوع الإجازة</label>
           <select name="leave_type_id" required class="ac-in">
             <option value="">— اختر —</option>
@@ -468,7 +468,7 @@
     <p class="ac-sub">مفيش سلفة حالية. تقدر تقدّم طلب جديد:</p>
     <details class="ac-det" style="margin-top:0">
       <summary>+ طلب سلفة جديدة</summary>
-      <form method="POST" action="{{ url_for('portal_emp.advance_new') }}" class="ac-form" data-once>
+      <form method="POST" action="{{ url_for('portal_emp.advance_new') }}" class="ac-form" data-ac-once>
         <div class="full"><label class="ac-lbl">المبلغ ({{ cur }})</label><input type="number" name="amount" step="0.01" min="0.01" required class="ac-in" dir="ltr" inputmode="decimal"></div>
         <div class="full"><label class="ac-lbl">السبب (اختياري)</label><textarea name="reason" rows="2" class="ac-in"></textarea></div>
         <div class="full"><button type="submit" class="ac-btn">إرسال الطلب</button></div>
@@ -561,7 +561,7 @@
   <div class="ac-card" id="password">
     <h3 class="ac-h">🔒 تغيير كلمة السر</h3>
     <p class="ac-sub">أدخل كلمة السر القديمة أولًا، ثم الجديدة مرتين للتأكيد. كلمة السر لازم تكون 6 أحرف على الأقل — والأفضل 8+ بحروف وأرقام.</p>
-    <form method="POST" action="{{ url_for('portal_emp.change_password') }}" class="ac-form" style="max-width:560px" data-once id="pw-form">
+    <form method="POST" action="{{ url_for('portal_emp.change_password') }}" class="ac-form" style="max-width:560px" data-ac-once id="pw-form">
       <div class="full"><label class="ac-lbl">كلمة السر القديمة</label>
         <div class="ac-pw"><input type="password" name="old_password" id="pw-old" required autocomplete="current-password" class="ac-in" dir="ltr"><button type="button" class="ac-eye" data-eye="pw-old" aria-label="إظهار">👁</button></div></div>
       <div><label class="ac-lbl">كلمة السر الجديدة</label>
@@ -752,7 +752,7 @@
   }
 
   /* double-submit guard on the other forms */
-  $$('form[data-once]').forEach(function (f) {
+  $$('form[data-ac-once]').forEach(function (f) {
     f.addEventListener('submit', function (e) {
       var b = f.querySelector('button[type=submit], button:not([type])');
       if (b) { setTimeout(function () { if (!e.defaultPrevented) { b.disabled = true; } }, 0); }
