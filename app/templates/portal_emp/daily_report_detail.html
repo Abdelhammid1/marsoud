@@ -1,79 +1,148 @@
 {% extends "base.html" %}
 {% block page_title %}{{ report.title }}{% endblock %}
 {% block content %}
+{# MARSOUD-DAILY-REPORTS-P91 — redesigned /my/daily-reports/<id>. Same route,
+   variables (emp, report) and form fields (employee_notes, submit_final). #}
+{% set draft = report.status.value == 'DRAFT' %}
+{% set days_ar = ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'] %}
+{% include "portal_emp/_cu_kit.html" %}
+<style>
+.cu-dr-body{white-space:pre-line;background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:14px;font-size:14px;line-height:1.9}
+.cu-dr-notes{width:100%;min-height:150px;resize:vertical;line-height:1.8}
+.cu-dr-help{background:var(--sky-bg);border:1px solid #bae6fd;color:#0c4a6e;border-radius:14px;padding:4px 14px;margin-bottom:14px}
+.cu-dr-help>summary{cursor:pointer;font-weight:800;padding:10px 0;font-size:14px}
+.cu-dr-help ol{margin:0 0 10px;padding-inline-start:20px;font-size:13px;line-height:1.9}
+.cu-dr-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.cu-dr-count{font-size:12px;color:var(--mut)}
+.cu-dr-two{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:820px){.cu-dr-two{grid-template-columns:minmax(0,1fr)}}
+</style>
+<div class="cu">
+  <div class="cu-top">
+    <div>
+      <h2 class="cu-title"><bdi>{{ report.title }}</bdi></h2>
+      <div class="cu-sub">{{ days_ar[report.report_date.weekday()] }} · <span dir="ltr">{{ report.report_date.isoformat() }}</span></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      {% if not draft %}<button type="button" class="cu-btn sec" onclick="window.print()">🖨 طباعة</button>{% endif %}
+      <a href="{{ url_for('portal_emp.daily_reports_list') }}" class="cu-btn sec">← كل تقاريري</a>
+    </div>
+  </div>
 
-<div class="mb-4">
-  <a href="{{ url_for('portal_emp.daily_reports_list') }}" class="text-sm text-brand-600 hover:underline">← كل تقاريري</a>
-</div>
+  <div class="cu-card" style="padding-bottom:12px">
+    <div class="cu-item-h">
+      {% if draft %}<span class="cu-b p">مسودة — لسه ما اتبعتش للمالك</span>
+      {% else %}<span class="cu-b a">تم الإرسال{% if report.submitted_at %} بتاريخ {{ report.submitted_at | company_dt }}{% endif %}</span>{% endif %}
+    </div>
+    <div class="cu-steps">
+      <div class="cu-step on">اتولّد تلقائي</div>
+      <div class="cu-step {{ 'on' if not draft else '' }}">{{ 'اتبعت للمالك' if not draft else 'مراجعتك وإرسال' }}</div>
+    </div>
+  </div>
 
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-  <div class="lg:col-span-2 card p-6">
-    <div class="flex items-center justify-between mb-4 flex-wrap gap-2">
-      <h2 class="text-xl font-bold text-navy-900">{{ report.title }}</h2>
-      {% if report.status.value == 'DRAFT' %}
-        <span class="badge bg-amber-100 text-amber-700">مسودة — لسه ما اتبعتش للمالك</span>
-      {% else %}
-        <span class="badge bg-emerald-100 text-emerald-700">تم الإرسال بتاريخ {{ report.submitted_at | company_dt if report.submitted_at else '' }}</span>
+  <div class="cu-dr-two">
+    <div>
+      {# Asmaa 2026-07-03 — plain-language explanation for the draft state. #}
+      {% if draft %}
+      <details class="cu-dr-help" open>
+        <summary>📌 إزاي أتعامل مع التقرير ده؟</summary>
+        <ol>
+          <li>ده تقرير النشاط اليومي بتاعك — النظام لخّص المهام والليدز والمتابعات اللي اشتغلت عليها امبارح.</li>
+          <li>راجع التلخيص تحت + ضيف أي ملاحظات ناقصة في خانة الملاحظات.</li>
+          <li>لما تخلص، دوس <b>«📤 ابعت التقرير للمالك»</b> — بعد الإرسال، مش هيسمحلك تعدّل.</li>
+        </ol>
+      </details>
       {% endif %}
-    </div>
 
-    {# Asmaa 2026-07-03 — she said "مش فاهمة فيه حاجة" and "مش عارفة
-       ابعت التقرير". Add a plain-language explanation on top + rename
-       the button to match how she talks about it. #}
-    {% if report.status.value == 'DRAFT' %}
-    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 text-sm text-blue-900">
-      <div class="font-bold mb-1">📌 إزاي أتعامل مع التقرير ده؟</div>
-      <ol class="list-decimal list-inside space-y-1 text-xs">
-        <li>ده تقرير النشاط اليومي بتاعك — النظام لخّص المهام والليدز والمتابعات اللي اشتغلت عليها امبارح.</li>
-        <li>راجع التلخيص تحت + ضيف أي ملاحظات ناقصة في خانة الملاحظات.</li>
-        <li>لما تخلص، دوس <b>«📤 ابعت التقرير للمالك»</b> — بعد الإرسال، مش هيسمحلك تعدّل.</li>
-      </ol>
-    </div>
-    {% endif %}
-
-    <div class="mb-6">
-      <h3 class="font-bold text-navy-900 mb-2 text-sm">النشاط اللي اتلخّص تلقائياً</h3>
-      <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm whitespace-pre-line" dir="rtl">
-        {{ report.body or 'مفيش نشاط مسجّل امبارح.' }}
-      </div>
-    </div>
-
-    {% if report.status.value == 'DRAFT' %}
-    <form method="POST" action="{{ url_for('portal_emp.daily_report_detail', report_id=report.id) }}">
-      <div class="mb-4">
-        <label class="block text-sm font-semibold text-slate-700 mb-2">ملاحظاتك (اختياري)</label>
-        <textarea name="employee_notes" rows="6" class="input w-full text-sm"
-                   placeholder="لو فيه حاجة في يومك مش موجودة في التلخيص فوق، اكتبها هنا…">{{ report.employee_notes or '' }}</textarea>
-      </div>
-      <div class="flex justify-between items-center flex-wrap gap-2">
-        <button type="submit" class="btn-secondary text-sm">💾 حفظ الملاحظات</button>
-        <button type="submit" name="submit_final" value="1" class="btn-primary"
-                 onclick="return confirm('هل انت متأكد؟ التقرير هيتبعت للمالك ومش هتقدر تعدّله بعدها.');">
-          📤 ابعت التقرير للمالك
-        </button>
-      </div>
-    </form>
-    {% else %}
-      {% if report.employee_notes %}
-      <div class="mb-4 border-t border-slate-100 pt-4">
-        <h3 class="font-bold text-navy-900 mb-2 text-sm">ملاحظات الموظف</h3>
-        <div class="bg-emerald-50/40 border border-emerald-100 rounded-lg p-4 text-sm whitespace-pre-line" dir="rtl">
-          {{ report.employee_notes }}
+      <div class="cu-card">
+        <div class="cu-dr-bar" style="margin-bottom:10px">
+          <h3 class="cu-h" style="margin:0">النشاط اللي اتلخّص تلقائياً</h3>
+          {% if report.body %}<button type="button" class="cu-chip" id="dr-copy">📋 نسخ الملخص</button>{% endif %}
         </div>
+        <div class="cu-dr-body" id="dr-body" dir="rtl">{{ report.body or 'مفيش نشاط مسجّل امبارح.' }}</div>
+      </div>
+
+      {% if draft %}
+      <div class="cu-card">
+        <form method="POST" id="dr-form" action="{{ url_for('portal_emp.daily_report_detail', report_id=report.id) }}">
+          <h3 class="cu-h">ملاحظاتك <small>(اختياري)</small></h3>
+          <textarea name="employee_notes" id="dr-notes" class="cu-in cu-dr-notes" placeholder="لو فيه حاجة في يومك مش موجودة في التلخيص فوق، اكتبها هنا…">{{ report.employee_notes or '' }}</textarea>
+          <div class="cu-dr-bar" style="margin-top:6px">
+            <div class="cu-chips" style="margin:0">
+              {% for t in ['اجتماع مع عميل', 'متابعة هاتفية', 'عمل ميداني', 'مهام إدارية', 'تدريب / تعلّم'] %}<button type="button" class="cu-chip" data-add="{{ t }}">+ {{ t }}</button>{% endfor %}
+            </div>
+            <span class="cu-dr-count" id="dr-count">0 حرف</span>
+          </div>
+          <div class="cu-dr-bar" style="margin-top:14px">
+            <button type="submit" class="cu-btn sec">💾 حفظ الملاحظات</button>
+            <button type="submit" name="submit_final" value="1" class="cu-btn" id="dr-final"
+                    data-confirm="هل انت متأكد؟ التقرير هيتبعت للمالك ومش هتقدر تعدّله بعدها.">📤 ابعت التقرير للمالك</button>
+          </div>
+        </form>
+      </div>
+      {% elif report.employee_notes %}
+      <div class="cu-card">
+        <h3 class="cu-h">ملاحظات الموظف</h3>
+        <div class="cu-dr-body" style="background:var(--em-bg);border-color:#a7f3d0" dir="rtl">{{ report.employee_notes }}</div>
       </div>
       {% endif %}
-    {% endif %}
-  </div>
+    </div>
 
-  <div class="card p-6">
-    <h3 class="font-bold text-navy-900 mb-3 text-sm">معلومات</h3>
-    <div class="space-y-2 text-sm">
-      <div><span class="text-slate-500">التاريخ:</span> <span class="font-mono">{{ report.report_date.isoformat() }}</span></div>
-      <div><span class="text-slate-500">أُنشئت:</span> {{ report.created_at | company_dt if report.created_at else '' }}</div>
-      {% if report.submitted_at %}
-      <div><span class="text-slate-500">اتوَلّدت:</span> {{ report.submitted_at | company_dt }}</div>
-      {% endif %}
+    <div class="cu-card">
+      <h3 class="cu-h">معلومات</h3>
+      <div class="cu-grid">
+        <div class="cu-f"><span class="cu-f-l">التاريخ</span><span class="cu-f-v mono" dir="ltr" style="text-align:start">{{ report.report_date.isoformat() }}</span></div>
+        <div class="cu-f"><span class="cu-f-l">أُنشئت</span><span class="cu-f-v">{{ report.created_at | company_dt if report.created_at else '—' }}</span></div>
+        {% if report.submitted_at %}
+        <div class="cu-f"><span class="cu-f-l">اتوَلّدت</span><span class="cu-f-v">{{ report.submitted_at | company_dt }}</span></div>
+        {% endif %}
+      </div>
     </div>
   </div>
 </div>
+<script>
+(function () {
+  function init() {
+    var cp = document.getElementById('dr-copy'), body = document.getElementById('dr-body');
+    if (cp && body) {
+      cp.addEventListener('click', function () {
+        var t = body.textContent.trim(), old = cp.textContent;
+        function ok() { cp.textContent = '✓ تم النسخ'; setTimeout(function () { cp.textContent = old; }, 1500); }
+        if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(t).then(ok); }
+        else { var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); ok(); } catch (e) {} document.body.removeChild(ta); }
+      });
+    }
+    var form = document.getElementById('dr-form'), notes = document.getElementById('dr-notes');
+    if (!form || !notes) { return; }
+    var cnt = document.getElementById('dr-count'), dirty = false, leaving = false;
+    function upd() { cnt.textContent = notes.value.length + ' حرف'; }
+    upd();
+    notes.addEventListener('input', function () { dirty = true; upd(); });
+    Array.prototype.slice.call(document.querySelectorAll('[data-add]')).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var v = notes.value.replace(/\s+$/, '');
+        notes.value = (v ? v + '\n' : '') + '• ' + b.getAttribute('data-add') + ': ';
+        notes.focus(); notes.setSelectionRange(notes.value.length, notes.value.length);
+        dirty = true; upd();
+      });
+    });
+    var fin = document.getElementById('dr-final');
+    fin.addEventListener('click', function (e) {
+      if (!window.confirm(fin.getAttribute('data-confirm'))) { e.preventDefault(); }
+    });
+    var sent = false;
+    form.addEventListener('submit', function (e) {
+      if (sent) { e.preventDefault(); return; }
+      sent = true; leaving = true;
+      /* do NOT disable the buttons: a disabled submitter would drop submit_final */
+      setTimeout(function () { form.style.opacity = '.6'; form.style.pointerEvents = 'none'; }, 0);
+    });
+    window.addEventListener('beforeunload', function (e) {
+      if (dirty && !leaving) { e.preventDefault(); e.returnValue = ''; }
+    });
+    window.addEventListener('pageshow', function (e) { if (e.persisted) { sent = false; leaving = false; form.style.opacity = ''; form.style.pointerEvents = ''; } });
+  }
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
+})();
+</script>
 {% endblock %}

@@ -1,41 +1,108 @@
 {% extends "base.html" %}
 {% block page_title %}تقاريري اليومية{% endblock %}
 {% block content %}
+{# MARSOUD-DAILY-REPORTS-P91 — redesigned /my/daily-reports. Same route and
+   variables (emp, reports). Reuses the scoped .cu kit from P90. #}
+{% set days_ar = ['الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'] %}
+{% set k = namespace(draft=0, sent=0, first_draft=None) %}
+{% for r in reports %}
+  {% if r.status.value == 'DRAFT' %}
+    {% set k.draft = k.draft + 1 %}
+    {% if k.first_draft is none %}{% set k.first_draft = r %}{% endif %}
+  {% else %}{% set k.sent = k.sent + 1 %}{% endif %}
+{% endfor %}
 
-<div class="card p-6">
-  <h2 class="text-xl font-bold text-navy-900 mb-4">تقاريري اليومية</h2>
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>التاريخ</th>
-        <th>العنوان</th>
-        <th>الحالة</th>
-        <th class="text-left"></th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for r in reports %}
-      <tr>
-        <td class="font-mono text-sm">{{ r.report_date.isoformat() }}</td>
-        <td>{{ r.title }}</td>
-        <td>
-          {% if r.status.value == 'DRAFT' %}
-            <span class="badge bg-amber-100 text-amber-700">مسودة — محتاج ترسله</span>
-          {% else %}
-            <span class="badge bg-emerald-100 text-emerald-700">اتبعت للمالك</span>
-          {% endif %}
-        </td>
-        <td class="text-left">
-          <a href="{{ url_for('portal_emp.daily_report_detail', report_id=r.id) }}"
-              class="text-brand-600 hover:underline text-sm">
-            {% if r.status.value == 'DRAFT' %}📝 راجع وابعت{% else %}عرض{% endif %}
-          </a>
-        </td>
-      </tr>
+{% include "portal_emp/_cu_kit.html" %}
+<style>
+.cu-dr-date{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:62px;border-radius:12px;background:var(--soft);border:1px solid var(--line);padding:6px 8px;font-family:ui-monospace,Menlo,Consolas,monospace;direction:ltr}
+.cu-dr-date b{font-size:20px;line-height:1.1}
+.cu-dr-date span{font-size:11px;color:var(--mut)}
+.cu-dr-row{display:flex;gap:12px;align-items:flex-start}
+.cu-dr-main{flex:1;min-width:0}
+.cu-dr-prev{font-size:12px;color:var(--mut);margin-top:4px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.cu-item.draft{border-color:#fde68a;background:#fffdf5}
+</style>
+<div class="cu">
+  <div class="cu-top">
+    <div>
+      <h2 class="cu-title">📝 تقاريري اليومية</h2>
+      <div class="cu-sub">ملخص نشاطك اليومي — راجعه وضيف ملاحظاتك وابعته للمالك</div>
+    </div>
+    <a class="cu-btn sec" href="{{ url_for('portal_emp.account') }}">← حسابي</a>
+  </div>
+
+  <div class="cu-grid cu-g4" style="margin-bottom:14px">
+    <div class="cu-kpi"><div class="cu-kpi-l">إجمالي التقارير</div><div class="cu-kpi-v">{{ reports|length }}</div><div class="cu-kpi-s">كل التقارير</div></div>
+    <div class="cu-kpi {{ 'am' if k.draft else 'em' }}"><div class="cu-kpi-l">مسودات محتاجة إرسال</div><div class="cu-kpi-v">{{ k.draft }}</div><div class="cu-kpi-s">{{ 'راجعها وابعتها' if k.draft else 'مفيش حاجة متأخرة ✓' }}</div></div>
+    <div class="cu-kpi em"><div class="cu-kpi-l">اتبعتت للمالك</div><div class="cu-kpi-v">{{ k.sent }}</div><div class="cu-kpi-s">تقارير نهائية</div></div>
+    <div class="cu-kpi sk"><div class="cu-kpi-l">آخر تقرير</div>
+      {% if reports %}<div class="cu-kpi-v" style="font-size:16px">{{ reports[0].report_date.isoformat() }}</div><div class="cu-kpi-s">{{ days_ar[reports[0].report_date.weekday()] }}</div>
+      {% else %}<div class="cu-kpi-v">—</div><div class="cu-kpi-s">لسه مفيش</div>{% endif %}
+    </div>
+  </div>
+
+  {% if k.draft %}
+  <div class="cu-alert">📌 عندك {{ k.draft }} {{ 'مسودة' if k.draft == 1 else 'مسودات' }} لسه ما اتبعتتش للمالك.
+    <a class="cu-b p" style="text-decoration:none" href="{{ url_for('portal_emp.daily_report_detail', report_id=k.first_draft.id) }}">📝 افتح أحدث مسودة ({{ k.first_draft.report_date.isoformat() }})</a>
+  </div>
+  {% endif %}
+
+  <div class="cu-card">
+    <h3 class="cu-h">التقارير</h3>
+    {% if reports %}
+    <div class="cu-top" style="margin-bottom:10px">
+      <div class="cu-filt" data-cu-filter="dr-list" style="margin:0">
+        <button type="button" class="cu-fb is-on" data-f="all">الكل ({{ reports|length }})</button>
+        <button type="button" class="cu-fb" data-f="draft">مسودات ({{ k.draft }})</button>
+        <button type="button" class="cu-fb" data-f="sent">مُرسلة ({{ k.sent }})</button>
+      </div>
+      <input type="search" id="dr-q" class="cu-in" style="max-width:240px" placeholder="🔍 ابحث بالتاريخ أو العنوان">
+    </div>
+    <div class="cu-list" id="dr-list">
+      {% for r in reports %}
+      {% set d = r.status.value == 'DRAFT' %}
+      <div class="cu-item {{ 'draft' if d else '' }}" data-st="{{ 'draft' if d else 'sent' }}" data-q="{{ r.report_date.isoformat() }} {{ r.title }}">
+        <div class="cu-dr-row">
+          <div class="cu-dr-date"><b>{{ '%02d'|format(r.report_date.day) }}</b><span>{{ r.report_date.year }}-{{ '%02d'|format(r.report_date.month) }}</span></div>
+          <div class="cu-dr-main">
+            <div class="cu-item-h">
+              <div class="cu-item-t"><bdi>{{ r.title }}</bdi></div>
+              {% if d %}<span class="cu-b p">مسودة — محتاج ترسله</span>{% else %}<span class="cu-b a">اتبعت للمالك</span>{% endif %}
+            </div>
+            <div class="cu-item-s">{{ days_ar[r.report_date.weekday()] }}{% if r.employee_notes %} · 💬 فيه ملاحظات منك{% endif %}</div>
+            {% if r.body %}<div class="cu-dr-prev">{{ r.body|replace('\n', ' ')|truncate(140) }}</div>{% endif %}
+            <div class="cu-foot"><span></span>
+              <a class="{{ 'cu-btn' if d else 'cu-link' }}" {% if d %}style="padding:6px 14px;font-size:13px"{% endif %} href="{{ url_for('portal_emp.daily_report_detail', report_id=r.id) }}">{% if d %}📝 راجع وابعت{% else %}عرض ←{% endif %}</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="cu-empty" id="dr-list-empty" style="display:none">مفيش تقارير بالشكل ده.</div>
     {% else %}
-      <tr><td colspan="4" class="text-center text-slate-500 py-8">لا توجد تقارير بعد.</td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
+    <div class="cu-empty">لا توجد تقارير بعد. التقرير بيتولّد تلقائي كل يوم وبيظهر هنا.</div>
+    {% endif %}
+  </div>
 </div>
+<script>
+(function () {
+  function init() {
+    var q = document.getElementById('dr-q'), list = document.getElementById('dr-list'), empty = document.getElementById('dr-list-empty');
+    if (!q || !list) { return; }
+    function norm(t) { return String(t || '').toLowerCase().replace(/[ً-ْـ]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').trim(); }
+    q.addEventListener('input', function () {
+      var v = norm(q.value), n = 0;
+      var on = document.querySelector('[data-cu-filter="dr-list"] .cu-fb.is-on');
+      var f = on ? on.getAttribute('data-f') : 'all';
+      Array.prototype.slice.call(list.querySelectorAll('[data-st]')).forEach(function (r) {
+        var vis = (f === 'all' || r.getAttribute('data-st') === f) && (!v || norm(r.getAttribute('data-q')).indexOf(v) !== -1);
+        r.style.display = vis ? '' : 'none'; if (vis) { n++; }
+      });
+      if (empty) { empty.style.display = n ? 'none' : ''; }
+    });
+  }
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
+})();
+</script>
 {% endblock %}
