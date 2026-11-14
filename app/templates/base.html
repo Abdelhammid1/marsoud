@@ -560,6 +560,18 @@ tailwind.config = {
     </div>
     {% endif %}
 
+    <div id="nav-tools">
+      <div class="nt-search">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="9" r="6"/><path d="M14 14l4 4"/></svg>
+        <input id="nav-search" type="search" autocomplete="off" spellcheck="false" placeholder="ابحث في الصفحات…" aria-label="بحث في القائمة">
+        <span class="nt-kbd" aria-hidden="true">Ctrl K</span>
+        <button type="button" id="nav-search-clear" class="nt-clear" hidden aria-label="مسح البحث">✕</button>
+      </div>
+      <div class="nt-actions">
+        <button type="button" id="nav-expand-all">فتح الكل</button>
+        <button type="button" id="nav-collapse-all">طي الكل</button>
+      </div>
+    </div>
     <nav class="flex-1 py-3 overflow-y-auto">
       {% set is_hr = current_role in ('owner', 'admin', 'hr_manager') %}
       {% if current_role == 'hr_manager' %}
@@ -984,6 +996,228 @@ tailwind.config = {
   </aside>
 
   <!-- MARSOUD-42 — backdrop shown only on mobile when sidebar is open -->
+  <style id="p80-css">
+/* MARSOUD-SIDEBAR-P80 */
+#sidebar{background:linear-gradient(180deg,#f8fafc 0%,#f1f5f9 100%);box-shadow:-8px 0 28px -16px rgba(15,23,42,.22)}
+#sidebar nav{scrollbar-width:thin;scrollbar-color:#cbd5e1 transparent;padding:4px 0 24px;scroll-behavior:auto}
+#sidebar nav::-webkit-scrollbar{width:6px}
+#sidebar nav::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:6px}
+#sidebar select{border-radius:10px;font-weight:600}
+#nav-tools{padding:10px 12px 4px;border-bottom:1px solid #e2e8f0;background:rgba(248,250,252,.92);position:relative;z-index:2}
+.nt-search{position:relative}
+.nt-search svg{position:absolute;right:11px;top:50%;margin-top:-8px;width:16px;height:16px;color:#94a3b8;pointer-events:none}
+#nav-search{width:100%;height:36px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;padding:0 34px 0 54px;font-size:13px;color:#0f172a;outline:none;transition:border-color .15s,box-shadow .15s;-webkit-appearance:none;appearance:none}
+#nav-search::placeholder{color:#94a3b8}
+#nav-search:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.16)}
+#nav-search::-webkit-search-cancel-button{display:none}
+.nt-kbd{position:absolute;left:8px;top:50%;margin-top:-10px;font:600 10px/18px system-ui,sans-serif;color:#64748b;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:0 6px;pointer-events:none;direction:ltr}
+#nav-search:focus~.nt-kbd{display:none}
+.nt-clear{position:absolute;left:6px;top:50%;margin-top:-11px;width:22px;height:22px;border-radius:50%;border:0;background:#e2e8f0;color:#475569;font-size:11px;line-height:22px;cursor:pointer;padding:0}
+.nt-clear:hover{background:#cbd5e1}
+.nt-clear[hidden]{display:none}
+.nt-actions{display:flex;gap:14px;padding:7px 4px 4px;font-size:11px}
+.nt-actions button{border:0;background:none;color:#64748b;cursor:pointer;padding:2px 0}
+.nt-actions button:hover{color:#047857;text-decoration:underline}
+#sidebar .sidebar-section{border-bottom:0;padding:0 8px;margin-top:2px}
+#sidebar .section-toggle{border-radius:10px;padding:8px 10px;font-size:12.5px;font-weight:700;color:#334155}
+#sidebar .section-toggle:hover{background:rgba(226,232,240,.7)}
+#sidebar .section-toggle>span:first-child>span:first-child{width:28px;height:28px;display:inline-grid;place-items:center;background:#fff;border:1px solid #e2e8f0;border-radius:9px;font-size:14px;transition:background .15s,border-color .15s}
+#sidebar .nt-has-active>.section-toggle{color:#047857}
+#sidebar .nt-has-active>.section-toggle>span:first-child>span:first-child{background:#ecfdf5;border-color:#a7f3d0}
+#sidebar .section-chevron{color:#94a3b8}
+.nt-count{font-size:10px;font-weight:600;color:#64748b;background:#e2e8f0;border-radius:999px;padding:1px 7px;line-height:16px}
+.nt-has-active .nt-count{background:#d1fae5;color:#047857}
+#sidebar .nav-link{position:relative;margin:1px 0;border-radius:9px;color:#475569;font-size:13px;transition:background .15s,color .15s}
+#sidebar .sidebar-section .nav-link{padding:7px 40px 7px 34px}
+#sidebar nav>.nav-link{margin:1px 8px;padding:9px 12px}
+#sidebar .nav-link>span:first-child{width:20px;text-align:center;font-size:15px;flex:none}
+#sidebar .nav-link>span:nth-child(2){flex:1;min-width:0}
+#sidebar .nav-link:hover{background:rgba(226,232,240,.65);color:#0f172a}
+#sidebar .nav-link.active{background:#d1fae5;color:#065f46;font-weight:700;box-shadow:inset 0 0 0 1px rgba(16,185,129,.22)}
+#sidebar .nav-link.active::before{content:"";position:absolute;right:0;top:24%;bottom:24%;width:3px;border-radius:3px;background:#10b981}
+#sidebar .nav-link.nt-sel{background:#ecfdf5;box-shadow:0 0 0 2px #10b981 inset}
+.nt-star{position:absolute;left:6px;top:50%;transform:translateY(-50%);font-size:14px;line-height:1;color:#94a3b8;opacity:0;padding:4px;border-radius:6px;cursor:pointer;transition:opacity .15s,color .15s}
+.nav-link:hover .nt-star,.nav-link:focus-visible .nt-star{opacity:1}
+.nt-star:hover{color:#f59e0b;background:rgba(245,158,11,.12)}
+.nt-star.on{opacity:1;color:#f59e0b}
+@media (hover:none){
+.nt-star{opacity:.55}
+.nt-kbd{display:none}
+}
+#sidebar .nt-favs{background:linear-gradient(180deg,#fffbeb,#fff7ed);border:1px solid #fde68a;border-radius:12px;margin:6px 8px 8px;padding:2px 4px 4px}
+.nt-favs-title{display:flex;align-items:center;gap:8px;padding:7px 8px 4px;font-size:12px;font-weight:700;color:#b45309}
+#sidebar .nt-favs .nav-link{padding:7px 12px 7px 34px}
+#sidebar .nt-favs .nav-link:hover{background:rgba(253,230,138,.45)}
+.nt-hide{display:none!important}
+.nt-empty{padding:30px 16px;text-align:center;color:#64748b;font-size:13px;line-height:1.8}
+.nt-empty b{display:block;font-size:22px;margin-bottom:4px}
+@media (max-width:767.98px){
+#sidebar{width:min(86vw,320px)!important;box-shadow:-14px 0 44px rgba(15,23,42,.38)}
+#sidebar .sidebar-section .nav-link{padding-top:11px;padding-bottom:11px}
+#nav-search{height:40px;font-size:14px}
+}
+@media (prefers-reduced-motion:reduce){
+#sidebar *{transition:none!important}
+}
+</style>
+<script id="p80-js">
+/* MARSOUD-SIDEBAR-P80 */
+(function(){
+  var FKEY='marsoud_nav_favs', SKEY='marsoud_nav_scroll', MAXF=8;
+  function q1(s,r){return (r||document).querySelector(s);}
+  function qa(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s));}
+  function norm(s){return String(s||'').toLowerCase().replace(/[ً-ٰٟـ]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/\s+/g,' ').trim();}
+  function lsGet(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
+  function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+  function isMobile(){return window.matchMedia&&window.matchMedia('(max-width:767.98px)').matches;}
+  function openSidebar(){
+    if(isMobile()){ if(!document.body.classList.contains('sidebar-open-mobile')&&window.toggleSidebar){window.toggleSidebar(true);} }
+    else{ document.body.classList.remove('sidebar-hidden'); }
+  }
+  function init(){
+    var aside=q1('#sidebar'); if(!aside) return;
+    var nav=q1('nav',aside); if(!nav||nav.getAttribute('data-p80')) return;
+    nav.setAttribute('data-p80','1');
+    var input=q1('#nav-search'), clearBtn=q1('#nav-search-clear');
+    var sections=qa('.sidebar-section',nav);
+    var links=qa('.nav-link',nav);
+    var hasSections=sections.length>0;
+    if(!hasSections){var act=q1('.nt-actions'); if(act) act.style.display='none';}
+    function secName(el){var s=el.closest('.sidebar-section'); return s?(s.getAttribute('data-section')||''):'';}
+    links.forEach(function(a){
+      var sp=a.querySelectorAll('span'); a._label=(sp.length>1?sp[sp.length-1].textContent:a.textContent).trim();
+      a._nlabel=norm(a._label); a._nsec=norm(secName(a));
+      var st=document.createElement('span'); st.className='nt-star'; st.setAttribute('role','button'); st.setAttribute('aria-label','تثبيت في المفضلة'); st.title='تثبيت في المفضلة'; st.textContent='☆';
+      a.appendChild(st);
+    });
+    sections.forEach(function(s){
+      var n=qa('.nav-link',s).length, btn=q1('.section-toggle',s), grp=btn?btn.querySelector('span'):null;
+      if(grp){var p=document.createElement('span'); p.className='nt-count'; p.textContent=String(n); grp.appendChild(p);}
+      if(q1('.nav-link.active',s)) s.classList.add('nt-has-active');
+    });
+    /* ---------- favorites ---------- */
+    var favBox=null;
+    function getFavs(){var f=lsGet(FKEY,[]); return Array.isArray(f)?f.filter(function(x){return typeof x==='string';}):[];}
+    function findLink(h){for(var i=0;i<links.length;i++){if(links[i].getAttribute('href')===h) return links[i];} return null;}
+    function renderFavs(){
+      var favs=getFavs();
+      if(favBox&&favBox.parentNode) favBox.parentNode.removeChild(favBox);
+      favBox=null;
+      var shown=[];
+      favs.forEach(function(h){var a=findLink(h); if(a) shown.push(a);});
+      if(shown.length){
+        favBox=document.createElement('div'); favBox.className='sidebar-section nt-favs'; favBox.setAttribute('data-section','المفضلة');
+        var t=document.createElement('div'); t.className='nt-favs-title'; t.innerHTML='<span aria-hidden="true">⭐</span><span>المفضلة</span>';
+        favBox.appendChild(t);
+        shown.forEach(function(a){
+          var c=a.cloneNode(true); c.classList.add('nt-fav-link');
+          favBox.appendChild(c);
+        });
+        nav.insertBefore(favBox,nav.firstChild);
+      }
+      qa('.nav-link',nav).forEach(function(a){
+        var on=favs.indexOf(a.getAttribute('href'))>-1, st=a.querySelector('.nt-star');
+        if(st){st.classList.toggle('on',on); st.textContent=on?'★':'☆'; var m=on?'إزالة من المفضلة':'تثبيت في المفضلة'; st.title=m; st.setAttribute('aria-label',m);}
+      });
+    }
+    function toggleFav(h){
+      if(!h) return;
+      var f=getFavs(), i=f.indexOf(h);
+      if(i>-1) f.splice(i,1); else { f.push(h); while(f.length>MAXF) f.shift(); }
+      lsSet(FKEY,f); renderFavs();
+    }
+    nav.addEventListener('click',function(e){
+      var st=e.target.closest?e.target.closest('.nt-star'):null;
+      if(!st) return;
+      e.preventDefault(); e.stopPropagation();
+      var a=st.closest('.nav-link'); if(a) toggleFav(a.getAttribute('href'));
+    },true);
+    nav.addEventListener('click',function(e){
+      var a=e.target.closest?e.target.closest('.nav-link'):null;
+      if(a&&isMobile()&&window.toggleSidebar) window.toggleSidebar(false);
+    });
+    /* ---------- collapse helpers ---------- */
+    function secBody(s){return q1('.section-body',s);}
+    function setCollapsed(s,c){
+      var b=secBody(s), ch=q1('.section-chevron',s); if(!b) return;
+      b.classList.toggle('section-collapsed',c); if(ch) ch.classList.toggle('section-collapsed-chevron',c);
+    }
+    function isCollapsed(s){var b=secBody(s); return !!(b&&b.classList.contains('section-collapsed'));}
+    function persistAll(c){
+      var st=lsGet('marsoud_sidebar',{}); if(!st||typeof st!=='object') st={};
+      sections.forEach(function(s){var n=s.getAttribute('data-section'); if(n) st[n]=c?'collapsed':'open';});
+      lsSet('marsoud_sidebar',st);
+    }
+    var ea=q1('#nav-expand-all'), ca=q1('#nav-collapse-all');
+    if(ea) ea.addEventListener('click',function(){sections.forEach(function(s){setCollapsed(s,false);}); persistAll(false);});
+    if(ca) ca.addEventListener('click',function(){sections.forEach(function(s){setCollapsed(s,!q1('.nav-link.active',s));}); persistAll(true);});
+    /* ---------- search ---------- */
+    var snap=null, empty=null, sel=null;
+    function visibleLinks(){return links.filter(function(a){return !a.classList.contains('nt-hide')&&!(a.closest('.sidebar-section')&&a.closest('.sidebar-section').classList.contains('nt-hide'));});}
+    function setSel(a){
+      if(sel) sel.classList.remove('nt-sel');
+      sel=a||null;
+      if(sel){sel.classList.add('nt-sel'); try{sel.scrollIntoView({block:'nearest'});}catch(e){}}
+    }
+    function runSearch(){
+      var v=norm(input.value); clearBtn.hidden=!input.value;
+      if(!v){
+        if(snap){sections.forEach(function(s,i){setCollapsed(s,snap[i]);}); snap=null;}
+        links.forEach(function(a){a.classList.remove('nt-hide');});
+        sections.forEach(function(s){s.classList.remove('nt-hide');});
+        if(favBox) favBox.classList.remove('nt-hide');
+        if(empty) empty.style.display='none';
+        setSel(null); return;
+      }
+      if(!snap) snap=sections.map(isCollapsed);
+      if(favBox) favBox.classList.add('nt-hide');
+      var any=false;
+      links.forEach(function(a){
+        var m=a._nlabel.indexOf(v)>-1||(a._nsec&&a._nsec.indexOf(v)>-1);
+        a.classList.toggle('nt-hide',!m); if(m) any=true;
+      });
+      sections.forEach(function(s){
+        var has=qa('.nav-link:not(.nt-hide)',s).length>0;
+        s.classList.toggle('nt-hide',!has);
+        if(has) setCollapsed(s,false);
+      });
+      if(!empty){empty=document.createElement('div'); empty.className='nt-empty'; empty.innerHTML='<b aria-hidden="true">🔎</b>مفيش صفحة بالاسم ده<br>جرّب كلمة تانية'; nav.appendChild(empty);}
+      empty.style.display=any?'none':'block';
+      var vis=visibleLinks(); setSel(vis[0]||null);
+    }
+    input.addEventListener('input',runSearch);
+    clearBtn.addEventListener('click',function(){input.value=''; runSearch(); input.focus();});
+    input.addEventListener('keydown',function(e){
+      if(e.key==='Escape'){ if(input.value){input.value=''; runSearch();} else {input.blur(); if(isMobile()&&window.toggleSidebar) window.toggleSidebar(false);} e.preventDefault(); return; }
+      if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+        var vis=visibleLinks(); if(!vis.length) return; e.preventDefault();
+        var i=vis.indexOf(sel); i=e.key==='ArrowDown'?(i+1)%vis.length:(i<=0?vis.length-1:i-1); setSel(vis[i]); return;
+      }
+      if(e.key==='Enter'){ var t=sel||visibleLinks()[0]; if(t&&t.getAttribute('href')){e.preventDefault(); window.location.href=t.getAttribute('href');} }
+    });
+    document.addEventListener('keydown',function(e){
+      var tag=(e.target&&e.target.tagName)||'', typing=/INPUT|TEXTAREA|SELECT/.test(tag)||(e.target&&e.target.isContentEditable);
+      var k=(e.key||'').toLowerCase();
+      if(((e.ctrlKey||e.metaKey)&&k==='k')||(!typing&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&e.key==='/')){
+        e.preventDefault(); openSidebar(); setTimeout(function(){input.focus(); input.select();},60);
+      }
+    });
+    /* ---------- scroll memory / active into view ---------- */
+    renderFavs();
+    var saved=null; try{saved=parseInt(sessionStorage.getItem(SKEY),10);}catch(e){}
+    if(!isNaN(saved)&&saved>0) nav.scrollTop=saved;
+    var act=q1('.nav-link.active:not(.nt-fav-link)',nav);
+    if(act){
+      var nr=nav.getBoundingClientRect(), ar=act.getBoundingClientRect();
+      if(ar.top<nr.top+8||ar.bottom>nr.bottom-8){ nav.scrollTop+= (ar.top-nr.top)-(nr.height/2)+(ar.height/2); }
+    }
+    var tmr=null;
+    nav.addEventListener('scroll',function(){clearTimeout(tmr); tmr=setTimeout(function(){try{sessionStorage.setItem(SKEY,String(Math.round(nav.scrollTop)));}catch(e){}},150);});
+  }
+  function boot(){setTimeout(init,120);}
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+})();
+</script>
   <div id="sidebar-backdrop" class="hidden fixed inset-0 bg-black/40 z-30 md:hidden"
        onclick="toggleSidebar(false)"></div>
   {% endif %}
