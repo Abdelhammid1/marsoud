@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block page_title %}الميزانية العمومية{% endblock %}
 {% block content %}
-<div class="card p-6 mb-4">
-  <form method="GET" class="flex items-end gap-3">
+<div class="card p-6 mb-4 st-noprint">
+  <form method="GET" class="flex items-end gap-3 flex-wrap">
     <div>
       <label class="block text-xs font-semibold text-slate-700 mb-1">كما في</label>
       <input type="date" name="as_of" value="{{ as_of.isoformat() }}" class="input">
@@ -10,16 +10,24 @@
     <button type="submit" class="btn-primary">عرض</button>
     <a href="{{ url_for('reports.export', report_type='balance-sheet', fmt='pdf', end_date=as_of.isoformat()) }}" class="btn-secondary">PDF</a>
     <a href="{{ url_for('reports.export', report_type='balance-sheet', fmt='excel', end_date=as_of.isoformat()) }}" class="btn-secondary">Excel</a>
+  <button type="button" onclick="window.print()" class="btn-secondary">🖨 طباعة</button>
   </form>
 </div>
 
-<div class="card p-8">
+<div class="st-kpis">
+  <div class="st-tile"><div class="st-l">إجمالي الأصول</div><div class="st-v">{{ data.totals.assets|money }}</div></div>
+  <div class="st-tile"><div class="st-l">إجمالي الالتزامات</div><div class="st-v">{{ data.totals.liabilities|money }}</div></div>
+  <div class="st-tile"><div class="st-l">إجمالي حقوق الملكية</div><div class="st-v">{{ data.totals.equity|money }}</div></div>
+  <div class="st-tile {{ 'st-pos' if data.balanced else 'st-neg' }}"><div class="st-l">حالة الميزانية</div><div class="st-v">{% if data.balanced %}✓ متوازنة{% else %}⚠ فرق {{ (data.totals.assets - data.total_liab_equity)|money }}{% endif %}</div></div>
+</div>
+
+<div class="card p-8 st-card">
   <div class="text-center mb-6">
     <h2 class="text-2xl font-bold text-navy-900">{{ active_company.name }}</h2>
     <div class="text-sm text-slate-500">الميزانية العمومية كما في {{ as_of.isoformat() }}</div>
   </div>
 
-  <div class="grid grid-cols-2 gap-8">
+  <div class="st-two">
     <div>
       <h3 class="bg-navy-900 text-white font-bold py-2 px-4 rounded-lg mb-3">الأصول — Assets</h3>
       <div class="space-y-1.5 text-sm">
@@ -69,4 +77,42 @@
     {% if data.balanced %}✓ الميزانية متوازنة{% else %}⚠ الميزانية غير متوازنة (فرق: {{ (data.totals.assets - data.total_liab_equity)|money }}){% endif %}
   </div>
 </div>
+{# MARSOUD-STATEMENTS-P87 #}
+<style>
+  .st-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem;margin:0 0 1rem;}
+  @media (min-width:768px){ .st-kpis{grid-template-columns:repeat(4,minmax(0,1fr));} }
+  .st-tile{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:.75rem 1rem;min-width:0;}
+  .st-tile .st-l{font-size:.75rem;color:#64748b;margin-bottom:.2rem;}
+  .st-tile .st-v{font-family:ui-monospace,monospace;font-weight:700;font-size:1.05rem;color:#0A2540;overflow-wrap:anywhere;}
+  .st-tile.st-pos{background:#ECFDF5;border-color:#A7F3D0;} .st-tile.st-pos .st-v{color:#047857;}
+  .st-tile.st-neg{background:#FEF2F2;border-color:#FECACA;} .st-tile.st-neg .st-v{color:#B91C1C;}
+  .st-pct{font-size:.7rem;color:#94a3b8;margin-inline-start:.4rem;font-family:inherit;font-weight:400;}
+  .st-two{display:grid;grid-template-columns:minmax(0,1fr);gap:2rem;}
+  @media (min-width:768px){ .st-two{grid-template-columns:repeat(2,minmax(0,1fr));} }
+  @media (max-width:640px){ .st-card{padding:1rem !important;} }
+  .st-noprint .lk-presets,.st-noprint .st-presets{margin:.75rem 0 0;}
+  .st-presets{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;}
+  .st-presets .st-p-lbl{font-size:.75rem;color:#64748b;}
+  .st-presets button{border:1px solid #E2E8F0;background:#fff;color:#475569;border-radius:999px;padding:.2rem .7rem;font-size:.75rem;cursor:pointer;font-family:inherit;}
+  .st-presets button:hover{border-color:#10b981;color:#047857;}
+  @media print{ .st-noprint{display:none !important;} .st-card{box-shadow:none !important;border:0 !important;} .st-tile{break-inside:avoid;} }
+</style>
+<script>
+(function () {
+  var inp = document.querySelector('form input[name="as_of"]'); if (!inp) return;
+  var form = inp.form;
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function iso(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  var now = new Date(), y = now.getFullYear(), m = now.getMonth();
+  var opts = [['اليوم', now], ['نهاية الشهر الماضي', new Date(y, m, 0)], ['نهاية السنة الماضية', new Date(y - 1, 11, 31)]];
+  var box = document.createElement('div'); box.className = 'st-presets';
+  var lbl = document.createElement('span'); lbl.className = 'st-p-lbl'; lbl.textContent = 'تاريخ سريع:'; box.appendChild(lbl);
+  opts.forEach(function (o) {
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = o[0];
+    b.addEventListener('click', function () { inp.value = iso(o[1]); form.submit(); });
+    box.appendChild(b);
+  });
+  form.parentNode.appendChild(box);
+})();
+</script>
 {% endblock %}
