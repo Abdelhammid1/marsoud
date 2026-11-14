@@ -1,6 +1,24 @@
 {% extends "base.html" %}
 {% block page_title %}التقارير المالية{% endblock %}
 {% block content %}
+{# MARSOUD-FIN-NAV-P97 — صفحات المالية اللي اتشالت من السايد بار (بعد ما القسم اتقلّل لـ 5) #}
+<style>
+  .fc-chips{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;margin:0 0 .9rem;}
+  .fc-chips .fc-lbl{font-size:.75rem;color:#64748b;}
+  .fc-chip{display:inline-flex;align-items:center;gap:.3rem;font-size:12px;font-weight:500;line-height:1.2;padding:5px 11px;border:1px solid #e2e8f0;border-radius:999px;background:#fff;color:#475569;text-decoration:none;}
+  .fc-chip:hover{background:#f8fafc;border-color:#10b981;color:#047857;}
+  @media print{ .fc-chips{display:none !important;} }
+</style>
+{% set _fc = [] %}
+{% for ep, label, icon in [('cost_centers.index', 'مراكز التكلفة', '🎯'), ('assets.index', 'الأصول الثابتة', '🏗️'), ('party_ledger.index', 'كشف حساب طرف', '📒')] %}
+{% if can_access_endpoint(ep) %}{% set _x = _fc.append((ep, label, icon)) %}{% endif %}
+{% endfor %}
+{% if _fc %}
+<div class="fc-chips" data-fc-chips>
+  <span class="fc-lbl">صفحات مالية تانية:</span>
+  {% for ep, label, icon in _fc %}<a class="fc-chip" href="{{ url_for(ep) }}">{{ icon }} {{ label }}</a>{% endfor %}
+</div>
+{% endif %}
 
 {# MARSOUD-REPORTS-HUB-P84 — the reports landing page. Same three families
    and the same endpoints as before; added: live search, per-family counts,
