@@ -1,182 +1,262 @@
-{# Shared activity + sessions panel — used by /admin/activity,
-   /settings/activity, and (with is_portal=True) /my/activity.
-   Pass `scope_label` to label the page.
+{# MARSOUD-ACTIVITY-PAGE-P93 — shared activity + sessions panel, used by
+   /admin/activity, /settings/activity and (is_portal=True) /my/activity.
+   Same variables as before: activities, sessions, users, actions,
+   entity_types, filters, is_portal. Everything scoped under .ap.
+   is_portal hides the user/action/entity/device filters, the user column,
+   extra_data and the entity link (employee portal rule from
+   MARSOUD-PORTAL-MY-ACTIVITY-01). #}
+{% set _AR = {'CREATE':'إنشاء','UPDATE':'تعديل','DELETE':'حذف','VIEW':'عرض','LOGIN':'دخول','LOGOUT':'خروج','EXPORT':'تصدير'} %}
+{% set _CL = {'CREATE':'cr','UPDATE':'up','DELETE':'de','VIEW':'vw','LOGIN':'lg','LOGOUT':'lg','EXPORT':'ex'} %}
+<style>
+.ap{--em:#059669;--em-d:#047857;--em-bg:#ecfdf5;--ink:#0f172a;--mut:#64748b;--line:#e2e8f0;--soft:#f8fafc;--amb:#b45309;--amb-bg:#fffbeb;--rose:#be123c;--rose-bg:#fff1f2;--sky:#0369a1;--sky-bg:#f0f9ff;--vio:#6d28d9;--vio-bg:#f5f3ff;color:var(--ink)}
+.ap *{box-sizing:border-box}
+.ap-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.ap-title{font-size:22px;font-weight:800;margin:0;color:#0f172a}
+.ap-sub{font-size:13px;color:#64748b;margin-top:2px}
+.ap-back{font-size:13px;color:#475569;text-decoration:none;border:1px solid #e2e8f0;background:#fff;border-radius:10px;padding:8px 14px;font-weight:700}
+.ap-back:hover{background:#f8fafc}
+.ap-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.ap-kpi{background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:14px}
+.ap-kpi.em{background:var(--em-bg);border-color:#a7f3d0}.ap-kpi.sk{background:var(--sky-bg);border-color:#bae6fd}.ap-kpi.am{background:var(--amb-bg);border-color:#fde68a}
+.ap-kpi-l{font-size:12px;color:var(--mut)}
+.ap-kpi-v{font-size:22px;font-weight:800;margin-top:4px;font-family:ui-monospace,Menlo,Consolas,monospace;direction:ltr;text-align:start}
+.ap-kpi-s{font-size:11px;color:var(--mut);margin-top:2px}
+.ap-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px}
+.ap-fil{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px}
+.ap-fil label{display:block;font-size:12px;font-weight:700;color:#334155;margin-bottom:4px}
+.ap-fil select{border:1px solid #cbd5e1;border-radius:10px;padding:8px 10px;font-size:13px;font-family:inherit;background:#fff;color:var(--ink);min-width:120px}
+.ap-btn{background:var(--em);color:#fff;border:0;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit}
+.ap-btn:hover{background:var(--em-d)}
+.ap-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.ap-tab{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 16px;font-size:13px;font-weight:700;cursor:pointer;color:#475569;font-family:inherit}
+.ap-tab.is-on{background:var(--ink);border-color:var(--ink);color:#fff}
+.ap-js .ap-panel{display:none}.ap-js .ap-panel.is-on{display:block}
+.ap-h{font-size:16px;font-weight:800;margin:0 0 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ap-h small{font-weight:400;color:var(--mut);font-size:12px}
+.ap-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.ap-search{flex:1;min-width:180px;border:1px solid #cbd5e1;border-radius:10px;padding:8px 11px;font-size:13px;font-family:inherit}
+.ap-search:focus{outline:2px solid #6ee7b7;border-color:var(--em)}
+.ap-fb{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;color:#475569;font-family:inherit}
+.ap-fb.is-on{background:var(--ink);border-color:var(--ink);color:#fff}
+.ap-day{font-size:12px;font-weight:800;color:var(--mut);margin:14px 0 6px;padding-bottom:4px;border-bottom:1px dashed var(--line);font-family:ui-monospace,Menlo,Consolas,monospace;direction:ltr;text-align:start}
+.ap-row{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;background:#fff}
+.ap-row.is-click{cursor:pointer}.ap-row.is-click:hover{background:var(--soft)}
+.ap-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ap-ic{font-size:18px;line-height:1}
+.ap-main{flex:1;min-width:150px}
+.ap-t{font-weight:700;font-size:14px}
+.ap-s{font-size:12px;color:var(--mut);margin-top:2px}
+.ap-time{font-size:12px;color:var(--mut);font-family:ui-monospace,Menlo,Consolas,monospace;direction:ltr}
+.ap-ch{display:inline-block;border-radius:999px;padding:2px 10px;font-size:11px;font-weight:800;background:#f1f5f9;color:#475569}
+.ap-ch.cr{background:var(--em-bg);color:#047857}.ap-ch.up{background:var(--sky-bg);color:var(--sky)}.ap-ch.de{background:var(--rose-bg);color:var(--rose)}
+.ap-ch.vw{background:#f1f5f9;color:#64748b}.ap-ch.lg{background:var(--vio-bg);color:var(--vio)}.ap-ch.ex{background:var(--amb-bg);color:var(--amb)}
+.ap-ch.on{background:var(--em-bg);color:#047857}.ap-ch.idle{background:var(--amb-bg);color:var(--amb)}.ap-ch.end{background:#f1f5f9;color:#64748b}
+.ap-more{display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:12px;color:#334155}
+.ap-row.is-open .ap-more{display:block}
+.ap-more dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;margin:0}
+.ap-more dt{color:var(--mut);font-size:11px}.ap-more dd{margin:0;font-weight:600;word-break:break-word}
+.ap-more pre{direction:ltr;text-align:left;background:var(--soft);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:11px;overflow-x:auto;margin:6px 0 0;white-space:pre-wrap}
+.ap-more a{color:var(--em-d);font-weight:700}
+.ap-empty{text-align:center;color:var(--mut);font-size:14px;padding:28px 10px}
+@media(max-width:700px){.ap-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.ap-more dl{grid-template-columns:1fr}.ap-fil>div{flex:1 1 45%}.ap-fil select{width:100%}}
+</style>
 
-   MARSOUD-PORTAL-MY-ACTIVITY-01 (2026-08-06) — when is_portal is set,
-   the user/action/entity/device filters are hidden and the "المستخدم"
-   column disappears from both tables. There is only one user on the
-   page (the current one), and the spec is explicit that period is the
-   only filter the employee sees. Extra_data + entity-link are hidden
-   too — extra_data is a JSON diff the employee cannot act on, and the
-   entity link points at HR/finance pages they cannot open. #}
+{% set _act_on = sessions|selectattr('status','equalto','ACTIVE')|list|length %}
+<div class="ap" id="ap-root">
 
-{# Filters #}
-<form method="GET" class="card p-4 mb-4 flex flex-wrap items-end gap-3">
-  {% if not is_portal %}
-  <div>
-    <label class="block text-xs font-semibold text-slate-700 mb-1">المستخدم</label>
-    <select name="user_id" class="select text-sm">
-      <option value="">الكل</option>
-      {% for u in users %}
-      <option value="{{ u.id }}" {% if filters.user_id == u.id %}selected{% endif %}>{{ u.full_name or u.email }}</option>
-      {% endfor %}
-    </select>
+  <div class="ap-kpis">
+    <div class="ap-kpi"><div class="ap-kpi-l">الجلسات</div><div class="ap-kpi-v">{{ sessions|length }}</div><div class="ap-kpi-s">في الفترة المحددة</div></div>
+    <div class="ap-kpi em"><div class="ap-kpi-l">نشطة دلوقتي</div><div class="ap-kpi-v">{{ _act_on }}</div><div class="ap-kpi-s">جلسات مفتوحة</div></div>
+    <div class="ap-kpi sk"><div class="ap-kpi-l">العمليات</div><div class="ap-kpi-v">{{ activities|length }}</div><div class="ap-kpi-s">سجل النشاط</div></div>
+    <div class="ap-kpi am"><div class="ap-kpi-l">إنشاء / تعديل / حذف</div><div class="ap-kpi-v">{{ activities|selectattr('action_type','equalto','CREATE')|list|length }} / {{ activities|selectattr('action_type','equalto','UPDATE')|list|length }} / {{ activities|selectattr('action_type','equalto','DELETE')|list|length }}</div><div class="ap-kpi-s">عمليات التغيير</div></div>
   </div>
-  <div>
-    <label class="block text-xs font-semibold text-slate-700 mb-1">العملية</label>
-    <select name="action" class="select text-sm">
-      <option value="">الكل</option>
-      {% for a in actions %}
-      <option value="{{ a }}" {% if filters.action == a %}selected{% endif %}>{{ a }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div>
-    <label class="block text-xs font-semibold text-slate-700 mb-1">نوع الكيان</label>
-    <select name="entity_type" class="select text-sm">
-      <option value="">الكل</option>
-      {% for e in entity_types %}
-      <option value="{{ e }}" {% if filters.entity_type == e %}selected{% endif %}>{{ e }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div>
-    <label class="block text-xs font-semibold text-slate-700 mb-1">الجهاز</label>
-    <select name="device_type" class="select text-sm">
-      <option value="">الكل</option>
-      {% for d in ['MOBILE','TABLET','DESKTOP'] %}
-      <option value="{{ d }}" {% if filters.device_type == d %}selected{% endif %}>{{ d }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  {% endif %}
-  <div>
-    <label class="block text-xs font-semibold text-slate-700 mb-1">الفترة</label>
-    <select name="range" class="select text-sm">
-      {% for code,lab in [('today','اليوم'),('7d','آخر 7 أيام'),('30d','آخر 30 يوم'),('90d','آخر 3 أشهر')] %}
-      <option value="{{ code }}" {% if filters.range == code %}selected{% endif %}>{{ lab }}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <button type="submit" class="btn-primary text-sm">تطبيق</button>
-</form>
 
-{# Sessions #}
-<div class="card p-6 mb-6">
-  <h3 class="font-bold text-navy-900 mb-3">🖥 الجلسات (آخر {{ sessions|length }})</h3>
-  {% if sessions %}
-  <div class="overflow-x-auto">
-  <table class="data-table text-xs">
-    <thead><tr>
-      {% if not is_portal %}<th>المستخدم</th>{% endif %}
-      <th>الدخول</th>
-      <th>آخر نشاط</th>
-      <th>الخروج</th>
-      <th>المدة</th>
-      <th>الجهاز</th>
-      <th>OS / Browser</th>
-      <th>IP</th>
-      <th>الحالة</th>
-    </tr></thead>
-    <tbody>
+  <form method="GET" class="ap-card ap-fil">
+    {% if not is_portal %}
+    <div>
+      <label>المستخدم</label>
+      <select name="user_id">
+        <option value="">الكل</option>
+        {% for u in users %}
+        <option value="{{ u.id }}" {% if filters.user_id == u.id %}selected{% endif %}>{{ u.full_name or u.email }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>العملية</label>
+      <select name="action">
+        <option value="">الكل</option>
+        {% for a in actions %}
+        <option value="{{ a }}" {% if filters.action == a %}selected{% endif %}>{{ _AR.get(a, a) }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>نوع الكيان</label>
+      <select name="entity_type">
+        <option value="">الكل</option>
+        {% for e in entity_types %}
+        <option value="{{ e }}" {% if filters.entity_type == e %}selected{% endif %}>{{ e }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>الجهاز</label>
+      <select name="device_type">
+        <option value="">الكل</option>
+        {% for d in ['MOBILE','TABLET','DESKTOP'] %}
+        <option value="{{ d }}" {% if filters.device_type == d %}selected{% endif %}>{{ d }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div>
+      <label>الفترة</label>
+      <select name="range">
+        {% for code,lab in [('today','اليوم'),('7d','آخر 7 أيام'),('30d','آخر 30 يوم'),('90d','آخر 3 أشهر')] %}
+        <option value="{{ code }}" {% if filters.range == code %}selected{% endif %}>{{ lab }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="ap-btn">تطبيق</button>
+  </form>
+
+  <div class="ap-tabs" id="ap-tabs">
+    <button type="button" class="ap-tab is-on" data-ap-tab="act">📜 سجل النشاط ({{ activities|length }})</button>
+    <button type="button" class="ap-tab" data-ap-tab="ses">🖥 الجلسات ({{ sessions|length }})</button>
+  </div>
+
+  {# ── Activity ── #}
+  <div class="ap-card ap-panel is-on" data-ap-panel="act">
+    <h3 class="ap-h">📜 سجل النشاط <small>(آخر {{ activities|length }})</small></h3>
+    {% if activities %}
+    <div class="ap-tools">
+      <input type="search" class="ap-search" id="ap-q" placeholder="🔍 ابحث في العمليات (الكيان، المسار، الجهاز…)">
+      <button type="button" class="ap-fb is-on" data-ap-f="all">الكل</button>
+      <button type="button" class="ap-fb" data-ap-f="CREATE">إنشاء</button>
+      <button type="button" class="ap-fb" data-ap-f="UPDATE">تعديل</button>
+      <button type="button" class="ap-fb" data-ap-f="DELETE">حذف</button>
+    </div>
+    <div id="ap-acts">
+    {% set ns = namespace(day='') %}
+    {% for a in activities %}
+      {% set _d = a.created_at | company_dt('%Y-%m-%d') %}
+      {% if _d != ns.day %}{% set ns.day = _d %}<div class="ap-day" data-ap-day>{{ _d }}</div>{% endif %}
+      {% set _icon = '📱' if a.device_type=='MOBILE' else ('📋' if a.device_type=='TABLET' else '💻') %}
+      <div class="ap-row is-click" data-ap-act="{{ a.action_type }}">
+        <div class="ap-line">
+          <span class="ap-ic">{{ _icon }}</span>
+          <div class="ap-main">
+            <div class="ap-t">
+              {% if not is_portal and a.user %}<bdi>{{ a.user.full_name or a.user.email }}</bdi> · {% endif %}
+              {% if a.entity_label %}{{ a.entity_label }}{% elif a.entity_type %}{{ a.entity_type }}{% if a.entity_id %} #{{ a.entity_id }}{% endif %}{% else %}—{% endif %}
+            </div>
+            <div class="ap-s">{{ a.device_type or '—' }}{% if a.route %} · <bdi dir="ltr">{{ a.route }}</bdi>{% endif %}</div>
+          </div>
+          <span class="ap-ch {{ _CL.get(a.action_type,'') }}">{{ _AR.get(a.action_type, a.action_type) }}</span>
+          <span class="ap-time">{{ a.created_at | company_dt('%H:%M') }}</span>
+        </div>
+        <div class="ap-more">
+          <dl>
+            <div><dt>الوقت الكامل</dt><dd class="ap-time">{{ a.created_at | company_dt }}</dd></div>
+            <div><dt>النظام / المتصفح</dt><dd>{{ a.device_os or '—' }} / {{ a.browser or '—' }}</dd></div>
+            <div><dt>Method</dt><dd>{{ a.method or '—' }}</dd></div>
+            <div><dt>الجلسة</dt><dd>#{{ a.session_id or '—' }}</dd></div>
+            <div><dt>IP</dt><dd class="ap-time">{{ a.ip_address or '—' }}</dd></div>
+          </dl>
+          {% if a.extra_data and not is_portal %}
+          <div style="margin-top:8px"><dt style="color:var(--mut);font-size:11px">Extra</dt><pre>{{ a.extra_data }}</pre></div>
+          {% endif %}
+          {% if a.entity_type and a.entity_id and not is_portal %}
+          <div style="margin-top:8px"><a href="/{{ a.entity_type }}s/{{ a.entity_id }}">↗ افتح الكيان</a></div>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+    </div>
+    <div class="ap-empty" id="ap-none" style="display:none">مفيش نتائج للبحث.</div>
+    {% else %}
+    <div class="ap-empty">لا يوجد نشاط في الفترة المحددة.</div>
+    {% endif %}
+  </div>
+
+  {# ── Sessions ── #}
+  <div class="ap-card ap-panel" data-ap-panel="ses">
+    <h3 class="ap-h">🖥 الجلسات <small>(آخر {{ sessions|length }})</small></h3>
+    {% if sessions %}
     {% for s in sessions %}
       {% set _icon = '📱' if s.device_type=='MOBILE' else ('📋' if s.device_type=='TABLET' else '💻') %}
-      <tr>
-        {% if not is_portal %}<td class="font-semibold">{{ s.user.full_name if s.user else '—' }}</td>{% endif %}
-        <td class="font-mono">{{ s.login_at | company_dt }}</td>
-        <td class="font-mono">{{ s.last_seen_at | company_dt }}</td>
-        <td class="font-mono">
-          {% if s.logout_at %}{{ s.logout_at | company_dt('%Y-%m-%d %H:%M:%S') }}
-          {% elif s.status=='ENDED' %}<span class="text-slate-500">سب البراوزر</span>
-          {% else %}—{% endif %}
-        </td>
-        <td class="font-mono">
-          {% set d = s.duration_seconds %}
-          {% if d >= 3600 %}{{ (d//3600) }}س {{ (d%3600)//60 }}د
-          {% elif d >= 60 %}{{ d//60 }}د {{ d%60 }}ث
-          {% else %}{{ d }}ث{% endif %}
-        </td>
-        <td>{{ _icon }} {{ s.device_type or '—' }}</td>
-        <td class="text-slate-500">{{ s.device_os or '—' }} / {{ s.browser or '—' }}</td>
-        <td class="font-mono">{{ s.ip_address or '—' }}</td>
-        <td>
-          {% if s.status == 'ACTIVE' %}<span class="badge badge-paid">نشطة</span>
-          {% elif s.status == 'IDLE' %}<span class="badge badge-partial">خاملة</span>
-          {% else %}<span class="badge badge-cancelled">منتهية</span>{% endif %}
-        </td>
-      </tr>
+      {% set d = s.duration_seconds or 0 %}
+      <div class="ap-row">
+        <div class="ap-line">
+          <span class="ap-ic">{{ _icon }}</span>
+          <div class="ap-main">
+            <div class="ap-t">
+              {% if not is_portal %}<bdi>{{ s.user.full_name if s.user else '—' }}</bdi> · {% endif %}
+              <span class="ap-time">{{ s.login_at | company_dt }}</span>
+            </div>
+            <div class="ap-s">
+              {{ s.device_type or '—' }} · {{ s.device_os or '—' }} / {{ s.browser or '—' }} · IP <bdi dir="ltr">{{ s.ip_address or '—' }}</bdi>
+            </div>
+            <div class="ap-s">
+              آخر نشاط: <span class="ap-time">{{ s.last_seen_at | company_dt }}</span>
+              {% if s.logout_at %} · خروج: <span class="ap-time">{{ s.logout_at | company_dt('%Y-%m-%d %H:%M:%S') }}</span>
+              {% elif s.status=='ENDED' %} · سب البراوزر{% endif %}
+              · المدة: <span class="ap-time">{% if d >= 3600 %}{{ (d//3600) }}س {{ (d%3600)//60 }}د{% elif d >= 60 %}{{ d//60 }}د {{ d%60 }}ث{% else %}{{ d }}ث{% endif %}</span>
+            </div>
+          </div>
+          {% if s.status == 'ACTIVE' %}<span class="ap-ch on">نشطة</span>
+          {% elif s.status == 'IDLE' %}<span class="ap-ch idle">خاملة</span>
+          {% else %}<span class="ap-ch end">منتهية</span>{% endif %}
+        </div>
+      </div>
     {% endfor %}
-    </tbody>
-  </table>
+    {% else %}
+    <div class="ap-empty">لا توجد جلسات في الفترة المحددة.</div>
+    {% endif %}
   </div>
-  {% else %}
-  <div class="text-sm text-slate-500 text-center py-6">لا توجد جلسات في الفترة المحددة.</div>
-  {% endif %}
 </div>
 
-{# Activity log #}
-<div class="card p-6">
-  <h3 class="font-bold text-navy-900 mb-3">📜 سجل النشاط (آخر {{ activities|length }})</h3>
-  {% if activities %}
-  <div class="overflow-x-auto">
-  <table class="data-table text-xs">
-    <thead><tr>
-      {% if not is_portal %}<th>المستخدم</th>{% endif %}
-      <th>العملية</th>
-      <th>الكيان</th>
-      <th>التوقيت</th>
-      <th>الجهاز</th>
-      <th>IP</th>
-      <th>المسار</th>
-    </tr></thead>
-    <tbody>
-    {% for a in activities %}
-      {% set _color = {
-        'CREATE':'text-emerald-700','UPDATE':'text-sky-700',
-        'DELETE':'text-rose-700','VIEW':'text-slate-500',
-        'LOGIN':'text-violet-700','LOGOUT':'text-violet-700',
-        'EXPORT':'text-amber-700',
-      } %}
-      {% set _icon = '📱' if a.device_type=='MOBILE' else ('📋' if a.device_type=='TABLET' else '💻') %}
-      <tr class="hover:bg-slate-50 cursor-pointer"
-          onclick='this.nextElementSibling.classList.toggle("hidden")'>
-        {% if not is_portal %}<td class="font-semibold">{{ a.user.full_name if a.user else '—' }}</td>{% endif %}
-        <td class="font-bold {{ _color.get(a.action_type,'') }}">{{ a.action_type }}</td>
-        <td>{% if a.entity_label %}{{ a.entity_label }}
-            {% elif a.entity_type %}{{ a.entity_type }}{% if a.entity_id %} #{{ a.entity_id }}{% endif %}
-            {% else %}—{% endif %}</td>
-        <td class="font-mono">{{ a.created_at | company_dt }}</td>
-        <td>{{ _icon }} {{ a.device_type or '—' }}</td>
-        <td class="font-mono text-[10px]">{{ a.ip_address or '—' }}</td>
-        <td class="font-mono text-[10px] text-slate-500 truncate" style="max-width:280px">{{ a.route or '—' }}</td>
-      </tr>
-      <tr class="hidden bg-slate-50">
-        <td colspan="{{ 6 if is_portal else 7 }}" class="text-xs p-3">
-          <div class="grid grid-cols-2 gap-3">
-            <div><strong>OS:</strong> {{ a.device_os or '—' }}</div>
-            <div><strong>Browser:</strong> {{ a.browser or '—' }}</div>
-            <div><strong>Method:</strong> {{ a.method or '—' }}</div>
-            <div><strong>Session:</strong> #{{ a.session_id or '—' }}</div>
-            {% if a.extra_data and not is_portal %}
-            <div class="col-span-2">
-              <strong>Extra:</strong>
-              <pre dir="ltr" class="bg-white p-2 mt-1 rounded border text-[10px] overflow-x-auto">{{ a.extra_data }}</pre>
-            </div>
-            {% endif %}
-            {% if a.entity_type and a.entity_id and not is_portal %}
-            <div class="col-span-2">
-              <a href="/{{ a.entity_type }}s/{{ a.entity_id }}"
-                 class="text-emerald-700 hover:underline">↗ افتح الكيان</a>
-            </div>
-            {% endif %}
-          </div>
-        </td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  </div>
-  {% else %}
-  <div class="text-sm text-slate-500 text-center py-6">لا يوجد نشاط في الفترة المحددة.</div>
-  {% endif %}
-</div>
+<script>
+(function () {
+  function init() {
+    var root = document.getElementById('ap-root'); if (!root) { return; }
+    root.classList.add('ap-js');
+    var tabs = root.querySelectorAll('[data-ap-tab]'), panels = root.querySelectorAll('[data-ap-panel]');
+    function show(k) {
+      Array.prototype.forEach.call(tabs, function (t) { t.classList.toggle('is-on', t.getAttribute('data-ap-tab') === k); });
+      Array.prototype.forEach.call(panels, function (p) { p.classList.toggle('is-on', p.getAttribute('data-ap-panel') === k); });
+    }
+    Array.prototype.forEach.call(tabs, function (t) { t.addEventListener('click', function () { show(t.getAttribute('data-ap-tab')); }); });
+    show('act');
+    var box = document.getElementById('ap-acts'); if (!box) { return; }
+    var rows = Array.prototype.slice.call(box.querySelectorAll('.ap-row'));
+    var q = document.getElementById('ap-q'), none = document.getElementById('ap-none');
+    var fb = Array.prototype.slice.call(root.querySelectorAll('[data-ap-f]')), cur = 'all';
+    rows.forEach(function (r) {
+      r.addEventListener('click', function (e) { if (e.target.closest('a')) { return; } r.classList.toggle('is-open'); });
+    });
+    function apply() {
+      var term = (q.value || '').trim().toLowerCase(), shown = 0;
+      rows.forEach(function (r) {
+        var ok = (cur === 'all' || r.getAttribute('data-ap-act') === cur) && (!term || r.textContent.toLowerCase().indexOf(term) !== -1);
+        r.style.display = ok ? '' : 'none'; if (ok) { shown++; }
+      });
+      Array.prototype.forEach.call(box.querySelectorAll('[data-ap-day]'), function (d) {
+        var n = d.nextElementSibling, vis = false;
+        while (n && !n.hasAttribute('data-ap-day')) { if (n.style.display !== 'none') { vis = true; break; } n = n.nextElementSibling; }
+        d.style.display = vis ? '' : 'none';
+      });
+      none.style.display = shown ? 'none' : 'block';
+    }
+    q.addEventListener('input', apply);
+    fb.forEach(function (b) {
+      b.addEventListener('click', function () {
+        cur = b.getAttribute('data-ap-f');
+        fb.forEach(function (x) { x.classList.toggle('is-on', x === b); }); apply();
+      });
+    });
+  }
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
+})();
+</script>

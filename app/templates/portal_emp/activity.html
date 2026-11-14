@@ -1,24 +1,17 @@
 {% extends "base.html" %}
 {% block page_title %}سجل نشاطي{% endblock %}
 {% block content %}
-
-{# MARSOUD-PORTAL-MY-ACTIVITY-01 (2026-08-06) — the employee's own
-   activity log. Includes the same _activity_page.html partial the
-   owner + super-admin pages use; the is_portal flag inside that
-   partial hides the columns and filters that only make sense when
-   more than one user is on the page. #}
-
-<div class="flex items-center justify-between mb-4">
-  <div>
-    <h2 class="font-bold text-navy-900 text-lg">📜 سجل نشاطي</h2>
-    <p class="text-xs text-slate-500 mt-1">
-      جلساتك والعمليات اللي عملتها — قراءة فقط، آخر 90 يوم بحد أقصى، ولحسابك أنت فقط.
-    </p>
+{# MARSOUD-ACTIVITY-PAGE-P93 — employee's own activity log (read-only, last 90
+   days, own account only). The panel itself lives in _activity_page.html. #}
+<style>.ap-wrap{max-width:1000px;margin:0 auto}</style>
+<div class="ap-wrap">
+  <div class="ap-head">
+    <div>
+      <h2 class="ap-title">📜 سجل نشاطي</h2>
+      <div class="ap-sub">جلساتك والعمليات اللي عملتها — قراءة فقط، آخر 90 يوم بحد أقصى، ولحسابك أنت فقط.</div>
+    </div>
+    <a href="{{ url_for('portal_emp.account') }}" class="ap-back">↪ العودة لحسابي</a>
   </div>
-  <a href="{{ url_for('portal_emp.account') }}"
-     class="text-sm text-slate-500 self-center hover:text-navy-900">↪ العودة لحسابي</a>
+  {% include "_activity_page.html" %}
 </div>
-
-{% include "_activity_page.html" %}
-
 {% endblock %}

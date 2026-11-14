@@ -1,14 +1,15 @@
 {% extends "base.html" %}
 {% block page_title %}نشاط فريقك + الجلسات{% endblock %}
 {% block content %}
-
-<div class="flex items-center justify-between mb-4">
-  <div>
-    <h2 class="font-bold text-navy-900">👤 نشاط فريقك + الجلسات</h2>
-    <p class="text-xs text-slate-500">شركة {{ active_company.name }} — جلسات وأنشطة كل الموظفين.</p>
+{# MARSOUD-ACTIVITY-PAGE-P93 — owner view of the whole team's activity. #}
+<style>.ap-wrap{max-width:1100px;margin:0 auto}</style>
+<div class="ap-wrap">
+  <div class="ap-head">
+    <div>
+      <h2 class="ap-title">👤 نشاط فريقك + الجلسات</h2>
+      <div class="ap-sub">شركة {{ active_company.name }} — جلسات وأنشطة كل الموظفين.</div>
+    </div>
   </div>
+  {% include "_activity_page.html" %}
 </div>
-
-{% include "_activity_page.html" %}
-
 {% endblock %}
