@@ -2,122 +2,276 @@
 {% import '_macros.html' as ui %}
 {% block page_title %}الموارد البشرية{% endblock %}
 {% block content %}
-{# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — the 6 top "tiles" below are
-   navigation cards (each carries 1-3 links + optional CTA), not KPI
-   tiles. stat_tile models label+value+hint only, so migrating those
-   tiles would strip the nav links they carry. Left as-is; a follow-up
-   ticket could add a `nav_tile` macro variant for that pattern. Only
-   the employee-table empty_state below joins the ratchet here. #}
-<div class="grid grid-cols-4 gap-4 mb-6">
-  <div class="card p-5">
-    <div class="text-xs text-slate-500 mb-1">إجمالي الموظفين النشطين</div>
-    <div class="text-2xl font-bold text-navy-900">{{ employees|length }}</div>
-  </div>
-  <div class="card p-5">
-    <div class="text-xs text-slate-500 mb-1">الأقسام</div>
-    <div class="text-2xl font-bold text-navy-900">{{ departments|length }}</div>
-    <a href="{{ url_for('hr.departments') }}" class="text-xs text-brand-600 hover:underline mt-2 inline-block">إدارة الأقسام ←</a>
-  </div>
-  <div class="card p-5">
-    <div class="text-xs text-slate-500 mb-1">الإجازات</div>
-    <div class="flex flex-col gap-1 mt-2">
-      <a href="{{ url_for('hr.leave_requests') }}" class="text-xs text-brand-600 hover:underline">طلبات الإجازة ←</a>
-      <a href="{{ url_for('hr.leave_types') }}" class="text-xs text-brand-600 hover:underline">أنواع الإجازات ←</a>
+{# MARSOUD-HR-HUB-P94 — hr.index is now the HR hub: every HR page grouped by
+   what people actually do (staff / attendance & leave / pay / performance),
+   each card carries search keywords, and one search box filters pages AND the
+   employee directory below. Same route and variables as before
+   (employees, departments, expiring); no new endpoint. Cards are gated by
+   can_access_endpoint — the same predicate the sidebar uses. #}
+{% set HB = [
+  ('الموظفين والهيكل', '👥', 'مين شغال عندنا وإزاي متنظمين', [
+    ('#hr-directory', 'دليل الموظفين', 'كل الموظفين النشطين وبياناتهم وانتهاء العقود', '📇', 'موظف بحث ملف بيانات عقد كود رقم وظيفة مدير تعيين employee directory'),
+    ('payroll.new_employee', 'إضافة موظف جديد', 'تسجيل موظف جديد بكل بياناته وراتبه', '➕', 'تعيين موظف جديد اضافة تسجيل عقد بيانات'),
+    ('hr.departments', 'الأقسام', 'الأقسام والهيكل التنظيمي', '🏛️', 'قسم ادارة هيكل تنظيمي فريق مدير department'),
+    ('hr_ss.index', 'حسابات الموظفين', 'تفعيل دخول الموظف لبوابته وكلمة السر', '🔑', 'حساب دخول باسورد كلمة السر تفعيل ايقاف يوزر بوابة الموظف نسيت'),
+    ('payroll.archive', 'الموظفون السابقون', 'اللي استقالوا أو اتنهت خدمتهم', '🗂', 'استقالة انهاء خدمة فصل ارشيف سابق مفصول مستقيل مغادرة ايقاف'),
+    ('employee_documents.types_index', 'أنواع المستندات المطلوبة', 'تحديد الأوراق المطلوبة من كل موظف', '📑', 'اوراق مستندات بطاقة شهادة عقد صحيفة جنائية صور مطلوب'),
+    ('employee_documents.missing_report', 'الأوراق الناقصة', 'مين لسه ما سلّمش أوراقه', '⚠️', 'ناقص اوراق مستندات ناقصة متابعة تسليم'),
+  ]),
+  ('الحضور والإجازات والمخالفات', '📅', 'الدوام والغياب والإجازات والجزاءات', [
+    ('hr.attendance', 'سجل الحضور والاستثناءات', 'الغياب والتأخير والانصراف المبكر', '📅', 'حضور غياب تاخير انصراف بصمة استثناء دوام سجل attendance'),
+    ('hr.attendance_policies', 'سياسات الحضور', 'مواعيد الدوام وفترات السماح', '🕐', 'دوام مواعيد وردية شيفت ساعات العمل سماح سياسة بداية نهاية'),
+    ('hr.leave_requests', 'طلبات الإجازة', 'الموافقة على طلبات الإجازة أو رفضها', '📝', 'اجازة طلب موافقة رفض اعتماد leave اجازات'),
+    ('hr.leave_types', 'أنواع الإجازات', 'سنوي، مرضي، عارضة… وأرصدتها', '📂', 'اجازة سنوي سنوية مرضي مرضية عارضة رصيد بدون راتب وضع حج نوع'),
+    ('hr.permission_requests', 'طلبات الاستئذان', 'خروج مبكر أو إذن لساعات', '🚪', 'استئذان اذن خروج ساعة مبكر تاخر طلب'),
+    ('hr.violation_policies', 'سياسات المخالفات', 'الجزاءات والخصومات على المخالفات', '🚫', 'مخالفة جزاء خصم انذار عقوبة لائحة تاخير غياب'),
+  ]),
+  ('الرواتب والسلف والعهد', '💼', 'كل اللي له علاقة بالفلوس مع الموظف', [
+    ('payroll.index', 'مسيرات الرواتب', 'تشغيل المرتبات (الرواتب) الشهرية وبيانات كل موظف', '💼', 'مرتب مرتبات راتب رواتب مسير صرف كشف مرتبات بدل خصم مكافاة تسوية تامينات ضريبة payroll'),
+    ('advances.index', 'سلف الموظفين', 'السلف والأقساط المخصومة', '💵', 'سلفة سلف قرض استلاف قسط خصم'),
+    ('advances.requests', 'طلبات السلف', 'الموافقة على طلبات السلف الجديدة', '📥', 'طلب سلفة موافقة رفض سلف'),
+    ('custody.index', 'العهد النقدية', 'فلوس مع الموظفين وتسوية مصروفاتها', '💰', 'عهدة نقدية فلوس مصروفات تسوية عهده صرف'),
+    ('item_custody.index', 'العهد العينية', 'أجهزة وأغراض مسلّمة للموظفين', '📦', 'عهدة عينية جهاز لابتوب موبايل اغراض تسليم استلام اصول معدات'),
+  ]),
+  ('الأداء والقرارات والتقارير', '📊', 'تقييم الموظفين وقراراتهم ومتابعتهم', [
+    ('hr_decisions.index', 'قرارات الموظفين', 'ترقية، نقل، زيادة، إنذار…', '📄', 'قرار ترقية نقل زيادة انذار خصم اجراء تاديبي مكافاة تغيير'),
+    ('evaluations.index', 'تقييم الأداء الشهري', 'نتيجة كل موظف في الشهر', '📊', 'تقييم اداء نقاط kpi نتيجة شهري متريك'),
+    ('evaluations.logs_index', 'تسجيل قيود المتريك', 'تسجيل نقاط الأداء يدويًا', '📥', 'متريك نقاط تسجيل قيد اداء'),
+    ('reports.employees_index', 'تقارير الموظفين اليومية', 'مراجعة التقارير اللي بيبعتوها', '📝', 'تقرير يومي تقارير مراجعة متابعة موظف يومية'),
+    ('settings_employee_reports.index', 'صلاحيات تقارير الموظفين', 'مين يشوف تقارير مين', '🔐', 'صلاحيات تقارير من يشوف ادمن وصول'),
+    ('settings_activity.index', 'نشاط الموظفين', 'جلسات الدخول وسجل العمليات', '👣', 'نشاط سجل جلسات دخول لوج عمليات متابعة'),
+  ]),
+] %}
+
+<style>
+.hb{--em:#059669;--em-d:#047857;--em-bg:#ecfdf5;--ink:#0f172a;--mut:#64748b;--line:#e2e8f0;--soft:#f8fafc;--amb:#b45309;--amb-bg:#fffbeb;--rose:#be123c;--rose-bg:#fff1f2;--sky:#0369a1;--sky-bg:#f0f9ff}
+.hb *{box-sizing:border-box}
+.hb-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.hb-title{font-size:22px;font-weight:800;margin:0;color:#0f172a}
+.hb-sub{font-size:13px;color:#64748b;margin-top:2px}
+.hb-btn{display:inline-flex;align-items:center;gap:6px;background:var(--em);color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:700;text-decoration:none}
+.hb-btn:hover{background:var(--em-d)}
+.hb-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.hb-kpi{background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:14px}
+.hb-kpi.em{background:var(--em-bg);border-color:#a7f3d0}.hb-kpi.sk{background:var(--sky-bg);border-color:#bae6fd}.hb-kpi.am{background:var(--amb-bg);border-color:#fde68a}
+.hb-kpi-l{font-size:12px;color:var(--mut)}
+.hb-kpi-v{font-size:22px;font-weight:800;margin-top:4px;font-family:ui-monospace,Menlo,Consolas,monospace}
+.hb-searchbox{position:relative;margin-bottom:6px}
+.hb-search{width:100%;height:48px;border:1px solid #cbd5e1;border-radius:14px;background:#fff;padding:0 46px 0 44px;font-size:15px;font-family:inherit;color:var(--ink);outline:none}
+.hb-search:focus{border-color:var(--em);box-shadow:0 0 0 3px rgba(16,185,129,.16)}
+.hb-searchbox svg{position:absolute;right:15px;top:50%;margin-top:-9px;width:18px;height:18px;color:#94a3b8;pointer-events:none}
+.hb-clear{position:absolute;left:10px;top:50%;margin-top:-12px;width:24px;height:24px;border-radius:50%;border:0;background:#e2e8f0;color:#475569;font-size:12px;cursor:pointer}
+.hb-clear[hidden]{display:none}
+.hb-hint{font-size:12px;color:var(--mut);margin:0 4px 14px}
+.hb-hint b{color:var(--ink)}
+.hb-sec{margin-bottom:18px}
+.hb-sec-h{display:flex;align-items:center;gap:10px;margin:0 0 8px}
+.hb-sec-ic{width:34px;height:34px;display:grid;place-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;font-size:17px}
+.hb-sec-t{font-size:16px;font-weight:800;color:var(--ink)}
+.hb-sec-d{font-size:12px;color:var(--mut)}
+.hb-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.hb-card{display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;text-decoration:none;color:inherit;transition:border-color .15s,box-shadow .15s,transform .15s}
+.hb-card:hover{border-color:var(--em);box-shadow:0 4px 14px rgba(15,23,42,.07);transform:translateY(-1px)}
+.hb-card:focus-visible{outline:2px solid var(--em);outline-offset:2px}
+.hb-card.is-first{border-color:var(--em);box-shadow:0 0 0 2px #a7f3d0}
+.hb-ic{font-size:22px;line-height:1.2}
+.hb-ct{font-size:14px;font-weight:800;color:var(--ink)}
+.hb-cd{font-size:12px;color:var(--mut);margin-top:2px;line-height:1.5}
+.hb-empty{display:none;text-align:center;color:var(--mut);padding:26px 10px;background:#fff;border:1px dashed var(--line);border-radius:14px;margin-bottom:14px}
+.hb-card-box{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+@media(max-width:900px){.hb-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.hb-grid{grid-template-columns:1fr}.hb-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.hb-kpi-v{font-size:18px}.hb-kpi{padding:10px}}
+</style>
+
+<div class="hb" id="hb-root">
+  <div class="hb-head">
+    <div>
+      <h2 class="hb-title">👥 مركز الموارد البشرية</h2>
+      <div class="hb-sub">كل صفحات الموارد البشرية في مكان واحد — ابحث باللي محتاجه (إجازة، سلفة، غياب، مرتب…) أو اسم موظف.</div>
     </div>
+    <a class="hb-btn" href="{{ url_for('payroll.new_employee') }}">+ موظف</a>
   </div>
-  <div class="card p-5">
-    <div class="text-xs text-slate-500 mb-1">الحضور</div>
-    <div class="flex flex-col gap-1 mt-2">
-      <a href="{{ url_for('hr.attendance') }}" class="text-xs text-brand-600 hover:underline">سجل الاستثناءات ←</a>
-      <a href="{{ url_for('hr.attendance_policies') }}" class="text-xs text-brand-600 hover:underline">سياسات الحضور ←</a>
-      <a href="{{ url_for('hr.permission_requests') }}" class="text-xs text-brand-600 hover:underline">طلبات الاستئذان ←</a>
-    </div>
-    <div class="mt-1">
-      <a href="{{ url_for('payroll.new_employee') }}" class="btn-primary inline-block mt-2 text-xs">+ موظف</a>
-    </div>
+
+  <div class="hb-kpis">
+    <div class="hb-kpi em"><div class="hb-kpi-l">الموظفين النشطين</div><div class="hb-kpi-v">{{ employees|length }}</div></div>
+    <div class="hb-kpi sk"><div class="hb-kpi-l">الأقسام</div><div class="hb-kpi-v">{{ departments|length }}</div></div>
+    <div class="hb-kpi {% if expiring %}am{% endif %}"><div class="hb-kpi-l">عقود على وشك الانتهاء</div><div class="hb-kpi-v">{{ expiring|length }}</div></div>
   </div>
-  <div class="card p-5">
-    <div class="text-xs text-slate-500 mb-1">المخالفات</div>
-    <div class="flex flex-col gap-1 mt-2">
-      <a href="{{ url_for('hr.violation_policies') }}" class="text-xs text-brand-600 hover:underline">سياسات المخالفات ←</a>
-    </div>
+
+  <div class="hb-searchbox">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input type="search" id="hb-q" class="hb-search" placeholder="ابحث: إجازة مرضية، سلفة، غياب، مرتب، اسم موظف…" autocomplete="off" aria-label="بحث في الموارد البشرية">
+    <button type="button" class="hb-clear" id="hb-clear" hidden aria-label="مسح البحث">✕</button>
   </div>
-  {% if has_permission('advances.manage') %}
-  <div class="card p-5">
-    <div class="text-xs text-slate-500 mb-1">السلف</div>
-    <div class="flex flex-col gap-1 mt-2">
-      <a href="{{ url_for('advances.requests') }}" class="text-xs text-brand-600 hover:underline">طلبات السلف ←</a>
-      <a href="{{ url_for('advances.index') }}" class="text-xs text-brand-600 hover:underline">كل السلف ←</a>
+  <div class="hb-hint" id="hb-hint">اضغط <b>Enter</b> لفتح أول نتيجة.</div>
+
+  {% for sec_title, sec_icon, sec_desc, items in HB %}
+    {% set ns = namespace(ok=[]) %}
+    {% for it in items %}
+      {% if it[0].startswith('#') or can_access_endpoint(it[0]) %}{% set ns.ok = ns.ok + [it] %}{% endif %}
+    {% endfor %}
+    {% if ns.ok %}
+    <section class="hb-sec" data-hb-sec>
+      <div class="hb-sec-h">
+        <span class="hb-sec-ic" aria-hidden="true">{{ sec_icon }}</span>
+        <div><div class="hb-sec-t">{{ sec_title }}</div><div class="hb-sec-d">{{ sec_desc }}</div></div>
+      </div>
+      <div class="hb-grid">
+        {% for ep, title, desc, icon, kw in ns.ok %}
+        <a class="hb-card" data-hb-card data-hb-kw="{{ kw }}" href="{% if ep.startswith('#') %}{{ ep }}{% else %}{{ url_for(ep) }}{% endif %}">
+          <span class="hb-ic" aria-hidden="true">{{ icon }}</span>
+          <span><span class="hb-ct">{{ title }}</span><br><span class="hb-cd">{{ desc }}</span></span>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+  {% endfor %}
+  <div class="hb-empty" id="hb-none">مفيش صفحة مطابقة للبحث. جرّب كلمة تانية (مثال: إجازة، سلفة، غياب).</div>
+
+  {% if expiring %}
+  <div class="hb-card-box" id="hb-expiring" style="border-color:#fecdd3;background:#fff7f8">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-bold text-rose-800">⚠ عقود على وشك الانتهاء ({{ expiring|length }})</h3>
+      <span class="text-xs text-slate-500">خلال 60 يوماً</span>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      {% for emp, days_left, severity in expiring %}
+      <a href="{{ url_for('payroll.employee_profile', employee_id=emp.id) }}"
+         class="flex items-center justify-between bg-white rounded-lg border {% if severity == 'red' %}border-rose-200{% else %}border-amber-200{% endif %} px-4 py-3 hover:shadow-soft transition">
+        <div>
+          <div class="font-semibold text-navy-900">{{ emp.name }}</div>
+          <div class="text-xs text-slate-500">{{ emp.job_title or '—' }}{% if emp.department %} · {{ emp.department.name }}{% endif %}</div>
+        </div>
+        <div class="text-left">
+          <div class="font-mono text-sm {% if severity == 'red' %}text-rose-700{% else %}text-amber-700{% endif %}">{{ emp.contract_end_date.isoformat() }}</div>
+          <div class="text-xs font-bold {% if severity == 'red' %}text-rose-700{% else %}text-amber-700{% endif %}">
+            {% if days_left == 0 %}اليوم{% else %}{{ days_left }} يوم{% endif %}
+          </div>
+        </div>
+      </a>
+      {% endfor %}
     </div>
   </div>
   {% endif %}
+
+  <div class="hb-card-box" id="hr-directory">
+    <h2 class="font-bold text-navy-900 mb-3">دليل الموظفين <span class="text-xs text-slate-500" id="hb-dircount"></span></h2>
+    <div class="overflow-x-auto">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>الرقم</th>
+          <th>الاسم</th>
+          <th>الوظيفة</th>
+          <th>القسم</th>
+          <th>المدير المباشر</th>
+          <th>تاريخ انتهاء العقد</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for e in employees %}
+        <tr data-hb-emp>
+          <td class="font-mono text-xs text-slate-500">
+            <a href="{{ url_for('payroll.employee_profile', employee_id=e.id) }}" class="text-brand-600 hover:underline">{{ e.employee_number or '—' }}</a>
+          </td>
+          <td><a href="{{ url_for('payroll.employee_profile', employee_id=e.id) }}" class="font-semibold hover:text-brand-600">{{ e.name }}</a></td>
+          <td class="text-sm text-slate-500">{{ e.job_title or '—' }}</td>
+          <td>{% if e.department %}<span class="badge badge-sent">{{ e.department.name }}</span>{% else %}<span class="text-slate-400">—</span>{% endif %}</td>
+          <td class="text-sm">{{ e.manager.name if e.manager else '—' }}</td>
+          <td class="text-sm font-mono">
+            {% if e.contract_end_date %}
+              {% set days_left = (e.contract_end_date - now.date()).days %}
+              {% if days_left <= 30 %}<span class="text-rose-600 font-bold">{{ e.contract_end_date.isoformat() }} ({{ days_left }} يوم)</span>
+              {% elif days_left <= 60 %}<span class="text-amber-600">{{ e.contract_end_date.isoformat() }} ({{ days_left }} يوم)</span>
+              {% else %}<span class="text-slate-500">{{ e.contract_end_date.isoformat() }}</span>
+              {% endif %}
+            {% else %}<span class="text-slate-400">—</span>{% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6" style="padding:0">
+          {{ ui.empty_state("لا يوجد موظفون نشطون", sub="أضف موظفاً جديداً من زر «+ موظف» أعلاه.", icon="👤") }}
+        </td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <div class="text-sm text-slate-500 text-center py-4" id="hb-nodir" style="display:none">مفيش موظف مطابق للبحث.</div>
+  </div>
 </div>
 
-{% if expiring %}
-<div class="card p-6 mb-6 border-rose-100 bg-rose-50/40">
-  <div class="flex items-center justify-between mb-3">
-    <h3 class="font-bold text-rose-800">⚠ عقود على وشك الانتهاء ({{ expiring|length }})</h3>
-    <span class="text-xs text-slate-500">خلال 60 يوماً</span>
-  </div>
-  <div class="grid grid-cols-2 gap-3">
-    {% for emp, days_left, severity in expiring %}
-    <a href="{{ url_for('payroll.employee_profile', employee_id=emp.id) }}"
-       class="flex items-center justify-between bg-white rounded-lg border {% if severity == 'red' %}border-rose-200{% else %}border-amber-200{% endif %} px-4 py-3 hover:shadow-soft transition">
-      <div>
-        <div class="font-semibold text-navy-900">{{ emp.name }}</div>
-        <div class="text-xs text-slate-500">{{ emp.job_title or '—' }}{% if emp.department %} · {{ emp.department.name }}{% endif %}</div>
-      </div>
-      <div class="text-left">
-        <div class="font-mono text-sm {% if severity == 'red' %}text-rose-700{% else %}text-amber-700{% endif %}">{{ emp.contract_end_date.isoformat() }}</div>
-        <div class="text-xs font-bold {% if severity == 'red' %}text-rose-700{% else %}text-amber-700{% endif %}">
-          {% if days_left == 0 %}اليوم{% else %}{{ days_left }} يوم{% endif %}
-        </div>
-      </div>
-    </a>
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
-
-<div class="card p-6">
-  <h2 class="font-bold text-navy-900 mb-3">دليل الموظفين</h2>
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>الرقم</th>
-        <th>الاسم</th>
-        <th>الوظيفة</th>
-        <th>القسم</th>
-        <th>المدير المباشر</th>
-        <th>تاريخ انتهاء العقد</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for e in employees %}
-      <tr>
-        <td class="font-mono text-xs text-slate-500">
-          <a href="{{ url_for('payroll.employee_profile', employee_id=e.id) }}" class="text-brand-600 hover:underline">{{ e.employee_number or '—' }}</a>
-        </td>
-        <td><a href="{{ url_for('payroll.employee_profile', employee_id=e.id) }}" class="font-semibold hover:text-brand-600">{{ e.name }}</a></td>
-        <td class="text-sm text-slate-500">{{ e.job_title or '—' }}</td>
-        <td>{% if e.department %}<span class="badge badge-sent">{{ e.department.name }}</span>{% else %}<span class="text-slate-400">—</span>{% endif %}</td>
-        <td class="text-sm">{{ e.manager.name if e.manager else '—' }}</td>
-        <td class="text-sm font-mono">
-          {% if e.contract_end_date %}
-            {% set days_left = (e.contract_end_date - now.date()).days %}
-            {% if days_left <= 30 %}<span class="text-rose-600 font-bold">{{ e.contract_end_date.isoformat() }} ({{ days_left }} يوم)</span>
-            {% elif days_left <= 60 %}<span class="text-amber-600">{{ e.contract_end_date.isoformat() }} ({{ days_left }} يوم)</span>
-            {% else %}<span class="text-slate-500">{{ e.contract_end_date.isoformat() }}</span>
-            {% endif %}
-          {% else %}<span class="text-slate-400">—</span>{% endif %}
-        </td>
-      </tr>
-    {% else %}
-      <tr><td colspan="6" style="padding:0">
-        {{ ui.empty_state("لا يوجد موظفون نشطون", sub="أضف موظفاً جديداً من زر «+ موظف» أعلاه.", icon="👤") }}
-      </td></tr>
-    {% endfor %}
-    </tbody>
-  </table>
-</div>
+<script>
+(function () {
+  function norm(s) {
+    return String(s || '').toLowerCase()
+      .replace(/[ً-ٰٟـ]/g, '')
+      .replace(/[أإآٱ]/g, 'ا')
+      .replace(/ى/g, 'ي').replace(/ة/g, 'ه')
+      .replace(/\s+/g, ' ').trim();
+  }
+  function init() {
+    var root = document.getElementById('hb-root'); if (!root) { return; }
+    var q = document.getElementById('hb-q'), clr = document.getElementById('hb-clear');
+    var none = document.getElementById('hb-none'), hint = document.getElementById('hb-hint');
+    var exp = document.getElementById('hb-expiring'), nodir = document.getElementById('hb-nodir');
+    var cnt = document.getElementById('hb-dircount');
+    var secs = Array.prototype.slice.call(root.querySelectorAll('[data-hb-sec]'));
+    var cards = Array.prototype.slice.call(root.querySelectorAll('[data-hb-card]'));
+    var emps = Array.prototype.slice.call(root.querySelectorAll('[data-hb-emp]'));
+    cards.forEach(function (c) {
+      var t = c.querySelector('.hb-ct'), d = c.querySelector('.hb-cd');
+      c._t = norm(t ? t.textContent : ''); c._d = norm(d ? d.textContent : '');
+      c._h = norm(c.textContent + ' ' + (c.getAttribute('data-hb-kw') || ''));
+    });
+    emps.forEach(function (r) { r._h = norm(r.textContent); });
+    var first = null;
+    function has(h, t) {
+      if (h.indexOf(t) !== -1) { return true; }
+      if (t.length > 4 && t.indexOf('\u0627\u0644') === 0 && h.indexOf(t.slice(2)) !== -1) { return true; }
+      if (t.length >= 4 && h.indexOf(t.slice(0, -1)) !== -1) { return true; }
+      return false;
+    }
+    function match(h, terms) { for (var i = 0; i < terms.length; i++) { if (!has(h, terms[i])) { return false; } } return true; }
+    function score(c, terms) {
+      var sc = 0;
+      terms.forEach(function (t) { sc += has(c._t, t) ? 3 : (has(c._d, t) ? 2 : 1); });
+      return sc;
+    }
+    function apply() {
+      var term = norm(q.value), terms = term ? term.split(' ') : [];
+      clr.hidden = !term; var shownC = 0, shownE = 0, best = -1; first = null;
+      cards.forEach(function (c) {
+        var ok = !terms.length || match(c._h, terms);
+        c.style.display = ok ? '' : 'none'; c.classList.remove('is-first');
+        if (ok) { shownC++; if (terms.length) { var sc = score(c, terms); if (!first || sc > best) { first = c; best = sc; } } }
+      });
+      if (first) { first.classList.add('is-first'); }
+      secs.forEach(function (s) {
+        var vis = s.querySelector('[data-hb-card]:not([style*="display: none"])');
+        s.style.display = vis ? '' : 'none';
+      });
+      emps.forEach(function (r) {
+        var ok = !terms.length || match(r._h, terms);
+        r.style.display = ok ? '' : 'none'; if (ok) { shownE++; }
+      });
+      if (emps.length) {
+        nodir.style.display = (terms.length && !shownE) ? 'block' : 'none';
+        cnt.textContent = terms.length ? '(' + shownE + ' من ' + emps.length + ')' : '';
+      }
+      none.style.display = (terms.length && !shownC) ? 'block' : 'none';
+      if (exp) { exp.style.display = terms.length ? 'none' : ''; }
+      hint.innerHTML = terms.length ? ('<b>' + shownC + '</b> صفحة · <b>' + shownE + '</b> موظف — اضغط <b>Enter</b> لفتح أول صفحة.') : 'اضغط <b>Enter</b> لفتح أول نتيجة.';
+    }
+    q.addEventListener('input', apply);
+    q.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); if (first) { window.location.href = first.getAttribute('href'); } }
+      else if (e.key === 'Escape') { q.value = ''; apply(); }
+    });
+    clr.addEventListener('click', function () { q.value = ''; apply(); q.focus(); });
+    apply();
+  }
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', init); } else { init(); }
+})();
+</script>
 {% endblock %}

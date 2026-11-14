@@ -577,12 +577,8 @@ tailwind.config = {
       {% if current_role == 'hr_manager' %}
         {% set links = [
           ('dashboard.index', 'لوحة التحكم', '📊'),
-          ('hr.index', 'الموارد البشرية', '👥'),
-          ('hr.departments', 'الأقسام', '🏛️'),
-          ('hr.leave_requests', 'طلبات الإجازة', '📝'),
-          ('hr.leave_types', 'أنواع الإجازات', '📂'),
-          ('hr.attendance', 'سجل الحضور', '📅'),
-          ('hr.attendance_policies', 'سياسات الدوام', '🕐'),
+          ('hr.index', 'مركز الموارد البشرية', '👥'),
+          ('hr.attendance', 'الحضور والإجازات', '📅'),
           ('payroll.index', 'الرواتب (عرض)', '💼'),
         ] %}
       {% elif current_role in ('sales_manager', 'sales_rep') %}
@@ -740,21 +736,10 @@ tailwind.config = {
             ('calendar.index', 'التقويم', '📅'),
           ]),
           ('الموارد البشرية', '👥', [
-            ('hr.index', 'الموظفين', '👤'),
-            ('payroll.index', 'الرواتب', '💼'),
-            ('hr_decisions.index', 'قرارات الموظفين', '📄'),
-            ('employee_documents.types_index', 'أنواع المستندات المطلوبة', '📑'),
-            ('employee_documents.missing_report', 'الأوراق الناقصة', '⚠️'),
+            ('hr.index', 'مركز الموارد البشرية', '👥'),
             ('hr.attendance', 'الحضور والإجازات', '📅'),
-            ('hr.attendance_policies', 'سياسات الدوام', '🕐'),
-            ('advances.index', 'سلف الموظفين', '💵'),
-            ('custody.index', 'العهد النقدية', '💵'),
-            ('item_custody.index', 'العهد العينية', '📦'),
-            ('hr_ss.index', 'حسابات الموظفين', '🔑'),
+            ('payroll.index', 'الرواتب', '💼'),
             ('reports.employees_index', 'تقارير الموظفين اليومية', '📝'),
-            ('evaluations.index', 'تقييم الأداء الشهري', '📊'),
-            ('evaluations.logs_index', 'تسجيل قيود المتريك', '📥'),
-            ('payroll.archive', 'الموظفون السابقون', '🗂'),
           ]),
           ('دعم منصتي', '🎧', [
             ('support_admin.index', 'كل تذاكر الدعم', '📥'),
