@@ -22,8 +22,9 @@
   </form>
 </div>
 
+<div class="card p-4 mb-4"><input type="search" id="hg-q" class="input text-sm w-full" placeholder="ابحث في المجموعات والفئات…" aria-label="بحث في المجموعات والفئات" autocomplete="off"><div id="hg-none" style="display:none;margin-top:.6rem;color:#64748b;font-size:.875rem">مفيش نتايج مطابقة.</div></div>
 {% for g_row in groups %}
-<div class="card p-6 mb-4 border-slate-200">
+<div class="card p-6 mb-4 border-slate-200" data-hg-group>
   <div class="mb-3 pb-3 border-b border-slate-100">
     <div class="flex items-center justify-between">
       <form method="POST" action="{{ url_for('products.group_edit', group_id=g_row.id) }}" class="flex items-center gap-2 flex-1">
@@ -63,7 +64,7 @@
        line INSIDE the edit form, so the row's single 💾 saves the name and
        the visibility together. The delete form stays a sibling: forms
        cannot nest. #}
-    <div class="flex items-start gap-2 py-2 border-b border-slate-50">
+    <div class="flex items-start gap-2 py-2 border-b border-slate-50" data-hg-cat>
       <form method="POST" action="{{ url_for('products.category_edit', cat_id=cat.id) }}" class="flex-1 min-w-0">
         <div class="flex items-center gap-2">
           <span>📎</span>
@@ -204,6 +205,34 @@
         save(el, v === 'inherit' ? null : v === '1');
       }
     });
+  });
+})();
+</script>
+{# MARSOUD-LISTKIT-P85 #}
+<script>
+(function () {
+  var q = document.getElementById('hg-q'); if (!q) return;
+  var none = document.getElementById('hg-none');
+  function norm(s) {
+    return (s || '').toLowerCase().replace(/[ً-ْـ]/g, '').replace(/[أإآ]/g, 'ا')
+      .replace(/ة/g, 'ه').replace(/ى/g, 'ي');
+  }
+  function names(root) {
+    var out = []; [].slice.call(root.querySelectorAll('input[type="text"][name="name"]')).forEach(function (i) { out.push(i.value); });
+    return norm(out.join(' '));
+  }
+  var groups = [].slice.call(document.querySelectorAll('[data-hg-group]'));
+  q.addEventListener('input', function () {
+    var v = norm(q.value.trim()), shown = 0;
+    groups.forEach(function (g) {
+      var cats = [].slice.call(g.querySelectorAll('[data-hg-cat]'));
+      if (!v) { g.style.display = ''; cats.forEach(function (c) { c.style.display = ''; }); shown++; return; }
+      var gname = norm((g.querySelector('input[type="text"][name="name"]') || {}).value);
+      var gm = gname.indexOf(v) !== -1, any = false;
+      cats.forEach(function (c) { var m = gm || names(c).indexOf(v) !== -1; c.style.display = m ? '' : 'none'; if (m) any = true; });
+      var ok = gm || any; g.style.display = ok ? '' : 'none'; if (ok) shown++;
+    });
+    none.style.display = (v && !shown) ? 'block' : 'none';
   });
 })();
 </script>
