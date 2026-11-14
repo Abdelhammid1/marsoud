@@ -65,10 +65,11 @@
   .ag-sug{grid-template-columns:1fr}
   #chat-messages{padding:16px !important}
 }
-/* MARSOUD-AGENT-UX-P76 - Raseed: new-chat screen, collapsed history, archive panel, rich replies */
+/* MARSOUD-AGENT-UX-P77 - assistant renamed to Shalaby */
+/* MARSOUD-AGENT-UX-P76 - new-chat screen, collapsed history, archive panel, rich replies */
 #ag-root .ag-logo{font-size:25px;font-weight:800;line-height:1;background:linear-gradient(135deg,#10b981,#047857)}
 #ag-root>.card:first-child>.flex.items-center.justify-between.mb-4 h2.font-bold{font-size:18px}
-#chat-messages>.flex.justify-start::before{content:"ر";font-weight:800;font-size:16px;color:#fff}
+#chat-messages>.flex.justify-start::before{content:"ش";font-weight:800;font-size:16px;color:#fff}
 .ag-hbtns{display:flex;align-items:center;gap:8px}
 .ag-hnew{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border:0;border-radius:999px;background:linear-gradient(135deg,#10b981,#047857);color:#fff;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(5,150,105,.28);transition:.15s}
 .ag-hnew:hover{transform:translateY(-1px);box-shadow:0 8px 16px rgba(5,150,105,.32)}
@@ -162,9 +163,9 @@
   <div class="card p-6 col-span-2 flex flex-col">
     <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-3">
-        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-2xl ag-logo">ر</div>
+        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-2xl ag-logo">ش</div>
         <div>
-          <h2 class="font-bold text-navy-900">رصيد</h2>
+          <h2 class="font-bold text-navy-900">شلبي</h2>
           <p class="text-xs text-slate-500">مساعدك المحاسبي في مرصود</p>
         </div>
       </div>
@@ -178,7 +179,7 @@
       {% if not history %}
       <div class="text-center text-slate-500 py-8">
         <div class="text-5xl mb-3">👋</div>
-        <p class="font-semibold">أهلاً، أنا رصيد</p>
+        <p class="font-semibold">أهلاً، أنا شلبي</p>
         <p class="text-sm mt-2">اطلب مني تسجيل فاتورة، قيد، أو شغّل تقرير. مثلاً:</p>
         <div class="mt-4 flex flex-wrap gap-2 justify-center">
           <button onclick="setMsg('اعرض شجرة الحسابات')" class="text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-full hover:border-brand-500">اعرض شجرة الحسابات</button>
@@ -212,7 +213,7 @@
     {% if conversations %}
     <button type="button" id="ag-tog" class="ag-tog" aria-expanded="false" onclick="agToggleList()"><span>🕘 المحادثات السابقة</span><span class="ag-count">{{ conversations|length }}</span><span class="ag-chev">⌄</span></button>
     {% endif %}
-    <div class="ag-about"><b>رصيد يقدر:</b><div><span>✍️</span><span>ينشئ الفواتير والقيود والمصروفات من كلامك</span></div><div><span>💡</span><span>يشرح أي مفهوم محاسبي بمثال بسيط</span></div><div><span>✅</span><span>بيطلب تأكيدك قبل أي تسجيل</span></div></div>
+    <div class="ag-about"><b>شلبي يقدر:</b><div><span>✍️</span><span>ينشئ الفواتير والقيود والمصروفات من كلامك</span></div><div><span>💡</span><span>يشرح أي مفهوم محاسبي بمثال بسيط</span></div><div><span>✅</span><span>بيطلب تأكيدك قبل أي تسجيل</span></div></div>
     <button type="button" id="ag-arch" class="ag-archbtn" onclick="agOpenArchive()">🗄 المحادثات المؤرشفة</button>
     <div id="conversations-list" class="flex-1 overflow-y-auto space-y-1 text-sm"
          data-active-id="{{ active_conversation_id or '' }}">
@@ -992,7 +993,7 @@ document.getElementById('chat-messages').scrollTop = 99999;
   };
   window.agLoadingText = function (b) {
     var sp = b.querySelector('.animate-pulse');
-    if (sp && /محاسب/.test(sp.textContent)) sp.textContent = '✦ رصيد بيجهّز الرد…';
+    if (sp && /محاسب/.test(sp.textContent)) sp.textContent = '✦ شلبي بيجهّز الرد…';
   };
 
   /* ---------- small toast ---------- */
@@ -1165,7 +1166,7 @@ document.getElementById('chat-messages').scrollTop = 99999;
   input.focus();
 
 
-  var HERO = '<div class="ag-hero"><div class="ag-orb">ر</div><div class="ag-ht">أهلاً، أنا رصيد</div><div class="ag-hs">مساعدك المحاسبي في مرصود. اطلب مني إنشاء فاتورة أو قيد أو مصروف، أو اسألني عن أي مفهوم محاسبي وأشرحه لك ببساطة.</div></div>';
+  var HERO = '<div class="ag-hero"><div class="ag-orb">ش</div><div class="ag-ht">أهلاً، أنا شلبي</div><div class="ag-hs">مساعدك المحاسبي في مرصود. اطلب مني إنشاء فاتورة أو قيد أو مصروف، أو اسألني عن أي مفهوم محاسبي وأشرحه لك ببساطة.</div></div>';
   var SUG = [
     { t: '✍️ أنشئ بسرعة', items: [
       ['فاتورة جديدة', 'سجّل فاتورة للعميل ____ بمبلغ ____ بضريبة 15%', 0],
