@@ -1,166 +1,323 @@
+{# MARSOUD-JOURNALS-LIST-P81 #}
 {% extends "base.html" %}
 {% block page_title %}القيود اليومية{% endblock %}
 {% block content %}
+<style>
+  .jr-head { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; margin-bottom:1rem; }
+  .jr-sub { margin:0; font-size:.875rem; color:#64748b; }
+  .jr-actions { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+  .jr-btn { font-size:.875rem; padding:.5rem 1rem; }
+  .jr-filters { padding:1rem 1.25rem; margin-bottom:1rem; }
+  .jr-grid { display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:.75rem; align-items:end; }
+  .jr-f { display:block; min-width:0; }
+  .jr-f > span { display:block; font-size:.75rem; font-weight:600; color:#334155; margin-bottom:.25rem; }
+  .jr-c-search { grid-column:span 4; }
+  .jr-c-date { grid-column:span 3; }
+  .jr-c-sort { grid-column:span 1; }
+  .jr-adv { margin-top:.75rem; border-top:1px dashed #e2e8f0; padding-top:.5rem; }
+  .jr-adv > summary { cursor:pointer; list-style:none; font-size:.8125rem; font-weight:600; color:#047857; display:inline-flex; align-items:center; gap:.5rem; padding:.25rem .5rem; border-radius:8px; }
+  .jr-adv > summary::-webkit-details-marker { display:none; }
+  .jr-adv > summary::marker { content:""; }
+  .jr-adv > summary:hover { background:#ecfdf5; }
+  .jr-adv > summary:focus-visible { outline:3px solid #10b981; outline-offset:2px; }
+  .jr-adv-count { display:none; background:#10b981; color:#fff; border-radius:999px; font-size:.6875rem; min-width:1.25rem; height:1.25rem; line-height:1.25rem; text-align:center; padding:0 .375rem; }
+  .jr-adv-count.on { display:inline-block; }
+  .jr-adv-grid { margin-top:.75rem; }
+  .jr-c-a2 { grid-column:span 2; }
+  .jr-c-a3 { grid-column:span 3; }
+  #journals-results { transition:opacity .15s; }
+  #journals-results.htmx-request { opacity:.55; pointer-events:none; }
+  .jr-kpis { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:.75rem; margin-bottom:1rem; }
+  .jr-kpi { padding:.875rem 1rem; border-radius:12px; }
+  .jr-kpi-l { font-size:.75rem; margin-bottom:.25rem; color:#64748b; }
+  .jr-kpi-v { font-size:1.5rem; font-weight:700; color:#0f172a; line-height:1.2; }
+  .jr-kpi-cnt { background:#f8fafc; }
+  .jr-kpi-dr { background:#eff6ff; border-color:#dbeafe; }
+  .jr-kpi-dr .jr-kpi-l, .jr-kpi-dr .jr-kpi-v { color:#1d4ed8; }
+  .jr-kpi-cr { background:#faf5ff; border-color:#f3e8ff; }
+  .jr-kpi-cr .jr-kpi-l, .jr-kpi-cr .jr-kpi-v { color:#7e22ce; }
+  .jr-kpi-ok { background:#ecfdf5; border-color:#d1fae5; }
+  .jr-kpi-ok .jr-kpi-l, .jr-kpi-ok .jr-kpi-v { color:#047857; }
+  .jr-kpi-bad { background:#fef2f2; border-color:#fecaca; }
+  .jr-kpi-bad .jr-kpi-l, .jr-kpi-bad .jr-kpi-v { color:#b91c1c; }
+  .jr-tablecard { padding:1rem 1.25rem; }
+  .jr-toolbar { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; margin-bottom:.75rem; }
+  .jr-count { font-size:.8125rem; color:#475569; }
+  .jr-toolbar-actions { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+  .jr-clear { font-size:.8125rem; color:#b91c1c; text-decoration:none; padding:.25rem .5rem; border-radius:8px; }
+  .jr-clear:hover { background:#fef2f2; }
+  .jr-num { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.75rem; font-weight:700; color:#047857; text-decoration:none; }
+  .jr-num:hover { text-decoration:underline; }
+  .jr-num.off { color:#64748b; text-decoration:line-through; }
+  .jr-desc { display:inline-block; max-width:26rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom; }
+  .jr-tag { display:inline-block; padding:.125rem .625rem; border-radius:999px; font-size:.6875rem; font-weight:600; white-space:nowrap; }
+  .jr-tone-blue { background:#dbeafe; color:#1d4ed8; }
+  .jr-tone-green { background:#d1fae5; color:#047857; }
+  .jr-tone-amber { background:#fef3c7; color:#92400e; }
+  .jr-tone-pink { background:#fce7f3; color:#9d174d; }
+  .jr-tone-purple { background:#f3e8ff; color:#7e22ce; }
+  .jr-tone-teal { background:#ccfbf1; color:#0f766e; }
+  .jr-tone-slate { background:#f1f5f9; color:#475569; }
+  .jr-flag { display:inline-block; margin-inline-start:.375rem; padding:.0625rem .5rem; border-radius:999px; font-size:.625rem; font-weight:700; }
+  .jr-flag-off { background:#fee2e2; color:#b91c1c; }
+  .jr-flag-bad { background:#b91c1c; color:#fff; }
+  tr.jr-row-off td { background:#fef2f2; opacity:.8; }
+  tr.jr-row-rev td { background:#faf5ff; }
+  .jr-empty { text-align:center; padding:2.5rem 1rem; color:#64748b; }
+  .jr-empty strong { display:block; color:#0f172a; margin-bottom:.25rem; font-size:1rem; }
+  .jr-pager { display:flex; align-items:center; justify-content:center; gap:.25rem; flex-wrap:wrap; margin-top:1rem; }
+  .jr-pg { min-width:2.25rem; height:2.25rem; display:inline-flex; align-items:center; justify-content:center; padding:0 .625rem; border:1px solid #e2e8f0; border-radius:10px; background:#fff; color:#0f172a; font-size:.8125rem; text-decoration:none; }
+  a.jr-pg:hover { border-color:#10b981; color:#047857; }
+  a.jr-pg:focus-visible { outline:3px solid #10b981; outline-offset:2px; }
+  .jr-pg-cur { background:#047857; border-color:#047857; color:#fff; font-weight:700; }
+  .jr-pg-off { color:#94a3b8; background:#f8fafc; }
+  .jr-gap { color:#94a3b8; padding:0 .25rem; }
+  .jr-bulk { position:fixed; bottom:1rem; left:50%; transform:translateX(-50%); width:min(46rem, 94vw); z-index:40; display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; background:#0f172a; color:#fff; padding:.625rem .875rem; border-radius:14px; box-shadow:0 10px 25px -8px rgba(15,23,42,.45); }
+  .jr-bulk[hidden] { display:none; }
+  body.jr-has-sel #journals-results { padding-bottom:6rem; }
+  .jr-bulk-sp { flex:1 1 auto; }
+  .jr-bulk-btn { font-size:.8125rem; background:rgba(255,255,255,.12); color:#fff; border:0; padding:.4rem .75rem; border-radius:9px; cursor:pointer; }
+  .jr-bulk-btn:hover { background:rgba(255,255,255,.22); }
+  .jr-bulk-btn:focus-visible { outline:3px solid #10b981; outline-offset:2px; }
+  .jr-bulk-danger { background:#ef4444; }
+  .jr-bulk-danger:hover { background:#dc2626; }
+  .jr-modal { position:fixed; top:0; right:0; bottom:0; left:0; z-index:60; background:rgba(15,23,42,.55); display:flex; align-items:center; justify-content:center; padding:1rem; }
+  .jr-modal[hidden] { display:none; }
+  .jr-modal-box { background:#fff; border-radius:16px; padding:1.25rem; max-width:28rem; width:100%; box-shadow:0 20px 40px -12px rgba(15,23,42,.4); }
+  .jr-modal-box h3 { margin:0 0 .5rem; font-weight:700; color:#0f172a; }
+  .jr-err { display:none; color:#b91c1c; font-size:.8125rem; margin:-.25rem 0 .5rem; }
+  .jr-err.on { display:block; }
+  @media (max-width: 767px) {
+    .jr-c-search, .jr-c-date, .jr-c-a2, .jr-c-a3 { grid-column:span 12; }
+    .jr-c-date.half { grid-column:span 6; }
+    .jr-c-sort { grid-column:span 12; }
+    .jr-kpis { grid-template-columns:repeat(2, minmax(0,1fr)); }
+    .jr-kpi-v { font-size:1.125rem; }
+    .jr-actions { width:100%; }
+    .jr-actions .jr-btn { flex:1 1 auto; justify-content:center; }
+    .jr-desc { max-width:12rem; }
+    .jr-tablecard { padding:.75rem; }
+  }
+</style>
 
-<div class="card p-6 mb-4">
-  <form id="filter-form" method="GET"
+<div class="jr-head">
+  <p class="jr-sub">سجل كل القيود المحاسبية — اليدوية والتلقائية من الفواتير والمدفوعات والرواتب</p>
+  <div class="jr-actions">
+    <a href="{{ url_for('journals.templates_list') }}" class="btn-secondary jr-btn"><span aria-hidden="true">📋</span> القوالب</a>
+    <a href="{{ url_for('journals.recurring_list') }}" class="btn-secondary jr-btn"><span aria-hidden="true">🔁</span> المتكررة</a>
+    {% if has_permission('journals.create') %}
+    <a href="{{ url_for('journals.new') }}" class="btn-primary jr-btn"><span aria-hidden="true">+</span> قيد جديد</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card jr-filters">
+  <form id="filter-form" method="GET" role="search" aria-label="فلاتر القيود"
+        action="{{ url_for('journals.index') }}"
         hx-get="{{ url_for('journals.index') }}"
-        hx-trigger="input changed delay:300ms from:input[name='search'], input changed delay:300ms from:input[name='amount_min'], input changed delay:300ms from:input[name='amount_max'], change from:select"
+        hx-trigger="input changed delay:350ms from:input[name='search'], input changed delay:350ms from:input[name='amount_min'], input changed delay:350ms from:input[name='amount_max'], input changed delay:350ms from:input[name='reference'], change from:input[type='date'], change from:select"
         hx-target="#journals-results"
         hx-swap="innerHTML"
         hx-push-url="true"
-        class="grid grid-cols-12 gap-2">
-    <div class="col-span-4">
-      <label class="block text-xs font-semibold text-slate-700 mb-1">بحث (رقم/وصف/مرجع/عميل/مورد/مبلغ)</label>
-      <input type="text" name="search" value="{{ request.args.get('search', '') }}"
-             placeholder="بحث فوري — اكتب وانتظر..." class="input text-sm">
-    </div>
-    <div class="col-span-2">
-      <label class="block text-xs font-semibold text-slate-700 mb-1">من تاريخ</label>
-      <input type="date" name="start_date" value="{{ request.args.get('start_date', '') }}" class="input text-sm">
-    </div>
-    <div class="col-span-2">
-      <label class="block text-xs font-semibold text-slate-700 mb-1">إلى تاريخ</label>
-      <input type="date" name="end_date" value="{{ request.args.get('end_date', '') }}" class="input text-sm">
-    </div>
-    <div class="col-span-2">
-      <label class="block text-xs font-semibold text-slate-700 mb-1">المبلغ من</label>
-      <input type="number" step="0.01" name="amount_min" value="{{ request.args.get('amount_min', '') }}" placeholder="0.00" class="input text-sm font-mono">
-    </div>
-    <div class="col-span-2">
-      <label class="block text-xs font-semibold text-slate-700 mb-1">المبلغ إلى</label>
-      <input type="number" step="0.01" name="amount_max" value="{{ request.args.get('amount_max', '') }}" placeholder="∞" class="input text-sm font-mono">
-    </div>
-
-    <div class="col-span-2">
-      <label class="block text-xs font-semibold text-slate-700 mb-1">النوع</label>
-      <select name="source_type" class="select text-sm">
-        <option value="">الكل</option>
-        <option value="manual" {% if request.args.get('source_type') == 'manual' %}selected{% endif %}>يدوي</option>
-        <option value="invoice" {% if request.args.get('source_type') == 'invoice' %}selected{% endif %}>فاتورة</option>
-        <option value="payment" {% if request.args.get('source_type') == 'payment' %}selected{% endif %}>دفعة</option>
-        <option value="payroll" {% if request.args.get('source_type') == 'payroll' %}selected{% endif %}>راتب</option>
-        <option value="refund" {% if request.args.get('source_type') == 'refund' %}selected{% endif %}>استرداد</option>
-        <option value="reversal" {% if request.args.get('source_type') == 'reversal' %}selected{% endif %}>عكسي</option>
-      </select>
-    </div>
-    <div class="col-span-2">
-      <label class="block text-xs font-semibold text-slate-700 mb-1">الحالة</label>
-      <select name="status" class="select text-sm">
-        <option value="">الكل</option>
-        <option value="active" {% if request.args.get('status') == 'active' %}selected{% endif %}>نشط</option>
-        <option value="paused" {% if request.args.get('status') == 'paused' %}selected{% endif %}>موقوف</option>
-      </select>
-    </div>
-    <div class="col-span-3">
-      <label class="block text-xs font-semibold text-slate-700 mb-1">الحساب</label>
-      <select name="account_id" class="select text-sm">
-        <option value="">كل الحسابات</option>
-        {% for a in accounts %}<option value="{{ a.id }}" {% if request.args.get('account_id') == a.id|string %}selected{% endif %}>{{ a.code }} — {{ a.name_ar or a.name }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-span-2">
-      <label class="block text-xs font-semibold text-slate-700 mb-1">المرجع</label>
-      <input type="text" name="reference" value="{{ request.args.get('reference', '') }}" placeholder="INV / PMT / REF" class="input text-sm">
-    </div>
-    <div class="col-span-2">
-      <label class="block text-xs font-semibold text-slate-700 mb-1">المستخدم</label>
-      <select name="user_id" class="select text-sm">
-        <option value="">الكل</option>
-        {% for usr in users %}<option value="{{ usr.id }}" {% if request.args.get('user_id') == usr.id|string %}selected{% endif %}>{{ usr.full_name }}</option>{% endfor %}
-      </select>
-    </div>
-    <div class="col-span-1">
-      <label class="block text-xs font-semibold text-slate-700 mb-1">ترتيب</label>
-      <select name="sort" class="select text-sm">
-        <option value="date_desc" {% if sort == 'date_desc' %}selected{% endif %}>التاريخ ↓</option>
-        <option value="date_asc" {% if sort == 'date_asc' %}selected{% endif %}>التاريخ ↑</option>
-        <option value="number_desc" {% if sort == 'number_desc' %}selected{% endif %}>الرقم ↓</option>
-        <option value="number_asc" {% if sort == 'number_asc' %}selected{% endif %}>الرقم ↑</option>
-      </select>
+        hx-sync="this:replace"
+        hx-indicator="#journals-results">
+    <div class="jr-grid">
+      <label class="jr-f jr-c-search">
+        <span>بحث (رقم / وصف / مرجع / عميل / مورد / مبلغ)</span>
+        <input type="text" name="search" value="{{ request.args.get('search', '') }}" placeholder="اكتب للبحث الفوري" class="input text-sm" autocomplete="off">
+      </label>
+      <label class="jr-f jr-c-date half">
+        <span>من تاريخ</span>
+        <input type="date" name="start_date" value="{{ request.args.get('start_date', '') }}" class="input text-sm">
+      </label>
+      <label class="jr-f jr-c-date half">
+        <span>إلى تاريخ</span>
+        <input type="date" name="end_date" value="{{ request.args.get('end_date', '') }}" class="input text-sm">
+      </label>
+      <label class="jr-f jr-c-a2">
+        <span>الترتيب</span>
+        <select name="sort" class="select text-sm">
+          <option value="date_desc" {% if sort == 'date_desc' %}selected{% endif %}>التاريخ (الأحدث)</option>
+          <option value="date_asc" {% if sort == 'date_asc' %}selected{% endif %}>التاريخ (الأقدم)</option>
+          <option value="number_desc" {% if sort == 'number_desc' %}selected{% endif %}>الرقم (الأحدث)</option>
+          <option value="number_asc" {% if sort == 'number_asc' %}selected{% endif %}>الرقم (الأقدم)</option>
+        </select>
+      </label>
     </div>
 
-    <div class="col-span-12 flex items-center gap-2 pt-2 border-t border-slate-100">
-      <span class="text-xs text-slate-500">↑ البحث والفلاتر تطبق فوراً</span>
-      {% if request.args %}<a href="{{ url_for('journals.index') }}" class="text-xs text-slate-500 hover:text-red-600">مسح الكل</a>{% endif %}
-      <div class="flex-grow"></div>
-      <a href="{{ url_for('journals.export_filtered', fmt='excel', **request.args) }}" class="btn-secondary text-sm">📊 Excel</a>
-      <a href="{{ url_for('journals.export_filtered', fmt='pdf', **request.args) }}" class="btn-secondary text-sm">📄 PDF</a>
-      <a href="{{ url_for('journals.templates_list') }}" class="btn-secondary text-sm">📋 القوالب</a>
-      <a href="{{ url_for('journals.recurring_list') }}" class="btn-secondary text-sm">🔁 متكررة</a>
-      {% if has_permission('journals.create') %}
-      <a href="{{ url_for('journals.new') }}" class="btn-primary text-sm">+ قيد جديد</a>
-      {% endif %}
-    </div>
+    <details class="jr-adv" id="jr-adv" {% if adv_count %}open{% endif %}>
+      <summary><span aria-hidden="true">⚙️</span> فلاتر متقدمة <span class="jr-adv-count" id="jr-adv-count" aria-label="عدد الفلاتر المتقدمة المفعّلة"></span></summary>
+      <div class="jr-grid jr-adv-grid">
+        <label class="jr-f jr-c-a2">
+          <span>المبلغ من</span>
+          <input type="number" step="0.01" name="amount_min" value="{{ request.args.get('amount_min', '') }}" placeholder="0.00" class="input text-sm font-mono">
+        </label>
+        <label class="jr-f jr-c-a2">
+          <span>المبلغ إلى</span>
+          <input type="number" step="0.01" name="amount_max" value="{{ request.args.get('amount_max', '') }}" placeholder="بدون حد" class="input text-sm font-mono">
+        </label>
+        <label class="jr-f jr-c-a2">
+          <span>النوع</span>
+          <select name="source_type" class="select text-sm">
+            <option value="">الكل</option>
+            <option value="manual" {% if request.args.get('source_type') == 'manual' %}selected{% endif %}>يدوي</option>
+            <option value="reversal" {% if request.args.get('source_type') == 'reversal' %}selected{% endif %}>عكسي</option>
+            {% for val, lab in source_options %}<option value="{{ val }}" {% if request.args.get('source_type') == val %}selected{% endif %}>{{ lab }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="jr-f jr-c-a2">
+          <span>الحالة</span>
+          <select name="status" class="select text-sm">
+            <option value="">الكل</option>
+            <option value="active" {% if request.args.get('status') == 'active' %}selected{% endif %}>نشط</option>
+            <option value="paused" {% if request.args.get('status') == 'paused' %}selected{% endif %}>موقوف</option>
+          </select>
+        </label>
+        <label class="jr-f jr-c-a3">
+          <span>الحساب</span>
+          <select name="account_id" class="select text-sm">
+            <option value="">كل الحسابات</option>
+            {% for a in accounts %}<option value="{{ a.id }}" {% if request.args.get('account_id') == a.id|string %}selected{% endif %}>{{ a.code }} — {{ a.name_ar or a.name }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="jr-f jr-c-a2">
+          <span>المرجع (يبدأ بـ)</span>
+          <input type="text" name="reference" value="{{ request.args.get('reference', '') }}" placeholder="INV / PMT" class="input text-sm" autocomplete="off">
+        </label>
+        <label class="jr-f jr-c-a3">
+          <span>المستخدم</span>
+          <select name="user_id" class="select text-sm">
+            <option value="">الكل</option>
+            {% for usr in users %}<option value="{{ usr.id }}" {% if request.args.get('user_id') == usr.id|string %}selected{% endif %}>{{ usr.full_name }}</option>{% endfor %}
+          </select>
+        </label>
+      </div>
+    </details>
   </form>
 </div>
 
-<!-- Bulk action bar — shows only when entries are selected -->
-{# MARSOUD-PERMISSION-BOUNCE-02 (2026-08-24) — page needs journals.view;
-   every button in this bar submits to journals.bulk_action, which enforces
-   journals.pause. ceo and viewer could select rows and hit a red banner. #}
+{# MARSOUD-PERMISSION-BOUNCE-02 — the bulk bar submits to journals.bulk_action,
+   which enforces journals.pause; only users who can reach it see the bar. #}
 {% if can_access_endpoint('journals.bulk_action') %}
-<form id="bulk-form" method="POST" action="{{ url_for('journals.bulk_action') }}"
-      class="card p-3 mb-3 bg-navy-900 text-white flex items-center gap-3 hidden" id="bulk-bar">
-  <span class="text-sm"><span id="bulk-count">0</span> قيد محدد</span>
-  <div class="flex-grow"></div>
-  <button type="submit" name="action" value="export_pdf" class="text-sm bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg">📄 تصدير PDF</button>
-  <button type="submit" name="action" value="export_excel" class="text-sm bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg">📊 تصدير Excel</button>
-  <button type="button" onclick="openBulkPause()" class="text-sm bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg">⏸ إيقاف الكل</button>
-  <button type="button" onclick="clearSelection()" class="text-sm text-white/60 hover:text-white px-2">إلغاء</button>
+<form id="bulk-form" method="POST" action="{{ url_for('journals.bulk_action') }}" class="jr-bulk" hidden role="region" aria-label="إجراءات على القيود المحددة">
+  <span class="text-sm"><strong id="bulk-count">0</strong> قيد محدد</span>
+  <span class="jr-bulk-sp"></span>
+  <button type="submit" name="action" value="export_pdf" class="jr-bulk-btn"><span aria-hidden="true">📄</span> تصدير PDF</button>
+  <button type="submit" name="action" value="export_excel" class="jr-bulk-btn"><span aria-hidden="true">📊</span> تصدير Excel</button>
+  <button type="button" id="bulk-pause-open" class="jr-bulk-btn jr-bulk-danger"><span aria-hidden="true">⏸</span> إيقاف المحدد</button>
+  <button type="button" id="bulk-clear" class="jr-bulk-btn">إلغاء التحديد</button>
 </form>
-{% endif %}
 
-<!-- Hidden bulk-pause modal -->
-<div id="bulk-pause-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-  <div class="bg-white rounded-2xl p-6 max-w-md w-full">
-    <h3 class="font-bold text-navy-900 mb-3">إيقاف القيود المحددة</h3>
-    <p class="text-sm text-slate-600 mb-3">سيتم إيقاف القيود المحددة (يتم تخطي القيود العكسية).</p>
-    <textarea id="bulk-reason" rows="3" placeholder="سبب الإيقاف (إلزامي)" class="textarea text-sm mb-3"></textarea>
+<div id="bulk-pause-modal" class="jr-modal" hidden role="dialog" aria-modal="true" aria-labelledby="bulk-pause-title">
+  <div class="jr-modal-box">
+    <h3 id="bulk-pause-title">إيقاف القيود المحددة</h3>
+    <p class="text-sm text-slate-600 mb-3">سيتم إيقاف القيود المحددة (القيود العكسية يتم تخطيها).</p>
+    <textarea id="bulk-reason" rows="3" placeholder="سبب الإيقاف (إلزامي)" class="textarea text-sm mb-3" aria-label="سبب الإيقاف"></textarea>
+    <div id="bulk-reason-err" class="jr-err" role="alert">سبب الإيقاف مطلوب</div>
     <div class="flex justify-end gap-2">
-      <button type="button" onclick="closeBulkPause()" class="btn-secondary text-sm">إلغاء</button>
-      <button type="button" onclick="submitBulkPause()" class="btn-danger text-sm">تأكيد الإيقاف</button>
+      <button type="button" id="bulk-pause-cancel" class="btn-secondary text-sm">إلغاء</button>
+      <button type="button" id="bulk-pause-submit" class="btn-danger text-sm">تأكيد الإيقاف</button>
     </div>
   </div>
 </div>
+{% endif %}
 
-<div class="card p-6">
-  <div id="journals-results">
-    {% include "journals/_results.html" %}
-  </div>
+<div id="journals-results" aria-live="polite">
+  {% include "journals/_results.html" %}
 </div>
 
 <script>
-function toggleAllRows(master) {
-  document.querySelectorAll('.entry-cb').forEach(cb => { cb.checked = master.checked; });
+(function () {
+  function updateBulkBar() {
+    var bar = document.getElementById('bulk-form');
+    if (!bar) { return; }
+    var all = document.querySelectorAll('.entry-cb');
+    var checked = document.querySelectorAll('.entry-cb:checked');
+    var cnt = document.getElementById('bulk-count');
+    if (cnt) { cnt.textContent = checked.length; }
+    bar.hidden = checked.length === 0;
+    document.body.classList.toggle('jr-has-sel', checked.length > 0);
+    var sa = document.getElementById('select-all');
+    if (sa) {
+      sa.checked = all.length > 0 && checked.length === all.length;
+      sa.indeterminate = checked.length > 0 && checked.length < all.length;
+    }
+  }
+  function clearSelection() {
+    document.querySelectorAll('.entry-cb').forEach(function (cb) { cb.checked = false; });
+    updateBulkBar();
+  }
+  function openPause() {
+    var m = document.getElementById('bulk-pause-modal');
+    if (!m) { return; }
+    m.hidden = false;
+    var r = document.getElementById('bulk-reason');
+    if (r) { r.focus(); }
+  }
+  function closePause() {
+    var m = document.getElementById('bulk-pause-modal');
+    if (m) { m.hidden = true; }
+    var e = document.getElementById('bulk-reason-err');
+    if (e) { e.classList.remove('on'); }
+  }
+  function ensureHidden(form, name) {
+    var inp = form.querySelector('input[type="hidden"][name="' + name + '"]');
+    if (!inp) {
+      inp = document.createElement('input');
+      inp.type = 'hidden';
+      inp.name = name;
+      form.appendChild(inp);
+    }
+    return inp;
+  }
+  function submitPause() {
+    var reason = document.getElementById('bulk-reason').value.trim();
+    var err = document.getElementById('bulk-reason-err');
+    if (!reason) { if (err) { err.classList.add('on'); } return; }
+    var form = document.getElementById('bulk-form');
+    ensureHidden(form, 'bulk_reason').value = reason;
+    ensureHidden(form, 'action').value = 'pause';
+    form.submit();
+  }
+  function updateAdvCount() {
+    var box = document.getElementById('jr-adv');
+    var badge = document.getElementById('jr-adv-count');
+    if (!box || !badge) { return; }
+    var n = 0;
+    box.querySelectorAll('input[name], select[name]').forEach(function (el) {
+      if (el.value !== '') { n += 1; }
+    });
+    badge.textContent = n;
+    badge.classList.toggle('on', n > 0);
+  }
+  document.addEventListener('change', function (ev) {
+    var t = ev.target;
+    if (t && t.id === 'select-all') {
+      document.querySelectorAll('.entry-cb').forEach(function (cb) { cb.checked = t.checked; });
+      updateBulkBar();
+    } else if (t && t.classList && t.classList.contains('entry-cb')) {
+      updateBulkBar();
+    }
+  });
+  document.addEventListener('click', function (ev) {
+    var id = ev.target && ev.target.id;
+    if (id === 'bulk-clear') { clearSelection(); }
+    else if (id === 'bulk-pause-open') { openPause(); }
+    else if (id === 'bulk-pause-cancel') { closePause(); }
+    else if (id === 'bulk-pause-submit') { submitPause(); }
+    else if (id === 'bulk-pause-modal') { closePause(); }
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape') { closePause(); }
+  });
+  var form = document.getElementById('filter-form');
+  if (form) {
+    form.addEventListener('input', updateAdvCount);
+    form.addEventListener('change', updateAdvCount);
+  }
+  document.body.addEventListener('htmx:afterSwap', updateBulkBar);
+  updateAdvCount();
   updateBulkBar();
-}
-function updateBulkBar() {
-  const checked = document.querySelectorAll('.entry-cb:checked');
-  const bar = document.getElementById('bulk-bar');
-  document.getElementById('bulk-count').textContent = checked.length;
-  bar.classList.toggle('hidden', checked.length === 0);
-}
-function clearSelection() {
-  document.querySelectorAll('.entry-cb').forEach(cb => cb.checked = false);
-  const sa = document.getElementById('select-all'); if (sa) sa.checked = false;
-  updateBulkBar();
-}
-function openBulkPause() { document.getElementById('bulk-pause-modal').classList.remove('hidden'); }
-function closeBulkPause() { document.getElementById('bulk-pause-modal').classList.add('hidden'); }
-function submitBulkPause() {
-  const reason = document.getElementById('bulk-reason').value.trim();
-  if (!reason) { alert('سبب الإيقاف مطلوب'); return; }
-  const form = document.getElementById('bulk-form');
-  let inp = form.querySelector('input[name="bulk_reason"]');
-  if (!inp) { inp = document.createElement('input'); inp.type = 'hidden'; inp.name = 'bulk_reason'; form.appendChild(inp); }
-  inp.value = reason;
-  let act = form.querySelector('input[name="action"]');
-  if (!act) { act = document.createElement('input'); act.type = 'hidden'; act.name = 'action'; form.appendChild(act); }
-  act.value = 'pause';
-  form.submit();
-}
-// Re-init checkboxes after HTMX swap
-document.body.addEventListener('htmx:afterSwap', updateBulkBar);
+})();
 </script>
 {% endblock %}

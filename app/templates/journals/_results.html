@@ -1,69 +1,90 @@
-{# Partial: just the totals strip + table + pagination — swapped into #journals-results by HTMX #}
-<div class="grid grid-cols-4 gap-3 mb-4">
-  <div class="card p-4">
-    <div class="text-xs text-slate-500 mb-1">عدد القيود (مفلتر)</div>
-    <div class="text-2xl font-bold text-navy-900">{{ total_count }}</div>
+{# MARSOUD-JOURNALS-LIST-P81 — partial swapped into #journals-results by HTMX: KPI strip + table card + pager #}
+{% set can_bulk = can_access_endpoint('journals.bulk_action') %}
+{% set diff = (total_debit - total_credit)|abs %}
+<div class="jr-kpis">
+  <div class="card jr-kpi jr-kpi-cnt">
+    <div class="jr-kpi-l">عدد القيود{% if active_filters %} (مفلتر){% endif %}</div>
+    <div class="jr-kpi-v">{{ total_count }}</div>
   </div>
-  <div class="card p-4 bg-blue-50/50 border-blue-100">
-    <div class="text-xs text-blue-700 mb-1">إجمالي المدين</div>
-    <div class="text-2xl font-bold text-blue-700 font-mono">{{ total_debit|money }}</div>
+  <div class="card jr-kpi jr-kpi-dr">
+    <div class="jr-kpi-l">إجمالي المدين</div>
+    <div class="jr-kpi-v font-mono">{{ total_debit|money }}</div>
   </div>
-  <div class="card p-4 bg-purple-50/50 border-purple-100">
-    <div class="text-xs text-purple-700 mb-1">إجمالي الدائن</div>
-    <div class="text-2xl font-bold text-purple-700 font-mono">{{ total_credit|money }}</div>
+  <div class="card jr-kpi jr-kpi-cr">
+    <div class="jr-kpi-l">إجمالي الدائن</div>
+    <div class="jr-kpi-v font-mono">{{ total_credit|money }}</div>
   </div>
-  <div class="card p-4 {% if (total_debit - total_credit)|abs < 0.01 %}bg-emerald-50/50 border-emerald-100{% else %}bg-red-50/50 border-red-100{% endif %}">
-    <div class="text-xs mb-1 {% if (total_debit - total_credit)|abs < 0.01 %}text-emerald-700{% else %}text-red-700{% endif %}">فرق التوازن</div>
-    <div class="text-2xl font-bold font-mono {% if (total_debit - total_credit)|abs < 0.01 %}text-emerald-700{% else %}text-red-700{% endif %}">{{ (total_debit - total_credit)|money }}</div>
+  <div class="card jr-kpi {% if diff < 0.01 %}jr-kpi-ok{% else %}jr-kpi-bad{% endif %}">
+    <div class="jr-kpi-l">{% if diff < 0.01 %}الميزان متوازن{% else %}فرق التوازن{% endif %}</div>
+    <div class="jr-kpi-v font-mono">{{ (total_debit - total_credit)|money }}</div>
   </div>
 </div>
 
-<table class="data-table">
-  <thead><tr>
-    <th class="w-10"><input type="checkbox" id="select-all" onchange="toggleAllRows(this)" class="rounded text-brand-600"></th>
-    <th>الرقم</th><th>التاريخ</th><th>الوصف</th><th>النوع</th><th>المرجع</th>
-    <th class="text-right">المدين</th><th class="text-right">الدائن</th><th></th>
-  </tr></thead>
-  <tbody>
-    {% for e in entries %}
-    {% set row_bg = '' %}
-    {% if not e.is_active %}{% set row_bg = 'bg-red-50/40 opacity-70' %}
-    {% elif e.is_reversal %}{% set row_bg = 'bg-purple-50/40' %}
-    {% elif e.source_type == 'invoice' %}{% set row_bg = 'bg-blue-50/30' %}
-    {% elif e.source_type == 'payroll' %}{% set row_bg = 'bg-amber-50/30' %}
-    {% elif e.source_type == 'refund' %}{% set row_bg = 'bg-pink-50/30' %}
-    {% elif e.source_type == 'payment' %}{% set row_bg = 'bg-emerald-50/30' %}
-    {% endif %}
-    <tr class="{{ row_bg }}">
-      <td><input type="checkbox" name="entry_ids[]" value="{{ e.id }}" form="bulk-form" class="entry-cb rounded text-brand-600" onchange="updateBulkBar()"></td>
-      <td class="font-mono text-xs font-semibold {% if e.is_active %}text-navy-900{% else %}text-slate-500 line-through{% endif %}">{{ e.number or '#' + e.id|string }}</td>
-      <td class="text-sm">{{ e.date.isoformat() }}</td>
-      <td>
-        {{ e.description }}
-        {% if not e.is_active %}<span class="badge bg-red-100 text-red-700 text-[10px]">موقوف</span>{% endif %}
-      </td>
-      <td>
-        {% if e.is_reversal %}<span class="badge bg-purple-100 text-purple-700 text-[10px]">عكسي</span>
-        {% elif e.source_type == 'invoice' %}<span class="badge bg-blue-100 text-blue-700 text-[10px]">فاتورة</span>
-        {% elif e.source_type == 'payment' %}<span class="badge bg-emerald-100 text-emerald-700 text-[10px]">دفعة</span>
-        {% elif e.source_type == 'payroll' %}<span class="badge bg-amber-100 text-amber-800 text-[10px]">راتب</span>
-        {% elif e.source_type == 'refund' %}<span class="badge bg-pink-100 text-pink-700 text-[10px]">استرداد</span>
-        {% elif e.source_type %}<span class="badge bg-slate-100 text-slate-700 text-[10px]">{{ e.source_type }}</span>
-        {% else %}<span class="badge bg-slate-50 text-slate-500 text-[10px]">يدوي</span>{% endif %}
-      </td>
-      <td class="text-xs text-slate-500 font-mono">{{ e.reference or '—' }}</td>
-      <td class="text-right font-mono">{{ e.total_debit|money }}</td>
-      <td class="text-right font-mono">{{ e.total_credit|money }}</td>
-      <td><a href="{{ url_for('journals.view', entry_id=e.id) }}" class="text-brand-600 hover:underline text-sm">عرض</a></td>
-    </tr>
-    {% else %}
-    <tr><td colspan="9" class="text-center text-slate-500 py-8">لا توجد قيود مطابقة</td></tr>
+<div class="card jr-tablecard">
+  <div class="jr-toolbar">
+    <div class="jr-count">
+      {% if total_count %}عرض {{ range_from }}–{{ range_to }} من {{ total_count }} قيد{% else %}لا توجد نتائج{% endif %}
+    </div>
+    <div class="jr-toolbar-actions">
+      {% if active_filters %}<a href="{{ url_for('journals.index') }}" class="jr-clear">مسح الفلاتر ({{ active_filters }})</a>{% endif %}
+      <a href="{{ url_for('journals.export_filtered', fmt='excel', **qargs) }}" class="btn-secondary jr-btn"><span aria-hidden="true">📊</span> Excel</a>
+      <a href="{{ url_for('journals.export_filtered', fmt='pdf', **qargs) }}" class="btn-secondary jr-btn"><span aria-hidden="true">📄</span> PDF</a>
+    </div>
+  </div>
+
+  <table class="data-table">
+    <thead><tr>
+      {% if can_bulk %}<th class="w-10"><input type="checkbox" id="select-all" class="rounded text-brand-600" aria-label="تحديد كل قيود الصفحة"></th>{% endif %}
+      <th>الرقم</th><th>التاريخ</th><th>الوصف</th><th>النوع</th><th>المرجع</th>
+      <th class="text-right">المبلغ</th><th></th>
+    </tr></thead>
+    <tbody>
+      {% for e in entries %}
+      {% set meta = source_meta(e.source_type, e.is_reversal) %}
+      {% set bal = ((e.total_debit|float) - (e.total_credit|float))|abs < 0.01 %}
+      <tr class="{% if not e.is_active %}jr-row-off{% elif e.is_reversal %}jr-row-rev{% endif %}">
+        {% if can_bulk %}<td><input type="checkbox" name="entry_ids[]" value="{{ e.id }}" form="bulk-form" class="entry-cb rounded text-brand-600" aria-label="تحديد القيد {{ e.number or e.id }}"></td>{% endif %}
+        <td><a href="{{ url_for('journals.view', entry_id=e.id) }}" class="jr-num{% if not e.is_active %} off{% endif %}">{{ e.number or '#' + e.id|string }}</a></td>
+        <td class="text-sm">{{ e.date.isoformat() }}</td>
+        <td>
+          <span class="jr-desc" title="{{ e.description }}">{{ e.description }}</span>
+          {% if not e.is_active %}<span class="jr-flag jr-flag-off">موقوف</span>{% endif %}
+          {% if not bal %}<span class="jr-flag jr-flag-bad">غير متوازن</span>{% endif %}
+        </td>
+        <td><span class="jr-tag jr-tone-{{ meta.tone }}">{{ meta.label }}</span></td>
+        <td class="text-xs text-slate-500 font-mono">{{ e.reference or '—' }}</td>
+        <td class="text-right font-mono">{{ e.total_debit|money }}</td>
+        <td><a href="{{ url_for('journals.view', entry_id=e.id) }}" class="text-brand-600 hover:underline text-sm">عرض</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="{{ 8 if can_bulk else 7 }}">
+        <div class="jr-empty">
+          <strong>لا توجد قيود مطابقة</strong>
+          {% if active_filters %}جرّب تغيير الفلاتر أو <a href="{{ url_for('journals.index') }}" class="jr-clear">مسح الفلاتر</a>{% else %}لسه مفيش قيود مسجلة في الشركة دي.{% endif %}
+        </div>
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if total_pages > 1 %}
+  <nav class="jr-pager" aria-label="التنقل بين صفحات القيود">
+    {% if page > 1 %}
+    {% set u = url_for('journals.index', page=page - 1, **qargs) %}
+    <a class="jr-pg" href="{{ u }}" hx-get="{{ u }}" hx-target="#journals-results" hx-push-url="true" hx-indicator="#journals-results" aria-label="الصفحة السابقة">السابق</a>
+    {% else %}<span class="jr-pg jr-pg-off" aria-disabled="true">السابق</span>{% endif %}
+    {% for n in page_window %}
+      {% if n is none %}<span class="jr-gap" aria-hidden="true">…</span>
+      {% elif n == page %}<span class="jr-pg jr-pg-cur" aria-current="page">{{ n }}</span>
+      {% else %}
+      {% set u = url_for('journals.index', page=n, **qargs) %}
+      <a class="jr-pg" href="{{ u }}" hx-get="{{ u }}" hx-target="#journals-results" hx-push-url="true" hx-indicator="#journals-results" aria-label="الصفحة {{ n }}">{{ n }}</a>
+      {% endif %}
     {% endfor %}
-  </tbody>
-</table>
-
-{% if total_pages > 1 %}
-<div class="flex justify-center gap-1 mt-4">
-  <span class="px-3 py-2 text-sm text-slate-600">صفحة {{ page }} من {{ total_pages }} — {{ total_count }} قيد</span>
+    {% if page < total_pages %}
+    {% set u = url_for('journals.index', page=page + 1, **qargs) %}
+    <a class="jr-pg" href="{{ u }}" hx-get="{{ u }}" hx-target="#journals-results" hx-push-url="true" hx-indicator="#journals-results" aria-label="الصفحة التالية">التالي</a>
+    {% else %}<span class="jr-pg jr-pg-off" aria-disabled="true">التالي</span>{% endif %}
+  </nav>
+  {% endif %}
 </div>
-{% endif %}

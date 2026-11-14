@@ -26,6 +26,68 @@ def _parse_date(s, default=None):
         return default
 
 
+# MARSOUD-JOURNALS-LIST-P81 — list page helpers (Arabic type labels, safe ints, pager window)
+_SOURCE_META = {
+    "invoice": ("فاتورة مبيعات", "blue"),
+    "invoice_cogs": ("تكلفة مبيعات", "blue"),
+    "payment": ("تحصيل / دفعة", "green"),
+    "treasury_receipt": ("إيصال خزينة", "green"),
+    "money_transfer": ("تحويل أموال", "green"),
+    "cash_custody": ("عهدة نقدية", "green"),
+    "cash_count_adjustment": ("تسوية جرد نقدي", "green"),
+    "capital_injection": ("زيادة رأس المال", "green"),
+    "owner_drawings": ("مسحوبات المالك", "green"),
+    "loan_short_receive": ("استلام قرض قصير", "green"),
+    "loan_installment_paid": ("سداد قسط قرض", "green"),
+    "vendor_bill": ("فاتورة مورد", "teal"),
+    "vendor_bill_payment": ("سداد فاتورة مورد", "teal"),
+    "vendor_payment": ("دفعة مورد", "teal"),
+    "vendor_bill_refund": ("مرتجع مورد", "pink"),
+    "refund": ("استرداد عميل", "pink"),
+    "refund_cogs": ("تكلفة مرتجع", "pink"),
+    "sales_commission_refund": ("استرداد عمولة", "pink"),
+    "payroll": ("رواتب", "amber"),
+    "payroll_settlement": ("تسوية رواتب", "amber"),
+    "sales_commission": ("عمولة مبيعات", "amber"),
+    "sales_commission_settlement": ("تسوية عمولات", "amber"),
+    "sales_commission_settlement_reversal": ("عكس تسوية عمولات", "purple"),
+    "commission_settle": ("تسوية عمولة", "amber"),
+    "accrual_settle": ("تسوية مستحقات", "amber"),
+    "opening_stock": ("مخزون افتتاحي", "slate"),
+    "stock_adjustment": ("تسوية مخزون", "slate"),
+    "asset_purchase": ("شراء أصل ثابت", "slate"),
+    "opening_balance": ("رصيد افتتاحي", "slate"),
+    "party_opening_balance": ("رصيد افتتاحي لطرف", "slate"),
+}
+
+
+def _source_meta(source_type, is_reversal=False):
+    if is_reversal:
+        return {"label": "عكسي", "tone": "purple"}
+    if not source_type:
+        return {"label": "يدوي", "tone": "slate"}
+    label, tone = _SOURCE_META.get(source_type, (source_type, "slate"))
+    return {"label": label, "tone": tone}
+
+
+def _to_int(value, default=None):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _page_window(page, total, span=2):
+    nums = sorted({1, total} | set(range(max(1, page - span), min(total, page + span) + 1)))
+    out, prev = [], 0
+    for n in nums:
+        if n - prev > 1:
+            out.append(None)
+        out.append(n)
+        prev = n
+    return out
+
+
 @bp.route("/")
 @login_required
 @require_permission("journals.view")
@@ -33,105 +95,8 @@ def index():
     if not g.active_company:
         return redirect(url_for("companies.new"))
 
-    q = JournalEntry.query.filter_by(company_id=g.active_company.id)
-
-    # Search: number / description / reference / amount / customer / vendor
-    search = (request.args.get("search") or "").strip()
-    if search:
-        like = f"%{search}%"
-        amount_search = None
-        try:
-            amount_search = float(search)
-        except ValueError:
-            pass
-
-        # Customer + vendor names: match invoice/payment journals where the related
-        # invoice's customer name matches, or vendor-sourced journals
-        from app.models import Invoice
-        customer_match = db.session.query(Invoice.id).join(
-            Customer, Invoice.customer_id == Customer.id
-        ).filter(Customer.name.ilike(like)).subquery()
-        vendor_match = db.session.query(Vendor.id).filter(Vendor.name.ilike(like)).subquery()
-
-        clauses = [
-            JournalEntry.number.ilike(like),
-            JournalEntry.description.ilike(like),
-            JournalEntry.reference.ilike(like),
-            db.and_(
-                JournalEntry.source_type.in_(["invoice", "payment", "refund", "credit_note"]),
-                JournalEntry.source_id.in_(customer_match),
-            ),
-            db.and_(
-                JournalEntry.source_type == "vendor_payment",
-                JournalEntry.source_id.in_(vendor_match),
-            ),
-        ]
-        if amount_search is not None:
-            matching_ids = db.session.query(JournalLine.entry_id).filter(
-                or_(JournalLine.debit == amount_search, JournalLine.credit == amount_search)
-            ).distinct().subquery()
-            clauses.append(JournalEntry.id.in_(matching_ids))
-        q = q.filter(or_(*clauses))
-
-    # Amount range filter (from/to)
-    amount_min = request.args.get("amount_min")
-    amount_max = request.args.get("amount_max")
-    if amount_min or amount_max:
-        line_q = db.session.query(JournalLine.entry_id).distinct()
-        if amount_min:
-            try:
-                amn = float(amount_min)
-                line_q = line_q.filter(or_(JournalLine.debit >= amn, JournalLine.credit >= amn))
-            except ValueError:
-                pass
-        if amount_max:
-            try:
-                amx = float(amount_max)
-                line_q = line_q.filter(or_(
-                    db.and_(JournalLine.debit > 0, JournalLine.debit <= amx),
-                    db.and_(JournalLine.credit > 0, JournalLine.credit <= amx),
-                ))
-            except ValueError:
-                pass
-        q = q.filter(JournalEntry.id.in_(line_q.subquery()))
-
-    # Filters
-    start_date = _parse_date(request.args.get("start_date"))
-    end_date = _parse_date(request.args.get("end_date"))
-    if start_date:
-        q = q.filter(JournalEntry.date >= start_date)
-    if end_date:
-        q = q.filter(JournalEntry.date <= end_date)
-
-    source_type = request.args.get("source_type")
-    if source_type:
-        if source_type == "manual":
-            q = q.filter(JournalEntry.source_type.is_(None))
-        elif source_type == "reversal":
-            q = q.filter(JournalEntry.is_reversal.is_(True))
-        else:
-            q = q.filter(JournalEntry.source_type == source_type)
-
-    status = request.args.get("status")
-    if status == "active":
-        q = q.filter(JournalEntry.is_active.is_(True))
-    elif status == "paused":
-        q = q.filter(JournalEntry.is_active.is_(False))
-
-    account_id = request.args.get("account_id")
-    if account_id:
-        matching = db.session.query(JournalLine.entry_id).filter(
-            JournalLine.account_id == int(account_id)
-        ).distinct().subquery()
-        q = q.filter(JournalEntry.id.in_(matching))
-
-    user_id = request.args.get("user_id")
-    if user_id:
-        q = q.filter(JournalEntry.created_by == int(user_id))
-
-    reference_prefix = (request.args.get("reference") or "").strip()
-    if reference_prefix:
-        q = q.filter(JournalEntry.reference.ilike(f"{reference_prefix}%"))
+    # one filter builder shared with the export (see _build_filtered_query)
+    q = _build_filtered_query(g.active_company.id, request.args)
 
     # Sort
     sort = request.args.get("sort", "date_desc")
@@ -144,12 +109,14 @@ def index():
     for clause in sort_map.get(sort, sort_map["date_desc"]):
         q = q.order_by(clause)
 
-    # Pagination
-    page = max(int(request.args.get("page", 1)), 1)
+    # Pagination (page is clamped to the valid range; bad input falls back to 1)
     per_page = 25
     total_count = q.count()
-    entries = q.offset((page - 1) * per_page).limit(per_page).all()
     total_pages = max((total_count + per_page - 1) // per_page, 1)
+    page = min(max(_to_int(request.args.get("page"), 1), 1), total_pages)
+    entries = q.offset((page - 1) * per_page).limit(per_page).all()
+    range_from = (page - 1) * per_page + 1 if total_count else 0
+    range_to = min(page * per_page, total_count)
 
     # Filtered totals (across ALL filtered rows, not just this page)
     total_debit_q = db.session.query(func.coalesce(func.sum(JournalLine.debit), 0)).filter(
@@ -171,24 +138,45 @@ def index():
     ).distinct().all()
     users = UserModel.query.filter(UserModel.id.in_([u[0] for u in user_ids])).all()
 
-    # If this is an HTMX partial request, return only the results fragment
-    if request.headers.get("HX-Request"):
-        return render_template(
-            "journals/_results.html",
-            entries=entries, total_count=total_count, page=page, total_pages=total_pages,
-            total_debit=float(total_debit_q or 0), total_credit=float(total_credit_q or 0),
-            sort=sort,
-        )
+    # Type dropdown: only the source types this company really has, in Arabic
+    present_types = [r[0] for r in db.session.query(JournalEntry.source_type).filter(
+        JournalEntry.company_id == g.active_company.id,
+        JournalEntry.source_type.isnot(None),
+    ).distinct().all()]
+    source_options = sorted(
+        ((t, _source_meta(t)["label"]) for t in present_types), key=lambda x: x[1]
+    )
+
+    # Current filters (without page/fmt) so pager + export links keep them
+    qargs = {k: v for k, v in request.args.items() if v and k not in ("page", "fmt")}
+    adv_keys = ("amount_min", "amount_max", "source_type", "status",
+                "account_id", "reference", "user_id")
+    adv_count = sum(1 for k in adv_keys if qargs.get(k))
+    active_filters = sum(1 for k in qargs if k != "sort")
+
+    ctx = dict(
+        entries=entries,
+        total_count=total_count, page=page, total_pages=total_pages,
+        range_from=range_from, range_to=range_to,
+        page_window=_page_window(page, total_pages),
+        total_debit=float(total_debit_q or 0),
+        total_credit=float(total_credit_q or 0),
+        sort=sort, qargs=qargs, active_filters=active_filters,
+        source_meta=_source_meta,
+    )
+
+    # HTMX partial: only the results fragment. History-restore requests (Back
+    # button after a cache miss) need the full page, not the fragment.
+    if request.headers.get("HX-Request") and not request.headers.get("HX-History-Restore-Request"):
+        return render_template("journals/_results.html", **ctx)
 
     return render_template(
         "journals/index.html",
-        entries=entries,
-        total_count=total_count, page=page, total_pages=total_pages,
-        total_debit=float(total_debit_q or 0),
-        total_credit=float(total_credit_q or 0),
         accounts=accounts, users=users,
-        sort=sort,
+        source_options=source_options, adv_count=adv_count,
+        **ctx,
     )
+
 
 
 @bp.route("/new", methods=["GET", "POST"])
@@ -563,12 +551,76 @@ def recurring_new():
 
 
 def _build_filtered_query(company_id, args):
-    """Shared query builder so per-entry and bulk endpoints respect the same filters."""
+    """Single source of truth for the list page AND the Excel/PDF export, so
+    what you export is exactly what you see (search, amount, account, user,
+    reference, dates, type, status)."""
     q = JournalEntry.query.filter_by(company_id=company_id)
+
+    # Search: number / description / reference / amount / customer / vendor
+    search = (args.get("search") or "").strip()
+    if search:
+        like = f"%{search}%"
+        amount_search = None
+        try:
+            amount_search = float(search)
+        except ValueError:
+            pass
+
+        from app.models import Invoice
+        customer_match = db.session.query(Invoice.id).join(
+            Customer, Invoice.customer_id == Customer.id
+        ).filter(Customer.name.ilike(like)).subquery()
+        vendor_match = db.session.query(Vendor.id).filter(Vendor.name.ilike(like)).subquery()
+
+        clauses = [
+            JournalEntry.number.ilike(like),
+            JournalEntry.description.ilike(like),
+            JournalEntry.reference.ilike(like),
+            db.and_(
+                JournalEntry.source_type.in_(["invoice", "payment", "refund", "credit_note"]),
+                JournalEntry.source_id.in_(customer_match),
+            ),
+            db.and_(
+                JournalEntry.source_type == "vendor_payment",
+                JournalEntry.source_id.in_(vendor_match),
+            ),
+        ]
+        if amount_search is not None:
+            matching_ids = db.session.query(JournalLine.entry_id).filter(
+                or_(JournalLine.debit == amount_search, JournalLine.credit == amount_search)
+            ).distinct().subquery()
+            clauses.append(JournalEntry.id.in_(matching_ids))
+        q = q.filter(or_(*clauses))
+
+    # Amount range (any line within the range)
+    amount_min = args.get("amount_min")
+    amount_max = args.get("amount_max")
+    if amount_min or amount_max:
+        line_q = db.session.query(JournalLine.entry_id).distinct()
+        if amount_min:
+            try:
+                amn = float(amount_min)
+                line_q = line_q.filter(or_(JournalLine.debit >= amn, JournalLine.credit >= amn))
+            except ValueError:
+                pass
+        if amount_max:
+            try:
+                amx = float(amount_max)
+                line_q = line_q.filter(or_(
+                    db.and_(JournalLine.debit > 0, JournalLine.debit <= amx),
+                    db.and_(JournalLine.credit > 0, JournalLine.credit <= amx),
+                ))
+            except ValueError:
+                pass
+        q = q.filter(JournalEntry.id.in_(line_q.subquery()))
+
     sd = _parse_date(args.get("start_date"))
     ed = _parse_date(args.get("end_date"))
-    if sd: q = q.filter(JournalEntry.date >= sd)
-    if ed: q = q.filter(JournalEntry.date <= ed)
+    if sd:
+        q = q.filter(JournalEntry.date >= sd)
+    if ed:
+        q = q.filter(JournalEntry.date <= ed)
+
     source_type = args.get("source_type")
     if source_type == "manual":
         q = q.filter(JournalEntry.source_type.is_(None))
@@ -576,16 +628,34 @@ def _build_filtered_query(company_id, args):
         q = q.filter(JournalEntry.is_reversal.is_(True))
     elif source_type:
         q = q.filter(JournalEntry.source_type == source_type)
+
     status = args.get("status")
     if status == "active":
         q = q.filter(JournalEntry.is_active.is_(True))
     elif status == "paused":
         q = q.filter(JournalEntry.is_active.is_(False))
+
+    account_id = _to_int(args.get("account_id"))
+    if account_id:
+        matching = db.session.query(JournalLine.entry_id).filter(
+            JournalLine.account_id == account_id
+        ).distinct().subquery()
+        q = q.filter(JournalEntry.id.in_(matching))
+
+    user_id = _to_int(args.get("user_id"))
+    if user_id:
+        q = q.filter(JournalEntry.created_by == user_id)
+
+    reference_prefix = (args.get("reference") or "").strip()
+    if reference_prefix:
+        q = q.filter(JournalEntry.reference.ilike(f"{reference_prefix}%"))
+
     return q
 
 
 @bp.route("/export")
 @login_required
+@require_permission("journals.view")
 def export_filtered():
     """Export the currently filtered list as Excel or PDF (fmt=pdf|excel)."""
     fmt = request.args.get("fmt", "excel")
@@ -637,6 +707,7 @@ def export_filtered():
 
 @bp.route("/<int:entry_id>/export/<fmt>")
 @login_required
+@require_permission("journals.view")
 def export_entry(entry_id, fmt):
     entry = db.session.get(JournalEntry, entry_id)
     if not entry or entry.company_id != g.active_company.id:
