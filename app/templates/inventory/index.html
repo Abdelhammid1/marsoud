@@ -136,6 +136,93 @@
 </script>
 {# /MARSOUD-INV-HUB-P95 #}
 
+{% set _inv_feat = (g.active_company.features if g.active_company else {}) %}
+{% if _inv_feat.get('expiry_lots') or expiring_lots %}
+<div class="card p-6 mb-4" id="inv-expiry" data-ih-hide>
+  <div class="flex flex-wrap items-center justify-between mb-3 gap-2">
+    <h3 class="font-bold text-navy-900">📅 تنبيهات انتهاء الصلاحية (خلال 30 يوم أو منتهية)</h3>
+    <span class="badge {% if expiring_lots %}badge-overdue{% else %}badge-paid{% endif %}">{{ expiring_lots|length }} دفعة</span>
+  </div>
+  {% if expiring_lots %}
+  <div class="overflow-x-auto">
+    <table class="data-table text-sm">
+      <thead>
+        <tr>
+          <th>الصنف</th>
+          <th>رقم التشغيلة</th>
+          <th>المخزن</th>
+          <th class="text-center">الكمية المتبقية</th>
+          <th>تاريخ الصلاحية</th>
+          <th>الحالة</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for lot in expiring_lots %}
+        {% set is_exp = (lot.expiry_date and lot.expiry_date < today) %}
+        <tr>
+          <td>
+            {% if lot.variant %}
+            <a href="{{ url_for('inventory.variant_detail', variant_id=lot.variant.id) }}" class="text-emerald-700 hover:underline font-semibold">{{ lot.variant.display_name }}</a>
+            {% else %}—{% endif %}
+          </td>
+          <td class="font-mono">{{ lot.lot_number or '—' }}</td>
+          <td>{{ lot.warehouse.name if lot.warehouse else '—' }}</td>
+          <td class="text-center font-mono font-bold">{{ lot.qty_remaining }}</td>
+          <td class="font-mono">{{ lot.expiry_date.isoformat() if lot.expiry_date else '—' }}</td>
+          <td>
+            {% if is_exp %}
+            <span class="badge badge-overdue">منتهي الصلاحية</span>
+            {% else %}
+            <span class="badge badge-warning">ينتهي قريباً</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-sm text-slate-400 text-center py-3">لا توجد دفعات منتهية أو تنتهي خلال 30 يوم.</div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if _inv_feat.get('serial_imei') %}
+<div class="card p-6 mb-4" id="inv-serials" data-ih-hide>
+  <div class="flex flex-wrap items-center justify-between mb-3 gap-2">
+    <h3 class="font-bold text-navy-900">🔢 تتبع السيريال / IMEI والضمان</h3>
+  </div>
+  <div class="flex gap-2 max-w-lg mb-3">
+    <input type="text" id="sn-lookup-q" class="input text-sm font-mono flex-1" placeholder="اكتب أو امسح رقم السيريال / IMEI..." onkeydown="if(event.key==='Enter'){event.preventDefault();runSerialLookup();}">
+    <button type="button" onclick="runSerialLookup()" class="btn-primary text-sm">🔍 بحث</button>
+  </div>
+  <div id="sn-lookup-res" class="text-sm text-slate-500"></div>
+  <script>
+  async function runSerialLookup() {
+    var q = (document.getElementById('sn-lookup-q').value || '').trim();
+    var box = document.getElementById('sn-lookup-res');
+    if (!q) { box.textContent = 'أدخل رقم السيريال أو IMEI للبحث.'; return; }
+    box.textContent = 'جاري البحث...';
+    try {
+      var r = await fetch("{{ url_for('inventory.api_serial_lookup') }}?q=" + encodeURIComponent(q));
+      var d = await r.json();
+      if (!d.items || !d.items.length) {
+        box.innerHTML = '<div class="text-slate-500">لا توجد نتائج مطابقة.</div>';
+        return;
+      }
+      var stMap = {'IN_STOCK': 'في المخزن', 'SOLD': 'مباع'};
+      var rows = d.items.map(function(it) {
+        return '<tr><td class="font-mono font-bold">' + it.serial_number + '</td><td>' + it.product_name + '</td><td>' + (stMap[it.status] || it.status) + '</td><td>' + it.warehouse + '</td><td class="font-mono">' + it.warranty_ends_at + '</td></tr>';
+      }).join('');
+      box.innerHTML = '<div class="overflow-x-auto"><table class="data-table text-xs"><thead><tr><th>Serial / IMEI</th><th>الصنف</th><th>الحالة</th><th>المخزن</th><th>نهاية الضمان</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    } catch (e) {
+      box.textContent = 'تعذر البحث حالياً.';
+    }
+  }
+  </script>
+</div>
+{% endif %}
+
 <div class="card p-6 mb-4" id="inv-low" data-ih-hide>
   <div class="flex flex-wrap items-center justify-between mb-3 gap-2">
     <h3 class="font-bold text-navy-900">⚠ تحت حد الطلب</h3>
