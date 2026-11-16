@@ -17,6 +17,7 @@
      no_title  optional; the create screen already has a section heading #}
 
 {% set pk = pack if pack is defined and pack else none %}
+{% set _multi_u = g.active_company.has_feature('multi_units') if g.active_company else True %}
 {% set _pieces = (pk.pieces if pk else 1) %}
 {% set _purchase = (pk.pack_purchase_price if pk else '') %}
 {% set _sale = (pk.pack_sale_price if pk else '') %}
@@ -120,19 +121,23 @@
   // same screen, fewer fields, and the label stops saying "العلبة".
   window._applyPricingMode = function (isGoods) {
     window._pricingIsGoods = isGoods;
+    var usePack = isGoods && {{ 'true' if _multi_u else 'false' }};
     var grid = document.getElementById('pack-goods-fields');
-    piecesEl.parentElement.style.display = isGoods ? '' : 'none';
+    piecesEl.parentElement.style.display = usePack ? '' : 'none';
     buyEl.parentElement.style.display = isGoods ? '' : 'none';
     if (grid) grid.classList.toggle('pb-single', !isGoods);
+    var buyLabel = buyEl.parentElement.querySelector('label');
+    var buyHint = buyEl.parentElement.querySelector('.pb-h');
+    if (buyLabel) buyLabel.textContent = usePack ? 'سعر شراء العلبة' : 'سعر الشراء';
+    if (buyHint) buyHint.textContent = usePack ? 'اللي بتدفعه للمورد مقابل العلبة كاملة (مش القطعة)' : 'تكلفة شراء القاعة الواحدة';
     document.getElementById('pack-sale-label').textContent =
-      isGoods ? 'سعر بيع العلبة' : 'سعر البيع';
+      usePack ? 'سعر بيع العلبة' : 'سعر البيع';
     document.getElementById('pack-sale-hint').textContent =
-      isGoods ? 'السعر اللي بتبيع بيه العلبة كاملة للعميل (مش القطعة)'
-              : 'سعر الخدمة للعميل';
-    if (!isGoods) piecesEl.value = 1;
+      usePack ? 'السعر اللي بتديع بيه العلبة كاملة للعميل (مش القطعة)'
+              : (isGoods ? 'سعر بيع القطعة للعميل' : 'سعر الخدمة للعميل');
+    if (!usePack) piecesEl.value = 1;
     recompute();
   };
-
   [piecesEl, buyEl, sellEl].forEach(function (el) {
     el.addEventListener('input', recompute);
   });
