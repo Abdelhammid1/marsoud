@@ -19,7 +19,7 @@ DEFAULT_FEATURES = {
     "variants": True,       # مقاسات / ألوان / درجات
     "multi_units": True,    # وحدات قياس متعددة بمعامل تحويل
     "expiry_lots": True,    # تواريخ صلاحية ورقم تشغيلة
-    "serial_imei": True,    # أرقام تسلسلية IMEI / Serial
+    "serial_imei": False,    # أرقام تسلسلية IMEI / Serial
     "barcodes": True,       # طباعة ومسح باركود
     "pos_fast": True,       # شاشة نقطة البيع السريعة
     "bundles": True,        # باقات وعروض مجمعة
@@ -35,7 +35,7 @@ INDUSTRY_PRESETS = {
             "variants": True,
             "multi_units": True,
             "expiry_lots": True,
-            "serial_imei": True,
+            "serial_imei": False,
             "barcodes": True,
             "pos_fast": True,
             "bundles": True,
