@@ -392,6 +392,8 @@ class StockLot(db.Model):
                             nullable=False, index=True)
     qty_remaining = db.Column(db.Numeric(15, 3), default=0, nullable=False)
     unit_cost = db.Column(db.Numeric(15, 4), default=0, nullable=False)
+    lot_number = db.Column(db.String(60), nullable=True, index=True)
+    expiry_date = db.Column(db.Date, nullable=True, index=True)
     source_movement_id = db.Column(db.Integer,
                                    db.ForeignKey("stock_movements.id"))
 
@@ -495,3 +497,34 @@ class InventoryCount(db.Model):
                                   foreign_keys=[warehouse_id])
     adjustment_movement = db.relationship(
         "StockMovement", foreign_keys=[adjustment_movement_id])
+
+
+# ─── MARSOUD-P102 — per-unit serial / IMEI tracking (mobiles & electronics) ──
+class ProductSerial(db.Model):
+    __tablename__ = "product_serials"
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("companies.id"),
+                           nullable=False, index=True)
+    variant_id = db.Column(db.Integer,
+                           db.ForeignKey("product_variants.id",
+                                         ondelete="CASCADE"),
+                           nullable=False, index=True)
+    warehouse_id = db.Column(db.Integer, db.ForeignKey("warehouses.id"),
+                             nullable=True, index=True)
+    serial_number = db.Column(db.String(100), nullable=False)
+    imei2 = db.Column(db.String(100), nullable=True)
+    status = db.Column(db.String(20), default="IN_STOCK",
+                       nullable=False, index=True)  # IN_STOCK | SOLD | RETURNED
+    purchase_bill_id = db.Column(db.Integer, nullable=True)
+    sale_invoice_id = db.Column(db.Integer, nullable=True)
+    warranty_ends_at = db.Column(db.Date, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        db.UniqueConstraint("company_id", "serial_number",
+                            name="uq_product_serial_company_sn"),
+    )
+
+    variant = db.relationship("ProductVariant", foreign_keys=[variant_id])
+    warehouse = db.relationship("Warehouse", foreign_keys=[warehouse_id])

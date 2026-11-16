@@ -146,6 +146,10 @@ class Product(db.Model):
     # will be deducted at POS sale time. Every non-bundle product has
     # this as False; column default keeps every legacy row unchanged.
     is_bundle = db.Column(db.Boolean, default=False, nullable=False)
+    # MARSOUD-P102 — vertical-specific tracking flags.
+    track_expiry = db.Column(db.Boolean, default=False, nullable=False, server_default=db.text("false"))
+    track_serial = db.Column(db.Boolean, default=False, nullable=False, server_default=db.text("false"))
+    warranty_months = db.Column(db.Integer, default=0, nullable=False, server_default="0")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     company = db.relationship("Company", backref=db.backref("products", lazy="dynamic"))

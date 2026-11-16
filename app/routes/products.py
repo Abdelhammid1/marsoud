@@ -158,6 +158,13 @@ def new():
                 tracks_piece_count=(
                     is_tracked and
                     request.form.get("tracks_piece_count") == "on"),
+                track_expiry=(
+                    is_tracked and
+                    request.form.get("track_expiry") == "on"),
+                track_serial=(
+                    is_tracked and
+                    request.form.get("track_serial") == "on"),
+                warranty_months=max(0, int(request.form.get("warranty_months") or 0)) if is_tracked else 0,
             )
             db.session.add(p)
             db.session.flush()  # need p.id for the variant SKU fallback
@@ -249,6 +256,78 @@ def new():
                         actor_id=current_user.id, created_by=current_user.id,
                         reason="رصيد افتتاحي من شاشة إضافة المنتج",
                     )
+                    # MARSOUD-P102 — attach lot_number / expiry_date to the latest StockLot if provided
+                    lot_no = (request.form.get("opening_lot_number") or "").strip() or None
+                    exp_raw = (request.form.get("opening_expiry_date") or "").strip() or None
+                    if lot_no or exp_raw:
+                        from datetime import date as _dt_date
+                        from app.models.inventory import StockLot
+                        latest_lot = StockLot.query.filter_by(
+                            company_id=cid, variant_id=v.id, warehouse_id=wh.id
+                        ).order_by(StockLot.id.desc()).first()
+                        if latest_lot:
+                            if lot_no:
+                                latest_lot.lot_number = lot_no
+                            if exp_raw:
+                                try:
+                                    latest_lot.expiry_date = _dt_date.fromisoformat(exp_raw[:10])
+                                except ValueError:
+                                    pass
+                    # MARSOUD-P102 — persist initial serials / IMEIs if track_serial is enabled
+                    serials_raw = (request.form.get("opening_serials") or "").strip()
+                    if p.track_serial and serials_raw:
+                        import json as _json
+                        from datetime import date as _dt_date, timedelta as _td
+                        from app.models.inventory import ProductSerial
+                        w_end = None
+                        if (p.warranty_months or 0) > 0:
+                            w_end = _dt_date.today() + _td(days=30 * int(p.warranty_months))
+                        lines = [s.strip() for s in serials_raw.replace(",", "\n").splitlines() if s.strip()]
+                        for sn in lines:
+                            exists_sn = ProductSerial.query.filter_by(company_id=cid, serial_number=sn).first()
+                            if exists_sn:
+                                raise ValueError(f"الرقم التسلسلي '{sn}' مسجّل بالفعل")
+                            db.session.add(ProductSerial(
+                                company_id=cid, variant_id=v.id, warehouse_id=wh.id,
+                                serial_number=sn, status="IN_STOCK", warranty_ends_at=w_end,
+                            ))
+
+                # MARSOUD-P102 — Quick Variant Matrix Generator (Sizes x Colors/Shades)
+                raw_sizes = [x.strip() for x in (request.form.get("variant_sizes") or "").replace("،", ",").split(",") if x.strip()]
+                raw_colors = [x.strip() for x in (request.form.get("variant_colors") or "").replace("،", ",").split(",") if x.strip()]
+                if raw_sizes or raw_colors:
+                    import json as _json
+                    combos = []
+                    if raw_sizes and raw_colors:
+                        for c_val in raw_colors:
+                            for s_val in raw_sizes:
+                                combos.append((f"{c_val} / {s_val}", {"color": c_val, "size": s_val}))
+                    elif raw_colors:
+                        for c_val in raw_colors:
+                            combos.append((c_val, {"color": c_val}))
+                    else:
+                        for s_val in raw_sizes:
+                            combos.append((s_val, {"size": s_val}))
+                    # First combo updates the default variant `v`, remaining combos create extra variants
+                    for idx, (vlabel, vattrs) in enumerate(combos):
+                        if idx == 0:
+                            target_v = v
+                        else:
+                            v_sku = f"{sku}-{idx+1}"
+                            if ProductVariant.query.filter_by(company_id=cid, sku=v_sku).first():
+                                v_sku = f"{_generate_variant_sku(cid, p.id)}-{idx+1}"
+                            target_v = ProductVariant(
+                                company_id=cid, product_id=p.id,
+                                sku=v_sku, barcode=None, name=vlabel,
+                            )
+                            db.session.add(target_v)
+                            db.session.flush()
+                            apply_pack_pricing(
+                                p, target_v, pieces=pieces, pack_purchase=pack_purchase,
+                                pack_sale=pack_sale, pack_name=pack_unit_name, is_goods=True,
+                            )
+                        target_v.name = vlabel
+                        target_v.attrs_json = _json.dumps(vattrs, ensure_ascii=False)
             elif is_bundle:
                 # MARSOUD-PRODUCT-BUNDLES-01 — bundle: no independent
                 # stock, but a synthetic ProductVariant is still needed
