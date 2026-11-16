@@ -536,14 +536,14 @@ tailwind.config = {
   <!-- Sidebar -->
   <aside id="sidebar" class="sidebar-aside w-64 bg-slate-50 text-slate-600 flex flex-col fixed h-screen right-0 top-0 border-l border-slate-200 z-40">
     <div class="px-6 py-5 border-b border-slate-200">
-      <div class="flex items-center gap-2">
-        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="مرصود" class="w-10 h-10 object-contain">
+      <a href="/home" title="الذهاب إلى الرئيسية" class="flex items-center gap-2 group rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500">
+        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="مرصود" class="w-10 h-10 object-contain transition-transform group-hover:scale-105">
         <div>
-          <div class="text-slate-800 font-bold text-lg leading-none">مرصود</div>
+          <div class="text-slate-800 font-bold text-lg leading-none group-hover:text-emerald-700 transition-colors">مرصود</div>
           <div class="sr-only">Marsoud</div>
           <div class="text-[10px] text-slate-500 mt-1 whitespace-nowrap">نظام إدارة أعمال متكامل للشركات</div>
         </div>
-      </div>
+      </a>
     </div>
 
     {% if active_company %}
@@ -1236,15 +1236,37 @@ tailwind.config = {
           {% if not hide_sidebar %}
           <!-- MARSOUD-42 — hamburger: hides/shows the whole sidebar -->
           <button type="button" onclick="toggleSidebar()"
-                  class="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:border-emerald-500 hover:bg-emerald-50 transition"
+                  class="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white hover:border-emerald-500 hover:bg-emerald-50 transition shrink-0"
                   title="إخفاء/إظهار القائمة الجانبية"
                   aria-label="إخفاء/إظهار القائمة الجانبية">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
             </svg>
           </button>
+          {% if request.path != '/home' %}
+          <!-- MARSOUD-P98 — Back & Home quick navigation -->
+          <button type="button"
+                  onclick="if(window.history.length > 1 && document.referrer && document.referrer.indexOf(window.location.host) !== -1){ window.history.back(); } else { window.location.href='/home'; }"
+                  class="inline-flex items-center gap-1 h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-800 text-xs font-semibold transition shrink-0"
+                  title="الرجوع للصفحة السابقة"
+                  aria-label="الرجوع للصفحة السابقة">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+            </svg>
+            <span class="hidden sm:inline">رجوع</span>
+          </button>
+          <a href="/home"
+             class="inline-flex items-center gap-1 h-9 px-2.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-800 text-xs font-semibold transition shrink-0"
+             title="الذهاب إلى الرئيسية"
+             aria-label="الذهاب إلى الرئيسية">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+            </svg>
+            <span class="hidden sm:inline">الرئيسية</span>
+          </a>
           {% endif %}
-          <h1 class="text-xl font-bold text-navy-900">{% block page_title %}{% endblock %}</h1>
+          {% endif %}
+          <h1 class="text-xl font-bold text-navy-900 truncate">{% block page_title %}{% endblock %}</h1>
         </div>
         <div class="flex items-center gap-3">
           {% if hide_sidebar %}
