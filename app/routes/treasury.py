@@ -35,10 +35,42 @@ def index():
     if not g.active_company:
         return redirect(url_for("companies.new"))
     cid = g.active_company.id
+    groups = list_balances(cid)
+    acct_ids = [r["account"].id for _, rows in groups for r in rows]
+    recent_txns = []
+    if acct_ids:
+        from app.models.journal import JournalEntry, JournalLine
+        lines = (
+            db.session.query(JournalLine, JournalEntry)
+            .join(JournalEntry, JournalLine.entry_id == JournalEntry.id)
+            .filter(
+                JournalEntry.company_id == cid,
+                JournalEntry.is_active.is_(True),
+                JournalLine.account_id.in_(acct_ids),
+            )
+            .order_by(JournalEntry.date.desc(), JournalEntry.id.desc(), JournalLine.id.desc())
+            .limit(80)
+            .all()
+        )
+        for ln, je in lines:
+            d_amt = float(ln.debit_base or ln.debit or 0)
+            c_amt = float(ln.credit_base or ln.credit or 0)
+            recent_txns.append({
+                "date": je.date,
+                "entry_id": je.id,
+                "number": je.number,
+                "account_id": ln.account_id,
+                "account_name": (ln.account.name_ar or ln.account.name) if ln.account else "—",
+                "account_code": ln.account.code if ln.account else "",
+                "description": (ln.memo or je.description or "—"),
+                "inflow": d_amt,
+                "outflow": c_amt,
+            })
     return render_template(
         "treasury/index.html",
-        groups=list_balances(cid),
+        groups=groups,
         stats=kpi(cid),
+        recent_txns=recent_txns,
         can_operate=has_permission("treasury.operate"),
     )
 
