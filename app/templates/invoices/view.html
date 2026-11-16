@@ -2,8 +2,30 @@
 {% import '_macros.html' as ui %}
 {% block page_title %}فاتورة {{ invoice.number }}{% endblock %}
 {% block content %}
-<div class="grid grid-cols-3 gap-4">
-  <div class="card p-6 col-span-2">
+{# MARSOUD-INVOICE-VIEW-P110 — top nav, KPI summary strip, responsive 3-col grid & serial display #}
+<div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+  <div class="flex flex-wrap items-center gap-2 text-sm">
+    <a href="{{ url_for('invoices.index') }}" class="btn-secondary text-xs">← كل الفواتير</a>
+    {% if invoice.customer %}
+    <a href="{{ url_for('party_ledger.index', kind='customer', party_id=invoice.customer.id) }}" class="btn-secondary text-xs">📒 كشف حساب {{ invoice.customer.name }}</a>
+    {% endif %}
+    {% if invoice.journal_entry_id %}
+    <a href="{{ url_for('journal.view', entry_id=invoice.journal_entry_id) }}" class="btn-secondary text-xs">🧾 القيد المحاسبي</a>
+    {% endif %}
+  </div>
+  <div class="flex items-center gap-2">
+    <button type="button" onclick="window.print()" class="btn-secondary text-xs">🖨 طباعة سريعة</button>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+  {{ ui.stat_tile("💰 إجمالي الفاتورة", (invoice.total|money) ~ " " ~ (invoice.currency|currency_ar), hint=("رقم " ~ invoice.number)) }}
+  {{ ui.stat_tile("✅ المدفوع", ((invoice.paid_amount or 0)|money) ~ " " ~ (invoice.currency|currency_ar), hint="المحصّل حتى الآن", tone="brand") }}
+  {{ ui.stat_tile("⏳ المتبقي", (invoice.balance|money) ~ " " ~ (invoice.currency|currency_ar), hint=("مسددة بالكامل" if invoice.balance <= 0.01 else "مستحق التحصيل"), tone=("warning" if invoice.balance > 0.01 else "brand")) }}
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <div class="card p-6 lg:col-span-2">
     {# MARSOUD-23 — company branding header (logo + name + VAT) #}
     <div class="bg-gradient-to-l from-navy-900 to-navy-700 text-white -m-6 mb-6 px-6 py-5 rounded-t-2xl flex items-center justify-between">
       <div class="flex items-center gap-3">
@@ -68,6 +90,9 @@
           <td>
             {{ item.description }}
             {% if item.product %}<span class="text-xs text-slate-500">({{ item.product.name }})</span>{% endif %}
+              {% if item.serial_numbers_text and ((g.active_company.features or {}).get('serial_imei') if g.active_company else False) %}
+                <div class="text-[11px] font-mono text-indigo-700 bg-indigo-50/70 rounded px-1.5 py-0.5 mt-1 inline-block">🔢 IMEI / Serial: {{ item.serial_numbers_text }}</div>
+              {% endif %}
           </td>
           <td class="font-mono">
             {{ item.quantity|money }}
