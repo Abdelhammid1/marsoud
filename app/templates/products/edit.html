@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block page_title %}تعديل {{ product.name }}{% endblock %}
 {% block content %}
+{% set _co = g.active_company %}
+{% set _feat = (_co.features if _co else {}) %}
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
@@ -94,6 +96,32 @@
           </div>
         </div>
       </label>
+
+      {% if _feat.get('expiry_lots') or product.track_expiry %}
+      <label class="flex items-start gap-2 pt-2 border-t">
+        <input type="checkbox" name="track_expiry" class="mt-0.5"
+                {% if product.track_expiry %}checked{% endif %}>
+        <div>
+          <span class="text-sm font-semibold">📅 تتبع تاريخ الصلاحية والتشغيلة (Expiry / Lot)</span>
+        </div>
+      </label>
+      {% endif %}
+
+      {% if _feat.get('serial_imei') or product.track_serial %}
+      <div class="pt-2 border-t space-y-2">
+        <label class="flex items-start gap-2">
+          <input type="checkbox" name="track_serial" class="mt-0.5"
+                  {% if product.track_serial %}checked{% endif %}>
+          <div>
+            <span class="text-sm font-semibold">🔢 تتبع برقم تسلسلي (IMEI / Serial)</span>
+          </div>
+        </label>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">مدة الضمان (بالشهور)</label>
+          <input type="number" name="warranty_months" min="0" max="120" value="{{ product.warranty_months or 0 }}" class="input text-sm font-mono">
+        </div>
+      </div>
+      {% endif %}
       {% endif %}
 
       <div class="flex justify-between items-center gap-2 pt-2">
@@ -282,6 +310,97 @@
       });
     })();
     </script>
+
+    {% if product.track_expiry or active_lots %}
+    <div class="card p-5">
+      <h3 class="font-bold text-navy-900 mb-3">📅 دفعات الصلاحية الحالية ({{ active_lots|length }})</h3>
+      {% if active_lots %}
+      <div class="overflow-x-auto">
+        <table class="data-table text-sm">
+          <thead>
+            <tr>
+              <th>رقم التشغيلة</th>
+              <th>المخزن</th>
+              <th>الكمية المتبقية</th>
+              <th>تاريخ الصلاحية</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for lot in active_lots %}
+            <tr>
+              <td class="font-mono">{{ lot.lot_number or '—' }}</td>
+              <td>{{ lot.warehouse.name if lot.warehouse else '—' }}</td>
+              <td class="font-mono font-bold">{{ lot.qty_remaining }}</td>
+              <td class="font-mono">{{ lot.expiry_date.isoformat() if lot.expiry_date else 'غير محدد' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-xs text-slate-500">لا توجد دفعات متبقية حاليًا.</div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if product.track_serial or product_serials or _feat.get('serial_imei') %}
+    <div class="card p-5">
+      <h3 class="font-bold text-navy-900 mb-3">🔢 الأرقام التسلسلية / IMEI ({{ product_serials|length }})</h3>
+      <form method="POST" action="{{ url_for('products.serials_add', product_id=product.id) }}" class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-4 bg-slate-50 p-3 rounded-lg border">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">المتغير (Variant)</label>
+          <select name="variant_id" class="select text-xs">
+            {% for v in product.variants %}
+            <option value="{{ v.id }}">{{ v.sku }}{% if v.name %} — {{ v.name }}{% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">المخزن</label>
+          <select name="warehouse_id" class="select text-xs">
+            {% for w in warehouses %}
+            <option value="{{ w.id }}" {% if w.is_default %}selected{% endif %}>{{ w.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="md:col-span-3">
+          <label class="block text-xs font-semibold text-slate-600 mb-1">أرقام السيريال / IMEI (سطر لكل جهاز)</label>
+          <div class="flex gap-2">
+            <textarea name="serial_numbers" rows="2" class="textarea font-mono text-xs flex-1" placeholder="356789012345678"></textarea>
+            <button type="submit" class="btn-primary text-xs self-end">+ إضافة سيريالات</button>
+          </div>
+        </div>
+      </form>
+      {% if product_serials %}
+      <div class="overflow-x-auto max-h-64">
+        <table class="data-table text-xs">
+          <thead>
+            <tr>
+              <th>Serial / IMEI</th>
+              <th>الحالة</th>
+              <th>المخزن</th>
+              <th>نهاية الضمان</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sn in product_serials %}
+            <tr>
+              <td class="font-mono font-bold">{{ sn.serial_number }}</td>
+              <td>
+                {% if sn.status == 'IN_STOCK' %}<span class="badge badge-paid">في المخزن</span>
+                {% elif sn.status == 'SOLD' %}<span class="badge badge-sent">مباع</span>
+                {% else %}<span class="badge badge-neutral">{{ sn.status }}</span>{% endif %}
+              </td>
+              <td>{{ sn.warehouse.name if sn.warehouse else '—' }}</td>
+              <td class="font-mono">{{ sn.warranty_ends_at.isoformat() if sn.warranty_ends_at else '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
 
     {% else %}
     <div class="card p-6 bg-slate-50">
