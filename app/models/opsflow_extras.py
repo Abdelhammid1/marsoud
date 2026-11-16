@@ -51,7 +51,7 @@ class Document(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     company_id = db.Column(db.Integer, db.ForeignKey("companies.id"),
                            nullable=False, index=True)
-    source_type = db.Column(db.String(20), nullable=False, index=True)
+    source_type = db.Column(db.String(64), nullable=False, index=True)
     source_id = db.Column(db.Integer, nullable=False, index=True)
     name = db.Column(db.String(200), nullable=False)
     file_path = db.Column(db.String(400), nullable=False)  # /static/docs/<co>/<id>.<ext>
@@ -106,7 +106,7 @@ class Notification(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"),
                         nullable=False, index=True)
     kind = db.Column(db.String(40), nullable=False)
-    title = db.Column(db.String(200), nullable=False)
+    title = db.Column(db.Text, nullable=False)
     body = db.Column(db.Text)
     link_url = db.Column(db.String(300))
     read_at = db.Column(db.DateTime)

@@ -117,7 +117,7 @@ class Lead(db.Model):
     client_name = db.Column(db.String(150), nullable=False)
     email = db.Column(db.String(200))
     phone = db.Column(db.String(30), nullable=False)
-    service_needed = db.Column(db.String(200), nullable=False)
+    service_needed = db.Column(db.Text, nullable=False)
     lead_type = db.Column(db.String(20))
     source = db.Column(db.String(100))
 

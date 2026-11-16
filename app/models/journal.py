@@ -15,7 +15,7 @@ class JournalEntry(db.Model):
     is_reversal = db.Column(db.Boolean, default=False)
     reversal_of = db.Column(db.Integer, db.ForeignKey("journal_entries.id"))
     created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
-    source_type = db.Column(db.String(30))
+    source_type = db.Column(db.String(64))
     source_id = db.Column(db.Integer)
     cashflow_category = db.Column(db.String(15))  # OPERATING / INVESTING / FINANCING / NONCASH (manual override)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

@@ -34,18 +34,28 @@ def system_vitals():
         with db.engine.connect() as conn:
             conn.execute(text("SELECT 1"))
             db_ok = True
-            # SQLite specifics — safe to try; ignore on other DBs.
+            db_bytes = 0
+            dialect = db.engine.dialect.name
+            if dialect == "postgresql":
+                try:
+                    db_bytes = int(conn.execute(text("SELECT pg_database_size(current_database())")).scalar() or 0)
+                    page_size = 8192
+                    page_count = db_bytes // page_size
+                except Exception:
+                    db_bytes = 0
+            else:
+                try:
+                    page_size = int(conn.execute(text("PRAGMA page_size")).scalar() or 0)
+                    page_count = int(conn.execute(text("PRAGMA page_count")).scalar() or 0)
+                    db_bytes = page_size * page_count
+                except Exception:
+                    page_size = page_count = db_bytes = 0
             try:
-                page_size = int(conn.execute(text("PRAGMA page_size")).scalar() or 0)
-                page_count = int(conn.execute(text("PRAGMA page_count")).scalar() or 0)
-            except Exception:
-                page_size = page_count = 0
-            # Total-rows sweep. Cheap on SQLite.
-            try:
-                tables = [r[0] for r in conn.execute(text(
-                    "SELECT name FROM sqlite_master WHERE type='table' "
-                    "AND name NOT LIKE 'sqlite_%' "
-                    "AND name NOT LIKE 'alembic%'"))]
+                from sqlalchemy import inspect as _sqla_inspect
+                tables = [
+                    t for t in _sqla_inspect(db.engine).get_table_names()
+                    if not t.startswith("sqlite_") and not t.startswith("alembic")
+                ]
                 for t in tables:
                     total_rows += int(conn.execute(
                         text(f'SELECT COUNT(*) FROM "{t}"')).scalar() or 0)
@@ -55,7 +65,7 @@ def system_vitals():
         db_ok = False
     return {
         "db_ok": db_ok,
-        "db_bytes": page_size * page_count,
+        "db_bytes": db_bytes if db_ok else 0,
         "page_size": page_size,
         "page_count": page_count,
         "total_rows": total_rows,
@@ -171,19 +181,30 @@ def cron_last_runs():
 def db_stats():
     """{total_bytes, page_size, page_count, tables: [(name, rows)]}
     tables sorted desc by row count, top 20."""
-    page_size = page_count = 0
+    page_size = page_count = total_bytes = 0
     tables = []
     try:
         with db.engine.connect() as conn:
-            try:
-                page_size = int(conn.execute(text("PRAGMA page_size")).scalar() or 0)
-                page_count = int(conn.execute(text("PRAGMA page_count")).scalar() or 0)
-            except Exception:
-                pass
-            names = [r[0] for r in conn.execute(text(
-                "SELECT name FROM sqlite_master WHERE type='table' "
-                "AND name NOT LIKE 'sqlite_%' "
-                "AND name NOT LIKE 'alembic%'"))]
+            dialect = db.engine.dialect.name
+            if dialect == "postgresql":
+                try:
+                    total_bytes = int(conn.execute(text("SELECT pg_database_size(current_database())")).scalar() or 0)
+                    page_size = 8192
+                    page_count = total_bytes // page_size
+                except Exception:
+                    pass
+            else:
+                try:
+                    page_size = int(conn.execute(text("PRAGMA page_size")).scalar() or 0)
+                    page_count = int(conn.execute(text("PRAGMA page_count")).scalar() or 0)
+                    total_bytes = page_size * page_count
+                except Exception:
+                    pass
+            from sqlalchemy import inspect as _sqla_inspect
+            names = [
+                t for t in _sqla_inspect(db.engine).get_table_names()
+                if not t.startswith("sqlite_") and not t.startswith("alembic")
+            ]
             for name in names:
                 try:
                     n = int(conn.execute(
@@ -195,7 +216,7 @@ def db_stats():
         pass
     tables.sort(key=lambda r: r[1], reverse=True)
     return {
-        "total_bytes": page_size * page_count,
+        "total_bytes": total_bytes,
         "page_size": page_size,
         "page_count": page_count,
         "tables": tables[:20],

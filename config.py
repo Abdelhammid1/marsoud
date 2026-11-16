@@ -27,6 +27,16 @@ class Config:
         "DATABASE_URL", f"sqlite:///{basedir / 'instance' / 'ledgeros.db'}"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    SQLALCHEMY_ENGINE_OPTIONS = (
+        {
+            "pool_pre_ping": True,
+            "pool_size": 10,
+            "max_overflow": 20,
+            "pool_recycle": 1800,
+        }
+        if SQLALCHEMY_DATABASE_URI.startswith("postgresql")
+        else {}
+    )
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
     ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-5")
     DEFAULT_CURRENCY = "SAR"
