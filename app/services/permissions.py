@@ -446,14 +446,36 @@ def _db_has_permission(action, user_id, company_id):
     """DB-backed permission check (MARSOUD-32). Returns None when
     indeterminate (e.g. role_id not backfilled) so the caller can fall
     back to the legacy P-dict lookup."""
+    from flask import has_request_context
+    cache_key = (user_id, company_id)
+    if has_request_context():
+        perm_cache = getattr(g, "_marsoud_perm_cache", None)
+        if perm_cache is None:
+            perm_cache = {}
+            g._marsoud_perm_cache = perm_cache
+        if cache_key in perm_cache:
+            granted = perm_cache[cache_key]
+            if granted is None:
+                return None
+            if action in granted:
+                return True
+            implier = _IMPLIES.get(action)
+            if implier and implier in granted:
+                return True
+            return False
+
     from app import db
     from app.models import Permission, role_permissions
     role_id = get_user_role_id(user_id, company_id)
     if role_id is None:
+        if has_request_context():
+            g._marsoud_perm_cache[cache_key] = None
         return None
     granted = {row[0] for row in db.session.query(Permission.code).join(
         role_permissions, role_permissions.c.permission_id == Permission.id,
     ).filter(role_permissions.c.role_id == role_id).all()}
+    if has_request_context():
+        g._marsoud_perm_cache[cache_key] = granted
     if action in granted:
         return True
     implier = _IMPLIES.get(action)

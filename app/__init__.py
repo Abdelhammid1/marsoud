@@ -34,6 +34,12 @@ def _marsoud_enable_sqlite_foreign_keys(dbapi_connection, _record):
     if dbapi_connection.__class__.__module__.startswith("sqlite3"):
         cur = dbapi_connection.cursor()
         cur.execute("PRAGMA foreign_keys=ON")
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.execute("PRAGMA cache_size=-64000")
+        cur.execute("PRAGMA temp_store=MEMORY")
+        cur.execute("PRAGMA mmap_size=268435456")
+        cur.execute("PRAGMA busy_timeout=10000")
         cur.close()
 
 

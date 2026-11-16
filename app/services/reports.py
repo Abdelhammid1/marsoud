@@ -1245,13 +1245,13 @@ def dashboard_metrics(company_id, period="month"):
             _month_range(m.year, m.month)[1]), 2)
         for m in spark_months
     ]
-    profit_spark = [
-        round(income_statement(company_id,
-                                start_date=m,
-                                end_date=_month_range(m.year, m.month)[1])
-                ["net_income"], 2)
+    _spark_inc = {
+        m: income_statement(company_id,
+                            start_date=m,
+                            end_date=_month_range(m.year, m.month)[1])
         for m in spark_months
-    ]
+    }
+    profit_spark = [round(_spark_inc[m]["net_income"], 2) for m in spark_months]
     ar_spark = [
         round(_ar_balance_as_of(company_id,
                                  _month_range(m.year, m.month)[1]), 2)
@@ -1269,8 +1269,7 @@ def dashboard_metrics(company_id, period="month"):
     trend_revenue = []
     trend_expenses = []
     for m in trend_months:
-        m_end = _month_range(m.year, m.month)[1]
-        s = income_statement(company_id, start_date=m, end_date=m_end)
+        s = _spark_inc.get(m) or income_statement(company_id, start_date=m, end_date=_month_range(m.year, m.month)[1])
         trend_revenue.append(round(s["total_revenue"], 2))
         trend_expenses.append(round(s["total_expense"], 2))
 
@@ -1306,31 +1305,23 @@ def dashboard_metrics(company_id, period="month"):
             })
 
     # ─── Operations cards ───────────────────────────────────────────
-    inventory_count = ProductVariant.query.filter_by(
+    _active_variants = ProductVariant.query.filter_by(
         company_id=company_id, is_active=True,
-    ).count()
-    low_stock_variants = [
-        v for v in ProductVariant.query.filter_by(
-            company_id=company_id, is_active=True,
-        ).all() if v.is_low_stock
-    ]
+    ).all()
+    inventory_count = len(_active_variants)
+    low_stock_variants = [v for v in _active_variants if v.is_low_stock]
     # MARSOUD dashboard fix (image #55): "active tasks" must reflect tasks
     # actively being worked on. BLOCKED is parked, DONE is finished — both
     # are excluded. Previously BLOCKED was counted, which made 10 active +
     # 1 blocked render as 11.
     _ACTIVE_STATUSES = (TaskStatus.TODO, TaskStatus.IN_PROGRESS,
                          TaskStatus.REVIEW)
-    tasks_open = Task.query.filter(
+    _active_tasks = Task.query.filter(
         Task.company_id == company_id,
         Task.status.in_(_ACTIVE_STATUSES),
-    ).count()
-    tasks_overdue = sum(
-        1 for t in Task.query.filter(
-            Task.company_id == company_id,
-            Task.status.in_(_ACTIVE_STATUSES),
-        ).all()
-        if t.is_overdue
-    )
+    ).all()
+    tasks_open = len(_active_tasks)
+    tasks_overdue = sum(1 for t in _active_tasks if t.is_overdue)
     # MARSOUD-CRM-NO-RESPONSE — parked leads aren't part of the
     # active pipeline either. Exclude them from the "open leads"
     # rollup that feeds owner-dashboard expected-value totals.
