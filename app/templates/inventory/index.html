@@ -34,6 +34,8 @@
   ]),
   ('التقارير والمتابعة', [
     ('inventory.inventory_balance', 'رصيد المخزون', 'رصيد كل صنف في كل مخزن وقيمته، مع تصدير', '📑', 'رصيد ارصده كميات قيمه تقرير excel pdf تصدير'),
+    ('#inv-expiry', 'تنبيهات انتهاء الصلاحية', 'الدفعات المنتهية أو اللي قربت تنتهي خلال 30 يوم', '📅', 'صلاحيه انتهاء دفعه دفعات تشغيله fefo منتهي'),
+    ('#inv-serials', 'تتبع السيريال والضمان', 'البحث برقم IMEI / Serial وحالة الضمان وفواتيره', '🔢', 'سيريال imei ضمان جهاز اجهزه تتبع'),
     ('#inv-low', 'أصناف تحت حد الطلب', 'الأصناف اللي محتاجة إعادة طلب', '⚠️', 'نواقص ناقص حد الطلب اعاده طلب نفاد خلص قرب تنبيه'),
     ('#inv-recent', 'آخر الحركات', 'آخر حركات دخول وخروج على المخزون', '🕘', 'اخر حركات حديثه'),
     ('vendor_bills.new', 'استلام من مورد', 'تسجيل بضاعة واردة عن طريق فاتورة مشتريات', '📥', 'استلام مورد توريد شراء فاتوره مشتريات بضاعه واردة'),
@@ -212,9 +214,12 @@
       }
       var stMap = {'IN_STOCK': 'في المخزن', 'SOLD': 'مباع'};
       var rows = d.items.map(function(it) {
-        return '<tr><td class="font-mono font-bold">' + it.serial_number + '</td><td>' + it.product_name + '</td><td>' + (stMap[it.status] || it.status) + '</td><td>' + it.warehouse + '</td><td class="font-mono">' + it.warranty_ends_at + '</td></tr>';
+        var links = [];
+        if (it.purchase_bill_id) links.push('<a href="/vendor-bills/' + it.purchase_bill_id + '" class="text-emerald-700 hover:underline">فاتورة شراء #' + it.purchase_bill_id + '</a>');
+        if (it.sale_invoice_id) links.push('<a href="/invoices/' + it.sale_invoice_id + '" class="text-indigo-700 hover:underline">فاتورة بيع #' + it.sale_invoice_id + '</a>');
+        return '<tr><td class="font-mono font-bold">' + it.serial_number + '</td><td>' + it.product_name + '</td><td>' + (stMap[it.status] || it.status) + '</td><td>' + it.warehouse + '</td><td class="font-mono">' + it.warranty_ends_at + '</td><td>' + (links.join(' · ') || '—') + '</td></tr>';
       }).join('');
-      box.innerHTML = '<div class="overflow-x-auto"><table class="data-table text-xs"><thead><tr><th>Serial / IMEI</th><th>الصنف</th><th>الحالة</th><th>المخزن</th><th>نهاية الضمان</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      box.innerHTML = '<div class="overflow-x-auto"><table class="data-table text-xs"><thead><tr><th>Serial / IMEI</th><th>الصنف</th><th>الحالة</th><th>المخزن</th><th>نهاية الضمان</th><th>الفواتير</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
     } catch (e) {
       box.textContent = 'تعذر البحث حالياً.';
     }
