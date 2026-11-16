@@ -49,6 +49,20 @@ def index():
     low_stock = low_stock_variants(cid)
     recent = StockMovement.query.filter_by(company_id=cid).order_by(
         StockMovement.created_at.desc()).limit(15).all()
+    from app.models.inventory import StockLot
+    today_dt = date.today()
+    cutoff_dt = today_dt + timedelta(days=30)
+    expiring_lots = (
+        StockLot.query.filter(
+            StockLot.company_id == cid,
+            StockLot.qty_remaining > 0,
+            StockLot.expiry_date.isnot(None),
+            StockLot.expiry_date <= cutoff_dt,
+        )
+        .order_by(StockLot.expiry_date.asc())
+        .limit(50)
+        .all()
+    )
     return render_template(
         "inventory/index.html",
         variants_count=variants_count,
@@ -56,7 +70,42 @@ def index():
         low_stock=low_stock,
         recent=recent,
         kinds=StockMovementKind,
+        expiring_lots=expiring_lots,
+        today=today_dt,
     )
+
+
+@bp.route("/api/serial-lookup")
+@login_required
+@require_permission("inventory.view")
+def api_serial_lookup():
+    cid = g.active_company.id
+    q = (request.args.get("q") or "").strip()
+    if not q:
+        return jsonify({"error": "أدخل رقم السيريال أو IMEI"}), 400
+    from app.models.inventory import ProductSerial
+    rows = (
+        ProductSerial.query.filter(
+            ProductSerial.company_id == cid,
+            ProductSerial.serial_number.ilike(f"%{q}%"),
+        )
+        .order_by(ProductSerial.id.desc())
+        .limit(15)
+        .all()
+    )
+    out = []
+    for s in rows:
+        out.append({
+            "serial_number": s.serial_number,
+            "product_name": (s.variant.display_name if s.variant else "—"),
+            "sku": (s.variant.sku if s.variant else "—"),
+            "status": s.status,
+            "warehouse": (s.warehouse.name if s.warehouse else "—"),
+            "warranty_ends_at": (s.warranty_ends_at.isoformat() if s.warranty_ends_at else "—"),
+            "sale_invoice_id": s.sale_invoice_id,
+            "purchase_bill_id": s.purchase_bill_id,
+        })
+    return jsonify({"items": out})
 
 
 # ─── Warehouses ──────────────────────────────────────────────────────────
