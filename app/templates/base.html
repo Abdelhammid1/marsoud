@@ -1938,5 +1938,342 @@ function toggleSidebar(force) {
   })();
 </script>
 
+
+{% if current_user.is_authenticated and g.active_company and not request.path.startswith('/agent') %}
+<!-- MARSOUD-P111: Floating Marsoud System Guide Widget -->
+<style>
+  .mrs-guide-fab {
+    position: fixed;
+    bottom: 78px;
+    left: 16px;
+    z-index: 990;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: linear-gradient(135deg, #0f766e 0%, #115e59 100%);
+    color: #fff;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 700;
+    box-shadow: 0 8px 24px rgba(15, 118, 110, 0.35);
+    cursor: pointer;
+    transition: transform .18s ease, box-shadow .18s ease;
+  }
+  .mrs-guide-fab:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(15, 118, 110, 0.45);
+  }
+  .mrs-guide-drawer {
+    position: fixed;
+    bottom: 20px;
+    left: 16px;
+    width: 390px;
+    max-width: calc(100vw - 32px);
+    height: 560px;
+    max-height: calc(100vh - 96px);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 18px;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
+    z-index: 1050;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    direction: rtl;
+  }
+  .mrs-guide-drawer.open { display: flex; }
+  .mrs-guide-head {
+    background: linear-gradient(135deg, #0f766e 0%, #134e4a 100%);
+    color: #fff;
+    padding: 13px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .mrs-guide-head-title { font-weight: 800; font-size: 14.5px; display: flex; align-items: center; gap: 7px; }
+  .mrs-guide-head-sub { font-size: 11px; opacity: 0.85; font-weight: 400; }
+  .mrs-guide-head-btns { display: flex; align-items: center; gap: 6px; }
+  .mrs-guide-icon-btn {
+    background: rgba(255,255,255,0.16);
+    border: none;
+    color: #fff;
+    border-radius: 8px;
+    padding: 5px 9px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .mrs-guide-icon-btn:hover { background: rgba(255,255,255,0.28); }
+  .mrs-guide-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+    background: #f8fafc;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .mrs-guide-welcome {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 12px 14px;
+    font-size: 13px;
+    color: #334155;
+    line-height: 1.65;
+  }
+  .mrs-guide-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .mrs-guide-chip {
+    background: #f0fdfa;
+    color: #0f766e;
+    border: 1px solid #99f6e4;
+    border-radius: 999px;
+    padding: 5px 11px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: right;
+  }
+  .mrs-guide-chip:hover { background: #ccfbf1; }
+  .mrs-guide-msg {
+    max-width: 88%;
+    padding: 10px 13px;
+    border-radius: 14px;
+    font-size: 13.2px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .mrs-guide-msg.user {
+    align-self: flex-start;
+    background: #0f766e;
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+  .mrs-guide-msg.assistant {
+    align-self: flex-end;
+    background: #ffffff;
+    color: #1e293b;
+    border: 1px solid #e2e8f0;
+    border-bottom-left-radius: 4px;
+  }
+  .mrs-guide-link-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 2px 2px;
+    padding: 2px 9px;
+    border-radius: 7px;
+    background: #f0fdfa;
+    color: #0f766e;
+    border: 1px solid #5eead4;
+    font-weight: 700;
+    font-size: 12.2px;
+    text-decoration: none;
+  }
+  .mrs-guide-link-btn:hover { background: #ccfbf1; }
+  .mrs-guide-foot {
+    padding: 10px 12px;
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .mrs-guide-input {
+    flex: 1;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 9px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+  }
+  .mrs-guide-input:focus { border-color: #0f766e; }
+  .mrs-guide-send {
+    background: #0f766e;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 9px 14px;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .mrs-guide-send:disabled { opacity: 0.55; cursor: not-allowed; }
+</style>
+
+<button type="button" class="mrs-guide-fab" id="mrsGuideFab" aria-label="مرشد مرصود">
+  <span>🧭</span>
+  <span>مرشد مرصود</span>
+</button>
+
+<div class="mrs-guide-drawer" id="mrsGuideDrawer" role="dialog" aria-label="مرشد مرصود الذكي">
+  <div class="mrs-guide-head">
+    <div>
+      <div class="mrs-guide-head-title">🧭 مرشد مرصود الذكي</div>
+      <div class="mrs-guide-head-sub">يفهم كل شاشات النظام ويساعدك تبني شركتك صح</div>
+    </div>
+    <div class="mrs-guide-head-btns">
+      <button type="button" class="mrs-guide-icon-btn" id="mrsGuideNewBtn" title="محادثة جديدة">جديد</button>
+      <button type="button" class="mrs-guide-icon-btn" id="mrsGuideCloseBtn" title="إغلاق">✕</button>
+    </div>
+  </div>
+  <div class="mrs-guide-body" id="mrsGuideBody">
+    <div class="mrs-guide-welcome">
+      أهلاً بك في <strong>مرشد مرصود</strong> 👋<br>
+      أنا مطّلع على كل شاشات وخصائص مرصود الفعلية وحالة شركتك الحالية. اسألني عن أي شاشة أو خطوة إعداد:
+      <div class="mrs-guide-chips">
+        <button type="button" class="mrs-guide-chip" data-q="أبدأ إزاي في بناء شركتي على مرصود خطوة بخطوة؟">🚀 أبدأ بناء شركتي إزاي؟</button>
+        <button type="button" class="mrs-guide-chip" data-q="افحص وضع شركتي الحالي وقولي إيه البيانات اللي ناقصة؟">🔍 إيه اللي ناقص في شركتي؟</button>
+        <button type="button" class="mrs-guide-chip" data-q="اشرحلي الشاشة اللي أنا واقف فيها دلوقتي وإزاي أستخدمها صح">📍 اشرحلي الشاشة الحالية</button>
+      </div>
+    </div>
+  </div>
+  <form class="mrs-guide-foot" id="mrsGuideForm">
+    <input type="text" class="mrs-guide-input" id="mrsGuideInput" placeholder="اسأل: إزاي أضيف أصناف؟ فين شاشة كذا؟..." autocomplete="off">
+    <button type="submit" class="mrs-guide-send" id="mrsGuideSend">إرسال</button>
+  </form>
+</div>
+
+<script>
+(function() {
+  var fab = document.getElementById('mrsGuideFab');
+  var drawer = document.getElementById('mrsGuideDrawer');
+  var closeBtn = document.getElementById('mrsGuideCloseBtn');
+  var newBtn = document.getElementById('mrsGuideNewBtn');
+  var bodyEl = document.getElementById('mrsGuideBody');
+  var form = document.getElementById('mrsGuideForm');
+  var input = document.getElementById('mrsGuideInput');
+  var sendBtn = document.getElementById('mrsGuideSend');
+  if (!fab || !drawer) return;
+
+  var convId = null;
+  var loadedHistory = false;
+  var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+  var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+  function formatGuideText(raw) {
+    var esc = String(raw || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    // Convert [Label](/path) into clickable navigation buttons
+    esc = esc.replace(/\[([^\]]+)\]\((\/[a-zA-Z0-9_\-\/\?\=\&]+)\)/g, function(_, label, url) {
+      return '<a class="mrs-guide-link-btn" href="' + url + '">↗ ' + label + '</a>';
+    });
+    // Bold **text**
+    esc = esc.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    return esc;
+  }
+
+  function appendMsg(role, text) {
+    var div = document.createElement('div');
+    div.className = 'mrs-guide-msg ' + role;
+    if (role === 'assistant') {
+      div.innerHTML = formatGuideText(text);
+    } else {
+      div.textContent = text;
+    }
+    bodyEl.appendChild(div);
+    bodyEl.scrollTop = bodyEl.scrollHeight;
+    return div;
+  }
+
+  function loadHistory() {
+    if (loadedHistory) return;
+    loadedHistory = true;
+    fetch('/agent/guide/history', { credentials: 'same-origin' })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.conversation_id) convId = d.conversation_id;
+        (d.messages || []).forEach(function(m) {
+          appendMsg(m.role, m.content);
+        });
+      })
+      .catch(function() {});
+  }
+
+  function sendMessage(txt) {
+    txt = (txt || '').trim();
+    if (!txt || sendBtn.disabled) return;
+    appendMsg('user', txt);
+    input.value = '';
+    sendBtn.disabled = true;
+    var typing = appendMsg('assistant', 'جاري فحص النظام وشركتك...');
+
+    var headers = { 'Content-Type': 'application/json' };
+    if (csrfToken) headers['X-CSRFToken'] = csrfToken;
+
+    fetch('/agent/guide/chat', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: headers,
+      body: JSON.stringify({
+        message: txt,
+        conversation_id: convId,
+        current_path: window.location.pathname
+      })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.conversation_id) convId = d.conversation_id;
+      if (d.reply) {
+        typing.innerHTML = formatGuideText(d.reply);
+      } else {
+        typing.textContent = d.error || 'حدث خطأ غير متوقع.';
+      }
+      bodyEl.scrollTop = bodyEl.scrollHeight;
+    })
+    .catch(function() {
+      typing.textContent = 'تعذر الاتصال بالخادم، حاول مرة أخرى.';
+    })
+    .finally(function() {
+      sendBtn.disabled = false;
+      input.focus();
+    });
+  }
+
+  fab.addEventListener('click', function() {
+    drawer.classList.add('open');
+    fab.style.display = 'none';
+    loadHistory();
+    setTimeout(function() { input.focus(); }, 60);
+  });
+
+  closeBtn.addEventListener('click', function() {
+    drawer.classList.remove('open');
+    fab.style.display = 'inline-flex';
+  });
+
+  newBtn.addEventListener('click', function() {
+    var headers = { 'Content-Type': 'application/json' };
+    if (csrfToken) headers['X-CSRFToken'] = csrfToken;
+    fetch('/agent/guide/clear', { method: 'POST', credentials: 'same-origin', headers: headers })
+      .finally(function() {
+        convId = null;
+        bodyEl.querySelectorAll('.mrs-guide-msg').forEach(function(el) { el.remove(); });
+      });
+  });
+
+  bodyEl.querySelectorAll('.mrs-guide-chip').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      sendMessage(btn.getAttribute('data-q'));
+    });
+  });
+
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    sendMessage(input.value);
+  });
+})();
+</script>
+
 </body>
 </html>

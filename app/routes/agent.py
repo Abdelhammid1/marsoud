@@ -638,3 +638,118 @@ def insights_conversations_delete(conv_id):
     conv = _resolve_own_conversation(conv_id, "insights")
     archive_conversation(conv)
     return jsonify({"ok": True, "id": conv.id, "archived": True})
+
+
+# ─── MARSOUD-P111 — Marsoud System Guide & Setup Coach ─────────
+@bp.route("/guide/history", methods=["GET"])
+@login_required
+def guide_history():
+    if not g.active_company:
+        return jsonify({"messages": [], "conversation_id": None})
+    from app.services.agent_conversations import list_conversations_for
+    convs = list(list_conversations_for(
+        current_user.id, g.active_company.id, "guide"))
+    if not convs:
+        return jsonify({"messages": [], "conversation_id": None})
+    conv = convs[0]
+    msgs = _load_conversation_history(conv.id, limit=40)
+    return jsonify({
+        "conversation_id": conv.id,
+        "messages": [
+            {"role": m.role, "content": m.content}
+            for m in msgs if m.role in ("user", "assistant")
+        ],
+    })
+
+
+@bp.route("/guide/clear", methods=["POST"])
+@login_required
+def guide_clear():
+    if not g.active_company:
+        return jsonify({"ok": True})
+    from app.services.agent_conversations import (
+        get_or_create_current_conversation, archive_conversation,
+    )
+    conv = get_or_create_current_conversation(
+        current_user.id, g.active_company.id, "guide")
+    archive_conversation(conv)
+    return jsonify({"ok": True})
+
+
+@bp.route("/guide/chat", methods=["POST"])
+@login_required
+def guide_chat():
+    data = request.json or {}
+    user_msg = (data.get("message") or "").strip()
+    current_path = (data.get("current_path") or "").strip()[:200]
+    if not user_msg:
+        return jsonify({"error": "رسالة فارغة"}), 400
+    if not g.active_company:
+        return jsonify({"error": "لا توجد شركة نشطة"}), 400
+
+    from app.services.agent_conversations import (
+        create_conversation, touch_conversation,
+    )
+    cid = data.get("conversation_id")
+    conv = None
+    if cid:
+        conv = db.session.get(AgentConversation, int(cid))
+        if (not conv
+                or conv.user_id != current_user.id
+                or conv.company_id != g.active_company.id
+                or conv.agent_type != "guide"
+                or conv.is_archived):
+            conv = None
+    if conv is None:
+        conv = create_conversation(
+            current_user.id, g.active_company.id, "guide")
+
+    db.session.add(AgentMessage(
+        company_id=g.active_company.id, user_id=current_user.id,
+        role="user", content=user_msg, agent_type="guide",
+        conversation_id=conv.id,
+    ))
+    db.session.commit()
+    touch_conversation(conv, first_user_text=user_msg)
+
+    history = _load_conversation_history(conv.id, limit=30)
+    messages = [{"role": m.role, "content": m.content}
+                for m in history if m.role in ("user", "assistant")]
+
+    from app.agent.guide_context import build_guide_context
+    from app.agent.guide import run_guide_turn
+    ctx = build_guide_context(g.active_company, current_path=current_path)
+
+    try:
+        reply, _, tool_trace = run_guide_turn(
+            messages=messages,
+            company_id=g.active_company.id,
+            user_id=current_user.id,
+            company_context=ctx,
+        )
+        import json as _json
+        db.session.add(AgentMessage(
+            company_id=g.active_company.id, user_id=current_user.id,
+            role="assistant", content=reply,
+            agent_type="guide",
+            conversation_id=conv.id,
+            tool_trace=(_json.dumps(tool_trace, ensure_ascii=False, default=str)
+                        if tool_trace else None),
+        ))
+        db.session.commit()
+        touch_conversation(conv)
+        return jsonify({
+            "reply": reply,
+            "conversation_id": conv.id,
+        })
+    except Exception as e:
+        try:
+            current_app.logger.exception(
+                "guide turn failed for co=%s user=%s",
+                g.active_company.id if g.active_company else None,
+                current_user.id)
+        except Exception:
+            pass
+        return jsonify({
+            "error": f"تعذر الاتصال بمرشد مرصود حالياً: {str(e)[:180]}"
+        }), 500
