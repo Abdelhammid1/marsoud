@@ -131,6 +131,7 @@ def company_detail(company_id):
     modules = _safe(lambda: module_matrix(company), [])
     errors = _safe(lambda: errors_preview(company, limit=10), [])
 
+    from app.services.industry_presets import list_presets, get_preset, FEATURE_LABELS_AR
     return render_template("admin/company_detail.html",
                            company=company,
                            company_users=company_users,
@@ -143,7 +144,27 @@ def company_detail(company_id):
                            ai_row=ai_row,
                            owners=owners,
                            modules=modules,
-                           errors=errors)
+                           errors=errors,
+                           industry_presets=list_presets(),
+                           current_preset=get_preset(company.industry_code),
+                           feature_labels_ar=FEATURE_LABELS_AR)
+
+
+@bp.route("/companies/<int:company_id>/industry", methods=["POST"])
+@login_required
+@superadmin_required
+def company_apply_industry(company_id):
+    company = db.session.get(Company, company_id) or _404()
+    from app.services.industry_presets import apply_industry_preset, DEFAULT_FEATURES
+    code = (request.form.get("industry_code") or "general").strip().lower()
+    custom = None
+    if request.form.get("customize_features") == "1":
+        custom = {k: (request.form.get(f"feat_{k}") == "1") for k in DEFAULT_FEATURES}
+    preset, _ = apply_industry_preset(
+        company, code, actor_id=current_user.id, custom_features=custom
+    )
+    flash(f"تم تطبيق قالب مجال «{preset['label_ar']}» وتحديث صلاحيات وخصائص الشركة", "success")
+    return redirect(url_for("superadmin.company_detail", company_id=company_id))
 
 
 @bp.route("/companies/<int:company_id>/toggle", methods=["POST"])

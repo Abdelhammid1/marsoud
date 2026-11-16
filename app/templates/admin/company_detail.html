@@ -79,6 +79,47 @@
   </form>
 </div>
 
+{# marsoud-p101 -- Industry Preset & Vertical Capabilities Card #}
+<div class="card p-5 mb-4">
+  <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+    <div>
+      <h3 class="font-bold text-slate-900">🏴 مجال نشاط الشركة (Industry Preset)</h3>
+      <p class="text-xs text-ink-200 mt-0.5">{{ current_preset.description_ar }}</p>
+    </div>
+    <span class="badge badge-ok">{{ current_preset.icon }} {{ current_preset.label_ar }}</span>
+  </div>
+
+  <form method="POST" action="{{ url_for("superadmin.company_apply_industry", company_id=company.id) }}" class="space-y-3">
+    <div class="flex flex-wrap items-end gap-3">
+      <div class="min-w-[260px]">
+        <label class="block text-xs font-semibold text-ink-200 mb-1">اختر قالب المجال لتفعيله</label>
+        <select name="industry_code" class="select text-sm w-full">
+          {% for pr in industry_presets %}
+          <option value="{{ pr.code }}" {% if company.industry_code == pr.code %}selected{% endif %}>
+            {{ pr.icon }} {{ pr.label_ar }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn btn-primary text-sm">✨ تطبيق قالب المجال</button>
+    </div>
+
+    <div class="pt-2 border-t border-slate-100">
+      <div class="text-xs font-semibold text-ink-200 mb-2">الخصائص المرعّة حاليա لهذه الشركة:</div>
+      <div class="flex flex-wrap gap-2">
+        {% set cfeats = company.features %}
+        {% for fkey, flabel in feature_labels_ar.items() %}
+          {% if cfeats.get(fkey) %}
+          <span class="badge badge-ok">✓ {{ flabel }}</span>
+          {% else %}
+          <span class="badge badge-neutral opacity-60">ʝ {{ flabel }}</span>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </form>
+</div>
+
 <div class="flex gap-2 mb-4">
   <a href="{{ url_for('superadmin.company_edit', company_id=company.id) }}" class="btn btn-primary">تعديل الإعدادات</a>
   <a href="{{ url_for('superadmin.errors_for_company', company_id=company.id) }}" class="btn btn-secondary">🛑 الأخطاء الأخيرة</a>

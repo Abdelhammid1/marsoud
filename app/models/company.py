@@ -259,6 +259,23 @@ class Company(db.Model):
             "logo_path": self.logo_path,
         }
 
+    # MARSOUD-P101 — per-tenant industry preset & active capability flags.
+    industry_code = db.Column(db.String(32), default="general", nullable=False, server_default="general")
+    industry_features = db.Column(db.Text)  # JSON dict of feature flags
+
+    @property
+    def features(self):
+        from app.services.industry_presets import parse_company_features
+        return parse_company_features(self)
+
+    def has_feature(self, key):
+        return bool(self.features.get(key, False))
+
+    @property
+    def industry_label_ar(self):
+        from app.services.industry_presets import get_preset
+        return get_preset(self.industry_code)["label_ar"]
+
     def __repr__(self):
         return f"<Company {self.name}>"
 
