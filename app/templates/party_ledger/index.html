@@ -1,14 +1,17 @@
 {% extends "base.html" %}
+{% import '_macros.html' as ui %}
 {% block page_title %}كشف حساب طرف{% endblock %}
 {% block content %}
+{# MARSOUD-PARTY-LEDGER-P109 — كشف حساب طرف موحّد (عميل / مورد / موظف):
+   KPI tiles + فترات سريعة + ListKit بحث وترتيب مع تثبيت الرصيد الافتتاحي والإجماليات #}
 
-<div class="flex items-center justify-between mb-4">
+<div class="flex flex-wrap items-center justify-between gap-3 mb-4">
   <div>
     <h2 class="font-bold text-navy-900">📒 كشف حساب طرف</h2>
-    <p class="text-xs text-slate-500">عميل / مورد / موظف — كل الحركات برصيد متحرك.</p>
+    <p class="text-xs text-slate-500 mt-0.5">عميل / مورد / موظف — تتبع الحركات والرصيد المتحرك</p>
   </div>
   {% if statement %}
-  <div class="flex gap-2">
+  <div class="flex flex-wrap gap-2">
     <a href="{{ url_for('party_ledger.export_pdf', kind=kind, party_id=statement.party.id,
                          start_date=start_date.isoformat() if start_date else '',
                          end_date=end_date.isoformat() if end_date else '') }}"
@@ -17,12 +20,13 @@
                          start_date=start_date.isoformat() if start_date else '',
                          end_date=end_date.isoformat() if end_date else '') }}"
        class="btn-secondary text-sm">📊 Excel</a>
+    <button type="button" onclick="window.print()" class="btn-secondary text-sm">🖨 طباعة</button>
   </div>
   {% endif %}
 </div>
 
-{# Filter form #}
-<form method="GET" class="card p-4 mb-4 flex flex-wrap items-end gap-3">
+{# ── Filter Form ──────────────────────────────────────────────── #}
+<form method="GET" class="card p-4 mb-4 flex flex-wrap items-end gap-3 pl-noprint">
   <div>
     <label class="block text-xs font-semibold text-slate-700 mb-1">نوع الطرف</label>
     <select name="kind" onchange="this.form.submit()" class="select text-sm">
@@ -31,25 +35,25 @@
       {% endfor %}
     </select>
   </div>
-  <div class="flex-1 min-w-[200px]">
+  <div class="flex-1 min-w-[220px]">
     <label class="block text-xs font-semibold text-slate-700 mb-1">{{ kind_label }}</label>
     <select name="party_id" class="select text-sm">
-      <option value="">— اختر —</option>
+      <option value="">— اختر {{ kind_label }} —</option>
       {% for p in parties %}
       <option value="{{ p.id }}" {% if party_id == p.id %}selected{% endif %}>
-        {{ p.name }} <span class="text-xs text-slate-500">({{ p.account_code }})</span>
+        {{ p.name }} ({{ p.account_code }})
       </option>
       {% endfor %}
     </select>
   </div>
   <div>
-    <label class="block text-xs font-semibold text-slate-700 mb-1">من</label>
+    <label class="block text-xs font-semibold text-slate-700 mb-1">من تاريخ</label>
     <input type="date" name="start_date"
             value="{{ start_date.isoformat() if start_date else '' }}"
             class="input text-sm">
   </div>
   <div>
-    <label class="block text-xs font-semibold text-slate-700 mb-1">إلى</label>
+    <label class="block text-xs font-semibold text-slate-700 mb-1">إلى تاريخ</label>
     <input type="date" name="end_date"
             value="{{ end_date.isoformat() if end_date else '' }}"
             class="input text-sm">
@@ -58,110 +62,91 @@
 </form>
 
 {% if statement %}
-{# Summary card #}
-<div class="card p-4 mb-4">
-  <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-    <div>
-      <div class="text-xs text-slate-500">الطرف</div>
-      <div class="font-bold text-navy-900">{{ statement.party.name }}</div>
-      <div class="text-xs text-slate-500 font-mono">{{ statement.party.account_code }}</div>
-    </div>
-    <div>
-      <div class="text-xs text-slate-500">الرصيد الافتتاحي</div>
-      <div class="font-mono font-bold">{{ statement.opening_balance|money }}</div>
-    </div>
-    <div>
-      <div class="text-xs text-slate-500">إجمالي مدين</div>
-      <div class="font-mono font-bold text-emerald-700">{{ statement.total_debit|money }}</div>
-    </div>
-    <div>
-      <div class="text-xs text-slate-500">إجمالي دائن</div>
-      <div class="font-mono font-bold text-rose-700">{{ statement.total_credit|money }}</div>
-    </div>
-    <div>
-      <div class="text-xs text-slate-500">الرصيد النهائي</div>
-      <div class="font-mono font-bold text-lg
-                  {% if statement.closing_balance > 0 %}text-emerald-700
-                  {% elif statement.closing_balance < 0 %}text-rose-700
-                  {% else %}text-slate-500{% endif %}">
-        {{ statement.closing_balance|money }}
-      </div>
-    </div>
-  </div>
+{# ── KPI Tiles ────────────────────────────────────────────────── #}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+  {{ ui.stat_tile("🏁 الرصيد الافتتاحي", statement.opening_balance|money, hint=(statement.party.name ~ " · " ~ statement.party.account_code)) }}
+  {{ ui.stat_tile("📥 إجمالي مدين", statement.total_debit|money, hint="خلال الفترة المحددة", tone="brand") }}
+  {{ ui.stat_tile("📤 إجمالي دائن", statement.total_credit|money, hint="خلال الفترة المحددة") }}
+  {{ ui.stat_tile("⚖️ الرصيد النهائي", statement.closing_balance|money, hint=(statement.rows|length ~ " حركة مسجلة"), tone=("brand" if statement.closing_balance > 0 else ("danger" if statement.closing_balance < 0 else ""))) }}
 </div>
 
-{# Movements table #}
-<div class="card p-4">
+{# ── Movements Table (ListKit) ────────────────────────────────── #}
+<div class="card p-5">
+  <div class="flex flex-wrap items-center justify-between gap-2 mb-3 pb-3 border-b border-slate-100">
+    <div>
+      <span class="font-bold text-navy-900">{{ statement.party.name }}</span>
+      <span class="font-mono text-xs text-slate-500 mr-2">حساب {{ statement.party.account_code }}</span>
+    </div>
+    <div class="text-xs text-slate-500 font-mono">
+      {% if start_date %}من {{ start_date.isoformat() }}{% endif %}
+      {% if end_date %} إلى {{ end_date.isoformat() }}{% endif %}
+    </div>
+  </div>
+
   {% if statement.rows %}
   <div class="overflow-x-auto">
-  <table class="data-table text-xs">
-    <thead>
-      <tr>
-        <th>التاريخ</th>
-        <th>رقم القيد</th>
-        <th>المرجع</th>
-        <th>البيان</th>
-        <th>الملاحظة</th>
-        <th class="text-right">مدين</th>
-        <th class="text-right">دائن</th>
-        <th class="text-right">الرصيد</th>
-      </tr>
-    </thead>
-    <tbody>
-      {# Opening balance row #}
-      <tr class="bg-slate-50 font-semibold">
-        <td colspan="5">الرصيد الافتتاحي</td>
-        <td class="text-right font-mono">—</td>
-        <td class="text-right font-mono">—</td>
-        <td class="text-right font-mono">{{ statement.opening_balance|money }}</td>
-      </tr>
-      {% for row in statement.rows %}
-      <tr class="hover:bg-slate-50">
-        <td class="font-mono">{{ row.date.isoformat() if row.date }}</td>
-        <td class="font-mono">{{ row.entry_number }}</td>
-        {# MARSOUD-SOURCE-REFERENCE-01 (Abdelhamid 2026-07-25) —
-           show the source doc label with a link when we could build
-           one. Manual entries + unknown types fall back to "قيد
-           يدوي" without a URL. #}
-        <td class="text-[11px]">
-          {% if row.reference and row.reference.url %}
-            <a href="{{ row.reference.url }}"
-                class="text-brand-600 hover:underline"
-                target="_blank" rel="noopener">
-              {{ row.reference.label }}
-            </a>
-          {% elif row.reference %}
-            <span class="text-slate-500">{{ row.reference.label }}</span>
-          {% else %}
-            <span class="text-slate-500">—</span>
-          {% endif %}
-        </td>
-        <td>{{ row.description }}</td>
-        <td class="text-slate-500 text-[11px]">{{ row.memo }}</td>
-        <td class="text-right font-mono">
-          {% if row.debit %}{{ row.debit|money }}{% endif %}
-        </td>
-        <td class="text-right font-mono">
-          {% if row.credit %}{{ row.credit|money }}{% endif %}
-        </td>
-        <td class="text-right font-mono font-semibold">{{ row.balance|money }}</td>
-      </tr>
-      {% endfor %}
-      {# Closing totals row #}
-      <tr class="bg-slate-100 font-bold border-t-2 border-slate-300">
-        <td colspan="5">الإجماليات</td>
-        <td class="text-right font-mono">{{ statement.total_debit|money }}</td>
-        <td class="text-right font-mono">{{ statement.total_credit|money }}</td>
-        <td class="text-right font-mono">{{ statement.closing_balance|money }}</td>
-      </tr>
-    </tbody>
-  </table>
+    <table class="data-table text-xs" data-listkit>
+      <thead>
+        <tr>
+          <th style="width:100px">التاريخ</th>
+          <th style="width:110px">رقم القيد</th>
+          <th>المرجع</th>
+          <th>البيان</th>
+          <th>الملاحظة</th>
+          <th class="text-end" style="width:120px">مدين</th>
+          <th class="text-end" style="width:120px">دائن</th>
+          <th class="text-end" style="width:130px">الرصيد</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="bg-slate-50 font-semibold" data-lk-static="top">
+          <td colspan="5">الرصيد الافتتاحي</td>
+          <td class="text-end font-mono">—</td>
+          <td class="text-end font-mono">—</td>
+          <td class="text-end font-mono">{{ statement.opening_balance|money }}</td>
+        </tr>
+        {% for row in statement.rows %}
+        <tr class="hover:bg-slate-50">
+          <td class="font-mono text-slate-600">{{ row.date.isoformat() if row.date }}</td>
+          <td class="font-mono font-semibold">{{ row.entry_number }}</td>
+          <td class="text-[11px]">
+            {% if row.reference and row.reference.url %}
+              <a href="{{ row.reference.url }}"
+                  class="text-emerald-700 hover:underline font-medium"
+                  target="_blank" rel="noopener">
+                {{ row.reference.label }}
+              </a>
+            {% elif row.reference %}
+              <span class="text-slate-500">{{ row.reference.label }}</span>
+            {% else %}
+              <span class="text-slate-400">—</span>
+            {% endif %}
+          </td>
+          <td class="text-navy-900">{{ row.description }}</td>
+          <td class="text-slate-500 text-[11px]">{{ row.memo or '—' }}</td>
+          <td class="text-end font-mono {% if row.debit %}text-emerald-700 font-semibold{% endif %}">
+            {% if row.debit %}{{ row.debit|money }}{% else %}—{% endif %}
+          </td>
+          <td class="text-end font-mono {% if row.credit %}text-rose-600 font-semibold{% endif %}">
+            {% if row.credit %}{{ row.credit|money }}{% else %}—{% endif %}
+          </td>
+          <td class="text-end font-mono font-bold text-navy-900">{{ row.balance|money }}</td>
+        </tr>
+        {% endfor %}
+        <tr class="bg-slate-100 font-bold border-t-2 border-slate-300" data-lk-static="bottom">
+          <td colspan="5">الإجماليات</td>
+          <td class="text-end font-mono text-emerald-700">{{ statement.total_debit|money }}</td>
+          <td class="text-end font-mono text-rose-700">{{ statement.total_credit|money }}</td>
+          <td class="text-end font-mono text-navy-900">{{ statement.closing_balance|money }}</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
   {% else %}
   <div class="text-center text-slate-500 py-8">
     لا توجد حركات في الفترة المحددة.
     {% if statement.opening_balance %}
-    <br>الرصيد الافتتاحي: {{ statement.opening_balance|money }}
+    <div class="mt-1 font-mono font-semibold">الرصيد الافتتاحي: {{ statement.opening_balance|money }}</div>
     {% endif %}
   </div>
   {% endif %}
@@ -173,8 +158,189 @@
 </div>
 {% else %}
 <div class="card p-6 text-center text-slate-500">
-  اختر {{ kind_label }} لعرض كشف حسابه.
+  اختر {{ kind_label }} من القائمة أعلاه لعرض كشف حسابه.
 </div>
 {% endif %}
 
+{# MARSOUD-LISTKIT-P109 #}
+<style>
+  .lk-bar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin:0 0 .6rem;}
+  .lk-search{position:relative;flex:1 1 220px;max-width:380px;}
+  .lk-search input{width:100%;padding-inline-start:2rem;}
+  .lk-search .lk-ico{position:absolute;inset-inline-start:.65rem;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none;font-size:.85rem;}
+  .lk-count{font-size:.8125rem;color:#64748b;margin-inline-start:auto;}
+  .lk-size{font-size:.8125rem;padding:.35rem .5rem;border:1px solid #E2E8F0;border-radius:8px;background:#fff;color:#334155;font-family:inherit;}
+  .lk-pager{display:flex;align-items:center;justify-content:center;gap:.3rem;flex-wrap:wrap;margin:.75rem 0 0;}
+  .lk-pager button{min-width:2rem;padding:.3rem .6rem;border:1px solid #E2E8F0;background:#fff;border-radius:8px;font-size:.8125rem;color:#334155;cursor:pointer;font-family:inherit;}
+  .lk-pager button:hover:not([disabled]){border-color:#10b981;color:#047857;}
+  .lk-pager button[aria-current="page"]{background:#047857;border-color:#047857;color:#fff;}
+  .lk-pager button[disabled]{opacity:.45;cursor:default;}
+  table[data-listkit] th.lk-sortable{cursor:pointer;user-select:none;white-space:nowrap;}
+  table[data-listkit] th.lk-sortable:hover{color:#047857;}
+  table[data-listkit] th.lk-sortable::after{content:"\2195";font-size:.7rem;opacity:.35;margin-inline-start:.3rem;}
+  table[data-listkit] th[aria-sort="ascending"]::after{content:"\25B2";opacity:.9;color:#047857;}
+  table[data-listkit] th[aria-sort="descending"]::after{content:"\25BC";opacity:.9;color:#047857;}
+  .lk-note{display:none;font-size:.75rem;color:#92400e;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:.35rem .6rem;margin:.5rem 0 .6rem;}
+  .lk-nomatch{display:none;text-align:center;color:#64748b;padding:1.5rem 1rem;font-size:.875rem;}
+  .lk-presets{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin:-.5rem 0 1rem;}
+  .lk-presets .lk-p-lbl{font-size:.75rem;color:#64748b;}
+  .lk-presets button{border:1px solid #E2E8F0;background:#fff;color:#475569;border-radius:999px;padding:.2rem .7rem;font-size:.75rem;cursor:pointer;font-family:inherit;}
+  .lk-presets button:hover{border-color:#10b981;color:#047857;}
+  table[data-listkit] tr[hidden]{display:none !important;}
+  @media print{ .pl-noprint,.lk-bar,.lk-pager,.lk-presets,.lk-note,.lk-nomatch{display:none !important;} }
+</style>
+<script>
+(function () {
+  if (window.__lkInit) return; window.__lkInit = true;
+  var SIZES = [50, 100, 250, 0];
+  var KEY = 'lk.pagesize.pl';
+  function norm(s) {
+    return (s || '').toLowerCase()
+      .replace(/[ً-ْـ]/g, '')
+      .replace(/[أإآ]/g, 'ا')
+      .replace(/ة/g, 'ه')
+      .replace(/ى/g, 'ي');
+  }
+  function txt(el) { return (el.textContent || '').replace(/\s+/g, ' ').trim(); }
+  function digits(s) { return s.replace(/[٠-٩]/g, function (d) { return String(d.charCodeAt(0) - 1632); }); }
+  var NUM = /^[-+]?\d[\d,٬]*(\.\d+)?\s*(%|[A-Za-z؀-ۿ.]{0,6})?$/;
+  function isNum(s) { return NUM.test(digits(s)); }
+  function toNum(s) { return parseFloat(digits(s).replace(/[,٬]/g, '').match(/[-+]?\d+(\.\d+)?/)[0]); }
+  function getSize() { try { var v = parseInt(localStorage.getItem(KEY), 10); if (SIZES.indexOf(v) !== -1) return v; } catch (e) {} return 50; }
+  function putSize(v) { try { localStorage.setItem(KEY, String(v)); } catch (e) {} }
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+
+  function init(table) {
+    var tbody = table.tBodies[0];
+    if (!tbody) return;
+    var all = [].slice.call(tbody.rows);
+    var rows = [], topStatics = [], bottomStatics = [];
+    all.forEach(function (r) {
+      var st = r.getAttribute('data-lk-static');
+      if (st === 'top') topStatics.push(r);
+      else if (st === 'bottom' || r.querySelector('td[colspan],th[colspan]')) bottomStatics.push(r);
+      else rows.push(r);
+    });
+    if (rows.length < 2) return;
+    var hasTotals = bottomStatics.length > 0;
+    rows.forEach(function (r, i) { r._i = i; r._t = norm(txt(r)); });
+    var state = { q: '', col: -1, dir: 1, page: 1, size: getSize() };
+    var order = rows.slice();
+    var anchor = table.closest('.table-scroll') || table;
+    var bar = el('div', 'lk-bar'), pager = el('div', 'lk-pager'), note = el('div', 'lk-note'), nomatch = el('div', 'lk-nomatch', 'مفيش حركات مطابقة للبحث.');
+    note.textContent = 'الإجماليات والرصيد النهائي بتخص كامل الفترة المختارة، مش بس الصفوف الظاهرة بعد البحث.';
+    var input = null;
+    if (rows.length >= 4) {
+      var sw = el('div', 'lk-search'); sw.appendChild(el('span', 'lk-ico', '🔎'));
+      input = el('input', 'input text-sm'); input.type = 'search'; input.placeholder = 'بحث في كشف الحساب (بيان، قيد، مرجع، مبلغ)…'; input.autocomplete = 'off';
+      sw.appendChild(input); bar.appendChild(sw);
+    }
+    var count = el('span', 'lk-count'); bar.appendChild(count);
+    var sel = el('select', 'lk-size');
+    SIZES.forEach(function (n) { var o = el('option', '', n ? n + ' حركة' : 'الكل'); o.value = n; if (n === state.size) o.selected = true; sel.appendChild(o); });
+    if (rows.length > SIZES[0]) bar.appendChild(sel);
+    anchor.parentNode.insertBefore(bar, anchor);
+    anchor.parentNode.insertBefore(nomatch, anchor.nextSibling);
+    anchor.parentNode.insertBefore(pager, nomatch.nextSibling);
+    if (hasTotals) anchor.parentNode.insertBefore(note, anchor);
+
+    var ths = table.tHead ? [].slice.call(table.tHead.rows[table.tHead.rows.length - 1].cells) : [];
+    ths.forEach(function (th, idx) {
+      if (!txt(th) || th.hasAttribute('data-lk-nosort')) return;
+      var cells = rows.map(function (r) { return r.cells[idx] ? txt(r.cells[idx]) : ''; }).filter(Boolean);
+      if (!cells.length) return;
+      var numeric = cells.filter(isNum).length >= cells.length * 0.8;
+      th.classList.add('lk-sortable'); th.tabIndex = 0; th.setAttribute('role', 'button');
+      function go() {
+        state.dir = (state.col === idx) ? -state.dir : 1; state.col = idx;
+        ths.forEach(function (x) { x.removeAttribute('aria-sort'); });
+        th.setAttribute('aria-sort', state.dir === 1 ? 'ascending' : 'descending');
+        var key = function (r) { var c = r.cells[idx] ? txt(r.cells[idx]) : ''; return numeric ? (isNum(c) ? toNum(c) : -Infinity) : c; };
+        order = rows.slice().sort(function (a, b) {
+          var x = key(a), y = key(b), d;
+          if (numeric) d = x - y; else d = String(x).localeCompare(String(y), 'ar', { numeric: true });
+          return (d * state.dir) || (a._i - b._i);
+        });
+        state.page = 1; render();
+      }
+      th.addEventListener('click', go);
+      th.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+    });
+
+    function pageBtn(label, page, opts) {
+      var b = el('button', '', label); b.type = 'button';
+      if (opts && opts.disabled) b.disabled = true;
+      if (opts && opts.current) b.setAttribute('aria-current', 'page');
+      b.addEventListener('click', function () { state.page = page; render(); });
+      return b;
+    }
+    function render(showAll) {
+      var q = state.q;
+      var match = order.filter(function (r) { return !q || r._t.indexOf(q) !== -1; });
+      var size = showAll ? 0 : state.size;
+      var pages = size ? Math.max(1, Math.ceil(match.length / size)) : 1;
+      if (state.page > pages) state.page = pages;
+      var from = size ? (state.page - 1) * size : 0, to = size ? from + size : match.length;
+      var visible = {}; match.slice(from, to).forEach(function (r) { visible[r._i] = true; });
+      var frag = document.createDocumentFragment();
+      topStatics.forEach(function (r) { frag.appendChild(r); });
+      order.forEach(function (r) { r.hidden = !visible[r._i]; frag.appendChild(r); });
+      bottomStatics.forEach(function (r) { frag.appendChild(r); });
+      tbody.appendChild(frag);
+      count.textContent = match.length === rows.length ? (rows.length + ' حركة') : ('عرض ' + match.length + ' من ' + rows.length);
+      nomatch.style.display = match.length ? 'none' : 'block';
+      note.style.display = (hasTotals && q) ? 'block' : 'none';
+      pager.textContent = '';
+      if (pages > 1) {
+        pager.appendChild(pageBtn('السابق', state.page - 1, { disabled: state.page === 1 }));
+        for (var p = 1; p <= pages; p++) {
+          if (p === 1 || p === pages || Math.abs(p - state.page) <= 1) {
+            pager.appendChild(pageBtn(String(p), p, { current: p === state.page }));
+          }
+        }
+        pager.appendChild(pageBtn('التالي', state.page + 1, { disabled: state.page === pages }));
+      }
+    }
+    if (input) {
+      var t = null;
+      input.addEventListener('input', function () {
+        clearTimeout(t); t = setTimeout(function () { state.q = norm(input.value.trim()); state.page = 1; render(); }, 120);
+      });
+    }
+    sel.addEventListener('change', function () { state.size = parseInt(sel.value, 10); putSize(state.size); state.page = 1; render(); });
+    window.addEventListener('beforeprint', function () { render(true); });
+    window.addEventListener('afterprint', function () { render(); });
+    render();
+  }
+
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function iso(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function presets(form) {
+    var a = form.querySelector('input[type="date"][name="start_date"]');
+    var b = form.querySelector('input[type="date"][name="end_date"]');
+    if (!a || !b) return;
+    var now = new Date(), y0 = now.getFullYear(), m0 = now.getMonth();
+    var opts = [
+      ['هذا الشهر', new Date(y0, m0, 1), now],
+      ['الشهر الماضي', new Date(y0, m0 - 1, 1), new Date(y0, m0, 0)],
+      ['آخر 30 يوم', new Date(y0, m0, now.getDate() - 30), now],
+      ['آخر 3 شهور', new Date(y0, m0 - 3, now.getDate()), now],
+      ['هذه السنة', new Date(y0, 0, 1), now]
+    ];
+    var box = el('div', 'lk-presets pl-noprint'); box.appendChild(el('span', 'lk-p-lbl', 'فترة سريعة:'));
+    opts.forEach(function (o) {
+      var btn = el('button', '', o[0]); btn.type = 'button';
+      btn.addEventListener('click', function () { a.value = iso(o[1]); b.value = iso(o[2]); form.submit(); });
+      box.appendChild(btn);
+    });
+    form.parentNode.insertBefore(box, form.nextSibling);
+  }
+
+  function boot() {
+    [].slice.call(document.querySelectorAll('table[data-listkit]')).forEach(init);
+    [].slice.call(document.querySelectorAll('form[method="GET"], form[method="get"]')).forEach(presets);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+})();
+</script>
 {% endblock %}
