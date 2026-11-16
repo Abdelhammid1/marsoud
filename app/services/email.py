@@ -104,7 +104,7 @@ def company_logo_email_uri(company):
 
 
 def send_email(to, subject, html_body, attachments=None,
-                text_body=None, *, company_id=None):
+                text_body=None, *, company_id=None, bcc=None):
     """Send an email. Returns True on success, False on failure
     (logged, never raises).
 
@@ -168,6 +168,19 @@ def send_email(to, subject, html_body, attachments=None,
     smtp_user = config.get("SMTP_USER") or "(no user)"
     smtp_pw = config.get("SMTP_PASSWORD") or ""
     encryption = (config.get("SMTP_ENCRYPTION") or "STARTTLS").upper()
+    # MARSOUD-OVERDUE-BCC-P90 - hidden internal copy (BCC). Never written to
+    # message headers, only added to the SMTP envelope.
+    if isinstance(bcc, str):
+        bcc = bcc.replace(";", ",").split(",")
+    from email.utils import getaddresses as _getaddr
+    _to_addrs = [_a for _n, _a in _getaddr([to]) if _a]
+    _seen = {_a.lower() for _a in _to_addrs}
+    _bcc_list = []
+    for _b in (bcc or []):
+        _b = (_b or "").strip()
+        if _b and _b.lower() not in _seen:
+            _seen.add(_b.lower())
+            _bcc_list.append(_b)
 
     # Scoped stamper — closes over company_id + source so the status
     # row only updates when the resolver actually picked a company
@@ -210,7 +223,10 @@ def send_email(to, subject, html_body, attachments=None,
                 server.starttls()
             if config.get("SMTP_USER"):
                 server.login(config["SMTP_USER"], smtp_pw)
-            server.send_message(msg)
+            if _bcc_list and _to_addrs:
+                server.send_message(msg, to_addrs=_to_addrs + _bcc_list)
+            else:
+                server.send_message(msg)
         logger.info(
             "Email sent → %s (subject=%r, source=%s, host=%s:%s, "
             "user=%s)",
@@ -367,13 +383,22 @@ def send_overdue_reminder(invoice, days_label):
     else:
         subject = f"فاتورة #{invoice.number} تجاوزت تاريخ الاستحقاق"
     html = render_template("emails/invoice_reminder.html", invoice=invoice, days_label=days_label)
+    # MARSOUD-OVERDUE-BCC-P90 - internal BCC only for overdue emails
+    # (button + cron both go through this function).
+    _bcc = None
+    if days_label.startswith("overdue"):
+        try:
+            _bcc = (invoice.company.reminders.get("overdue_bcc") or "").strip() or None
+        except Exception:
+            _bcc = None
     # MARSOUD-INVOICE-EMAIL-PDF-ATTACH-01 — attach the current PDF so
     # the reminder email doubles as a self-contained statement the
     # customer can print or forward, not a "come see it inside the
     # app" nag.
     return send_email(invoice.customer.email, subject, html,
                        attachments=_invoice_pdf_attachment(invoice),
-                       company_id=invoice.company_id)
+                       company_id=invoice.company_id,
+                       bcc=_bcc)
 
 
 def send_refund_email(invoice, refund):

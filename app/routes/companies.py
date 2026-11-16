@@ -311,10 +311,27 @@ def edit(company_id):
                 except ValueError:
                     pass
             return sorted(set(out), reverse=True)
+        # MARSOUD-OVERDUE-BCC-P90 - internal BCC for overdue reminder emails
+        def _parse_bcc(s):
+            out, bad = [], []
+            for piece in re.split(r"[,;\s]+", s or ""):
+                piece = piece.strip()
+                if not piece:
+                    continue
+                if re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", piece):
+                    if piece.lower() not in [x.lower() for x in out]:
+                        out.append(piece)
+                else:
+                    bad.append(piece)
+            if bad:
+                flash("إيميل BCC غير صحيح وتم تجاهله: " + "، ".join(bad), "warning")
+            return ", ".join(out)
+
         company.set_reminders({
             "enabled": request.form.get("reminders_enabled") == "1",
             "days_before": _parse_days(request.form.get("reminders_days_before", "7,3")),
             "overdue_days": _parse_days(request.form.get("reminders_overdue_days", "0")),
+            "overdue_bcc": _parse_bcc(request.form.get("reminders_overdue_bcc", "")),
         })
 
         db.session.commit()

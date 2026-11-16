@@ -23,6 +23,7 @@ DEFAULT_REMINDER_CONFIG = {
     "enabled": True,
     "days_before": [7, 3],   # send N days before due_date
     "overdue_days": [0],     # send N days after due_date (0 = on due_date itself)
+    "overdue_bcc": "",  # MARSOUD-OVERDUE-BCC-P90: internal BCC for overdue emails
 }
 
 
