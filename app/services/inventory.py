@@ -132,7 +132,7 @@ def apply_stock_movement(
     *, variant, warehouse, qty_delta, kind,
     unit_cost=None, source_type=None, source_id=None,
     journal_entry_id=None, actor_id=None, reason=None,
-    piece_delta=None,
+    piece_delta=None, lot_number=None, expiry_date=None,
 ):
     """Atomic stock mutation. Caller MUST be inside a transaction.
 
@@ -240,6 +240,8 @@ def apply_stock_movement(
             qty_remaining=delta,
             unit_cost=snapshot_cost,
             source_movement_id=mv.id,
+            lot_number=(lot_number or None),
+            expiry_date=expiry_date,
         )
         db.session.add(lot)
         db.session.flush()
@@ -251,7 +253,7 @@ def apply_stock_movement(
 def receive_stock(*, variant, warehouse, qty, unit_cost,
                   bill_id=None, line_id=None, actor_id=None,
                   journal_entry_id=None, reason=None,
-                  piece_delta=None):
+                  piece_delta=None, lot_number=None, expiry_date=None):
     """Inbound stock from a vendor bill (or any other receipt event).
 
     The matching journal entry is posted by the vendor bill code; we just
@@ -265,7 +267,7 @@ def receive_stock(*, variant, warehouse, qty, unit_cost,
         unit_cost=unit_cost,
         source_type="vendor_bill_item", source_id=line_id or bill_id,
         journal_entry_id=journal_entry_id, actor_id=actor_id, reason=reason,
-        piece_delta=piece_delta,
+        piece_delta=piece_delta, lot_number=lot_number, expiry_date=expiry_date,
     )
 
 

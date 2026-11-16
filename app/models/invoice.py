@@ -242,6 +242,9 @@ class InvoiceItem(db.Model):
     # backward-compat: an item with unit_id=NULL is treated as already
     # being in the base unit (base_quantity = quantity).
     unit_id = db.Column(db.Integer, db.ForeignKey("product_units.id"))
+    lot_number = db.Column(db.String(80), nullable=True)
+    expiry_date = db.Column(db.Date, nullable=True)
+    serial_numbers_text = db.Column(db.Text, nullable=True)
     base_quantity = db.Column(db.Numeric(15, 4))
 
     # MARSOUD-COST-CENTERS-01 — dimension stored on the item so a

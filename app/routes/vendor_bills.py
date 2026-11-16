@@ -443,6 +443,9 @@ def _populate_from_form(bill, form):
     salvages = form.getlist("item_salvage_value[]")
     # MARSOUD-UNIT-CONVERSION-01 — unit picker on INVENTORY rows.
     unit_ids = form.getlist("item_unit_id[]")
+    lot_numbers = form.getlist("item_lot_number[]")
+    expiry_dates = form.getlist("item_expiry_date[]")
+    serial_texts = form.getlist("item_serial_numbers[]")
     # MARSOUD-VENDOR-SUBCAT (Abdelhamid 2026-07-14) — per-vendor
     # sub-category on each line. Nullable so old form-posts keep
     # working; validated against the current bill's vendor_id below
@@ -542,6 +545,16 @@ def _populate_from_form(bill, form):
             # into pieces at posting time.
             if new_unit_id:
                 item.unit_id = new_unit_id
+            lot_raw = (lot_numbers[i] if i < len(lot_numbers) else "") or ""
+            item.lot_number = lot_raw.strip() or None
+            exp_raw = (expiry_dates[i] if i < len(expiry_dates) else "") or ""
+            if exp_raw.strip():
+                try:
+                    item.expiry_date = datetime.strptime(exp_raw.strip(), "%Y-%m-%d").date()
+                except ValueError:
+                    item.expiry_date = None
+            sn_raw = (serial_texts[i] if i < len(serial_texts) else "") or ""
+            item.serial_numbers_text = sn_raw.strip() or None
         db.session.add(item)
     db.session.flush()
     bill.items = VendorBillItem.query.filter_by(bill_id=bill.id).all()

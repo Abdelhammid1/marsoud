@@ -198,6 +198,7 @@ def _populate_invoice_from_form(invoice, form):
     disc_values = form.getlist("item_discount_value[]")
     # MARSOUD-UNIT-CONVERSION-01 — unit picker on each row.
     unit_ids = form.getlist("item_unit_id[]")
+    serial_texts = form.getlist("item_serial_numbers[]")
     # MARSOUD-COST-CENTERS-03-REVENUE-SPLIT — optional CC per item.
     # Whitelist built once so a wide invoice = one query, not N.
     cost_center_ids = form.getlist("item_cost_center_id[]")
@@ -230,6 +231,7 @@ def _populate_invoice_from_form(invoice, form):
             discount_value=_safe_float(
                 disc_values[i] if i < len(disc_values) else None, 0),
             unit_id=uid,
+            serial_numbers_text=((serial_texts[i] if i < len(serial_texts) else "") or "").strip() or None,
             # MARSOUD-COST-CENTERS-03-REVENUE-SPLIT — optional CC
             # per line. NULL keeps the item in the "unclassified"
             # bucket; a valid id sends the split of the revenue

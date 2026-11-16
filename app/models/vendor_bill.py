@@ -142,6 +142,9 @@ class VendorBillItem(db.Model):
     # MARSOUD-UNIT-CONVERSION-01 — see InvoiceItem.unit_id note.
     unit_id = db.Column(db.Integer, db.ForeignKey("product_units.id"))
     base_quantity = db.Column(db.Numeric(15, 4))
+    lot_number = db.Column(db.String(80), nullable=True)
+    expiry_date = db.Column(db.Date, nullable=True)
+    serial_numbers_text = db.Column(db.Text, nullable=True)
     # MARSOUD-COST-CENTERS-01 — carried through to the item-derived
     # JournalLine by post_vendor_bill. VAT + AP legs stay unclassified.
     cost_center_id = db.Column(

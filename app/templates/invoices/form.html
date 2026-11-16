@@ -566,6 +566,9 @@ function addItem(prefill) {
         ${productOptions}
       </select>
       <input type="text" name="item_description[]" required value="${escapeAttr(prefill?.description || '')}" placeholder="أو اكتب الوصف يدوياً" class="input text-sm">
+      {% if g.active_company and (g.active_company.features or {}).get('serial_imei') %}
+      <input type="text" name="item_serial_numbers[]" value="${escapeAttr(prefill?.serial_numbers_text || '')}" placeholder="🔢 Serial / IMEI (اختياري - مفصول بفاصلة)" class="input text-xs font-mono mt-1 bg-indigo-50/60">
+      {% endif %}
     </td>
     <td>
       <div class="flex gap-1 items-center">

@@ -296,6 +296,25 @@ function addItem() {
             <select name="item_warehouse_id[]" class="select text-xs"></select>
           </div>
         </div>
+        {% set _vb_feat = (g.active_company.features if g.active_company else {}) %}
+        {% if _vb_feat.get('expiry_lots') %}
+        <div class="flex gap-2 items-end bg-amber-50/70 p-2 rounded border border-amber-200">
+          <div class="flex-1">
+            <label class="block text-xs text-amber-900 mb-1">📅 رقم التشغيلة (Lot)</label>
+            <input type="text" name="item_lot_number[]" placeholder="LOT-01" class="input text-xs font-mono">
+          </div>
+          <div style="width:9.5rem">
+            <label class="block text-xs text-amber-900 mb-1">تاريخ الصلاحية</label>
+            <input type="date" name="item_expiry_date[]" class="input text-xs font-mono">
+          </div>
+        </div>
+        {% endif %}
+        {% if _vb_feat.get('serial_imei') %}
+        <div class="bg-indigo-50/70 p-2 rounded border border-indigo-200">
+          <label class="block text-xs text-indigo-900 mb-1">🔢 أرقام السيريال / IMEI (مفصولة بفاصلة أو سطر لكل جهاز)</label>
+          <input type="text" name="item_serial_numbers[]" placeholder="356789012345678, 356789012345679" class="input text-xs font-mono">
+        </div>
+        {% endif %}
         <label class="flex items-center gap-2 text-xs text-emerald-700 cursor-pointer">
           <input type="checkbox" class="new-product-toggle" onchange="toggleNewProduct(this.closest('tr'), this.checked)">
           + منتج جديد (هيتعمل ويدخل المخزون من هذه الفاتورة)

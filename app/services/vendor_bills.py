@@ -283,11 +283,34 @@ def post_vendor_bill(bill, created_by=None):
                 bill_id=bill.id, line_id=item.id,
                 actor_id=created_by,
                 journal_entry_id=entry.id,
+                lot_number=getattr(item, "lot_number", None),
+                expiry_date=getattr(item, "expiry_date", None),
             )
         except InventoryError as e:
             raise LedgerError(str(e))
         # Freeze the base conversion on the line for future report reads.
         item.base_quantity = base_qty
+        # P105 — register IMEI / Serial numbers entered on this bill line
+        raw_sns = (getattr(item, "serial_numbers_text", None) or "").strip()
+        if raw_sns:
+            from datetime import timedelta as _td
+            from app.models.inventory import ProductSerial
+            sns = [s.strip() for s in raw_sns.replace(",", "\n").splitlines() if s.strip()]
+            w_months = int(getattr(product, "warranty_months", 0) or 0)
+            w_end = (bill.issue_date + _td(days=30 * w_months)) if w_months > 0 else None
+            for sn_code in sns:
+                if ProductSerial.query.filter_by(company_id=bill.company_id, serial_number=sn_code).first():
+                    raise LedgerError(f"الرقم التسلسلي '{sn_code}' مسجّل بالفعل")
+                db.session.add(ProductSerial(
+                    company_id=bill.company_id, variant_id=item.variant.id,
+                    warehouse_id=item.warehouse.id, serial_number=sn_code,
+                    status="IN_STOCK", purchase_bill_id=bill.id,
+                    warranty_ends_at=w_end,
+                ))
+            if product:
+                product.track_serial = True
+        if getattr(item, "expiry_date", None) and product:
+            product.track_expiry = True
 
     # Create FixedAsset for each fixed-asset line
     for item in bill.items:

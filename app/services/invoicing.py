@@ -387,6 +387,24 @@ def _apply_inventory_side_for_invoice(invoice, entry, created_by,
         # conversion_factor tomorrow must not silently rewrite what
         # was actually taken out of stock today.
         item.base_quantity = base_qty
+        raw_sns = (getattr(item, "serial_numbers_text", None) or "").strip()
+        if raw_sns:
+            from datetime import timedelta as _td
+            from app.models.inventory import ProductSerial
+            sns = [s.strip() for s in raw_sns.replace(",", "\n").splitlines() if s.strip()]
+            w_months = int(getattr(item.product, "warranty_months", 0) or 0)
+            w_end = (invoice.issue_date + _td(days=30 * w_months)) if w_months > 0 else None
+            for sn_code in sns:
+                sn_obj = ProductSerial.query.filter_by(
+                    company_id=invoice.company_id, variant_id=variant.id,
+                    serial_number=sn_code, status="IN_STOCK"
+                ).with_for_update().first()
+                if not sn_obj:
+                    raise LedgerError(f"الرقم التسلسلي '{sn_code}' غير متاح في المخزن")
+                sn_obj.status = "SOLD"
+                sn_obj.sale_invoice_id = invoice.id
+                if w_end:
+                    sn_obj.warranty_ends_at = w_end
         total_cogs += unit_cost * base_qty
 
     if total_cogs > 0.001 and not skip_cogs_journal:
@@ -994,6 +1012,12 @@ def void_invoice(invoice, reason, actor_id):
         invoice, RefundType.FULL, reason=reason,
         created_by=actor_id, notify=False,
     )
+    from app.models.inventory import ProductSerial
+    for sn_obj in ProductSerial.query.filter_by(
+        company_id=invoice.company_id, sale_invoice_id=invoice.id, status="SOLD"
+    ).all():
+        sn_obj.status = "IN_STOCK"
+        sn_obj.sale_invoice_id = None
     invoice.status = InvoiceStatus.VOIDED
     invoice.voided_at = _dt.utcnow()
     invoice.voided_by_id = actor_id
