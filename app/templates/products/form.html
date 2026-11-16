@@ -10,7 +10,10 @@
    - live summary: per-piece cost/price, margin, opening stock value
    - services/bundles hide the goods-only fields (dual-UoM, inventory) #}
 {% set f = request.form %}
-{% set ptype = f.get('product_type') or 'goods' %}
+{% set _co = g.active_company %}
+{% set _ind = (_co.industry_code if _co else 'general') %}
+{% set _feat = (_co.features if _co else {}) %}
+{% set ptype = f.get('product_type') or ('service' if _ind == 'services' else 'goods') %}
 {% set sel_cat = (f.get('category_id') or 0)|int %}
 {% set pack_prefill = ({
      'pieces': (f.get('pieces_per_pack') or 1),
@@ -104,8 +107,11 @@
       </div>
       <div id="barcode-wrap">
         <label class="pf-l" for="pf-barcode">باركود (اختياري)</label>
-        <input type="text" name="barcode" id="pf-barcode" class="input font-mono" placeholder="امسح الباركود أو اكتبه" value="{{ f.get('barcode', '') }}" inputmode="numeric">
-        <p class="pf-h">بعد المسح اضغط Tab للانتقال — Enter مش بيحفظ الفورم.</p>
+        <div class="flex gap-2">
+          <input type="text" name="barcode" id="pf-barcode" class="input font-mono flex-1" placeholder="امسح الباركود أو ولّده تلقائيًا" value="{{ f.get('barcode', '') }}" inputmode="numeric">
+          <button type="button" onclick="genAutoBarcode()" class="btn-secondary text-xs whitespace-nowrap" title="توليد باركود تلقائي">⚡ توليد</button>
+        </div>
+        <p class="pf-h">بعد المسح اضغط Tab للانتقال — Enter مش بيحفظ الفورم. أو اضغط ⚡ لتوليد باركود رقمي.</p>
       </div>
     </div>
     <div class="pf-row">
@@ -176,6 +182,67 @@
         <p class="pf-h" id="opening-qty-hint">اللي عندك من البضاعة دلوقتي.</p>
       </div>
     </div>
+
+    {% if _feat.get('variants') %}
+    <div class="mt-4 pt-4 border-t border-slate-100">
+      <div class="font-bold text-navy-900 text-sm mb-2">🎨 المقاسات والألوان / الدرجات (اختياري)</div>
+      <p class="pf-h" style="margin:0 0 .7rem">اكتب المقاسات أو الألوان مفصولة بفاصلة، وهنولّد كل المتغيرات بالباركود والـ SKU تلقائيًا.</p>
+      <div class="pf-row">
+        <div>
+          <label class="pf-l" for="pf-vsizes">المقاسات / الأحجام</label>
+          <input type="text" name="variant_sizes" id="pf-vsizes" class="input" placeholder="مثال: S, M, L, XL أو 50ml, 100ml" value="{{ f.get('variant_sizes', '') }}">
+        </div>
+        <div>
+          <label class="pf-l" for="pf-vcolors">الألوان / الدرجات</label>
+          <input type="text" name="variant_colors" id="pf-vcolors" class="input" placeholder="مثال: أسود, أبيض, كحلي" value="{{ f.get('variant_colors', '') }}">
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if _feat.get('expiry_lots') or _feat.get('serial_imei') %}
+    <div class="mt-4 pt-4 border-t border-slate-100 space-y-3">
+      {% if _feat.get('expiry_lots') %}
+      <label class="flex items-start gap-3 cursor-pointer">
+        <input type="checkbox" name="track_expiry" id="track-expiry" {% if f.get('track_expiry') or _ind in ('grocery', 'cosmetics') %}checked{% endif %} onchange="toggleTrackingExtras()" class="w-4 h-4 mt-0.5 rounded text-emerald-600">
+        <div>
+          <div class="font-semibold text-navy-900 text-sm">📅 تتبع تاريخ الصلاحية ورقم التشغيلة (Expiry / Lot)</div>
+          <div class="text-xs text-slate-500">ينبّهك قبل انتهاء الصلاحية ويصرف الأقدم أولًا.</div>
+        </div>
+      </label>
+      <div id="expiry-open-fields" class="pf-row">
+        <div>
+          <label class="pf-l" for="pf-lot">رقم التشغيلة للرصيد الافتتاحي (اختياري)</label>
+          <input type="text" name="opening_lot_number" id="pf-lot" class="input font-mono" placeholder="LOT-2026-01" value="{{ f.get('opening_lot_number', '') }}">
+        </div>
+        <div>
+          <label class="pf-l" for="pf-exp">تاريخ انتهاء الصلاحية للرصيد الافتتاحي</label>
+          <input type="date" name="opening_expiry_date" id="pf-exp" class="input font-mono" value="{{ f.get('opening_expiry_date', '') }}">
+        </div>
+      </div>
+      {% endif %}
+
+      {% if _feat.get('serial_imei') %}
+      <label class="flex items-start gap-3 cursor-pointer">
+        <input type="checkbox" name="track_serial" id="track-serial" {% if f.get('track_serial') or _ind == 'mobiles' %}checked{% endif %} onchange="toggleTrackingExtras()" class="w-4 h-4 mt-0.5 rounded text-emerald-600">
+        <div>
+          <div class="font-semibold text-navy-900 text-sm">🔢 تتبع برقم تسلسلي (IMEI / Serial Number)</div>
+          <div class="text-xs text-slate-500">يسجّل سيريال كل جهاز عند الشراء والبيع والمرتجع.</div>
+        </div>
+      </label>
+      <div id="serial-open-fields" class="pf-row">
+        <div>
+          <label class="pf-l" for="pf-warranty">مدة الضمان (بالشهور)</label>
+          <input type="number" name="warranty_months" id="pf-warranty" min="0" max="120" class="input font-mono" value="{{ f.get('warranty_months') or (12 if _ind == 'mobiles' else 0) }}">
+        </div>
+        <div>
+          <label class="pf-l" for="pf-serials">أرقام السيريال / IMEI للرصيد الافتتاحي (سطر لكل جهاز)</label>
+          <textarea name="opening_serials" id="pf-serials" rows="2" class="textarea font-mono" placeholder="356789012345678">{{ f.get('opening_serials', '') }}</textarea>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
 
   {# ─── 4b. bundle components ────────────────────────────────────── #}
@@ -416,6 +483,28 @@ function updateSummary() {
 })();
 
 // Initialize from the checked radio (works on form re-render after an error too)
+function genAutoBarcode() {
+  var inp = document.getElementById('pf-barcode');
+  if (!inp) return;
+  var rand12 = '622' + String(Math.floor(100000000 + Math.random() * 900000000));
+  var sum = 0;
+  for (var i = 0; i < 12; i++) {
+    sum += parseInt(rand12.charAt(i), 10) * (i % 2 === 0 ? 1 : 3);
+  }
+  var check = (10 - (sum % 10)) % 10;
+  inp.value = rand12 + String(check);
+  inp.focus();
+}
+function toggleTrackingExtras() {
+  var te = document.getElementById('track-expiry');
+  var ef = document.getElementById('expiry-open-fields');
+  if (te && ef) ef.style.display = te.checked ? '' : 'none';
+  var ts = document.getElementById('track-serial');
+  var sf = document.getElementById('serial-open-fields');
+  if (ts && sf) sf.style.display = ts.checked ? '' : 'none';
+}
+toggleTrackingExtras();
+
 toggleProductType(currentType());
 </script>
 {% endblock %}
