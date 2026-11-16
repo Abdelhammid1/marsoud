@@ -486,6 +486,11 @@ def edit(product_id):
             if p.is_tracked:
                 p.tracks_piece_count = (
                     request.form.get("tracks_piece_count") == "on")
+                p.track_expiry = (
+                    request.form.get("track_expiry") == "on")
+                p.track_serial = (
+                    request.form.get("track_serial") == "on")
+                p.warranty_months = max(0, int(request.form.get("warranty_months") or 0))
             db.session.commit()
             flash("تم حفظ التعديلات", "success")
             return redirect(url_for("products.edit", product_id=p.id))
@@ -509,11 +514,71 @@ def edit(product_id):
     # what was entered, so reopening a product doesn't silently reprice
     # it.
     from app.services.product_pricing import pack_values_for
+    from app.models.inventory import StockLot, ProductSerial
+    v_ids = [v.id for v in p.variants]
+    active_lots = (
+        StockLot.query.filter(
+            StockLot.company_id == p.company_id,
+            StockLot.variant_id.in_(v_ids),
+            StockLot.qty_remaining > 0,
+        ).order_by(StockLot.expiry_date.asc().nullslast(), StockLot.received_at.asc()).all()
+    ) if (p.is_tracked and v_ids) else []
+    product_serials = (
+        ProductSerial.query.filter(
+            ProductSerial.company_id == p.company_id,
+            ProductSerial.variant_id.in_(v_ids),
+        ).order_by(ProductSerial.id.desc()).limit(100).all()
+    ) if (p.is_tracked and v_ids) else []
+    warehouses = Warehouse.query.filter_by(
+        company_id=p.company_id, is_active=True
+    ).order_by(Warehouse.is_default.desc(), Warehouse.name).all() if p.is_tracked else []
     return render_template(
         "products/edit.html", product=p, variant_qtys=variant_qtys,
         groups=groups, categories=categories,
         pack=pack_values_for(p),
+        active_lots=active_lots,
+        product_serials=product_serials,
+        warehouses=warehouses,
     )
+
+
+@bp.route("/<int:product_id>/serials/add", methods=["POST"])
+@login_required
+@require_permission("products.manage")
+def serials_add(product_id):
+    p = _product_or_404(product_id)
+    if not p.is_tracked:
+        flash("هذا المنتج خدمة ولا يدعم أرقام تسلسلية.", "error")
+        return redirect(url_for("products.edit", product_id=p.id))
+    from datetime import date as _dt_date, timedelta as _td
+    from app.models.inventory import ProductSerial
+    variant_id = request.form.get("variant_id", type=int) or (p.default_variant.id if p.default_variant else None)
+    wh_id = request.form.get("warehouse_id", type=int)
+    raw = (request.form.get("serial_numbers") or "").strip()
+    lines = [s.strip() for s in raw.replace(",", "\n").splitlines() if s.strip()]
+    if not lines or not variant_id:
+        flash("أدخل رقم تسلسلي / IMEI واحد على الأقل.", "error")
+        return redirect(url_for("products.edit", product_id=p.id))
+    w_end = None
+    if (p.warranty_months or 0) > 0:
+        w_end = _dt_date.today() + _td(days=30 * int(p.warranty_months))
+    added = 0
+    try:
+        for sn in lines:
+            if ProductSerial.query.filter_by(company_id=p.company_id, serial_number=sn).first():
+                raise ValueError(f"الرقم التسلسلي '{sn}' مسجّل بالفعل")
+            db.session.add(ProductSerial(
+                company_id=p.company_id, variant_id=variant_id, warehouse_id=wh_id,
+                serial_number=sn, status="IN_STOCK", warranty_ends_at=w_end,
+            ))
+            added += 1
+        p.track_serial = True
+        db.session.commit()
+        flash(f"تمت إضافة {added} رقم تسلسلي بنجاح.", "success")
+    except ValueError as e:
+        db.session.rollback()
+        flash(str(e), "error")
+    return redirect(url_for("products.edit", product_id=p.id))
 
 
 @bp.route("/<int:product_id>/variants/new", methods=["POST"])
