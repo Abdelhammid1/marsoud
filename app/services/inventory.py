@@ -90,24 +90,27 @@ def _company_is_fifo(variant):
     return getattr(co, "cost_method", "AVERAGE") == "FIFO"
 
 
-def _consume_lots_fifo(variant_id, warehouse_id, qty_needed):
-    """Walk lots oldest-first, decreasing qty_remaining, until we've
-    consumed `qty_needed` units. Returns the weighted cost basis the
-    caller should use for the COGS snapshot.
-
-    If the available lots don't cover the request, returns the basis of
-    everything consumed; the apply_stock_movement strict check upstream
-    catches the overdraw separately.
+def _consume_lots_fifo(variant_id, warehouse_id, qty_needed, fefo=False):
+    """Walk lots oldest-first (or earliest-expiry-first when fefo=True),
+    decreasing qty_remaining, until we've consumed `qty_needed` units.
+    Returns the weighted cost basis the caller should use for the COGS snapshot.
     """
     remaining = float(qty_needed)
     if remaining <= 0:
         return 0.0
-    lots = db.session.query(StockLot).filter(
+    q = db.session.query(StockLot).filter(
         StockLot.variant_id == variant_id,
         StockLot.warehouse_id == warehouse_id,
         StockLot.qty_remaining > 0,
-    ).order_by(StockLot.received_at.asc(),
-               StockLot.id.asc()).with_for_update().all()
+    )
+    if fefo:
+        q = q.order_by(StockLot.expiry_date.asc().nullslast(),
+                       StockLot.received_at.asc(),
+                       StockLot.id.asc())
+    else:
+        q = q.order_by(StockLot.received_at.asc(),
+                       StockLot.id.asc())
+    lots = q.with_for_update().all()
     total_consumed_value = 0.0
     total_consumed_qty = 0.0
     for lot in lots:
@@ -172,15 +175,17 @@ def apply_stock_movement(
                 f"الكمية غير كافية للصنف {variant.sku}: "
                 f"المتاح {cur_qty:.2f}، المطلوب {-delta:.2f}"
             )
+        track_exp = bool(getattr(variant.product, "track_expiry", False))
         if is_fifo:
-            # ERP-03 — consume FIFO lots oldest-first. The weighted basis
-            # may be DIFFERENT from cur_avg when lots have non-uniform cost.
+            # ERP-03 / P104 — consume FIFO (or FEFO when track_expiry) lots.
             fifo_basis = _consume_lots_fifo(
-                variant.id, warehouse.id, -delta,
+                variant.id, warehouse.id, -delta, fefo=track_exp,
             )
             snapshot_cost = fifo_basis if fifo_basis > 0 else cur_avg
             consumed_value = (-delta) * snapshot_cost
         else:
+            if track_exp:
+                _consume_lots_fifo(variant.id, warehouse.id, -delta, fefo=True)
             snapshot_cost = cur_avg
             consumed_value = (-delta) * cur_avg
         new_value = cur_value - consumed_value

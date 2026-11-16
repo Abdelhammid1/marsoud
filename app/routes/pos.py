@@ -52,6 +52,7 @@ def index():
     # MARSOUD-PRODUCT-HIERARCHY-01 — categories for the category-tabs
     # picker. Each product's default variant carries the sellable SKU.
     from app.models import ProductCategory, Product, ProductVariant
+    from app.models.inventory import ProductSerial
     # MARSOUD-CATEGORY-VISIBILITY-01 — a category switched off for POS
     # loses its tab as well as its products. Leaving the tab would open
     # an empty panel, which reads as a bug rather than as a setting.
@@ -113,6 +114,13 @@ def index():
             # MARSOUD-DUAL-UOM-WEIGHT-01 pt 2 (Abdelhamid 2026-07-25)
             "tracks_piece_count": bool(
                 getattr(p, "tracks_piece_count", False)),
+            "track_serial": bool(getattr(p, "track_serial", False)),
+            "available_serials": (
+                [s.serial_number for s in ProductSerial.query.filter_by(
+                    company_id=cid, variant_id=v.id, status="IN_STOCK"
+                ).order_by(ProductSerial.id.asc()).limit(50).all()]
+                if getattr(p, "track_serial", False) else []
+            ),
         })
     return render_template(
         "pos/register.html",
@@ -226,11 +234,20 @@ def lookup():
          else request.form.get("query") or "").strip()
     if not q:
         return jsonify({"error": "أدخل باركود أو SKU"}), 400
+    matched_serial = None
     v = find_variant_by_barcode(cid, q)
     if not v:
         v = ProductVariant.query.filter_by(
             company_id=cid, sku=q, is_active=True,
         ).first()
+    if not v:
+        from app.models.inventory import ProductSerial
+        sn_row = ProductSerial.query.filter_by(
+            company_id=cid, serial_number=q, status="IN_STOCK"
+        ).first()
+        if sn_row and sn_row.variant and sn_row.variant.is_active:
+            v = sn_row.variant
+            matched_serial = sn_row.serial_number
     # MARSOUD-CATEGORY-VISIBILITY-01 — the hole the ticket names: hiding a
     # category from the GRID is worthless if the same product is still
     # scannable. Both branches above resolve a variant without ever
@@ -280,6 +297,14 @@ def lookup():
         "is_bundle": is_bundle,
         "bundle_ok": bundle_ok,
         "bundle_msg": bundle_msg,
+        "track_serial": bool(getattr(v.product, "track_serial", False)),
+        "matched_serial": matched_serial,
+        "available_serials": (
+            [s.serial_number for s in ProductSerial.query.filter_by(
+                company_id=cid, variant_id=v.id, status="IN_STOCK"
+            ).order_by(ProductSerial.id.asc()).limit(50).all()]
+            if getattr(v.product, "track_serial", False) else []
+        ),
     })
 
 

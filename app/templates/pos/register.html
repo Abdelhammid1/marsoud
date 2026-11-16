@@ -286,6 +286,22 @@ function renderCart() {
         <span class="text-slate-500">(الوزن أعلاه بالجرام)</span>
       </div>
       ` : ''}
+      ${r.track_serial ? `
+      <div class="mt-1 text-xs bg-indigo-50 rounded p-1.5 space-y-1">
+        <div class="flex items-center gap-1">
+          <span class="text-indigo-800 font-semibold">🔢 IMEI / Serial:</span>
+          ${(r.available_serials && r.available_serials.length) ? `
+          <select onchange="pickSerial(${i}, this.value)" class="select text-xs flex-1">
+            <option value="">— اختر سيريال متاح —</option>
+            ${r.available_serials.map(sn => `<option value="${escapeHtml(sn)}">${escapeHtml(sn)}</option>`).join('')}
+          </select>` : ''}
+        </div>
+        <input type="text" value="${escapeHtml((r.serial_numbers || []).join(', '))}"
+               onchange="setSerials(${i}, this.value)"
+               placeholder="امسح أو اكتب السيريال (مفصول بفاصلة)"
+               class="input text-xs font-mono w-full">
+      </div>
+      ` : ''}
     </div>
   `;}).join('');
   recalc();
@@ -308,6 +324,10 @@ function addLine(v) {
   for (const r of cart) {
     if (r.variant_id === v.variant_id && r.unit_id === incomingUnitId) {
       r.qty = (parseFloat(r.qty) || 0) + 1;
+      if (v.matched_serial) {
+        r.serial_numbers = r.serial_numbers || [];
+        if (!r.serial_numbers.includes(v.matched_serial)) r.serial_numbers.push(v.matched_serial);
+      }
       renderCart();
       return;
     }
@@ -317,12 +337,11 @@ function addLine(v) {
     qty: 1, unit_price: incomingPrice,
     units: v.units || [],
     unit_id: incomingUnitId,
-    // MARSOUD-DUAL-UOM-WEIGHT-01 pt 2 — piece count for gold/silver
-    // style products. Default 1 (one physical piece); cashier can
-    // edit inline. Flag comes from the tile / lookup so this input
-    // only appears where it matters.
     tracks_piece_count: !!v.tracks_piece_count,
     sold_pieces: v.tracks_piece_count ? 1 : null,
+    track_serial: !!v.track_serial,
+    available_serials: v.available_serials || [],
+    serial_numbers: v.matched_serial ? [v.matched_serial] : [],
   });
   if (v.tax_rate) {
     taxRate = parseFloat(v.tax_rate);
@@ -347,6 +366,16 @@ function setUnit(i, id) {
 }
 function setPrice(i, v) { cart[i].unit_price = parseFloat(v) || 0; renderCart(); }
 function setPieces(i, v) { cart[i].sold_pieces = parseFloat(v) || 1; renderCart(); }
+function setSerials(i, val) {
+  cart[i].serial_numbers = String(val || '').split(/[,\n]+/).map(s => s.trim()).filter(Boolean);
+  recalc();
+}
+function pickSerial(i, sn) {
+  if (!sn) return;
+  cart[i].serial_numbers = cart[i].serial_numbers || [];
+  if (!cart[i].serial_numbers.includes(sn)) cart[i].serial_numbers.push(sn);
+  renderCart();
+}
 function removeLine(i) { cart.splice(i, 1); renderCart(); }
 function emptyCart() { if (cart.length && !confirm('تفريغ الكارت؟')) return; cart = []; renderCart(); }
 

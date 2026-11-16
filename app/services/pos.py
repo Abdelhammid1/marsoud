@@ -177,13 +177,37 @@ def create_pos_order(
                     sold_pieces = _v
             except (TypeError, ValueError):
                 pass
+        raw_sns = line.get("serial_numbers") or []
+        if isinstance(raw_sns, str):
+            raw_sns = [s.strip() for s in raw_sns.replace(",", "\n").splitlines() if s.strip()]
+        else:
+            raw_sns = [str(s).strip() for s in raw_sns if str(s).strip()]
+        desc_text = variant.display_name
+        if raw_sns:
+            from datetime import timedelta as _td
+            from app.models.inventory import ProductSerial
+            w_months = int(getattr(variant.product, "warranty_months", 0) or 0)
+            w_end = (date.today() + _td(days=30 * w_months)) if w_months > 0 else None
+            for sn_code in raw_sns:
+                sn_obj = ProductSerial.query.filter_by(
+                    company_id=company_id, variant_id=variant.id,
+                    serial_number=sn_code, status="IN_STOCK"
+                ).with_for_update().first()
+                if not sn_obj:
+                    raise POSError(f"الرقم التسلسلي '{sn_code}' غير متاح في المخزن")
+                sn_obj.status = "SOLD"
+                sn_obj.sale_invoice_id = invoice.id
+                if w_end:
+                    sn_obj.warranty_ends_at = w_end
+            desc_text = f"{desc_text} [IMEI/SN: {', '.join(raw_sns)}]"
+
         item = InvoiceItem(
             invoice_id=invoice.id,
             company_id=invoice.company_id,
             product_id=variant.product_id,
             variant_id=variant.id,
             warehouse_id=default_wh.id,
-            description=variant.display_name,
+            description=desc_text,
             quantity=qty,
             unit_price=unit_price,
             discount_type=ldt,
@@ -339,6 +363,14 @@ def void_pos_order(invoice, *, reason, actor_id):
         except LedgerError as e:
             db.session.rollback()
             raise POSError(str(e))
+
+    from app.models.inventory import ProductSerial
+    sold_sns = ProductSerial.query.filter_by(
+        company_id=invoice.company_id, sale_invoice_id=invoice.id, status="SOLD"
+    ).all()
+    for sn_obj in sold_sns:
+        sn_obj.status = "IN_STOCK"
+        sn_obj.sale_invoice_id = None
 
     invoice.status = InvoiceStatus.VOIDED
     invoice.voided_at = datetime.utcnow()
