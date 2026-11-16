@@ -56,16 +56,72 @@ class Account(db.Model):
     def balance(self):
         """Net balance, excluding paused journal entries.
 
-        For LEAF accounts (is_postable=True) this is just the sum of
-        directly-posted lines. For HEADER accounts (is_postable=False)
-        nothing posts here directly, so balance() walks the subtree and
-        rolls up every descendant leaf. This is what the rest of the
-        app already expected — reports + KPIs read .balance on parent
-        codes like 1130 (AR) and need it to include every customer.
+        Uses a per-request company-wide rollup cache (2 SQL queries total
+        per company per request instead of hundreds of N+1 tree walks).
         """
+        from flask import g, has_request_context
+        if has_request_context() and getattr(self, "company_id", None) is not None and getattr(self, "id", None) is not None:
+            cache = getattr(g, "_marsoud_acc_bal_cache", None)
+            if cache is None:
+                cache = {}
+                g._marsoud_acc_bal_cache = cache
+            cid = self.company_id
+            if cid not in cache:
+                cache[cid] = self._build_company_balance_map(cid)
+            if self.id in cache[cid]:
+                return cache[cid][self.id]
         if (not getattr(self, "is_postable", True)) or self.children:
             return self._rollup_balance()
         return self._direct_balance()
+
+    @classmethod
+    def _build_company_balance_map(cls, company_id):
+        from app.models.journal import JournalLine, JournalEntry
+        from sqlalchemy import func
+        accs = cls.query.filter_by(company_id=company_id).all()
+        if not accs:
+            return {}
+        acc_by_id = {a.id: a for a in accs}
+        children_map = {a.id: [] for a in accs}
+        for a in accs:
+            if a.parent_id and a.parent_id in children_map:
+                children_map[a.parent_id].append(a)
+
+        raw_sums = db.session.query(
+            JournalLine.account_id,
+            func.coalesce(func.sum(JournalLine.debit_base), 0),
+            func.coalesce(func.sum(JournalLine.credit_base), 0),
+        ).join(JournalEntry, JournalEntry.id == JournalLine.entry_id).filter(
+            JournalEntry.company_id == company_id,
+            JournalEntry.is_active.is_(True),
+        ).group_by(JournalLine.account_id).all()
+
+        direct_raw = {row[0]: (float(row[1] or 0), float(row[2] or 0)) for row in raw_sums}
+        memo = {}
+
+        def _compute(acc_id):
+            if acc_id in memo:
+                return memo[acc_id]
+            acc = acc_by_id[acc_id]
+            kids = children_map.get(acc_id) or []
+            if (not getattr(acc, "is_postable", True)) or kids:
+                total = 0.0
+                for k in kids:
+                    k_bal = _compute(k.id)
+                    if k.normal_side == acc.normal_side:
+                        total += k_bal
+                    else:
+                        total -= k_bal
+                memo[acc_id] = total
+                return total
+            debit, credit = direct_raw.get(acc_id, (0.0, 0.0))
+            bal = (debit - credit) if acc.normal_side == NormalSide.DEBIT else (credit - debit)
+            memo[acc_id] = bal
+            return bal
+
+        for a in accs:
+            _compute(a.id)
+        return memo
 
     def _direct_balance(self):
         from app.models.journal import JournalLine, JournalEntry
@@ -100,3 +156,11 @@ class Account(db.Model):
 
     def __repr__(self):
         return f"<Account {self.code} {self.name}>"
+
+
+from sqlalchemy import event as _sa_event
+@_sa_event.listens_for(db.session, "after_flush")
+def _marsoud_invalidate_acc_bal_cache(session, flush_context):
+    from flask import g, has_request_context
+    if has_request_context() and hasattr(g, "_marsoud_acc_bal_cache"):
+        delattr(g, "_marsoud_acc_bal_cache")
