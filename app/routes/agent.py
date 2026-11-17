@@ -640,6 +640,134 @@ def insights_conversations_delete(conv_id):
     return jsonify({"ok": True, "id": conv.id, "archived": True})
 
 
+# ─── MARSOUD-P111 — Ibn Al-Sharika (System Guide & Setup Coach) ───
+@bp.route("/guide", methods=["GET"])
+@login_required
+@require_permission("agent.use")
+def guide_index():
+    from app.services.agent_conversations import list_conversations_for
+    conv_id = None
+    cid = request.args.get("c", type=int)
+    if cid:
+        c = db.session.get(AgentConversation, cid)
+        if (c and c.user_id == current_user.id
+                and c.company_id == g.active_company.id
+                and c.agent_type == "guide"
+                and not c.is_archived):
+            conv_id = c.id
+    conversations = list(list_conversations_for(
+        current_user.id, g.active_company.id, "guide"))
+    ids = [c.id for c in conversations]
+    if ids:
+        has = {r[0] for r in db.session.query(
+            AgentMessage.conversation_id).filter(
+            AgentMessage.conversation_id.in_(ids)).distinct()}
+        conversations = [c for c in conversations if c.id in has]
+    return render_template(
+        "agent/guide.html",
+        history=[],
+        conversations=conversations,
+        active_conversation_id=conv_id,
+    )
+
+
+@bp.route("/guide/conversations", methods=["GET"])
+@login_required
+def guide_conversations_list():
+    from app.services.agent_conversations import list_conversations_for
+    convs = list_conversations_for(
+        current_user.id, g.active_company.id, "guide")
+    return jsonify({
+        "conversations": [
+            {"id": c.id,
+             "title": c.title or "محادثة جديدة",
+             "last_message_at": c.last_message_at.isoformat()
+             if c.last_message_at else None,
+             "created_at": c.created_at.isoformat()
+             if c.created_at else None}
+            for c in convs
+        ],
+    })
+
+
+@bp.route("/guide/conversations/archived", methods=["GET"])
+@login_required
+def guide_conversations_archived():
+    if not g.active_company:
+        return jsonify({"error": "لا توجد شركة نشطة"}), 400
+    q = AgentConversation.query.filter_by(
+        user_id=current_user.id, company_id=g.active_company.id,
+        agent_type="guide", is_archived=True,
+    ).order_by(AgentConversation.last_message_at.desc()).limit(100)
+    rows = list(q)
+    ids = [c.id for c in rows]
+    has = set()
+    if ids:
+        has = {r[0] for r in db.session.query(
+            AgentMessage.conversation_id).filter(
+            AgentMessage.conversation_id.in_(ids)).distinct()}
+    return jsonify({
+        "conversations": [
+            {"id": c.id,
+             "title": c.title or "محادثة بدون عنوان",
+             "last_message_at": c.last_message_at.isoformat()
+             if c.last_message_at else None,
+             "created_at": c.created_at.isoformat()
+             if c.created_at else None}
+            for c in rows if c.id in has
+        ],
+    })
+
+
+@bp.route("/guide/conversations/<int:conv_id>/restore", methods=["POST"])
+@login_required
+def guide_conversations_restore(conv_id):
+    conv = _resolve_own_conversation(conv_id, "guide")
+    conv.is_archived = False
+    db.session.commit()
+    return jsonify({"ok": True, "id": conv.id})
+
+
+@bp.route("/guide/conversations/new", methods=["POST"])
+@login_required
+def guide_conversations_new():
+    from app.services.agent_conversations import create_conversation
+    if not g.active_company:
+        return jsonify({"error": "لا توجد شركة نشطة"}), 400
+    conv = create_conversation(
+        current_user.id, g.active_company.id, "guide")
+    return jsonify({"id": conv.id, "title": conv.title or "محادثة جديدة"})
+
+
+@bp.route("/guide/conversations/<int:conv_id>/messages", methods=["GET"])
+@login_required
+def guide_conversations_messages(conv_id):
+    conv = _resolve_own_conversation(conv_id, "guide")
+    msgs = _load_conversation_history(conv.id, limit=200)
+    import json as _json
+    return jsonify({
+        "id": conv.id,
+        "title": conv.title or "محادثة جديدة",
+        "messages": [
+            {"role": m.role, "content": m.content,
+             "tool_trace": _json.loads(m.tool_trace)
+             if m.tool_trace else None,
+             "created_at": m.created_at.isoformat()
+             if m.created_at else None}
+            for m in msgs
+        ],
+    })
+
+
+@bp.route("/guide/conversations/<int:conv_id>", methods=["DELETE"])
+@login_required
+def guide_conversations_delete(conv_id):
+    from app.services.agent_conversations import archive_conversation
+    conv = _resolve_own_conversation(conv_id, "guide")
+    archive_conversation(conv)
+    return jsonify({"ok": True, "id": conv.id, "archived": True})
+
+
 # ─── MARSOUD-P111 — Marsoud System Guide & Setup Coach ─────────
 @bp.route("/guide/history", methods=["GET"])
 @login_required
@@ -751,5 +879,5 @@ def guide_chat():
         except Exception:
             pass
         return jsonify({
-            "error": f"تعذر الاتصال بمرشد مرصود حالياً: {str(e)[:180]}"
+            "error": f"تعذر الاتصال بـ «ابن الشركة» حالياً: {str(e)[:180]}"
         }), 500

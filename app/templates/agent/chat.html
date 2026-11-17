@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block page_title %}المحاسب الذكي{% endblock %}
+{% block page_title %}فهيم أفندي — فهيم أفندي (المحاسب الذكي){% endblock %}
 {% block content %}
 {# MARSOUD-INSIGHTS-CONVERSATIONS-01 (2026-08-08) — shared JS
    helpers (escapeHtml + renderMarkdownTables). The insights
@@ -69,7 +69,7 @@
 /* MARSOUD-AGENT-UX-P76 - new-chat screen, collapsed history, archive panel, rich replies */
 #ag-root .ag-logo{font-size:25px;font-weight:800;line-height:1;background:linear-gradient(135deg,#10b981,#047857)}
 #ag-root>.card:first-child>.flex.items-center.justify-between.mb-4 h2.font-bold{font-size:18px}
-#chat-messages>.flex.justify-start::before{content:"ش";font-weight:800;font-size:16px;color:#fff}
+#chat-messages>.flex.justify-start::before{content:"ف";font-weight:800;font-size:16px;color:#fff}
 .ag-hbtns{display:flex;align-items:center;gap:8px}
 .ag-hnew{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border:0;border-radius:999px;background:linear-gradient(135deg,#10b981,#047857);color:#fff;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(5,150,105,.28);transition:.15s}
 .ag-hnew:hover{transform:translateY(-1px);box-shadow:0 8px 16px rgba(5,150,105,.32)}
@@ -165,7 +165,7 @@
       <div class="flex items-center gap-3">
         <div class="w-12 h-12 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-2xl ag-logo">ش</div>
         <div>
-          <h2 class="font-bold text-navy-900">شلبي</h2>
+          <h2 class="font-bold text-navy-900">فهيم أفندي</h2>
           <p class="text-xs text-slate-500">مساعدك المحاسبي في مرصود</p>
         </div>
       </div>
@@ -179,7 +179,7 @@
       {% if not history %}
       <div class="text-center text-slate-500 py-8">
         <div class="text-5xl mb-3">👋</div>
-        <p class="font-semibold">أهلاً، أنا شلبي</p>
+        <p class="font-semibold">أهلاً، أنا فهيم أفندي</p>
         <p class="text-sm mt-2">اطلب مني تسجيل فاتورة، قيد، أو شغّل تقرير. مثلاً:</p>
         <div class="mt-4 flex flex-wrap gap-2 justify-center">
           <button onclick="setMsg('اعرض شجرة الحسابات')" class="text-xs px-3 py-1.5 bg-white border border-slate-200 rounded-full hover:border-brand-500">اعرض شجرة الحسابات</button>
@@ -213,7 +213,7 @@
     {% if conversations %}
     <button type="button" id="ag-tog" class="ag-tog" aria-expanded="false" onclick="agToggleList()"><span>🕘 المحادثات السابقة</span><span class="ag-count">{{ conversations|length }}</span><span class="ag-chev">⌄</span></button>
     {% endif %}
-    <div class="ag-about"><b>شلبي يقدر:</b><div><span>✍️</span><span>ينشئ الفواتير والقيود والمصروفات من كلامك</span></div><div><span>💡</span><span>يشرح أي مفهوم محاسبي بمثال بسيط</span></div><div><span>✅</span><span>بيطلب تأكيدك قبل أي تسجيل</span></div></div>
+    <div class="ag-about"><b>فهيم أفندي يقدر:</b><div><span>✍️</span><span>ينشئ الفواتير والقيود والمصروفات من كلامك</span></div><div><span>💡</span><span>يشرح أي مفهوم محاسبي بمثال بسيط</span></div><div><span>✅</span><span>بيطلب تأكيدك قبل أي تسجيل</span></div></div>
     <button type="button" id="ag-arch" class="ag-archbtn" onclick="agOpenArchive()">🗄 المحادثات المؤرشفة</button>
     <div id="conversations-list" class="flex-1 overflow-y-auto space-y-1 text-sm"
          data-active-id="{{ active_conversation_id or '' }}">
@@ -997,7 +997,7 @@ document.getElementById('chat-messages').scrollTop = 99999;
   };
   window.agLoadingText = function (b) {
     var sp = b.querySelector('.animate-pulse');
-    if (sp && /محاسب/.test(sp.textContent)) sp.textContent = '✦ شلبي بيجهّز الرد…';
+    if (sp && /محاسب/.test(sp.textContent)) sp.textContent = '✦ فهيم أفندي بيجهّز الرد…';
   };
 
   /* ---------- small toast ---------- */
@@ -1170,7 +1170,7 @@ document.getElementById('chat-messages').scrollTop = 99999;
   input.focus();
 
 
-  var HERO = '<div class="ag-hero"><div class="ag-orb">ش</div><div class="ag-ht">أهلاً، أنا شلبي</div><div class="ag-hs">مساعدك المحاسبي في مرصود. اطلب مني إنشاء فاتورة أو قيد أو مصروف، أو اسألني عن أي مفهوم محاسبي وأشرحه لك ببساطة.</div></div>';
+  var HERO = '<div class="ag-hero"><div class="ag-orb">ش</div><div class="ag-ht">أهلاً، أنا فهيم أفندي</div><div class="ag-hs">مساعدك المحاسبي في مرصود. اطلب مني إنشاء فاتورة أو قيد أو مصروف، أو اسألني عن أي مفهوم محاسبي وأشرحه لك ببساطة.</div></div>';
   var SUG = [
     { t: '✍️ أنشئ بسرعة', items: [
       ['فاتورة جديدة', 'سجّل فاتورة للعميل ____ بمبلغ ____ بضريبة 15%', 0],
@@ -1284,4 +1284,65 @@ document.getElementById('chat-messages').scrollTop = 99999;
   }
 })();
 </script>
+
+<style>
+.mrs-pmodal-bg{position:fixed;inset:0;z-index:9995;display:none;align-items:center;justify-content:center;padding:16px;background:rgba(15,23,42,.52);backdrop-filter:blur(3px);animation:mrsFade .2s ease}
+.mrs-pmodal-bg.show{display:flex}
+@keyframes mrsFade{from{opacity:0}to{opacity:1}}
+.mrs-pmodal{position:relative;width:min(460px,100%);border-radius:24px;background:#fff;box-shadow:0 24px 60px rgba(15,23,42,.28);overflow:hidden;border:1px solid #e2e8f0;text-align:right;direction:rtl}
+.mrs-pmodal-top{padding:22px 22px 18px;background:linear-gradient(135deg,#059669,#047857);color:#fff;display:flex;align-items:center;gap:14px}
+.mrs-pmodal-av{width:58px;height:58px;border-radius:18px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:30px;flex:0 0 auto;box-shadow:0 8px 20px rgba(0,0,0,.15)}
+.mrs-pmodal-x{position:absolute;top:14px;left:14px;width:32px;height:32px;border:0;border-radius:50%;background:rgba(255,255,255,.2);color:#fff;font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s}
+.mrs-pmodal-x:hover{background:rgba(255,255,255,.35)}
+.mrs-pmodal-name{margin:0;font-size:19px;font-weight:900;line-height:1.3}
+.mrs-pmodal-tag{margin:3px 0 0;font-size:12.5px;opacity:.92;font-weight:600}
+.mrs-pmodal-body{padding:18px 22px;font-size:14px;line-height:1.85;color:#1e293b}
+.mrs-pmodal-bubble{padding:13px 15px;border-radius:16px;background:#f8fafc;border:1px solid #e2e8f0}
+.mrs-pmodal-foot{padding:12px 22px 18px;border-top:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.mrs-pmodal-chk{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:#475569;font-weight:600;cursor:pointer;user-select:none}
+.mrs-pmodal-chk input{width:16px;height:16px;accent-color:#047857;cursor:pointer}
+.mrs-pmodal-go{padding:8px 18px;border:0;border-radius:12px;background:linear-gradient(135deg,#059669,#047857);color:#fff;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit}
+</style>
+<div class="mrs-pmodal-bg" id="mrsPersonaModal_fahim" role="dialog" aria-modal="true">
+  <div class="mrs-pmodal">
+    <button type="button" class="mrs-pmodal-x" id="mrsPersonaClose_fahim" aria-label="إغلاق">✕</button>
+    <div class="mrs-pmodal-top">
+      <div class="mrs-pmodal-av">🧾</div>
+      <div>
+        <h3 class="mrs-pmodal-name">فهيم أفندي</h3>
+        <div class="mrs-pmodal-tag">المحاسب الذكي · أمين الدفاتر والقيود</div>
+      </div>
+    </div>
+    <div class="mrs-pmodal-body">
+      <div class="mrs-pmodal-bubble">أهلاً بك يا سيدي الفاضل… أنا <strong>فهيم أفندي</strong>، محاسبك الأمين هنا في مرصود.<br>الدفاتر والقيود المزدوجة والضريبة والفواتير دول أمانة في رقبتي بالقرش والمليم. قولّي على أي عملية مالية عايز تسجّلها أو تراجعها، وأنا أجهّزلك القيد المظبوط وما أعتمدش حاجة غير بعد مراجعتك وموافقتك.</div>
+    </div>
+    <div class="mrs-pmodal-foot">
+      <label class="mrs-pmodal-chk">
+        <input type="checkbox" id="mrsPersonaHide_fahim">
+        <span>عرفت أنا مين.. ما تظهرش الرسالة دي تاني</span>
+      </label>
+      <button type="button" class="mrs-pmodal-go" id="mrsPersonaOk_fahim">يلا نبدأ</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var k = 'mrs_persona_hide_fahim';
+  var bg = document.getElementById('mrsPersonaModal_fahim');
+  if (!bg) return;
+  try { if (localStorage.getItem(k) === '1') return; } catch(e) {}
+  bg.classList.add('show');
+  function closeModal() {
+    var chk = document.getElementById('mrsPersonaHide_fahim');
+    if (chk && chk.checked) {
+      try { localStorage.setItem(k, '1'); } catch(e) {}
+    }
+    bg.classList.remove('show');
+  }
+  document.getElementById('mrsPersonaClose_fahim').addEventListener('click', closeModal);
+  document.getElementById('mrsPersonaOk_fahim').addEventListener('click', closeModal);
+  bg.addEventListener('click', function(e) { if (e.target === bg) closeModal(); });
+})();
+</script>
+
 {% endblock %}

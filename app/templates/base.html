@@ -666,8 +666,9 @@ tailwind.config = {
         {% set sections = [
           ('الرئيسية', '🏠', [
             ('dashboard.index', 'لوحة المعلومات', '📊'),
-            ('agent.index', 'المحاسب الذكي', '🤖'),
-            ('agent.insights_index', 'المحلل الذكي', '🔍'),
+            ('agent.index', 'فهيم أفندي (المحاسب)', '🧾'),
+            ('agent.insights_index', 'عبدالغفور البرعي (المحلل)', '🧐'),
+            ('agent.guide_index', 'ابن الشركة (المرشد)', '🧭'),
             ('user_files.index', 'ملفاتي', '📁'),
             ('support.index', 'الدعم الفني', '🆘'),
           ]),
@@ -2109,26 +2110,27 @@ function toggleSidebar(force) {
   .mrs-guide-send:disabled { opacity: 0.55; cursor: not-allowed; }
 </style>
 
-<button type="button" class="mrs-guide-fab" id="mrsGuideFab" aria-label="مرشد مرصود">
+<button type="button" class="mrs-guide-fab" id="mrsGuideFab" aria-label="ابن الشركة">
   <span>🧭</span>
-  <span>مرشد مرصود</span>
+  <span id="mrsGuideFabLabel">ابن الشركة</span>
 </button>
 
-<div class="mrs-guide-drawer" id="mrsGuideDrawer" role="dialog" aria-label="مرشد مرصود الذكي">
+<div class="mrs-guide-drawer" id="mrsGuideDrawer" role="dialog" aria-label="ابن الشركة — المرشد الذكي">
   <div class="mrs-guide-head">
     <div>
-      <div class="mrs-guide-head-title">🧭 مرشد مرصود الذكي</div>
-      <div class="mrs-guide-head-sub">يفهم كل شاشات النظام ويساعدك تبني شركتك صح</div>
+      <div class="mrs-guide-head-title">🧭 ابن الشركة</div>
+      <div class="mrs-guide-head-sub">عارف كل شبر في مرصود وبيبني معاك شركتك صح</div>
     </div>
     <div class="mrs-guide-head-btns">
+      <a href="/agent/guide" class="mrs-guide-icon-btn" style="text-decoration:none" title="فتح الصفحة الكاملة والأرشيف">الأرشيف ↗</a>
       <button type="button" class="mrs-guide-icon-btn" id="mrsGuideNewBtn" title="محادثة جديدة">جديد</button>
       <button type="button" class="mrs-guide-icon-btn" id="mrsGuideCloseBtn" title="إغلاق">✕</button>
     </div>
   </div>
   <div class="mrs-guide-body" id="mrsGuideBody">
     <div class="mrs-guide-welcome">
-      أهلاً بك في <strong>مرشد مرصود</strong> 👋<br>
-      أنا مطّلع على كل شاشات وخصائص مرصود الفعلية وحالة شركتك الحالية. اسألني عن أي شاشة أو خطوة إعداد:
+      أهلاً بيك.. أنا <strong>ابن الشركة</strong> 👋<br>
+      مفيش شاشة ولا زرار في مرصود يفوتني، وعيني دايماً على مصلحة شركتك. اسألني في أي وقت — وحتى لو اتنقلت لصفحة تانية وأنا بجهّزلك الرد هتلاقيني مستنيك بالرد هناك:
       <div class="mrs-guide-chips">
         <button type="button" class="mrs-guide-chip" data-q="أبدأ إزاي في بناء شركتي على مرصود خطوة بخطوة؟">🚀 أبدأ بناء شركتي إزاي؟</button>
         <button type="button" class="mrs-guide-chip" data-q="افحص وضع شركتي الحالي وقولي إيه البيانات اللي ناقصة؟">🔍 إيه اللي ناقص في شركتي؟</button>
@@ -2137,7 +2139,7 @@ function toggleSidebar(force) {
     </div>
   </div>
   <form class="mrs-guide-foot" id="mrsGuideForm">
-    <input type="text" class="mrs-guide-input" id="mrsGuideInput" placeholder="اسأل: إزاي أضيف أصناف؟ فين شاشة كذا؟..." autocomplete="off">
+    <input type="text" class="mrs-guide-input" id="mrsGuideInput" placeholder="اسأل ابن الشركة: إزاي أعمل كذا؟ فين شاشة كذا؟..." autocomplete="off">
     <button type="submit" class="mrs-guide-send" id="mrsGuideSend">إرسال</button>
   </form>
 </div>
@@ -2145,6 +2147,7 @@ function toggleSidebar(force) {
 <script>
 (function() {
   var fab = document.getElementById('mrsGuideFab');
+  var fabLabel = document.getElementById('mrsGuideFabLabel');
   var drawer = document.getElementById('mrsGuideDrawer');
   var closeBtn = document.getElementById('mrsGuideCloseBtn');
   var newBtn = document.getElementById('mrsGuideNewBtn');
@@ -2156,19 +2159,40 @@ function toggleSidebar(force) {
 
   var convId = null;
   var loadedHistory = false;
+  var msgCount = 0;
+  var pollTimer = null;
+  var PENDING_KEY = 'mrs_guide_pending_v1';
+  var OPEN_KEY = 'mrs_guide_open_v1';
   var csrfMeta = document.querySelector('meta[name="csrf-token"]');
   var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+  function getPending() {
+    try {
+      var raw = sessionStorage.getItem(PENDING_KEY);
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      if (!obj || (Date.now() - (obj.ts || 0)) > 90000) {
+        sessionStorage.removeItem(PENDING_KEY);
+        return null;
+      }
+      return obj;
+    } catch (e) { return null; }
+  }
+  function setPending(obj) {
+    try {
+      if (!obj) sessionStorage.removeItem(PENDING_KEY);
+      else sessionStorage.setItem(PENDING_KEY, JSON.stringify(obj));
+    } catch (e) {}
+  }
 
   function formatGuideText(raw) {
     var esc = String(raw || '')
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
-    // Convert [Label](/path) into clickable navigation buttons
     esc = esc.replace(/\[([^\]]+)\]\((\/[a-zA-Z0-9_\-\/\?\=\&]+)\)/g, function(_, label, url) {
       return '<a class="mrs-guide-link-btn" href="' + url + '">↗ ' + label + '</a>';
     });
-    // Bold **text**
     esc = esc.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     return esc;
   }
@@ -2186,27 +2210,86 @@ function toggleSidebar(force) {
     return div;
   }
 
-  function loadHistory() {
-    if (loadedHistory) return;
-    loadedHistory = true;
+  function renderMessages(msgs) {
+    bodyEl.querySelectorAll('.mrs-guide-msg').forEach(function(el) { el.remove(); });
+    msgCount = 0;
+    (msgs || []).forEach(function(m) {
+      appendMsg(m.role, m.content);
+      msgCount++;
+    });
+  }
+
+  function stopPolling() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    if (fabLabel) fabLabel.textContent = 'ابن الشركة';
+    sendBtn.disabled = false;
+  }
+
+  function startPendingPolling(pending) {
+    if (pollTimer) return;
+    if (fabLabel) fabLabel.textContent = 'ابن الشركة بيكتب...';
+    sendBtn.disabled = true;
+    var typingEl = bodyEl.querySelector('.mrs-guide-typing');
+    if (!typingEl) {
+      typingEl = appendMsg('assistant', 'ابن الشركة بيجهّزلك الرد...');
+      typingEl.classList.add('mrs-guide-typing');
+    }
+    pollTimer = setInterval(function() {
+      var p = getPending();
+      if (!p) {
+        if (typingEl) typingEl.remove();
+        stopPolling();
+        return;
+      }
+      fetch('/agent/guide/history', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          var msgs = d.messages || [];
+          if (d.conversation_id) convId = d.conversation_id;
+          var last = msgs.length ? msgs[msgs.length - 1] : null;
+          if (last && last.role === 'assistant' && msgs.length > (p.baseCount || 0)) {
+            setPending(null);
+            renderMessages(msgs);
+            stopPolling();
+            drawer.classList.add('open');
+            fab.style.display = 'none';
+          }
+        })
+        .catch(function() {});
+    }, 1500);
+  }
+
+  function loadHistory(cb) {
     fetch('/agent/guide/history', { credentials: 'same-origin' })
       .then(function(r) { return r.json(); })
       .then(function(d) {
+        loadedHistory = true;
         if (d.conversation_id) convId = d.conversation_id;
-        (d.messages || []).forEach(function(m) {
-          appendMsg(m.role, m.content);
-        });
+        renderMessages(d.messages || []);
+        if (cb) cb(d);
       })
-      .catch(function() {});
+      .catch(function() { if (cb) cb({}); });
   }
 
   function sendMessage(txt) {
     txt = (txt || '').trim();
     if (!txt || sendBtn.disabled) return;
+    var baseCount = msgCount;
     appendMsg('user', txt);
+    msgCount++;
     input.value = '';
     sendBtn.disabled = true;
-    var typing = appendMsg('assistant', 'جاري فحص النظام وشركتك...');
+    if (fabLabel) fabLabel.textContent = 'ابن الشركة بيكتب...';
+
+    setPending({
+      convId: convId,
+      userText: txt,
+      baseCount: baseCount + 1,
+      ts: Date.now()
+    });
+
+    var typing = appendMsg('assistant', 'ابن الشركة بيفحص النظام وشركتك...');
+    typing.classList.add('mrs-guide-typing');
 
     var headers = { 'Content-Type': 'application/json' };
     if (csrfToken) headers['X-CSRFToken'] = csrfToken;
@@ -2223,41 +2306,50 @@ function toggleSidebar(force) {
     })
     .then(function(r) { return r.json(); })
     .then(function(d) {
+      setPending(null);
+      stopPolling();
+      typing.classList.remove('mrs-guide-typing');
       if (d.conversation_id) convId = d.conversation_id;
       if (d.reply) {
         typing.innerHTML = formatGuideText(d.reply);
+        msgCount++;
       } else {
         typing.textContent = d.error || 'حدث خطأ غير متوقع.';
       }
       bodyEl.scrollTop = bodyEl.scrollHeight;
     })
-    .catch(function() {
-      typing.textContent = 'تعذر الاتصال بالخادم، حاول مرة أخرى.';
-    })
+    .catch(function() {})
     .finally(function() {
-      sendBtn.disabled = false;
-      input.focus();
+      if (!getPending()) {
+        stopPolling();
+        input.focus();
+      }
     });
   }
 
   fab.addEventListener('click', function() {
     drawer.classList.add('open');
     fab.style.display = 'none';
-    loadHistory();
+    try { sessionStorage.setItem(OPEN_KEY, '1'); } catch (e) {}
+    if (!loadedHistory) loadHistory();
     setTimeout(function() { input.focus(); }, 60);
   });
 
   closeBtn.addEventListener('click', function() {
     drawer.classList.remove('open');
     fab.style.display = 'inline-flex';
+    try { sessionStorage.removeItem(OPEN_KEY); } catch (e) {}
   });
 
   newBtn.addEventListener('click', function() {
+    setPending(null);
+    stopPolling();
     var headers = { 'Content-Type': 'application/json' };
     if (csrfToken) headers['X-CSRFToken'] = csrfToken;
     fetch('/agent/guide/clear', { method: 'POST', credentials: 'same-origin', headers: headers })
       .finally(function() {
         convId = null;
+        msgCount = 0;
         bodyEl.querySelectorAll('.mrs-guide-msg').forEach(function(el) { el.remove(); });
       });
   });
@@ -2272,6 +2364,29 @@ function toggleSidebar(force) {
     e.preventDefault();
     sendMessage(input.value);
   });
+
+  var pendingOnLoad = getPending();
+  var wasOpen = false;
+  try { wasOpen = sessionStorage.getItem(OPEN_KEY) === '1'; } catch (e) {}
+  if (pendingOnLoad || wasOpen) {
+    drawer.classList.add('open');
+    fab.style.display = 'none';
+    loadHistory(function(d) {
+      var p = getPending();
+      if (p) {
+        var msgs = d.messages || [];
+        var last = msgs.length ? msgs[msgs.length - 1] : null;
+        if (last && last.role === 'assistant' && msgs.length > (p.baseCount || 0)) {
+          setPending(null);
+        } else {
+          if (!last || last.role !== 'user' || last.content !== p.userText) {
+            appendMsg('user', p.userText);
+          }
+          startPendingPolling(p);
+        }
+      }
+    });
+  }
 })();
 </script>
 {% endif %}

@@ -234,7 +234,7 @@ _FEATURES: tuple = (
     Feature("dashboard", "settings", "لوحة المعلومات",
              endpoints=("dashboard.index",), permissions=(),
              icon="📊"),
-    Feature("insights_index", "insights", "المحلل الذكي",
+    Feature("insights_index", "insights", "عبدالغفور البرعي (المحلل الذكي)",
              endpoints=("agent.insights_index",),
              permissions=("insights.use",),
              icon="🔍"),
@@ -485,9 +485,12 @@ _FEATURES: tuple = (
              permissions=("evaluations.manage",), icon="⭐"),
 
     # ─── Agent (accountant) ─────────────────────────────────────
-    Feature("agent_index", "agent", "المحاسب الذكي",
+    Feature("agent_index", "agent", "فهيم أفندي (المحاسب الذكي)",
              endpoints=("agent.index",),
-             permissions=("agent.use",), icon="🤖"),
+             permissions=("agent.use",), icon="🧾"),
+    Feature("agent_guide_index", "agent", "ابن الشركة (المرشد الذكي)",
+             endpoints=("agent.guide_index",),
+             permissions=("agent.use",), icon="🧭"),
 
     # ─── Settings + system ──────────────────────────────────────
     Feature("settings_roles_index", "settings",
