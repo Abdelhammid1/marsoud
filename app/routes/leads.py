@@ -869,9 +869,12 @@ def _p15_wa_text(lead):
     """Ready-made first-contact WhatsApp text for a lead still in the first stage."""
     if lead.is_converted or lead.status != list(LeadStatus)[0]:
         return None
-    camp_name = (lead.campaign.name if lead.campaign else "").strip().lower()
+    sys_items = [x.strip().lower() for x in (lead.systems_list or []) if x]
+    if not sys_items and lead.service_needed:
+        sys_items = [lead.service_needed.strip().lower()]
+    has_activefit = any("activefit" in s for s in sys_items)
     l_type = (lead.lead_type or "").strip().upper()
-    if camp_name == "activefit" and l_type == "OUTBOUND":
+    if has_activefit and l_type == "OUTBOUND":
         return _p15_activefit_outbound_text(lead)
     parts = (lead.client_name or "").split()
     first = parts[0] if parts else ""
