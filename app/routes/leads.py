@@ -1958,3 +1958,64 @@ def suggest_status_dismiss(lead_id):
     session.pop("status_suggestion", None)
     flash("تم تجاهل اقتراح تغيير الحالة", "info")
     return redirect(url_for("leads.detail", lead_id=lead.id))
+
+
+@bp.route("/<int:lead_id>/whatsapp-click", methods=["POST"])
+@login_required
+@require_permission("leads.manage")
+def whatsapp_click(lead_id):
+    from datetime import datetime as _dt
+    from zoneinfo import ZoneInfo
+    from flask import jsonify
+    lead = _lead_or_403(lead_id)
+    now_utc = _dt.utcnow()
+    now_cairo = _dt.now(ZoneInfo("Africa/Cairo"))
+    time_label = now_cairo.strftime("%Y-%m-%d %I:%M %p")
+
+    data = request.get_json(silent=True) or {}
+    wa_text = (data.get("wa_text") or request.form.get("wa_text") or "").strip()
+    wa_kind = (data.get("wa_kind") or request.form.get("wa_kind") or "").strip()
+
+    status_changed = False
+    if lead.status == LeadStatus.NEW_LEAD and not lead.is_converted:
+        try:
+            change_lead_status(
+                lead,
+                LeadStatus.CONTACTED.name,
+                changed_by_id=current_user.id,
+                note=f"تم التواصل عبر واتساب وإرسال عرض للنظام ({time_label})",
+            )
+            status_changed = True
+        except CRMError:
+            pass
+
+    subject = "إرسال عرض للنظام عبر واتساب"
+    if wa_kind:
+        subject = f"واتساب ({wa_kind}) — إرسال عرض للنظام"
+    body_lines = [f"تم إرسال عرض للنظام عبر واتساب بتاريخ {time_label}."]
+    if wa_text:
+        body_lines.append("")
+        body_lines.append("نص الرسالة:")
+        body_lines.append(wa_text)
+
+    act = LeadActivity(
+        company_id=lead.company_id,
+        lead_id=lead.id,
+        type=LeadActivityType.WHATSAPP,
+        subject=subject,
+        body="\n".join(body_lines),
+        activity_date=now_utc,
+        outcome="تم الإرسال",
+        created_by_id=current_user.id,
+    )
+    db.session.add(act)
+    db.session.commit()
+
+    return jsonify(
+        ok=True,
+        status=lead.status.name,
+        status_label=lead.status.label_ar,
+        status_changed=status_changed,
+        activity_id=act.id,
+        logged_at=time_label,
+    )

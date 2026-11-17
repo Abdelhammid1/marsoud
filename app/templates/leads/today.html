@@ -55,7 +55,7 @@
       <div class="p22-why">{{ it.reason }}</div>
       <div class="p22-act">
         <a href="tel:{{ l.phone }}">اتصال</a>
-        <a class="wa" target="_blank" rel="noopener" href="https://wa.me/{{ l.phone | wa_digits }}{% if it.wa_text %}?text={{ it.wa_text | urlencode }}{% endif %}">واتساب</a>
+        <a class="wa js-today-wa-link" target="_blank" rel="noopener" data-wa-log-url="{{ url_for('leads.whatsapp_click', lead_id=l.id) }}" data-wa-text="{{ (it.wa_text or '') | e }}" href="https://wa.me/{{ l.phone | wa_digits }}{% if it.wa_text %}?text={{ it.wa_text | urlencode }}{% endif %}">واتساب</a>
         <a href="{{ url_for('leads.detail', lead_id=l.id) }}">فتح العميل</a>
         {% if it.can_snooze %}
         <form method="POST" action="{{ url_for('leads.set_followup', lead_id=l.id) }}">
@@ -72,4 +72,31 @@
   {% endif %}
   {% endfor %}
 </div>
+<script>
+(function(){
+  if (window.__marsoudTodayWaBound) return;
+  window.__marsoudTodayWaBound = true;
+  document.addEventListener('click', function(e){
+    var a = e.target.closest('a.js-today-wa-link[data-wa-log-url]');
+    if (!a) return;
+    var url = a.getAttribute('data-wa-log-url');
+    var payload = JSON.stringify({
+      wa_text: a.getAttribute('data-wa-text') || '',
+      wa_kind: 'مهامي اليوم'
+    });
+    if (navigator.sendBeacon) {
+      try {
+        navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
+      } catch (_) {}
+    } else {
+      fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'fetch' },
+        body: payload,
+        keepalive: true
+      }).catch(function(){});
+    }
+  });
+})();
+</script>
 {% endblock %}

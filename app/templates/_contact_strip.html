@@ -40,8 +40,40 @@
       <div class="text-[10px] uppercase text-slate-500 leading-none">واتساب</div>
       {% if _wa_digits %}
       <a href="https://wa.me/{{ _wa_digits }}{% if wa_text %}?text={{ wa_text | urlencode }}{% endif %}" target="_blank" rel="noopener"
+         {% if lead_id %}data-wa-log-url="{{ url_for('leads.whatsapp_click', lead_id=lead_id) }}" data-wa-text="{{ (wa_text or '') | e }}" data-wa-kind="{{ (wa_kind or '') | e }}"{% endif %}
          title="فتح محادثة مع {{ name }}"
-         class="font-semibold text-emerald-700 hover:underline">{% if wa_text %}واتساب: {{ wa_kind or 'رسالة جاهزة' }} ↗{% else %}فتح محادثة ↗{% endif %}{# MARSOUD-CRM-P17 #}</a>
+         class="font-semibold text-emerald-700 hover:underline js-lead-wa-link">{% if wa_text %}واتساب: {{ wa_kind or 'رسالة جاهزة' }} ↗{% else %}فتح محادثة ↗{% endif %}{# MARSOUD-CRM-P17 #}</a>
+      {% if lead_id %}
+      <script>
+      (function(){
+        if (window.__marsoudWaLogBound) return;
+        window.__marsoudWaLogBound = true;
+        document.addEventListener('click', function(e){
+          var a = e.target.closest('a.js-lead-wa-link[data-wa-log-url]');
+          if (!a) return;
+          var url = a.getAttribute('data-wa-log-url');
+          var payload = JSON.stringify({
+            wa_text: a.getAttribute('data-wa-text') || '',
+            wa_kind: a.getAttribute('data-wa-kind') || ''
+          });
+          if (navigator.sendBeacon) {
+            try {
+              var blob = new Blob([payload], { type: 'application/json' });
+              navigator.sendBeacon(url, blob);
+            } catch (_) {}
+          } else {
+            fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'fetch' },
+              body: payload,
+              keepalive: true
+            }).catch(function(){});
+          }
+          setTimeout(function(){ window.location.reload(); }, 900);
+        });
+      })();
+      </script>
+      {% endif %}
       {% else %}
       <span class="text-slate-500 italic">غير مسجل</span>
       {% endif %}
