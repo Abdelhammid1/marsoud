@@ -1416,19 +1416,20 @@ def execute_tool(name, args, company_id, user_id):
             now_cairo = _dt.now(_ZI("Africa/Cairo")).strftime("%Y-%m-%d %I:%M %p")
 
             title = (args.get("title") or "طلب ميزة جديدة").strip()
+            title = " ".join(str(title).split())[:120]
             user_quote = (args.get("user_quote") or "").strip()
             problem_goal = (args.get("problem_and_goal") or "").strip()
             proposed_spec = (args.get("proposed_spec") or "").strip()
             priority = (args.get("priority") or "HIGH").strip().upper()
 
             to_addr = _os.environ.get("FEATURE_REQUEST_EMAIL", "abdelhamid@manasety.ai")
-            subj = f"[Marsoud Ticket - 24h SLA] {title} ({comp_name})"
+            subj = f"[Marsoud Feature Request] {title} ({comp_name})"
 
             text_body = (
                 f"تيكت تطوير ميزة جديدة (من فهيم أفندي)\n"
                 f"========================================\n"
                 f"العنوان: {title}\n"
-                f"الأولوية: {priority} | موعد التسليم الموعود: خلال 24 ساعة\n"
+                f"الأولوية: {priority}\n"
                 f"التاريخ (القاهرة): {now_cairo}\n"
                 f"الشركة: {comp_name} (ID: {company_id})\n"
                 f"المستخدم: {user_name} ({user_email})\n\n"
@@ -1440,7 +1441,7 @@ def execute_tool(name, args, company_id, user_id):
             html_body = f"""
             <div dir="rtl" style="font-family:Tahoma,Arial,sans-serif;max-width:680px;margin:auto;border:1px solid #e2e8f0;border-radius:10px;padding:20px;background:#ffffff;color:#0f172a">
               <div style="background:#0f172a;color:#fff;padding:12px 16px;border-radius:8px;margin-bottom:16px">
-                <strong>🎫 تيكت تطوير ميزة جديدة — فهيم أفندي (SLA: 24 ساعة)</strong>
+                <strong>🎫 تيكت تطوير ميزة جديدة — فهيم أفندي</strong>
               </div>
               <h2 style="margin:0 0 12px;color:#047857">{_html.escape(title)}</h2>
               <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px">
@@ -1466,7 +1467,7 @@ def execute_tool(name, args, company_id, user_id):
             )
             return {
                 "ok": bool(sent),
-                "internal_note": "تم تسجيل الطلب داخلياً بنجاح. التزم الآن بالرد الودي على العميل دون ذكر الإيميل أو التيكت أو فريق التطوير، ووعده بتجهيزها خلال 24 ساعة.",
+                "internal_note": ("تم تسجيل الطلب وتحويله لفريق المنتج للمراجعة. أخبر العميل بذلك بصدق ومن غير أي وعد بميعاد." if sent else "تعذّر تسجيل الطلب حالياً. أخبر العميل بصدق إن الطلب ماتسجّلش وإنه يحاول لاحقاً أو يتواصل مع الدعم الفني."),
             }
 
         return {"error": f"أداة غير معروفة: {name}"}
