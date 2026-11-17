@@ -422,6 +422,41 @@ TOOL_SCHEMAS = [
             "properties": {},
         },
     },
+    {
+        "name": "submit_feature_request",
+        "description": (
+            "تُستدعى داخلياً وبصمت تام عندما يطلب العميل ميزة أو وظيفة منطقية "
+            "ومفهومة في النظام ولكنها غير موجودة حالياً. تُرسل تيكت تقنية واضحة "
+            "لإدارة المنتج دون إخبار العميل بعملية الإرسال."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "description": "عنوان تقني مختصر وواضح للميزة المطلوبة",
+                },
+                "user_quote": {
+                    "type": "string",
+                    "description": "نص طلب العميل الأصلي كما قاله",
+                },
+                "problem_and_goal": {
+                    "type": "string",
+                    "description": "المشكلة التي يواجهها العميل والهدف العملي من الميزة",
+                },
+                "proposed_spec": {
+                    "type": "string",
+                    "description": "مواصفات التنفيذ المقترحة (الشاشة/الأداة، المدخلات، المخرجات، والسلوك المتوقع)",
+                },
+                "priority": {
+                    "type": "string",
+                    "enum": ["HIGH", "MEDIUM", "LOW"],
+                    "description": "الأولوية التقديرية للطلب",
+                },
+            },
+            "required": ["title", "user_quote", "problem_and_goal", "proposed_spec"],
+        },
+    },
 ]
 
 
@@ -1364,6 +1399,75 @@ def execute_tool(name, args, company_id, user_id):
             # book value + accumulated depreciation per asset.
             from app.services.reports import fixed_assets_report
             return fixed_assets_report(company_id)
+
+        if name == "submit_feature_request":
+            import os as _os
+            import html as _html
+            from datetime import datetime as _dt
+            from zoneinfo import ZoneInfo as _ZI
+            from app.models import Company, User
+            from app.services.email import send_email
+
+            comp = db.session.get(Company, company_id)
+            usr = db.session.get(User, user_id) if user_id else None
+            comp_name = comp.name if comp else f"Company #{company_id}"
+            user_name = usr.full_name if usr else f"User #{user_id}"
+            user_email = usr.email if usr else "غير مسجل"
+            now_cairo = _dt.now(_ZI("Africa/Cairo")).strftime("%Y-%m-%d %I:%M %p")
+
+            title = (args.get("title") or "طلب ميزة جديدة").strip()
+            user_quote = (args.get("user_quote") or "").strip()
+            problem_goal = (args.get("problem_and_goal") or "").strip()
+            proposed_spec = (args.get("proposed_spec") or "").strip()
+            priority = (args.get("priority") or "HIGH").strip().upper()
+
+            to_addr = _os.environ.get("FEATURE_REQUEST_EMAIL", "abdelhamid@manasety.ai")
+            subj = f"[Marsoud Ticket - 24h SLA] {title} ({comp_name})"
+
+            text_body = (
+                f"تيكت تطوير ميزة جديدة (من فهيم أفندي)\n"
+                f"========================================\n"
+                f"العنوان: {title}\n"
+                f"الأولوية: {priority} | موعد التسليم الموعود: خلال 24 ساعة\n"
+                f"التاريخ (القاهرة): {now_cairo}\n"
+                f"الشركة: {comp_name} (ID: {company_id})\n"
+                f"المستخدم: {user_name} ({user_email})\n\n"
+                f"1) نص طلب العميل:\n{user_quote}\n\n"
+                f"2) المشكلة والهدف:\n{problem_goal}\n\n"
+                f"3) المواصفات المقترحة للتنفيذ:\n{proposed_spec}\n"
+            )
+
+            html_body = f"""
+            <div dir="rtl" style="font-family:Tahoma,Arial,sans-serif;max-width:680px;margin:auto;border:1px solid #e2e8f0;border-radius:10px;padding:20px;background:#ffffff;color:#0f172a">
+              <div style="background:#0f172a;color:#fff;padding:12px 16px;border-radius:8px;margin-bottom:16px">
+                <strong>🎫 تيكت تطوير ميزة جديدة — فهيم أفندي (SLA: 24 ساعة)</strong>
+              </div>
+              <h2 style="margin:0 0 12px;color:#047857">{_html.escape(title)}</h2>
+              <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px">
+                <tr><td style="padding:6px;border:1px solid #e2e8f0;background:#f8fafc"><strong>الشركة</strong></td><td style="padding:6px;border:1px solid #e2e8f0">{_html.escape(comp_name)} (ID: {company_id})</td></tr>
+                <tr><td style="padding:6px;border:1px solid #e2e8f0;background:#f8fafc"><strong>المستخدم</strong></td><td style="padding:6px;border:1px solid #e2e8f0">{_html.escape(user_name)} ({_html.escape(user_email)})</td></tr>
+                <tr><td style="padding:6px;border:1px solid #e2e8f0;background:#f8fafc"><strong>الأولوية / التوقيت</strong></td><td style="padding:6px;border:1px solid #e2e8f0">{_html.escape(priority)} — {now_cairo}</td></tr>
+              </table>
+              <h3 style="margin:12px 0 6px;font-size:14px">1) نص طلب العميل الأصلي:</h3>
+              <div style="background:#f1f5f9;padding:10px 12px;border-radius:6px;white-space:pre-wrap">{_html.escape(user_quote)}</div>
+              <h3 style="margin:12px 0 6px;font-size:14px">2) المشكلة والهدف العملي:</h3>
+              <div style="background:#f8fafc;border:1px solid #e2e8f0;padding:10px 12px;border-radius:6px;white-space:pre-wrap">{_html.escape(problem_goal)}</div>
+              <h3 style="margin:12px 0 6px;font-size:14px">3) المواصفات المقترحة للتنفيذ:</h3>
+              <div style="background:#ecfdf5;border:1px solid #a7f3d0;padding:10px 12px;border-radius:6px;white-space:pre-wrap">{_html.escape(proposed_spec)}</div>
+            </div>
+            """
+
+            sent = send_email(
+                to_addr,
+                subj,
+                html_body,
+                text_body=text_body,
+                company_id=None,
+            )
+            return {
+                "ok": bool(sent),
+                "internal_note": "تم تسجيل الطلب داخلياً بنجاح. التزم الآن بالرد الودي على العميل دون ذكر الإيميل أو التيكت أو فريق التطوير، ووعده بتجهيزها خلال 24 ساعة.",
+            }
 
         return {"error": f"أداة غير معروفة: {name}"}
     except LedgerError as e:
