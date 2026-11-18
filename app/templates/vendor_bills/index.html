@@ -117,10 +117,8 @@
 
   <div class="overflow-x-auto w-full">
   <table class="data-table w-full" data-listkit>
-    <thead><tr class="whitespace-nowrap"><th>الرقم</th><th>المورد</th><th>الوصف</th><th>النوع</th><th>الحساب</th><th>تاريخ الفاتورة</th><th>الاستحقاق</th><th>الدفع</th><th class="text-left">الإجمالي</th><th class="text-left">المتبقي</th><th>الحالة</th><th></th></tr></thead>
+    <thead><tr class="whitespace-nowrap"><th>الرقم</th><th>المورد</th><th>الوصف</th><th>تاريخ الفاتورة</th><th>الاستحقاق</th><th class="text-left">الإجمالي</th><th class="text-left">المتبقي</th><th>الحالة</th><th></th></tr></thead>
     <tbody>
-      {% set lt_colors = {'EXPENSE':'bg-red-50 text-red-700','FIXED_ASSET':'bg-blue-50 text-blue-700','INVENTORY':'bg-emerald-50 text-emerald-700'} %}
-      {% set lt_labels = {'EXPENSE':'مصروف','FIXED_ASSET':'أصل ثابت','INVENTORY':'مخزون'} %}
       {# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — retired both `sl`
          (Arabic labels) and `sc` (badge classes) inline dicts; the
          shared status_badge macro carries the canonical
@@ -132,7 +130,7 @@
          rather than the status because a soft-deleted DRAFT keeps its
          DRAFT status. #}
       <tr{% if b.deleted_at %} class="opacity-60 bg-slate-50/60"{% endif %}>
-        <td class="font-mono font-semibold text-navy-900 {% if b.deleted_at %}line-through decoration-rose-400{% endif %}">{{ b.number }}</td>
+        <td class="font-mono font-semibold text-navy-900 whitespace-nowrap {% if b.deleted_at %}line-through decoration-rose-400{% endif %}">{{ b.number }}</td>
         <td class="{% if b.deleted_at %}line-through decoration-rose-400 text-slate-500{% endif %}">{{ b.vendor.name if b.vendor else '—' }}</td>
         <td class="text-sm">
           {# MARSOUD-VBILL-SUBCAT-DISPLAY-FILTER — sub-cat pill next
@@ -146,21 +144,14 @@
           </div>
           {% else %}<span class="text-slate-400">—</span>{% endfor %}
         </td>
-        <td class="text-xs">
-          {% for it in b.items %}<div class="mb-0.5"><span class="badge {{ lt_colors.get(it.line_type.value, 'bg-slate-100') }}">{{ lt_labels.get(it.line_type.value, it.line_type.value) }}</span></div>{% else %}<span class="text-slate-400">—</span>{% endfor %}
-        </td>
-        <td class="text-xs">
-          {% for it in b.items %}<div class="truncate max-w-[12rem]" title="{{ it.account.code }} — {{ it.account.name_ar or it.account.name }}"><span class="font-mono text-slate-400">{{ it.account.code }}</span> {{ it.account.name_ar or it.account.name }}</div>{% else %}<span class="text-slate-400">—</span>{% endfor %}
-        </td>
         {# MARSOUD-VBILL-STATUS-VISIBILITY (2026-08-17) — TKT-D.
            Was `b.status.value == 'OVERDUE'`, which meant a POSTED
            bill past its due date showed neutral until the daily
            cron flipped it. `bucket_by_id[b.id]` computes the
            real bucket per-request. #}
         {% set bkt = bucket_by_id.get(b.id, 'draft') %}
-        <td class="text-sm">{{ b.issue_date.isoformat() }}</td>
-        <td class="text-sm {% if bkt == 'overdue' and not b.deleted_at %}text-red-600 font-semibold{% elif bkt == 'due_today' and not b.deleted_at %}text-amber-600 font-semibold{% endif %}">{{ b.due_date.isoformat() }}</td>
-        <td class="text-xs">{{ b.payment_method.value }}</td>
+        <td class="text-sm whitespace-nowrap">{{ b.issue_date.isoformat() }}</td>
+        <td class="text-sm whitespace-nowrap {% if bkt == 'overdue' and not b.deleted_at %}text-red-600 font-semibold{% elif bkt == 'due_today' and not b.deleted_at %}text-amber-600 font-semibold{% endif %}">{{ b.due_date.isoformat() }}</td>
         <td class="text-left font-mono font-semibold {% if b.deleted_at %}line-through decoration-rose-400 text-slate-400{% endif %}">{{ b.total|amount_ar(b.currency) }}</td>
         <td class="text-left font-mono {% if b.deleted_at %}line-through decoration-rose-400 text-slate-400{% elif b.balance > 0 %}text-amber-600{% else %}text-emerald-600{% endif %}">{{ b.balance|amount_ar(b.currency) }}</td>
         <td>
@@ -175,7 +166,7 @@
       {% else %}
       {# MARSOUD-TKT-P0-05-MACROS (2026-08-28) — hand-rolled empty-state
          div collapsed to the shared macro. #}
-      <tr><td colspan="12" style="padding:0">
+      <tr><td colspan="9" style="padding:0">
         {{ ui.empty_state("لا توجد فواتير موردين", sub="أضف أول فاتورة مورد لتبدأ.", icon="📥") }}
       </td></tr>
       {% endfor %}
