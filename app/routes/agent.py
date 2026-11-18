@@ -1,3 +1,4 @@
+from app.services.url_ids import encode_id, decode_any_id
 from flask import (
     Blueprint, render_template, request, jsonify, g, abort,
     current_app,
@@ -118,7 +119,7 @@ def chat():
     cid_from_body = (request.json or {}).get("conversation_id")
     conv = None
     if cid_from_body:
-        conv = db.session.get(AgentConversation, int(cid_from_body))
+        conv = db.session.get(AgentConversation, decode_any_id(cid_from_body))
         if (not conv
                 or conv.user_id != current_user.id
                 or conv.company_id != g.active_company.id
@@ -182,7 +183,7 @@ def chat():
         return jsonify({
             "reply": reply,
             "tools": tool_trace,
-            "conversation_id": conv.id,
+            "conversation_id": encode_id(conv.id),
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -214,7 +215,7 @@ def conversations_list():
         current_user.id, g.active_company.id, "accountant")
     return jsonify({
         "conversations": [
-            {"id": c.id,
+            {"id": encode_id(c.id),
              "title": c.title or "محادثة جديدة",
              "last_message_at": c.last_message_at.isoformat()
              if c.last_message_at else None,
@@ -245,7 +246,7 @@ def conversations_archived():
             AgentMessage.conversation_id.in_(ids)).distinct()}
     return jsonify({
         "conversations": [
-            {"id": c.id,
+            {"id": encode_id(c.id),
              "title": c.title or "محادثة بدون عنوان",
              "last_message_at": c.last_message_at.isoformat()
              if c.last_message_at else None,
@@ -256,7 +257,7 @@ def conversations_archived():
     })
 
 
-@bp.route("/conversations/<int:conv_id>/restore", methods=["POST"])
+@bp.route("/conversations/<hid:conv_id>/restore", methods=["POST"])
 @login_required
 @require_permission("agent.use")
 def conversations_restore(conv_id):
@@ -275,10 +276,10 @@ def conversations_new():
         return jsonify({"error": "لا توجد شركة نشطة"}), 400
     conv = create_conversation(
         current_user.id, g.active_company.id, "accountant")
-    return jsonify({"id": conv.id, "title": conv.title or "محادثة جديدة"})
+    return jsonify({"id": encode_id(conv.id), "title": conv.title or "محادثة جديدة"})
 
 
-@bp.route("/conversations/<int:conv_id>/messages", methods=["GET"])
+@bp.route("/conversations/<hid:conv_id>/messages", methods=["GET"])
 @login_required
 @require_permission("agent.use")
 def conversations_messages(conv_id):
@@ -299,7 +300,7 @@ def conversations_messages(conv_id):
     })
 
 
-@bp.route("/conversations/<int:conv_id>", methods=["DELETE"])
+@bp.route("/conversations/<hid:conv_id>", methods=["DELETE"])
 @login_required
 @require_permission("agent.use")
 def conversations_delete(conv_id):
@@ -313,7 +314,7 @@ def conversations_delete(conv_id):
 
 
 # ─── MARSOUD-AGENT-SAFETY-03 (2026-08-06) — proposal execute/cancel ───
-@bp.route("/proposal/<int:pid>/execute", methods=["POST"])
+@bp.route("/proposal/<hid:pid>/execute", methods=["POST"])
 @login_required
 @require_permission("agent.write")
 def proposal_execute(pid):
@@ -329,7 +330,7 @@ def proposal_execute(pid):
     return jsonify(result), status
 
 
-@bp.route("/proposal/<int:pid>/cancel", methods=["POST"])
+@bp.route("/proposal/<hid:pid>/cancel", methods=["POST"])
 @login_required
 @require_permission("agent.use")
 def proposal_cancel(pid):
@@ -362,7 +363,7 @@ def clear():
     conv = get_or_create_current_conversation(
         current_user.id, g.active_company.id, "accountant")
     archive_conversation(conv)
-    return jsonify({"ok": True, "archived_conversation_id": conv.id})
+    return jsonify({"ok": True, "archived_conversation_id": encode_id(conv.id)})
 
 
 # ─── Insights (DeepSeek) ───────────────────────────────────────
@@ -430,7 +431,7 @@ def insights_chat():
     cid_from_body = (request.json or {}).get("conversation_id")
     conv = None
     if cid_from_body:
-        conv = db.session.get(AgentConversation, int(cid_from_body))
+        conv = db.session.get(AgentConversation, decode_any_id(cid_from_body))
         if (not conv
                 or conv.user_id != current_user.id
                 or conv.company_id != g.active_company.id
@@ -499,7 +500,7 @@ def insights_chat():
         return jsonify({
             "reply": reply,
             "tools": tool_trace,
-            "conversation_id": conv.id,
+            "conversation_id": encode_id(conv.id),
         })
     except Exception as e:  # noqa: BLE001
         # A DeepSeek failure MUST NOT affect the accountant.
@@ -532,7 +533,7 @@ def insights_clear():
     conv = get_or_create_current_conversation(
         current_user.id, g.active_company.id, "insights")
     archive_conversation(conv)
-    return jsonify({"ok": True, "archived_conversation_id": conv.id})
+    return jsonify({"ok": True, "archived_conversation_id": encode_id(conv.id)})
 
 
 # ─── Insights conversations endpoints (mirror the accountant set) ───
@@ -545,7 +546,7 @@ def insights_conversations_list():
         current_user.id, g.active_company.id, "insights")
     return jsonify({
         "conversations": [
-            {"id": c.id,
+            {"id": encode_id(c.id),
              "title": c.title or "محادثة جديدة",
              "last_message_at": c.last_message_at.isoformat()
              if c.last_message_at else None,
@@ -576,7 +577,7 @@ def insights_conversations_archived():
             AgentMessage.conversation_id.in_(ids)).distinct()}
     return jsonify({
         "conversations": [
-            {"id": c.id,
+            {"id": encode_id(c.id),
              "title": c.title or "محادثة بدون عنوان",
              "last_message_at": c.last_message_at.isoformat()
              if c.last_message_at else None,
@@ -587,7 +588,7 @@ def insights_conversations_archived():
     })
 
 
-@bp.route("/insights/conversations/<int:conv_id>/restore", methods=["POST"])
+@bp.route("/insights/conversations/<hid:conv_id>/restore", methods=["POST"])
 @login_required
 @require_permission("insights.use")
 def insights_conversations_restore(conv_id):
@@ -606,10 +607,10 @@ def insights_conversations_new():
         return jsonify({"error": "لا توجد شركة نشطة"}), 400
     conv = create_conversation(
         current_user.id, g.active_company.id, "insights")
-    return jsonify({"id": conv.id, "title": conv.title or "محادثة جديدة"})
+    return jsonify({"id": encode_id(conv.id), "title": conv.title or "محادثة جديدة"})
 
 
-@bp.route("/insights/conversations/<int:conv_id>/messages", methods=["GET"])
+@bp.route("/insights/conversations/<hid:conv_id>/messages", methods=["GET"])
 @login_required
 @require_permission("insights.use")
 def insights_conversations_messages(conv_id):
@@ -630,7 +631,7 @@ def insights_conversations_messages(conv_id):
     })
 
 
-@bp.route("/insights/conversations/<int:conv_id>", methods=["DELETE"])
+@bp.route("/insights/conversations/<hid:conv_id>", methods=["DELETE"])
 @login_required
 @require_permission("insights.use")
 def insights_conversations_delete(conv_id):
@@ -679,7 +680,7 @@ def guide_conversations_list():
         current_user.id, g.active_company.id, "guide")
     return jsonify({
         "conversations": [
-            {"id": c.id,
+            {"id": encode_id(c.id),
              "title": c.title or "محادثة جديدة",
              "last_message_at": c.last_message_at.isoformat()
              if c.last_message_at else None,
@@ -708,7 +709,7 @@ def guide_conversations_archived():
             AgentMessage.conversation_id.in_(ids)).distinct()}
     return jsonify({
         "conversations": [
-            {"id": c.id,
+            {"id": encode_id(c.id),
              "title": c.title or "محادثة بدون عنوان",
              "last_message_at": c.last_message_at.isoformat()
              if c.last_message_at else None,
@@ -719,7 +720,7 @@ def guide_conversations_archived():
     })
 
 
-@bp.route("/guide/conversations/<int:conv_id>/restore", methods=["POST"])
+@bp.route("/guide/conversations/<hid:conv_id>/restore", methods=["POST"])
 @login_required
 def guide_conversations_restore(conv_id):
     conv = _resolve_own_conversation(conv_id, "guide")
@@ -736,10 +737,10 @@ def guide_conversations_new():
         return jsonify({"error": "لا توجد شركة نشطة"}), 400
     conv = create_conversation(
         current_user.id, g.active_company.id, "guide")
-    return jsonify({"id": conv.id, "title": conv.title or "محادثة جديدة"})
+    return jsonify({"id": encode_id(conv.id), "title": conv.title or "محادثة جديدة"})
 
 
-@bp.route("/guide/conversations/<int:conv_id>/messages", methods=["GET"])
+@bp.route("/guide/conversations/<hid:conv_id>/messages", methods=["GET"])
 @login_required
 def guide_conversations_messages(conv_id):
     conv = _resolve_own_conversation(conv_id, "guide")
@@ -759,7 +760,7 @@ def guide_conversations_messages(conv_id):
     })
 
 
-@bp.route("/guide/conversations/<int:conv_id>", methods=["DELETE"])
+@bp.route("/guide/conversations/<hid:conv_id>", methods=["DELETE"])
 @login_required
 def guide_conversations_delete(conv_id):
     from app.services.agent_conversations import archive_conversation
@@ -782,7 +783,7 @@ def guide_history():
     conv = convs[0]
     msgs = _load_conversation_history(conv.id, limit=40)
     return jsonify({
-        "conversation_id": conv.id,
+        "conversation_id": encode_id(conv.id),
         "messages": [
             {"role": m.role, "content": m.content}
             for m in msgs if m.role in ("user", "assistant")
@@ -868,7 +869,7 @@ def guide_chat():
         touch_conversation(conv)
         return jsonify({
             "reply": reply,
-            "conversation_id": conv.id,
+            "conversation_id": encode_id(conv.id),
         })
     except Exception as e:
         try:

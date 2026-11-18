@@ -270,7 +270,7 @@ def _entry_count(account, descendants):
     return JournalLine.query.filter(JournalLine.account_id.in_(ids)).count()
 
 
-@bp.route("/<int:account_id>/edit", methods=["GET", "POST"])
+@bp.route("/<hid:account_id>/edit", methods=["GET", "POST"])
 @login_required
 @require_permission("accounts.manage")
 def edit(account_id):
@@ -398,7 +398,7 @@ def edit(account_id):
     return render_form()
 
 
-@bp.route("/<int:account_id>/delete", methods=["POST"])
+@bp.route("/<hid:account_id>/delete", methods=["POST"])
 @login_required
 @require_permission("accounts.manage")
 def delete(account_id):
@@ -450,7 +450,7 @@ def _resolve_source(entry):
     return ref["label"], link
 
 
-@bp.route("/<int:account_id>/ledger")
+@bp.route("/<hid:account_id>/ledger")
 @login_required
 def ledger(account_id):
     """MARSOUD-55 — detailed running-balance view of one account's journal

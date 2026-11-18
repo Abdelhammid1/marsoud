@@ -171,7 +171,7 @@ def new():
     return render_template("companies/form.html")
 
 
-@bp.route("/<int:company_id>/edit", methods=["GET", "POST"])
+@bp.route("/<hid:company_id>/edit", methods=["GET", "POST"])
 @login_required
 @require_permission("company.edit")
 def edit(company_id):
@@ -344,7 +344,7 @@ def edit(company_id):
 # a branch of another same-owner company, list current branches,
 # or unlink. Reuses Company.parent_id + count_branches +
 # QUOTA_BRANCHES that already exist in the DB.
-@bp.route("/<int:company_id>/branches", methods=["GET", "POST"])
+@bp.route("/<hid:company_id>/branches", methods=["GET", "POST"])
 @login_required
 @require_permission("company.edit")
 def branches(company_id):
@@ -462,7 +462,7 @@ def _smtp_assert_access(company_id):
     return company, None
 
 
-@bp.route("/<int:company_id>/smtp-settings",
+@bp.route("/<hid:company_id>/smtp-settings",
           methods=["GET", "POST"])
 @login_required
 @require_permission("company.edit")
@@ -551,7 +551,7 @@ def smtp_settings(company_id):
                             enc_choices=_SMTP_ENC_FORM_VALUES)
 
 
-@bp.route("/<int:company_id>/smtp-settings/test",
+@bp.route("/<hid:company_id>/smtp-settings/test",
           methods=["POST"])
 @login_required
 @require_permission("company.edit")
@@ -698,7 +698,7 @@ def smtp_test(company_id):
                              company_id=company.id))
 
 
-@bp.route("/<int:company_id>/smtp-settings/delete",
+@bp.route("/<hid:company_id>/smtp-settings/delete",
           methods=["POST"])
 @login_required
 @require_permission("company.edit")
@@ -724,7 +724,7 @@ def smtp_delete(company_id):
 
 
 # ─── MARSOUD-J: owner soft-deletes their own company ────────────────────
-@bp.route("/<int:company_id>/soft-delete", methods=["POST"])
+@bp.route("/<hid:company_id>/soft-delete", methods=["POST"])
 @login_required
 def soft_delete(company_id):
     """Only the company's owner (per the membership row) can fire this.

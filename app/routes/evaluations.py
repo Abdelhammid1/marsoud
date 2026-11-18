@@ -102,7 +102,7 @@ def new():
         return redirect(url_for("evaluations.index"))
 
 
-@bp.route("/<int:cid>/delete", methods=["POST"])
+@bp.route("/<hid:cid>/delete", methods=["POST"])
 @login_required
 @require_permission("evaluations.manage")
 def delete(cid):
@@ -116,7 +116,7 @@ def delete(cid):
 
 
 # ─── Cycle detail ──────────────────────────────────────────────────────
-@bp.route("/<int:cid>")
+@bp.route("/<hid:cid>")
 @login_required
 @require_permission("evaluations.manage")
 def detail(cid):
@@ -179,7 +179,7 @@ def detail(cid):
 
 
 # ─── State transitions ────────────────────────────────────────────────
-@bp.route("/<int:cid>/status", methods=["POST"])
+@bp.route("/<hid:cid>/status", methods=["POST"])
 @login_required
 @require_permission("evaluations.manage")
 def status(cid):
@@ -194,7 +194,7 @@ def status(cid):
 
 
 # ─── Target CRUD ──────────────────────────────────────────────────────
-@bp.route("/<int:cid>/targets", methods=["POST"])
+@bp.route("/<hid:cid>/targets", methods=["POST"])
 @login_required
 @require_permission("evaluations.manage")
 def target_upsert(cid):
@@ -217,7 +217,7 @@ def target_upsert(cid):
     return redirect(url_for("evaluations.detail", cid=c.id))
 
 
-@bp.route("/<int:cid>/targets/<int:tid>/delete", methods=["POST"])
+@bp.route("/<hid:cid>/targets/<hid:tid>/delete", methods=["POST"])
 @login_required
 @require_permission("evaluations.manage")
 def target_delete(cid, tid):
@@ -234,7 +234,7 @@ def target_delete(cid, tid):
 
 
 # ─── Actual CRUD ──────────────────────────────────────────────────────
-@bp.route("/<int:cid>/actuals", methods=["POST"])
+@bp.route("/<hid:cid>/actuals", methods=["POST"])
 @login_required
 @require_permission("evaluations.manage")
 def actual_upsert(cid):
@@ -255,7 +255,7 @@ def actual_upsert(cid):
     return redirect(url_for("evaluations.detail", cid=c.id))
 
 
-@bp.route("/<int:cid>/actuals/<int:aid>/delete", methods=["POST"])
+@bp.route("/<hid:cid>/actuals/<hid:aid>/delete", methods=["POST"])
 @login_required
 @require_permission("evaluations.manage")
 def actual_delete(cid, aid):
@@ -272,7 +272,7 @@ def actual_delete(cid, aid):
 
 
 # ─── Compute + review ────────────────────────────────────────────────
-@bp.route("/<int:cid>/employees/<int:eid>/compute", methods=["POST"])
+@bp.route("/<hid:cid>/employees/<hid:eid>/compute", methods=["POST"])
 @login_required
 @require_permission("evaluations.manage")
 def score(cid, eid):
@@ -292,7 +292,7 @@ def score(cid, eid):
     return redirect(url_for("evaluations.detail", cid=c.id))
 
 
-@bp.route("/<int:cid>/employees/<int:eid>/weights", methods=["POST"])
+@bp.route("/<hid:cid>/employees/<hid:eid>/weights", methods=["POST"])
 @login_required
 @require_permission("evaluations.manage")
 def weights(cid, eid):
@@ -326,7 +326,7 @@ def weights(cid, eid):
     return redirect(url_for("evaluations.detail", cid=c.id))
 
 
-@bp.route("/<int:cid>/employees/<int:eid>/review", methods=["POST"])
+@bp.route("/<hid:cid>/employees/<hid:eid>/review", methods=["POST"])
 @login_required
 @require_permission("evaluations.manage")
 def review(cid, eid):
@@ -404,7 +404,7 @@ def logs_create():
     return redirect(url_for("evaluations.logs_index"))
 
 
-@bp.route("/logs/<int:log_id>/delete", methods=["POST"])
+@bp.route("/logs/<hid:log_id>/delete", methods=["POST"])
 @login_required
 @require_permission("evaluations.manage")
 def logs_delete(log_id):
@@ -445,7 +445,7 @@ def api_targets():
     ])
 
 
-@bp.route("/<int:cid>/aggregate", methods=["POST"])
+@bp.route("/<hid:cid>/aggregate", methods=["POST"])
 @login_required
 @require_permission("evaluations.manage")
 def aggregate(cid):

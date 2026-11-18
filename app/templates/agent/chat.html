@@ -220,8 +220,8 @@
       {% for c in conversations %}
       <div class="conv-row flex items-center justify-between rounded px-2 py-2 hover:bg-slate-100 cursor-pointer
                   {% if c.id == active_conversation_id %}bg-emerald-50 border border-emerald-200{% endif %}"
-           data-id="{{ c.id }}"
-           onclick="loadConversation({{ c.id }})">
+           data-id="{{ c.id | hid }}"
+           onclick="loadConversation('{{ c.id | hid }}')">
         <div class="flex-1 min-w-0">
           <div class="font-medium text-navy-900 truncate">
             {{ c.title or 'محادثة جديدة' }}
@@ -757,9 +757,9 @@ async function loadConversation(cid) {
   box.scrollTop = box.scrollHeight;
   // Update visual "active" state in the sidebar.
   document.querySelectorAll('.conv-row').forEach(r => {
-    r.classList.toggle('bg-emerald-50', Number(r.dataset.id) === Number(cid));
-    r.classList.toggle('border', Number(r.dataset.id) === Number(cid));
-    r.classList.toggle('border-emerald-200', Number(r.dataset.id) === Number(cid));
+    r.classList.toggle('bg-emerald-50', String(r.dataset.id) === String(cid));
+    r.classList.toggle('border', String(r.dataset.id) === String(cid));
+    r.classList.toggle('border-emerald-200', String(r.dataset.id) === String(cid));
   });
 }
 
@@ -1039,7 +1039,7 @@ document.getElementById('chat-messages').scrollTop = 99999;
     var hb = document.querySelector('button[onclick="clearChat()"]');
     if (hb) hb.classList.toggle('ag-dis', !id);
     if (!id) return;
-    var row = list.querySelector('.conv-row[data-id="' + Number(id) + '"]');
+    var row = list.querySelector('.conv-row[data-id="' + String(id) + '"]');
     if (row) return;
     var ub = box.querySelector(':scope > .flex.justify-end > div');
     var title = ub ? (ub.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 60) : 'محادثة جديدة';
@@ -1119,7 +1119,7 @@ document.getElementById('chat-messages').scrollTop = 99999;
       var r = await fetch('/agent/conversations/' + Number(id) + '/restore', { method: 'POST' });
       var d = await r.json();
       if (!d.ok) throw new Error('x');
-      location.href = location.pathname + '?c=' + Number(id);
+      location.href = location.pathname + '?c=' + encodeURIComponent(id);
     } catch (e) {
       if (el) el.classList.remove('busy');
       toast('تعذّرت الاستعادة، حاول مرة أخرى');
@@ -1136,7 +1136,7 @@ document.getElementById('chat-messages').scrollTop = 99999;
       if (!cs.length) { mb.innerHTML = '<div class="ag-mmsg">مفيش محادثات مؤرشفة حالياً.</div>'; return; }
       mb.innerHTML = cs.map(function (c) {
         var dt = parseIso(c.last_message_at || c.created_at);
-        return '<div class="ag-ai" data-id="' + Number(c.id) + '" tabindex="0"><div class="ag-ait"><b>' + esc(c.title || 'محادثة بدون عنوان') +
+        return '<div class="ag-ai" data-id="' + String(c.id) + '" tabindex="0"><div class="ag-ait"><b>' + esc(c.title || 'محادثة بدون عنوان') +
           '</b><span>' + (dt ? fmtDate(dt) : '') + '</span></div><span class="ag-rs">↩ استعادة</span></div>';
       }).join('');
     } catch (e) {

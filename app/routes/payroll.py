@@ -192,7 +192,7 @@ def new_employee():
                            contract_types=ContractType, **_hr_form_context())
 
 
-@bp.route("/employees/<int:employee_id>")
+@bp.route("/employees/<hid:employee_id>")
 @login_required
 @require_permission("employees.view")
 def employee_profile(employee_id):
@@ -255,7 +255,7 @@ def employee_profile(employee_id):
     )
 
 
-@bp.route("/employees/<int:employee_id>/edit", methods=["GET", "POST"])
+@bp.route("/employees/<hid:employee_id>/edit", methods=["GET", "POST"])
 @login_required
 @require_permission("payroll.employees")
 def edit_employee(employee_id):
@@ -278,7 +278,7 @@ def edit_employee(employee_id):
     )
 
 
-@bp.route("/accruals/<int:accrual_id>/settle", methods=["POST"])
+@bp.route("/accruals/<hid:accrual_id>/settle", methods=["POST"])
 @login_required
 @require_permission("payroll.accruals")
 def settle_accrual_route(accrual_id):
@@ -317,7 +317,7 @@ def settle_accrual_route(accrual_id):
     return redirect(url_for("payroll.employee_profile", employee_id=a.employee_id))
 
 
-@bp.route("/employees/<int:employee_id>/terminate", methods=["POST"])
+@bp.route("/employees/<hid:employee_id>/terminate", methods=["POST"])
 @login_required
 @require_permission("payroll.employees")
 def terminate(employee_id):
@@ -356,7 +356,7 @@ def archive():
                              employees=rows, statuses=EmployeeStatus)
 
 
-@bp.route("/employees/<int:employee_id>/reactivate", methods=["POST"])
+@bp.route("/employees/<hid:employee_id>/reactivate", methods=["POST"])
 @login_required
 @require_permission("payroll.employees")
 def reactivate(employee_id):
@@ -461,7 +461,7 @@ def run():
     )
 
 
-@bp.route("/run/<int:run_id>")
+@bp.route("/run/<hid:run_id>")
 @login_required
 @require_permission("payroll.view")
 def view_run(run_id):
@@ -486,7 +486,7 @@ def view_run(run_id):
     )
 
 
-@bp.route("/run/<int:run_id>/export/<fmt>")
+@bp.route("/run/<hid:run_id>/export/<fmt>")
 @login_required
 @require_permission("payroll.view")
 def export_run(run_id, fmt):
@@ -508,7 +508,7 @@ def export_run(run_id, fmt):
     return redirect(url_for("payroll.view_run", run_id=run_id))
 
 
-@bp.route("/run/<int:run_id>/line/<int:line_id>/payslip.pdf")
+@bp.route("/run/<hid:run_id>/line/<hid:line_id>/payslip.pdf")
 @login_required
 @require_permission("payroll.view")
 def payslip_pdf(run_id, line_id):

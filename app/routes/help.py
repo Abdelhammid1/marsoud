@@ -43,7 +43,7 @@ def article(module_key):
                              preview=False)
 
 
-@bp.route("/media/<int:media_id>")
+@bp.route("/media/<hid:media_id>")
 @login_required
 def media(media_id):
     """Stream an uploaded help image inline. Auth-only + nosniff so a

@@ -135,7 +135,7 @@ def create():
 
 
 # ─── Detail ─────────────────────────────────────────────────────
-@bp.route("/<int:po_id>")
+@bp.route("/<hid:po_id>")
 @login_required
 @require_permission("purchase_orders.view")
 def detail(po_id):
@@ -153,7 +153,7 @@ def detail(po_id):
 
 
 # ─── Approve ────────────────────────────────────────────────────
-@bp.route("/<int:po_id>/approve", methods=["POST"])
+@bp.route("/<hid:po_id>/approve", methods=["POST"])
 @login_required
 @require_permission("purchase_orders.approve")
 def approve(po_id):
@@ -167,7 +167,7 @@ def approve(po_id):
 
 
 # ─── Reject ─────────────────────────────────────────────────────
-@bp.route("/<int:po_id>/reject", methods=["POST"])
+@bp.route("/<hid:po_id>/reject", methods=["POST"])
 @login_required
 @require_permission("purchase_orders.approve")
 def reject(po_id):
@@ -182,7 +182,7 @@ def reject(po_id):
 
 
 # ─── Cancel ─────────────────────────────────────────────────────
-@bp.route("/<int:po_id>/cancel", methods=["POST"])
+@bp.route("/<hid:po_id>/cancel", methods=["POST"])
 @login_required
 @require_permission("purchase_orders.cancel")
 def cancel(po_id):
@@ -197,7 +197,7 @@ def cancel(po_id):
 
 
 # ─── Receive (GRN) ──────────────────────────────────────────────
-@bp.route("/<int:po_id>/receive", methods=["GET", "POST"])
+@bp.route("/<hid:po_id>/receive", methods=["GET", "POST"])
 @login_required
 @require_permission("purchase_orders.receive")
 def receive(po_id):
@@ -230,7 +230,7 @@ def receive(po_id):
 
 
 # ─── Delete (soft, REQUESTED only) ──────────────────────────────
-@bp.route("/<int:po_id>/delete", methods=["POST"])
+@bp.route("/<hid:po_id>/delete", methods=["POST"])
 @login_required
 @require_permission("purchase_orders.request")
 def delete(po_id):

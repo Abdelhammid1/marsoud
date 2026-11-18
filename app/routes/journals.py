@@ -250,7 +250,7 @@ def new():
                             cost_centers=cost_centers)
 
 
-@bp.route("/<int:entry_id>")
+@bp.route("/<hid:entry_id>")
 @login_required
 @require_permission("journals.view")
 def view(entry_id):
@@ -288,7 +288,7 @@ def view(entry_id):
     )
 
 
-@bp.route("/<int:entry_id>/reverse", methods=["POST"])
+@bp.route("/<hid:entry_id>/reverse", methods=["POST"])
 @login_required
 @require_permission("journals.reverse")
 def reverse(entry_id):
@@ -309,7 +309,7 @@ def reverse(entry_id):
     return redirect(url_for("journals.view", entry_id=entry_id))
 
 
-@bp.route("/<int:entry_id>/pause", methods=["POST"])
+@bp.route("/<hid:entry_id>/pause", methods=["POST"])
 @login_required
 @require_permission("journals.pause")
 def pause(entry_id):
@@ -325,7 +325,7 @@ def pause(entry_id):
     return redirect(url_for("journals.view", entry_id=entry_id))
 
 
-@bp.route("/<int:entry_id>/reactivate", methods=["POST"])
+@bp.route("/<hid:entry_id>/reactivate", methods=["POST"])
 @login_required
 @require_permission("journals.pause")
 def reactivate(entry_id):
@@ -390,7 +390,7 @@ def templates_new():
     return render_template("journals/template_form.html", accounts=accounts)
 
 
-@bp.route("/templates/<int:template_id>/use")
+@bp.route("/templates/<hid:template_id>/use")
 @login_required
 @require_permission("journals.create")
 def use_template(template_id):
@@ -414,7 +414,7 @@ def recurring_list():
     return render_template("journals/recurring.html", items=items)
 
 
-@bp.route("/recurring/<int:rec_id>/edit", methods=["POST"])
+@bp.route("/recurring/<hid:rec_id>/edit", methods=["POST"])
 @login_required
 @require_permission("journals.recurring")
 def recurring_edit(rec_id):
@@ -452,7 +452,7 @@ def recurring_edit(rec_id):
     return redirect(url_for("journals.recurring_list"))
 
 
-@bp.route("/recurring/<int:rec_id>/stop", methods=["POST"])
+@bp.route("/recurring/<hid:rec_id>/stop", methods=["POST"])
 @login_required
 @require_permission("journals.recurring")
 def recurring_stop(rec_id):
@@ -473,7 +473,7 @@ def recurring_stop(rec_id):
     return redirect(url_for("journals.recurring_list"))
 
 
-@bp.route("/recurring/<int:rec_id>/resume", methods=["POST"])
+@bp.route("/recurring/<hid:rec_id>/resume", methods=["POST"])
 @login_required
 @require_permission("journals.recurring")
 def recurring_resume(rec_id):
@@ -491,7 +491,7 @@ def recurring_resume(rec_id):
     return redirect(url_for("journals.recurring_list"))
 
 
-@bp.route("/recurring/<int:rec_id>/delete", methods=["POST"])
+@bp.route("/recurring/<hid:rec_id>/delete", methods=["POST"])
 @login_required
 @require_permission("journals.recurring")
 def recurring_delete(rec_id):
@@ -510,7 +510,7 @@ def recurring_delete(rec_id):
     return redirect(url_for("journals.recurring_list"))
 
 
-@bp.route("/recurring/<int:rec_id>/log")
+@bp.route("/recurring/<hid:rec_id>/log")
 @login_required
 @require_permission("journals.view")
 def recurring_log(rec_id):
@@ -705,7 +705,7 @@ def export_filtered():
                      as_attachment=True, download_name=f"journals-{date.today()}.xlsx")
 
 
-@bp.route("/<int:entry_id>/export/<fmt>")
+@bp.route("/<hid:entry_id>/export/<fmt>")
 @login_required
 @require_permission("journals.view")
 def export_entry(entry_id, fmt):

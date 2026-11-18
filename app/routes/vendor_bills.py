@@ -759,7 +759,7 @@ def _prefill_from_purchase_order(po_id):
     }
 
 
-@bp.route("/<int:bill_id>")
+@bp.route("/<hid:bill_id>")
 @login_required
 @require_permission("vendor_bills.view")
 def view(bill_id):
@@ -772,7 +772,7 @@ def view(bill_id):
     return render_template("vendor_bills/view.html", bill=bill, payment_methods=payment_methods)
 
 
-@bp.route("/<int:bill_id>/delete", methods=["POST"])
+@bp.route("/<hid:bill_id>/delete", methods=["POST"])
 @login_required
 @require_permission("vendor_bills.delete")
 def delete(bill_id):
@@ -843,7 +843,7 @@ def delete(bill_id):
 
 
 # MARSOUD vendor-bill edit — supports full edit on DRAFT, cosmetic-only on posted
-@bp.route("/<int:bill_id>/edit", methods=["GET", "POST"])
+@bp.route("/<hid:bill_id>/edit", methods=["GET", "POST"])
 @login_required
 @require_permission("vendor_bills.create")
 def edit(bill_id):
@@ -976,7 +976,7 @@ def edit(bill_id):
     )
 
 
-@bp.route("/<int:bill_id>/post", methods=["POST"])
+@bp.route("/<hid:bill_id>/post", methods=["POST"])
 @login_required
 @require_permission("vendor_bills.create")
 def post(bill_id):
@@ -991,7 +991,7 @@ def post(bill_id):
     return redirect(url_for("vendor_bills.view", bill_id=bill_id))
 
 
-@bp.route("/<int:bill_id>/refund", methods=["POST"])
+@bp.route("/<hid:bill_id>/refund", methods=["POST"])
 @login_required
 @require_permission("vendor_bills.refund")
 def refund(bill_id):
@@ -1014,7 +1014,7 @@ def refund(bill_id):
     return redirect(url_for("vendor_bills.view", bill_id=bill_id))
 
 
-@bp.route("/<int:bill_id>/pay", methods=["POST"])
+@bp.route("/<hid:bill_id>/pay", methods=["POST"])
 @login_required
 @require_permission("vendor_bills.create")
 def pay(bill_id):
@@ -1032,7 +1032,7 @@ def pay(bill_id):
     return redirect(url_for("vendor_bills.view", bill_id=bill_id))
 
 
-@bp.route("/<int:bill_id>/postpone", methods=["POST"])
+@bp.route("/<hid:bill_id>/postpone", methods=["POST"])
 @login_required
 @require_permission("vendor_bills.create")
 def postpone(bill_id):

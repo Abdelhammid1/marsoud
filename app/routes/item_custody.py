@@ -134,7 +134,7 @@ def new():
     )
 
 
-@bp.route("/<int:item_id>")
+@bp.route("/<hid:item_id>")
 @login_required
 @require_permission("custody.manage")
 def detail_item(item_id):
@@ -155,7 +155,7 @@ def detail_item(item_id):
 
 
 # ─── Custody row detail (for settlement / disposal) ────────────
-@bp.route("/custody/<int:custody_id>")
+@bp.route("/custody/<hid:custody_id>")
 @login_required
 @require_permission("custody.manage")
 def detail(custody_id):
@@ -175,7 +175,7 @@ def detail(custody_id):
     )
 
 
-@bp.route("/custody/<int:custody_id>/settle", methods=["POST"])
+@bp.route("/custody/<hid:custody_id>/settle", methods=["POST"])
 @login_required
 @require_permission("custody.manage")
 def settle(custody_id):
@@ -209,7 +209,7 @@ def settle(custody_id):
                               custody_id=custody.id))
 
 
-@bp.route("/custody/<int:custody_id>/complete_disposal",
+@bp.route("/custody/<hid:custody_id>/complete_disposal",
            methods=["POST"])
 @login_required
 @require_permission("custody.manage")
@@ -267,7 +267,7 @@ def requests_index():
     )
 
 
-@bp.route("/requests/<int:req_id>/approve", methods=["POST"])
+@bp.route("/requests/<hid:req_id>/approve", methods=["POST"])
 @login_required
 @require_permission("custody.manage")
 def request_approve(req_id):
@@ -290,7 +290,7 @@ def request_approve(req_id):
     return redirect(url_for("item_custody.requests_index"))
 
 
-@bp.route("/requests/<int:req_id>/reject", methods=["POST"])
+@bp.route("/requests/<hid:req_id>/reject", methods=["POST"])
 @login_required
 @require_permission("custody.manage")
 def request_reject(req_id):

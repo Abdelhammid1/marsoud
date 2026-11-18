@@ -111,7 +111,7 @@ def department_new():
                            department=None, employees=employees)
 
 
-@bp.route("/departments/<int:department_id>/edit", methods=["GET", "POST"])
+@bp.route("/departments/<hid:department_id>/edit", methods=["GET", "POST"])
 @login_required
 @hr_required
 def department_edit(department_id):
@@ -141,7 +141,7 @@ def department_edit(department_id):
                            department=d, employees=employees)
 
 
-@bp.route("/departments/<int:department_id>/delete", methods=["POST"])
+@bp.route("/departments/<hid:department_id>/delete", methods=["POST"])
 @login_required
 @hr_required
 def department_delete(department_id):
@@ -193,7 +193,7 @@ def leave_type_new():
     return render_template("hr/leave_type_form.html", leave_type=None)
 
 
-@bp.route("/leave-types/<int:lt_id>/edit", methods=["GET", "POST"])
+@bp.route("/leave-types/<hid:lt_id>/edit", methods=["GET", "POST"])
 @login_required
 @hr_required
 def leave_type_edit(lt_id):
@@ -218,7 +218,7 @@ def leave_type_edit(lt_id):
     return render_template("hr/leave_type_form.html", leave_type=lt)
 
 
-@bp.route("/leave-types/<int:lt_id>/apply-to-all", methods=["POST"])
+@bp.route("/leave-types/<hid:lt_id>/apply-to-all", methods=["POST"])
 @login_required
 @hr_required
 def leave_type_apply_to_all(lt_id):
@@ -247,7 +247,7 @@ def leave_type_apply_to_all(lt_id):
 
 
 # ─── HR-05: per-employee balances ────────────────────────────────────────
-@bp.route("/employees/<int:employee_id>/leave-balances")
+@bp.route("/employees/<hid:employee_id>/leave-balances")
 @login_required
 @hr_required
 def employee_balances(employee_id):
@@ -268,7 +268,7 @@ def employee_balances(employee_id):
                            year=year, requests=requests_)
 
 
-@bp.route("/employees/<int:employee_id>/leave-balances/grant",
+@bp.route("/employees/<hid:employee_id>/leave-balances/grant",
           methods=["POST"])
 @login_required
 @hr_required
@@ -354,7 +354,7 @@ _WEEKDAYS_AR = {
 }
 
 
-@bp.route("/attendance/employee/<int:employee_id>")
+@bp.route("/attendance/employee/<hid:employee_id>")
 @login_required
 @hr_required
 def employee_attendance_detail(employee_id):
@@ -463,7 +463,7 @@ def attendance_new():
                            employees=employees, today=date.today().isoformat())
 
 
-@bp.route("/attendance/<int:ex_id>/delete", methods=["POST"])
+@bp.route("/attendance/<hid:ex_id>/delete", methods=["POST"])
 @login_required
 @hr_required
 def attendance_delete(ex_id):
@@ -563,7 +563,7 @@ def attendance_policy_new():
                            **_policy_form_context())
 
 
-@bp.route("/attendance-policies/<int:policy_id>/edit", methods=["GET", "POST"])
+@bp.route("/attendance-policies/<hid:policy_id>/edit", methods=["GET", "POST"])
 @login_required
 @hr_required
 def attendance_policy_edit(policy_id):
@@ -586,7 +586,7 @@ def attendance_policy_edit(policy_id):
                            **_policy_form_context())
 
 
-@bp.route("/attendance-policies/<int:policy_id>/delete", methods=["POST"])
+@bp.route("/attendance-policies/<hid:policy_id>/delete", methods=["POST"])
 @login_required
 @hr_required
 def attendance_policy_delete(policy_id):
@@ -665,7 +665,7 @@ def leave_request_new():
                            today=date.today().isoformat())
 
 
-@bp.route("/leave-requests/<int:req_id>/approve", methods=["POST"])
+@bp.route("/leave-requests/<hid:req_id>/approve", methods=["POST"])
 @login_required
 @hr_required
 def leave_request_approve(req_id):
@@ -684,7 +684,7 @@ def leave_request_approve(req_id):
     return redirect(url_for("hr.leave_requests"))
 
 
-@bp.route("/leave-requests/<int:req_id>/reject", methods=["POST"])
+@bp.route("/leave-requests/<hid:req_id>/reject", methods=["POST"])
 @login_required
 @hr_required
 def leave_request_reject(req_id):
@@ -703,7 +703,7 @@ def leave_request_reject(req_id):
     return redirect(url_for("hr.leave_requests"))
 
 
-@bp.route("/leave-requests/<int:req_id>/cancel", methods=["POST"])
+@bp.route("/leave-requests/<hid:req_id>/cancel", methods=["POST"])
 @login_required
 @hr_required
 def leave_request_cancel(req_id):
@@ -774,7 +774,7 @@ def violation_policy_new():
                            **_policy_form_context())
 
 
-@bp.route("/violation-policies/<int:policy_id>/edit", methods=["GET", "POST"])
+@bp.route("/violation-policies/<hid:policy_id>/edit", methods=["GET", "POST"])
 @login_required
 @hr_required
 def violation_policy_edit(policy_id):
@@ -797,7 +797,7 @@ def violation_policy_edit(policy_id):
                            **_policy_form_context())
 
 
-@bp.route("/violation-policies/<int:policy_id>/delete", methods=["POST"])
+@bp.route("/violation-policies/<hid:policy_id>/delete", methods=["POST"])
 @login_required
 @hr_required
 def violation_policy_delete(policy_id):
@@ -880,7 +880,7 @@ def permission_request_new():
                            today=date.today().isoformat())
 
 
-@bp.route("/permission-requests/<int:req_id>/approve", methods=["POST"])
+@bp.route("/permission-requests/<hid:req_id>/approve", methods=["POST"])
 @login_required
 @hr_required
 def permission_request_approve(req_id):
@@ -900,7 +900,7 @@ def permission_request_approve(req_id):
     return redirect(url_for("hr.permission_requests"))
 
 
-@bp.route("/permission-requests/<int:req_id>/reject", methods=["POST"])
+@bp.route("/permission-requests/<hid:req_id>/reject", methods=["POST"])
 @login_required
 @hr_required
 def permission_request_reject(req_id):
@@ -920,7 +920,7 @@ def permission_request_reject(req_id):
     return redirect(url_for("hr.permission_requests"))
 
 
-@bp.route("/permission-requests/<int:req_id>/cancel", methods=["POST"])
+@bp.route("/permission-requests/<hid:req_id>/cancel", methods=["POST"])
 @login_required
 @hr_required
 def permission_request_cancel(req_id):

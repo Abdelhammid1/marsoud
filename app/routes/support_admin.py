@@ -57,7 +57,7 @@ def index():
     )
 
 
-@bp.route("/<int:ticket_id>")
+@bp.route("/<hid:ticket_id>")
 @login_required
 @support_agent_required
 def detail(ticket_id):
@@ -70,7 +70,7 @@ def detail(ticket_id):
     )
 
 
-@bp.route("/<int:ticket_id>/reply", methods=["POST"])
+@bp.route("/<hid:ticket_id>/reply", methods=["POST"])
 @login_required
 @support_agent_required
 def reply(ticket_id):
@@ -111,7 +111,7 @@ def reply(ticket_id):
     return redirect(url_for("support_admin.detail", ticket_id=t.id))
 
 
-@bp.route("/<int:ticket_id>/internal-note", methods=["POST"])
+@bp.route("/<hid:ticket_id>/internal-note", methods=["POST"])
 @login_required
 @support_agent_required
 def internal_note(ticket_id):
@@ -134,7 +134,7 @@ def internal_note(ticket_id):
     return redirect(url_for("support_admin.detail", ticket_id=t.id))
 
 
-@bp.route("/<int:ticket_id>/status", methods=["POST"])
+@bp.route("/<hid:ticket_id>/status", methods=["POST"])
 @login_required
 @support_agent_required
 def status(ticket_id):

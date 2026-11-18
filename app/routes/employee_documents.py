@@ -101,7 +101,7 @@ def types_create():
     return redirect(url_for("employee_documents.types_index"))
 
 
-@bp.route("/types/<int:type_id>/toggle", methods=["POST"])
+@bp.route("/types/<hid:type_id>/toggle", methods=["POST"])
 @login_required
 @require_permission("document_types.manage")
 def types_toggle(type_id):
@@ -117,7 +117,7 @@ def types_toggle(type_id):
 # ═══════════════════════════════════════════════════════════════════
 # 2. Per-employee submission
 # ═══════════════════════════════════════════════════════════════════
-@bp.route("/employees/<int:employee_id>/submit/<int:type_id>",
+@bp.route("/employees/<hid:employee_id>/submit/<hid:type_id>",
           methods=["POST"])
 @login_required
 @require_permission("employee_documents.manage")
@@ -168,7 +168,7 @@ def submit(employee_id, type_id):
 # ═══════════════════════════════════════════════════════════════════
 # 3. Private file download — auth-gated
 # ═══════════════════════════════════════════════════════════════════
-@bp.route("/employees/<int:employee_id>/file/<int:doc_id>",
+@bp.route("/employees/<hid:employee_id>/file/<hid:doc_id>",
           methods=["GET"])
 @login_required
 def file(employee_id, doc_id):

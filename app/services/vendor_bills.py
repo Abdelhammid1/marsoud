@@ -1,3 +1,4 @@
+from app.services.url_ids import encode_id
 """Vendor bill posting + payment logic.
 
 A single bill can contain mixed line types (expense / fixed asset / inventory).
@@ -887,7 +888,7 @@ def update_overdue_vendor_bills(company_id):
                        title=f"⏰ فاتورة مورد متأخرة: {b.number}",
                        body=f"{vendor_name} — متأخرة {days_late} يوم — "
                             f"{float(b.balance):,.2f} {b.currency or ''}",
-                       link_url=f"/vendor-bills/{b.id}")
+                       link_url=f"/vendor-bills/{encode_id(b.id)}")
     except Exception:
         import logging
         logging.getLogger("ledgeros.vendor_bills").exception(

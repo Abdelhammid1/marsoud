@@ -595,7 +595,7 @@ def options_add():
     return _options_redirect(kind)
 
 
-@bp.route("/options/<int:opt_id>/toggle", methods=["POST"])
+@bp.route("/options/<hid:opt_id>/toggle", methods=["POST"])
 @login_required
 @require_permission("leads.manage")
 def options_toggle(opt_id):
@@ -608,7 +608,7 @@ def options_toggle(opt_id):
     return _options_redirect(opt.kind)
 
 
-@bp.route("/options/<int:opt_id>/rename", methods=["POST"])
+@bp.route("/options/<hid:opt_id>/rename", methods=["POST"])
 @login_required
 @require_permission("leads.manage")
 def options_rename(opt_id):
@@ -678,7 +678,7 @@ def options_rename(opt_id):
     return _options_redirect(opt.kind)
 
 
-@bp.route("/options/<int:opt_id>/move", methods=["POST"])
+@bp.route("/options/<hid:opt_id>/move", methods=["POST"])
 @login_required
 @require_permission("leads.manage")
 def options_move(opt_id):
@@ -777,7 +777,7 @@ def new():
                            campaigns=_active_campaigns())
 
 
-@bp.route("/<int:lead_id>")
+@bp.route("/<hid:lead_id>")
 @login_required
 @require_permission("leads.view")
 def detail(lead_id):
@@ -1109,7 +1109,7 @@ def _p21_ctx(lead):
     return {"linked": None, "sug": sug, "rest": rest}
 
 
-@bp.route("/<int:lead_id>/link-customer", methods=["POST"])
+@bp.route("/<hid:lead_id>/link-customer", methods=["POST"])
 @login_required
 @require_permission("leads.manage")
 def link_customer(lead_id):
@@ -1136,7 +1136,7 @@ def link_customer(lead_id):
     return redirect(url_for("leads.detail", lead_id=lead.id) + "#files-mrinv")
 
 
-@bp.route("/<int:lead_id>/unlink-customer", methods=["POST"])
+@bp.route("/<hid:lead_id>/unlink-customer", methods=["POST"])
 @login_required
 @require_permission("leads.manage")
 def unlink_customer(lead_id):
@@ -1274,7 +1274,7 @@ def today():
     return render_template("leads/today.html", **_p22_today(request.args.get("rep", type=int)))
 
 
-@bp.route("/<int:lead_id>/followup", methods=["POST"])
+@bp.route("/<hid:lead_id>/followup", methods=["POST"])
 @login_required
 @require_permission("leads.manage")
 def set_followup(lead_id):
@@ -1641,7 +1641,7 @@ def _p11_next_step(lead, activities):
             "meeting": mt}
 
 
-@bp.route("/<int:lead_id>/edit", methods=["GET", "POST"])
+@bp.route("/<hid:lead_id>/edit", methods=["GET", "POST"])
 @login_required
 @require_permission("leads.manage")
 def edit(lead_id):
@@ -1687,7 +1687,7 @@ def edit(lead_id):
                            campaigns=_active_campaigns())
 
 
-@bp.route("/<int:lead_id>/delete", methods=["POST"])
+@bp.route("/<hid:lead_id>/delete", methods=["POST"])
 @login_required
 @require_permission("leads.delete")
 def delete(lead_id):
@@ -1708,7 +1708,7 @@ def delete(lead_id):
     return redirect(url_for("leads.index"))
 
 
-@bp.route("/<int:lead_id>/status", methods=["POST"])
+@bp.route("/<hid:lead_id>/status", methods=["POST"])
 @login_required
 @require_permission("leads.manage")
 def status(lead_id):
@@ -1757,7 +1757,7 @@ def status(lead_id):
 
 
 # ─── Gap-A: lead quotation / contract PDF upload ────────────────────────
-@bp.route("/<int:lead_id>/upload/<kind>", methods=["POST"])
+@bp.route("/<hid:lead_id>/upload/<kind>", methods=["POST"])
 @login_required
 @require_permission("leads.manage")
 def upload(lead_id, kind):
@@ -1792,7 +1792,7 @@ def upload(lead_id, kind):
 
 
 # MARSOUD-CRM-P19 — edit one lead file: status / amount / note (any kind; endpoint name kept)
-@bp.route("/<int:lead_id>/quotations/<int:doc_id>/status", methods=["POST"])
+@bp.route("/<hid:lead_id>/quotations/<hid:doc_id>/status", methods=["POST"])
 @login_required
 @require_permission("leads.manage")
 def quotation_status(lead_id, doc_id):
@@ -1837,7 +1837,7 @@ def quotation_status(lead_id, doc_id):
 
 
 # ─── MARSOUD: comments on leads (ticket C / image #47) ───────────────
-@bp.route("/<int:lead_id>/comments", methods=["POST"])
+@bp.route("/<hid:lead_id>/comments", methods=["POST"])
 @login_required
 @require_permission("leads.view")
 def comment_add(lead_id):
@@ -1884,7 +1884,7 @@ def comment_add(lead_id):
     return redirect(url_for("leads.detail", lead_id=lead.id) + "#comments")
 
 
-@bp.route("/<int:lead_id>/convert", methods=["GET", "POST"])
+@bp.route("/<hid:lead_id>/convert", methods=["GET", "POST"])
 @login_required
 @require_permission("leads.convert")
 def convert(lead_id):
@@ -1925,7 +1925,7 @@ def convert(lead_id):
 # route stores a suggestion in the session. These two endpoints let
 # the user confirm or dismiss it — status is NEVER changed
 # automatically.
-@bp.route("/<int:lead_id>/suggest-status/apply", methods=["POST"])
+@bp.route("/<hid:lead_id>/suggest-status/apply", methods=["POST"])
 @login_required
 @require_permission("leads.manage")
 def suggest_status_apply(lead_id):
@@ -1949,7 +1949,7 @@ def suggest_status_apply(lead_id):
     return redirect(url_for("leads.detail", lead_id=lead.id))
 
 
-@bp.route("/<int:lead_id>/suggest-status/dismiss", methods=["POST"])
+@bp.route("/<hid:lead_id>/suggest-status/dismiss", methods=["POST"])
 @login_required
 @require_permission("leads.manage")
 def suggest_status_dismiss(lead_id):
@@ -1960,7 +1960,7 @@ def suggest_status_dismiss(lead_id):
     return redirect(url_for("leads.detail", lead_id=lead.id))
 
 
-@bp.route("/<int:lead_id>/whatsapp-click", methods=["POST"])
+@bp.route("/<hid:lead_id>/whatsapp-click", methods=["POST"])
 @login_required
 @require_permission("leads.manage")
 def whatsapp_click(lead_id):

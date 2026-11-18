@@ -129,7 +129,7 @@ def _can_attach_to(source_type, source_id, company_id):
     return False
 
 
-@documents_bp.route("/upload/<source_type>/<int:source_id>", methods=["POST"])
+@documents_bp.route("/upload/<source_type>/<hid:source_id>", methods=["POST"])
 @login_required
 def upload(source_type, source_id):
     cid = g.active_company.id
@@ -176,7 +176,7 @@ def upload(source_type, source_id):
     return redirect(target or url_for("dashboard.index"))
 
 
-@documents_bp.route("/<int:doc_id>/delete", methods=["POST"])
+@documents_bp.route("/<hid:doc_id>/delete", methods=["POST"])
 @login_required
 def delete(doc_id):
     doc = db.session.get(Document, doc_id)
@@ -264,7 +264,7 @@ def dropdown():
     })
 
 
-@notifications_bp.route("/<int:n_id>/read", methods=["POST"])
+@notifications_bp.route("/<hid:n_id>/read", methods=["POST"])
 @login_required
 def read(n_id):
     cid = _active_company_id()
@@ -329,7 +329,7 @@ def index():
 # ─── Project feedback (internal — staff approve/reject) ─────────────────
 # Lives on the project detail page via a small POST endpoint, plus a
 # dedicated approve/reject action for staff.
-@audit_bp.route("/projects/<int:project_id>/feedback/<int:fb_id>/approve",
+@audit_bp.route("/projects/<hid:project_id>/feedback/<hid:fb_id>/approve",
                 methods=["POST"])
 @login_required
 @require_permission("projects.manage")
@@ -375,7 +375,7 @@ def index():
                            customer=cust, projects=projects)
 
 
-@portal_bp.route("/projects/<int:project_id>")
+@portal_bp.route("/projects/<hid:project_id>")
 @login_required
 def project_detail(project_id):
     cust = _client_or_403()
@@ -411,7 +411,7 @@ def project_detail(project_id):
                            can_submit_feedback=can_submit_feedback)
 
 
-@portal_bp.route("/projects/<int:project_id>/feedback", methods=["POST"])
+@portal_bp.route("/projects/<hid:project_id>/feedback", methods=["POST"])
 @login_required
 def submit_feedback(project_id):
     cust = _client_or_403()

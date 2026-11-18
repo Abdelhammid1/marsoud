@@ -90,7 +90,7 @@ def new():
     )
 
 
-@bp.route("/<int:count_id>")
+@bp.route("/<hid:count_id>")
 @login_required
 @require_permission("inventory.manage")
 def detail(count_id):
@@ -98,7 +98,7 @@ def detail(count_id):
     return render_template("inventory/counts/detail.html", row=row)
 
 
-@bp.route("/<int:count_id>/confirm", methods=["POST"])
+@bp.route("/<hid:count_id>/confirm", methods=["POST"])
 @login_required
 @require_permission("inventory.manage")
 def confirm(count_id):

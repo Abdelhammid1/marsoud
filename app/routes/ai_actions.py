@@ -40,7 +40,7 @@ def propose():
     return jsonify(result), 201
 
 
-@bp.route("/<int:intent_id>/confirm", methods=["POST"])
+@bp.route("/<hid:intent_id>/confirm", methods=["POST"])
 @login_required
 def confirm(intent_id):
     result, status = _confirm(

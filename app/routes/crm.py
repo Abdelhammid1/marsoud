@@ -181,7 +181,7 @@ def campaigns_quick_add():
     return jsonify({"id": c.id, "name": c.name, "reused": False})
 
 
-@bp.route("/campaigns/<int:cid>/toggle", methods=["POST"])
+@bp.route("/campaigns/<hid:cid>/toggle", methods=["POST"])
 @login_required
 @require_permission("leads.manage")
 def campaigns_toggle(cid):
@@ -239,7 +239,7 @@ def activities_index():
     )
 
 
-@bp.route("/leads/<int:lead_id>/activities/new", methods=["POST"])
+@bp.route("/leads/<hid:lead_id>/activities/new", methods=["POST"])
 @login_required
 @require_permission("leads.manage")
 def activity_create(lead_id):
@@ -336,7 +336,7 @@ def contacts_index():
                             contacts=contacts, search=search)
 
 
-@bp.route("/leads/<int:lead_id>/contacts/new", methods=["POST"])
+@bp.route("/leads/<hid:lead_id>/contacts/new", methods=["POST"])
 @login_required
 @require_permission("leads.manage")
 def contact_create(lead_id):
@@ -362,7 +362,7 @@ def contact_create(lead_id):
     return redirect(request.referrer or url_for("leads.detail", lead_id=lead.id))
 
 
-@bp.route("/contacts/<int:contact_id>/edit", methods=["POST"])
+@bp.route("/contacts/<hid:contact_id>/edit", methods=["POST"])
 @login_required
 @require_permission("leads.manage")
 def contact_edit(contact_id):
@@ -388,7 +388,7 @@ def contact_edit(contact_id):
     return redirect(request.referrer or url_for("crm.contacts_index"))
 
 
-@bp.route("/contacts/<int:contact_id>/delete", methods=["POST"])
+@bp.route("/contacts/<hid:contact_id>/delete", methods=["POST"])
 @login_required
 @require_permission("leads.manage")
 def contact_delete(contact_id):

@@ -247,7 +247,7 @@ def new():
                            project=None, customers=customers, pms=pms)
 
 
-@bp.route("/<int:project_id>")
+@bp.route("/<hid:project_id>")
 @login_required
 @require_permission("projects.view")
 def detail(project_id):
@@ -272,7 +272,7 @@ def detail(project_id):
                            docs=docs)
 
 
-@bp.route("/<int:project_id>/status", methods=["POST"])
+@bp.route("/<hid:project_id>/status", methods=["POST"])
 @login_required
 @require_permission("projects.manage")
 def status(project_id):
@@ -292,7 +292,7 @@ def status(project_id):
 
 
 # ─── Milestones ──────────────────────────────────────────────────────────
-@bp.route("/<int:project_id>/milestones/new", methods=["POST"])
+@bp.route("/<hid:project_id>/milestones/new", methods=["POST"])
 @login_required
 @require_permission("projects.manage")
 def milestone_new(project_id):
@@ -316,7 +316,7 @@ def milestone_new(project_id):
     return redirect(url_for("projects.detail", project_id=p.id))
 
 
-@bp.route("/<int:project_id>/milestones/<int:m_id>/toggle", methods=["POST"])
+@bp.route("/<hid:project_id>/milestones/<hid:m_id>/toggle", methods=["POST"])
 @login_required
 @require_permission("projects.manage")
 def milestone_toggle(project_id, m_id):
@@ -332,7 +332,7 @@ def milestone_toggle(project_id, m_id):
     return redirect(url_for("projects.detail", project_id=p.id))
 
 
-@bp.route("/<int:project_id>/milestones/<int:m_id>/edit", methods=["POST"])
+@bp.route("/<hid:project_id>/milestones/<hid:m_id>/edit", methods=["POST"])
 @login_required
 @require_permission("projects.manage")
 def milestone_edit(project_id, m_id):
@@ -356,7 +356,7 @@ def milestone_edit(project_id, m_id):
     return redirect(url_for("projects.detail", project_id=p.id))
 
 
-@bp.route("/<int:project_id>/milestones/<int:m_id>/delete", methods=["POST"])
+@bp.route("/<hid:project_id>/milestones/<hid:m_id>/delete", methods=["POST"])
 @login_required
 @require_permission("projects.manage")
 def milestone_delete(project_id, m_id):
@@ -381,7 +381,7 @@ def milestone_delete(project_id, m_id):
 
 
 # ─── Members ─────────────────────────────────────────────────────────────
-@bp.route("/<int:project_id>/members/add", methods=["POST"])
+@bp.route("/<hid:project_id>/members/add", methods=["POST"])
 @login_required
 @require_permission("projects.manage")
 def member_add(project_id):
@@ -407,7 +407,7 @@ def member_add(project_id):
     return redirect(url_for("projects.detail", project_id=p.id))
 
 
-@bp.route("/<int:project_id>/members/<int:member_id>/remove", methods=["POST"])
+@bp.route("/<hid:project_id>/members/<hid:member_id>/remove", methods=["POST"])
 @login_required
 @require_permission("projects.manage")
 def member_remove(project_id, member_id):
@@ -428,7 +428,7 @@ def _owner_only():
     return _role() == "owner" or has_permission("projects.view_all") and _role() == "admin"
 
 
-@bp.route("/<int:project_id>/edit", methods=["GET", "POST"])
+@bp.route("/<hid:project_id>/edit", methods=["GET", "POST"])
 @login_required
 @require_permission("projects.manage")
 def edit(project_id):
@@ -462,7 +462,7 @@ def edit(project_id):
                             managers=_project_managers())
 
 
-@bp.route("/<int:project_id>/delete", methods=["POST"])
+@bp.route("/<hid:project_id>/delete", methods=["POST"])
 @login_required
 def delete(project_id):
     """Owner-only soft delete with reason."""
@@ -485,7 +485,7 @@ def delete(project_id):
 # — an action task-archive already ships for tasks. These three
 # routes mirror app/routes/tasks.py:984-1072's shape so the two
 # archives feel consistent from the sidebar to the button labels.
-@bp.route("/<int:project_id>/archive", methods=["POST"])
+@bp.route("/<hid:project_id>/archive", methods=["POST"])
 @login_required
 @require_permission("projects.archive")
 def archive(project_id):
@@ -505,7 +505,7 @@ def archive(project_id):
     return redirect(url_for("projects.index"))
 
 
-@bp.route("/<int:project_id>/unarchive", methods=["POST"])
+@bp.route("/<hid:project_id>/unarchive", methods=["POST"])
 @login_required
 @require_permission("projects.archive")
 def unarchive(project_id):

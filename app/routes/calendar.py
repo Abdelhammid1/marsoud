@@ -1,3 +1,4 @@
+from app.services.url_ids import encode_id
 """Internal calendar view — lists upcoming meetings (Lead.next_meeting),
 task deadlines, and project end-dates in one chronologically-sorted timeline.
 
@@ -65,7 +66,7 @@ def index():
                 "kind": "meeting",
                 "title": f"اجتماع مع {lead.client_name}",
                 "subtitle": lead.service_needed,
-                "link": f"/leads/{lead.id}",
+                "link": f"/leads/{encode_id(lead.id)}",
             })
 
         # MARSOUD-CRM-CALENDAR (Abdelhamid 2026-07-13) — meetings + any
@@ -91,7 +92,7 @@ def index():
             if (act.type == LeadActivityType.MEETING
                     and act.activity_date is not None
                     and start <= act.activity_date < end):
-                key = (act.activity_date, f"/leads/{act.lead_id}")
+                key = (act.activity_date, f"/leads/{encode_id(act.lead_id)}")
                 if key not in _seen:
                     _seen.add(key)
                     meetings.append({
@@ -100,14 +101,14 @@ def index():
                         "title": (act.subject
                                     or f"اجتماع مع {act.lead.client_name}"),
                         "subtitle": act.lead.client_name,
-                        "link": f"/leads/{act.lead_id}",
+                        "link": f"/leads/{encode_id(act.lead_id)}",
                     })
             # Any activity type: an explicit follow_up_date is a
             # follow-up event on the timeline.
             if (act.follow_up_date is not None
                     and start <= act.follow_up_date < end):
                 key = (act.follow_up_date,
-                       f"/leads/{act.lead_id}#activity-{act.id}")
+                       f"/leads/{encode_id(act.lead_id)}#activity-{act.id}")
                 if key in _seen:
                     continue
                 _seen.add(key)
@@ -117,7 +118,7 @@ def index():
                     "title": (f"{act.type.icon} متابعة: "
                                 f"{act.subject or act.type.label_ar}"),
                     "subtitle": act.lead.client_name,
-                    "link": f"/leads/{act.lead_id}",
+                    "link": f"/leads/{encode_id(act.lead_id)}",
                 })
 
     # Task deadlines
@@ -143,7 +144,7 @@ def index():
                 "kind": "task_deadline",
                 "title": f"Deadline: {t.title}",
                 "subtitle": f"{project_label} · {priority_label}",
-                "link": f"/tasks/{t.id}",
+                "link": f"/tasks/{encode_id(t.id)}",
             })
 
     # Project end dates
@@ -162,7 +163,7 @@ def index():
                 "kind": "project_end",
                 "title": f"تسليم متوقع: {p.name}",
                 "subtitle": p.type,
-                "link": f"/projects/{p.id}",
+                "link": f"/projects/{encode_id(p.id)}",
             })
 
     # MARSOUD-CALENDAR-MANUAL-EVENTS (Abdelhamid 2026-07-29) — user-
@@ -246,7 +247,7 @@ def create_event():
     return redirect(url_for("calendar.index"))
 
 
-@bp.route("/events/<int:event_id>/edit", methods=["POST"])
+@bp.route("/events/<hid:event_id>/edit", methods=["POST"])
 @login_required
 def edit_event(event_id):
     cid = g.active_company.id
@@ -285,7 +286,7 @@ def edit_event(event_id):
     return redirect(url_for("calendar.index"))
 
 
-@bp.route("/events/<int:event_id>/delete", methods=["POST"])
+@bp.route("/events/<hid:event_id>/delete", methods=["POST"])
 @login_required
 def delete_event(event_id):
     cid = g.active_company.id

@@ -188,7 +188,7 @@ def requests():
     )
 
 
-@bp.route("/requests/<int:req_id>/approve", methods=["GET", "POST"])
+@bp.route("/requests/<hid:req_id>/approve", methods=["GET", "POST"])
 @login_required
 @require_permission("custody.manage")
 def request_approve(req_id):
@@ -259,7 +259,7 @@ def request_approve(req_id):
     )
 
 
-@bp.route("/requests/<int:req_id>/reject", methods=["POST"])
+@bp.route("/requests/<hid:req_id>/reject", methods=["POST"])
 @login_required
 @require_permission("custody.manage")
 def request_reject(req_id):
@@ -277,7 +277,7 @@ def request_reject(req_id):
 
 
 # ─── Detail + settlement ────────────────────────────────────────
-@bp.route("/<int:custody_id>")
+@bp.route("/<hid:custody_id>")
 @login_required
 @require_permission("custody.manage")
 def detail(custody_id):
@@ -294,7 +294,7 @@ def detail(custody_id):
     )
 
 
-@bp.route("/<int:custody_id>/settle", methods=["POST"])
+@bp.route("/<hid:custody_id>/settle", methods=["POST"])
 @login_required
 @require_permission("custody.manage")
 def add_line(custody_id):
@@ -317,7 +317,7 @@ def add_line(custody_id):
     return redirect(url_for("custody.detail", custody_id=custody.id))
 
 
-@bp.route("/<int:custody_id>/close", methods=["POST"])
+@bp.route("/<hid:custody_id>/close", methods=["POST"])
 @login_required
 @require_permission("custody.manage")
 def close(custody_id):
@@ -341,7 +341,7 @@ def close(custody_id):
     return redirect(url_for("custody.detail", custody_id=custody.id))
 
 
-@bp.route("/<int:custody_id>/cancel", methods=["POST"])
+@bp.route("/<hid:custody_id>/cancel", methods=["POST"])
 @login_required
 @require_permission("custody.manage")
 def cancel(custody_id):
@@ -364,7 +364,7 @@ def cancel(custody_id):
 # always refuses (AC #2 defense-in-depth at the route layer, even
 # though no UI button offers it). Reopen (AC #4) undoes a
 # close_settlement by reversing the settlement JE.
-@bp.route("/requests/<int:req_id>/delete", methods=["POST"])
+@bp.route("/requests/<hid:req_id>/delete", methods=["POST"])
 @login_required
 @require_permission("custody.manage")
 def request_delete(req_id):
@@ -382,7 +382,7 @@ def request_delete(req_id):
     return redirect(url_for("custody.requests"))
 
 
-@bp.route("/<int:custody_id>/delete", methods=["POST"])
+@bp.route("/<hid:custody_id>/delete", methods=["POST"])
 @login_required
 @require_permission("custody.manage")
 def custody_delete_refused(custody_id):
@@ -405,7 +405,7 @@ def custody_delete_refused(custody_id):
                              custody_id=custody.id))
 
 
-@bp.route("/<int:custody_id>/reopen", methods=["POST"])
+@bp.route("/<hid:custody_id>/reopen", methods=["POST"])
 @login_required
 @require_permission("custody.manage")
 def reopen(custody_id):

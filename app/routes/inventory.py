@@ -141,7 +141,7 @@ def warehouse_new():
     return redirect(url_for("inventory.warehouses"))
 
 
-@bp.route("/warehouses/<int:wh_id>/toggle", methods=["POST"])
+@bp.route("/warehouses/<hid:wh_id>/toggle", methods=["POST"])
 @login_required
 @require_permission("inventory.manage")
 def warehouse_toggle(wh_id):
@@ -310,7 +310,7 @@ def opening_balance():
 
 
 # ─── Variant detail ──────────────────────────────────────────────────────
-@bp.route("/variants/<int:variant_id>")
+@bp.route("/variants/<hid:variant_id>")
 @login_required
 @require_permission("inventory.view")
 def variant_detail(variant_id):
@@ -400,7 +400,7 @@ def transfer_new():
     )
 
 
-@bp.route("/transfers/<int:transfer_id>")
+@bp.route("/transfers/<hid:transfer_id>")
 @login_required
 @require_permission("transfers.view")
 def transfer_detail(transfer_id):
@@ -411,7 +411,7 @@ def transfer_detail(transfer_id):
     return render_template("inventory/transfer_detail.html", transfer=tr)
 
 
-@bp.route("/transfers/<int:transfer_id>/post", methods=["POST"])
+@bp.route("/transfers/<hid:transfer_id>/post", methods=["POST"])
 @login_required
 @require_permission("transfers.manage")
 def transfer_post(transfer_id):
@@ -428,7 +428,7 @@ def transfer_post(transfer_id):
     return redirect(url_for("inventory.transfer_detail", transfer_id=tr.id))
 
 
-@bp.route("/transfers/<int:transfer_id>/cancel", methods=["POST"])
+@bp.route("/transfers/<hid:transfer_id>/cancel", methods=["POST"])
 @login_required
 @require_permission("transfers.manage")
 def transfer_cancel(transfer_id):
@@ -447,7 +447,7 @@ def transfer_cancel(transfer_id):
 
 
 # ─── Barcode print (ERP-03) ──────────────────────────────────────────────
-@bp.route("/variants/<int:variant_id>/barcode.png")
+@bp.route("/variants/<hid:variant_id>/barcode.png")
 @login_required
 @require_permission("inventory.view")
 def variant_barcode(variant_id):

@@ -109,7 +109,7 @@ def role_new():
     return redirect(url_for("settings_roles.index"))
 
 
-@bp.route("/<int:role_id>/rename", methods=["POST"])
+@bp.route("/<hid:role_id>/rename", methods=["POST"])
 @login_required
 @require_permission("users.manage")
 def role_rename(role_id):
@@ -123,7 +123,7 @@ def role_rename(role_id):
     return redirect(url_for("settings_roles.index", role_id=role_id))
 
 
-@bp.route("/<int:role_id>/delete", methods=["POST"])
+@bp.route("/<hid:role_id>/delete", methods=["POST"])
 @login_required
 @require_permission("users.manage")
 def role_delete(role_id):
@@ -137,7 +137,7 @@ def role_delete(role_id):
         return redirect(url_for("settings_roles.index", role_id=role_id))
 
 
-@bp.route("/<int:role_id>/clone", methods=["POST"])
+@bp.route("/<hid:role_id>/clone", methods=["POST"])
 @login_required
 @require_permission("users.manage")
 def role_clone(role_id):
@@ -158,7 +158,7 @@ def role_clone(role_id):
 
 
 # ─── Permission toggling ────────────────────────────────────────────────
-@bp.route("/<int:role_id>/permissions", methods=["POST"])
+@bp.route("/<hid:role_id>/permissions", methods=["POST"])
 @login_required
 @require_permission("users.manage")
 def role_permissions(role_id):
@@ -182,7 +182,7 @@ def role_permissions(role_id):
 
 
 # ─── Member assignment ─────────────────────────────────────────────────
-@bp.route("/<int:role_id>/members/add", methods=["POST"])
+@bp.route("/<hid:role_id>/members/add", methods=["POST"])
 @login_required
 @require_permission("users.manage")
 def member_add(role_id):
@@ -199,7 +199,7 @@ def member_add(role_id):
     return redirect(url_for("settings_roles.index", role_id=role_id, tab="admins"))
 
 
-@bp.route("/<int:role_id>/members/<int:user_id>/remove", methods=["POST"])
+@bp.route("/<hid:role_id>/members/<hid:user_id>/remove", methods=["POST"])
 @login_required
 @require_permission("users.manage")
 def member_remove(role_id, user_id):

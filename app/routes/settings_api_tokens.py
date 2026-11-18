@@ -55,7 +55,7 @@ def create():
     ))
 
 
-@bp.route("/<int:token_id>/revoke", methods=["POST"])
+@bp.route("/<hid:token_id>/revoke", methods=["POST"])
 @login_required
 @require_permission("api_tokens.manage")
 def revoke(token_id):

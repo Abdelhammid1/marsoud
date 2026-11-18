@@ -45,7 +45,7 @@ def index():
     return render_template("recurring_bills/index.html", items=items)
 
 
-@bp.route("/from-bill/<int:bill_id>", methods=["POST"])
+@bp.route("/from-bill/<hid:bill_id>", methods=["POST"])
 @login_required
 @require_permission("vendor_bills.create")
 def from_bill(bill_id):
@@ -70,7 +70,7 @@ def from_bill(bill_id):
         return redirect(url_for("vendor_bills.view", bill_id=bill_id))
 
 
-@bp.route("/<int:rb_id>/deactivate", methods=["POST"])
+@bp.route("/<hid:rb_id>/deactivate", methods=["POST"])
 @login_required
 @require_permission("vendor_bills.create")
 def deactivate(rb_id):
@@ -83,7 +83,7 @@ def deactivate(rb_id):
     return redirect(url_for("recurring_bills.index"))
 
 
-@bp.route("/<int:rb_id>/override", methods=["POST"])
+@bp.route("/<hid:rb_id>/override", methods=["POST"])
 @login_required
 @require_permission("vendor_bills.create")
 def override(rb_id):
@@ -108,7 +108,7 @@ def override(rb_id):
     return redirect(url_for("recurring_bills.index"))
 
 
-@bp.route("/<int:rb_id>/materialize", methods=["POST"])
+@bp.route("/<hid:rb_id>/materialize", methods=["POST"])
 @login_required
 @require_permission("vendor_bills.create")
 def materialize(rb_id):

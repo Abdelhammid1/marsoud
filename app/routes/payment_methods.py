@@ -47,7 +47,7 @@ def new():
     return render_template("payment_methods/form.html", accounts=accounts)
 
 
-@bp.route("/<int:method_id>/toggle", methods=["POST"])
+@bp.route("/<hid:method_id>/toggle", methods=["POST"])
 @login_required
 @require_permission("payment_methods.manage")
 def toggle(method_id):

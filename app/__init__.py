@@ -47,6 +47,10 @@ def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
 
+    from app.services.url_ids import HashIdConverter, encode_id
+    app.url_map.converters["hid"] = HashIdConverter
+    app.jinja_env.filters["hid"] = encode_id
+
     db.init_app(app)
     login_manager.init_app(app)
     login_manager.login_view = "auth.login"

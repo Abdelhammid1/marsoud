@@ -1,3 +1,4 @@
+from app.services.url_ids import encode_id
 """Helpers for the Cycle 7 gap-close work — notifications, audit, documents,
 client feedback gating.
 """
@@ -390,7 +391,7 @@ def submit_client_feedback(project, *, customer_id, rating, comment=None,
             kind=NotificationKind.PROJECT_FEEDBACK_SUBMITTED,
             title=f"ملاحظات جديدة على مشروع: {project.name}",
             body=f"التقييم: {rating}/5",
-            link_url=f"/projects/{project.id}",
+            link_url=f"/projects/{encode_id(project.id)}",
         )
     return fb
 
@@ -496,7 +497,7 @@ def remind_task_deadlines_24h():
                 kind=NotificationKind.TASK_DEADLINE_24H,
                 title=f"⏰ Deadline قريب: {t.title}",
                 body=f"المهمة task#{t.id} تنتهي يوم {t.deadline.isoformat()}.",
-                link_url=f"/tasks/{t.id}",
+                link_url=f"/tasks/{encode_id(t.id)}",
             )
             sent += 1
     for t in late:
@@ -508,7 +509,7 @@ def remind_task_deadlines_24h():
                 kind=NotificationKind.TASK_DEADLINE_24H,
                 title=f"مهمة متأخرة: {t.title}",
                 body=f"المهمة task#{t.id} متأخرة، موعدها كان {t.deadline.isoformat()}.",
-                link_url=f"/tasks/{t.id}",
+                link_url=f"/tasks/{encode_id(t.id)}",
             )
             sent_late += 1
     return {"checked": len(soon) + len(late), "reminders_sent": sent,

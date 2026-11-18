@@ -141,7 +141,7 @@ def requests():
     )
 
 
-@bp.route("/requests/<int:req_id>/approve", methods=["GET", "POST"])
+@bp.route("/requests/<hid:req_id>/approve", methods=["GET", "POST"])
 @login_required
 @require_permission("advances.manage")
 def request_approve(req_id):
@@ -176,7 +176,7 @@ def request_approve(req_id):
     )
 
 
-@bp.route("/requests/<int:req_id>/reject", methods=["POST"])
+@bp.route("/requests/<hid:req_id>/reject", methods=["POST"])
 @login_required
 @require_permission("advances.manage")
 def request_reject(req_id):
@@ -194,7 +194,7 @@ def request_reject(req_id):
 
 
 # ─── Cancel ─────────────────────────────────────────────────────────────
-@bp.route("/<int:advance_id>/cancel", methods=["POST"])
+@bp.route("/<hid:advance_id>/cancel", methods=["POST"])
 @login_required
 @require_permission("advances.manage")
 def cancel(advance_id):

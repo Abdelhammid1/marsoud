@@ -223,7 +223,7 @@
     <input type="search" class="ig-search" id="ig-search" placeholder="ابحث في المحادثات…" style="display:none">
     <div id="conversations-list" data-active-id="{{ active_conversation_id or '' }}">
       {% for c in conversations %}
-      <div class="conv-row{% if c.id == active_conversation_id %} on{% endif %}" data-id="{{ c.id }}" onclick="loadConversation({{ c.id }})">
+      <div class="conv-row{% if c.id == active_conversation_id %} on{% endif %}" data-id="{{ c.id | hid }}" onclick="loadConversation('{{ c.id | hid }}')">
         <div style="min-width:0;flex:1">
           <div class="conv-t">{{ c.title or 'محادثة جديدة' }}</div>
           <div class="conv-d">{{ c.last_message_at | company_dt('%Y-%m-%d %H:%M') if c.last_message_at else '' }}</div>
@@ -409,7 +409,7 @@
     $('ig-archcur').classList.toggle('ig-dis', !id);
     markRows(id);
     if (!id) return;
-    if (list.querySelector('.conv-row[data-id="' + Number(id) + '"]')) return;
+    if (list.querySelector('.conv-row[data-id="' + String(id) + '"]')) return;
     var title = (firstText || 'محادثة جديدة').trim().replace(/\s+/g, ' ').slice(0, 60);
     var el = document.createElement('div');
     el.className = 'conv-row on'; el.setAttribute('data-id', String(Number(id)));
@@ -432,19 +432,19 @@
     var id = activeId();
     if (!id) { toast('ابدأ محادثة الأول وبعدها تقدر تؤرشفها'); return; }
     if (!confirm('أرشفة هذه المحادثة؟ هتلاقيها في «المحادثات المؤرشفة» وتقدر ترجّعها (وتُحذف نهائياً بعد مدة الاحتفاظ).')) return;
-    try { await fetch(BASE + '/conversations/' + Number(id), { method: 'DELETE' }); } catch (e) {}
+    try { await fetch(BASE + '/conversations/' + encodeURIComponent(id), { method: 'DELETE' }); } catch (e) {}
     location.href = location.pathname;
   };
   window.deleteConversation = async function (ev, cid) {
     ev.stopPropagation();
     if (!confirm('أرشفة هذه المحادثة؟')) return;
-    try { await fetch(BASE + '/conversations/' + Number(cid), { method: 'DELETE' }); } catch (e) {}
+    try { await fetch(BASE + '/conversations/' + encodeURIComponent(cid), { method: 'DELETE' }); } catch (e) {}
     location.href = location.pathname;
   };
   window.loadConversation = async function (cid) {
     box.innerHTML = '<div class="ig-state">جاري تحميل المحادثة…</div>';
     try {
-      var res = await fetch(BASE + '/conversations/' + Number(cid) + '/messages');
+      var res = await fetch(BASE + '/conversations/' + encodeURIComponent(cid) + '/messages');
       var data = await res.json();
       if (data.messages === undefined) { box.innerHTML = '<div class="ig-state">تعذّر تحميل المحادثة.</div>'; return; }
       box.innerHTML = '';
@@ -550,10 +550,10 @@
     if (!id) return;
     el.classList.add('busy');
     try {
-      var r = await fetch(BASE + '/conversations/' + Number(id) + '/restore', { method: 'POST' });
+      var r = await fetch(BASE + '/conversations/' + encodeURIComponent(id) + '/restore', { method: 'POST' });
       var d = await r.json();
       if (!d.ok) throw new Error('x');
-      location.href = location.pathname + '?c=' + Number(id);
+      location.href = location.pathname + '?c=' + encodeURIComponent(id);
     } catch (e) { el.classList.remove('busy'); toast('تعذّرت الاستعادة، حاول مرة أخرى'); }
   }
   window.agOpenArchive = async function () {
@@ -567,7 +567,7 @@
       if (!cs.length) { mb.innerHTML = '<div class="ig-mm">مفيش محادثات مؤرشفة حالياً.</div>'; return; }
       mb.innerHTML = cs.map(function (c) {
         var dt = parseIso(c.last_message_at || c.created_at);
-        return '<div class="ig-ai" data-id="' + Number(c.id) + '" tabindex="0"><div class="ig-ait"><b>' + esc(c.title || 'محادثة بدون عنوان') +
+        return '<div class="ig-ai" data-id="' + String(c.id) + '" tabindex="0"><div class="ig-ait"><b>' + esc(c.title || 'محادثة بدون عنوان') +
           '</b><span>' + (dt ? fmtDate(dt) : '') + '</span></div><span class="ig-rs">↩ استعادة</span></div>';
       }).join('');
     } catch (e) { mb.innerHTML = '<div class="ig-mm">تعذّر تحميل المحادثات المؤرشفة.</div>'; }

@@ -92,7 +92,7 @@ def new():
     return render_template("vendors/form.html")
 
 
-@bp.route("/<int:vendor_id>")
+@bp.route("/<hid:vendor_id>")
 @login_required
 def view(vendor_id):
     """MARSOUD-REFUNDS-01 — minimal vendor detail page so refunds have
@@ -128,7 +128,7 @@ def view(vendor_id):
 
 
 # MARSOUD-29 — edit existing vendor
-@bp.route("/<int:vendor_id>/edit", methods=["GET", "POST"])
+@bp.route("/<hid:vendor_id>/edit", methods=["GET", "POST"])
 @login_required
 @require_permission("partners.manage")
 def edit(vendor_id):
@@ -153,7 +153,7 @@ def edit(vendor_id):
 
 
 # MARSOUD-29 — delete vendor (with integrity guard)
-@bp.route("/<int:vendor_id>/delete", methods=["POST"])
+@bp.route("/<hid:vendor_id>/delete", methods=["POST"])
 @login_required
 @require_permission("partners.manage")
 def delete(vendor_id):
@@ -183,7 +183,7 @@ def delete(vendor_id):
 # URL so the taxonomy is visibly nested inside the vendor it belongs
 # to. All mutations go through the service layer to keep the
 # uniqueness + delete-guard rules in one place.
-@bp.route("/<int:vendor_id>/sub-categories")
+@bp.route("/<hid:vendor_id>/sub-categories")
 @login_required
 @require_permission("partners.manage")
 def sub_categories_index(vendor_id):
@@ -200,7 +200,7 @@ def sub_categories_index(vendor_id):
     )
 
 
-@bp.route("/<int:vendor_id>/sub-categories/new", methods=["POST"])
+@bp.route("/<hid:vendor_id>/sub-categories/new", methods=["POST"])
 @login_required
 @require_permission("partners.manage")
 def sub_categories_create(vendor_id):
@@ -220,7 +220,7 @@ def sub_categories_create(vendor_id):
         "vendors.sub_categories_index", vendor_id=v.id))
 
 
-@bp.route("/<int:vendor_id>/sub-categories/<int:sc_id>/edit",
+@bp.route("/<hid:vendor_id>/sub-categories/<hid:sc_id>/edit",
            methods=["POST"])
 @login_required
 @require_permission("partners.manage")
@@ -244,7 +244,7 @@ def sub_categories_edit(vendor_id, sc_id):
         "vendors.sub_categories_index", vendor_id=v.id))
 
 
-@bp.route("/<int:vendor_id>/sub-categories/<int:sc_id>/toggle",
+@bp.route("/<hid:vendor_id>/sub-categories/<hid:sc_id>/toggle",
            methods=["POST"])
 @login_required
 @require_permission("partners.manage")
@@ -262,7 +262,7 @@ def sub_categories_toggle(vendor_id, sc_id):
         "vendors.sub_categories_index", vendor_id=v.id))
 
 
-@bp.route("/<int:vendor_id>/sub-categories/<int:sc_id>/delete",
+@bp.route("/<hid:vendor_id>/sub-categories/<hid:sc_id>/delete",
            methods=["POST"])
 @login_required
 @require_permission("partners.manage")
@@ -292,7 +292,7 @@ def sub_categories_delete(vendor_id, sc_id):
 # sub-category dropdown per row + a save-all button. Sub-category
 # is a taxonomy tag — no ledger impact — so we allow editing even
 # for lines on POSTED bills.
-@bp.route("/<int:vendor_id>/bill-items/categorize", methods=["GET", "POST"])
+@bp.route("/<hid:vendor_id>/bill-items/categorize", methods=["GET", "POST"])
 @login_required
 @require_permission("partners.manage")
 def bill_items_categorize(vendor_id):
@@ -391,7 +391,7 @@ def bill_items_categorize(vendor_id):
     )
 
 
-@bp.route("/<int:vendor_id>/sub-categories.json")
+@bp.route("/<hid:vendor_id>/sub-categories.json")
 @login_required
 def sub_categories_api(vendor_id):
     """JSON feed for the bill-form dropdown — active categories only.

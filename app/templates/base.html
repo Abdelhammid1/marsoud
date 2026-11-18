@@ -553,7 +553,7 @@ tailwind.config = {
         <select onchange="if(this.value) window.location.href='/switch-company/'+this.value"
                 class="w-full bg-white text-slate-700 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer">
           {% for c in user_companies %}
-          <option value="{{ c.id }}" {% if c.id == active_company.id %}selected{% endif %} style="color:#0A2540">{{ c.name }}</option>
+          <option value="{{ c.id | hid }}" {% if c.id == active_company.id %}selected{% endif %} style="color:#0A2540">{{ c.name }}</option>
           {% endfor %}
         </select>
       </div>

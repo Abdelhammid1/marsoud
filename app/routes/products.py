@@ -443,7 +443,7 @@ def new():
 
 
 # ─── MARSOUD-50.2: edit page + variant management ──────────────────
-@bp.route("/<int:product_id>/edit", methods=["GET", "POST"])
+@bp.route("/<hid:product_id>/edit", methods=["GET", "POST"])
 @login_required
 @require_permission("products.manage")
 def edit(product_id):
@@ -542,7 +542,7 @@ def edit(product_id):
     )
 
 
-@bp.route("/<int:product_id>/serials/add", methods=["POST"])
+@bp.route("/<hid:product_id>/serials/add", methods=["POST"])
 @login_required
 @require_permission("products.manage")
 def serials_add(product_id):
@@ -581,7 +581,7 @@ def serials_add(product_id):
     return redirect(url_for("products.edit", product_id=p.id))
 
 
-@bp.route("/<int:product_id>/variants/new", methods=["POST"])
+@bp.route("/<hid:product_id>/variants/new", methods=["POST"])
 @login_required
 @require_permission("products.manage")
 def variant_new(product_id):
@@ -614,7 +614,7 @@ def variant_new(product_id):
     return redirect(url_for("products.edit", product_id=p.id))
 
 
-@bp.route("/<int:product_id>/variants/<int:variant_id>/edit", methods=["POST"])
+@bp.route("/<hid:product_id>/variants/<hid:variant_id>/edit", methods=["POST"])
 @login_required
 @require_permission("products.manage")
 def variant_edit(product_id, variant_id):
@@ -644,7 +644,7 @@ def variant_edit(product_id, variant_id):
     return redirect(url_for("products.edit", product_id=p.id))
 
 
-@bp.route("/<int:product_id>/variants/<int:variant_id>/deactivate", methods=["POST"])
+@bp.route("/<hid:product_id>/variants/<hid:variant_id>/deactivate", methods=["POST"])
 @login_required
 @require_permission("products.manage")
 def variant_deactivate(product_id, variant_id):
@@ -814,7 +814,7 @@ def group_create():
     return redirect(url_for("products.hierarchy"))
 
 
-@bp.route("/hierarchy/groups/<int:group_id>/edit", methods=["POST"])
+@bp.route("/hierarchy/groups/<hid:group_id>/edit", methods=["POST"])
 @login_required
 @require_permission("products.manage")
 def group_edit(group_id):
@@ -839,7 +839,7 @@ def group_edit(group_id):
     return redirect(url_for("products.hierarchy"))
 
 
-@bp.route("/hierarchy/groups/<int:group_id>/delete", methods=["POST"])
+@bp.route("/hierarchy/groups/<hid:group_id>/delete", methods=["POST"])
 @login_required
 @require_permission("products.manage")
 def group_delete(group_id):
@@ -894,7 +894,7 @@ def category_create():
     return redirect(url_for("products.hierarchy"))
 
 
-@bp.route("/hierarchy/categories/<int:cat_id>/edit", methods=["POST"])
+@bp.route("/hierarchy/categories/<hid:cat_id>/edit", methods=["POST"])
 @login_required
 @require_permission("products.manage")
 def category_edit(cat_id):
@@ -919,7 +919,7 @@ def category_edit(cat_id):
     return redirect(url_for("products.hierarchy"))
 
 
-@bp.route("/hierarchy/categories/<int:cat_id>/delete", methods=["POST"])
+@bp.route("/hierarchy/categories/<hid:cat_id>/delete", methods=["POST"])
 @login_required
 @require_permission("products.manage")
 def category_delete(cat_id):
@@ -958,7 +958,7 @@ def api_categories():
 
 
 # ─── MARSOUD-UNIT-CONVERSION-01 — Product units ─────────────────────
-@bp.route("/<int:product_id>/units", methods=["GET", "POST"])
+@bp.route("/<hid:product_id>/units", methods=["GET", "POST"])
 @login_required
 @require_permission("products.manage")
 def units(product_id):
@@ -1001,7 +1001,7 @@ def units(product_id):
     )
 
 
-@bp.route("/<int:product_id>/units/<int:unit_id>/delete", methods=["POST"])
+@bp.route("/<hid:product_id>/units/<hid:unit_id>/delete", methods=["POST"])
 @login_required
 @require_permission("products.manage")
 def unit_delete(product_id, unit_id):
@@ -1021,7 +1021,7 @@ def unit_delete(product_id, unit_id):
     return redirect(url_for("products.units", product_id=p.id))
 
 
-@bp.route("/<int:product_id>/units/<int:unit_id>/edit", methods=["POST"])
+@bp.route("/<hid:product_id>/units/<hid:unit_id>/edit", methods=["POST"])
 @login_required
 @require_permission("products.manage")
 def unit_edit(product_id, unit_id):

@@ -112,7 +112,7 @@ def upload():
     return redirect(url_for("user_files.index"))
 
 
-@bp.route("/<int:file_id>")
+@bp.route("/<hid:file_id>")
 @login_required
 def detail(file_id):
     f = _get_or_403(file_id)
@@ -139,7 +139,7 @@ def _harden(resp):
     return resp
 
 
-@bp.route("/<int:file_id>/raw")
+@bp.route("/<hid:file_id>/raw")
 @login_required
 def raw(file_id):
     """Inline stream — used by the <img> / <iframe> preview embeds
@@ -155,7 +155,7 @@ def raw(file_id):
     return _harden(resp)
 
 
-@bp.route("/<int:file_id>/download")
+@bp.route("/<hid:file_id>/download")
 @login_required
 def download(file_id):
     """Force-download variant of /raw — same auth gate. Kept as a
@@ -171,7 +171,7 @@ def download(file_id):
     return _harden(resp)
 
 
-@bp.route("/<int:file_id>/delete", methods=["POST"])
+@bp.route("/<hid:file_id>/delete", methods=["POST"])
 @login_required
 def delete(file_id):
     f = _get_or_403(file_id, need_write=True)
@@ -183,7 +183,7 @@ def delete(file_id):
 
 
 # ─── Admin: view any user's folder in the company ──────────────────────
-@bp.route("/user/<int:user_id>/")
+@bp.route("/user/<hid:user_id>/")
 @login_required
 def user_folder(user_id):
     if user_id == current_user.id:

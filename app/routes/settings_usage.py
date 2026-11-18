@@ -125,7 +125,7 @@ def index():
     )
 
 
-@bp.route("/set-cap/<int:user_id>", methods=["POST"])
+@bp.route("/set-cap/<hid:user_id>", methods=["POST"])
 @login_required
 def set_cap(user_id):
     if not _is_owner():

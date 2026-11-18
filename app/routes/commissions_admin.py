@@ -223,7 +223,7 @@ def index():
     )
 
 
-@bp.route("/<int:comm_id>/settle", methods=["POST"])
+@bp.route("/<hid:comm_id>/settle", methods=["POST"])
 @login_required
 @require_permission("payroll.accruals")
 def settle(comm_id):
@@ -296,7 +296,7 @@ def bulk_settle():
     return redirect(url_for("commissions_admin.index", tab="unpaid"))
 
 
-@bp.route("/<int:comm_id>/void", methods=["POST"])
+@bp.route("/<hid:comm_id>/void", methods=["POST"])
 @login_required
 @require_permission("payroll.accruals")
 def void(comm_id):
@@ -315,7 +315,7 @@ def void(comm_id):
     return redirect(url_for("commissions_admin.index", tab="voided"))
 
 
-@bp.route("/rep/<int:user_id>")
+@bp.route("/rep/<hid:user_id>")
 @login_required
 @require_permission("reports.view")
 def rep_detail(user_id):

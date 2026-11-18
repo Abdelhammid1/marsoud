@@ -168,7 +168,7 @@
           <div style="margin-top:8px"><dt style="color:var(--mut);font-size:11px">Extra</dt><pre>{{ a.extra_data }}</pre></div>
           {% endif %}
           {% if a.entity_type and a.entity_id and not is_portal %}
-          <div style="margin-top:8px"><a href="/{{ a.entity_type }}s/{{ a.entity_id }}">↗ افتح الكيان</a></div>
+          <div style="margin-top:8px"><a href="/{{ a.entity_type }}s/{{ a.entity_id | hid }}">↗ افتح الكيان</a></div>
           {% endif %}
         </div>
       </div>

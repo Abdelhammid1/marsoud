@@ -99,7 +99,7 @@ def new():
     return render_template("assets/form.html", fixed_accounts=fixed_accounts, vendors=vendors)
 
 
-@bp.route("/<int:asset_id>")
+@bp.route("/<hid:asset_id>")
 @login_required
 def view(asset_id):
     asset = db.session.get(FixedAsset, asset_id)
@@ -117,7 +117,7 @@ def view(asset_id):
 # Cross-tenant guard by loading with company scope BEFORE calling
 # the service (service also checks but this keeps the URL 404
 # rather than 500-with-service-error for company B poking A's id).
-@bp.route("/<int:asset_id>/dispose", methods=["POST"])
+@bp.route("/<hid:asset_id>/dispose", methods=["POST"])
 @login_required
 @require_permission("assets.dispose")
 def dispose(asset_id):

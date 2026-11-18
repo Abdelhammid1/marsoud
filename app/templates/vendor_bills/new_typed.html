@@ -56,7 +56,7 @@
         <select name="vendor_id" id="vendor_id" class="select"
                 onchange="onVendorChange()">
           <option value="">— بدون (للنقدي والبنك) —</option>
-          {% for v in vendors %}<option value="{{ v.id }}">{{ v.name }}</option>{% endfor %}
+          {% for v in vendors %}<option value="{{ v.id }}" data-hid="{{ v.id | hid }}">{{ v.name }}</option>{% endfor %}
         </select>
         <p class="text-xs text-slate-500 mt-1" id="vendor-required-hint" style="display:none">إلزامي عند الدفع الآجل</p>
       </div>
@@ -416,10 +416,12 @@ function calcTotals() {
 let _subCatCache = [];   // list of {id,name} for the current vendor
 
 async function _fetchSubCategoriesForCurrentVendor() {
-  const vid = document.getElementById('vendor_id').value;
+  const vSel = document.getElementById('vendor_id');
+  const vid = vSel.value;
+  const vhid = vSel.options[vSel.selectedIndex]?.dataset?.hid || vid;
   if (!vid) { _subCatCache = []; return; }
   try {
-    const res = await fetch(`/vendors/${vid}/sub-categories.json`);
+    const res = await fetch(`/vendors/${vhid}/sub-categories.json`);
     _subCatCache = await res.json();
   } catch (_) { _subCatCache = []; }
 }

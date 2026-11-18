@@ -1,3 +1,4 @@
+from app.services.url_ids import encode_id
 """Tasks blueprint — Kanban + task CRUD + multi-assignee (MARSOUD-TASKS-02).
 
 Visibility:
@@ -659,7 +660,7 @@ def quick_add():
 
 
 # MARSOUD-TASKS-P45 - add a subtask straight from the parent's page
-@bp.route("/<int:task_id>/subtask", methods=["POST"])
+@bp.route("/<hid:task_id>/subtask", methods=["POST"])
 @login_required
 @require_permission("tasks.manage")
 def subtask_add(task_id):
@@ -1013,7 +1014,7 @@ def new():
                            selected_parent_id=selected_parent_id)
 
 
-@bp.route("/<int:task_id>")
+@bp.route("/<hid:task_id>")
 @login_required
 @require_permission("tasks.view")
 def detail(task_id):
@@ -1042,7 +1043,7 @@ def detail(task_id):
     )
 
 
-@bp.route("/<int:task_id>/edit", methods=["GET", "POST"])
+@bp.route("/<hid:task_id>/edit", methods=["GET", "POST"])
 @login_required
 @require_permission("tasks.manage")
 def edit(task_id):
@@ -1185,7 +1186,7 @@ def edit(task_id):
                              kind=NotificationKind.TASK_UPDATED,
                              title=f"✏️ تحديث على مهمة: {t.title}",
                              body=None,
-                             link_url=f"/tasks/{t.id}",
+                             link_url=f"/tasks/{encode_id(t.id)}",
                              task=t)
                 db.session.commit()
             except Exception:
@@ -1244,7 +1245,7 @@ def edit(task_id):
                            selected_parent_id=t.parent_task_id)
 
 
-@bp.route("/<int:task_id>/status", methods=["POST"])
+@bp.route("/<hid:task_id>/status", methods=["POST"])
 @login_required
 @require_permission("tasks.view")
 def status(task_id):
@@ -1288,7 +1289,7 @@ def status(task_id):
 
 
 # ─── MARSOUD-67 + PERM-FIX (PM scope): full task delete (owner/admin) ──
-@bp.route("/<int:task_id>/delete", methods=["POST"])
+@bp.route("/<hid:task_id>/delete", methods=["POST"])
 @login_required
 @require_permission("tasks.delete")
 def delete(task_id):
@@ -1313,7 +1314,7 @@ def delete(task_id):
 
 
 # ─── MARSOUD-TASK-ARCHIVE-01: archive lifecycle ──────────────────────────
-@bp.route("/<int:task_id>/archive", methods=["POST"])
+@bp.route("/<hid:task_id>/archive", methods=["POST"])
 @login_required
 @require_permission("tasks.archive")
 def archive(task_id):
@@ -1339,7 +1340,7 @@ def archive_all_done():
     return redirect(request.referrer or url_for("tasks.index"))
 
 
-@bp.route("/<int:task_id>/unarchive", methods=["POST"])
+@bp.route("/<hid:task_id>/unarchive", methods=["POST"])
 @login_required
 @require_permission("tasks.archive")
 def unarchive(task_id):
@@ -1384,7 +1385,7 @@ def archive_mine():
     return render_template("tasks/archive_mine.html", tasks=rows)
 
 
-@bp.route("/<int:task_id>/unarchive-mine", methods=["POST"])
+@bp.route("/<hid:task_id>/unarchive-mine", methods=["POST"])
 @login_required
 @require_permission("tasks.view")
 def unarchive_mine(task_id):
@@ -1404,7 +1405,7 @@ def unarchive_mine(task_id):
 
 
 # ─── Inline field edits (AJAX form posts) ────────────────────────────────
-@bp.route("/<int:task_id>/inline", methods=["POST"])
+@bp.route("/<hid:task_id>/inline", methods=["POST"])
 @login_required
 @require_permission("tasks.view")
 def inline_edit(task_id):
@@ -1442,7 +1443,7 @@ def inline_edit(task_id):
     return redirect(url_for("tasks.detail", task_id=task_id))
 
 
-@bp.route("/<int:task_id>/assignees", methods=["POST"])
+@bp.route("/<hid:task_id>/assignees", methods=["POST"])
 @login_required
 @require_permission("tasks.view")
 def update_assignees(task_id):
@@ -1457,7 +1458,7 @@ def update_assignees(task_id):
 
 
 # ─── Comments ─────────────────────────────────────────────────────────────
-@bp.route("/<int:task_id>/comments", methods=["POST"])
+@bp.route("/<hid:task_id>/comments", methods=["POST"])
 @login_required
 @require_permission("tasks.view")
 def comment_add(task_id):
@@ -1538,7 +1539,7 @@ def stats():
 
 
 # ─── MARSOUD-TASKS-P61: saved task templates ──────────────────────────────
-@bp.route("/<int:task_id>/save-template", methods=["POST"])
+@bp.route("/<hid:task_id>/save-template", methods=["POST"])
 @login_required
 @require_permission("tasks.manage")
 def save_template(task_id):
@@ -1578,7 +1579,7 @@ def save_template(task_id):
     return redirect(url_for("tasks.detail", task_id=task_id))
 
 
-@bp.route("/templates/<int:tid>/delete", methods=["POST"])
+@bp.route("/templates/<hid:tid>/delete", methods=["POST"])
 @login_required
 @require_permission("tasks.manage")
 def template_delete(tid):

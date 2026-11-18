@@ -222,7 +222,7 @@ def quick_create():
     return jsonify(ok=True, id=c.id, name=c.name)
 
 
-@bp.route("/<int:customer_id>/edit", methods=["GET", "POST"])
+@bp.route("/<hid:customer_id>/edit", methods=["GET", "POST"])
 @login_required
 @require_permission("partners.manage")
 def edit(customer_id):
@@ -247,7 +247,7 @@ def edit(customer_id):
     return render_template("customers/form.html", customer=c, reps=reps)
 
 
-@bp.route("/<int:customer_id>")
+@bp.route("/<hid:customer_id>")
 @login_required
 @require_permission("customers.view")
 def view(customer_id):
@@ -323,7 +323,7 @@ def view(customer_id):
 # Internal-only comments + notes on a customer. Both gated on
 # `partners.manage` — same permission used for edit/write across
 # the customers routes. Never exposed on the customer portal.
-@bp.route("/<int:customer_id>/comments", methods=["POST"])
+@bp.route("/<hid:customer_id>/comments", methods=["POST"])
 @login_required
 @require_permission("partners.manage")
 def add_comment(customer_id):
@@ -343,7 +343,7 @@ def add_comment(customer_id):
     return redirect(url_for("customers.view", customer_id=c.id) + "#comments")
 
 
-@bp.route("/<int:customer_id>/comments/<int:comment_id>/delete",
+@bp.route("/<hid:customer_id>/comments/<hid:comment_id>/delete",
           methods=["POST"])
 @login_required
 @require_permission("partners.manage")
@@ -371,7 +371,7 @@ def delete_comment(customer_id, comment_id):
     return redirect(url_for("customers.view", customer_id=c.id) + "#comments")
 
 
-@bp.route("/<int:customer_id>/notes", methods=["POST"])
+@bp.route("/<hid:customer_id>/notes", methods=["POST"])
 @login_required
 @require_permission("partners.manage")
 def add_note(customer_id):
@@ -391,7 +391,7 @@ def add_note(customer_id):
     return redirect(url_for("customers.view", customer_id=c.id) + "#notes")
 
 
-@bp.route("/<int:customer_id>/notes/<int:note_id>/delete",
+@bp.route("/<hid:customer_id>/notes/<hid:note_id>/delete",
           methods=["POST"])
 @login_required
 @require_permission("partners.manage")
@@ -418,7 +418,7 @@ def delete_note(customer_id, note_id):
 # downstream ever looks wrong. `partners.manage` (owner/admin/accountant)
 # is the write-side gate the rest of this file already uses — see `new`
 # and `edit` above.
-@bp.route("/<int:customer_id>/deposits", methods=["POST"])
+@bp.route("/<hid:customer_id>/deposits", methods=["POST"])
 @login_required
 @require_permission("partners.manage")
 def receive_deposit(customer_id):
@@ -457,7 +457,7 @@ def receive_deposit(customer_id):
                               customer_id=c.id))
 
 
-@bp.route("/deposits/<int:deposit_id>/refund", methods=["POST"])
+@bp.route("/deposits/<hid:deposit_id>/refund", methods=["POST"])
 @login_required
 @require_permission("partners.manage")   # MARSOUD-DEPOSIT-PERMS — see above
 def refund_deposit(deposit_id):

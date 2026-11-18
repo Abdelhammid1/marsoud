@@ -45,7 +45,7 @@
       <select name="sub_category" id="filter-subcat" class="select text-sm">
         <option value="">كل التصنيفات</option>
         {% for sc in sub_categories %}
-        <option value="{{ sc.id }}" data-vendor="{{ sc.vendor_id }}"
+        <option value="{{ sc.id }}" data-vendor="{{ sc.vendor_id }}" data-vendor-hid="{{ sc.vendor_id | hid }}"
                 {% if sub_category_filter == sc.id|string %}selected{% endif %}>
           {{ sc.name }}
         </option>
@@ -100,7 +100,8 @@
     scSel.innerHTML = '<option value="">كل التصنيفات</option>';
     if (!vid) return;
     try {
-      const res = await fetch(`/vendors/${vid}/sub-categories.json`);
+      const vhid = sel.options[sel.selectedIndex]?.dataset?.vendorHid || vid;
+      const res = await fetch(`/vendors/${vhid}/sub-categories.json`);
       const list = await res.json();
       for (const c of list) {
         const opt = document.createElement('option');

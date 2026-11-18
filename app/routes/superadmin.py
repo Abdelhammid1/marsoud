@@ -86,7 +86,7 @@ def companies():
                              unverified_count=unverified_count)
 
 
-@bp.route("/companies/<int:company_id>")
+@bp.route("/companies/<hid:company_id>")
 @login_required
 @superadmin_required
 def company_detail(company_id):
@@ -150,7 +150,7 @@ def company_detail(company_id):
                            feature_labels_ar=FEATURE_LABELS_AR)
 
 
-@bp.route("/companies/<int:company_id>/industry", methods=["POST"])
+@bp.route("/companies/<hid:company_id>/industry", methods=["POST"])
 @login_required
 @superadmin_required
 def company_apply_industry(company_id):
@@ -167,7 +167,7 @@ def company_apply_industry(company_id):
     return redirect(url_for("superadmin.company_detail", company_id=company_id))
 
 
-@bp.route("/companies/<int:company_id>/toggle", methods=["POST"])
+@bp.route("/companies/<hid:company_id>/toggle", methods=["POST"])
 @login_required
 @superadmin_required
 def company_toggle(company_id):
@@ -184,7 +184,7 @@ def company_toggle(company_id):
     return redirect(url_for("superadmin.companies"))
 
 
-@bp.route("/companies/<int:company_id>/edit", methods=["GET", "POST"])
+@bp.route("/companies/<hid:company_id>/edit", methods=["GET", "POST"])
 @login_required
 @superadmin_required
 def company_edit(company_id):
@@ -218,7 +218,7 @@ def company_edit(company_id):
     return render_template("admin/company_edit.html", company=company)
 
 
-@bp.route("/companies/<int:company_id>/delete", methods=["POST"])
+@bp.route("/companies/<hid:company_id>/delete", methods=["POST"])
 @login_required
 @superadmin_required
 def company_delete(company_id):
@@ -253,7 +253,7 @@ def company_delete(company_id):
     return redirect(url_for("superadmin.companies"))
 
 
-@bp.route("/companies/<int:company_id>/restore", methods=["POST"])
+@bp.route("/companies/<hid:company_id>/restore", methods=["POST"])
 @login_required
 @superadmin_required
 def company_restore(company_id):
@@ -541,7 +541,7 @@ def user_create_restricted():
     return redirect(url_for("superadmin.users"))
 
 
-@bp.route("/users/<int:user_id>/toggle", methods=["POST"])
+@bp.route("/users/<hid:user_id>/toggle", methods=["POST"])
 @login_required
 @superadmin_required
 def user_toggle(user_id):
@@ -559,7 +559,7 @@ def user_toggle(user_id):
     return redirect(url_for("superadmin.users"))
 
 
-@bp.route("/users/<int:user_id>/reset-password", methods=["POST"])
+@bp.route("/users/<hid:user_id>/reset-password", methods=["POST"])
 @login_required
 @superadmin_required
 def user_reset_password(user_id):
@@ -578,7 +578,7 @@ def user_reset_password(user_id):
     return redirect(url_for("superadmin.users"))
 
 
-@bp.route("/users/<int:user_id>/unlink/<int:company_id>", methods=["POST"])
+@bp.route("/users/<hid:user_id>/unlink/<hid:company_id>", methods=["POST"])
 @login_required
 @superadmin_required
 def user_unlink(user_id, company_id):
@@ -610,7 +610,7 @@ def user_unlink(user_id, company_id):
 
 
 # ─── MARSOUD-SUPERADMIN-LINK-USER-01 (Batch 7 Ticket 1, 2026-07-29) ───
-@bp.route("/companies/<int:company_id>/link-user", methods=["POST"])
+@bp.route("/companies/<hid:company_id>/link-user", methods=["POST"])
 @login_required
 @superadmin_required
 def company_link_user(company_id):
@@ -726,7 +726,7 @@ def company_link_user(company_id):
                              company_id=company_id))
 
 
-@bp.route("/users/<int:user_id>/resend-invite", methods=["POST"])
+@bp.route("/users/<hid:user_id>/resend-invite", methods=["POST"])
 @login_required
 @superadmin_required
 def user_resend_invite(user_id):
@@ -786,7 +786,7 @@ def vendor_bills_overdue():
 # (user_toggle / user_reset_password / user_unlink / user_resend_invite /
 # user_consent) stay as the write endpoints — this page just renders and
 # links to them.
-@bp.route("/users/<int:user_id>")
+@bp.route("/users/<hid:user_id>")
 @login_required
 @superadmin_required
 def user_detail(user_id):
@@ -886,7 +886,7 @@ def audit():
 
 
 # ── Ticket 6: support tools (view-as) ────────────────────────────────────── #
-@bp.route("/companies/<int:company_id>/view-as", methods=["POST"])
+@bp.route("/companies/<hid:company_id>/view-as", methods=["POST"])
 @login_required
 @superadmin_required
 def view_as(company_id):
@@ -916,7 +916,7 @@ def errors_global():
     return render_template("admin/errors.html", rows=rows, scope_company=None)
 
 
-@bp.route("/companies/<int:company_id>/errors")
+@bp.route("/companies/<hid:company_id>/errors")
 @login_required
 @superadmin_required
 def errors_for_company(company_id):
@@ -1372,7 +1372,7 @@ def plans_save():
                              plan_id=p.id))
 
 
-@bp.route("/plans/<int:plan_id>/delete", methods=["POST"])
+@bp.route("/plans/<hid:plan_id>/delete", methods=["POST"])
 @login_required
 @superadmin_required
 def plans_delete(plan_id):
@@ -1423,7 +1423,7 @@ def plans_new():
     return redirect(url_for("superadmin.plans_index", plan_id="new"))
 
 
-@bp.route("/plans/<int:plan_id>/edit", methods=["GET"])
+@bp.route("/plans/<hid:plan_id>/edit", methods=["GET"])
 @login_required
 @superadmin_required
 def plans_edit(plan_id):
@@ -1431,7 +1431,7 @@ def plans_edit(plan_id):
                              plan_id=plan_id))
 
 
-@bp.route("/companies/<int:company_id>/assign-plan", methods=["POST"])
+@bp.route("/companies/<hid:company_id>/assign-plan", methods=["POST"])
 @login_required
 @superadmin_required
 def companies_assign_plan(company_id):
@@ -1481,7 +1481,7 @@ def subscriptions_index():
     return render_template("admin/subscriptions_index.html", rows=rows)
 
 
-@bp.route("/subscriptions/<int:company_id>/renew", methods=["POST"])
+@bp.route("/subscriptions/<hid:company_id>/renew", methods=["POST"])
 @login_required
 @superadmin_required
 def subscriptions_renew(company_id):
@@ -1553,7 +1553,7 @@ def broadcasts_new():
     return render_template("admin/broadcasts_form.html", plans=plans)
 
 
-@bp.route("/broadcasts/<int:broadcast_id>/preview")
+@bp.route("/broadcasts/<hid:broadcast_id>/preview")
 @login_required
 @superadmin_required
 def broadcasts_preview(broadcast_id):
@@ -1564,7 +1564,7 @@ def broadcasts_preview(broadcast_id):
     return jsonify({"count": preview_count(b.audience)})
 
 
-@bp.route("/broadcasts/<int:broadcast_id>/send", methods=["POST"])
+@bp.route("/broadcasts/<hid:broadcast_id>/send", methods=["POST"])
 @login_required
 @superadmin_required
 def broadcasts_send(broadcast_id):
@@ -1655,7 +1655,7 @@ def coupons_new():
     return render_template("admin/coupons_form.html", plans=plans)
 
 
-@bp.route("/coupons/<int:coupon_id>/toggle", methods=["POST"])
+@bp.route("/coupons/<hid:coupon_id>/toggle", methods=["POST"])
 @login_required
 @superadmin_required
 def coupons_toggle(coupon_id):
@@ -1948,7 +1948,7 @@ def overrides_index():
     )
 
 
-@bp.route("/overrides/<int:override_id>/revoke", methods=["POST"])
+@bp.route("/overrides/<hid:override_id>/revoke", methods=["POST"])
 @login_required
 @superadmin_required
 def overrides_revoke(override_id):
@@ -2052,7 +2052,7 @@ def quotas_index():
     )
 
 
-@bp.route("/quotas/plan/<int:plan_id>/save", methods=["POST"])
+@bp.route("/quotas/plan/<hid:plan_id>/save", methods=["POST"])
 @login_required
 @superadmin_required
 def quotas_save(plan_id):
@@ -2110,7 +2110,7 @@ def consent_index():
     )
 
 
-@bp.route("/users/<int:user_id>/consent")
+@bp.route("/users/<hid:user_id>/consent")
 @login_required
 @superadmin_required
 def user_consent(user_id):
@@ -2270,7 +2270,7 @@ def help_new():
     return render_template("admin/help_form.html", article=None)
 
 
-@bp.route("/help/<int:article_id>/edit", methods=["GET", "POST"])
+@bp.route("/help/<hid:article_id>/edit", methods=["GET", "POST"])
 @login_required
 @superadmin_required
 def help_edit(article_id):
@@ -2296,7 +2296,7 @@ def help_edit(article_id):
     return render_template("admin/help_form.html", article=a)
 
 
-@bp.route("/help/<int:article_id>/toggle", methods=["POST"])
+@bp.route("/help/<hid:article_id>/toggle", methods=["POST"])
 @login_required
 @superadmin_required
 def help_toggle(article_id):
@@ -2308,7 +2308,7 @@ def help_toggle(article_id):
     return redirect(url_for("superadmin.help_edit", article_id=a.id))
 
 
-@bp.route("/help/<int:article_id>/delete", methods=["POST"])
+@bp.route("/help/<hid:article_id>/delete", methods=["POST"])
 @login_required
 @superadmin_required
 def help_delete(article_id):
@@ -2319,7 +2319,7 @@ def help_delete(article_id):
     return redirect(url_for("superadmin.help_index"))
 
 
-@bp.route("/help/<int:article_id>/examples", methods=["POST"])
+@bp.route("/help/<hid:article_id>/examples", methods=["POST"])
 @login_required
 @superadmin_required
 def help_add_example(article_id):
@@ -2340,7 +2340,7 @@ def help_add_example(article_id):
     return redirect(url_for("superadmin.help_edit", article_id=a.id))
 
 
-@bp.route("/help/examples/<int:example_id>/delete", methods=["POST"])
+@bp.route("/help/examples/<hid:example_id>/delete", methods=["POST"])
 @login_required
 @superadmin_required
 def help_delete_example(example_id):
@@ -2352,7 +2352,7 @@ def help_delete_example(example_id):
     return redirect(url_for("superadmin.help_edit", article_id=aid))
 
 
-@bp.route("/help/<int:article_id>/media", methods=["POST"])
+@bp.route("/help/<hid:article_id>/media", methods=["POST"])
 @login_required
 @superadmin_required
 def help_add_media(article_id):
@@ -2403,7 +2403,7 @@ def help_add_media(article_id):
     return redirect(url_for("superadmin.help_edit", article_id=a.id))
 
 
-@bp.route("/help/media/<int:media_id>/delete", methods=["POST"])
+@bp.route("/help/media/<hid:media_id>/delete", methods=["POST"])
 @login_required
 @superadmin_required
 def help_delete_media(media_id):
@@ -2415,7 +2415,7 @@ def help_delete_media(media_id):
     return redirect(url_for("superadmin.help_edit", article_id=aid))
 
 
-@bp.route("/help/<int:article_id>/preview")
+@bp.route("/help/<hid:article_id>/preview")
 @login_required
 @superadmin_required
 def help_preview(article_id):
@@ -2491,7 +2491,7 @@ def saas_index():
     )
 
 
-@bp.route("/saas/invoices/<int:invoice_id>/mark-paid",
+@bp.route("/saas/invoices/<hid:invoice_id>/mark-paid",
           methods=["POST"])
 @login_required
 @superadmin_required
@@ -2525,7 +2525,7 @@ def saas_mark_paid(invoice_id):
 # user is standing inside the tenant company; for the admin
 # shortcut, a real reason is important since the target company
 # owner never had the chance to ask for it.
-@bp.route("/saas/invoices/<int:invoice_id>/void", methods=["POST"])
+@bp.route("/saas/invoices/<hid:invoice_id>/void", methods=["POST"])
 @login_required
 @superadmin_required
 def saas_void_invoice(invoice_id):
@@ -2567,7 +2567,7 @@ def saas_void_invoice(invoice_id):
     return redirect(url_for("superadmin.saas_index"))
 
 
-@bp.route("/saas/companies/<int:company_id>/price-lock",
+@bp.route("/saas/companies/<hid:company_id>/price-lock",
           methods=["POST"])
 @login_required
 @superadmin_required

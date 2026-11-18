@@ -140,7 +140,7 @@ def create():
 
 
 # ─── Detail ─────────────────────────────────────────────────────
-@bp.route("/<int:dec_id>")
+@bp.route("/<hid:dec_id>")
 @login_required
 @require_permission("payroll.view")
 def detail(dec_id):
@@ -154,7 +154,7 @@ def detail(dec_id):
 # print it, matching how invoice PDFs behave elsewhere. Reuses
 # _load_decision_or_404 for the tenancy guard so cross-tenant ids
 # 404 exactly the same way the detail view does.
-@bp.route("/<int:dec_id>/pdf")
+@bp.route("/<hid:dec_id>/pdf")
 @login_required
 @require_permission("payroll.view")
 def pdf(dec_id):
@@ -172,7 +172,7 @@ def pdf(dec_id):
 
 
 # ─── Execute ────────────────────────────────────────────────────
-@bp.route("/<int:dec_id>/execute", methods=["POST"])
+@bp.route("/<hid:dec_id>/execute", methods=["POST"])
 @login_required
 def execute(dec_id):
     dec = _load_decision_or_404(dec_id)
@@ -191,7 +191,7 @@ def execute(dec_id):
 
 
 # ─── Cancel ─────────────────────────────────────────────────────
-@bp.route("/<int:dec_id>/cancel", methods=["POST"])
+@bp.route("/<hid:dec_id>/cancel", methods=["POST"])
 @login_required
 def cancel(dec_id):
     dec = _load_decision_or_404(dec_id)

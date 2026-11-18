@@ -1,3 +1,4 @@
+from app.services.url_ids import encode_id
 """CRM + Projects + Tasks services — business logic for Cycle 7.
 
 The route layer stays thin; this module owns:
@@ -146,7 +147,7 @@ def change_lead_status(lead, new_status, *, changed_by_id, note=None,
                 kind=NotificationKind.LEAD_STATUS_CHANGED,
                 title=f"تغيرت حالة عميل محتمل: {lead.client_name}",
                 body=f"{old.label_ar if old else '—'} → {new_status.label_ar}",
-                link_url=f"/leads/{lead.id}",
+                link_url=f"/leads/{encode_id(lead.id)}",
             )
     except Exception:
         import logging
@@ -329,7 +330,7 @@ def set_task_status(task, new_status, *, by_user_id=None):
                 kind=NotificationKind.TASK_STATUS_CHANGED,
                 title=f"تغيرت حالة مهمة: {task.title}",
                 body=f"{old.label_ar} → {new_status.label_ar}",
-                link_url=f"/tasks/{task.id}",
+                link_url=f"/tasks/{encode_id(task.id)}",
             )
     except Exception:
         import logging

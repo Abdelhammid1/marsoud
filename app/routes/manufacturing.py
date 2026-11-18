@@ -100,7 +100,7 @@ def bom_new():
                              bom=None, variants=variants)
 
 
-@bp.route("/boms/<int:bom_id>")
+@bp.route("/boms/<hid:bom_id>")
 @login_required
 @require_permission("manufacturing.view")
 def bom_detail(bom_id):
@@ -162,7 +162,7 @@ def work_order_new():
                              boms=boms, warehouses=warehouses)
 
 
-@bp.route("/work-orders/<int:work_order_id>")
+@bp.route("/work-orders/<hid:work_order_id>")
 @login_required
 @require_permission("manufacturing.view")
 def work_order_detail(work_order_id):
@@ -174,7 +174,7 @@ def work_order_detail(work_order_id):
     return render_template("manufacturing/work_order_detail.html", wo=wo)
 
 
-@bp.route("/work-orders/<int:work_order_id>/start", methods=["POST"])
+@bp.route("/work-orders/<hid:work_order_id>/start", methods=["POST"])
 @login_required
 @require_permission("manufacturing.manage")
 def work_order_start(work_order_id):
@@ -192,7 +192,7 @@ def work_order_start(work_order_id):
                               work_order_id=wo.id))
 
 
-@bp.route("/work-orders/<int:work_order_id>/complete", methods=["POST"])
+@bp.route("/work-orders/<hid:work_order_id>/complete", methods=["POST"])
 @login_required
 @require_permission("manufacturing.complete")
 def work_order_complete(work_order_id):
@@ -209,7 +209,7 @@ def work_order_complete(work_order_id):
                               work_order_id=wo.id))
 
 
-@bp.route("/work-orders/<int:work_order_id>/cancel", methods=["POST"])
+@bp.route("/work-orders/<hid:work_order_id>/cancel", methods=["POST"])
 @login_required
 @require_permission("manufacturing.manage")
 def work_order_cancel(work_order_id):

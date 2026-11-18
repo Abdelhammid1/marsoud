@@ -1,3 +1,4 @@
+from app.services.url_ids import encode_id
 """MARSOUD-TASKS-02 — task helpers.
 
 Multi-assignee management, activity logging, comment posting, deadline
@@ -182,7 +183,7 @@ def set_assignees(task, user_ids, *, actor_id=None):
                 kind=NotificationKind.TASK_ASSIGNED,
                 title=f"📌 تم تكليفك بمهمة: {task.title}",
                 body=(task.description or "")[:200],
-                link_url=f"/tasks/{task.id}",
+                link_url=f"/tasks/{encode_id(task.id)}",
                 task=task)
 
     db.session.commit()
@@ -317,7 +318,7 @@ def add_comment(task, content, *, user_id=None,
                 kind=NotificationKind.TASK_COMMENT,
                 title=f"💬 تعليق جديد على: {task.title}",
                 body=text[:200],
-                link_url=f"/tasks/{task.id}",
+                link_url=f"/tasks/{encode_id(task.id)}",
                 task=task)
 
     db.session.commit()
@@ -399,7 +400,7 @@ def apply_inline_edit(task, *, title=None, description=None,
                         kind=NotificationKind.TASK_STATUS_CHANGED,
                         title=f"📊 تحديث حالة: {task.title}",
                         body=f"{old.label_ar} → {s_enum.label_ar}",
-                        link_url=f"/tasks/{task.id}",
+                        link_url=f"/tasks/{encode_id(task.id)}",
                         task=task)
             changed = True
 
@@ -419,7 +420,7 @@ def apply_inline_edit(task, *, title=None, description=None,
                         kind=NotificationKind.TASK_UPDATED,
                         title=f"✏️ تحديث على مهمة: {task.title}",
                         body=None,
-                        link_url=f"/tasks/{task.id}",
+                        link_url=f"/tasks/{encode_id(task.id)}",
                         task=task)
         db.session.commit()
     return changed

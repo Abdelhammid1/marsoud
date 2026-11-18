@@ -115,7 +115,7 @@ def index():
     )
 
 
-@hr_ss_bp.route("/employee/<int:emp_id>/create-user", methods=["POST"])
+@hr_ss_bp.route("/employee/<hid:emp_id>/create-user", methods=["POST"])
 @login_required
 @require_permission("users.manage")
 def create_user_for_employee(emp_id):
@@ -152,7 +152,7 @@ def create_user_for_employee(emp_id):
     return redirect(url_for("hr_ss.index"))
 
 
-@hr_ss_bp.route("/<int:user_id>/set-password", methods=["POST"])
+@hr_ss_bp.route("/<hid:user_id>/set-password", methods=["POST"])
 @login_required
 @require_permission("users.manage")
 def set_password(user_id):
@@ -182,7 +182,7 @@ def set_password(user_id):
     return redirect(url_for("hr_ss.index"))
 
 
-@hr_ss_bp.route("/<int:user_id>/reactivate", methods=["POST"])
+@hr_ss_bp.route("/<hid:user_id>/reactivate", methods=["POST"])
 @login_required
 @require_permission("users.manage")
 def reactivate(user_id):
@@ -199,7 +199,7 @@ def reactivate(user_id):
     return redirect(url_for("hr_ss.index"))
 
 
-@hr_ss_bp.route("/<int:user_id>/activate", methods=["POST"])
+@hr_ss_bp.route("/<hid:user_id>/activate", methods=["POST"])
 @login_required
 @require_permission("users.manage")
 def activate(user_id):
@@ -229,7 +229,7 @@ def activate(user_id):
     return redirect(url_for("hr_ss.index"))
 
 
-@hr_ss_bp.route("/<int:user_id>/disable", methods=["POST"])
+@hr_ss_bp.route("/<hid:user_id>/disable", methods=["POST"])
 @login_required
 @require_permission("users.manage")
 def disable(user_id):
@@ -428,7 +428,7 @@ def change_password():
     return redirect(url_for("portal_emp.account") + "#password")
 
 
-@portal_emp_bp.route("/payslip/<int:line_id>.pdf")
+@portal_emp_bp.route("/payslip/<hid:line_id>.pdf")
 @login_required
 def payslip_pdf(line_id):
     """Render the payslip PDF — strict scope to the current user's
@@ -675,7 +675,7 @@ def custody_request_new():
     return redirect(url_for("portal_emp.custody_list"))
 
 
-@portal_emp_bp.route("/custody/<int:custody_id>")
+@portal_emp_bp.route("/custody/<hid:custody_id>")
 @login_required
 def custody_detail(custody_id):
     """Employee views one of their custodies + the settlement lines
@@ -763,7 +763,7 @@ def items_request_new():
     return redirect(url_for("portal_emp.items_list"))
 
 
-@portal_emp_bp.route("/items/<int:custody_id>")
+@portal_emp_bp.route("/items/<hid:custody_id>")
 @login_required
 def items_detail(custody_id):
     """Employee views one of their item custodies. Read-only —
@@ -805,7 +805,7 @@ def daily_reports_list():
                              emp=emp, reports=reports)
 
 
-@portal_emp_bp.route("/daily-reports/<int:report_id>",
+@portal_emp_bp.route("/daily-reports/<hid:report_id>",
                         methods=["GET", "POST"])
 @login_required
 def daily_report_detail(report_id):
@@ -1106,7 +1106,7 @@ def archive():
     return render_template("portal_emp/archive.html", tasks=rows)
 
 
-@portal_emp_bp.route("/archive/<int:task_id>/restore",
+@portal_emp_bp.route("/archive/<hid:task_id>/restore",
                       methods=["POST"])
 @login_required
 def archive_restore(task_id):

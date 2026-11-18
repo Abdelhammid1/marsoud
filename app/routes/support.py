@@ -93,7 +93,7 @@ def new():
                              priority_labels=PRIORITY_LABELS_AR)
 
 
-@bp.route("/<int:ticket_id>")
+@bp.route("/<hid:ticket_id>")
 @login_required
 def detail(ticket_id):
     t = _ticket_for_company(ticket_id)
@@ -106,7 +106,7 @@ def detail(ticket_id):
     )
 
 
-@bp.route("/<int:ticket_id>/comment", methods=["POST"])
+@bp.route("/<hid:ticket_id>/comment", methods=["POST"])
 @login_required
 def comment(ticket_id):
     t = _ticket_for_company(ticket_id)

@@ -530,7 +530,7 @@ def sales_commissions():
 
 
 # ─── MARSOUD-COMM-SETTLE (2026-08-25) — pay a commission in cash ────
-@bp.route("/sales-commissions/<int:commission_id>/settle", methods=["POST"])
+@bp.route("/sales-commissions/<hid:commission_id>/settle", methods=["POST"])
 @login_required
 @require_permission("payroll.run")
 def settle_commission(commission_id):
@@ -594,7 +594,7 @@ def employees_index():
     )
 
 
-@bp.route("/employees/<int:employee_id>")
+@bp.route("/employees/<hid:employee_id>")
 @login_required
 @require_permission("employee_reports.view")
 def employee_reports_list(employee_id):
@@ -614,7 +614,7 @@ def employee_reports_list(employee_id):
     )
 
 
-@bp.route("/employees/<int:employee_id>/<int:report_id>")
+@bp.route("/employees/<hid:employee_id>/<hid:report_id>")
 @login_required
 @require_permission("employee_reports.view")
 def employee_report_detail(employee_id, report_id):

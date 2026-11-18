@@ -91,7 +91,7 @@ def create():
     return redirect(url_for("cost_centers.index"))
 
 
-@bp.route("/<int:cc_id>/edit")
+@bp.route("/<hid:cc_id>/edit")
 @login_required
 @require_permission("cost_centers.manage")
 def edit(cc_id):
@@ -104,7 +104,7 @@ def edit(cc_id):
                             cc=cc, departments=departments)
 
 
-@bp.route("/<int:cc_id>", methods=["POST"])
+@bp.route("/<hid:cc_id>", methods=["POST"])
 @login_required
 @require_permission("cost_centers.manage")
 def update(cc_id):
@@ -125,7 +125,7 @@ def update(cc_id):
     return redirect(url_for("cost_centers.index"))
 
 
-@bp.route("/<int:cc_id>/toggle-active", methods=["POST"])
+@bp.route("/<hid:cc_id>/toggle-active", methods=["POST"])
 @login_required
 @require_permission("cost_centers.manage")
 def toggle_active(cc_id):
@@ -136,7 +136,7 @@ def toggle_active(cc_id):
     return redirect(url_for("cost_centers.index"))
 
 
-@bp.route("/<int:cc_id>/delete", methods=["POST"])
+@bp.route("/<hid:cc_id>/delete", methods=["POST"])
 @login_required
 @require_permission("cost_centers.manage")
 def delete(cc_id):

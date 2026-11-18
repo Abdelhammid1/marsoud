@@ -705,7 +705,7 @@ def heartbeat():
     return ("", 204)
 
 
-@bp.route("/switch-company/<int:company_id>")
+@bp.route("/switch-company/<hid:company_id>")
 @login_required
 def switch_company(company_id):
     company = db.session.get(Company, company_id)

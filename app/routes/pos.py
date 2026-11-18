@@ -176,7 +176,7 @@ def shift_open_form():
     return render_template("pos/shift_open_form.html")
 
 
-@bp.route("/shifts/<int:shift_id>/close", methods=["GET", "POST"])
+@bp.route("/shifts/<hid:shift_id>/close", methods=["GET", "POST"])
 @login_required
 @require_permission("shifts.manage")
 def shift_close(shift_id):
@@ -209,7 +209,7 @@ def shift_close(shift_id):
                            shift=sh, expected=expected)
 
 
-@bp.route("/shifts/<int:shift_id>")
+@bp.route("/shifts/<hid:shift_id>")
 @login_required
 @require_permission("shifts.manage")
 def shift_detail(shift_id):
@@ -314,7 +314,7 @@ def lookup():
 # scope + permission gate as /pos/ itself (any cashier can READ any
 # customer's balance; actual redemption is gated separately at
 # order_new by loyalty.redeem).
-@bp.route("/api/customer/<int:customer_id>")
+@bp.route("/api/customer/<hid:customer_id>")
 @login_required
 @require_permission("pos.use")
 def api_customer_loyalty(customer_id):

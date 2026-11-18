@@ -131,7 +131,7 @@ def invite():
     return redirect(url_for("users.index"))
 
 
-@bp.route("/<int:user_id>/role", methods=["POST"])
+@bp.route("/<hid:user_id>/role", methods=["POST"])
 @login_required
 @require_permission("users.manage")
 def change_role(user_id):
@@ -175,7 +175,7 @@ def change_role(user_id):
 
 
 # MARSOUD-USERS-P31 - rename a member (full_name lives on the user, so it shows in every company they belong to)
-@bp.route("/<int:user_id>/rename", methods=["POST"])
+@bp.route("/<hid:user_id>/rename", methods=["POST"])
 @login_required
 @require_permission("users.manage")
 def rename(user_id):
@@ -207,7 +207,7 @@ def rename(user_id):
     return redirect(url_for("users.index"))
 
 
-@bp.route("/<int:user_id>/send-password-link", methods=["POST"])
+@bp.route("/<hid:user_id>/send-password-link", methods=["POST"])
 @login_required
 @require_permission("users.manage")
 def send_password_link(user_id):
@@ -257,7 +257,7 @@ def send_password_link(user_id):
     return redirect(url_for("users.index"))
 
 
-@bp.route("/<int:user_id>/revoke", methods=["POST"])
+@bp.route("/<hid:user_id>/revoke", methods=["POST"])
 @login_required
 @require_permission("users.manage")
 def revoke(user_id):
@@ -294,7 +294,7 @@ def revoke(user_id):
     return redirect(url_for("users.index"))
 
 
-@bp.route("/invitations/<int:inv_id>/revoke", methods=["POST"])
+@bp.route("/invitations/<hid:inv_id>/revoke", methods=["POST"])
 @login_required
 @require_permission("users.manage")
 def revoke_invitation(inv_id):

@@ -629,7 +629,7 @@ def new():
                                             PaymentMethod.name).all()))
 
 
-@bp.route("/<int:invoice_id>/edit", methods=["GET", "POST"])
+@bp.route("/<hid:invoice_id>/edit", methods=["GET", "POST"])
 @login_required
 @require_permission("invoices.create")
 def edit(invoice_id):
@@ -672,7 +672,7 @@ def edit(invoice_id):
 _ALLOWED_INVOICE_CURRENCIES = ("EGP", "SAR", "AED", "USD", "EUR")
 
 
-@bp.route("/<int:invoice_id>/change-currency", methods=["POST"])
+@bp.route("/<hid:invoice_id>/change-currency", methods=["POST"])
 @login_required
 @require_permission("invoices.create")
 def change_currency(invoice_id):
@@ -723,7 +723,7 @@ def change_currency(invoice_id):
     return redirect(url_for("invoices.view", invoice_id=invoice_id))
 
 
-@bp.route("/<int:invoice_id>/preview")
+@bp.route("/<hid:invoice_id>/preview")
 @login_required
 def preview_pdf(invoice_id):
     invoice = db.session.get(Invoice, invoice_id)
@@ -739,7 +739,7 @@ def preview_pdf(invoice_id):
     )
 
 
-@bp.route("/<int:invoice_id>")
+@bp.route("/<hid:invoice_id>")
 @login_required
 def view(invoice_id):
     invoice = db.session.get(Invoice, invoice_id)
@@ -765,7 +765,7 @@ def view(invoice_id):
                              active_deposits_pm_list=payment_methods)
 
 
-@bp.route("/<int:invoice_id>/send", methods=["POST"])
+@bp.route("/<hid:invoice_id>/send", methods=["POST"])
 @login_required
 @require_permission("invoices.send")
 def send(invoice_id):
@@ -816,7 +816,7 @@ def send(invoice_id):
     return redirect(url_for("invoices.view", invoice_id=invoice_id))
 
 
-@bp.route("/<int:invoice_id>/resend", methods=["POST"])
+@bp.route("/<hid:invoice_id>/resend", methods=["POST"])
 @login_required
 @require_permission("invoices.send")
 def resend(invoice_id):
@@ -832,7 +832,7 @@ def resend(invoice_id):
     return redirect(url_for("invoices.view", invoice_id=invoice_id))
 
 
-@bp.route("/<int:invoice_id>/send-overdue-reminder", methods=["POST"])
+@bp.route("/<hid:invoice_id>/send-overdue-reminder", methods=["POST"])
 @login_required
 @require_permission("invoices.send")
 def send_overdue_reminder_route(invoice_id):
@@ -887,7 +887,7 @@ def send_overdue_reminder_route(invoice_id):
     return redirect(url_for("invoices.view", invoice_id=invoice_id))
 
 
-@bp.route("/<int:invoice_id>/pay", methods=["POST"])
+@bp.route("/<hid:invoice_id>/pay", methods=["POST"])
 @login_required
 @require_permission("invoices.create")
 def pay(invoice_id):
@@ -927,7 +927,7 @@ def pay(invoice_id):
 
 # MARSOUD-INSTALLMENT-PLAN-01 UI (Abdelhamid 2026-07-24) — three
 # endpoints: create a plan, pay one installment, drop the plan.
-@bp.route("/<int:invoice_id>/installments/plan", methods=["POST"])
+@bp.route("/<hid:invoice_id>/installments/plan", methods=["POST"])
 @login_required
 @require_permission("invoices.create")
 def create_installments(invoice_id):
@@ -984,7 +984,7 @@ def create_installments(invoice_id):
                               invoice_id=invoice.id))
 
 
-@bp.route("/installments/<int:installment_id>/pay", methods=["POST"])
+@bp.route("/installments/<hid:installment_id>/pay", methods=["POST"])
 @login_required
 @require_permission("invoices.create")
 def pay_installment_route(installment_id):
@@ -1011,7 +1011,7 @@ def pay_installment_route(installment_id):
                               invoice_id=inst.invoice_id))
 
 
-@bp.route("/<int:invoice_id>/installments/drop", methods=["POST"])
+@bp.route("/<hid:invoice_id>/installments/drop", methods=["POST"])
 @login_required
 @require_permission("invoices.create")
 def drop_installments(invoice_id):
@@ -1035,7 +1035,7 @@ def drop_installments(invoice_id):
 # MARSOUD-CUSTOMER-DEPOSIT-01 UI (Abdelhamid 2026-07-24) — apply an
 # ACTIVE deposit against this invoice. The service handles cross-
 # customer / cross-company / already-applied guards.
-@bp.route("/<int:invoice_id>/apply-deposit", methods=["POST"])
+@bp.route("/<hid:invoice_id>/apply-deposit", methods=["POST"])
 @login_required
 @require_permission("invoices.create")
 def apply_deposit(invoice_id):
@@ -1073,7 +1073,7 @@ def apply_deposit(invoice_id):
 #     revenue/cash, restocks inventory, claws back commission — then
 #     mark voided_at + set status to VOIDED. Net accounting impact = 0,
 #     audit trail preserved.
-@bp.route("/<int:invoice_id>/delete", methods=["POST"])
+@bp.route("/<hid:invoice_id>/delete", methods=["POST"])
 @login_required
 @require_permission("invoices.refund")
 def delete(invoice_id):
@@ -1127,7 +1127,7 @@ def delete(invoice_id):
 # refund/reversal the delete route created, so the customer's
 # sub-account balance returns to its pre-delete value. Gated on
 # invoices.refund (same permission as delete).
-@bp.route("/<int:invoice_id>/restore", methods=["POST"])
+@bp.route("/<hid:invoice_id>/restore", methods=["POST"])
 @login_required
 @require_permission("invoices.refund")
 def restore(invoice_id):
@@ -1239,7 +1239,7 @@ def restore(invoice_id):
 # a second POST after a successful send finds `cancel_email_sent_at`
 # already stamped and flashes an "already sent" notice instead of
 # firing a duplicate.
-@bp.route("/<int:invoice_id>/resend-cancel-email", methods=["POST"])
+@bp.route("/<hid:invoice_id>/resend-cancel-email", methods=["POST"])
 @login_required
 @require_permission("invoices.refund")
 def resend_cancel_email(invoice_id):
@@ -1266,7 +1266,7 @@ def resend_cancel_email(invoice_id):
     return redirect(url_for("invoices.view", invoice_id=invoice_id))
 
 
-@bp.route("/<int:invoice_id>/refund", methods=["POST"])
+@bp.route("/<hid:invoice_id>/refund", methods=["POST"])
 @login_required
 @require_permission("invoices.refund")
 def refund(invoice_id):

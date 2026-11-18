@@ -60,7 +60,7 @@ def index():
     )
 
 
-@bp.route("/from-invoice/<int:invoice_id>", methods=["POST"])
+@bp.route("/from-invoice/<hid:invoice_id>", methods=["POST"])
 @login_required
 @require_permission("invoices.create")
 def create_from_invoice(invoice_id):
@@ -131,7 +131,7 @@ def create_from_invoice(invoice_id):
     return redirect(url_for("recurring_invoices.index"))
 
 
-@bp.route("/<int:sched_id>/toggle", methods=["POST"])
+@bp.route("/<hid:sched_id>/toggle", methods=["POST"])
 @login_required
 @require_permission("invoices.create")
 def toggle(sched_id):
@@ -143,7 +143,7 @@ def toggle(sched_id):
     return redirect(url_for("recurring_invoices.index"))
 
 
-@bp.route("/<int:sched_id>/delete", methods=["POST"])
+@bp.route("/<hid:sched_id>/delete", methods=["POST"])
 @login_required
 @require_permission("invoices.create")
 def delete(sched_id):
