@@ -60,6 +60,12 @@ def _save_logo(company, file_storage):
     return f"/static/logos/{out_name}"
 
 
+@bp.route("/settings-hub")
+@login_required
+def settings_hub():
+    return render_template("companies/settings_hub.html")
+
+
 @bp.route("/")
 @login_required
 def index():

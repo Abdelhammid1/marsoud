@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block page_title %}مركز الإعدادات والنظام{% endblock %}
+{% block content %}
+{% set cid = active_company.id if active_company else None %}
+{% set HB = [
+  ('الشركة والفروع والدفع', '🏢', 'بيانات الشركة والفروع وبريد الإرسال وطرق التحصيل والدفع', [
+    ('companies.edit', {'company_id': cid} if cid else {}, 'إعدادات الشركة', 'الاسم واللوجو والعملة والضريبة والبيانات الرسمية', '🏢', 'شركة اعدادات لوجو عملة ضريبة سجل تجاري بيانات company settings'),
+    ('companies.index', {}, 'كل شركاتي', 'التبديل بين الشركات أو استعراضها', '🏬', 'شركات شركاتي تبديل شركة كيان companies'),
+    ('companies.branches', {'company_id': cid} if cid else {}, 'الفروع', 'إدارة فروع الشركة ونقاط التشغيل', '🏪', 'فرع فروع موقع مكان branches'),
+    ('companies.smtp_settings', {'company_id': cid} if cid else {}, 'إعدادات البريد (SMTP)', 'ربط بريد الشركة لإرسال الفواتير والتنبيهات', '✉️', 'بريد ايميل smtp ارسال رسائل email'),
+    ('payment_methods.index', {}, 'طرق الدفع', 'الخزن والحسابات البنكية وبوابات الدفع', '💳', 'دفع طرق الدفع كاش بنك خزينة فيزا تحويل payment methods'),
+  ]),
+  ('الفريق والصلاحيات والعمولات', '🔐', 'المستخدمون والأدوار وصلاحيات التقارير ونظام العمولات', [
+    ('settings_roles.index', {}, 'المستخدمين والأدوار', 'إدارة أعضاء الفريق وتخصيص الصلاحيات والأدوار', '🔐', 'مستخدمين ادوار صلاحيات فريق يوزر دعوة roles users permissions'),
+    ('settings_employee_reports.index', {}, 'صلاحيات تقارير الموظفين', 'تحديد من يطّلع على تقارير كل موظف أو قسم', '📝', 'صلاحيات تقارير موظفين مدير اطلاع reports permissions'),
+    ('commissions_admin.index', {}, 'إدارة العمولات', 'قواعد عمولات المبيعات والتسويات والصرف', '💰', 'عمولات عمولة مبيعات تسوية صرف commissions'),
+  ]),
+  ('الباقة والربط البرمجي', '📈', 'متابعة حدود الاشتراك ومفاتيح التكامل الخارجي', [
+    ('settings_usage.index', {}, 'استهلاك الباقة', 'الحدود المتاحة والاستهلاك الحالي وخطة الاشتراك', '📈', 'باقة اشتراك استهلاك حدود خطة ترقية usage plan quota'),
+    ('settings_api_tokens.index', {}, 'مفاتيح الـ API', 'إنشاء وإدارة مفاتيح الربط البرمجي والتكاملات', '🔑', 'مفاتيح api token ربط تكامل برمجي webhook'),
+  ]),
+  ('الأمان والتدقيق والنسخ الاحتياطي', '🛡️', 'مراقبة العمليات وسجلات الدخول والنسخ الاحتياطي', [
+    ('audit_log.index', {}, 'سجل التدقيق', 'تتبع كل التعديلات والعمليات المحاسبية والإدارية', '🔍', 'تدقيق سجل حركات تعديلات حذف انشاء audit log'),
+    ('settings_activity.index', {}, 'نشاط الموظفين', 'جلسات الدخول وسجل نشاط المستخدمين على النظام', '👣', 'نشاط جلسات دخول لوج مراقبة activity'),
+    ('settings_backup.index', {}, 'نسخة احتياطية (Excel)', 'تصدير بيانات الشركة بالكامل في ملفات Excel', '📥', 'نسخة احتياطية باك اب تصدير اكسل backup excel export'),
+  ]),
+] %}
+
+<style>
+.hb{--em:#059669;--em-d:#047857;--em-bg:#ecfdf5;--ink:#0f172a;--mut:#64748b;--line:#e2e8f0;--soft:#f8fafc}
+.hb *{box-sizing:border-box}
+.hb-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.hb-title{font-size:22px;font-weight:800;margin:0;color:#0f172a}
+.hb-sub{font-size:13px;color:#64748b;margin-top:2px}
+.hb-searchbox{position:relative;margin-bottom:6px}
+.hb-search{width:100%;height:48px;border:1px solid #cbd5e1;border-radius:14px;background:#fff;padding:0 46px 0 44px;font-size:15px;font-family:inherit;color:var(--ink);outline:none}
+.hb-search:focus{border-color:var(--em);box-shadow:0 0 0 3px rgba(16,185,129,.16)}
+.hb-searchbox svg{position:absolute;right:15px;top:50%;margin-top:-9px;width:18px;height:18px;color:#94a3b8;pointer-events:none}
+.hb-clear{position:absolute;left:10px;top:50%;margin-top:-12px;width:24px;height:24px;border-radius:50%;border:0;background:#e2e8f0;color:#475569;font-size:12px;cursor:pointer}
+.hb-clear[hidden]{display:none}
+.hb-hint{font-size:12px;color:var(--mut);margin:0 4px 14px}
+.hb-hint b{color:var(--ink)}
+.hb-sec{margin-bottom:18px}
+.hb-sec-h{display:flex;align-items:center;gap:10px;margin:0 0 8px}
+.hb-sec-ic{width:34px;height:34px;display:grid;place-items:center;background:#fff;border:1px solid var(--line);border-radius:10px;font-size:17px}
+.hb-sec-t{font-size:16px;font-weight:800;color:var(--ink)}
+.hb-sec-d{font-size:12px;color:var(--mut)}
+.hb-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.hb-card{display:flex;gap:10px;align-items:flex-start;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;text-decoration:none;color:inherit;transition:border-color .15s,box-shadow .15s,transform .15s}
+.hb-card:hover{border-color:var(--em);box-shadow:0 4px 14px rgba(15,23,42,.07);transform:translateY(-1px)}
+.hb-card.is-first{border-color:var(--em);box-shadow:0 0 0 2px #a7f3d0}
+.hb-ic{font-size:22px;line-height:1.2}
+.hb-ct{font-size:14px;font-weight:800;color:var(--ink)}
+.hb-cd{font-size:12px;color:var(--mut);margin-top:2px;line-height:1.5}
+.hb-empty{display:none;text-align:center;color:var(--mut);padding:26px 10px;background:#fff;border:1px dashed var(--line);border-radius:14px;margin-bottom:14px}
+@media(max-width:900px){.hb-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.hb-grid{grid-template-columns:1fr}}
+</style>
+
+<div class="hb" id="hb-root">
+  <div class="hb-head">
+    <div>
+      <h2 class="hb-title">⚙️ مركز الإعدادات والنظام</h2>
+      <div class="hb-sub">كل إعدادات الشركة والصلاحيات والربط والنسخ الاحتياطي في مكان واحد — ابحث باللي محتاجه.</div>
+    </div>
+  </div>
+
+  <div class="hb-searchbox">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input type="search" id="hb-q" class="hb-search" placeholder="ابحث: صلاحيات، أدوار، API، نسخة احتياطية، طرق الدفع، عمولات، تدقيق…" autocomplete="off" aria-label="بحث في الإعدادات">
+    <button type="button" class="hb-clear" id="hb-clear" hidden aria-label="مسح البحث">✕</button>
+  </div>
+  <div class="hb-hint" id="hb-hint">اضغط <b>Enter</b> لفتح أول نتيجة.</div>
+
+  {% for sec_title, sec_icon, sec_desc, items in HB %}
+    {% set ns = namespace(ok=[]) %}
+    {% for it in items %}
+      {% if (not it[1] or cid) and can_access_endpoint(it[0]) %}{% set ns.ok = ns.ok + [it] %}{% endif %}
+    {% endfor %}
+    {% if ns.ok %}
+    <section class="hb-sec" data-hb-sec>
+      <div class="hb-sec-h">
+        <span class="hb-sec-ic" aria-hidden="true">{{ sec_icon }}</span>
+        <div><div class="hb-sec-t">{{ sec_title }}</div><div class="hb-sec-d">{{ sec_desc }}</div></div>
+      </div>
+      <div class="hb-grid">
+        {% for ep, kwargs, title, desc, icon, kw in ns.ok %}
+        <a class="hb-card" data-hb-card data-hb-kw="{{ kw }}" href="{{ url_for(ep, **kwargs) }}">
+          <span class="hb-ic" aria-hidden="true">{{ icon }}</span>
+          <div>
+            <div class="hb-ct">{{ title }}</div>
+            <div class="hb-cd">{{ desc }}</div>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+  {% endfor %}
+
+  <div class="hb-empty" id="hb-empty">لا توجد إعدادات مطابقة لبحثك.</div>
+</div>
+
+<script>
+(function () {
+  function norm(s) {
+    return (s || '').toLowerCase()
+      .replace(/[ً-ٰٟ]/g, '')
+      .replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
+      .replace(/\s+/g, ' ').trim();
+  }
+  function init() {
+    var root = document.getElementById('hb-root'); if (!root) return;
+    var q = document.getElementById('hb-q'), clr = document.getElementById('hb-clear');
+    var hint = document.getElementById('hb-hint'), none = document.getElementById('hb-empty');
+    var cards = Array.prototype.slice.call(root.querySelectorAll('[data-hb-card]'));
+    var secs = Array.prototype.slice.call(root.querySelectorAll('[data-hb-sec]'));
+    cards.forEach(function (c) {
+      var t = c.querySelector('.hb-ct'), d = c.querySelector('.hb-cd');
+      c._t = norm(t ? t.textContent : ''); c._d = norm(d ? d.textContent : '');
+      c._h = norm(c.textContent + ' ' + (c.getAttribute('data-hb-kw') || ''));
+    });
+    var first = null;
+    function has(h, t) {
+      if (h.indexOf(t) !== -1) return true;
+      if (t.length > 4 && t.indexOf('ال') === 0 && h.indexOf(t.slice(2)) !== -1) return true;
+      if (t.length >= 4 && h.indexOf(t.slice(0, -1)) !== -1) return true;
+      return false;
+    }
+    function match(h, terms) { for (var i = 0; i < terms.length; i++) { if (!has(h, terms[i])) return false; } return true; }
+    function score(c, terms) {
+      var sc = 0;
+      terms.forEach(function (t) { sc += has(c._t, t) ? 3 : (has(c._d, t) ? 2 : 1); });
+      return sc;
+    }
+    function apply() {
+      var term = norm(q.value), terms = term ? term.split(' ') : [];
+      clr.hidden = !term; var shownC = 0, best = -1; first = null;
+      cards.forEach(function (c) {
+        var ok = !terms.length || match(c._h, terms);
+        c.style.display = ok ? '' : 'none'; c.classList.remove('is-first');
+        if (ok) { shownC++; if (terms.length) { var sc = score(c, terms); if (!first || sc > best) { first = c; best = sc; } } }
+      });
+      if (first) first.classList.add('is-first');
+      secs.forEach(function (s) {
+        var vis = s.querySelector('[data-hb-card]:not([style*="display: none"])');
+        s.style.display = vis ? '' : 'none';
+      });
+      none.style.display = (terms.length && !shownC) ? 'block' : 'none';
+      hint.innerHTML = terms.length ? ('<b>' + shownC + '</b> نتيجة — اضغط <b>Enter</b> لفتح أول صفحة.') : 'اضغط <b>Enter</b> لفتح أول نتيجة.';
+    }
+    q.addEventListener('input', apply);
+    q.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); if (first) window.location.href = first.getAttribute('href'); }
+      else if (e.key === 'Escape') { q.value = ''; apply(); }
+    });
+    clr.addEventListener('click', function () { q.value = ''; apply(); q.focus(); });
+    apply();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>
+{% endblock %}

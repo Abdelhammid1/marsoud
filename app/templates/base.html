@@ -732,18 +732,10 @@ tailwind.config = {
             ('support_admin.index', 'كل تذاكر الدعم', '📥'),
           ]),
           ('الإعدادات والنظام', '⚙️', [
+            ('companies.settings_hub', 'مركز الإعدادات والنظام', '⚙️'),
             ('settings_roles.index', 'المستخدمين والأدوار', '🔐'),
-            ('settings_api_tokens.index', 'مفاتيح الـ API', '🔑'),
-            ('settings_activity.index', 'نشاط الموظفين', '👣'),
-            ('settings_employee_reports.index', 'صلاحيات تقارير الموظفين', '📝'),
-            ('settings_backup.index', 'نسخة احتياطية (Excel)', '📥'),
-            ('commissions_admin.index', 'إدارة العمولات', '💰'),
-            ('settings_usage.index', 'استهلاك الباقة', '📈'),
-            ('payment_methods.index', 'طرق الدفع', '💳'),
             ('companies.edit', 'إعدادات الشركة', '🏢',
              {'company_id': active_company.id} if active_company else {}),
-            ('companies.index', 'كل شركاتي', '🏬'),
-            ('audit_log.index', 'سجل التدقيق', '🔍'),
           ]),
         ] %}
       {% endif %}
