@@ -57,7 +57,7 @@ def count_users(company):
     row = db.session.execute(text(
         "SELECT COUNT(DISTINCT uc.user_id) FROM user_companies uc "
         "JOIN users u ON u.id = uc.user_id "
-        "WHERE uc.company_id = :c AND u.is_active = 1"
+        "WHERE uc.company_id = :c AND u.is_active IS TRUE"
     ), {"c": company.id}).scalar()
     return int(row or 0)
 
