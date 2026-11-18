@@ -48,6 +48,43 @@ GUIDE_TOOL_SCHEMAS = [
             "properties": {},
         },
     },
+    {
+        "name": "submit_feature_request",
+        "description": (
+            "تُستدعى فوراً عندما يطلب العميل ميزة أو وظيفة منطقية غير موجودة حالياً "
+            "في النظام، بما في ذلك طلبات التكامل والربط مع الأنظمة والتطبيقات الخارجية "
+            "(مثل Google Calendar / Bookings / واتساب / بوابات الدفع / المتاجر). "
+            "تُسجّل تيكت تقنية واضحة لفريق المنتج؛ أخبر العميل بصدق بعد الاستدعاء "
+            "أن طلبه اتسجّل لفريق المنتج دون أي وعد بميعاد."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "description": "عنوان تقني مختصر وواضح للميزة أو التكامل المطلوب",
+                },
+                "user_quote": {
+                    "type": "string",
+                    "description": "نص طلب العميل الأصلي كما قاله",
+                },
+                "problem_and_goal": {
+                    "type": "string",
+                    "description": "المشكلة التي يواجهها العميل والهدف العملي من الميزة أو التكامل",
+                },
+                "proposed_spec": {
+                    "type": "string",
+                    "description": "مواصفات التنفيذ المقترحة (الشاشة/الأداة، المدخلات، المخرجات، والسلوك المتوقع)",
+                },
+                "priority": {
+                    "type": "string",
+                    "enum": ["LOW", "MEDIUM", "HIGH"],
+                    "description": "أولوية الطلب",
+                },
+            },
+            "required": ["title", "user_quote", "problem_and_goal", "proposed_spec"],
+        },
+    },
 ]
 
 
@@ -177,5 +214,9 @@ def execute_guide_tool(name: str, args: dict, company_id: int, user_id: int):
             "counts": counts,
             "onboarding_checklist": checklist,
         }
+
+    if name == "submit_feature_request":
+        from app.agent.tools import execute_tool
+        return execute_tool("submit_feature_request", args, company_id, user_id)
 
     return {"error": f"أداة غير معروفة: {name}"}
