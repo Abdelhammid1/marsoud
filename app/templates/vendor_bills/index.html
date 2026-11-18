@@ -19,7 +19,7 @@
   {{ ui.stat_tile("المستحق للموردين", totals.outstanding|amount_ar(base_cur), tone="warning") }}
 </div>
 
-<div class="card p-6">
+<div class="card p-6 min-w-0">
   {# MARSOUD-VBILL-SUBCAT-DISPLAY-FILTER (Abdelhamid 2026-07-16) —
      vendor + sub-category filters + a JS hook that re-fetches the
      vendor's sub-category list when the vendor dropdown changes.
@@ -36,7 +36,7 @@
               onchange="_refreshSubCatOptions(this)">
         <option value="">كل الموردين</option>
         {% for v in vendors %}
-        <option value="{{ v.id }}" {% if vendor_filter == v.id|string %}selected{% endif %}>{{ v.name }}</option>
+        <option value="{{ v.id }}" data-hid="{{ v.id | hid }}" {% if vendor_filter == v.id|string %}selected{% endif %}>{{ v.name }}</option>
         {% endfor %}
       </select>
     </div>
@@ -100,7 +100,7 @@
     scSel.innerHTML = '<option value="">كل التصنيفات</option>';
     if (!vid) return;
     try {
-      const vhid = sel.options[sel.selectedIndex]?.dataset?.vendorHid || vid;
+      const vhid = vendorSel.options[vendorSel.selectedIndex]?.dataset?.hid || vid;
       const res = await fetch(`/vendors/${vhid}/sub-categories.json`);
       const list = await res.json();
       for (const c of list) {
@@ -115,8 +115,9 @@
   }
   </script>
 
-  <table class="data-table" data-listkit>
-    <thead><tr><th>الرقم</th><th>المورد</th><th>الوصف</th><th>النوع</th><th>الحساب</th><th>تاريخ الفاتورة</th><th>الاستحقاق</th><th>الدفع</th><th class="text-left">الإجمالي</th><th class="text-left">المتبقي</th><th>الحالة</th><th></th></tr></thead>
+  <div class="overflow-x-auto w-full">
+  <table class="data-table w-full" data-listkit>
+    <thead><tr class="whitespace-nowrap"><th>الرقم</th><th>المورد</th><th>الوصف</th><th>النوع</th><th>الحساب</th><th>تاريخ الفاتورة</th><th>الاستحقاق</th><th>الدفع</th><th class="text-left">الإجمالي</th><th class="text-left">المتبقي</th><th>الحالة</th><th></th></tr></thead>
     <tbody>
       {% set lt_colors = {'EXPENSE':'bg-red-50 text-red-700','FIXED_ASSET':'bg-blue-50 text-blue-700','INVENTORY':'bg-emerald-50 text-emerald-700'} %}
       {% set lt_labels = {'EXPENSE':'مصروف','FIXED_ASSET':'أصل ثابت','INVENTORY':'مخزون'} %}
@@ -180,6 +181,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
 </div>
 {# MARSOUD-LISTKIT-P85 #}
 <style>
