@@ -104,7 +104,8 @@ def company_logo_email_uri(company):
 
 
 def send_email(to, subject, html_body, attachments=None,
-                text_body=None, *, company_id=None, bcc=None):
+                text_body=None, *, company_id=None, bcc=None,
+                force_platform=False):
     """Send an email. Returns True on success, False on failure
     (logged, never raises).
 
@@ -120,7 +121,9 @@ def send_email(to, subject, html_body, attachments=None,
         logger.warning("send_email called with empty 'to'")
         return False
 
-    if company_id is None:
+    if force_platform:
+        company_id = None
+    elif company_id is None:
         company_id = _implicit_company_id()
     config, source = _resolve_mail_config(company_id)
     from_addr = config["SMTP_FROM"]

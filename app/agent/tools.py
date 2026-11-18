@@ -425,9 +425,11 @@ TOOL_SCHEMAS = [
     {
         "name": "submit_feature_request",
         "description": (
-            "تُستدعى داخلياً وبصمت تام عندما يطلب العميل ميزة أو وظيفة منطقية "
-            "ومفهومة في النظام ولكنها غير موجودة حالياً. تُرسل تيكت تقنية واضحة "
-            "لإدارة المنتج دون إخبار العميل بعملية الإرسال."
+            "تُستدعى فوراً عندما يطلب العميل ميزة أو وظيفة منطقية غير موجودة حالياً "
+            "في النظام، بما في ذلك طلبات التكامل والربط مع الأنظمة والتطبيقات الخارجية "
+            "(مثل Google Calendar / Bookings / واتساب / بوابات الدفع / المتاجر). "
+            "تُسجّل تيكت تقنية واضحة لفريق المنتج؛ أخبر العميل بصدق بعد الاستدعاء "
+            "أن طلبه اتسجّل لفريق المنتج دون أي وعد بميعاد."
         ),
         "input_schema": {
             "type": "object",
@@ -1403,10 +1405,36 @@ def execute_tool(name, args, company_id, user_id):
         if name == "submit_feature_request":
             import os as _os
             import html as _html
-            from datetime import datetime as _dt
+            import logging as _logging
+            from datetime import datetime as _dt, timedelta as _td
             from zoneinfo import ZoneInfo as _ZI
-            from app.models import Company, User
+            from app.models import Company, User, AgentMessage, AgentConversation
             from app.services.email import send_email
+
+            cutoff_24h = _dt.utcnow() - _td(hours=24)
+            base_rate_q = (
+                db.session.query(AgentMessage.id)
+                .join(AgentConversation, AgentMessage.conversation_id == AgentConversation.id)
+                .filter(
+                    AgentConversation.company_id == company_id,
+                    AgentMessage.created_at >= cutoff_24h,
+                    AgentMessage.tool_trace.isnot(None),
+                    AgentMessage.tool_trace.contains("submit_feature_request"),
+                )
+            )
+            company_count_24h = base_rate_q.count()
+            user_count_24h = (
+                base_rate_q.filter(AgentConversation.user_id == user_id).count()
+                if user_id else 0
+            )
+            if user_count_24h >= 3 or company_count_24h >= 10:
+                return {
+                    "ok": False,
+                    "internal_note": (
+                        "تم الوصول للحد الأقصى اليومي لتسجيل طلبات الميزات (3 طلبات للمستخدم أو 10 للشركة خلال آخر 24 ساعة). "
+                        "اعتذر للمستخدم بصدق ولطف وأخبره أن الطلب وصل للحد اليومي ويمكنه المحاولة غداً، بدون أي وعد بميعاد."
+                    ),
+                }
 
             comp = db.session.get(Company, company_id)
             usr = db.session.get(User, user_id) if user_id else None
@@ -1464,7 +1492,14 @@ def execute_tool(name, args, company_id, user_id):
                 html_body,
                 text_body=text_body,
                 company_id=None,
+                force_platform=True,
             )
+            if not sent:
+                _logging.getLogger("ledgeros.agent").warning(
+                    "submit_feature_request email delivery failed: title=%r company_id=%s",
+                    title,
+                    company_id,
+                )
             return {
                 "ok": bool(sent),
                 "internal_note": ("تم تسجيل الطلب وتحويله لفريق المنتج للمراجعة. أخبر العميل بذلك بصدق ومن غير أي وعد بميعاد." if sent else "تعذّر تسجيل الطلب حالياً. أخبر العميل بصدق إن الطلب ماتسجّلش وإنه يحاول لاحقاً أو يتواصل مع الدعم الفني."),
