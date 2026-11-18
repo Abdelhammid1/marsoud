@@ -1408,7 +1408,7 @@ def execute_tool(name, args, company_id, user_id):
             import logging as _logging
             from datetime import datetime as _dt, timedelta as _td
             from zoneinfo import ZoneInfo as _ZI
-            from app.models import Company, User, AgentMessage, AgentConversation
+            from app.models import User, AgentMessage, AgentConversation
             from app.services.email import send_email
 
             cutoff_24h = _dt.utcnow() - _td(hours=24)
@@ -1436,7 +1436,7 @@ def execute_tool(name, args, company_id, user_id):
                     ),
                 }
 
-            comp = db.session.get(Company, company_id)
+            comp = company
             usr = db.session.get(User, user_id) if user_id else None
             comp_name = comp.name if comp else f"Company #{company_id}"
             user_name = usr.full_name if usr else f"User #{user_id}"
