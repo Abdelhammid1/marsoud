@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block page_title %}ربط Google Bookings والتقويم{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-5">
+  <div class="flex items-center justify-between">
+    <div>
+      <h2 class="text-xl font-bold text-navy-900">📅 تكامل Google Bookings والتقويم</h2>
+      <p class="text-xs text-slate-500 mt-1">اربط حجوزات Google Calendar لتحويلها تلقائياً إلى عملاء محتملين ومواعيد، واشترك في تقويم مرصود من Apple Calendar أو Google.</p>
+    </div>
+    <a href="{{ url_for('calendar.index') }}" class="btn btn-secondary text-sm">← العودة للتقويم</a>
+  </div>
+
+  <form method="POST" class="card p-6 space-y-4">
+    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+      <div>
+        <div class="font-bold text-navy-900 text-sm">1) استقبال حجوزات Google Bookings تلقائياً</div>
+        <div class="text-xs text-slate-500">الصق رابط الـ iCal السري الخاص بتقويم الحجوزات في Google Calendar، وسيقوم مرصود بسحب الحجوزات وتحويلها إلى عملاء محتملين ومواعيد بدون تكرار.</div>
+      </div>
+      <label class="inline-flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" name="is_active" value="1" {% if cfg.is_active %}checked{% endif %} class="w-4 h-4 accent-emerald-600">
+        <span class="text-sm font-semibold text-emerald-700">مفعّل</span>
+      </label>
+    </div>
+
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">رابط تقويم Google السري (Secret address in iCal format)</label>
+      <input type="url" name="google_ical_url" value="{{ cfg.google_ical_url or '' }}"
+             dir="ltr" class="input w-full text-left font-mono text-xs"
+             placeholder="https://calendar.google.com/calendar/ical/.../private-.../basic.ics">
+      <p class="text-[11px] text-slate-500 mt-1">من Google Calendar ← Settings ← اختر التقويم ← Integrate calendar ← انسخ <b>Secret address in iCal format</b>.</p>
+    </div>
+
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">المسؤول الافتراضي عن العملاء المحتملين الجدد</label>
+      <select name="default_assignee_id" class="select w-full text-sm">
+        <option value="">— بدون تعيين تلقائي —</option>
+        {% for u in users %}
+        <option value="{{ u.id }}" {% if cfg.default_assignee_id == u.id %}selected{% endif %}>{{ u.full_name or u.email }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% if cfg.last_synced_at or cfg.last_sync_error %}
+    <div class="rounded-lg border p-3 text-xs {% if cfg.last_sync_status == 'error' %}border-rose-200 bg-rose-50 text-rose-800{% else %}border-emerald-200 bg-emerald-50 text-emerald-800{% endif %}">
+      <div><b>آخر مزامنة:</b> {{ cfg.last_synced_at | company_dt('%Y-%m-%d %H:%M') if cfg.last_synced_at else 'لم تتم بعد' }} · <b>إجمالي المسحوب:</b> {{ cfg.synced_count }} حجز</div>
+      {% if cfg.last_sync_error %}<div class="mt-1"><b>ملاحظة:</b> {{ cfg.last_sync_error }}</div>{% endif %}
+    </div>
+    {% endif %}
+
+    <div class="flex justify-end pt-2">
+      <button type="submit" class="btn btn-primary">💾 حفظ الإعدادات</button>
+    </div>
+  </form>
+
+  <div class="card p-6 space-y-4">
+    <div class="font-bold text-navy-900 text-sm border-b border-slate-100 pb-2">2) مزامنة مواعيد مرصود مع Apple Calendar و Google Calendar</div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">رابط الاشتراك المباشر في التقويم (ICS Subscription Feed)</label>
+      <div class="flex gap-2">
+        <input type="text" readonly dir="ltr" id="feed-url" value="{{ feed_url }}" class="input w-full text-left font-mono text-xs bg-slate-50">
+        <button type="button" class="btn btn-secondary text-xs whitespace-nowrap" onclick="navigator.clipboard.writeText(document.getElementById('feed-url').value);this.textContent='✓ تم النسخ';">نسخ الرابط</button>
+      </div>
+      <p class="text-[11px] text-slate-500 mt-1">في <b>Apple Calendar</b>: File ← New Calendar Subscription ← الصق الرابط. وفي <b>Google Calendar</b>: Other calendars (+) ← From URL.</p>
+    </div>
+
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">رابط Webhook لاستقبال الحجوزات الفورية (Zapier / Make / n8n)</label>
+      <div class="flex gap-2">
+        <input type="text" readonly dir="ltr" id="wh-url" value="{{ webhook_url }}" class="input w-full text-left font-mono text-xs bg-slate-50">
+        <button type="button" class="btn btn-secondary text-xs whitespace-nowrap" onclick="navigator.clipboard.writeText(document.getElementById('wh-url').value);this.textContent='✓ تم النسخ';">نسخ الرابط</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

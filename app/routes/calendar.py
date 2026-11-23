@@ -7,9 +7,10 @@ This satisfies FR-39's literal requirement (system shows a calendar of meetings
 deferred to v1.5+ per the SRD's MVP-scope section.
 """
 from datetime import date, datetime, timedelta
+from urllib.parse import urlencode
 from flask import (
     Blueprint, render_template, g, request, redirect, url_for, flash,
-    abort,
+    abort, Response,
 )
 from flask_login import login_required, current_user
 
@@ -17,7 +18,10 @@ from app import db
 from app.models import (
     Lead, Task, Project, TaskStatus, ProjectStatus,
     LeadActivity, LeadActivityType, CalendarEvent,
+    CalendarIntegration, User,
 )
+from app.models.user import user_companies
+from app.services.calendar_sync import build_google_calendar_url, build_ics_content
 from app.services.permissions import get_user_role
 
 
@@ -190,6 +194,16 @@ def index():
 
     events = sorted(meetings + tasks + projects + manual_events,
                     key=lambda e: e["when"])
+    for e in events:
+        e["google_url"] = build_google_calendar_url(
+            e["title"], e["when"], details=e.get("subtitle") or ""
+        )
+        e["ics_url"] = url_for(
+            "calendar.download_ics",
+            title=e["title"],
+            starts_at=e["when"].strftime("%Y-%m-%dT%H:%M"),
+            details=e.get("subtitle") or "",
+        )
     # Group by date for the timeline render
     by_day = {}
     for e in events:
@@ -298,3 +312,120 @@ def delete_event(event_id):
     db.session.commit()
     flash("تم حذف الحدث.", "success")
     return redirect(url_for("calendar.index"))
+
+
+# ─── MARSOUD-P120: Outbound ICS, Feed & Integration Settings ───────────
+@bp.route("/ics")
+@login_required
+def download_ics():
+    title = (request.args.get("title") or "موعد مرصود").strip()[:200]
+    starts_at = _parse_dt(request.args.get("starts_at")) or datetime.now()
+    ends_at = _parse_dt(request.args.get("ends_at"))
+    details = (request.args.get("details") or "").strip()[:1000]
+    location = (request.args.get("location") or "").strip()[:300]
+    ics = build_ics_content([{
+        "title": title,
+        "starts_at": starts_at,
+        "ends_at": ends_at,
+        "description": details,
+        "location": location,
+    }])
+    return Response(
+        ics,
+        mimetype="text/calendar; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="marsoud-event.ics"'},
+    )
+
+
+@bp.route("/feed/<token>.ics")
+def subscription_feed(token):
+    cfg = CalendarIntegration.query.filter_by(feed_token=token).first()
+    if not cfg:
+        abort(404)
+    cid = cfg.company_id
+    today = date.today()
+    start_dt = datetime.combine(today - timedelta(days=7), datetime.min.time())
+    end_dt = datetime.combine(today + timedelta(days=90), datetime.min.time())
+    items = []
+    for lead in Lead.query.filter(
+        Lead.company_id == cid,
+        Lead.deleted_at.is_(None),
+        Lead.next_meeting.isnot(None),
+        Lead.next_meeting >= start_dt,
+        Lead.next_meeting < end_dt,
+    ).all():
+        items.append({
+            "uid": f"marsoud-lead-{lead.id}@marsoud.com",
+            "title": f"اجتماع مع {lead.client_name}",
+            "starts_at": lead.next_meeting,
+            "description": lead.service_needed or "",
+        })
+    for t in Task.query.filter(
+        Task.company_id == cid,
+        Task.archived_at.is_(None),
+        Task.deadline.isnot(None),
+        Task.deadline >= today - timedelta(days=7),
+        Task.deadline <= today + timedelta(days=90),
+        Task.status.notin_([TaskStatus.DONE, TaskStatus.BLOCKED]),
+    ).all():
+        items.append({
+            "uid": f"marsoud-task-{t.id}@marsoud.com",
+            "title": f"مهمة: {t.title}",
+            "starts_at": t.deadline,
+            "description": t.notes or "",
+        })
+    for ev in CalendarEvent.query.filter(
+        CalendarEvent.company_id == cid,
+        CalendarEvent.is_deleted.is_(False),
+        CalendarEvent.starts_at >= start_dt,
+        CalendarEvent.starts_at < end_dt,
+    ).all():
+        items.append({
+            "uid": f"marsoud-ev-{ev.id}@marsoud.com",
+            "title": ev.title,
+            "starts_at": ev.starts_at,
+            "ends_at": ev.ends_at,
+            "description": ev.description or "",
+            "location": ev.location or "",
+        })
+    ics = build_ics_content(items, cal_name="Marsoud — المواعيد والمهام")
+    return Response(ics, mimetype="text/calendar; charset=utf-8")
+
+
+@bp.route("/settings", methods=["GET", "POST"])
+@login_required
+def integration_settings():
+    cid = g.active_company.id
+    role = get_user_role(current_user.id, cid)
+    if role not in ("owner", "admin", "ceo", "sales_manager"):
+        abort(403)
+    cfg = CalendarIntegration.get_or_create(cid)
+    if request.method == "POST":
+        url_val = (request.form.get("google_ical_url") or "").strip()[:1000]
+        if url_val and not (url_val.startswith("https://") or url_val.startswith("http://")):
+            flash("رابط الـ iCal لازم يبدأ بـ https://", "error")
+            return redirect(url_for("calendar.integration_settings"))
+        cfg.google_ical_url = url_val or None
+        raw_assg = request.form.get("default_assignee_id") or ""
+        cfg.default_assignee_id = int(raw_assg) if raw_assg.isdigit() else None
+        cfg.is_active = request.form.get("is_active") == "1"
+        db.session.commit()
+        flash("تم حفظ إعدادات ربط Google Bookings والتقويم.", "success")
+        return redirect(url_for("calendar.integration_settings"))
+
+    member_ids = [
+        r[0] for r in db.session.execute(
+            db.select(user_companies.c.user_id).where(user_companies.c.company_id == cid)
+        ).fetchall()
+    ]
+    users = User.query.filter(User.id.in_(member_ids), User.is_active.is_(True)).order_by(User.full_name).all() if member_ids else []
+    base = request.url_root.rstrip("/")
+    feed_url = base + url_for("calendar.subscription_feed", token=cfg.feed_token)
+    webhook_url = f"{base}/calendar/webhook/{cfg.webhook_secret}"
+    return render_template(
+        "calendar/settings.html",
+        cfg=cfg,
+        users=users,
+        feed_url=feed_url,
+        webhook_url=webhook_url,
+    )

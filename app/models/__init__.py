@@ -48,6 +48,7 @@ from app.models.customer_deposit import (
 )
 # MARSOUD-CALENDAR-MANUAL-EVENTS (Abdelhamid 2026-07-29).
 from app.models.calendar_event import CalendarEvent
+from app.models.calendar_integration import CalendarIntegration
 # MARSOUD-RECURRING-INVOICE-01 (Abdelhamid 2026-07-24).
 from app.models.recurring_invoice import (
     RecurringInvoice, RecurringInvoiceLog,
