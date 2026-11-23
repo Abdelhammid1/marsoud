@@ -50,6 +50,7 @@ from app.models.customer_deposit import (
 from app.models.calendar_event import CalendarEvent
 from app.models.calendar_integration import CalendarIntegration
 from app.models.lead_integration import LeadIntegration
+from app.models.whatsapp_integration import WhatsAppIntegration
 # MARSOUD-RECURRING-INVOICE-01 (Abdelhamid 2026-07-24).
 from app.models.recurring_invoice import (
     RecurringInvoice, RecurringInvoiceLog,
