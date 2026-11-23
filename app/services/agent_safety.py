@@ -22,6 +22,7 @@ still working.
 import json
 from datetime import datetime, timedelta
 from app import db
+from app.services.url_ids import encode_id
 
 
 WRITE_TOOL_NAMES = frozenset({
@@ -103,7 +104,7 @@ def create_proposal(*, tool_name, args, company_id, user_id,
     if existing is not None:
         return {
             "requires_confirmation": True,
-            "proposal_id": existing.id,
+            "proposal_id": encode_id(existing.id),
             "tool": tool_name,
             "summary_ar": existing.summary_ar,
             "amount_readable": existing.amount_readable,
@@ -121,7 +122,7 @@ def create_proposal(*, tool_name, args, company_id, user_id,
     db.session.commit()
     return {
         "requires_confirmation": True,
-        "proposal_id": p.id,
+        "proposal_id": encode_id(p.id),
         "tool": tool_name,
         "summary_ar": p.summary_ar,
         "amount_readable": p.amount_readable,
@@ -162,6 +163,15 @@ def execute_proposal(proposal_id, *, actor_user_id, active_company_id):
             "status": p.status,
         }, 400
 
+    # MARSOUD-P116 (T-024) — أدوات المهام: المؤكِّد لازم يكون صاحب الطلب،
+    # والـ flag ده هو الوحيد اللي بيفتح التنفيذ جوه work_tools.
+    from app.agent.work_tools import WORK_TOOL_NAMES as _T024_NAMES
+    _t024 = p.tool_name in _T024_NAMES
+    if _t024:
+        if p.user_id != actor_user_id:
+            return {"error": "التأكيد لازم يكون من نفس الشخص اللي طلب العملية"}, 403
+        from flask import g as _t024_g
+        _t024_g._t024_confirmed_pid = p.id
     # Cap check runs BEFORE executing. If the user has exhausted their
     # daily writes, the proposal stays PENDING and can be run tomorrow.
     try:
@@ -175,6 +185,12 @@ def execute_proposal(proposal_id, *, actor_user_id, active_company_id):
     result = execute_tool(
         p.tool_name, args, active_company_id, actor_user_id)
 
+    if _t024 and isinstance(result, dict) and result.get("error"):
+        # فشل كامل: مش EXECUTED، العداد اليومي يتردّ، والبطاقة تعرض الخطأ.
+        refund_write_cap(actor_user_id, active_company_id)
+        p.result_json = json.dumps(result, ensure_ascii=False, default=str)
+        db.session.commit()
+        return {"error": result["error"]}, 400
     p.status = PROPOSAL_EXECUTED
     p.executed_at = datetime.utcnow()
     p.result_json = json.dumps(result, ensure_ascii=False, default=str)
@@ -284,3 +300,16 @@ def summarize_write_call(tool_name, args, company):
         pass
     return (f"عملية {tool_name}",
             json.dumps(args, ensure_ascii=False, default=str)[:120])
+
+
+def refund_write_cap(user_id, company_id):
+    """MARSOUD-P116 — بيرجّع واحد للعداد اليومي لما أداة مهام تفشل بالكامل."""
+    from app.models import AgentDailyWriteCount, Company
+    from app.services.time import today_in_company_tz
+    company = db.session.get(Company, company_id) if company_id else None
+    day = today_in_company_tz(company)
+    row = AgentDailyWriteCount.query.filter_by(
+        user_id=user_id, day=day).first()
+    if row is not None and row.count > 0:
+        row.count = row.count - 1
+        db.session.commit()

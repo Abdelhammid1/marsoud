@@ -462,6 +462,11 @@ TOOL_SCHEMAS = [
 ]
 
 
+# MARSOUD-P116 (T-024) — schemas أدوات المهام (فهيم أفندي)
+from app.agent.work_tools import WORK_TOOL_SCHEMAS as _T024_SCHEMAS
+TOOL_SCHEMAS.extend(_T024_SCHEMAS)
+
+
 def _parse_date(s, default=None, company=None):
     """Parse a date string. Missing/empty falls back to `default`, or
     to today-in-company-tz if `company` is provided, else server today.
@@ -504,6 +509,11 @@ def execute_tool(name, args, company_id, user_id):
         WRITE_TOOL_NAMES, require_confirmation_enabled,
         create_proposal, summarize_write_call,
     )
+    # MARSOUD-P116 (T-024) — أدوات المهام بتتعامل مع الاقتراح والتأكيد بنفسها.
+    from app.agent import work_tools as _t024_wt
+    if name in _t024_wt.WORK_TOOL_NAMES:
+        return _t024_wt.run_work_tool(name, args, company_id, user_id)
+
     if (name in WRITE_TOOL_NAMES
             and require_confirmation_enabled()
             and not args.get("_confirmed_proposal_id")):

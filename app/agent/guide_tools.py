@@ -89,6 +89,14 @@ GUIDE_TOOL_SCHEMAS = [
 
 
 def execute_guide_tool(name: str, args: dict, company_id: int, user_id: int):
+    # MARSOUD-P116 (T-024) — أدوات المهام (اقتراح + تأكيد)
+    from app.agent import work_tools as _t024_wt
+    if name in _t024_wt.WORK_TOOL_NAMES:
+        return _t024_wt.run_work_tool(name, dict(args or {}), company_id, user_id)
+    return _execute_guide_tool_base(name, args, company_id, user_id)
+
+
+def _execute_guide_tool_base(name: str, args: dict, company_id: int, user_id: int):
     args = args or {}
     if name == "search_marsoud_screens":
         from app.agent.system_map import get_system_map
@@ -220,3 +228,8 @@ def execute_guide_tool(name: str, args: dict, company_id: int, user_id: int):
         return execute_tool("submit_feature_request", args, company_id, user_id)
 
     return {"error": f"أداة غير معروفة: {name}"}
+
+
+# MARSOUD-P116 (T-024) — أدوات المهام لابن الشركة
+from app.agent.work_tools import WORK_TOOL_SCHEMAS as _T024_SCHEMAS  # noqa: E402
+GUIDE_TOOL_SCHEMAS.extend(_T024_SCHEMAS)

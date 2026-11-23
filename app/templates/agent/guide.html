@@ -352,6 +352,66 @@
   function setBusy(b) { busy = b; sendBtn.disabled = b; }
 
   /* ---------- sending ---------- */
+  /* ---------- MARSOUD-P116 (T-024): بطاقة تأكيد المهام ---------- */
+  (function () {
+    if (document.getElementById('t24-css')) return;
+    var st = document.createElement('style'); st.id = 't24-css';
+    st.textContent = '.t24-card{border:1px solid #fcd34d;background:#fffbeb;border-radius:12px;padding:12px 14px;margin:6px 0;font-size:13px;line-height:1.8;color:#1f2937}' +
+      '.t24-h{font-weight:700;color:#78350f;margin-bottom:4px}' +
+      '.t24-s{white-space:pre-wrap;margin-bottom:8px}' +
+      '.t24-b{display:flex;gap:8px;align-items:center;flex-wrap:wrap}' +
+      '.t24-b button{border:0;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer}' +
+      '.t24-ok{background:#059669;color:#fff}.t24-no{background:#fff;border:1px solid #cbd5e1 !important;color:#334155}' +
+      '.t24-b button:disabled{opacity:.5;cursor:default}.t24-st{font-size:12px;color:#475569}' +
+      '.t24-r{margin-top:6px;font-size:12px}.t24-r a{color:#1d4ed8;text-decoration:underline}.t24-w{color:#b45309}';
+    document.head.appendChild(st);
+  })();
+  function addProposal(r) {
+    if (!r || !r.proposal_id) return;
+    var d = document.createElement('div'); d.className = 't24-card';
+    d.setAttribute('data-pid', r.proposal_id);
+    d.innerHTML = '<div class="t24-h">⚠️ يحتاج تأكيدك قبل التنفيذ</div><div class="t24-s">' + esc(r.summary_ar || '') +
+      '</div><div class="t24-b"><button type="button" class="t24-ok">تأكيد ونفّذ</button><button type="button" class="t24-no">إلغاء</button><span class="t24-st"></span></div>';
+    box.appendChild(d); toBottom();
+  }
+  function t24Result(card, res) {
+    if (!res || typeof res !== 'object') return;
+    var h = '';
+    if (res.message) h += '<div>' + esc(res.message) + '</div>';
+    (Array.isArray(res.links) ? res.links : []).forEach(function (l) {
+      if (!l || typeof l.url !== 'string' || l.url.indexOf('/tasks/') !== 0) return;
+      h += '<div><a href="' + esc(l.url) + '">' + esc(l.title || 'فتح المهمة') + '</a></div>';
+    });
+    (Array.isArray(res.warnings) ? res.warnings : []).forEach(function (w) { h += '<div class="t24-w">⚠️ ' + esc(String(w)) + '</div>'; });
+    if (!h) return;
+    var d = document.createElement('div'); d.className = 't24-r'; d.innerHTML = h; card.appendChild(d);
+  }
+  function t24Buttons(card, on) {
+    var b = card.querySelectorAll('button');
+    for (var i = 0; i < b.length; i++) b[i].disabled = !on;
+  }
+  box.addEventListener('click', function (ev) {
+    var b = ev.target && ev.target.closest ? ev.target.closest('.t24-ok, .t24-no') : null;
+    if (!b) return;
+    var card = b.closest('.t24-card');
+    if (!card || card.getAttribute('data-done') === '1') return;
+    var pid = card.getAttribute('data-pid');
+    var st = card.querySelector('.t24-st');
+    card.setAttribute('data-done', '1'); t24Buttons(card, false);
+    if (b.classList.contains('t24-no')) {
+      fetch('/agent/proposal/' + pid + '/cancel', { method: 'POST' }).catch(function () {});
+      st.textContent = 'اتلغى'; return;
+    }
+    st.textContent = 'جاري التنفيذ…';
+    fetch('/agent/proposal/' + pid + '/execute', { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data && data.ok) { st.textContent = 'تم التنفيذ ✓'; t24Result(card, data.result); }
+        else { st.textContent = (data && data.error) || 'تعذّر التنفيذ'; card.setAttribute('data-done', ''); t24Buttons(card, true); }
+      })
+      .catch(function () { st.textContent = 'خطأ في الاتصال'; card.setAttribute('data-done', ''); t24Buttons(card, true); });
+  });
+
   window.sendMessage = async function (e) {
     if (e) e.preventDefault();
     var text = input.value.trim();
@@ -370,6 +430,7 @@
       else {
         if (data.conversation_id) setActive(data.conversation_id, text);
         addAssistant(data.reply, data.tools);
+        if (data.proposals && data.proposals.length) { data.proposals.forEach(addProposal); }
       }
     } catch (err) {
       loading.remove(); addError('خطأ في الاتصال، حاول مرة أخرى.');

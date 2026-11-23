@@ -557,6 +557,25 @@ function buildProposalCard(r) {
 // MARSOUD-AGENT-CONFIRM-LOOP-01 — single delegated handler for every
 // proposal card ever appended to #chat-messages. Attached once on
 // DOMContentLoaded; robust to reparsing.
+// MARSOUD-P116 (T-024) — بعد التأكيد: اعرض رابط المهمة والتحذيرات.
+function t024ShowResult(card, res) {
+  if (!res || typeof res !== 'object') return;
+  var links = Array.isArray(res.links) ? res.links : [];
+  var warns = Array.isArray(res.warnings) ? res.warnings : [];
+  if (!links.length && !warns.length && !res.message) return;
+  var d = document.createElement('div');
+  d.className = 'text-xs text-slate-700 space-y-1 pt-1';
+  var h = '';
+  if (res.message) h += '<div>' + escapeHtml(res.message) + '</div>';
+  links.forEach(function (l) {
+    if (!l || typeof l.url !== 'string' || l.url.indexOf('/tasks/') !== 0) return;
+    h += '<div><a class="text-blue-700 underline" href="' + escapeHtml(l.url) + '">' + escapeHtml(l.title || 'فتح المهمة') + '</a></div>';
+  });
+  warns.forEach(function (w) { h += '<div class="text-amber-700">⚠️ ' + escapeHtml(String(w)) + '</div>'; });
+  d.innerHTML = h;
+  card.appendChild(d);
+}
+
 function installProposalDelegation() {
   const box = document.getElementById('chat-messages');
   if (!box || box.dataset.proposalDelegated === '1') return;
@@ -582,6 +601,7 @@ function installProposalDelegation() {
         if (data && data.ok) {
           if (status) {
             status.textContent = 'تم التنفيذ ✓';
+            try { t024ShowResult(card, data.result); } catch (e2) {}
             status.className = 'js-status text-xs text-emerald-700 self-center font-semibold';
           }
         } else {

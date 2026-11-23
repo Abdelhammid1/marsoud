@@ -867,9 +867,11 @@ def guide_chat():
         ))
         db.session.commit()
         touch_conversation(conv)
+        _t024_props = list(g.get("_t024_props") or [])
         return jsonify({
             "reply": reply,
             "conversation_id": encode_id(conv.id),
+            "proposals": _t024_props,
         })
     except Exception as e:
         try:

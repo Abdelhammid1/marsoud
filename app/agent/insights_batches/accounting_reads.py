@@ -91,6 +91,11 @@ def _register_all():
     from app.agent.tools import TOOL_SCHEMAS
     for schema in TOOL_SCHEMAS:
         name = schema["name"]
+        # MARSOUD-P116 (T-024) — أدوات المهام مش لعبدالغفور (قراءة تحليل فقط)
+        if name in ("create_tasks", "update_task", "search_tasks",
+                    "list_company_users", "list_projects",
+                    "list_milestones"):
+            continue
         if name in _ACCOUNTANT_WRITES:
             continue
         perm = _TOOL_PERMS.get(name)
