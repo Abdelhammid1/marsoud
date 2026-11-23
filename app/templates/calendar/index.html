@@ -57,7 +57,7 @@
           {% if ev.subtitle %}<div class="text-xs text-slate-600 mt-1">{{ ev.subtitle }}</div>{% endif %}
           <div class="mt-2 pt-2 border-t border-slate-200/70 flex items-center gap-2 flex-wrap text-[11px]">
             <a href="{{ ev.google_url }}" target="_blank" rel="noopener" class="px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-700 hover:border-emerald-400">📅 Google</a>
-            <a href="{{ ev.ics_url }}" class="px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-700 hover:border-emerald-400">🍎 Apple (.ics)</a>
+            <a href="{{ ev.ics_url }}" class="px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-700 hover:border-emerald-400">📲 كالندر الموبايل</a>
             {% if ev.kind == 'manual' and ev.event_id %}
             <form method="POST" action="{{ url_for('calendar.delete_event', event_id=ev.event_id) }}"
                   class="ms-auto"

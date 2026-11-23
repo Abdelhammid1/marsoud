@@ -110,7 +110,7 @@
         <a href="https://calendar.google.com/calendar/render?action=TEMPLATE&text={{ ('مهمة: ' ~ task.title)|urlencode }}&dates={{ _g_dates }}"
            target="_blank" rel="noopener" class="btn-secondary text-sm" title="أضف إلى Google Calendar">📅 Google</a>
         <a href="{{ url_for('calendar.download_ics', title='مهمة: ' ~ task.title, starts_at=task.deadline.strftime('%Y-%m-%dT09:00')) }}"
-           class="btn-secondary text-sm" title="تنزيل ملف التقويم لـ Apple Calendar أو Outlook">🍎 Apple (.ics)</a>
+           class="btn-secondary text-sm" title="تنزيل ملف التقويم لـ Apple Calendar أو Outlook">📲 كالندر الموبايل</a>
         {% endif %}
         <button type="button" class="btn-secondary text-sm" id="p43-copy"
                 data-title="{{ task.title }}"

@@ -337,7 +337,7 @@ def download_ics():
     return Response(
         ics,
         mimetype="text/calendar; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="marsoud-event.ics"'},
+        headers={"Content-Disposition": 'inline; filename="marsoud-event.ics"'},
     )
 
 
@@ -425,12 +425,14 @@ def integration_settings():
     users = User.query.filter(User.id.in_(member_ids), User.is_active.is_(True)).order_by(User.full_name).all() if member_ids else []
     base = request.url_root.rstrip("/")
     feed_url = base + url_for("calendar.subscription_feed", token=cfg.feed_token)
+    webcal_url = feed_url.replace("https://", "webcal://").replace("http://", "webcal://")
     webhook_url = f"{base}/calendar/webhook/{cfg.webhook_secret}"
     return render_template(
         "calendar/settings.html",
         cfg=cfg,
         users=users,
         feed_url=feed_url,
+        webcal_url=webcal_url,
         webhook_url=webhook_url,
     )
 

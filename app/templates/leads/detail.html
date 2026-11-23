@@ -145,7 +145,7 @@ function p11Log(){
   <a href="https://calendar.google.com/calendar/render?action=TEMPLATE&text={{ ('اجتماع مع ' ~ lead.client_name)|urlencode }}&dates={{ _n.meeting.strftime('%Y%m%dT%H%M%S') ~ '/' ~ _n.meeting.strftime('%Y%m%dT%H%M%S') }}"
      target="_blank" rel="noopener" class="px-2 py-0.5 rounded bg-white border border-current text-xs font-semibold">📅 Google</a>
   <a href="{{ url_for('calendar.download_ics', title='اجتماع مع ' ~ lead.client_name, starts_at=_n.meeting.strftime('%Y-%m-%dT%H:%M'), details=lead.service_needed or '') }}"
-     class="px-2 py-0.5 rounded bg-white border border-current text-xs font-semibold">🍎 Apple (.ics)</a>
+     class="px-2 py-0.5 rounded bg-white border border-current text-xs font-semibold">📲 كالندر الموبايل</a>
   {% endif %}
   {% if has_permission('leads.manage') %}<button type="button" onclick="p11Log()">+ سجّل نشاط</button>{% endif %}
 </div>
