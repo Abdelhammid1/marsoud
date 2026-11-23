@@ -1293,3 +1293,227 @@ def refund(invoice_id):
     except (LedgerError, KeyError) as e:
         flash(str(e), "error")
     return redirect(url_for("invoices.view", invoice_id=invoice_id))
+
+
+# ─── MARSOUD-P126: External Platforms (Schools / Stores) Invoice Webhook ──
+@bp.route("/integrations", methods=["GET", "POST"])
+@login_required
+def invoice_integrations():
+    from flask import abort
+    from app.models import InvoiceIntegration
+    from app.services.permissions import get_user_role
+    cid = g.active_company.id
+    role = get_user_role(current_user.id, cid)
+    if role not in ("owner", "admin", "ceo", "accountant"):
+        abort(403)
+    cfg = InvoiceIntegration.get_or_create(cid)
+    if request.method == "POST":
+        cfg.is_active = request.form.get("is_active") == "1"
+        raw_pm = request.form.get("default_payment_method_id") or ""
+        cfg.default_payment_method_id = int(raw_pm) if raw_pm.isdigit() else None
+        cfg.default_tax_rate = max(0.0, min(100.0, _safe_float(request.form.get("default_tax_rate"), 15.0)))
+        cfg.auto_post_ledger = request.form.get("auto_post_ledger") == "1"
+        db.session.commit()
+        flash("تم حفظ إعدادات ربط فواتير المنصات الخارجية.", "success")
+        return redirect(url_for("invoices.invoice_integrations"))
+
+    pms = PaymentMethod.query.filter_by(company_id=cid, is_active=True).order_by(PaymentMethod.id).all()
+    webhook_url = request.url_root.rstrip("/") + url_for("invoices.invoice_webhook", secret=cfg.webhook_secret)
+    return render_template(
+        "invoices/integrations.html",
+        cfg=cfg,
+        payment_methods=pms,
+        webhook_url=webhook_url,
+    )
+
+
+@bp.route("/webhook/<secret>", methods=["POST"])
+def invoice_webhook(secret):
+    import re
+    from flask import jsonify, abort
+    from app.models import InvoiceIntegration, Company
+    from app.models.user import user_companies
+    from app.services.opsflow_extras import notify
+
+    cfg = InvoiceIntegration.query.filter_by(webhook_secret=secret).first()
+    if not cfg:
+        abort(404)
+    if not cfg.is_active:
+        return jsonify({"ok": False, "error": "integration_disabled"}), 403
+
+    payload = request.get_json(silent=True) or request.form.to_dict() or {}
+    if not isinstance(payload, dict):
+        return jsonify({"ok": False, "error": "invalid_payload"}), 400
+
+    cid = cfg.company_id
+    company = Company.query.get(cid)
+    ext_id = str(payload.get("external_id") or payload.get("invoice_id") or payload.get("order_id") or "").strip()[:80]
+    platform = str(payload.get("platform") or payload.get("source") or "منصة خارجية").strip()[:80]
+
+    # 1) Idempotency guard via po_reference = EXT:<external_id>
+    if ext_id:
+        ref_tag = f"EXT:{ext_id}"
+        existing = Invoice.query.filter_by(company_id=cid, po_reference=ref_tag).first()
+        if existing:
+            return jsonify({
+                "ok": True,
+                "deduplicated": True,
+                "invoice_id": existing.id,
+                "invoice_number": existing.number,
+            })
+    else:
+        ref_tag = None
+
+    # 2) Resolve or auto-create Customer
+    cust_name = str(payload.get("customer_name") or payload.get("parent_name") or payload.get("client_name") or "").strip()[:150]
+    cust_phone_raw = str(payload.get("customer_phone") or payload.get("phone") or payload.get("mobile") or "").strip()
+    cust_phone = re.sub(r"[^\d+]", "", cust_phone_raw)[:30]
+    cust_email = str(payload.get("customer_email") or payload.get("email") or "").strip().lower()[:150] or None
+
+    if not cust_name and not cust_phone:
+        return jsonify({"ok": False, "error": "customer_name_or_phone_required"}), 400
+    if not cust_name:
+        cust_name = f"عميل {cust_phone}"
+
+    customer = None
+    digits = re.sub(r"\D", "", cust_phone)
+    if len(digits) >= 8:
+        customer = Customer.query.filter(
+            Customer.company_id == cid,
+            Customer.phone.ilike(f"%{digits[-9:]}%"),
+        ).first()
+    if not customer:
+        customer = Customer.query.filter_by(company_id=cid, name=cust_name).first()
+    if not customer:
+        customer = Customer(
+            company_id=cid,
+            name=cust_name,
+            phone=cust_phone or None,
+            email=cust_email,
+            is_active=True,
+        )
+        db.session.add(customer)
+        db.session.flush()
+
+    # 3) Parse dates, currency, tax & line items
+    def _parse_d(raw_d, fallback):
+        if not raw_d:
+            return fallback
+        try:
+            return date.fromisoformat(str(raw_d)[:10])
+        except Exception:
+            return fallback
+
+    issue_dt = _parse_d(payload.get("issue_date"), date.today())
+    due_dt = _parse_d(payload.get("due_date"), issue_dt)
+    currency = str(payload.get("currency") or (company.base_currency if company else "SAR") or "SAR").strip().upper()[:3]
+    tax_rate = float(cfg.default_tax_rate) if payload.get("tax_rate") is None else max(0.0, _safe_float(payload.get("tax_rate"), 0.0))
+
+    raw_items = payload.get("items")
+    parsed_items = []
+    if isinstance(raw_items, list) and raw_items:
+        for it in raw_items:
+            if not isinstance(it, dict):
+                continue
+            desc = str(it.get("description") or it.get("name") or it.get("title") or "بند من منصة خارجية").strip()[:255]
+            qty = max(0.001, _safe_float(it.get("quantity") or it.get("qty"), 1.0))
+            price = max(0.0, _safe_float(it.get("unit_price") or it.get("price") or it.get("amount"), 0.0))
+            parsed_items.append((desc, qty, price))
+    else:
+        desc = str(payload.get("description") or payload.get("item_name") or f"فاتورة {platform}").strip()[:255]
+        qty = max(0.001, _safe_float(payload.get("quantity"), 1.0))
+        price = max(0.0, _safe_float(payload.get("unit_price") or payload.get("amount") or payload.get("total"), 0.0))
+        if price > 0:
+            parsed_items.append((desc, qty, price))
+
+    if not parsed_items:
+        return jsonify({"ok": False, "error": "valid_items_or_amount_required"}), 400
+
+    owner_row = db.session.execute(
+        user_companies.select().where(user_companies.c.company_id == cid)
+    ).first()
+    actor_id = owner_row.user_id if owner_row else None
+
+    inv_num = _next_number(cid)
+    inv = Invoice(
+        company_id=cid,
+        number=inv_num,
+        customer_id=customer.id,
+        issue_date=issue_dt,
+        due_date=due_dt,
+        currency=currency,
+        tax_rate=tax_rate,
+        status=InvoiceStatus.DRAFT,
+        source="WEBHOOK",
+        po_reference=ref_tag,
+        notes=str(payload.get("notes") or f"مستلمة تلقائياً من {platform}").strip()[:1000],
+        created_by_id=actor_id,
+    )
+    db.session.add(inv)
+    db.session.flush()
+
+    for desc, qty, price in parsed_items:
+        db.session.add(InvoiceItem(
+            invoice_id=inv.id,
+            company_id=cid,
+            description=desc,
+            quantity=qty,
+            unit_price=price,
+        ))
+    db.session.flush()
+    inv.recalc()
+
+    # 4) Post ledger entry & optional automatic payment collection
+    is_paid = str(payload.get("paid") or "").lower() in ("1", "true", "yes") or str(payload.get("status") or "").upper() == "PAID"
+    paid_amt = _safe_float(payload.get("paid_amount"), float(inv.total) if is_paid else 0.0)
+
+    try:
+        if cfg.auto_post_ledger:
+            inv.status = InvoiceStatus.SENT
+            post_invoice_to_ledger(inv, created_by=actor_id)
+            if paid_amt > 0.009:
+                pm_id = cfg.default_payment_method_id
+                if not pm_id:
+                    pm = PaymentMethod.query.filter_by(company_id=cid, is_active=True).order_by(PaymentMethod.id).first()
+                    pm_id = pm.id if pm else None
+                record_payment(
+                    inv,
+                    min(paid_amt, float(inv.total)),
+                    payment_date=issue_dt,
+                    payment_method_id=pm_id,
+                    created_by=actor_id,
+                    notify=False,
+                )
+        cfg.invoices_received = (cfg.invoices_received or 0) + 1
+        cfg.last_received_at = datetime.utcnow()
+        cfg.last_error = None
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        cfg2 = InvoiceIntegration.query.filter_by(company_id=cid).first()
+        if cfg2:
+            cfg2.last_error = str(exc)[:350]
+            db.session.commit()
+        return jsonify({"ok": False, "error": str(exc)[:200]}), 400
+
+    if actor_id:
+        try:
+            notify(
+                actor_id,
+                company_id=cid,
+                kind="NEW_LEAD",
+                title=f"🧾 فاتورة خارجية ({platform}): {inv.number}",
+                body=f"العميل: {customer.name} · الإجمالي: {float(inv.total):,.2f} {inv.currency}",
+                link_url=f"/invoices/{inv.id}",
+            )
+        except Exception:
+            pass
+
+    return jsonify({
+        "ok": True,
+        "invoice_id": inv.id,
+        "invoice_number": inv.number,
+        "customer_id": customer.id,
+        "total": float(inv.total),
+        "status": inv.status.value,
+    })

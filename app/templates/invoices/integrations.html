@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block page_title %}ربط فواتير المنصات الخارجية{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-5">
+  <div class="flex items-center justify-between flex-wrap gap-2">
+    <div>
+      <h2 class="text-xl font-bold text-navy-900">🔗 ربط فواتير المدارس والمنصات الخارجية (Invoices Webhook)</h2>
+      <p class="text-xs text-slate-500 mt-1">أي فاتورة تصدر في منصة المدارس أو متجرك الإلكتروني تنزل تلقائياً في مرصود كفاتورة رسمية مع إنشاء العميل وترحيل القيد المحاسبي.</p>
+    </div>
+    <a href="{{ url_for('invoices.index') }}" class="btn btn-secondary text-sm">← كل الفواتير</a>
+  </div>
+
+  <form method="POST" class="card p-6 space-y-4">
+    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+      <div>
+        <div class="font-bold text-navy-900 text-sm">1) إعدادات استلام وترحيل الفواتير الخارجية</div>
+        <div class="text-xs text-slate-500">تحكم في طريقة الدفع الافتراضية والضريبة والترحيل المحاسبي الفوري.</div>
+      </div>
+      <label class="inline-flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" name="is_active" value="1" {% if cfg.is_active %}checked{% endif %} class="w-4 h-4 accent-emerald-600">
+        <span class="text-sm font-semibold text-emerald-700">مفعّل</span>
+      </label>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">طريقة الدفع الافتراضية (للفواتير المدفوعة)</label>
+        <select name="default_payment_method_id" class="select w-full text-sm">
+          <option value="">— اختيار تلقائي لأول طريقة دفع نشطة —</option>
+          {% for pm in payment_methods %}
+          <option value="{{ pm.id }}" {% if cfg.default_payment_method_id == pm.id %}selected{% endif %}>{{ pm.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-700 mb-1">نسبة الضريبة الافتراضية (%)</label>
+        <input type="number" step="0.01" min="0" max="100" name="default_tax_rate" value="{{ cfg.default_tax_rate or 15 }}" dir="ltr" class="input w-full text-left font-mono text-sm">
+        <p class="text-[11px] text-slate-500 mt-1">تُستخدم إذا لم ترسل المنصة الخارجية حقل <code>tax_rate</code> (اجعلها 0 للرسوم المعفاة).</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 pt-1">
+      <input type="checkbox" id="auto_post_ledger" name="auto_post_ledger" value="1" {% if cfg.auto_post_ledger %}checked{% endif %} class="w-4 h-4 accent-navy-900">
+      <label for="auto_post_ledger" class="text-xs font-semibold text-slate-700 cursor-pointer">ترحيل الفاتورة والقيد المحاسبي المزدوج فور الاستلام (بدل حفظها كمسودة)</label>
+    </div>
+
+    <div class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 space-y-1">
+      <div><b>إجمالي الفواتير المستلمة من منصات خارجية:</b> {{ cfg.invoices_received }} فاتورة {% if cfg.last_received_at %}· <b>آخر استلام:</b> {{ cfg.last_received_at | company_dt('%Y-%m-%d %H:%M') }}{% endif %}</div>
+      {% if cfg.last_error %}<div class="text-rose-700"><b>آخر تنبيه:</b> {{ cfg.last_error }}</div>{% endif %}
+    </div>
+
+    <div class="flex justify-end pt-2">
+      <button type="submit" class="btn btn-primary">💾 حفظ الإعدادات</button>
+    </div>
+  </form>
+
+  <div class="card p-6 space-y-4">
+    <div class="font-bold text-navy-900 text-sm border-b border-slate-100 pb-2">2) بيانات الربط البرمجي (أرسلها لمبرمج منصة المدارس / الموقع أو استخدمها في Make / Zapier)</div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">Webhook Endpoint URL (POST JSON)</label>
+      <div class="flex gap-2">
+        <input type="text" readonly dir="ltr" id="inv-wh-url" value="{{ webhook_url }}" class="input w-full text-left font-mono text-xs bg-slate-50">
+        <button type="button" class="btn btn-secondary text-xs whitespace-nowrap" onclick="navigator.clipboard.writeText(document.getElementById('inv-wh-url').value);this.textContent='✓ تم النسخ';">نسخ الرابط</button>
+      </div>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-slate-700 mb-1">مثال JSON قياسي لإرسال فاتورة من منصة المدارس أو متجرك</label>
+      <pre dir="ltr" class="bg-slate-900 text-emerald-300 text-[11px] p-3 rounded-lg overflow-x-auto font-mono leading-relaxed">{
+  "external_id": "SCH-2026-1045",
+  "platform": "منصة المدارس",
+  "customer_name": "أحمد محمد (ولي أمر الطالب عمر)",
+  "customer_phone": "0501234567",
+  "tax_rate": 0,
+  "paid": true,
+  "items": [
+    { "description": "رسوم الفصل الدراسي الأول", "quantity": 1, "unit_price": 4500 }
+  ]
+}</pre>
+      <p class="text-[11px] text-slate-500 mt-1">• حقل <code>external_id</code> يمنع تكرار نفس الفاتورة تلقائياً. • إذا كان <code>paid: true</code> يُسجَّل التحصيل في الخزينة/البنك فوراً.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
