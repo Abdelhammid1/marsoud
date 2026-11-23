@@ -2019,3 +2019,200 @@ def whatsapp_click(lead_id):
         activity_id=act.id,
         logged_at=time_label,
     )
+
+
+# ─── MARSOUD-P124: Meta Lead Ads & Web Form Webhook + Settings ────────
+@bp.route("/integrations", methods=["GET", "POST"])
+@login_required
+def lead_integrations():
+    from app.models import LeadIntegration
+    cid = g.active_company.id
+    role = get_user_role(current_user.id, cid)
+    if role not in ("owner", "admin", "ceo", "sales_manager"):
+        abort(403)
+    cfg = LeadIntegration.get_or_create(cid)
+    if request.method == "POST":
+        cfg.is_active = request.form.get("is_active") == "1"
+        raw_assg = request.form.get("default_assignee_id") or ""
+        cfg.default_assignee_id = int(raw_assg) if raw_assg.isdigit() else None
+        raw_camp = request.form.get("default_campaign_id") or ""
+        cfg.default_campaign_id = int(raw_camp) if raw_camp.isdigit() else None
+        src = (request.form.get("default_source") or "").strip()[:100]
+        if src:
+            cfg.default_source = src
+        app_sec = (request.form.get("meta_app_secret") or "").strip()[:128]
+        cfg.meta_app_secret = app_sec or None
+        db.session.commit()
+        flash("تم حفظ إعدادات ربط إعلانات Meta ونماذج المواقع.", "success")
+        return redirect(url_for("leads.lead_integrations"))
+
+    member_ids = _company_user_ids()
+    users = User.query.filter(User.id.in_(member_ids), User.is_active.is_(True)).order_by(User.full_name).all() if member_ids else []
+    campaigns = Campaign.query.filter_by(company_id=cid).order_by(Campaign.name).all()
+    webhook_url = request.url_root.rstrip("/") + url_for("leads.lead_webhook", secret=cfg.webhook_secret)
+    return render_template(
+        "leads/integrations.html",
+        cfg=cfg,
+        users=users,
+        campaigns=campaigns,
+        webhook_url=webhook_url,
+    )
+
+
+@bp.route("/webhook/<secret>", methods=["GET", "POST"])
+def lead_webhook(secret):
+    import hashlib
+    import hmac
+    import re
+    from flask import jsonify
+    from app.models import LeadIntegration
+    from app.services.numbering import next_number
+    from app.services.url_ids import encode_id
+    from app.services.opsflow_extras import notify
+
+    cfg = LeadIntegration.query.filter_by(webhook_secret=secret).first()
+    if not cfg:
+        abort(404)
+
+    # 1) Official Meta Webhooks verification challenge
+    if request.method == "GET":
+        mode = request.args.get("hub.mode")
+        token = request.args.get("hub.verify_token")
+        challenge = request.args.get("hub.challenge") or ""
+        if mode == "subscribe" and token and hmac.compare_digest(token, cfg.verify_token):
+            return challenge, 200, {"Content-Type": "text/plain; charset=utf-8"}
+        return "Forbidden", 403
+
+    if not cfg.is_active:
+        return jsonify({"ok": False, "error": "integration_disabled"}), 403
+
+    raw_body = request.get_data() or b""
+    if cfg.meta_app_secret:
+        sig = request.headers.get("X-Hub-Signature-256") or ""
+        expected = "sha256=" + hmac.new(
+            cfg.meta_app_secret.encode("utf-8"), raw_body, hashlib.sha256
+        ).hexdigest()
+        if not sig or not hmac.compare_digest(sig, expected):
+            return jsonify({"ok": False, "error": "invalid_signature"}), 401
+
+    payload = request.get_json(silent=True) or request.form.to_dict() or {}
+
+    # Normalize either flat JSON/Form or Meta Leadgen field_data structure
+    records = []
+    if isinstance(payload.get("entry"), list):
+        for entry in payload["entry"]:
+            for ch in entry.get("changes") or []:
+                val = ch.get("value") or {}
+                flat = {}
+                for item in val.get("field_data") or []:
+                    k = str(item.get("name") or "").lower()
+                    vals = item.get("values") or []
+                    if k and vals:
+                        flat[k] = vals[0]
+                if val.get("leadgen_id"):
+                    flat["external_id"] = str(val["leadgen_id"])
+                if flat:
+                    records.append(flat)
+    if not records and isinstance(payload, dict):
+        records.append(payload)
+
+    assignee_id = cfg.default_assignee_id
+    if not assignee_id:
+        row = db.session.execute(
+            user_companies.select().where(user_companies.c.company_id == cfg.company_id)
+        ).first()
+        assignee_id = row.user_id if row else None
+    if not assignee_id:
+        return jsonify({"ok": False, "error": "no_company_user"}), 400
+
+    created_count = 0
+    dedup_count = 0
+    for rec in records:
+        name = str(
+            rec.get("full_name") or rec.get("client_name") or rec.get("name") or ""
+        ).strip()[:140]
+        phone_raw = str(
+            rec.get("phone_number") or rec.get("phone") or rec.get("mobile") or rec.get("whatsapp") or ""
+        ).strip()
+        phone = re.sub(r"[^\d+]", "", phone_raw)[:25]
+        email = str(rec.get("email") or "").strip().lower()[:190] or None
+        service = str(
+            rec.get("service") or rec.get("service_needed") or rec.get("message") or rec.get("notes") or "استفسار من إعلان / نموذج موقع"
+        ).strip()[:500]
+        source = str(rec.get("source") or cfg.default_source or "Meta / Web Form").strip()[:100]
+        ext_id = str(rec.get("external_id") or rec.get("leadgen_id") or "").strip()
+
+        if not name and not phone:
+            continue
+        if not name:
+            name = f"عميل {phone}"
+        if not phone:
+            phone = "غير محدد"
+
+        # Deduplicate by normalized phone digits (last 9 digits) to avoid spam/double submits
+        digits = re.sub(r"\D", "", phone)
+        existing = None
+        if len(digits) >= 8:
+            tail = digits[-9:]
+            existing = Lead.query.filter(
+                Lead.company_id == cfg.company_id,
+                Lead.deleted_at.is_(None),
+                Lead.phone.ilike(f"%{tail}%"),
+            ).first()
+
+        if existing:
+            dedup_count += 1
+            db.session.add(LeadActivity(
+                company_id=cfg.company_id,
+                lead_id=existing.id,
+                created_by_id=assignee_id,
+                type=LeadActivityType.NOTE,
+                subject=f"تواصل جديد عبر {source}",
+                notes=f"أعاد العميل إرسال بياناته: {service}",
+            ))
+            continue
+
+        lead_num = next_number(cfg.company_id, "LEAD")
+        note_tag = f"[EXT-LEAD:{ext_id}]\n" if ext_id else ""
+        lead = Lead(
+            company_id=cfg.company_id,
+            number=lead_num,
+            client_name=name,
+            phone=phone,
+            email=email,
+            service_needed=service,
+            lead_type="INBOUND",
+            source=source,
+            assigned_to_id=assignee_id,
+            created_by_id=assignee_id,
+            campaign_id=cfg.default_campaign_id,
+            status=LeadStatus.NEW_LEAD,
+            notes=f"{note_tag}تم الاستلام تلقائياً من {source}".strip(),
+        )
+        db.session.add(lead)
+        db.session.flush()
+        db.session.add(LeadStatusEvent(
+            lead_id=lead.id,
+            from_status=None,
+            to_status=LeadStatus.NEW_LEAD,
+            changed_by_id=assignee_id,
+            note=f"استلام تلقائي من {source}",
+        ))
+        created_count += 1
+        try:
+            notify(
+                assignee_id,
+                company_id=cfg.company_id,
+                kind="NEW_LEAD",
+                title=f"📣 عميل جديد ({source}): {name}",
+                body=f"رقم {lead_num} · {phone} — {service[:80]}",
+                link_url=f"/leads/{encode_id(lead.id)}",
+            )
+        except Exception:
+            pass
+
+    if created_count:
+        cfg.leads_received = (cfg.leads_received or 0) + created_count
+    cfg.last_received_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({"ok": True, "created": created_count, "deduplicated": dedup_count})
