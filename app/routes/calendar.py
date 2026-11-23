@@ -198,15 +198,19 @@ def index():
 
     events = sorted(meetings + tasks + projects + manual_events,
                     key=lambda e: e["when"])
+    base_root = request.url_root.rstrip("/")
     for e in events:
+        full_link = (base_root + e["link"]) if e.get("link") else (base_root + "/calendar/")
+        det_txt = ((e.get("subtitle") or "") + f"\n{full_link}").strip()
         e["google_url"] = build_google_calendar_url(
-            e["title"], e["when"], details=e.get("subtitle") or ""
+            e["title"], e["when"], details=det_txt
         )
         e["ics_url"] = url_for(
             "calendar.download_ics",
             title=e["title"],
             starts_at=e["when"].strftime("%Y-%m-%dT%H:%M"),
             details=e.get("subtitle") or "",
+            url=full_link,
         )
     # Group by date for the timeline render
     by_day = {}
@@ -327,12 +331,14 @@ def download_ics():
     ends_at = _parse_dt(request.args.get("ends_at"))
     details = (request.args.get("details") or "").strip()[:1000]
     location = (request.args.get("location") or "").strip()[:300]
+    ev_url = (request.args.get("url") or "").strip()[:500]
     ics = build_ics_content([{
         "title": title,
         "starts_at": starts_at,
         "ends_at": ends_at,
         "description": details,
         "location": location,
+        "url": ev_url,
     }])
     return Response(
         ics,

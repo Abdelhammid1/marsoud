@@ -11,6 +11,8 @@ from app.models import (
 )
 from app.models.user import user_companies
 from app.services.numbering import next_number
+from app.services.url_ids import encode_id
+from app.services.opsflow_extras import notify
 
 
 def _to_dt_range(starts_at, ends_at=None, default_minutes: int = 60):
@@ -76,10 +78,23 @@ def build_ics_content(events: list[dict], cal_name: str = "Marsoud Calendar") ->
             f"DTEND:{e.strftime('%Y%m%dT%H%M%S')}",
             f"SUMMARY:{_ics_escape(ev.get('title') or 'موعد مرصود')}",
         ])
+        desc_parts = []
         if ev.get("description"):
-            lines.append(f"DESCRIPTION:{_ics_escape(ev['description'])}")
+            desc_parts.append(str(ev["description"]).strip())
+        if ev.get("url"):
+            desc_parts.append(f"رابط مرصود: {ev['url']}")
+            lines.append(f"URL:{ev['url']}")
+        if desc_parts:
+            lines.append(f"DESCRIPTION:{_ics_escape('\n'.join(desc_parts))}")
         if ev.get("location"):
             lines.append(f"LOCATION:{_ics_escape(ev['location'])}")
+        lines.extend([
+            "BEGIN:VALARM",
+            "TRIGGER:-PT15M",
+            "ACTION:DISPLAY",
+            "DESCRIPTION:تذكير موعد من مرصود",
+            "END:VALARM",
+        ])
         lines.append("END:VEVENT")
     lines.append("END:VCALENDAR")
     return "\r\n".join(lines) + "\r\n"
@@ -290,6 +305,19 @@ def upsert_booking_lead(company_id: int, uid: str, starts_at: datetime,
         location=location[:500] if location else None,
     )
     db.session.add(ev)
+    db.session.flush()
+    try:
+        when_lbl = starts_at.strftime("%Y-%m-%d %H:%M")
+        notify(
+            assignee_id,
+            company_id=company_id,
+            kind="NEW_LEAD",
+            title=f"📅 حجز جديد: {clean_name}",
+            body=f"تم تسجيل عميل محتمل من Google Bookings ({lead_num}) بموعد {when_lbl}",
+            link_url=f"/leads/{encode_id(lead.id)}",
+        )
+    except Exception:
+        pass
     return "created"
 
 
