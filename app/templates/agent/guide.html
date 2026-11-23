@@ -167,6 +167,7 @@
 @media(max-width:900px){
   #ig-root{grid-template-columns:1fr;height:auto}
   #ig-main{height:calc(100vh - 8rem);min-height:520px}
+  #ig-side.ig-open #conversations-list{flex:none;max-height:340px;min-height:80px}
   #chat-messages{padding:16px}
   .ig-wrap,.ig-wrap.ig-wide{max-width:100%}
   .ig-sub{display:none}
@@ -444,7 +445,7 @@
       if (!busy && input.value.trim()) { if (form.requestSubmit) form.requestSubmit(); else sendBtn.click(); }
     }
   });
-  if (window.innerWidth < 640) input.placeholder = 'اسأل عن أرقامك…';
+  if (window.innerWidth < 640) input.placeholder = 'اسأل ابن الشركة…';
 
   /* ---------- active conversation + sidebar rows ---------- */
   function countRows() { return list.querySelectorAll('.conv-row').length; }
@@ -514,6 +515,10 @@
       });
       setActive(cid);
       box.scrollTop = box.scrollHeight;
+      if (window.innerWidth <= 900) {
+        var mainEl = $('ig-main');
+        if (mainEl && mainEl.scrollIntoView) mainEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     } catch (e) { box.innerHTML = '<div class="ig-state">تعذّر تحميل المحادثة.</div>'; }
   };
   window.agToggleList = function () {
