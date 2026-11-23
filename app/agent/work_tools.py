@@ -97,6 +97,10 @@ WORK_TOOL_SCHEMAS = [
                            "enum": ["TODO", "IN_PROGRESS", "REVIEW", "DONE", "BLOCKED"]},
                 "assignee_id": {"type": "integer",
                                 "description": "رقم مسؤول من list_company_users"},
+                "overdue_only": {"type": "boolean",
+                                 "description": "true لعرض المهام المتأخرة فقط (تاريخ استحقاقها فات ولم تكتمل)"},
+                "due_within_days": {"type": "integer",
+                                    "description": "عرض المهام المستحقة خلال هذا العدد من الأيام من اليوم (0 = اليوم فقط، 7 = خلال أسبوع)"},
                 "limit": {"type": "integer",
                           "description": "عدد النتائج (الافتراضي 10، الأقصى 20)"},
             },
@@ -353,26 +357,48 @@ def _search_tasks(args, company, user):
             Task.assigned_to_id == aid,
             Task.id.in_(select(task_assignees.c.task_id).where(
                 task_assignees.c.user_id == aid))))
+    from datetime import date as _date
+    today = _date.today()
+    if args.get("overdue_only") is True:
+        q = q.filter(
+            Task.deadline.isnot(None),
+            Task.deadline < today,
+            Task.status != TaskStatus.DONE,
+        )
+    elif args.get("due_within_days") is not None:
+        try:
+            days = max(int(args["due_within_days"]), 0)
+        except (TypeError, ValueError):
+            raise _WorkError("عدد الأيام غير صحيح")
+        q = q.filter(
+            Task.deadline.isnot(None),
+            Task.deadline >= today,
+            Task.deadline <= today + timedelta(days=days),
+            Task.status != TaskStatus.DONE,
+        )
     try:
         limit = min(max(int(args.get("limit") or 10), 1), 20)
     except (TypeError, ValueError):
         limit = 10
-    rows = q.order_by(Task.created_at.desc()).limit(limit).all()
+    order_col = Task.deadline.asc() if (args.get("overdue_only") is True or args.get("due_within_days") is not None) else Task.created_at.desc()
+    rows = q.order_by(order_col, Task.created_at.desc()).limit(limit).all()
     members = _members(company.id)
     out = []
     for t in rows:
+        is_over = bool(t.deadline and t.deadline < today and t.status != TaskStatus.DONE)
         out.append({
             "id": t.id, "title": t.title,
             "status": t.status.value, "status_ar": t.status.label_ar,
             "priority": t.priority.value,
             "deadline": t.deadline.isoformat() if t.deadline else None,
+            "is_overdue": is_over,
             "assignees": [{"id": i, "name": _uname(members.get(i), i)}
                           for i in sorted(assignee_ids_for(t))],
             "project_id": t.project_id,
             "created_by_me": t.created_by_id == user.id,
             "link": "/tasks/" + encode_id(t.id),
         })
-    return {"tasks": out, "count": len(out)}
+    return {"tasks": out, "count": len(out), "today": today.isoformat()}
 
 
 # ─── Create ─────────────────────────────────────────────────────────────

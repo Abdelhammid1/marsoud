@@ -59,9 +59,12 @@ def run_agent_turn(*, messages, company_id, user_id, persona,
                 _caller_ctx = f"المستخدم الحالي الذي يتحدث معك الآن: {_uname} (user_id={user_id})"
         except Exception:
             _caller_ctx = f"المستخدم الحالي الذي يتحدث معك الآن: user_id={user_id}"
-    if company_context or _caller_ctx:
-        _parts = [p for p in (company_context, _caller_ctx) if p]
-        system += "\n\nسياق الشركة والجلسة الحالية:\n" + "\n".join(_parts)
+    from datetime import date as _date
+    _today = _date.today()
+    _days_ar = ["الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
+    _date_ctx = f"تاريخ اليوم الحالي: {_today.isoformat()} ({_days_ar[_today.weekday()]})"
+    _parts = [p for p in (company_context, _caller_ctx, _date_ctx) if p]
+    system += "\n\nسياق الشركة والجلسة الحالية:\n" + "\n".join(_parts)
     model = persona["model"]
 
     tool_trace = []
