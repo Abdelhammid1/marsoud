@@ -63,7 +63,10 @@ def schedules_tick():
         return jsonify({"error": "unauthorized"}), 401
     try:
         from app.services.task_schedules import materialize_due_schedules
-        return jsonify(materialize_due_schedules())
+        from app.services.calendar_sync import sync_all_calendar_integrations
+        out = materialize_due_schedules()
+        out["calendar_sync"] = sync_all_calendar_integrations()
+        return jsonify(out)
     except Exception as e:
         logging.getLogger("ledgeros.cron").exception("schedules tick failed: %s", e)
         return jsonify({"error": str(e)[:200]}), 500
@@ -284,6 +287,11 @@ def tick():
             return expire_old_conversations()
         summary["agent_conversation_expiry"] = _run(
             "agent_conversation_expiry", _agent_conversation_expiry)
+
+        def _calendar_sync():
+            from app.services.calendar_sync import sync_all_calendar_integrations
+            return sync_all_calendar_integrations()
+        summary["calendar_sync"] = _run("calendar_sync", _calendar_sync)
 
         # Attach the full summary to the __tick__ tracker row so a
         # human reading /admin/ops-health can see the whole payload

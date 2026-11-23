@@ -21,7 +21,11 @@ from app.models import (
     CalendarIntegration, User,
 )
 from app.models.user import user_companies
-from app.services.calendar_sync import build_google_calendar_url, build_ics_content
+from flask import jsonify
+from app.services.calendar_sync import (
+    build_google_calendar_url, build_ics_content,
+    sync_company_calendar, upsert_booking_lead, _resolve_assignee_id,
+)
 from app.services.permissions import get_user_role
 
 
@@ -429,3 +433,63 @@ def integration_settings():
         feed_url=feed_url,
         webhook_url=webhook_url,
     )
+
+
+@bp.route("/settings/sync-now", methods=["POST"])
+@login_required
+def sync_now():
+    cid = g.active_company.id
+    role = get_user_role(current_user.id, cid)
+    if role not in ("owner", "admin", "ceo", "sales_manager"):
+        abort(403)
+    cfg = CalendarIntegration.get_or_create(cid)
+    if not cfg.google_ical_url:
+        flash("من فضلك أدخل رابط Google Calendar Secret iCal URL واحفظ الإعدادات أولاً.", "error")
+        return redirect(url_for("calendar.integration_settings"))
+    res = sync_company_calendar(cfg)
+    if res.get("error"):
+        flash(f"تعذّرت المزامنة: {res['error']}", "error")
+    else:
+        flash(
+            f"تمت المزامنة بنجاح: {res.get('created', 0)} حجز جديد، {res.get('updated', 0)} محدّث.",
+            "success",
+        )
+    return redirect(url_for("calendar.integration_settings"))
+
+
+@bp.route("/webhook/<secret>", methods=["POST"])
+def booking_webhook(secret):
+    cfg = CalendarIntegration.query.filter_by(webhook_secret=secret).first()
+    if not cfg:
+        abort(404)
+    payload = request.get_json(silent=True) or request.form.to_dict() or {}
+    uid = str(payload.get("uid") or payload.get("booking_id") or payload.get("event_id") or "").strip()
+    starts_raw = str(payload.get("starts_at") or payload.get("start_time") or payload.get("start") or "").strip()
+    starts_at = _parse_dt(starts_raw[:19].replace("Z", "")) if starts_raw else None
+    if not starts_at:
+        return jsonify({"ok": False, "error": "missing_or_invalid_starts_at"}), 400
+    if not uid:
+        uid = f"wh-{starts_at.strftime('%Y%m%d%H%M')}-{(payload.get('email') or payload.get('phone') or 'guest')}"
+    ends_raw = str(payload.get("ends_at") or payload.get("end_time") or "").strip()
+    ends_at = _parse_dt(ends_raw[:19].replace("Z", "")) if ends_raw else None
+    assignee_id = _resolve_assignee_id(cfg)
+    status = upsert_booking_lead(
+        company_id=cfg.company_id,
+        uid=uid[:200],
+        starts_at=starts_at,
+        ends_at=ends_at,
+        client_name=str(payload.get("client_name") or payload.get("name") or "عميل حجز").strip(),
+        email=str(payload.get("email") or "").strip() or None,
+        phone=str(payload.get("phone") or "غير محدد").strip(),
+        summary=str(payload.get("title") or payload.get("service") or "حجز موعد").strip(),
+        description=str(payload.get("notes") or payload.get("description") or "").strip(),
+        location=str(payload.get("location") or "").strip(),
+        assignee_id=assignee_id,
+        cancelled=bool(payload.get("cancelled")),
+    )
+    if status == "created":
+        cfg.synced_count = (cfg.synced_count or 0) + 1
+    cfg.last_synced_at = datetime.utcnow()
+    cfg.last_sync_status = "ok"
+    db.session.commit()
+    return jsonify({"ok": True, "result": status})
