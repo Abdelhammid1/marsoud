@@ -49,8 +49,19 @@ def run_agent_turn(*, messages, company_id, user_id, persona,
         (final_text, updated_messages, tool_trace)
     """
     system = persona["system_prompt"]
-    if company_context:
-        system += f"\n\nسياق الشركة الحالية:\n{company_context}"
+    _caller_ctx = ""
+    if user_id:
+        try:
+            from app.models.user import User
+            _u = db.session.get(User, user_id)
+            if _u:
+                _uname = (_u.full_name or _u.email or f"User #{user_id}").strip()
+                _caller_ctx = f"المستخدم الحالي الذي يتحدث معك الآن: {_uname} (user_id={user_id})"
+        except Exception:
+            _caller_ctx = f"المستخدم الحالي الذي يتحدث معك الآن: user_id={user_id}"
+    if company_context or _caller_ctx:
+        _parts = [p for p in (company_context, _caller_ctx) if p]
+        system += "\n\nسياق الشركة والجلسة الحالية:\n" + "\n".join(_parts)
     model = persona["model"]
 
     tool_trace = []
