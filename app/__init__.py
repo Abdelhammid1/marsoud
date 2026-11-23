@@ -141,6 +141,7 @@ def create_app(config_class=Config):
         documents_bp, notifications_bp, audit_bp, portal_bp,
     )
     from app.routes.calendar import bp as calendar_bp
+    from app.routes.settings_whatsapp import bp as settings_whatsapp_bp
     from app.routes.settings_roles import bp as settings_roles_bp
     from app.routes.hr_self_service import (
         hr_ss_bp, portal_emp_bp,
@@ -233,6 +234,7 @@ def create_app(config_class=Config):
     app.register_blueprint(audit_bp, url_prefix="/audit")
     app.register_blueprint(portal_bp, url_prefix="/portal")
     app.register_blueprint(calendar_bp, url_prefix="/calendar")
+    app.register_blueprint(settings_whatsapp_bp)
     app.register_blueprint(settings_roles_bp, url_prefix="/settings/roles")
     app.register_blueprint(hr_ss_bp, url_prefix="/hr/accounts")
     app.register_blueprint(portal_emp_bp, url_prefix="/my")
@@ -1134,6 +1136,20 @@ def create_app(config_class=Config):
         except Exception:
             pass
         return {"help_module_key": None}
+
+    @app.template_global("build_wa_url")
+    def _jinja_build_wa_url(phone, text):
+        from flask import g
+        from app.models import WhatsAppIntegration
+        from app.services.whatsapp_sync import build_wa_me_url
+        cc = "966"
+        note = ""
+        if getattr(g, "active_company", None):
+            cfg = WhatsAppIntegration.query.filter_by(company_id=g.active_company.id).first()
+            if cfg:
+                cc = cfg.default_country_code or "966"
+                note = f"\n{cfg.invoice_footer_note}" if cfg.invoice_footer_note else ""
+        return build_wa_me_url(phone, (text or "") + note, default_cc=cc)
 
     @app.context_processor
     def inject_today_date():

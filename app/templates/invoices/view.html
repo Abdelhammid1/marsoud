@@ -49,6 +49,10 @@
          dict. Also upgrades the raw enum (`SENT`) to a proper Arabic label
          (`مرسلة`) — user-visible improvement over the old raw-enum badge. #}
       {{ ui.status_badge(invoice.status.value, kind='invoice') }}
+      {% set _pdf_full = request.url_root.rstrip('/') ~ url_for('invoices.preview_pdf', invoice_id=invoice.id) %}
+      {% set _wa_msg = 'مرحباً ' ~ invoice.customer.name ~ '، مرفق تفاصيل فاتورة رقم ' ~ invoice.number ~ ' بقيمة ' ~ (invoice.total|money) ~ ' ' ~ (invoice.currency|currency_ar) ~ '. للاطلاع على الفاتورة: ' ~ _pdf_full %}
+      <a href="{{ build_wa_url(invoice.customer.phone, _wa_msg) }}" target="_blank" rel="noopener"
+         class="btn-secondary text-sm border-emerald-300 text-emerald-700 hover:bg-emerald-50">💬 إرسال واتساب</a>
       <a href="{{ url_for('invoices.preview_pdf', invoice_id=invoice.id) }}" target="_blank" class="btn-secondary text-sm">👁 معاينة PDF</a>
       {% if invoice.status.value == 'DRAFT' %}
       <a href="{{ url_for('invoices.edit', invoice_id=invoice.id) }}" class="btn-secondary text-sm">✏️ تعديل</a>

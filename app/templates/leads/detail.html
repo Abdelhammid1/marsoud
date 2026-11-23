@@ -158,6 +158,11 @@ function p11Log(){
         <div class="flex items-center gap-2 flex-wrap">
           {% if lead.number %}<span class="text-sm font-mono text-slate-500">{{ lead.number }}</span>{% endif %}
           <h2 class="text-2xl font-bold text-navy-900 break-words">{{ lead.client_name }}</h2>
+          {% if lead.phone and lead.phone != 'غير محدد' %}
+          {% set _lead_wa = 'مرحباً ' ~ lead.client_name ~ '، معك فريق ' ~ g.active_company.name ~ ' بخصوص طلبك (' ~ lead.service_needed ~ ').' %}
+          <a href="{{ build_wa_url(lead.phone, _lead_wa) }}" target="_blank" rel="noopener"
+             class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100">💬 واتساب</a>
+          {% endif %}
         </div>
         <div class="text-sm text-slate-500 mt-1">{{ lead.service_needed }}</div>
       </div>

@@ -316,6 +316,18 @@ def upsert_booking_lead(company_id: int, uid: str, starts_at: datetime,
             body=f"تم تسجيل عميل محتمل من Google Bookings ({lead_num}) بموعد {when_lbl}",
             link_url=f"/leads/{encode_id(lead.id)}",
         )
+        if phone and phone != "غير محدد":
+            from app.models import WhatsAppIntegration
+            from app.services.whatsapp_sync import send_cloud_template
+            wcfg = WhatsAppIntegration.query.filter_by(company_id=company_id).first()
+            if wcfg and wcfg.is_cloud_enabled:
+                send_cloud_template(
+                    company_id,
+                    phone,
+                    wcfg.booking_template_name,
+                    lang_code=wcfg.booking_template_lang,
+                    body_params=[clean_name, when_lbl],
+                )
     except Exception:
         pass
     return "created"
